@@ -1,9 +1,14 @@
 /**
- * Vendon Automatischer Synchronisierungs-Planer
- * Dieser Service führt regelmäßige Synchronisierungen mit dem Vendon API durch
+ * Automatischer Synchronisierungs-Planer
+ * Dieser Service führt regelmäßige Synchronisierungen mit verschiedenen APIs durch:
+ * - Vendon API für Automaten und Transaktionsdaten
+ * - OpenWeatherMap API für Wetterprognosen
+ * - Feiertags-API für Feiertage und Schulferien
  */
 
 import { vendonSync } from './services/vendonSync';
+import { syncWeatherForecast } from './services/openWeatherService';
+import { syncMissingHolidays } from './services/holidayService';
 
 // Speichern der Timeout-IDs zur späteren Verwaltung
 const timers: Record<string, NodeJS.Timeout> = {};
@@ -16,7 +21,11 @@ const syncConfig = {
   },
   medium: {
     interval: 60 * 60 * 1000, // 1 Stunde
-    syncTypes: ['machines', 'products', 'events'] // Mittelschnelle Sync-Typen
+    syncTypes: ['machines', 'products', 'events', 'weather_forecast'] // Mittelschnelle Sync-Typen
+  },
+  slow: {
+    interval: 24 * 60 * 60 * 1000, // 24 Stunden
+    syncTypes: ['holidays'] // Langsame Sync-Typen, die nicht oft aktualisiert werden müssen
   }
 };
 
@@ -54,15 +63,32 @@ async function performSync(syncType: string): Promise<void> {
         yesterdayEvents.setDate(yesterdayEvents.getDate() - 1);
         result = await vendonSync.syncEvents(yesterdayEvents);
         break;
+      case 'weather_forecast':
+        // Synchronisiere Wetterprognosen für Bad Schandau
+        result = await syncWeatherForecast("Bad Schandau");
+        break;
+      case 'holidays':
+        // Synchronisiere fehlende Feiertage für die nächsten 2 Jahre
+        const currentYear = new Date().getFullYear();
+        result = await syncMissingHolidays(currentYear, currentYear + 1, undefined, true);
+        break;
       case 'all':
         result = await vendonSync.syncAll();
+        // Auch Wetter und Feiertage synchronisieren
+        await syncWeatherForecast("Bad Schandau");
+        const currentYearForAll = new Date().getFullYear();
+        await syncMissingHolidays(currentYearForAll, currentYearForAll + 1, undefined, true);
         break;
       default:
         console.error(`Unbekannter Sync-Typ: ${syncType}`);
         return;
     }
     
-    console.log(`Geplante Synchronisierung abgeschlossen für ${syncType}: ${result.status}`);
+    // Da verschiedene Sync-Operationen unterschiedliche Rückgabestrukturen haben
+    const statusText = result && typeof result === 'object' && 'status' in result 
+      ? result.status 
+      : 'completed';
+    console.log(`Geplante Synchronisierung abgeschlossen für ${syncType}: ${statusText}`);
   } catch (error) {
     console.error(`Fehler bei geplanter Synchronisierung für ${syncType}:`, error);
   }
@@ -84,6 +110,8 @@ function scheduleNextSync(syncType: string): void {
     interval = syncConfig.fast.interval;
   } else if (syncConfig.medium.syncTypes.includes(syncType)) {
     interval = syncConfig.medium.interval;
+  } else if (syncConfig.slow.syncTypes.includes(syncType)) {
+    interval = syncConfig.slow.interval;
   } else {
     // Fallback auf 1 Stunde
     interval = syncConfig.medium.interval;
@@ -117,6 +145,13 @@ export function startAutomaticSync(): void {
     console.log(`Plane initiale mittelschnelle Synchronisierung für: ${syncType}`);
     // Starte mit größerer Verzögerung
     timers[syncType] = setTimeout(() => performSync(syncType), 60000 + Math.random() * 60000);
+  });
+  
+  // Starte langsame Synchronisierungen
+  syncConfig.slow.syncTypes.forEach(syncType => {
+    console.log(`Plane initiale langsame Synchronisierung für: ${syncType}`);
+    // Starte mit noch größerer Verzögerung (2 Minuten + Zufallswert)
+    timers[syncType] = setTimeout(() => performSync(syncType), 120000 + Math.random() * 60000);
   });
 }
 

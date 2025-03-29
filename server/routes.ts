@@ -2,6 +2,8 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { vendonSync } from "./services/vendonSync";
+import { syncWeatherForecast } from './services/openWeatherService';
+import { syncMissingHolidays } from './services/holidayService';
 import { startAutomaticSync, stopAutomaticSync, getSchedulerStatus } from "./scheduler";
 import { z } from "zod";
 import { registerForecastRoutes } from "./routes/forecast";
@@ -79,6 +81,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           break;
         case "events":
           result = await vendonSync.syncEvents(startDateObj, endDateObj, batchSize);
+          break;
+        case "weather_forecast":
+          // Synchronisiere Wetterprognosen für Bad Schandau
+          result = await syncWeatherForecast("Bad Schandau");
+          break;
+        case "holidays":
+          // Synchronisiere Feiertage
+          const currentYear = new Date().getFullYear();
+          result = await syncMissingHolidays(currentYear - 1, currentYear + 1, undefined, true);
           break;
         case "all":
           result = await vendonSync.syncAll();

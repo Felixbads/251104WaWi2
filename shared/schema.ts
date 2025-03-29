@@ -504,6 +504,8 @@ export const holidays = pgTable("holidays", {
   day: integer("day").notNull(),
   // Wochentag (1-7, wobei 1=Montag)
   weekday: integer("weekday"),
+  // Name des Wochentags (z.B. "Montag", "Dienstag")
+  weekday_name: text("weekday_name"),
   // Woche des Jahres (1-52)
   week: integer("week"),
   // Weitere Metadaten im JSON-Format

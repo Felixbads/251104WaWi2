@@ -8,7 +8,7 @@
 import axios from 'axios';
 import { db } from '../db';
 import { holidays, dataCoverage, insertHolidaySchema, insertDataCoverageSchema } from '@shared/schema';
-import { eq, and, between, count } from 'drizzle-orm';
+import { eq, and, between, count, isNull } from 'drizzle-orm';
 import { format, parseISO, isValid, getDay, getWeek, addDays, subDays, isAfter } from 'date-fns';
 import { de } from 'date-fns/locale';
 
@@ -109,6 +109,7 @@ export async function saveHolidays(
         const month = parseInt(format(timestamp, 'M'), 10);
         const day = parseInt(format(timestamp, 'd'), 10);
         const weekday = getDay(timestamp) || 7; // 0-6 in JS, konvertiert zu 1-7 (Montag-Sonntag)
+        const weekdayName = format(timestamp, 'EEEE', { locale: de }); // Name des Wochentags (Montag, Dienstag, ...)
         const week = getWeek(timestamp, { locale: de }); // Woche im Jahr
         
         // Prüfen, ob der Datensatz bereits existiert
@@ -117,7 +118,7 @@ export async function saveHolidays(
             eq(holidays.date, dateFormatted),
             eq(holidays.name, holidayName),
             eq(holidays.country, "DE"),
-            eq(holidays.state, stateCode || null)
+            stateCode ? eq(holidays.state, stateCode) : isNull(holidays.state)
           )
         });
         
@@ -146,7 +147,7 @@ export async function saveHolidays(
         const holidayData = insertHolidaySchema.parse({
           date: dateFormatted,
           name: holidayName,
-          description: null,
+          description: `${weekdayName} - ${holidayName}`, // Wochentag in der Beschreibung hinzufügen
           type: holidayType,
           is_official: true,
           country: "DE",
@@ -157,9 +158,12 @@ export async function saveHolidays(
           month,
           day,
           weekday,
+          weekday_name: weekdayName, // Name des Wochentags speichern
           week,
           metadata: JSON.stringify({
-            hinweis: typeof holidayDateInfo === 'object' ? holidayDateInfo.hinweis : null
+            hinweis: typeof holidayDateInfo === 'object' ? holidayDateInfo.hinweis : null,
+            weekday: weekday,
+            weekdayName: weekdayName
           })
         });
         
@@ -478,6 +482,7 @@ export async function saveSchoolHolidays(
         const month = parseInt(format(currentDate, 'M'), 10);
         const day = parseInt(format(currentDate, 'd'), 10);
         const weekday = getDay(currentDate) || 7; // 0-6 in JS, konvertiert zu 1-7 (Montag-Sonntag)
+        const weekdayName = format(currentDate, 'EEEE', { locale: de }); // Name des Wochentags (Montag, Dienstag, ...)
         const week = getWeek(currentDate, { locale: de }); // Woche im Jahr
         const year = parseInt(format(currentDate, 'yyyy'), 10);
         
@@ -498,7 +503,7 @@ export async function saveSchoolHolidays(
           const holidayData = insertHolidaySchema.parse({
             date: dateFormatted,
             name: holiday.name,
-            description: holiday.comment || null,
+            description: `${weekdayName} - ${holiday.name}`, // Wochentag in der Beschreibung hinzufügen
             type: HOLIDAY_TYPE.SCHOOL,
             is_official: false,
             country: "DE",
@@ -509,12 +514,15 @@ export async function saveSchoolHolidays(
             month,
             day,
             weekday,
+            weekday_name: weekdayName, // Name des Wochentags speichern
             week,
             metadata: JSON.stringify({
               startDate: holiday.startDate,
               endDate: holiday.endDate,
               subdivisionCode: holiday.subdivisionCode,
-              holidayType: holiday.holidayType
+              holidayType: holiday.holidayType,
+              weekday: weekday,
+              weekdayName: weekdayName
             })
           });
           
