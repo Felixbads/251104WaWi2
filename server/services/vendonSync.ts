@@ -1,5 +1,11 @@
 import { storage } from "../storage";
-import { InsertSyncLog, InsertMachine, InsertTransaction, InsertEvent } from "@shared/schema";
+import { 
+  InsertSyncLog, 
+  InsertMachine, 
+  InsertTransaction, 
+  InsertEvent,
+  InsertProduct 
+} from "@shared/schema";
 import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
 
 /**
@@ -584,11 +590,51 @@ export class VendonSyncService {
         // Process transactions
         for (const transaction of transactions) {
           try {
-            // Create transaction object
+            // First, find the corresponding machine by vendonId
+            let machineId = null;
+            if (transaction.machine_id) {
+              const machine = await storage.getMachineByVendonId(transaction.machine_id.toString());
+              if (machine) {
+                machineId = machine.id;
+              } else {
+                console.warn(`Machine with vendonId ${transaction.machine_id} not found. Creating a minimal machine record.`);
+                
+                // If machine doesn't exist, we need to create a minimal machine record
+                const newMachine: InsertMachine = {
+                  vendonId: transaction.machine_id.toString(),
+                  machineName: transaction.machine_name || `Machine ${transaction.machine_id}`,
+                  lastSync: new Date(),
+                };
+                
+                const createdMachine = await storage.createMachine(newMachine);
+                machineId = createdMachine.id;
+              }
+            }
+
+            // Check if product exists
+            let productId = null;
+            if (transaction.product_id) {
+              const product = await storage.getProductByVendonId(transaction.product_id.toString());
+              if (product) {
+                productId = product.id;
+              } else if (transaction.product_name) {
+                // If product doesn't exist, create it with minimal data
+                const newProduct: InsertProduct = {
+                  vendonId: transaction.product_id.toString(),
+                  productName: transaction.product_name,
+                  price: transaction.price || 0
+                };
+                
+                const createdProduct = await storage.createProduct(newProduct);
+                productId = createdProduct.id;
+              }
+            }
+
+            // Create transaction object with resolved IDs
             const newTransaction: InsertTransaction = {
               vendonId: transaction.id,
-              machineId: transaction.machine_id,
-              productId: transaction.product_id,
+              machineId: machineId,
+              productId: productId,
               price: transaction.price,
               datetime: new Date(transaction.datetime),
               productName: transaction.product_name,
@@ -730,13 +776,34 @@ export class VendonSyncService {
         // Process events
         for (const event of events) {
           try {
-            // Create event object
+            // First, find the corresponding machine by vendonId
+            let machineId = null;
+            if (event.machine_id) {
+              const machine = await storage.getMachineByVendonId(event.machine_id.toString());
+              if (machine) {
+                machineId = machine.id;
+              } else {
+                console.warn(`Machine with vendonId ${event.machine_id} not found for event. Creating a minimal machine record.`);
+                
+                // If machine doesn't exist, we need to create a minimal machine record
+                const newMachine: InsertMachine = {
+                  vendonId: event.machine_id.toString(),
+                  machineName: event.machine_name || `Machine ${event.machine_id}`,
+                  lastSync: new Date(),
+                };
+                
+                const createdMachine = await storage.createMachine(newMachine);
+                machineId = createdMachine.id;
+              }
+            }
+
+            // Create event object with resolved machine ID
             const newEvent: InsertEvent = {
               vendonId: event.id,
               eventType: event.type,
               eventName: event.name,
               description: event.description,
-              machineId: event.machine_id,
+              machineId: machineId,
               machineName: event.machine_name,
               datetime: new Date(event.datetime),
               status: event.status,
