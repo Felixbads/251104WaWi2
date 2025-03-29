@@ -61,6 +61,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         case "machines":
           result = await vendonSync.syncMachines();
           break;
+        case "products":
+          result = await vendonSync.syncProducts();
+          break;
         case "transactions":
           result = await vendonSync.syncTransactions(startDateObj, endDateObj, batchSize);
           break;
@@ -137,6 +140,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching transactions by date range:", error);
       res.status(500).json({ 
         error: "Failed to fetch transactions by date range", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
+  // Get products
+  app.get(`${API_PREFIX}/products`, async (req: Request, res: Response) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 25;
+      const products = await storage.getProducts(limit);
+      res.json(products);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch products", 
         details: error instanceof Error ? error.message : String(error) 
       });
     }

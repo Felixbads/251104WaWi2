@@ -4,7 +4,9 @@ import {
   InsertMachine, 
   InsertTransaction, 
   InsertEvent,
-  InsertProduct 
+  InsertProduct,
+  InsertRefill,
+  InsertRefillDetail 
 } from "@shared/schema";
 import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
 
@@ -165,10 +167,55 @@ class VendonAPI {
 
   /**
    * Ruft alle Produkte von der Vendon API ab
+   * Da es keinen direkten Produkte-Endpunkt gibt, kombinieren wir Daten aus verschiedenen Quellen
    */
   async getProducts() {
-    const result = await this.makeRequest<any[]>("stock");
-    return result || [];
+    // Versuche zuerst, die Produkte aus dem Stock-Endpunkt zu holen
+    const stockResult = await this.makeRequest<any[]>("stock");
+    
+    if (stockResult && stockResult.length > 0) {
+      console.log(`${stockResult.length} Produkte aus dem Stock-Endpunkt abgerufen`);
+      return stockResult;
+    }
+    
+    console.log("Keine Produkte im Stock-Endpunkt gefunden, versuche Alternative...");
+    
+    // Alternative: Produkte aus Transaktionen extrahieren
+    // Wir holen die neuesten Transaktionen und extrahieren einzigartige Produkte
+    const transactions = await this.getTransactions(
+      new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 30 Tage zurück
+      new Date(),
+      1,
+      1000
+    );
+    
+    if (transactions.data && transactions.data.length > 0) {
+      // Eindeutige Produkt-IDs aus Transaktionen extrahieren
+      const uniqueProducts = new Map();
+      
+      for (const transaction of transactions.data) {
+        if (transaction.product_id && transaction.product_name) {
+          // Verwende product_id als Schlüssel, um Duplikate zu vermeiden
+          if (!uniqueProducts.has(transaction.product_id)) {
+            uniqueProducts.set(transaction.product_id, {
+              id: transaction.product_id,
+              name: transaction.product_name,
+              price: transaction.price || 0,
+              // Füge weitere Felder hinzu, wenn verfügbar
+              type: transaction.product_type || 'unknown',
+              source: 'transactions'
+            });
+          }
+        }
+      }
+      
+      const extractedProducts = Array.from(uniqueProducts.values());
+      console.log(`${extractedProducts.length} einzigartige Produkte aus Transaktionen extrahiert`);
+      return extractedProducts;
+    }
+    
+    // Wenn auch dieser Versuch fehlschlägt, geben wir eine leere Liste zurück
+    return [];
   }
 
   /**
@@ -304,10 +351,10 @@ class VendonAPI {
     try {
       const [startTimestamp, endTimestamp] = this.prepareTimestamps(startDate, endDate);
       
-      // Für Events verwendet die API das Parameterformat from_timestamp und to_timestamp (ohne Millisekunden)
+      // Für Events verwendet die API das Parameterformat from und to
       const params: Record<string, any> = {
-        from_timestamp: startTimestamp,
-        to_timestamp: endTimestamp,
+        from: startTimestamp, // Sekunden für den Events-Endpunkt
+        to: endTimestamp,     // Sekunden für den Events-Endpunkt
         offset: (page - 1) * limit,
         limit
       };
@@ -352,8 +399,8 @@ class VendonAPI {
       const [startTimestamp, endTimestamp] = this.prepareTimestamps(startDate, endDate);
       
       const params: Record<string, any> = {
-        from_timestamp: startTimestamp,
-        to_timestamp: endTimestamp,
+        from: startTimestamp, // Verwende 'from' statt 'from_timestamp'
+        to: endTimestamp,     // Verwende 'to' statt 'to_timestamp'
         offset: (page - 1) * limit,
         limit
       };
@@ -1084,10 +1131,44 @@ export class VendonSyncService {
             }
             
             // Convert timestamp to JavaScript Date
-            // Note: Vendon API returns refill timestamps in milliseconds
-            const timestamp = typeof refill.datetime === 'number' 
-              ? new Date(refill.datetime) 
-              : new Date(parseInt(refill.datetime) * 1000);
+            // Zeitstempel in Date-Objekt umwandeln - API liefert entweder Sekunden oder Millisekunden
+            let timestamp: Date;
+            if (typeof refill.datetime === 'number') {
+              // Wenn der Timestamp bereits eine Zahl ist
+              if (refill.datetime > 1577836800000) { // > 01.01.2020 in Millisekunden
+                // Timestamp ist in Millisekunden
+                timestamp = new Date(refill.datetime);
+              } else {
+                // Timestamp ist in Sekunden
+                timestamp = new Date(refill.datetime * 1000);
+              }
+            } else if (typeof refill.datetime === 'string') {
+              // Versuche, den String als Timestamp zu parsen
+              const parsedTimestamp = parseInt(refill.datetime, 10);
+              if (!isNaN(parsedTimestamp)) {
+                if (parsedTimestamp > 1577836800000) { // > 01.01.2020 in Millisekunden
+                  // Timestamp ist in Millisekunden
+                  timestamp = new Date(parsedTimestamp);
+                } else {
+                  // Timestamp ist in Sekunden
+                  timestamp = new Date(parsedTimestamp * 1000);
+                }
+              } else {
+                // Versuche, es als ISO-Datum zu parsen
+                timestamp = new Date(refill.datetime);
+                if (isNaN(timestamp.getTime())) {
+                  // Notfallösung: Verwende die aktuelle Zeit
+                  console.error(`Ungültiges Datumsformat in Refill ${refill.id}: ${refill.datetime}`);
+                  timestamp = new Date();
+                }
+              }
+            } else {
+              // Wenn datetime nicht vorhanden oder undefiniert ist
+              console.error(`Fehlendes Datum in Refill ${refill.id}`);
+              timestamp = new Date();
+            }
+            
+            console.log(`Refill ${refill.id}: Originaldatum ${refill.datetime} → Konvertiert zu ${timestamp.toISOString()}`);
             
             // Prepare refill data
             const refillData = {
@@ -1222,10 +1303,121 @@ export class VendonSyncService {
     }
   }
 
+  // Synchronize products from all available sources
+  async syncProducts(): Promise<{ syncLogId: number; status: string; message: string }> {
+    // Start sync log
+    const syncLog: InsertSyncLog = {
+      syncType: 'products',
+      startDate: new Date(),
+      syncStatus: 'running',
+    };
+
+    const logEntry = await storage.createSyncLog(syncLog);
+    const syncLogId = logEntry.id;
+
+    try {
+      const startTime = Date.now();
+      
+      // Fetch products from Vendon API
+      const products = await this.api.getProducts();
+      
+      // Process results
+      let itemsSaved = 0;
+      let itemsUpdated = 0;
+      let duplicates = 0;
+      let errors = 0;
+
+      for (const product of products) {
+        try {
+          // Verwende entweder id oder product_id als vendonId
+          const vendonId = (product.id || product.product_id || '').toString();
+          const productName = product.name || product.product_name || 'Unbekanntes Produkt';
+          
+          if (!vendonId) {
+            console.warn(`Produkt ohne ID gefunden: ${productName}. Überspringe.`);
+            continue;
+          }
+          
+          // Check if product already exists
+          const existing = await storage.getProductByVendonId(vendonId);
+          
+          if (existing) {
+            // Update product
+            await storage.updateProduct(existing.id, {
+              productName: productName,
+              price: product.price || 0,
+              // Weitere verfügbare Felder
+              status: product.status || 'active',
+              description: product.description || null,
+              category: product.category || null,
+              additionalData: JSON.stringify(product),
+            });
+            itemsUpdated++;
+          } else {
+            // Create new product
+            const newProduct: InsertProduct = {
+              vendonId: vendonId,
+              productName: productName,
+              price: product.price || 0,
+              // Weitere verfügbare Felder
+              status: product.status || 'active',
+              description: product.description || null,
+              category: product.category || null,
+              additionalData: JSON.stringify(product),
+            };
+            await storage.createProduct(newProduct);
+            itemsSaved++;
+          }
+        } catch (error) {
+          errors++;
+          console.error(`Error processing product ${product.id || product.product_id}:`, error);
+        }
+      }
+
+      // Update sync log with results
+      const endTime = Date.now();
+      const durationSeconds = (endTime - startTime) / 1000;
+      
+      await storage.updateSyncLog(syncLogId, {
+        endDate: new Date(),
+        itemsFound: products.length,
+        itemsSaved,
+        itemsUpdated,
+        duplicates,
+        errors,
+        durationSeconds,
+        syncStatus: 'completed',
+      });
+
+      return {
+        syncLogId,
+        status: 'success',
+        message: `Synchronized ${products.length} products: ${itemsSaved} saved, ${itemsUpdated} updated, ${errors} errors`,
+      };
+    } catch (error) {
+      // Log error and update sync log
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Product synchronization error:', error);
+      
+      await storage.updateSyncLog(syncLogId, {
+        endDate: new Date(),
+        syncStatus: 'error',
+        errorMessage,
+      });
+
+      return {
+        syncLogId,
+        status: 'error',
+        message: `Product synchronization failed: ${errorMessage}`,
+      };
+    }
+  }
+
   // Run a full synchronization of all data types
   async syncAll(): Promise<{ status: string; message: string; results: any }> {
     const results = {
       machines: await this.syncMachines(),
+      products: await this.syncProducts(),
       transactions: await this.syncTransactions(),
       refills: await this.syncRefills(),
       events: await this.syncEvents(),
@@ -1246,18 +1438,21 @@ export class VendonSyncService {
   // Get sync status summary
   async getSyncStatus(): Promise<{
     machines: { status: string; lastSync: Date | null; count: number };
+    products: { status: string; lastSync: Date | null; count: number };
     transactions: { status: string; lastSync: Date | null; count: number; latest: Date | null };
     refills: { status: string; lastSync: Date | null; count: number };
     events: { status: string; lastSync: Date | null; count: number };
   }> {
     // Get latest sync logs
     const machinesSyncLog = await storage.getLatestSyncLog('machines');
+    const productsSyncLog = await storage.getLatestSyncLog('products');
     const transactionsSyncLog = await storage.getLatestSyncLog('transactions');
     const refillsSyncLog = await storage.getLatestSyncLog('refills');
     const eventsSyncLog = await storage.getLatestSyncLog('events');
 
     // Count items in database
     const machines = await storage.getMachines(0); // 0 means no limit
+    const products = await storage.getProducts(0); // 0 means no limit
     const transactions = await storage.getTransactions(1); // Just get the latest transaction
     const refills = await storage.getRefills(0); // 0 means no limit
     const events = await storage.getEvents(0); // 0 means no limit
@@ -1267,6 +1462,11 @@ export class VendonSyncService {
         status: machinesSyncLog?.syncStatus || 'never',
         lastSync: machinesSyncLog?.endDate || null,
         count: machines.length,
+      },
+      products: {
+        status: productsSyncLog?.syncStatus || 'never',
+        lastSync: productsSyncLog?.endDate || null,
+        count: products.length,
       },
       transactions: {
         status: transactionsSyncLog?.syncStatus || 'never',

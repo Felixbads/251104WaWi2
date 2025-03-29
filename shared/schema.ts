@@ -78,6 +78,10 @@ export const products = pgTable("products", {
   category: text("category"),
   description: text("description"),
   status: text("status"),
+  // Weitere Felder für Produktdetails
+  sku: text("sku"),
+  barcode: text("barcode"),
+  additionalData: text("additional_data"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
