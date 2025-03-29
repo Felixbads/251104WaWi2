@@ -1008,7 +1008,14 @@ export class VendonSyncService {
             let productId = null;
             let productName = null;
             
-            // Versuche zuerst, aus den API-Daten zu extrahieren
+            // WICHTIG: Bei der Vendon API kommt der Produktname primär direkt im 'name'-Feld
+            // Wir priorisieren dies als erste Quelle
+            if (transaction.name) {
+              productName = transaction.name;
+              console.log(`Produktname direkt aus transaction.name: "${productName}"`);
+            }
+            
+            // Versuche, die Produkt-ID zu extrahieren
             if (transaction.product_id) {
               productId = transaction.product_id.toString();
             } else if (transaction.product && transaction.product.id) {
@@ -1019,19 +1026,24 @@ export class VendonSyncService {
               productId = extraDataObj.product.id.toString();
             }
             
-            // Versuche, den Produktnamen zu finden
-            if (transaction.product_name) {
-              productName = transaction.product_name;
-            } else if (transaction.product && transaction.product.name) {
-              productName = transaction.product.name;
-            } else if (transaction.name) {
-              productName = transaction.name;
-            } else if (extraDataObj.product_name) {
-              productName = extraDataObj.product_name;
-            } else if (extraDataObj.product && extraDataObj.product.name) {
-              productName = extraDataObj.product.name;
-            } else if (extraDataObj.name) {
-              productName = extraDataObj.name;
+            // Falls wir noch keinen Namen haben, versuche andere Felder
+            if (!productName) {
+              if (transaction.product_name) {
+                productName = transaction.product_name;
+                console.log(`Produktname aus transaction.product_name: "${productName}"`);
+              } else if (transaction.product && transaction.product.name) {
+                productName = transaction.product.name;
+                console.log(`Produktname aus transaction.product.name: "${productName}"`);
+              } else if (extraDataObj.product_name) {
+                productName = extraDataObj.product_name;
+                console.log(`Produktname aus extraDataObj.product_name: "${productName}"`);
+              } else if (extraDataObj.product && extraDataObj.product.name) {
+                productName = extraDataObj.product.name;
+                console.log(`Produktname aus extraDataObj.product.name: "${productName}"`);
+              } else if (extraDataObj.name) {
+                productName = extraDataObj.name;
+                console.log(`Produktname aus extraDataObj.name: "${productName}"`);
+              }
             }
             
             // Hole detaillierte Produktinformationen über den stock_id Endpunkt, wenn vorhanden
