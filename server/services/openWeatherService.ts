@@ -18,9 +18,9 @@ import { format, parseISO, isValid, subDays, addDays, isBefore, isAfter } from '
 const API_KEY = process.env.OPENWEATHER_API_KEY;
 const BASE_URL = 'https://api.openweathermap.org/data/3.0/onecall';
 
-// Default-Koordinaten für Dresden
-const DEFAULT_LAT = 51.0504; // Dresden
-const DEFAULT_LON = 13.7373; // Dresden
+// Default-Koordinaten für Bad Schandau
+const DEFAULT_LAT = 50.9196; // Bad Schandau
+const DEFAULT_LON = 14.1524; // Bad Schandau
 
 // Wetter-Typen für die Datenabdeckungs-Tabelle
 export const WEATHER_TYPE = {
@@ -522,12 +522,12 @@ async function updateCoverageForType(dataType: string): Promise<void> {
     // Statistiken abrufen
     const [earliestRecord] = await db.select({ date: dateField })
       .from(table)
-      .orderBy(({ asc }) => [asc(dateField)])
+      .orderBy(sql`${dateField} ASC`)
       .limit(1);
 
     const [latestRecord] = await db.select({ date: dateField })
       .from(table)
-      .orderBy(({ desc }) => [desc(dateField)])
+      .orderBy(sql`${dateField} DESC`)
       .limit(1);
 
     const [countResult] = await db.select({ count: sql<number>`count(*)` })
@@ -707,17 +707,99 @@ export async function getMissingHistoricalWeatherDates(
 }
 
 /**
+ * Berechnet die Sonnenlichtdauer (Tageslicht) in Stunden
+ * 
+ * @param sunrise Sonnenaufgang (UNIX-Timestamp)
+ * @param sunset Sonnenuntergang (UNIX-Timestamp)
+ * @returns Sonnenlichtdauer in Stunden
+ */
+export function calculateDaylightDuration(sunrise: number, sunset: number): number {
+  if (!sunrise || !sunset) return 0;
+  
+  // Berechne die Differenz in Sekunden
+  const daylightSeconds = sunset - sunrise;
+  
+  // Umrechnung in Stunden
+  return daylightSeconds / 3600;
+}
+
+/**
+ * Abrufen von historischen Wetterdaten seit 01.01.2023 mit API-Limitierung
+ * 
+ * @param batchSize Anzahl der Tage pro Batch (Default: 20 Tage, um unter dem täglichen Limit zu bleiben)
+ * @returns Synchronisationsergebnisse
+ */
+export async function syncHistoricalWeatherFrom2023(
+  batchSize: number = 20
+): Promise<{ status: string, message: string, processedDays: number, totalMissingDays: number }> {
+  try {
+    // Startdatum: 01.01.2023
+    const startDate = new Date(2023, 0, 1); // JavaScript Monate sind 0-basiert, also 0 = Januar
+    const endDate = new Date(); // Heute
+    
+    console.log(`Starte umfangreiche historische Wettersynchronisation von ${format(startDate, 'yyyy-MM-dd')} bis ${format(endDate, 'yyyy-MM-dd')}`);
+    
+    // Fehlende Daten für den gesamten Zeitraum ermitteln
+    const missingDates = await getMissingHistoricalWeatherDates(startDate, endDate);
+    const totalMissingDays = missingDates.length;
+    
+    console.log(`Insgesamt ${totalMissingDays} fehlende Tage gefunden.`);
+    
+    if (totalMissingDays === 0) {
+      return { 
+        status: 'success', 
+        message: 'Keine fehlenden historischen Wetterdaten gefunden.', 
+        processedDays: 0,
+        totalMissingDays: 0
+      };
+    }
+    
+    // Die Anzahl der Tage, die in diesem Durchlauf verarbeitet werden sollen, begrenzen
+    const datesToProcess = missingDates.slice(0, batchSize);
+    
+    console.log(`Verarbeite ${datesToProcess.length} Tage in diesem Durchlauf, um das API-Limit nicht zu überschreiten.`);
+    
+    // Verarbeite jeden Tag einzeln
+    const results = [];
+    
+    for (const date of datesToProcess) {
+      console.log(`Synchronisiere historische Wetterdaten für ${date}`);
+      const result = await syncHistoricalWeather(date);
+      results.push({ date, result });
+      
+      // Kurze Pause zwischen den API-Anfragen, um die Rate zu begrenzen
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    
+    return {
+      status: 'success',
+      message: `Historische Wetterdaten für ${datesToProcess.length} Tage erfolgreich synchronisiert. Noch ${totalMissingDays - datesToProcess.length} Tage ausstehend.`,
+      processedDays: datesToProcess.length,
+      totalMissingDays
+    };
+  } catch (error) {
+    console.error('Fehler bei der historischen Wetterdaten-Synchronisation seit 2023:', error);
+    return {
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Unbekannter Fehler',
+      processedDays: 0,
+      totalMissingDays: 0
+    };
+  }
+}
+
+/**
  * Synchronisiert fehlende historische Wetterdaten für einen Zeitraum
  * 
  * @param startDate Das Startdatum
  * @param endDate Das Enddatum (Standard: heute)
- * @param maxDays Maximale Anzahl der zu synchronisierenden Tage (Default: 30)
+ * @param maxDays Maximale Anzahl der zu synchronisierenden Tage (Default: 20)
  * @returns Synchronisationsergebnisse pro fehlendem Datum
  */
 export async function syncMissingHistoricalWeather(
   startDate: string | Date,
   endDate: string | Date = new Date(),
-  maxDays: number = 30,
+  maxDays: number = 20,
   lat: number = DEFAULT_LAT,
   lon: number = DEFAULT_LON
 ): Promise<Array<{ date: string, result: any }>> {
@@ -741,6 +823,9 @@ export async function syncMissingHistoricalWeather(
       console.log(`Synchronisiere historische Wetterdaten für ${date}`);
       const result = await syncHistoricalWeather(date, lat, lon);
       results.push({ date, result });
+      
+      // Kurze Pause zwischen den API-Anfragen, um die Rate zu begrenzen
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
     
     return results;

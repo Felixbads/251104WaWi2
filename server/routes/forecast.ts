@@ -445,6 +445,39 @@ export function registerForecastRoutes(app: Express): void {
       });
     }
   });
+  
+  // Historische Wetterdaten seit 01.01.2023 synchronisieren (mit API-Limitierung)
+  app.post(`${API_PREFIX}/weather/historical/sync-from-2023`, async (req: Request, res: Response) => {
+    try {
+      console.log('Starte Synchronisation historischer Wetterdaten seit 01.01.2023 mit OpenWeather');
+      
+      // Überprüfe, ob API-Schlüssel vorhanden ist
+      if (!process.env.OPENWEATHER_API_KEY) {
+        return res.status(500).json({
+          status: 'error',
+          message: 'OpenWeather API-Schlüssel fehlt. Bitte fügen Sie ihn zu den Umgebungsvariablen hinzu.'
+        });
+      }
+      
+      const { batchSize } = req.body;
+      
+      // Starte Synchronisierung mit API-Limitierung
+      const result = await openWeatherService.syncHistoricalWeatherFrom2023(batchSize || 20);
+      
+      res.status(200).json({
+        status: result.status,
+        message: result.message,
+        processedDays: result.processedDays,
+        totalMissingDays: result.totalMissingDays
+      });
+    } catch (error) {
+      console.error('Fehler bei der historischen Wetterdaten-Synchronisation seit 2023:', error);
+      res.status(500).json({
+        status: 'error',
+        message: `Fehler bei der historischen Wetterdaten-Synchronisation seit 2023: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`
+      });
+    }
+  });
 
   // Datenabdeckung prüfen
   app.get(`${API_PREFIX}/weather/missing`, async (req: Request, res: Response) => {
