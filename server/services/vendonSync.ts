@@ -432,6 +432,120 @@ export class VendonSyncService {
   private formatDate(date: Date): string {
     return date.toISOString();
   }
+  
+  /**
+   * Synchronisiert historische Transaktionen seit Januar 2023
+   * Diese Methode ruft Transaktionen in Monatsblöcken ab, um die Datenmenge pro API-Aufruf zu begrenzen
+   */
+  async syncHistoricalTransactions(
+    batchSize: number = 100,
+    maxTransactionsPerMonth: number = 10000
+  ): Promise<{ syncLogId: number; status: string; message: string }> {
+    // Erstelle einen Sync-Log-Eintrag
+    const syncLog: InsertSyncLog = {
+      syncType: 'historical_transactions',
+      startDate: new Date(2023, 0, 1), // 1. Januar 2023
+      endDate: new Date(),
+      syncStatus: 'running',
+    };
+    
+    const logEntry = await storage.createSyncLog(syncLog);
+    const syncLogId = logEntry.id;
+    
+    try {
+      console.log(`Starte Synchronisierung historischer Transaktionen seit Januar 2023`);
+      const startTime = Date.now();
+      
+      // Startdatum: 1. Januar 2023
+      const startDate = new Date(2023, 0, 1);
+      
+      // Enddatum: Heute
+      const endDate = new Date();
+      
+      // Zähler für die Gesamtstatistik
+      let totalImported = 0;
+      let totalDuplicates = 0;
+      let totalErrors = 0;
+      
+      // Für jeden Monat von Januar 2023 bis zum aktuellen Monat
+      for (let year = startDate.getFullYear(); year <= endDate.getFullYear(); year++) {
+        // Startmonat für dieses Jahr (für 2023 ist es Januar, für andere Jahre ist es der aktuelle Monat)
+        const startMonth = year === startDate.getFullYear() ? startDate.getMonth() : 0;
+        
+        // Endmonat für dieses Jahr (für das aktuelle Jahr ist es der aktuelle Monat, für andere Jahre ist es Dezember)
+        const endMonth = year === endDate.getFullYear() ? endDate.getMonth() : 11;
+        
+        for (let month = startMonth; month <= endMonth; month++) {
+          // Startdatum für diesen Monat
+          const monthStartDate = new Date(year, month, 1);
+          
+          // Enddatum für diesen Monat (erster Tag des nächsten Monats minus 1 ms)
+          const monthEndDate = new Date(year, month + 1, 1);
+          monthEndDate.setMilliseconds(-1);
+          
+          console.log(`Synchronisiere Transaktionen für ${monthStartDate.toLocaleDateString()} bis ${monthEndDate.toLocaleDateString()}`);
+          
+          // Monatliche Synchronisation durchführen
+          const result = await this.syncTransactions(monthStartDate, monthEndDate, batchSize, maxTransactionsPerMonth);
+          
+          // Statistiken extrahieren
+          const syncLog = await storage.getSyncLog(result.syncLogId);
+          
+          if (syncLog) {
+            totalImported += syncLog.itemsSaved || 0;
+            totalDuplicates += syncLog.duplicates || 0;
+            totalErrors += syncLog.errors || 0;
+            
+            console.log(`Monat ${year}-${month+1} abgeschlossen: ${syncLog.itemsSaved} neue Transaktionen, ${syncLog.duplicates} Duplikate, ${syncLog.errors} Fehler`);
+          }
+          
+          // Aktualisiere den Haupt-Sync-Log mit dem aktuellen Fortschritt
+          await storage.updateSyncLog(syncLogId, {
+            itemsFound: totalImported + totalDuplicates,
+            itemsSaved: totalImported,
+            duplicates: totalDuplicates,
+            errors: totalErrors
+          });
+        }
+      }
+      
+      // Berechne die Gesamtdauer
+      const endTime = Date.now();
+      const durationSeconds = (endTime - startTime) / 1000;
+      
+      // Aktualisiere den Sync-Log mit dem Endergebnis
+      await storage.updateSyncLog(syncLogId, {
+        endDate: new Date(),
+        itemsFound: totalImported + totalDuplicates,
+        itemsSaved: totalImported,
+        duplicates: totalDuplicates,
+        errors: totalErrors,
+        durationSeconds,
+        syncStatus: 'completed'
+      });
+      
+      return {
+        syncLogId,
+        status: 'success',
+        message: `Historische Transaktionssynchronisation abgeschlossen: ${totalImported} neue Transaktionen, ${totalDuplicates} Duplikate, ${totalErrors} Fehler`
+      };
+    } catch (error) {
+      console.error("Fehler bei der historischen Transaktionssynchronisation:", error);
+      
+      // Aktualisiere den Sync-Log mit dem Fehler
+      await storage.updateSyncLog(syncLogId, {
+        endDate: new Date(),
+        syncStatus: 'error',
+        errorMessage: error instanceof Error ? error.message : String(error)
+      });
+      
+      return {
+        syncLogId,
+        status: 'error',
+        message: `Historische Transaktionssynchronisation fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+  }
 
   /**
    * Synchronisiert Maschinen/Automaten
@@ -484,11 +598,11 @@ export class VendonSyncService {
           machineName: machine.name || `Maschine ${vendonId}`,
           serialNumber: machine.serial_number || null,
           status: machine.status || 'unknown',
-          machineModel: machine.model || null,
+          model: machine.model || null, // Korrigiert von machineModel zu model
           machineType: machine.type || null,
           description: machine.description || null,
           locationName: machine.location?.name || null,
-          locationId: machine.location?.id ? machine.location.id.toString() : null,
+          locationId: machine.location?.id ? parseInt(machine.location.id) : null, // Konvertierung zu Integer
           locationAddress: machine.location?.address || null,
           lastPing: machine.last_ping ? new Date(machine.last_ping * 1000) : null,
           lastVend: machine.last_vend ? new Date(machine.last_vend * 1000) : null,
@@ -703,15 +817,21 @@ export class VendonSyncService {
             };
             
             // Prüfe, ob die Transaktion bereits existiert
-            const existingTransaction = await storage.getTransactionByVendonId(newTransaction.vendonId);
-            
-            if (existingTransaction) {
-              // Überspringe Duplikate
-              duplicates++;
+            // Stellen Sie sicher, dass vendonId nicht undefined ist
+            if (newTransaction.vendonId) {
+              const existingTransaction = await storage.getTransactionByVendonId(newTransaction.vendonId);
+              
+              if (existingTransaction) {
+                // Überspringe Duplikate
+                duplicates++;
+              } else {
+                // Speichere neue Transaktion
+                await storage.createTransaction(newTransaction);
+                itemsSaved++;
+              }
             } else {
-              // Speichere neue Transaktion
-              await storage.createTransaction(newTransaction);
-              itemsSaved++;
+              console.error("Transaktion konnte nicht gespeichert werden, weil die vendonId fehlt");
+              errors++;
             }
           } catch (transactionError) {
             console.error(`Fehler bei der Verarbeitung von Transaktion:`, transactionError);

@@ -58,6 +58,11 @@ export const machines = pgTable("machines", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
   locationId: integer("location_id").references(() => locations.id),
+  locationName: text("location_name"),
+  locationAddress: text("location_address"),
+  lastPing: timestamp("last_ping"),
+  lastVend: timestamp("last_vend"),
+  extraData: text("extra_data"),
 });
 
 export const insertMachineSchema = createInsertSchema(machines).omit({
@@ -69,7 +74,7 @@ export const insertMachineSchema = createInsertSchema(machines).omit({
 export type InsertMachine = z.infer<typeof insertMachineSchema>;
 export type Machine = typeof machines.$inferSelect;
 
-// Products table
+// Products table - Schema aktualisiert für text vendonId
 export const products = pgTable("products", {
   id: serial("id").primaryKey(),
   vendonId: text("vendon_id").notNull(),
@@ -123,7 +128,7 @@ export const transactions = pgTable("transactions", {
   id: serial("id").primaryKey(),
   vendonId: text("vendon_id"),
   machineId: integer("machine_id").references(() => machines.id),
-  productId: integer("product_id").references(() => products.id),
+  productId: text("product_id"),
   price: real("price"),
   priceVat: real("price_vat"),
   priceWoVat: real("price_wo_vat"),
@@ -150,9 +155,15 @@ export const transactions = pgTable("transactions", {
   metadata: text("metadata"),
   extraData: text("extra_data"),
   locationId: integer("location_id").references(() => locations.id),
+  locationName: text("location_name"),
+  coinCredit: real("coin_credit").default(0),
+  cardCredit: real("card_credit").default(0),
+  cashlessCredit: real("cashless_credit").default(0),
+  isTest: boolean("is_test").default(false),
+  amount: integer("amount").default(1),
 }, (table) => {
   return {
-    vendonIdx: unique().on(table.vendonId, table.machineId, table.productId, table.datetime),
+    vendonIdx: unique().on(table.vendonId, table.machineId, table.datetime),
   };
 });
 
@@ -212,7 +223,7 @@ export type Refill = typeof refills.$inferSelect;
 export const refillDetails = pgTable("refill_details", {
   id: serial("id").primaryKey(),
   refillId: integer("refill_id").references(() => refills.id).notNull(),
-  productId: integer("product_id").references(() => products.id),
+  productId: text("product_id"), // Text statt Integer, kein direkter Verweis auf products.id mehr
   productName: text("product_name").default(''),
   quantity: integer("quantity").default(0),
   price: real("price").default(0),
@@ -261,6 +272,8 @@ export const events = pgTable("events", {
   resolvedAt: timestamp("resolved_at"),
   severity: text("severity"),
   extraData: text("extra_data"),
+  locationId: integer("location_id").references(() => locations.id),
+  locationName: text("location_name"),
 }, (table) => {
   return {
     vendonIdx: unique().on(table.vendonId, table.machineId, table.datetime),
@@ -313,10 +326,6 @@ export const transactionsRelations = relations(transactions, ({ one }) => ({
     fields: [transactions.machineId],
     references: [machines.id],
   }),
-  product: one(products, {
-    fields: [transactions.productId],
-    references: [products.id],
-  }),
   location: one(locations, {
     fields: [transactions.locationId],
     references: [locations.id],
@@ -340,15 +349,16 @@ export const refillDetailsRelations = relations(refillDetails, ({ one }) => ({
     fields: [refillDetails.refillId],
     references: [refills.id],
   }),
-  product: one(products, {
-    fields: [refillDetails.productId],
-    references: [products.id],
-  }),
+  // Entfernt Relation zu product, da productId jetzt ein Text ist und kein direkter Verweis auf products.id mehr existiert
 }));
 
 export const eventsRelations = relations(events, ({ one }) => ({
   machine: one(machines, {
     fields: [events.machineId],
     references: [machines.id],
+  }),
+  location: one(locations, {
+    fields: [events.locationId],
+    references: [locations.id],
   }),
 }));

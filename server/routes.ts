@@ -67,6 +67,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         case "transactions":
           result = await vendonSync.syncTransactions(startDateObj, endDateObj, batchSize);
           break;
+        case "historical_transactions":
+          // Ruft historische Transaktionen seit Januar 2023 in Monatsblöcken ab
+          result = await vendonSync.syncHistoricalTransactions(batchSize, 10000);
+          break;
         case "refills":
           // Rufe direkt den neuen, verbesserten syncRefills-Code auf, der eine simulierte Erfolgsmeldung zurückgibt
           result = await vendonSync.syncRefills(startDateObj, endDateObj, batchSize);
