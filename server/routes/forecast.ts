@@ -6,6 +6,7 @@ import { Express, Request, Response } from "express";
 import * as forecastService from "../services/forecastService";
 import * as meteostatService from "../services/meteostatService";
 import * as holidayService from "../services/holidayService";
+import * as openWeatherService from "../services/openWeatherService";
 import { z } from "zod";
 
 // API-Prefix
@@ -272,7 +273,7 @@ export function registerForecastRoutes(app: Express): void {
    * Wetterdaten-Routen
    */
 
-  // Wetterdaten synchronisieren
+  // Wetterdaten synchronisieren (Meteostat)
   app.post(`${API_PREFIX}/weather/sync`, async (req: Request, res: Response) => {
     try {
       const validatedData = syncWeatherDataSchema.parse(req.body);
@@ -289,8 +290,159 @@ export function registerForecastRoutes(app: Express): void {
         return res.status(400).json({ error: "Ungültige Daten", details: error.errors });
       }
       
-      console.error("Fehler bei der Wettersynchronisation:", error);
+      console.error("Fehler bei der Wettersynchronisation mit Meteostat:", error);
       res.status(500).json({ error: "Interner Serverfehler" });
+    }
+  });
+  
+  // OpenWeather Wettervorhersage synchronisieren
+  app.post(`${API_PREFIX}/weather/forecast/sync`, async (req: Request, res: Response) => {
+    try {
+      console.log('Starte Wettervorhersage-Synchronisation mit OpenWeather');
+      
+      // Überprüfe, ob API-Schlüssel vorhanden ist
+      if (!process.env.OPENWEATHER_API_KEY) {
+        return res.status(500).json({
+          status: 'error',
+          message: 'OpenWeather API-Schlüssel fehlt. Bitte fügen Sie ihn zu den Umgebungsvariablen hinzu.'
+        });
+      }
+      
+      // Erlaube Überschreiben der Standard-Koordinaten (Dresden)
+      const { lat, lon } = req.body;
+      
+      // Starte Synchronisierung
+      const result = await openWeatherService.syncWeatherForecast(lat, lon);
+      
+      res.status(200).json({
+        status: result.status,
+        message: result.message || 'Wettervorhersage-Synchronisation abgeschlossen',
+        stats: {
+          saved: result.saved,
+          errors: result.errors,
+          duplicates: result.duplicates
+        }
+      });
+    } catch (error) {
+      console.error('Fehler bei der Wettervorhersage-Synchronisation mit OpenWeather:', error);
+      res.status(500).json({
+        status: 'error',
+        message: `Fehler bei der Wettervorhersage-Synchronisation: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`
+      });
+    }
+  });
+  
+  // OpenWeather historische Wetterdaten synchronisieren
+  app.post(`${API_PREFIX}/weather/historical/sync`, async (req: Request, res: Response) => {
+    try {
+      console.log('Starte historische Wetterdaten-Synchronisation mit OpenWeather');
+      
+      // Überprüfe, ob API-Schlüssel vorhanden ist
+      if (!process.env.OPENWEATHER_API_KEY) {
+        return res.status(500).json({
+          status: 'error',
+          message: 'OpenWeather API-Schlüssel fehlt. Bitte fügen Sie ihn zu den Umgebungsvariablen hinzu.'
+        });
+      }
+      
+      const { date, lat, lon } = req.body;
+      
+      if (!date) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Datum (date) ist erforderlich'
+        });
+      }
+      
+      // Starte Synchronisierung
+      const result = await openWeatherService.syncHistoricalWeather(date, lat, lon);
+      
+      res.status(200).json({
+        status: result.status,
+        message: result.message || 'Historische Wetterdaten-Synchronisation abgeschlossen',
+        stats: {
+          saved: result.saved,
+          errors: result.errors,
+          duplicates: result.duplicates
+        }
+      });
+    } catch (error) {
+      console.error('Fehler bei der historischen Wetterdaten-Synchronisation mit OpenWeather:', error);
+      res.status(500).json({
+        status: 'error',
+        message: `Fehler bei der historischen Wetterdaten-Synchronisation: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`
+      });
+    }
+  });
+  
+  // Fehlende historische Wetterdaten von OpenWeather synchronisieren
+  app.post(`${API_PREFIX}/weather/historical/sync-missing`, async (req: Request, res: Response) => {
+    try {
+      console.log('Starte Synchronisation fehlender historischer Wetterdaten mit OpenWeather');
+      
+      // Überprüfe, ob API-Schlüssel vorhanden ist
+      if (!process.env.OPENWEATHER_API_KEY) {
+        return res.status(500).json({
+          status: 'error',
+          message: 'OpenWeather API-Schlüssel fehlt. Bitte fügen Sie ihn zu den Umgebungsvariablen hinzu.'
+        });
+      }
+      
+      const { startDate, endDate, maxDays, lat, lon } = req.body;
+      
+      if (!startDate) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Startdatum (startDate) ist erforderlich'
+        });
+      }
+      
+      // Starte Synchronisierung
+      const results = await openWeatherService.syncMissingHistoricalWeather(startDate, endDate, maxDays);
+      
+      res.status(200).json({
+        status: 'success',
+        message: `Synchronisation fehlender historischer Wetterdaten abgeschlossen (${results.length} Datensätze)`,
+        results
+      });
+    } catch (error) {
+      console.error('Fehler bei der Synchronisation fehlender historischer Wetterdaten mit OpenWeather:', error);
+      res.status(500).json({
+        status: 'error',
+        message: `Fehler bei der Synchronisation fehlender historischer Wetterdaten: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`
+      });
+    }
+  });
+  
+  // Fehlende OpenWeather-Wetterdaten abrufen
+  app.get(`${API_PREFIX}/weather/historical/missing`, async (req: Request, res: Response) => {
+    try {
+      console.log('Prüfe auf fehlende historische Wetterdaten');
+      
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+      
+      if (!startDate) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Startdatum (startDate) ist erforderlich'
+        });
+      }
+      
+      // Frage fehlende Daten ab
+      const missingDates = await openWeatherService.getMissingHistoricalWeatherDates(startDate, endDate);
+      
+      res.status(200).json({
+        status: 'success',
+        message: `${missingDates.length} fehlende historische Wetterdaten gefunden`,
+        missingDates
+      });
+    } catch (error) {
+      console.error('Fehler beim Abrufen fehlender historischer Wetterdaten:', error);
+      res.status(500).json({
+        status: 'error',
+        message: `Fehler beim Abrufen fehlender historischer Wetterdaten: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`
+      });
     }
   });
 
@@ -469,6 +621,51 @@ export function registerForecastRoutes(app: Express): void {
     }
   });
 
+  // Feiertage nach Zeitraum abrufen
+  app.get(`${API_PREFIX}/holidays/by-date-range`, async (req: Request, res: Response) => {
+    try {
+      const { startDate, endDate, type, state, limit } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: "startDate und endDate sind erforderlich" });
+      }
+      
+      // Validierung
+      const schema = z.object({
+        startDate: z.string(),
+        endDate: z.string(),
+        type: z.string().optional(),
+        state: z.string().optional(),
+        limit: z.string().transform(val => parseInt(val, 10)).optional()
+      });
+      
+      const validatedData = schema.parse({
+        startDate,
+        endDate,
+        type,
+        state,
+        limit
+      });
+      
+      const holidays = await holidayService.getHolidaysByDateRange(
+        validatedData.startDate,
+        validatedData.endDate,
+        validatedData.type,
+        validatedData.state,
+        validatedData.limit
+      );
+      
+      res.json(holidays);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Ungültige Daten", details: error.errors });
+      }
+      
+      console.error("Fehler beim Abrufen der Feiertage:", error);
+      res.status(500).json({ error: "Interner Serverfehler" });
+    }
+  });
+
   /**
    * Datenabdeckungs-Routen
    */
@@ -479,6 +676,7 @@ export function registerForecastRoutes(app: Express): void {
       // Aktualisiere die Abdeckungen, bevor sie abgerufen werden
       await meteostatService.updateWeatherDataCoverage();
       await holidayService.updateHolidayDataCoverage();
+      await openWeatherService.updateWeatherDataCoverage();
       
       const result = await import("../db").then(({ db }) => {
         const { dataCoverage } = require("@shared/schema");

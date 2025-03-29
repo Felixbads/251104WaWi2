@@ -88,8 +88,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           break;
         case "holidays":
           // Synchronisiere Feiertage
-          const currentYear = new Date().getFullYear();
-          result = await syncMissingHolidays(currentYear - 1, currentYear + 1, undefined, true);
+          const startYear = req.body.startYear ? parseInt(req.body.startYear) : new Date().getFullYear() - 1;
+          const endYear = req.body.endYear ? parseInt(req.body.endYear) : new Date().getFullYear() + 1;
+          const stateParam = req.body.state;
+          const includeSchoolHolidays = req.body.includeSchoolHolidays !== false;
+          
+          console.log(`Starte Feiertags-Synchronisation für Jahre ${startYear}-${endYear}${stateParam ? ` und Bundesland ${stateParam}` : ''}`);
+          result = await syncMissingHolidays(startYear, endYear, stateParam, includeSchoolHolidays);
           break;
         case "all":
           result = await vendonSync.syncAll();

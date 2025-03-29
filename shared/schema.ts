@@ -398,7 +398,7 @@ export const eventsRelations = relations(events, ({ one }) => ({
   }),
 }));
 
-// Wetterdaten-Tabelle für historische und zukünftige Daten
+// Wetterdaten-Tabelle für historische und zukünftige Daten (Meteostat-basiert)
 export const weatherData = pgTable("weather_data", {
   id: serial("id").primaryKey(),
   // Zeitstempel für den Datenpunkt
@@ -474,6 +474,172 @@ export const insertWeatherDataSchema = createInsertSchema(weatherData).omit({
 
 export type InsertWeatherData = z.infer<typeof insertWeatherDataSchema>;
 export type WeatherData = typeof weatherData.$inferSelect;
+
+// Wettervorhersage-Tabelle (OpenWeather-basiert)
+export const weatherForecasts = pgTable("weather_forecasts", {
+  id: serial("id").primaryKey(),
+  // Datum
+  date: date("date").notNull(),
+  // Stunde im Format "HH:00"
+  hour: text("hour").notNull(),
+  // Typ (current, forecast)
+  type: text("type").notNull(),
+  // Temperatur in Celsius
+  temperature: real("temperature"),
+  // Gefühlte Temperatur in Celsius
+  feels_like: real("feels_like"),
+  // Luftdruck auf Meereshöhe, hPa
+  pressure: integer("pressure"),
+  // Luftfeuchtigkeit, %
+  humidity: integer("humidity"),
+  // Taupunkt
+  dew_point: real("dew_point"),
+  // Wolkigkeit, %
+  clouds: integer("clouds"),
+  // UV-Index
+  uvi: real("uvi"),
+  // Sichtweite, Meter
+  visibility: integer("visibility"),
+  // Windgeschwindigkeit, m/s
+  wind_speed: real("wind_speed"),
+  // Windrichtung, Grad (meteorologisch)
+  wind_deg: integer("wind_deg"),
+  // Windböe, m/s
+  wind_gust: real("wind_gust"),
+  // Wetterbedingung-ID
+  weather_id: integer("weather_id"),
+  // Wetterbedingung-Hauptkategorie
+  weather_main: text("weather_main"),
+  // Wetterbedingung-Beschreibung
+  weather_description: text("weather_description"),
+  // Wetterbedingung-Symbol
+  weather_icon: text("weather_icon"),
+  // Niederschlagswahrscheinlichkeit (0-1)
+  pop: real("pop"),
+  // Regenvolumen letzte Stunde, mm
+  rain_1h: real("rain_1h"),
+  // Schneevolumen letzte Stunde, mm
+  snow_1h: real("snow_1h"),
+  // UNIX-Timestamp
+  timestamp: integer("timestamp"),
+  // Sonnenaufgang (UNIX-Timestamp)
+  sunrise: integer("sunrise"),
+  // Sonnenuntergang (UNIX-Timestamp)
+  sunset: integer("sunset"),
+  // Mondaufgang (UNIX-Timestamp)
+  moonrise: integer("moonrise"),
+  // Monduntergang (UNIX-Timestamp)
+  moonset: integer("moonset"),
+  // Mondphase (0-1)
+  moon_phase: real("moon_phase"),
+  // Datenquelle
+  source: text("source").notNull(),
+  // Breitengrad
+  lat: real("lat"),
+  // Längengrad
+  lon: real("lon"),
+  // Zeitzone
+  timezone: text("timezone"),
+  // Zeitzonenverschiebung in Sekunden
+  timezone_offset: integer("timezone_offset"),
+  // Weitere Metadaten im JSON-Format
+  metadata: text("metadata"),
+  // Zeitpunkt der Erstellung
+  created_at: timestamp("created_at").defaultNow(),
+  // Zeitpunkt der letzten Aktualisierung
+  updated_at: timestamp("updated_at").defaultNow(),
+}, (table) => {
+  return {
+    // Eindeutiger Index für Datum, Stunde und Typ
+    datetimeTypeIdx: unique().on(table.date, table.hour, table.type),
+  };
+});
+
+export const insertWeatherForecastSchema = createInsertSchema(weatherForecasts).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export type InsertWeatherForecast = z.infer<typeof insertWeatherForecastSchema>;
+export type WeatherForecast = typeof weatherForecasts.$inferSelect;
+
+// Historische Wetterdaten-Tabelle (OpenWeather-basiert)
+export const weatherHistorical = pgTable("weather_historical", {
+  id: serial("id").primaryKey(),
+  // Datum
+  date: date("date").notNull(),
+  // Stunde im Format "HH:00"
+  hour: text("hour").notNull(),
+  // Temperatur in Celsius
+  temperature: real("temperature"),
+  // Gefühlte Temperatur in Celsius
+  feels_like: real("feels_like"),
+  // Luftdruck auf Meereshöhe, hPa
+  pressure: integer("pressure"),
+  // Luftfeuchtigkeit, %
+  humidity: integer("humidity"),
+  // Taupunkt
+  dew_point: real("dew_point"),
+  // Wolkigkeit, %
+  clouds: integer("clouds"),
+  // Sichtweite, Meter
+  visibility: integer("visibility"),
+  // Windgeschwindigkeit, m/s
+  wind_speed: real("wind_speed"),
+  // Windrichtung, Grad (meteorologisch)
+  wind_deg: integer("wind_deg"),
+  // Windböe, m/s
+  wind_gust: real("wind_gust"),
+  // Wetterbedingung-ID
+  weather_id: integer("weather_id"),
+  // Wetterbedingung-Hauptkategorie
+  weather_main: text("weather_main"),
+  // Wetterbedingung-Beschreibung
+  weather_description: text("weather_description"),
+  // Wetterbedingung-Symbol
+  weather_icon: text("weather_icon"),
+  // Regenvolumen letzte Stunde, mm
+  rain_1h: real("rain_1h"),
+  // Schneevolumen letzte Stunde, mm
+  snow_1h: real("snow_1h"),
+  // UNIX-Timestamp
+  timestamp: integer("timestamp"),
+  // Sonnenaufgang (UNIX-Timestamp)
+  sunrise: integer("sunrise"),
+  // Sonnenuntergang (UNIX-Timestamp)
+  sunset: integer("sunset"),
+  // Datenquelle
+  source: text("source").notNull(),
+  // Breitengrad
+  lat: real("lat"),
+  // Längengrad
+  lon: real("lon"),
+  // Zeitzone
+  timezone: text("timezone"),
+  // Zeitzonenverschiebung in Sekunden
+  timezone_offset: integer("timezone_offset"),
+  // Weitere Metadaten im JSON-Format
+  metadata: text("metadata"),
+  // Zeitpunkt der Erstellung
+  created_at: timestamp("created_at").defaultNow(),
+  // Zeitpunkt der letzten Aktualisierung
+  updated_at: timestamp("updated_at").defaultNow(),
+}, (table) => {
+  return {
+    // Eindeutiger Index für Datum und Stunde
+    datetimeIdx: unique().on(table.date, table.hour),
+  };
+});
+
+export const insertWeatherHistoricalSchema = createInsertSchema(weatherHistorical).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export type InsertWeatherHistorical = z.infer<typeof insertWeatherHistoricalSchema>;
+export type WeatherHistorical = typeof weatherHistorical.$inferSelect;
 
 // Feiertage- und Urlaube-Tabelle
 export const holidays = pgTable("holidays", {

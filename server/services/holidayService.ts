@@ -8,7 +8,7 @@
 import axios from 'axios';
 import { db } from '../db';
 import { holidays, dataCoverage, insertHolidaySchema, insertDataCoverageSchema } from '@shared/schema';
-import { eq, and, between, count, isNull } from 'drizzle-orm';
+import { eq, and, between, count, isNull, gte, lte } from 'drizzle-orm';
 import { format, parseISO, isValid, getDay, getWeek, addDays, subDays, isAfter } from 'date-fns';
 import { de } from 'date-fns/locale';
 
@@ -19,16 +19,22 @@ const HOLIDAY_API_URL = "https://feiertage-api.de/api/";
 const SCHOOL_HOLIDAY_API_URL = "https://openholidaysapi.org/SchoolHolidays";
 
 // Konstanten für Feiertage-Typen
-const HOLIDAY_TYPE = {
+export const HOLIDAY_TYPE = {
   FEDERAL: "federal", // Bundesweiter Feiertag
   STATE: "state",     // Landesweiter Feiertag
   SCHOOL: "school"    // Schulferien
 };
 
 // Liste der deutschen Bundesländer
-const GERMAN_STATES = [
+export const GERMAN_STATES = [
   "BW", "BY", "BE", "BB", "HB", "HH", "HE", "MV", 
   "NI", "NW", "RP", "SL", "SN", "ST", "SH", "TH"
+];
+
+// Liste der deutschen Bundesländer im ISO-3166-2 Format für API-Anfragen
+export const GERMAN_STATES_ISO = [
+  "DE-BW", "DE-BY", "DE-BE", "DE-BB", "DE-HB", "DE-HH", "DE-HE", "DE-MV",
+  "DE-NI", "DE-NW", "DE-RP", "DE-SL", "DE-SN", "DE-ST", "DE-SH", "DE-TH"
 ];
 
 /**
@@ -132,8 +138,11 @@ export async function saveHolidays(
         // Wenn alle Bundesländer den gleichen Feiertag am selben Tag haben
         if (Object.keys(holidaysData).length === GERMAN_STATES.length) {
           const allSameDate = Object.values(holidaysData).every((stateData: any) => {
-            return Object.entries(stateData).some(([name, date]) => {
-              const dateStrToCompare = typeof date === 'object' ? date.datum : date;
+            return Object.entries(stateData).some(([name, dateObj]) => {
+              if (!dateObj) return false;
+              const dateStrToCompare = typeof dateObj === 'object' && dateObj !== null && 'datum' in dateObj 
+                ? dateObj.datum 
+                : dateObj;
               return name === holidayName && dateStrToCompare === dateStr;
             });
           });
@@ -400,8 +409,17 @@ export async function fetchSchoolHolidays(year: number, state?: string): Promise
   try {
     console.log(`Rufe Schulferien für Jahr ${year}${state ? ` und Bundesland ${state}` : ''} ab`);
     
-    // Formatiere ISO-Code zu ISO-3166-2 Format (z.B. "DE-BY" für Bayern)
-    const stateCode = state ? `DE-${state}` : undefined;
+    // Bestimme den Bundesland-Code im ISO-3166-2 Format
+    let stateCodeISO: string | undefined = undefined;
+    
+    // Prüfe, ob der State bereits im ISO-Format vorliegt (mit "DE-" Präfix)
+    if (state && state.startsWith('DE-')) {
+      stateCodeISO = state;
+    } 
+    // Oder ob es sich um einen normalen Bundeslandcode handelt
+    else if (state && GERMAN_STATES.includes(state)) {
+      stateCodeISO = `DE-${state}`;
+    }
     
     // Parameter für die API-Anfrage
     const params: Record<string, any> = {
@@ -411,8 +429,8 @@ export async function fetchSchoolHolidays(year: number, state?: string): Promise
       languageIsoCode: "de"
     };
     
-    if (stateCode) {
-      params.subdivisionCode = stateCode;
+    if (stateCodeISO) {
+      params.subdivisionCode = stateCodeISO;
     }
     
     // API-Anfrage senden
@@ -556,7 +574,7 @@ export async function saveSchoolHolidays(
  */
 export async function syncSchoolHolidays(
   year: number,
-  states: string[] = GERMAN_STATES
+  states: string[] = GERMAN_STATES_ISO
 ): Promise<{ status: string; saved: number; errors: number; duplicates: number; message?: string }> {
   try {
     console.log(`Starte Schulferien-Synchronisation für Jahr ${year}`);
@@ -617,8 +635,15 @@ export async function syncAllHolidays(
   publicHolidays: { status: string; saved: number; errors: number; duplicates: number; message?: string },
   schoolHolidays: { status: string; saved: number; errors: number; duplicates: number; message?: string }
 }> {
+  // Für öffentliche Feiertage verwenden wir einfache Bundesland-Codes
   const publicResult = await syncHolidays(year, states);
-  const schoolResult = await syncSchoolHolidays(year, states);
+  
+  // Für Schulferien müssen wir die Codes in ISO-Format konvertieren, falls sie es nicht bereits sind
+  const statesForSchool = states.map(state => 
+    state.startsWith('DE-') ? state : `DE-${state}`
+  );
+  
+  const schoolResult = await syncSchoolHolidays(year, statesForSchool);
   
   return {
     publicHolidays: publicResult,
@@ -635,6 +660,64 @@ export async function syncAllHolidays(
  * @param includeSchoolHolidays Ob Schulferien miteinbezogen werden sollen
  * @returns Synchronisationsergebnisse pro fehlendem Jahr
  */
+/**
+ * Holt Feiertage für einen bestimmten Zeitraum
+ * 
+ * @param startDate Das Startdatum
+ * @param endDate Das Enddatum
+ * @param type Der Feiertagstyp (optional)
+ * @param state Der zu filternde Bundesland-ISO-Code (optional)
+ * @param limit Die maximale Anzahl der Ergebnisse (optional, Standard: 100)
+ * @returns Feiertage im angegebenen Zeitraum
+ */
+export async function getHolidaysByDateRange(
+  startDate: Date | string,
+  endDate: Date | string,
+  type?: string,
+  state?: string,
+  limit: number = 100
+): Promise<typeof holidays.$inferSelect[]> {
+  try {
+    // Konvertiere Datum-Strings in Datum-Objekte
+    const start = typeof startDate === 'string' ? parseISO(startDate) : startDate;
+    const end = typeof endDate === 'string' ? parseISO(endDate) : endDate;
+    
+    // Formatiere Daten als ISO-String für die Datenbankabfrage
+    const startFormatted = format(start, 'yyyy-MM-dd');
+    const endFormatted = format(end, 'yyyy-MM-dd');
+    
+    // Basisfilter für den Zeitraum
+    const whereConditions = [
+      gte(holidays.date, startFormatted),
+      lte(holidays.date, endFormatted)
+    ];
+    
+    // Optionaler Filter für Bundesland
+    if (state) {
+      // Wenn es ein ISO-Format ist (DE-XX), nur den Ländercode verwenden
+      const stateCode = state.startsWith('DE-') ? state.substring(3) : state;
+      whereConditions.push(eq(holidays.state, stateCode));
+    }
+    
+    // Optionaler Filter für Feiertagstyp
+    if (type) {
+      whereConditions.push(eq(holidays.type, type));
+    }
+    
+    // Abfrage ausführen
+    const results = await db.select()
+      .from(holidays)
+      .where(and(...whereConditions))
+      .orderBy(holidays.date)
+      .limit(limit);
+    
+    return results;
+  } catch (error) {
+    console.error(`Fehler beim Abrufen der Feiertage zwischen ${startDate} und ${endDate}:`, error);
+    return [];
+  }
+}
+
 export async function syncMissingHolidays(
   startYear: number,
   endYear: number,
