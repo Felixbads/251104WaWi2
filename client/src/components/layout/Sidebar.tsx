@@ -10,6 +10,7 @@ import {
   LogOut,
   BarChart2,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function Sidebar() {
   const [location] = useLocation();
@@ -157,19 +158,38 @@ export default function Sidebar() {
       <div className="mt-auto p-4 border-t border-gray-200">
         <div className="flex items-center">
           <div className="flex-shrink-0">
-            <img
-              className="h-10 w-10 rounded-full"
-              src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-              alt="User avatar"
-            />
+            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <svg
+                className="h-6 w-6 text-primary"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                />
+              </svg>
+            </div>
           </div>
           <div className="ml-3">
-            <p className="text-sm font-medium text-gray-700">Max Mustermann</p>
-            <p className="text-xs font-medium text-gray-500">Administrator</p>
+            <p className="text-sm font-medium text-gray-700">{localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user') || '{}').username : 'Benutzer'}</p>
+            <p className="text-xs font-medium text-gray-500">{localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user') || '{}').role : 'Gast'}</p>
           </div>
-          <button className="ml-auto p-1 rounded-full text-gray-400 hover:text-gray-500">
-            <LogOut className="h-5 w-5" />
-          </button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="ml-auto rounded-full"
+            onClick={() => {
+              localStorage.removeItem('user');
+              window.location.href = '/login';
+            }}
+          >
+            <LogOut className="h-5 w-5 text-gray-500" />
+          </Button>
         </div>
       </div>
     </aside>

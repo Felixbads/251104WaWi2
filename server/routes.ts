@@ -1,4 +1,4 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { vendonSync } from "./services/vendonSync";
@@ -7,6 +7,14 @@ import { syncMissingHolidays } from './services/holidayService';
 import { startAutomaticSync, stopAutomaticSync, getSchedulerStatus } from "./scheduler";
 import { z } from "zod";
 import { registerForecastRoutes } from "./routes/forecast";
+import { 
+  registerUser, 
+  loginUser, 
+  validateToken, 
+  invalidateToken, 
+  loginSchema, 
+  registerSchema 
+} from "./auth";
 
 // API route prefix
 const API_PREFIX = "/api";
@@ -531,6 +539,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Registriere die Forecast-, Wetter- und Feiertags-Routen
+  // Authentication Routes
+  // Register new user
+  app.post(`${API_PREFIX}/auth/register`, async (req: Request, res: Response) => {
+    try {
+      const parsedData = registerSchema.safeParse(req.body);
+      
+      if (!parsedData.success) {
+        return res.status(400).json({ 
+          error: "Invalid registration data", 
+          details: parsedData.error 
+        });
+      }
+      
+      const result = await registerUser(parsedData.data);
+      res.status(201).json(result);
+    } catch (error) {
+      console.error("Error during user registration:", error);
+      
+      if (error instanceof Error && error.message.includes("already exists")) {
+        return res.status(409).json({ error: "User already exists" });
+      }
+      
+      res.status(500).json({ 
+        error: "Registration failed", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Login
+  app.post(`${API_PREFIX}/auth/login`, async (req: Request, res: Response) => {
+    try {
+      const parsedData = loginSchema.safeParse(req.body);
+      
+      if (!parsedData.success) {
+        return res.status(400).json({ 
+          error: "Invalid login data", 
+          details: parsedData.error 
+        });
+      }
+      
+      const result = await loginUser(parsedData.data);
+      
+      if (!result.success) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error during login:", error);
+      res.status(500).json({ 
+        error: "Login failed", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Logout
+  app.post(`${API_PREFIX}/auth/logout`, (req: Request, res: Response) => {
+    try {
+      const { token } = req.body;
+      
+      if (!token) {
+        return res.status(400).json({ error: "Token is required" });
+      }
+      
+      invalidateToken(token);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error during logout:", error);
+      res.status(500).json({ 
+        error: "Logout failed", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Authenticate Middleware
+  const authenticate = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const authHeader = req.headers.authorization;
+      
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      
+      const token = authHeader.split(' ')[1];
+      const user = await validateToken(token);
+      
+      if (!user) {
+        return res.status(401).json({ error: "Invalid or expired token" });
+      }
+      
+      // @ts-ignore - Füge Benutzer zum Anfrageobjekt hinzu
+      req.user = user;
+      next();
+    } catch (error) {
+      console.error("Authentication error:", error);
+      res.status(401).json({ error: "Authentication failed" });
+    }
+  };
+  
+  // Protected Route: Get current user
+  app.get(`${API_PREFIX}/auth/me`, authenticate, (req: Request, res: Response) => {
+    try {
+      // @ts-ignore - Benutzer wurde in der authenticate Middleware hinzugefügt
+      const user = req.user;
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+      
+      // Passwort und andere sensible Daten entfernen
+      const { passwordHash, ...userWithoutPassword } = user;
+      res.json(userWithoutPassword);
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch user profile", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
   registerForecastRoutes(app);
 
   return httpServer;
