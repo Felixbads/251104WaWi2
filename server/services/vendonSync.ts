@@ -403,13 +403,49 @@ class VendonAPI {
    * 
    * Laut Dokumentation ist der Endpunkt für Refill-Details:
    * GET https://cloud.vendon.net/rest/v1.8.0/refills/{refill_id}
+   * 
+   * Die Antwort enthält information über hinzugefügte und entfernte Produkte
+   * in den Feldern 'added' und 'removed'
    */
   async getRefillDetails(refillId: string) {
     try {
-      return this.makeRequest<any>(`/refills/${refillId}`);
+      console.log(`Rufe Refill-Details für ID ${refillId} ab...`);
+      const result = await this.makeRequest<any>(`/refills/${refillId}`);
+      
+      // Protokolliere die Antwort für Debugging-Zwecke
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`Refill-Details Antwort für ${refillId}:`, 
+          JSON.stringify(result).substring(0, 200) + '...');
+      }
+      
+      // Vergewissere dich, dass wir ein Array zurückgeben 
+      // Manchmal gibt die API ein Objekt mit einem 'products'-Feld zurück,
+      // manchmal ein direktes Array
+      if (Array.isArray(result)) {
+        return result;
+      } else if (result && result.products && Array.isArray(result.products)) {
+        return result.products;
+      } else if (result && typeof result === 'object') {
+        // Wenn es sich um ein Objekt handelt, aber kein products-Array enthält,
+        // versuche, es als einzelnes Produkt zu behandeln
+        return [result];
+      }
+      
+      // Fallback: Leeres Array zurückgeben
+      console.warn(`Unerwartetes Format für Refill-Details ${refillId}, gebe leeres Array zurück`);
+      return [];
     } catch (error) {
       console.error(`Fehler beim Abrufen der Refill-Details für Refill ${refillId}:`, error);
-      return [];
+      
+      // Versuche alternative Endpunkte, wie in der Python-Implementierung
+      try {
+        console.log(`Versuche alternativen Endpunkt /refill/${refillId}...`);
+        const result = await this.makeRequest<any>(`/refill/${refillId}`);
+        return Array.isArray(result) ? result : [result];
+      } catch (fallbackError) {
+        console.error(`Auch alternativer Endpunkt fehlgeschlagen:`, fallbackError);
+        return [];
+      }
     }
   }
 }
@@ -1243,12 +1279,29 @@ export class VendonSyncService {
             
             if (Array.isArray(details)) {
               for (const detail of details) {
+                // Debugging-Log für Details
+                console.log(`Refill-Detail für ${refillData.vendonId}, Produkt: ${detail.name || 'Unbekannt'}`, 
+                  detail.added !== undefined ? `hinzugefügt: ${detail.added}` : '',
+                  detail.removed !== undefined ? `entfernt: ${detail.removed}` : '');
+                
+                // Ermittle die Werte für added und removed
+                const added = typeof detail.added === 'number' ? detail.added : 0;
+                const removed = typeof detail.removed === 'number' ? detail.removed : 0;
+                
+                // Berechne die Gesamtmenge (kann positiv oder negativ sein)
+                const quantity = added - removed;
+                
                 await storage.createRefillDetail({
                   refillId: savedRefill.id,
                   productName: detail.name || 'Unbekanntes Produkt',
-                  quantity: detail.removed || 0,
+                  quantity: quantity, // Nettoveränderung (kann negativ sein)
                   datetime: timestamp,
-                  vendonProductId: detail.stock_id?.toString() || null
+                  vendonProductId: detail.stock_id?.toString() || null,
+                  // Neue Felder für added und removed
+                  added: added,
+                  removed: removed,
+                  // Speichere zusätzliche Informationen im extraData-Feld
+                  extraData: JSON.stringify(detail)
                 });
                 
                 detailsSaved++;

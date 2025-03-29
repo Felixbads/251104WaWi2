@@ -7,10 +7,11 @@ export async function getSyncStatus() {
   return res.json();
 }
 
-export async function triggerSync(type: 'machines' | 'transactions' | 'events' | 'refills' | 'all', options?: {
+export async function triggerSync(type: 'machines' | 'transactions' | 'events' | 'refills' | 'products' | 'all', options?: {
   startDate?: string;
   endDate?: string;
   batchSize?: number;
+  isHistorical?: boolean;
 }) {
   const res = await apiRequest("POST", `/api/sync/${type}`, options);
   return res.json();

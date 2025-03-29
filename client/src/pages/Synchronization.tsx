@@ -10,7 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
-import { CalendarIcon, Database, FileText, Package, AlertCircle, Clock, RefreshCw, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { CalendarIcon, Database, FileText, Package, AlertCircle, Clock, RefreshCw, Loader2, LayoutDashboard } from "lucide-react";
 import { getSyncStatus, triggerSync, formatDateTime } from "@/lib/api";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -20,13 +22,15 @@ import { SyncStatus } from "@/lib/types";
 export default function Synchronization() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [syncType, setSyncType] = useState<'machines' | 'transactions' | 'events' | 'refills' | 'all'>('all');
+  const [syncType, setSyncType] = useState<'machines' | 'transactions' | 'events' | 'refills' | 'products' | 'all'>('all');
   const [batchSize, setBatchSize] = useState<number>(100);
   const [startDate, setStartDate] = useState<Date | undefined>(
     new Date(new Date().setDate(new Date().getDate() - 7)) // 7 days ago
   );
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [isHistoricalSync, setIsHistoricalSync] = useState<boolean>(false);
+  const [datePreset, setDatePreset] = useState<string>("last7days");
 
   // Fetch sync status
   const { data: syncStatus, isLoading, error } = useQuery<SyncStatus>({
@@ -40,14 +44,21 @@ export default function Synchronization() {
       triggerSync(syncType, {
         startDate: startDate?.toISOString(),
         endDate: endDate?.toISOString(),
-        batchSize
+        batchSize,
+        isHistorical: isHistoricalSync
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
       queryClient.invalidateQueries({ queryKey: ['/api/sync/logs'] });
+      
+      let message = `Die ${getSyncTypeLabel(syncType)}-Synchronisierung wurde erfolgreich gestartet.`;
+      if (isHistoricalSync && syncType === 'transactions') {
+        message = 'Die historische Transaktions-Synchronisierung seit Januar 2023 wurde gestartet.';
+      }
+      
       toast({
         title: "Synchronisierung gestartet",
-        description: `Die ${getSyncTypeLabel(syncType)}-Synchronisierung wurde erfolgreich gestartet.`,
+        description: message,
         variant: "success",
       });
     },
@@ -67,6 +78,7 @@ export default function Synchronization() {
       case 'transactions': return 'Transaktionen';
       case 'events': return 'Ereignisse';
       case 'refills': return 'Nachfüllungen';
+      case 'products': return 'Produkte';
       case 'all': return 'Vollständige';
       default: return type;
     }
@@ -79,6 +91,7 @@ export default function Synchronization() {
       case 'transactions': return <FileText className="h-5 w-5 mr-2" />;
       case 'events': return <AlertCircle className="h-5 w-5 mr-2" />;
       case 'refills': return <RefreshCw className="h-5 w-5 mr-2" />;
+      case 'products': return <Package className="h-5 w-5 mr-2" />;
       case 'all': return <Database className="h-5 w-5 mr-2" />;
       default: return <Clock className="h-5 w-5 mr-2" />;
     }
@@ -141,6 +154,55 @@ export default function Synchronization() {
                 </>
               ) : (
                 <>
+                  {/* Dashboard Overview */}
+                  <Card className="p-4">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-sm font-medium flex items-center">
+                        <LayoutDashboard className="h-4 w-4 mr-2 text-primary-600" />
+                        Übersicht Datensätze
+                      </h3>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 mb-2">
+                      <div className="flex flex-col">
+                        <span className="text-xs text-gray-500">Transaktionen</span>
+                        <span className="text-sm font-medium">{syncStatus?.transactions?.count?.toLocaleString() || 0}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs text-gray-500">Maschinen</span>
+                        <span className="text-sm font-medium">{syncStatus?.machines?.count?.toLocaleString() || 0}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs text-gray-500">Nachfüllungen</span>
+                        <span className="text-sm font-medium">{syncStatus?.refills?.count?.toLocaleString() || 0}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs text-gray-500">Nachfülldetails</span>
+                        <span className="text-sm font-medium">{syncStatus?.refillDetails?.count?.toLocaleString() || 0}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs text-gray-500">Ereignisse</span>
+                        <span className="text-sm font-medium">{syncStatus?.events?.count?.toLocaleString() || 0}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-xs text-gray-500">Produkte</span>
+                        <span className="text-sm font-medium">{syncStatus?.products?.count?.toLocaleString() || 0}</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center mt-3">
+                      <p className="text-xs text-gray-500">Letzte Aktualisierung: {new Date().toLocaleString('de-DE')}</p>
+                      <Badge variant="outline" className="text-xs">
+                        Gesamt: {(
+                          (syncStatus?.transactions?.count || 0) +
+                          (syncStatus?.machines?.count || 0) +
+                          (syncStatus?.refills?.count || 0) +
+                          (syncStatus?.refillDetails?.count || 0) +
+                          (syncStatus?.events?.count || 0) +
+                          (syncStatus?.products?.count || 0)
+                        ).toLocaleString()} Datensätze
+                      </Badge>
+                    </div>
+                  </Card>
+
                   {/* Transactions Status */}
                   <Card className="p-4">
                     <div className="flex justify-between items-center mb-2">
@@ -148,24 +210,29 @@ export default function Synchronization() {
                         <FileText className="h-4 w-4 mr-2 text-primary-600" />
                         Transaktionen
                       </h3>
-                      <span className="text-xs font-medium text-primary-700 bg-primary-100 rounded-full py-0.5 px-2">
-                        {syncStatus?.transactions?.count || 0} / {syncStatus?.transactions?.count || 0}
-                      </span>
+                      <Badge variant="outline" className="text-xs">
+                        {syncStatus?.transactions?.count?.toLocaleString() || 0}
+                      </Badge>
                     </div>
                     <Progress 
                       value={100} 
                       className="h-2 mb-2" 
                     />
-                    <p className="text-xs text-gray-500">
-                      {syncStatus?.transactions?.lastSync 
-                        ? `Letzte Synchronisierung: ${formatDateTime(syncStatus.transactions.lastSync)}`
-                        : "Noch keine Synchronisierung durchgeführt"}
-                    </p>
-                    {syncStatus?.transactions?.latest && (
-                      <p className="text-xs text-gray-500 mt-1">
-                        Letzte Transaktion: {formatDateTime(syncStatus.transactions.latest)}
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <p className="text-xs text-gray-500">
+                        {syncStatus?.transactions?.lastSync 
+                          ? `Letzte Synchronisierung: ${formatDateTime(syncStatus.transactions.lastSync)}`
+                          : "Noch keine Synchronisierung durchgeführt"}
                       </p>
-                    )}
+                      <p className="text-xs text-gray-500">
+                        {syncStatus?.transactions?.latest 
+                          ? `Letzte Transaktion: ${formatDateTime(syncStatus.transactions.latest)}`
+                          : "Keine Transaktionen vorhanden"}
+                      </p>
+                    </div>
+                    <p className="text-xs text-gray-600 mt-2">
+                      Ziel: 130.000+ Transaktionen seit Januar 2023
+                    </p>
                   </Card>
 
                   {/* Machines Status */}
@@ -175,9 +242,9 @@ export default function Synchronization() {
                         <Package className="h-4 w-4 mr-2 text-green-600" />
                         Maschinen
                       </h3>
-                      <span className="text-xs font-medium text-primary-700 bg-primary-100 rounded-full py-0.5 px-2">
-                        {syncStatus?.machines?.count || 0} / {syncStatus?.machines?.count || 0}
-                      </span>
+                      <Badge variant="outline" className="text-xs">
+                        {syncStatus?.machines?.count?.toLocaleString() || 0}
+                      </Badge>
                     </div>
                     <Progress 
                       value={100} 
@@ -190,6 +257,31 @@ export default function Synchronization() {
                     </p>
                   </Card>
 
+                  {/* Products Status */}
+                  <Card className="p-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="text-sm font-medium flex items-center">
+                        <Package className="h-4 w-4 mr-2 text-indigo-600" />
+                        Produkte
+                      </h3>
+                      <Badge variant="outline" className="text-xs">
+                        {syncStatus?.products?.count?.toLocaleString() || 0}
+                      </Badge>
+                    </div>
+                    <Progress 
+                      value={syncStatus?.products?.count ? 100 : 0} 
+                      className="h-2 mb-2" 
+                    />
+                    <p className="text-xs text-gray-500">
+                      {syncStatus?.products?.lastSync 
+                        ? `Letzte Synchronisierung: ${formatDateTime(syncStatus.products.lastSync)}`
+                        : "Noch keine Synchronisierung durchgeführt"}
+                    </p>
+                    <p className="text-xs text-gray-600 mt-2">
+                      Ziel: 130+ Produkte
+                    </p>
+                  </Card>
+
                   {/* Refills Status */}
                   <Card className="p-4">
                     <div className="flex justify-between items-center mb-2">
@@ -197,9 +289,9 @@ export default function Synchronization() {
                         <RefreshCw className="h-4 w-4 mr-2 text-blue-600" />
                         Nachfüllungen
                       </h3>
-                      <span className="text-xs font-medium text-primary-700 bg-primary-100 rounded-full py-0.5 px-2">
-                        {syncStatus?.refills?.count || 0} / {syncStatus?.refills?.count || 0}
-                      </span>
+                      <Badge variant="outline" className="text-xs">
+                        {syncStatus?.refills?.count?.toLocaleString() || 0}
+                      </Badge>
                     </div>
                     <Progress 
                       value={100} 
@@ -212,6 +304,28 @@ export default function Synchronization() {
                     </p>
                   </Card>
 
+                  {/* Refill Details Status */}
+                  <Card className="p-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="text-sm font-medium flex items-center">
+                        <RefreshCw className="h-4 w-4 mr-2 text-cyan-600" />
+                        Nachfülldetails
+                      </h3>
+                      <Badge variant="outline" className="text-xs">
+                        {syncStatus?.refillDetails?.count?.toLocaleString() || 0}
+                      </Badge>
+                    </div>
+                    <Progress 
+                      value={100} 
+                      className="h-2 mb-2" 
+                    />
+                    <p className="text-xs text-gray-500">
+                      {syncStatus?.refillDetails?.lastSync 
+                        ? `Letzte Synchronisierung: ${formatDateTime(syncStatus.refillDetails.lastSync)}`
+                        : "Noch keine Synchronisierung durchgeführt"}
+                    </p>
+                  </Card>
+
                   {/* Events Status */}
                   <Card className="p-4">
                     <div className="flex justify-between items-center mb-2">
@@ -219,12 +333,12 @@ export default function Synchronization() {
                         <AlertCircle className="h-4 w-4 mr-2 text-yellow-600" />
                         Ereignisse
                       </h3>
-                      <span className="text-xs font-medium text-primary-700 bg-primary-100 rounded-full py-0.5 px-2">
-                        {syncStatus?.events?.count || 0} / {syncStatus?.events?.count || 0}
-                      </span>
+                      <Badge variant="outline" className="text-xs">
+                        {syncStatus?.events?.count?.toLocaleString() || 0}
+                      </Badge>
                     </div>
                     <Progress 
-                      value={getProgressPercentage(syncStatus?.events?.count || 0, syncStatus?.events?.count || 0)} 
+                      value={100} 
                       className="h-2 mb-2" 
                     />
                     <p className="text-xs text-gray-500">
@@ -255,6 +369,7 @@ export default function Synchronization() {
                         <SelectItem value="all">Vollständige Synchronisierung</SelectItem>
                         <SelectItem value="transactions">Nur Transaktionen</SelectItem>
                         <SelectItem value="machines">Nur Maschinen</SelectItem>
+                        <SelectItem value="products">Nur Produkte</SelectItem>
                         <SelectItem value="events">Nur Ereignisse</SelectItem>
                         <SelectItem value="refills">Nur Nachfüllungen</SelectItem>
                       </SelectContent>
@@ -282,47 +397,150 @@ export default function Synchronization() {
                   </div>
                 </div>
 
-                {/* Date Range */}
+                {/* Date Presets */}
                 <div className="space-y-2">
-                  <Label>Datumsbereich</Label>
-                  <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start">
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {startDate && endDate ? (
-                          `${format(startDate, "dd.MM.yyyy", { locale: de })} - ${format(endDate, "dd.MM.yyyy", { locale: de })}`
-                        ) : (
-                          "Datumsbereich auswählen"
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <div className="flex flex-col sm:flex-row gap-4 p-3">
-                        <div className="space-y-2">
-                          <Label htmlFor="startDate">Startdatum</Label>
-                          <Calendar
-                            mode="single"
-                            selected={startDate}
-                            onSelect={setStartDate}
-                            initialFocus
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="endDate">Enddatum</Label>
-                          <Calendar
-                            mode="single"
-                            selected={endDate}
-                            onSelect={setEndDate}
-                            initialFocus
-                          />
-                        </div>
-                      </div>
-                      <div className="border-t border-gray-200 p-3 flex justify-end">
-                        <Button onClick={() => setIsCalendarOpen(false)}>Anwenden</Button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                  <Label>Zeitraum</Label>
+                  <Select 
+                    value={datePreset} 
+                    onValueChange={(value) => {
+                      setDatePreset(value);
+                      
+                      const now = new Date();
+                      let start = new Date();
+                      let end = new Date();
+                      
+                      switch(value) {
+                        case 'today':
+                          // Heutiger Tag
+                          start = new Date(now.setHours(0, 0, 0, 0));
+                          break;
+                        case 'yesterday':
+                          // Gestern
+                          start = new Date(now);
+                          start.setDate(start.getDate() - 1);
+                          start.setHours(0, 0, 0, 0);
+                          end = new Date(now);
+                          end.setDate(end.getDate() - 1);
+                          end.setHours(23, 59, 59, 999);
+                          break;
+                        case 'last7days':
+                          // Letzte 7 Tage
+                          start = new Date(now);
+                          start.setDate(start.getDate() - 7);
+                          break;
+                        case 'thisMonth':
+                          // Aktueller Monat
+                          start = new Date(now.getFullYear(), now.getMonth(), 1);
+                          break;
+                        case 'lastMonth':
+                          // Letzter Monat
+                          start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                          end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+                          break;
+                        case 'thisYear':
+                          // Aktuelles Jahr
+                          start = new Date(now.getFullYear(), 0, 1);
+                          break;
+                        case 'allTime':
+                          // Seit 01.01.2023
+                          start = new Date(2023, 0, 1);
+                          break;
+                        case 'custom':
+                          // Benutzerdefiniert - Kalender öffnen
+                          setIsCalendarOpen(true);
+                          return;
+                      }
+                      
+                      setStartDate(start);
+                      setEndDate(end);
+                    }}
+                  >
+                    <SelectTrigger id="datePreset">
+                      <SelectValue placeholder="Zeitraum auswählen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="today">Heute</SelectItem>
+                      <SelectItem value="yesterday">Gestern</SelectItem>
+                      <SelectItem value="last7days">Letzte 7 Tage</SelectItem>
+                      <SelectItem value="thisMonth">Aktueller Monat</SelectItem>
+                      <SelectItem value="lastMonth">Letzter Monat</SelectItem>
+                      <SelectItem value="thisYear">Aktuelles Jahr</SelectItem>
+                      <SelectItem value="allTime">Seit 01.01.2023</SelectItem>
+                      <SelectItem value="custom">Benutzerdefiniert...</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+
+                {/* Date Range */}
+                {datePreset === 'custom' && (
+                  <div className="space-y-2">
+                    <Label>Benutzerdefinierter Datumsbereich</Label>
+                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className="w-full justify-start">
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {startDate && endDate ? (
+                            `${format(startDate, "dd.MM.yyyy", { locale: de })} - ${format(endDate, "dd.MM.yyyy", { locale: de })}`
+                          ) : (
+                            "Datumsbereich auswählen"
+                          )}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <div className="flex flex-col sm:flex-row gap-4 p-3">
+                          <div className="space-y-2">
+                            <Label htmlFor="startDate">Startdatum</Label>
+                            <Calendar
+                              mode="single"
+                              selected={startDate}
+                              onSelect={setStartDate}
+                              initialFocus
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="endDate">Enddatum</Label>
+                            <Calendar
+                              mode="single"
+                              selected={endDate}
+                              onSelect={setEndDate}
+                              initialFocus
+                            />
+                          </div>
+                        </div>
+                        <div className="border-t border-gray-200 p-3 flex justify-end">
+                          <Button onClick={() => setIsCalendarOpen(false)}>Anwenden</Button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                )}
+                
+                {/* Historical Sync Option */}
+                {syncType === 'transactions' && (
+                  <div className="space-y-2 pt-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="historicalSync" 
+                        checked={isHistoricalSync}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            // Wenn historische Synchronisierung aktiviert wird, setze Startdatum auf 01.01.2023
+                            setStartDate(new Date(2023, 0, 1));
+                            setDatePreset('allTime');
+                          }
+                          setIsHistoricalSync(!!checked);
+                        }}
+                      />
+                      <Label htmlFor="historicalSync" className="font-medium">
+                        Historische Transaktionen (ab 01.01.2023)
+                      </Label>
+                    </div>
+                    <p className="text-xs text-gray-500 pl-6">
+                      Bei Aktivierung werden alle Transaktionen seit Januar 2023 synchronisiert.
+                      Dies kann je nach Datenmenge einige Zeit in Anspruch nehmen.
+                    </p>
+                  </div>
+                )}
 
                 {/* Info text */}
                 <Alert>

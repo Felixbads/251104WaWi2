@@ -228,6 +228,9 @@ export const refillDetails = pgTable("refill_details", {
   quantity: integer("quantity").default(0),
   price: real("price").default(0),
   datetime: timestamp("datetime").defaultNow(),
+  // Felder für hinzugefügte und entfernte Produkte
+  added: integer("added").default(0),                      // Anzahl der hinzugefügten Produkte
+  removed: integer("removed").default(0),                  // Anzahl der entfernten Produkte
   // Zusätzliche Felder für detaillierte Produktinformationen in einer Nachfüllung
   vendonProductId: text("vendon_product_id").default(''),   // Vendon Produkt-ID
   position: text("position").default(''),                   // Position im Automaten (z.B. A1, B3)

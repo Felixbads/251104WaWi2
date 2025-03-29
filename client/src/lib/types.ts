@@ -12,6 +12,8 @@ export interface SyncStatus {
   transactions: SyncStatusItem;
   events: SyncStatusItem;
   refills: SyncStatusItem;
+  products: SyncStatusItem;
+  refillDetails: SyncStatusItem;
 }
 
 export interface SyncLog {
