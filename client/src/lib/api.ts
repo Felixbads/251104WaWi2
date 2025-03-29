@@ -101,12 +101,37 @@ export interface Machine {
 export interface Product {
   id: number;
   vendonId: string;
-  name: string;
-  productCode?: string;
+  productName: string;  // Umbenannt von 'name' auf 'productName', um mit dem Schema übereinzustimmen
+  description?: string;
   category?: string;
   price?: number;
   vat?: number;
-  inStock?: number;
+  status?: string;
+  sku?: string;
+  barcode?: string;
+  depositPrice?: number;
+  depositVat?: number;
+  productType?: string;
+  article?: string;
+  tags?: string;  // JSON array als String
+  units?: string;
+  costPrice?: number;
+  warehouseLocation?: string;
+  // Lagerbestand
+  inStock?: number;  // Virtuelles Feld für den Gesamtbestand
+  amountMax?: number;
+  amountStandard?: number;
+  amountCritical?: number;
+  refillUnitSize?: number;
+  minRefill?: number;
+  critical?: boolean;
+  // Zusätzliche Felder für UI
+  requiresAgeVerification?: boolean;
+  supplier?: string;
+  salesCount?: number;  // Anzahl der Verkäufe
+  lastSale?: string;    // Letzter Verkauf
+  updatedAt?: string;
+  createdAt?: string;
 }
 
 export interface SyncLog {
@@ -201,6 +226,10 @@ export async function getMachine(id: string): Promise<Machine> {
 // Produkte
 export async function getProducts(): Promise<Product[]> {
   return apiRequest<Product[]>('get', '/products');
+}
+
+export async function getProduct(id: string): Promise<Product> {
+  return apiRequest<Product>('get', `/products/${id}`);
 }
 
 // Synchronisierung

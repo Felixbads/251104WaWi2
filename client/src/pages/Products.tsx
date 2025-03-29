@@ -11,7 +11,12 @@ import {
   AlertTriangle, 
   ExternalLink,
   FileText,
-  Tag
+  Tag,
+  X,
+  CircleDollarSign,
+  PackageOpen,
+  Clock,
+  BadgeAlert
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,27 +24,190 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription,
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger, 
+  DialogFooter, 
+  DialogClose 
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { getProducts } from "@/lib/api";
 
-// Typen für Produkte
-interface Product {
-  id: number;
-  vendonId: string;
-  name: string;
-  productCode?: string;
-  category?: string;
-  price?: number;
-  vat?: number;
-  inStock?: number;
-  supplier?: string;
-  regionalOrigin?: string;
-  salesCount?: number;
+// Import die Produkt-Definition aus der API
+import { Product } from "@/lib/api";
+
+// Filter Dialog Komponente
+interface FilterDialogProps {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  onApplyFilters: (filters: FilterState) => void;
+  categories: string[];
+  initialFilters: FilterState;
+}
+
+interface FilterState {
+  onlyInStock: boolean;
+  onlyLowStock: boolean;
+  priceRange: [number, number];
+  suppliers: string[];
+  requiresAgeVerification: boolean | null;
+}
+
+// Filter Dialog Component
+function FilterDialog({ isOpen, onOpenChange, onApplyFilters, categories, initialFilters }: FilterDialogProps) {
+  const [filters, setFilters] = useState<FilterState>(initialFilters);
+  
+  // Reset Filters
+  const resetFilters = () => {
+    setFilters({
+      onlyInStock: false,
+      onlyLowStock: false,
+      priceRange: [0, 100],
+      suppliers: [],
+      requiresAgeVerification: null
+    });
+  };
+  
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Filter className="h-5 w-5" />
+            Produkte filtern
+          </DialogTitle>
+          <DialogDescription>
+            Filtern Sie die Produktliste nach verschiedenen Kriterien.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-6 py-4">
+          {/* Bestand */}
+          <div className="space-y-4">
+            <h4 className="font-medium flex items-center">
+              <PackageOpen className="h-4 w-4 mr-2" />
+              Bestand
+            </h4>
+            <div className="space-y-2">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="only-in-stock" 
+                  checked={filters.onlyInStock}
+                  onCheckedChange={(checked) => 
+                    setFilters({...filters, onlyInStock: checked as boolean})
+                  }
+                />
+                <Label htmlFor="only-in-stock">Nur Produkte auf Lager</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="only-low-stock" 
+                  checked={filters.onlyLowStock}
+                  onCheckedChange={(checked) => 
+                    setFilters({...filters, onlyLowStock: checked as boolean})
+                  }
+                />
+                <Label htmlFor="only-low-stock">Kritischer Bestand</Label>
+              </div>
+            </div>
+          </div>
+          
+          {/* Preis */}
+          <div className="space-y-4">
+            <h4 className="font-medium flex items-center">
+              <CircleDollarSign className="h-4 w-4 mr-2" />
+              Preis
+            </h4>
+            <div className="px-2">
+              <Slider 
+                defaultValue={filters.priceRange} 
+                max={100}
+                step={1}
+                onValueChange={(value) => 
+                  setFilters({...filters, priceRange: value as [number, number]})
+                }
+              />
+              <div className="flex justify-between mt-2 text-sm text-gray-500">
+                <span>{filters.priceRange[0]}€</span>
+                <span>bis</span>
+                <span>{filters.priceRange[1]}€</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Altersüberprüfung */}
+          <div className="space-y-4">
+            <h4 className="font-medium flex items-center">
+              <BadgeAlert className="h-4 w-4 mr-2" />
+              Altersüberprüfung
+            </h4>
+            <RadioGroup 
+              defaultValue={filters.requiresAgeVerification === null ? "all" : 
+                          filters.requiresAgeVerification ? "required" : "not-required"}
+              onValueChange={(value) => {
+                let newValue: boolean | null = null;
+                if (value === "required") newValue = true;
+                if (value === "not-required") newValue = false;
+                setFilters({...filters, requiresAgeVerification: newValue});
+              }}
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="all" id="all" />
+                <Label htmlFor="all">Alle Produkte</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="required" id="required" />
+                <Label htmlFor="required">Nur Produkte mit Altersüberprüfung (18+)</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="not-required" id="not-required" />
+                <Label htmlFor="not-required">Nur Produkte ohne Altersüberprüfung</Label>
+              </div>
+            </RadioGroup>
+          </div>
+        </div>
+        
+        <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-between sm:space-x-2">
+          <Button 
+            variant="outline" 
+            onClick={resetFilters}
+          >
+            <X className="h-4 w-4 mr-2" />
+            Zurücksetzen
+          </Button>
+          <Button onClick={() => {
+            onApplyFilters(filters);
+            onOpenChange(false);
+          }}>
+            Filter anwenden
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export default function Products() {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [, setLocation] = useLocation();
+  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
+  
+  // Filterzustand
+  const [filters, setFilters] = useState<FilterState>({
+    onlyInStock: false,
+    onlyLowStock: false,
+    priceRange: [0, 100],
+    suppliers: [],
+    requiresAgeVerification: null
+  });
 
   // Daten abrufen
   const { data: products, isLoading, error } = useQuery({
@@ -50,42 +218,81 @@ export default function Products() {
   // Category Filter
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
-  // Kategorien sammeln
-  // Kategorien sammeln und deduplizieren
+  // Kategorien und Lieferanten sammeln
   const categories = products 
     ? Array.from(new Set(products.map((product: Product) => product.category || 'Unkategorisiert')))
+    : [];
+    
+  const suppliers = products
+    ? Array.from(new Set(products.filter(p => p.supplier).map(p => p.supplier as string)))
     : [];
 
   // Filter- und Suchfunktionen
   const filteredProducts = products?.filter((product: Product) => {
     // Sicherstellen, dass product und seine Eigenschaften definiert sind
-    if (!product || !product.name) return false;
+    if (!product || !product.productName) return false;
     
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         (product.productCode?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
+    // Suchterm-Filter
+    const matchesSearch = product.productName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                         (product.sku?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
+    
+    // Kategorie-Filter
     const matchesCategory = !categoryFilter || product.category === categoryFilter || 
                            (categoryFilter === 'Unkategorisiert' && !product.category);
-    return matchesSearch && matchesCategory;
+    
+    // Erweiterte Filter
+    
+    // Bestand-Filter
+    const hasStock = !filters.onlyInStock || (typeof product.inStock === 'number' && product.inStock > 0);
+    
+    // Kritischer Bestand
+    const hasLowStock = !filters.onlyLowStock || 
+                        (typeof product.inStock === 'number' && 
+                         typeof product.amountCritical === 'number' && 
+                         product.inStock <= product.amountCritical && 
+                         product.inStock > 0);
+    
+    // Preis-Filter
+    const priceInRange = !product.price || 
+                         (product.price >= filters.priceRange[0] && 
+                          product.price <= filters.priceRange[1]);
+    
+    // Altersüberprüfung
+    const tags = product.tags ? JSON.parse(product.tags) : [];
+    const isAlcohol = tags.includes('alcohol') || product.requiresAgeVerification;
+    const matchesAgeVerification = filters.requiresAgeVerification === null || 
+                                   isAlcohol === filters.requiresAgeVerification;
+    
+    return matchesSearch && 
+           matchesCategory && 
+           hasStock && 
+           hasLowStock && 
+           priceInRange && 
+           matchesAgeVerification;
   }) || [];
 
   // Product Card Component
   const ProductCard = ({ product }: { product: Product }) => {
+    // Extrahiere Tags, wenn vorhanden
+    const tags = product.tags ? JSON.parse(product.tags) : [];
+    const isAlcohol = tags.includes('alcohol') || product.requiresAgeVerification;
+    
     return (
       <Card className="overflow-hidden">
         <CardHeader className="pb-2">
           <div className="flex justify-between items-start">
-            <CardTitle className="text-lg truncate">{product.name}</CardTitle>
-            {product.regionalOrigin && (
-              <Badge variant="outline" className="ml-2">
-                {product.regionalOrigin}
+            <CardTitle className="text-lg truncate">{product.productName}</CardTitle>
+            {isAlcohol && (
+              <Badge variant="outline" className="ml-2 bg-amber-100 text-amber-800 border-amber-300">
+                18+
               </Badge>
             )}
           </div>
           <CardDescription>
-            {product.productCode && (
+            {product.sku && (
               <span className="text-xs text-gray-500 flex items-center">
                 <Tag className="h-3 w-3 mr-1" />
-                {product.productCode}
+                {product.sku}
               </span>
             )}
           </CardDescription>
@@ -111,6 +318,13 @@ export default function Products() {
               <p className="text-sm font-medium truncate">{product.supplier}</p>
             </div>
           )}
+          {product.category && (
+            <div className="mt-2">
+              <Badge variant="secondary" className="mt-1">
+                {product.category}
+              </Badge>
+            </div>
+          )}
         </CardContent>
         <CardFooter className="pt-2">
           <Button 
@@ -129,22 +343,41 @@ export default function Products() {
 
   // Product List Item Component
   const ProductListItem = ({ product }: { product: Product }) => {
+    // Extrahiere Tags, wenn vorhanden
+    const tags = product.tags ? JSON.parse(product.tags) : [];
+    const isAlcohol = tags.includes('alcohol') || product.requiresAgeVerification;
+    
+    // Bestandsstatus berechnen
+    let stockStatus = "normal";
+    if (typeof product.inStock === 'number' && product.amountCritical) {
+      if (product.inStock <= 0) {
+        stockStatus = "out";
+      } else if (product.inStock <= product.amountCritical) {
+        stockStatus = "low";
+      }
+    }
+    
     return (
       <div className="flex items-center p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors">
         <div className="flex-grow mr-4">
           <div className="flex items-center mb-1">
-            <h3 className="font-medium truncate mr-2">{product.name}</h3>
-            {product.regionalOrigin && (
-              <Badge variant="outline" className="ml-2">
-                {product.regionalOrigin}
+            <h3 className="font-medium truncate mr-2">{product.productName}</h3>
+            {isAlcohol && (
+              <Badge variant="outline" className="ml-2 bg-amber-100 text-amber-800 border-amber-300">
+                18+
+              </Badge>
+            )}
+            {product.category && (
+              <Badge variant="secondary" className="ml-2">
+                {product.category}
               </Badge>
             )}
           </div>
           <p className="text-sm text-gray-600">
-            {product.productCode && (
+            {product.sku && (
               <span className="text-xs text-gray-500 flex items-center">
                 <Tag className="h-3 w-3 mr-1" />
-                {product.productCode}
+                {product.sku}
               </span>
             )}
           </p>
@@ -157,18 +390,26 @@ export default function Products() {
           </div>
           <div className="text-center">
             <p className="text-gray-500">Bestand</p>
-            <p className="font-medium">{typeof product.inStock === 'number' ? product.inStock : '–'}</p>
+            <p className={`font-medium ${
+              stockStatus === "out" ? "text-red-600" : 
+              stockStatus === "low" ? "text-amber-600" : ""
+            }`}>
+              {typeof product.inStock === 'number' ? product.inStock : '–'}
+            </p>
           </div>
-          <div className="text-center">
-            <p className="text-gray-500">Kategorie</p>
-            <p className="font-medium">{product.category || 'Unkategorisiert'}</p>
-          </div>
+          {product.salesCount !== undefined && (
+            <div className="text-center">
+              <p className="text-gray-500">Verkäufe</p>
+              <p className="font-medium">{product.salesCount}</p>
+            </div>
+          )}
           
           <Button 
             variant="outline" 
             size="sm"
             onClick={() => setLocation(`/products/${product.id}`)}
           >
+            <ExternalLink className="h-4 w-4 mr-2" />
             Details
           </Button>
         </div>
@@ -220,12 +461,29 @@ export default function Products() {
         <div className="flex gap-2">
           <Button 
             variant="outline" 
-            onClick={() => {/* Filter dialog implementieren */}}
-            className="gap-1"
+            onClick={() => setIsFilterDialogOpen(true)}
+            className="gap-1 relative"
           >
-            <Filter className="h-4 w-4" />
+            <Filter className="h-4 w-4 mr-1" />
             Filter
+            {/* Filter-Indikator, wenn aktive Filter vorhanden sind */}
+            {(filters.onlyInStock || 
+              filters.onlyLowStock || 
+              filters.priceRange[0] > 0 || 
+              filters.priceRange[1] < 100 || 
+              filters.requiresAgeVerification !== null) && (
+              <span className="absolute -top-1 -right-1 rounded-full bg-primary w-2 h-2" />
+            )}
           </Button>
+          
+          {/* Filter Dialog */}
+          <FilterDialog 
+            isOpen={isFilterDialogOpen} 
+            onOpenChange={setIsFilterDialogOpen}
+            onApplyFilters={setFilters}
+            categories={categories}
+            initialFilters={filters}
+          />
           <div className="border rounded-md p-1 flex">
             <Button
               variant={viewMode === "grid" ? "secondary" : "ghost"}
@@ -321,10 +579,19 @@ export default function Products() {
           <Button 
             variant="outline" 
             onClick={() => {
+              // Alle Filter zurücksetzen
               setSearchTerm("");
               setCategoryFilter(null);
+              setFilters({
+                onlyInStock: false,
+                onlyLowStock: false,
+                priceRange: [0, 100],
+                suppliers: [],
+                requiresAgeVerification: null
+              });
             }}
           >
+            <X className="h-4 w-4 mr-2" />
             Filter zurücksetzen
           </Button>
         </div>
