@@ -1,0 +1,173 @@
+{
+    "code": 200,
+    "result": {
+        "id": 323780,
+        "name": "Pfaffendorf",
+        "telemetry_unit_id": 67531,
+        "telemetry_unit": {
+            "id": 67531,
+            "serial": "869951034429369",
+            "last_updated_at": 1743253297,
+            "gsm_signal": 17,
+            "connection_method": "GPRS",
+            "firmware": 8020,
+            "firmware_name": "HW2 8.20",
+            "nfc_id": "0409F84AEF4A81",
+            "protocol": "MDB Master/CommsGW",
+            "protocol_name": "MDB Master",
+            "audit_protocol": [
+                "CommsGW"
+            ],
+            "protocol_bits": 32,
+            "config_bits": 412354609153,
+            "configuration": [
+                "Comms Gateway",
+                "use temperature senson"
+            ],
+            "sim_active": true,
+            "reference": null,
+            "type": 1,
+            "modem": "4G",
+            "data_usage_previous_month": 1523004,
+            "data_overspend": 0,
+            "last_config_change_at": 1679911899,
+            "last_config_success": true,
+            "online": true,
+            "supports_limited_config": true,
+            "supports_pricelists": false,
+            "supports_age_verification": false,
+            "supports_deposit_fee": false,
+            "decimal_position": 2,
+            "account": {
+                "id": 4279,
+                "name": "Elbsandstein Proviant & Quartier GmbH",
+                "timezone": "Europe/Berlin"
+            }
+        },
+        "quickpik_onboarded": false,
+        "serial": "",
+        "machine_id": "",
+        "software_version": "",
+        "type": "snack",
+        "power": true,
+        "power_status": "ON",
+        "manufacturer_id": 17,
+        "model_id": null,
+        "model_name": null,
+        "currency": "EUR",
+        "created_at": 1658346031,
+        "description": "Seriennummer G-Drink: 3215007408, Slave: 3116005217",
+        "location": {
+            "id": 67559,
+            "name": "Pfaffendorf",
+            "address": "Pfaffendorfer Str. 33, 01824 K\u00f6nigstein, Germany",
+            "gps": {
+                "lat": 50.9070671,
+                "lon": 14.0807003
+            },
+            "type": "other",
+            "working_schedules": [
+                {
+                    "id": 37488,
+                    "location_id": 67559,
+                    "days": [
+                        1,
+                        2,
+                        3,
+                        4,
+                        5,
+                        6,
+                        7
+                    ],
+                    "hours_from": "00:00",
+                    "hours_to": "23:59",
+                    "created_at": 1737447140,
+                    "updated_at": 1737447140
+                }
+            ],
+            "machines": 1,
+            "client_id": null,
+            "client_name": null,
+            "reference": "",
+            "refiller": null,
+            "refiller_first_name": null,
+            "refiller_last_name": null,
+            "technician": null,
+            "technician_first_name": null,
+            "technician_last_name": null,
+            "manager": null,
+            "manager_first_name": null,
+            "manager_last_name": null,
+            "encashment": null,
+            "encashment_first_name": null,
+            "encashment_last_name": null,
+            "task_manager": null,
+            "task_manager_first_name": null,
+            "task_manager_last_name": null,
+            "supervisor1": null,
+            "supervisor2": null,
+            "phone": null,
+            "fax": null,
+            "email": null,
+            "refill_time": null,
+            "encashment_time": null,
+            "maintenance_time": null,
+            "holidays": [],
+            "account": {
+                "id": 4279,
+                "name": "Elbsandstein Proviant & Quartier GmbH",
+                "timezone": "Europe/Berlin"
+            }
+        },
+        "location_id": 67559,
+        "picture_url": "https://cloud.vendon.net/images/vending_pic/323780_64689ed0b425c.jpg",
+        "picture_url_large": "https://cloud.vendon.net/images/vending_pic/323780_64689ed0b425c_large.jpg",
+        "inactive": false,
+        "warehouse_id": 0,
+        "peripheral_devices": [
+            {
+                "device_type": "coin_changer",
+                "status": 1
+            },
+            {
+                "device_type": "cashless",
+                "status": 1
+            },
+            {
+                "device_type": "age_verification",
+                "status": 3
+            },
+            {
+                "device_type": "bill_validator",
+                "status": 1
+            },
+            {
+                "device_type": "comm_gateway",
+                "status": 1
+            }
+        ],
+        "tag_ids": [],
+        "last_purchase": 1743252575,
+        "last_refill": 1743111825,
+        "has_audit": true,
+        "has_thermoplan_audit": false,
+        "can_reset_counters": false,
+        "has_coin_changer_data": true,
+        "has_product_groups_enabled": false,
+        "has_pricelists_enabled": false,
+        "supports_eva_dts_price_writing": false,
+        "is_planogram": false,
+        "planogram_id": null,
+        "account": {
+            "id": 4279,
+            "name": "Elbsandstein Proviant & Quartier GmbH",
+            "timezone": "Europe/Berlin"
+        },
+        "distance": null,
+        "updated_at": 1743111784,
+        "has_ecommerce_terminal": false,
+        "has_vendon_payment_terminal": false,
+        "supports_cci_file_exchange": false,
+        "supports_vid_report": false
+    }
+}

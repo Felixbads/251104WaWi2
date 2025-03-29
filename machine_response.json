@@ -1,0 +1,2808 @@
+{
+    "code": 200,
+    "result": [
+        {
+            "id": 323780,
+            "name": "Pfaffendorf",
+            "telemetry_unit_id": 67531,
+            "telemetry_unit": {
+                "id": 67531,
+                "serial": "869951034429369",
+                "last_updated_at": 1743253297,
+                "gsm_signal": 17,
+                "connection_method": "GPRS",
+                "firmware": 8020,
+                "firmware_name": "HW2 8.20",
+                "nfc_id": "0409F84AEF4A81",
+                "protocol": "MDB Master/CommsGW",
+                "protocol_name": "MDB Master",
+                "audit_protocol": [
+                    "CommsGW"
+                ],
+                "protocol_bits": 32,
+                "config_bits": 412354609153,
+                "configuration": [
+                    "Comms Gateway",
+                    "use temperature senson"
+                ],
+                "sim_active": true,
+                "reference": null,
+                "type": 1,
+                "modem": "4G",
+                "data_usage_previous_month": 1523004,
+                "data_overspend": 0,
+                "last_config_change_at": 1679911899,
+                "last_config_success": true,
+                "online": true,
+                "supports_limited_config": true,
+                "supports_pricelists": false,
+                "supports_age_verification": false,
+                "supports_deposit_fee": false,
+                "decimal_position": 2,
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "quickpik_onboarded": false,
+            "serial": "",
+            "machine_id": "",
+            "software_version": "",
+            "type": "snack",
+            "power": true,
+            "power_status": "ON",
+            "manufacturer_id": 17,
+            "model_id": null,
+            "model_name": null,
+            "currency": "EUR",
+            "created_at": 1658346031,
+            "description": "Seriennummer G-Drink: 3215007408, Slave: 3116005217",
+            "location": {
+                "id": 67559,
+                "name": "Pfaffendorf",
+                "address": "Pfaffendorfer Str. 33, 01824 K\u00f6nigstein, Germany",
+                "gps": {
+                    "lat": 50.9070671,
+                    "lon": 14.0807003
+                },
+                "type": "other",
+                "working_schedules": [
+                    {
+                        "id": 37488,
+                        "location_id": 67559,
+                        "days": [
+                            1,
+                            2,
+                            3,
+                            4,
+                            5,
+                            6,
+                            7
+                        ],
+                        "hours_from": "00:00",
+                        "hours_to": "23:59",
+                        "created_at": 1737447140,
+                        "updated_at": 1737447140
+                    }
+                ],
+                "machines": 1,
+                "client_id": null,
+                "client_name": null,
+                "reference": "",
+                "refiller": null,
+                "refiller_first_name": null,
+                "refiller_last_name": null,
+                "technician": null,
+                "technician_first_name": null,
+                "technician_last_name": null,
+                "manager": null,
+                "manager_first_name": null,
+                "manager_last_name": null,
+                "encashment": null,
+                "encashment_first_name": null,
+                "encashment_last_name": null,
+                "task_manager": null,
+                "task_manager_first_name": null,
+                "task_manager_last_name": null,
+                "supervisor1": null,
+                "supervisor2": null,
+                "phone": null,
+                "fax": null,
+                "email": null,
+                "refill_time": null,
+                "encashment_time": null,
+                "maintenance_time": null,
+                "holidays": [],
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "location_id": 67559,
+            "picture_url": "https://cloud.vendon.net/images/vending_pic/323780_64689ed0b425c.jpg",
+            "picture_url_large": "https://cloud.vendon.net/images/vending_pic/323780_64689ed0b425c_large.jpg",
+            "inactive": false,
+            "warehouse_id": 0,
+            "peripheral_devices": [
+                {
+                    "device_type": "coin_changer",
+                    "status": 1
+                },
+                {
+                    "device_type": "cashless",
+                    "status": 1
+                },
+                {
+                    "device_type": "age_verification",
+                    "status": 3
+                },
+                {
+                    "device_type": "bill_validator",
+                    "status": 1
+                },
+                {
+                    "device_type": "comm_gateway",
+                    "status": 1
+                }
+            ],
+            "tag_ids": [],
+            "last_purchase": 1743252575,
+            "last_refill": 1743111825,
+            "has_audit": true,
+            "has_thermoplan_audit": false,
+            "can_reset_counters": false,
+            "has_coin_changer_data": true,
+            "has_product_groups_enabled": false,
+            "has_pricelists_enabled": false,
+            "supports_eva_dts_price_writing": false,
+            "is_planogram": false,
+            "planogram_id": null,
+            "account": {
+                "id": 4279,
+                "name": "Elbsandstein Proviant & Quartier GmbH",
+                "timezone": "Europe/Berlin"
+            },
+            "distance": null,
+            "updated_at": 1743111784,
+            "has_ecommerce_terminal": false,
+            "has_vendon_payment_terminal": false,
+            "supports_cci_file_exchange": false,
+            "supports_vid_report": false
+        },
+        {
+            "id": 323959,
+            "name": "Bad Schandau, Nationalparkbahnhof",
+            "telemetry_unit_id": 67545,
+            "telemetry_unit": {
+                "id": 67545,
+                "serial": "869951034402721",
+                "last_updated_at": 1743253061,
+                "gsm_signal": 20,
+                "connection_method": "GPRS",
+                "firmware": 8068,
+                "firmware_name": "HW2 8.68",
+                "nfc_id": "04A5B24AEF4A80",
+                "protocol": "MDB Master/CommsGW",
+                "protocol_name": "MDB Master",
+                "audit_protocol": [
+                    "CommsGW"
+                ],
+                "protocol_bits": 32,
+                "config_bits": 2305913790312480769,
+                "configuration": [
+                    "Comms Gateway",
+                    "use temperature senson"
+                ],
+                "sim_active": true,
+                "reference": null,
+                "type": 1,
+                "modem": "4G",
+                "data_usage_previous_month": 1610884,
+                "data_overspend": 0,
+                "last_config_change_at": 1706618262,
+                "last_config_success": true,
+                "online": true,
+                "supports_limited_config": true,
+                "supports_pricelists": false,
+                "supports_age_verification": true,
+                "supports_deposit_fee": false,
+                "decimal_position": 2,
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "quickpik_onboarded": true,
+            "serial": "",
+            "machine_id": "",
+            "software_version": "",
+            "type": "snack",
+            "power": true,
+            "power_status": "ON",
+            "manufacturer_id": 17,
+            "model_id": 4897,
+            "model_name": "G-DRINK DM9 VERTICAL OUTDOOR",
+            "currency": "EUR",
+            "created_at": 1658500957,
+            "description": "",
+            "location": {
+                "id": 67558,
+                "name": "Bahnhof Bad Schandau",
+                "address": "Nationalparkbahnhof Bad Schandau, 01814 Bad Schandau, Germany",
+                "gps": {
+                    "lat": 50.9193406,
+                    "lon": 14.139326
+                },
+                "type": "other",
+                "working_schedules": [
+                    {
+                        "id": 37487,
+                        "location_id": 67558,
+                        "days": [
+                            1,
+                            2,
+                            3,
+                            4,
+                            5,
+                            6,
+                            7
+                        ],
+                        "hours_from": "00:00",
+                        "hours_to": "23:59",
+                        "created_at": 1737447140,
+                        "updated_at": 1737447140
+                    }
+                ],
+                "machines": 1,
+                "client_id": null,
+                "client_name": null,
+                "reference": "",
+                "refiller": null,
+                "refiller_first_name": null,
+                "refiller_last_name": null,
+                "technician": null,
+                "technician_first_name": null,
+                "technician_last_name": null,
+                "manager": null,
+                "manager_first_name": null,
+                "manager_last_name": null,
+                "encashment": null,
+                "encashment_first_name": null,
+                "encashment_last_name": null,
+                "task_manager": null,
+                "task_manager_first_name": null,
+                "task_manager_last_name": null,
+                "supervisor1": null,
+                "supervisor2": null,
+                "phone": null,
+                "fax": null,
+                "email": null,
+                "refill_time": null,
+                "encashment_time": null,
+                "maintenance_time": null,
+                "holidays": [],
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "location_id": 67558,
+            "picture_url": "https://cloud.vendon.net/images/vending_pic/323959_62daca22e7ca1.jpg",
+            "picture_url_large": "https://cloud.vendon.net/images/vending_pic/323959_62daca22e7ca1_large.jpg",
+            "inactive": false,
+            "warehouse_id": 0,
+            "peripheral_devices": [
+                {
+                    "device_type": "coin_changer",
+                    "status": 1
+                },
+                {
+                    "device_type": "bill_validator",
+                    "status": 1
+                },
+                {
+                    "device_type": "cashless",
+                    "status": 1
+                },
+                {
+                    "device_type": "age_verification",
+                    "status": 1
+                },
+                {
+                    "device_type": "comm_gateway",
+                    "status": 1
+                }
+            ],
+            "tag_ids": [],
+            "last_purchase": 1743248634,
+            "last_refill": 1743158125,
+            "has_audit": true,
+            "has_thermoplan_audit": false,
+            "can_reset_counters": false,
+            "has_coin_changer_data": true,
+            "has_product_groups_enabled": false,
+            "has_pricelists_enabled": false,
+            "supports_eva_dts_price_writing": false,
+            "is_planogram": false,
+            "planogram_id": null,
+            "account": {
+                "id": 4279,
+                "name": "Elbsandstein Proviant & Quartier GmbH",
+                "timezone": "Europe/Berlin"
+            },
+            "distance": null,
+            "updated_at": 1743158114,
+            "has_ecommerce_terminal": false,
+            "has_vendon_payment_terminal": false,
+            "supports_cci_file_exchange": false,
+            "supports_vid_report": false
+        },
+        {
+            "id": 325762,
+            "name": "Rathen",
+            "telemetry_unit_id": 69434,
+            "telemetry_unit": {
+                "id": 69434,
+                "serial": "869951034336416",
+                "last_updated_at": 1743253333,
+                "gsm_signal": 31,
+                "connection_method": "GPRS",
+                "firmware": 8026,
+                "firmware_name": "HW2 8.26",
+                "nfc_id": "04453DB2246980",
+                "protocol": "MDB Master/CommsGW",
+                "protocol_name": "MDB Master",
+                "audit_protocol": [
+                    "CommsGW"
+                ],
+                "protocol_bits": 32,
+                "config_bits": 2305843421568303105,
+                "configuration": [
+                    "Comms Gateway",
+                    "use temperature senson"
+                ],
+                "sim_active": true,
+                "reference": null,
+                "type": 1,
+                "modem": "4G",
+                "data_usage_previous_month": 1630057,
+                "data_overspend": 0,
+                "last_config_change_at": 1679912855,
+                "last_config_success": true,
+                "online": true,
+                "supports_limited_config": true,
+                "supports_pricelists": false,
+                "supports_age_verification": true,
+                "supports_deposit_fee": false,
+                "decimal_position": 2,
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "quickpik_onboarded": false,
+            "serial": "",
+            "machine_id": "",
+            "software_version": "",
+            "type": "snack",
+            "power": true,
+            "power_status": "ON",
+            "manufacturer_id": 17,
+            "model_id": 4893,
+            "model_name": "G-DRINK DESIGN DV9 VERTICAL OUTDOOR",
+            "currency": "EUR",
+            "created_at": 1661866079,
+            "description": "Seriernnr. Master: 3214005932, Slave:",
+            "location": {
+                "id": 67560,
+                "name": "Rathen",
+                "address": "F\u00e4hrweg 2, 01824 Rathen, Germany",
+                "gps": {
+                    "lat": 50.9568213,
+                    "lon": 14.0779574
+                },
+                "type": "other",
+                "working_schedules": [
+                    {
+                        "id": 37489,
+                        "location_id": 67560,
+                        "days": [
+                            1,
+                            2,
+                            3,
+                            4,
+                            5
+                        ],
+                        "hours_from": "00:00",
+                        "hours_to": "00:00",
+                        "created_at": 1737447140,
+                        "updated_at": 1737447140
+                    }
+                ],
+                "machines": 1,
+                "client_id": null,
+                "client_name": null,
+                "reference": "",
+                "refiller": null,
+                "refiller_first_name": null,
+                "refiller_last_name": null,
+                "technician": null,
+                "technician_first_name": null,
+                "technician_last_name": null,
+                "manager": null,
+                "manager_first_name": null,
+                "manager_last_name": null,
+                "encashment": null,
+                "encashment_first_name": null,
+                "encashment_last_name": null,
+                "task_manager": null,
+                "task_manager_first_name": null,
+                "task_manager_last_name": null,
+                "supervisor1": null,
+                "supervisor2": null,
+                "phone": null,
+                "fax": null,
+                "email": null,
+                "refill_time": null,
+                "encashment_time": null,
+                "maintenance_time": null,
+                "holidays": [],
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "location_id": 67560,
+            "picture_url": "https://cloud.vendon.net/images/vending_pic/325762_63296a2f70a77.jpg",
+            "picture_url_large": "https://cloud.vendon.net/images/vending_pic/325762_63296a2f70a77_large.jpg",
+            "inactive": false,
+            "warehouse_id": 0,
+            "peripheral_devices": [
+                {
+                    "device_type": "coin_changer",
+                    "status": 1
+                },
+                {
+                    "device_type": "bill_validator",
+                    "status": 1
+                },
+                {
+                    "device_type": "cashless",
+                    "status": 1
+                },
+                {
+                    "device_type": "comm_gateway",
+                    "status": 1
+                }
+            ],
+            "tag_ids": [],
+            "last_purchase": 1743249476,
+            "last_refill": 1743109977,
+            "has_audit": true,
+            "has_thermoplan_audit": false,
+            "can_reset_counters": false,
+            "has_coin_changer_data": true,
+            "has_product_groups_enabled": false,
+            "has_pricelists_enabled": false,
+            "supports_eva_dts_price_writing": false,
+            "is_planogram": false,
+            "planogram_id": null,
+            "account": {
+                "id": 4279,
+                "name": "Elbsandstein Proviant & Quartier GmbH",
+                "timezone": "Europe/Berlin"
+            },
+            "distance": null,
+            "updated_at": 1743109373,
+            "has_ecommerce_terminal": false,
+            "has_vendon_payment_terminal": false,
+            "supports_cci_file_exchange": false,
+            "supports_vid_report": false
+        },
+        {
+            "id": 334642,
+            "name": "Leupoldishain",
+            "telemetry_unit_id": 73140,
+            "telemetry_unit": {
+                "id": 73140,
+                "serial": "869951035302060",
+                "last_updated_at": 1743253060,
+                "gsm_signal": 9,
+                "connection_method": "GPRS",
+                "firmware": 8054,
+                "firmware_name": "HW2 8.54",
+                "nfc_id": "043875B2246980",
+                "protocol": "MDB/CommsGW",
+                "protocol_name": "MDB",
+                "audit_protocol": [
+                    "CommsGW"
+                ],
+                "protocol_bits": 2,
+                "config_bits": 65,
+                "configuration": [
+                    "Comms Gateway"
+                ],
+                "sim_active": true,
+                "reference": null,
+                "type": 1,
+                "modem": "4G",
+                "data_usage_previous_month": 1084141,
+                "data_overspend": 0,
+                "last_config_change_at": 1732170377,
+                "last_config_success": true,
+                "online": true,
+                "supports_limited_config": false,
+                "supports_pricelists": false,
+                "supports_age_verification": false,
+                "supports_deposit_fee": false,
+                "decimal_position": 2,
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "quickpik_onboarded": false,
+            "serial": "VND000245894335",
+            "machine_id": "4",
+            "software_version": "",
+            "type": "snack",
+            "power": true,
+            "power_status": "ON",
+            "manufacturer_id": 15,
+            "model_id": null,
+            "model_name": null,
+            "currency": "EUR",
+            "created_at": 1675263374,
+            "description": "Seriennummer S\u00fcSiLine: 9054683",
+            "location": {
+                "id": 67554,
+                "name": "Leupoldishain ",
+                "address": "Leupoldishain Dorfplatz, 01824 K\u00f6nigstein, Germany",
+                "gps": {
+                    "lat": 50.905643,
+                    "lon": 14.0284149
+                },
+                "type": "other",
+                "working_schedules": [
+                    {
+                        "id": 37483,
+                        "location_id": 67554,
+                        "days": [
+                            1,
+                            2,
+                            3,
+                            4,
+                            5,
+                            6,
+                            7
+                        ],
+                        "hours_from": "00:00",
+                        "hours_to": "23:59",
+                        "created_at": 1737447140,
+                        "updated_at": 1737447140
+                    }
+                ],
+                "machines": 1,
+                "client_id": null,
+                "client_name": null,
+                "reference": "",
+                "refiller": null,
+                "refiller_first_name": null,
+                "refiller_last_name": null,
+                "technician": null,
+                "technician_first_name": null,
+                "technician_last_name": null,
+                "manager": null,
+                "manager_first_name": null,
+                "manager_last_name": null,
+                "encashment": null,
+                "encashment_first_name": null,
+                "encashment_last_name": null,
+                "task_manager": null,
+                "task_manager_first_name": null,
+                "task_manager_last_name": null,
+                "supervisor1": null,
+                "supervisor2": null,
+                "phone": null,
+                "fax": null,
+                "email": null,
+                "refill_time": null,
+                "encashment_time": null,
+                "maintenance_time": null,
+                "holidays": [],
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "location_id": 67554,
+            "picture_url": "https://cloud.vendon.net/images/vending_pic/334642_63dc4383e9d32.jpg",
+            "picture_url_large": "https://cloud.vendon.net/images/vending_pic/334642_63dc4383e9d32_large.jpg",
+            "inactive": false,
+            "warehouse_id": 0,
+            "peripheral_devices": [
+                {
+                    "device_type": "coin_changer",
+                    "status": 1
+                },
+                {
+                    "device_type": "bill_validator",
+                    "status": 1
+                },
+                {
+                    "device_type": "age_verification",
+                    "status": 3
+                },
+                {
+                    "device_type": "cashless",
+                    "status": 1
+                },
+                {
+                    "device_type": "comm_gateway",
+                    "status": 1
+                }
+            ],
+            "tag_ids": [],
+            "last_purchase": 1743252960,
+            "last_refill": 1743105096,
+            "has_audit": true,
+            "has_thermoplan_audit": false,
+            "can_reset_counters": true,
+            "has_coin_changer_data": true,
+            "has_product_groups_enabled": false,
+            "has_pricelists_enabled": false,
+            "supports_eva_dts_price_writing": false,
+            "is_planogram": false,
+            "planogram_id": null,
+            "account": {
+                "id": 4279,
+                "name": "Elbsandstein Proviant & Quartier GmbH",
+                "timezone": "Europe/Berlin"
+            },
+            "distance": null,
+            "updated_at": 1743105027,
+            "has_ecommerce_terminal": false,
+            "has_vendon_payment_terminal": false,
+            "supports_cci_file_exchange": false,
+            "supports_vid_report": false
+        },
+        {
+            "id": 340303,
+            "name": "Gohrisch",
+            "telemetry_unit_id": 69548,
+            "telemetry_unit": {
+                "id": 69548,
+                "serial": "869951034257612",
+                "last_updated_at": 1743253593,
+                "gsm_signal": 20,
+                "connection_method": "GPRS",
+                "firmware": 8062,
+                "firmware_name": "HW2 8.62",
+                "nfc_id": "0446DCB2246980",
+                "protocol": "MDB Master/DEX#1",
+                "protocol_name": "MDB Master",
+                "audit_protocol": [
+                    "DEX#1"
+                ],
+                "protocol_bits": 48,
+                "config_bits": 4194304,
+                "configuration": [],
+                "sim_active": true,
+                "reference": null,
+                "type": 1,
+                "modem": "4G",
+                "data_usage_previous_month": 1199140,
+                "data_overspend": 0,
+                "last_config_change_at": 1682507141,
+                "last_config_success": true,
+                "online": true,
+                "supports_limited_config": true,
+                "supports_pricelists": false,
+                "supports_age_verification": false,
+                "supports_deposit_fee": false,
+                "decimal_position": 2,
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "quickpik_onboarded": false,
+            "serial": "869951034257612",
+            "machine_id": "869951034257612",
+            "software_version": "",
+            "type": "cold_drink",
+            "power": true,
+            "power_status": "ON",
+            "manufacturer_id": 17,
+            "model_id": null,
+            "model_name": null,
+            "currency": "EUR",
+            "created_at": 1680192324,
+            "description": "Seriennummer G-Drink 3212002539:  , Slave: 3215006422",
+            "location": {
+                "id": 70049,
+                "name": "Gohrisch",
+                "address": "K8744 16, 01824 Gohrisch, Germany",
+                "gps": {
+                    "lat": 50.9121138,
+                    "lon": 14.1050278
+                },
+                "type": "other",
+                "working_schedules": [
+                    {
+                        "id": 39792,
+                        "location_id": 70049,
+                        "days": [
+                            1,
+                            2,
+                            3,
+                            4,
+                            5
+                        ],
+                        "hours_from": "00:00",
+                        "hours_to": "00:00",
+                        "created_at": 1737447143,
+                        "updated_at": 1737447143
+                    }
+                ],
+                "machines": 1,
+                "client_id": null,
+                "client_name": null,
+                "reference": "",
+                "refiller": null,
+                "refiller_first_name": null,
+                "refiller_last_name": null,
+                "technician": null,
+                "technician_first_name": null,
+                "technician_last_name": null,
+                "manager": null,
+                "manager_first_name": null,
+                "manager_last_name": null,
+                "encashment": null,
+                "encashment_first_name": null,
+                "encashment_last_name": null,
+                "task_manager": null,
+                "task_manager_first_name": null,
+                "task_manager_last_name": null,
+                "supervisor1": null,
+                "supervisor2": null,
+                "phone": null,
+                "fax": null,
+                "email": null,
+                "refill_time": null,
+                "encashment_time": null,
+                "maintenance_time": null,
+                "holidays": [],
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "location_id": 70049,
+            "picture_url": "https://cloud.vendon.net/images/vending_pic/340303_642c801f17810.jpg",
+            "picture_url_large": "https://cloud.vendon.net/images/vending_pic/340303_642c801f17810_large.jpg",
+            "inactive": false,
+            "warehouse_id": 0,
+            "peripheral_devices": [
+                {
+                    "device_type": "coin_changer",
+                    "status": 1
+                },
+                {
+                    "device_type": "bill_validator",
+                    "status": 1
+                },
+                {
+                    "device_type": "cashless",
+                    "status": 1
+                }
+            ],
+            "tag_ids": [],
+            "last_purchase": 1743240562,
+            "last_refill": 1742964757,
+            "has_audit": true,
+            "has_thermoplan_audit": false,
+            "can_reset_counters": false,
+            "has_coin_changer_data": true,
+            "has_product_groups_enabled": false,
+            "has_pricelists_enabled": false,
+            "supports_eva_dts_price_writing": false,
+            "is_planogram": false,
+            "planogram_id": null,
+            "account": {
+                "id": 4279,
+                "name": "Elbsandstein Proviant & Quartier GmbH",
+                "timezone": "Europe/Berlin"
+            },
+            "distance": null,
+            "updated_at": 1742962807,
+            "has_ecommerce_terminal": false,
+            "has_vendon_payment_terminal": false,
+            "supports_cci_file_exchange": false,
+            "supports_vid_report": false
+        },
+        {
+            "id": 347989,
+            "name": "Ostrau",
+            "telemetry_unit_id": 86953,
+            "telemetry_unit": {
+                "id": 86953,
+                "serial": "869951036156416",
+                "last_updated_at": 1743253489,
+                "gsm_signal": 17,
+                "connection_method": "GPRS",
+                "firmware": 8062,
+                "firmware_name": "HW2 8.62",
+                "nfc_id": "040B23B2246981",
+                "protocol": "MDB Master/CommsGW",
+                "protocol_name": "MDB Master",
+                "audit_protocol": [
+                    "CommsGW"
+                ],
+                "protocol_bits": 32,
+                "config_bits": 412321054721,
+                "configuration": [
+                    "Comms Gateway"
+                ],
+                "sim_active": true,
+                "reference": null,
+                "type": 1,
+                "modem": "4G",
+                "data_usage_previous_month": 1471015,
+                "data_overspend": 0,
+                "last_config_change_at": 1686658337,
+                "last_config_success": true,
+                "online": true,
+                "supports_limited_config": true,
+                "supports_pricelists": false,
+                "supports_age_verification": false,
+                "supports_deposit_fee": false,
+                "decimal_position": 2,
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "quickpik_onboarded": false,
+            "serial": "",
+            "machine_id": "",
+            "software_version": "",
+            "type": "other",
+            "power": true,
+            "power_status": "ON",
+            "manufacturer_id": 17,
+            "model_id": null,
+            "model_name": null,
+            "currency": "EUR",
+            "created_at": 1686730699,
+            "description": "Seriennummer G-Drink:  3215007404, Slave: 3215006420",
+            "location": {
+                "id": 72096,
+                "name": "Ostrau Kurpark",
+                "address": "Alter Schulweg 13a, 01814 Bad Schandau, Germany",
+                "gps": {
+                    "lat": 50.9198885,
+                    "lon": 14.174935
+                },
+                "type": "other",
+                "working_schedules": [
+                    {
+                        "id": 41667,
+                        "location_id": 72096,
+                        "days": [
+                            1,
+                            2,
+                            3,
+                            4,
+                            5,
+                            6,
+                            7
+                        ],
+                        "hours_from": "00:00",
+                        "hours_to": "23:49",
+                        "created_at": 1737447146,
+                        "updated_at": 1737447146
+                    }
+                ],
+                "machines": 1,
+                "client_id": null,
+                "client_name": null,
+                "reference": "",
+                "refiller": null,
+                "refiller_first_name": null,
+                "refiller_last_name": null,
+                "technician": null,
+                "technician_first_name": null,
+                "technician_last_name": null,
+                "manager": null,
+                "manager_first_name": null,
+                "manager_last_name": null,
+                "encashment": null,
+                "encashment_first_name": null,
+                "encashment_last_name": null,
+                "task_manager": null,
+                "task_manager_first_name": null,
+                "task_manager_last_name": null,
+                "supervisor1": null,
+                "supervisor2": null,
+                "phone": null,
+                "fax": null,
+                "email": null,
+                "refill_time": null,
+                "encashment_time": null,
+                "maintenance_time": null,
+                "holidays": [],
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "location_id": 72096,
+            "picture_url": "https://cloud.vendon.net/images/vending_pic/347989_64b17c79959f2.jpg",
+            "picture_url_large": "https://cloud.vendon.net/images/vending_pic/347989_64b17c79959f2_large.jpg",
+            "inactive": false,
+            "warehouse_id": 0,
+            "peripheral_devices": [
+                {
+                    "device_type": "coin_changer",
+                    "status": 1
+                },
+                {
+                    "device_type": "bill_validator",
+                    "status": 1
+                },
+                {
+                    "device_type": "comm_gateway",
+                    "status": 1
+                },
+                {
+                    "device_type": "cashless",
+                    "status": 1
+                }
+            ],
+            "tag_ids": [],
+            "last_purchase": 1743253489,
+            "last_refill": 1743093813,
+            "has_audit": true,
+            "has_thermoplan_audit": false,
+            "can_reset_counters": false,
+            "has_coin_changer_data": true,
+            "has_product_groups_enabled": false,
+            "has_pricelists_enabled": false,
+            "supports_eva_dts_price_writing": false,
+            "is_planogram": false,
+            "planogram_id": null,
+            "account": {
+                "id": 4279,
+                "name": "Elbsandstein Proviant & Quartier GmbH",
+                "timezone": "Europe/Berlin"
+            },
+            "distance": null,
+            "updated_at": 1740897070,
+            "has_ecommerce_terminal": false,
+            "has_vendon_payment_terminal": false,
+            "supports_cci_file_exchange": false,
+            "supports_vid_report": false
+        },
+        {
+            "id": 348079,
+            "name": "Sch\u00f6na",
+            "telemetry_unit_id": 87090,
+            "telemetry_unit": {
+                "id": 87090,
+                "serial": "869951036205015",
+                "last_updated_at": 1743253535,
+                "gsm_signal": 31,
+                "connection_method": "GPRS",
+                "firmware": 8062,
+                "firmware_name": "HW2 8.62",
+                "nfc_id": "04C622B2246980",
+                "protocol": "MDB Master/CommsGW",
+                "protocol_name": "MDB Master",
+                "audit_protocol": [
+                    "CommsGW"
+                ],
+                "protocol_bits": 32,
+                "config_bits": 412321054721,
+                "configuration": [
+                    "Comms Gateway"
+                ],
+                "sim_active": true,
+                "reference": null,
+                "type": 1,
+                "modem": "4G",
+                "data_usage_previous_month": 1281557,
+                "data_overspend": 0,
+                "last_config_change_at": 1686658364,
+                "last_config_success": true,
+                "online": true,
+                "supports_limited_config": true,
+                "supports_pricelists": false,
+                "supports_age_verification": false,
+                "supports_deposit_fee": false,
+                "decimal_position": 2,
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "quickpik_onboarded": false,
+            "serial": "",
+            "machine_id": "",
+            "software_version": "",
+            "type": "combo",
+            "power": true,
+            "power_status": "ON",
+            "manufacturer_id": 17,
+            "model_id": null,
+            "model_name": null,
+            "currency": "EUR",
+            "created_at": 1686769918,
+            "description": "Seriennummer Sandenvendo: 3214005932",
+            "location": {
+                "id": 79601,
+                "name": "Sch\u00f6na",
+                "address": "Hauptstra\u00dfe 291, 01814 Reinhardtsdorf-Sch\u00f6na, Germany",
+                "gps": {
+                    "lat": 50.8843283,
+                    "lon": 14.2133001
+                },
+                "type": "other",
+                "working_schedules": [
+                    {
+                        "id": 48849,
+                        "location_id": 79601,
+                        "days": [
+                            1,
+                            2,
+                            3,
+                            4,
+                            5,
+                            6,
+                            7
+                        ],
+                        "hours_from": "00:00",
+                        "hours_to": "00:00",
+                        "created_at": 1737447157,
+                        "updated_at": 1737447157
+                    }
+                ],
+                "machines": 1,
+                "client_id": null,
+                "client_name": null,
+                "reference": "",
+                "refiller": null,
+                "refiller_first_name": null,
+                "refiller_last_name": null,
+                "technician": null,
+                "technician_first_name": null,
+                "technician_last_name": null,
+                "manager": null,
+                "manager_first_name": null,
+                "manager_last_name": null,
+                "encashment": null,
+                "encashment_first_name": null,
+                "encashment_last_name": null,
+                "task_manager": null,
+                "task_manager_first_name": null,
+                "task_manager_last_name": null,
+                "supervisor1": null,
+                "supervisor2": null,
+                "phone": null,
+                "fax": null,
+                "email": null,
+                "refill_time": null,
+                "encashment_time": null,
+                "maintenance_time": null,
+                "holidays": [],
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "location_id": 79601,
+            "picture_url": "https://cloud.vendon.net/images/vending_pic/348079_65575e07ca3ad.jpg",
+            "picture_url_large": "https://cloud.vendon.net/images/vending_pic/348079_65575e07ca3ad_large.jpg",
+            "inactive": false,
+            "warehouse_id": 0,
+            "peripheral_devices": [
+                {
+                    "device_type": "coin_changer",
+                    "status": 1
+                },
+                {
+                    "device_type": "bill_validator",
+                    "status": 1
+                },
+                {
+                    "device_type": "cashless",
+                    "status": 1
+                },
+                {
+                    "device_type": "comm_gateway",
+                    "status": 1
+                }
+            ],
+            "tag_ids": [],
+            "last_purchase": 1743250999,
+            "last_refill": 1743160245,
+            "has_audit": true,
+            "has_thermoplan_audit": false,
+            "can_reset_counters": false,
+            "has_coin_changer_data": true,
+            "has_product_groups_enabled": false,
+            "has_pricelists_enabled": false,
+            "supports_eva_dts_price_writing": false,
+            "is_planogram": false,
+            "planogram_id": null,
+            "account": {
+                "id": 4279,
+                "name": "Elbsandstein Proviant & Quartier GmbH",
+                "timezone": "Europe/Berlin"
+            },
+            "distance": null,
+            "updated_at": 1743160260,
+            "has_ecommerce_terminal": false,
+            "has_vendon_payment_terminal": false,
+            "supports_cci_file_exchange": false,
+            "supports_vid_report": false
+        },
+        {
+            "id": 362117,
+            "name": "Burg Stolpen",
+            "telemetry_unit_id": 96828,
+            "telemetry_unit": {
+                "id": 96828,
+                "serial": "869951036452575",
+                "last_updated_at": 1743253241,
+                "gsm_signal": 13,
+                "connection_method": "GPRS",
+                "firmware": 8066,
+                "firmware_name": "HW2 8.66",
+                "nfc_id": "043397B2246980",
+                "protocol": "MDB/CommsGW",
+                "protocol_name": "MDB",
+                "audit_protocol": [
+                    "CommsGW"
+                ],
+                "protocol_bits": 2,
+                "config_bits": 65,
+                "configuration": [
+                    "Comms Gateway"
+                ],
+                "sim_active": true,
+                "reference": null,
+                "type": 1,
+                "modem": "4G",
+                "data_usage_previous_month": 1131643,
+                "data_overspend": 0,
+                "last_config_change_at": null,
+                "last_config_success": true,
+                "online": true,
+                "supports_limited_config": false,
+                "supports_pricelists": false,
+                "supports_age_verification": false,
+                "supports_deposit_fee": false,
+                "decimal_position": 2,
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "quickpik_onboarded": false,
+            "serial": "",
+            "machine_id": "",
+            "software_version": "",
+            "type": "snack",
+            "power": true,
+            "power_status": "ON",
+            "manufacturer_id": 15,
+            "model_id": null,
+            "model_name": null,
+            "currency": "EUR",
+            "created_at": 1698400726,
+            "description": "Burg Stolpen, Zehrgarten",
+            "location": {
+                "id": 84307,
+                "name": "Burg Stolpen, Zehrgarten",
+                "address": "Schlo\u00dfstra\u00dfe 10, 01833 Stolpen, Germany",
+                "gps": {
+                    "lat": 51.0479936,
+                    "lon": 14.0846307
+                },
+                "type": "other",
+                "working_schedules": [
+                    {
+                        "id": 53357,
+                        "location_id": 84307,
+                        "days": [
+                            1,
+                            2,
+                            3,
+                            4,
+                            5,
+                            6,
+                            7
+                        ],
+                        "hours_from": "00:01",
+                        "hours_to": "23:59",
+                        "created_at": 1737447163,
+                        "updated_at": 1737447163
+                    }
+                ],
+                "machines": 1,
+                "client_id": null,
+                "client_name": null,
+                "reference": "",
+                "refiller": null,
+                "refiller_first_name": null,
+                "refiller_last_name": null,
+                "technician": null,
+                "technician_first_name": null,
+                "technician_last_name": null,
+                "manager": null,
+                "manager_first_name": null,
+                "manager_last_name": null,
+                "encashment": null,
+                "encashment_first_name": null,
+                "encashment_last_name": null,
+                "task_manager": null,
+                "task_manager_first_name": null,
+                "task_manager_last_name": null,
+                "supervisor1": null,
+                "supervisor2": null,
+                "phone": null,
+                "fax": null,
+                "email": null,
+                "refill_time": null,
+                "encashment_time": null,
+                "maintenance_time": null,
+                "holidays": [],
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "location_id": 84307,
+            "picture_url": "https://cloud.vendon.net/images/vending_pic/362117_662df9e1cde07.jpg",
+            "picture_url_large": "https://cloud.vendon.net/images/vending_pic/362117_662df9e1cde07_large.jpg",
+            "inactive": false,
+            "warehouse_id": 0,
+            "peripheral_devices": [
+                {
+                    "device_type": "coin_changer",
+                    "status": 1
+                },
+                {
+                    "device_type": "cashless",
+                    "status": 1
+                },
+                {
+                    "device_type": "bill_validator",
+                    "status": 1
+                },
+                {
+                    "device_type": "age_verification",
+                    "status": 3
+                },
+                {
+                    "device_type": "comm_gateway",
+                    "status": 1
+                }
+            ],
+            "tag_ids": [],
+            "last_purchase": 1743252940,
+            "last_refill": 1742820809,
+            "has_audit": true,
+            "has_thermoplan_audit": false,
+            "can_reset_counters": true,
+            "has_coin_changer_data": true,
+            "has_product_groups_enabled": false,
+            "has_pricelists_enabled": false,
+            "supports_eva_dts_price_writing": false,
+            "is_planogram": false,
+            "planogram_id": null,
+            "account": {
+                "id": 4279,
+                "name": "Elbsandstein Proviant & Quartier GmbH",
+                "timezone": "Europe/Berlin"
+            },
+            "distance": null,
+            "updated_at": 1739173455,
+            "has_ecommerce_terminal": false,
+            "has_vendon_payment_terminal": false,
+            "supports_cci_file_exchange": false,
+            "supports_vid_report": false
+        },
+        {
+            "id": 363236,
+            "name": "Festungs Parkhaus",
+            "telemetry_unit_id": 97047,
+            "telemetry_unit": {
+                "id": 97047,
+                "serial": "869951036505489",
+                "last_updated_at": 1743253141,
+                "gsm_signal": 15,
+                "connection_method": "GPRS",
+                "firmware": 8064,
+                "firmware_name": "HW2 8.64",
+                "nfc_id": "043BA0B2246980",
+                "protocol": "MDB/CommsGW",
+                "protocol_name": "MDB",
+                "audit_protocol": [
+                    "CommsGW"
+                ],
+                "protocol_bits": 2,
+                "config_bits": 65,
+                "configuration": [
+                    "Comms Gateway"
+                ],
+                "sim_active": true,
+                "reference": null,
+                "type": 1,
+                "modem": "4G",
+                "data_usage_previous_month": 905215,
+                "data_overspend": 0,
+                "last_config_change_at": null,
+                "last_config_success": true,
+                "online": true,
+                "supports_limited_config": false,
+                "supports_pricelists": false,
+                "supports_age_verification": false,
+                "supports_deposit_fee": false,
+                "decimal_position": 2,
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "quickpik_onboarded": false,
+            "serial": "90547681",
+            "machine_id": "",
+            "software_version": "",
+            "type": "other",
+            "power": true,
+            "power_status": "ON",
+            "manufacturer_id": 15,
+            "model_id": null,
+            "model_name": null,
+            "currency": "EUR",
+            "created_at": 1699258312,
+            "description": "",
+            "location": {
+                "id": 72580,
+                "name": "Festung K\u00f6nigstein",
+                "address": "Am K\u00f6nigstein 62, 01824 K\u00f6nigstein, Germany",
+                "gps": {
+                    "lat": 50.9219911,
+                    "lon": 14.049004
+                },
+                "type": "other",
+                "working_schedules": [
+                    {
+                        "id": 42117,
+                        "location_id": 72580,
+                        "days": [
+                            1,
+                            2,
+                            3,
+                            4,
+                            5,
+                            6,
+                            7
+                        ],
+                        "hours_from": "00:00",
+                        "hours_to": "00:00",
+                        "created_at": 1737447148,
+                        "updated_at": 1737447148
+                    }
+                ],
+                "machines": 1,
+                "client_id": null,
+                "client_name": null,
+                "reference": "",
+                "refiller": null,
+                "refiller_first_name": null,
+                "refiller_last_name": null,
+                "technician": null,
+                "technician_first_name": null,
+                "technician_last_name": null,
+                "manager": null,
+                "manager_first_name": null,
+                "manager_last_name": null,
+                "encashment": null,
+                "encashment_first_name": null,
+                "encashment_last_name": null,
+                "task_manager": null,
+                "task_manager_first_name": null,
+                "task_manager_last_name": null,
+                "supervisor1": null,
+                "supervisor2": null,
+                "phone": null,
+                "fax": null,
+                "email": null,
+                "refill_time": null,
+                "encashment_time": null,
+                "maintenance_time": null,
+                "holidays": [],
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "location_id": 72580,
+            "picture_url": "https://cloud.vendon.net/images/vending_pic/363236_656a4c268f371.jpg",
+            "picture_url_large": "https://cloud.vendon.net/images/vending_pic/363236_656a4c268f371_large.jpg",
+            "inactive": false,
+            "warehouse_id": 0,
+            "peripheral_devices": [
+                {
+                    "device_type": "comm_gateway",
+                    "status": 1
+                },
+                {
+                    "device_type": "cashless",
+                    "status": 1
+                },
+                {
+                    "device_type": "bill_validator",
+                    "status": 1
+                },
+                {
+                    "device_type": "coin_changer",
+                    "status": 1
+                }
+            ],
+            "tag_ids": [],
+            "last_purchase": 1743247632,
+            "last_refill": 1740069758,
+            "has_audit": true,
+            "has_thermoplan_audit": false,
+            "can_reset_counters": true,
+            "has_coin_changer_data": true,
+            "has_product_groups_enabled": false,
+            "has_pricelists_enabled": false,
+            "supports_eva_dts_price_writing": false,
+            "is_planogram": false,
+            "planogram_id": null,
+            "account": {
+                "id": 4279,
+                "name": "Elbsandstein Proviant & Quartier GmbH",
+                "timezone": "Europe/Berlin"
+            },
+            "distance": null,
+            "updated_at": 1742945279,
+            "has_ecommerce_terminal": false,
+            "has_vendon_payment_terminal": false,
+            "supports_cci_file_exchange": false,
+            "supports_vid_report": false
+        },
+        {
+            "id": 378540,
+            "name": "Struppen, Landschlachthof",
+            "telemetry_unit_id": 117458,
+            "telemetry_unit": {
+                "id": 117458,
+                "serial": "869951036616526",
+                "last_updated_at": 1743253598,
+                "gsm_signal": 29,
+                "connection_method": "GPRS",
+                "firmware": 8068,
+                "firmware_name": "HW2 8.68",
+                "nfc_id": "040D9BD2901190",
+                "protocol": "MDB/CommsGW",
+                "protocol_name": "MDB",
+                "audit_protocol": [
+                    "CommsGW"
+                ],
+                "protocol_bits": 2,
+                "config_bits": 65,
+                "configuration": [
+                    "Comms Gateway"
+                ],
+                "sim_active": true,
+                "reference": null,
+                "type": 1,
+                "modem": "4G",
+                "data_usage_previous_month": 375701,
+                "data_overspend": 0,
+                "last_config_change_at": null,
+                "last_config_success": true,
+                "online": true,
+                "supports_limited_config": false,
+                "supports_pricelists": false,
+                "supports_age_verification": false,
+                "supports_deposit_fee": false,
+                "decimal_position": 2,
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "quickpik_onboarded": false,
+            "serial": "90546797",
+            "machine_id": "",
+            "software_version": "",
+            "type": "snack",
+            "power": true,
+            "power_status": "ON",
+            "manufacturer_id": 15,
+            "model_id": null,
+            "model_name": null,
+            "currency": "EUR",
+            "created_at": 1711363503,
+            "description": "",
+            "location": {
+                "id": 94285,
+                "name": "Landfleischerei Struppen",
+                "address": "Hauptstra\u00dfe 100, 01796 Struppen",
+                "gps": {
+                    "lat": 50.9333079,
+                    "lon": 14.017928
+                },
+                "type": "other",
+                "working_schedules": [
+                    {
+                        "id": 54497,
+                        "location_id": 94285,
+                        "days": [
+                            1,
+                            2,
+                            3,
+                            4,
+                            5
+                        ],
+                        "hours_from": "00:00",
+                        "hours_to": "23:59",
+                        "created_at": 1737447164,
+                        "updated_at": 1737447164
+                    }
+                ],
+                "machines": 1,
+                "client_id": null,
+                "client_name": null,
+                "reference": "",
+                "refiller": null,
+                "refiller_first_name": null,
+                "refiller_last_name": null,
+                "technician": null,
+                "technician_first_name": null,
+                "technician_last_name": null,
+                "manager": null,
+                "manager_first_name": null,
+                "manager_last_name": null,
+                "encashment": null,
+                "encashment_first_name": null,
+                "encashment_last_name": null,
+                "task_manager": null,
+                "task_manager_first_name": null,
+                "task_manager_last_name": null,
+                "supervisor1": null,
+                "supervisor2": null,
+                "phone": null,
+                "fax": null,
+                "email": null,
+                "refill_time": null,
+                "encashment_time": null,
+                "maintenance_time": null,
+                "holidays": [],
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "location_id": 94285,
+            "picture_url": "https://cloud.vendon.net/images/vending_pic/378540_662a905ce85c4.jpg",
+            "picture_url_large": "https://cloud.vendon.net/images/vending_pic/378540_662a905ce85c4_large.jpg",
+            "inactive": false,
+            "warehouse_id": 0,
+            "peripheral_devices": [
+                {
+                    "device_type": "coin_changer",
+                    "status": 1
+                },
+                {
+                    "device_type": "cashless",
+                    "status": 1
+                },
+                {
+                    "device_type": "bill_validator",
+                    "status": 1
+                },
+                {
+                    "device_type": "age_verification",
+                    "status": 3
+                },
+                {
+                    "device_type": "comm_gateway",
+                    "status": 1
+                }
+            ],
+            "tag_ids": [],
+            "last_purchase": 1743236649,
+            "last_refill": 1743105894,
+            "has_audit": true,
+            "has_thermoplan_audit": false,
+            "can_reset_counters": true,
+            "has_coin_changer_data": true,
+            "has_product_groups_enabled": false,
+            "has_pricelists_enabled": false,
+            "supports_eva_dts_price_writing": false,
+            "is_planogram": false,
+            "planogram_id": null,
+            "account": {
+                "id": 4279,
+                "name": "Elbsandstein Proviant & Quartier GmbH",
+                "timezone": "Europe/Berlin"
+            },
+            "distance": null,
+            "updated_at": 1743105864,
+            "has_ecommerce_terminal": false,
+            "has_vendon_payment_terminal": false,
+            "supports_cci_file_exchange": false,
+            "supports_vid_report": false
+        },
+        {
+            "id": 380053,
+            "name": "Bad Gottleuba-Berggish\u00fcbel",
+            "telemetry_unit_id": 117555,
+            "telemetry_unit": {
+                "id": 117555,
+                "serial": "869951036639049",
+                "last_updated_at": 1743253055,
+                "gsm_signal": 21,
+                "connection_method": "GPRS",
+                "firmware": 8068,
+                "firmware_name": "HW2 8.68",
+                "nfc_id": "041395D2901190",
+                "protocol": "MDB/CommsGW",
+                "protocol_name": "MDB",
+                "audit_protocol": [
+                    "CommsGW"
+                ],
+                "protocol_bits": 2,
+                "config_bits": 65,
+                "configuration": [
+                    "Comms Gateway"
+                ],
+                "sim_active": true,
+                "reference": null,
+                "type": 1,
+                "modem": "4G",
+                "data_usage_previous_month": 0,
+                "data_overspend": 0,
+                "last_config_change_at": null,
+                "last_config_success": true,
+                "online": true,
+                "supports_limited_config": false,
+                "supports_pricelists": false,
+                "supports_age_verification": false,
+                "supports_deposit_fee": false,
+                "decimal_position": 2,
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "quickpik_onboarded": false,
+            "serial": "90546787",
+            "machine_id": "",
+            "software_version": "",
+            "type": "snack",
+            "power": true,
+            "power_status": "ON",
+            "manufacturer_id": 15,
+            "model_id": null,
+            "model_name": null,
+            "currency": "EUR",
+            "created_at": 1712756063,
+            "description": "",
+            "location": {
+                "id": 84796,
+                "name": "Bad Gottleuba-Berggie\u00dfh\u00fcbel",
+                "address": "Giesensteiner Str. 1A, 01816 Bad Gottleuba-Berggie\u00dfh\u00fcbel",
+                "gps": {
+                    "lat": 50.8744898,
+                    "lon": 13.945991
+                },
+                "type": "other",
+                "working_schedules": [
+                    {
+                        "id": 53831,
+                        "location_id": 84796,
+                        "days": [
+                            1,
+                            2,
+                            3,
+                            4,
+                            5,
+                            6,
+                            7
+                        ],
+                        "hours_from": "00:00",
+                        "hours_to": "00:00",
+                        "created_at": 1737447163,
+                        "updated_at": 1737447163
+                    }
+                ],
+                "machines": 1,
+                "client_id": null,
+                "client_name": null,
+                "reference": "",
+                "refiller": null,
+                "refiller_first_name": null,
+                "refiller_last_name": null,
+                "technician": null,
+                "technician_first_name": null,
+                "technician_last_name": null,
+                "manager": null,
+                "manager_first_name": null,
+                "manager_last_name": null,
+                "encashment": null,
+                "encashment_first_name": null,
+                "encashment_last_name": null,
+                "task_manager": null,
+                "task_manager_first_name": null,
+                "task_manager_last_name": null,
+                "supervisor1": null,
+                "supervisor2": null,
+                "phone": null,
+                "fax": null,
+                "email": null,
+                "refill_time": null,
+                "encashment_time": null,
+                "maintenance_time": null,
+                "holidays": [],
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "location_id": 84796,
+            "picture_url": "https://cloud.vendon.net/images/vending_pic/380053_67c74bbd8d341.jpg",
+            "picture_url_large": "https://cloud.vendon.net/images/vending_pic/380053_67c74bbd8d341_large.jpg",
+            "inactive": false,
+            "warehouse_id": 0,
+            "peripheral_devices": [
+                {
+                    "device_type": "cashless",
+                    "status": 1
+                },
+                {
+                    "device_type": "comm_gateway",
+                    "status": 1
+                },
+                {
+                    "device_type": "age_verification",
+                    "status": 3
+                },
+                {
+                    "device_type": "coin_changer",
+                    "status": 1
+                },
+                {
+                    "device_type": "bill_validator",
+                    "status": 1
+                }
+            ],
+            "tag_ids": [],
+            "last_purchase": 1743251866,
+            "last_refill": 1743171402,
+            "has_audit": true,
+            "has_thermoplan_audit": false,
+            "can_reset_counters": true,
+            "has_coin_changer_data": true,
+            "has_product_groups_enabled": false,
+            "has_pricelists_enabled": false,
+            "supports_eva_dts_price_writing": false,
+            "is_planogram": false,
+            "planogram_id": null,
+            "account": {
+                "id": 4279,
+                "name": "Elbsandstein Proviant & Quartier GmbH",
+                "timezone": "Europe/Berlin"
+            },
+            "distance": null,
+            "updated_at": 1743171673,
+            "has_ecommerce_terminal": false,
+            "has_vendon_payment_terminal": false,
+            "supports_cci_file_exchange": false,
+            "supports_vid_report": false
+        },
+        {
+            "id": 380592,
+            "name": "Pirna, Hotel zur Post",
+            "telemetry_unit_id": 117389,
+            "telemetry_unit": {
+                "id": 117389,
+                "serial": "869951036632135",
+                "last_updated_at": 1743253547,
+                "gsm_signal": 16,
+                "connection_method": "GPRS",
+                "firmware": 8068,
+                "firmware_name": "HW2 8.68",
+                "nfc_id": "0406B5C2901191",
+                "protocol": "MDB/CommsGW",
+                "protocol_name": "MDB",
+                "audit_protocol": [
+                    "CommsGW"
+                ],
+                "protocol_bits": 2,
+                "config_bits": 65,
+                "configuration": [
+                    "Comms Gateway"
+                ],
+                "sim_active": true,
+                "reference": null,
+                "type": 1,
+                "modem": "4G",
+                "data_usage_previous_month": 1055422,
+                "data_overspend": 0,
+                "last_config_change_at": null,
+                "last_config_success": true,
+                "online": true,
+                "supports_limited_config": false,
+                "supports_pricelists": false,
+                "supports_age_verification": false,
+                "supports_deposit_fee": false,
+                "decimal_position": 2,
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "quickpik_onboarded": false,
+            "serial": "90546801",
+            "machine_id": null,
+            "software_version": null,
+            "type": "snack",
+            "power": true,
+            "power_status": "ON",
+            "manufacturer_id": 15,
+            "model_id": 17401,
+            "model_name": "S\u00fc SiLine Lift M Outdoor",
+            "currency": "EUR",
+            "created_at": 1713262270,
+            "description": "",
+            "location": {
+                "id": 94527,
+                "name": "Hotel zur Post, Pirna",
+                "address": "S173 29, 01796 Pirna, Germany",
+                "gps": {
+                    "lat": 50.9377272,
+                    "lon": 13.9243735
+                },
+                "type": "other",
+                "working_schedules": [
+                    {
+                        "id": 54727,
+                        "location_id": 94527,
+                        "days": [
+                            1,
+                            2,
+                            3,
+                            4,
+                            5,
+                            6,
+                            7
+                        ],
+                        "hours_from": "00:00",
+                        "hours_to": "23:59",
+                        "created_at": 1737447164,
+                        "updated_at": 1737447164
+                    }
+                ],
+                "machines": 1,
+                "client_id": null,
+                "client_name": null,
+                "reference": "",
+                "refiller": null,
+                "refiller_first_name": null,
+                "refiller_last_name": null,
+                "technician": null,
+                "technician_first_name": null,
+                "technician_last_name": null,
+                "manager": null,
+                "manager_first_name": null,
+                "manager_last_name": null,
+                "encashment": null,
+                "encashment_first_name": null,
+                "encashment_last_name": null,
+                "task_manager": null,
+                "task_manager_first_name": null,
+                "task_manager_last_name": null,
+                "supervisor1": null,
+                "supervisor2": null,
+                "phone": null,
+                "fax": null,
+                "email": null,
+                "refill_time": null,
+                "encashment_time": null,
+                "maintenance_time": null,
+                "holidays": [],
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "location_id": 94527,
+            "picture_url": "https://cloud.vendon.net/images/vending_pic/380592_662d46ca7b7a9.jpg",
+            "picture_url_large": "https://cloud.vendon.net/images/vending_pic/380592_662d46ca7b7a9_large.jpg",
+            "inactive": false,
+            "warehouse_id": 0,
+            "peripheral_devices": [
+                {
+                    "device_type": "comm_gateway",
+                    "status": 1
+                },
+                {
+                    "device_type": "coin_changer",
+                    "status": 1
+                },
+                {
+                    "device_type": "bill_validator",
+                    "status": 1
+                },
+                {
+                    "device_type": "cashless",
+                    "status": 1
+                }
+            ],
+            "tag_ids": [],
+            "last_purchase": 1743243391,
+            "last_refill": 1741934708,
+            "has_audit": true,
+            "has_thermoplan_audit": false,
+            "can_reset_counters": true,
+            "has_coin_changer_data": true,
+            "has_product_groups_enabled": false,
+            "has_pricelists_enabled": false,
+            "supports_eva_dts_price_writing": false,
+            "is_planogram": false,
+            "planogram_id": null,
+            "account": {
+                "id": 4279,
+                "name": "Elbsandstein Proviant & Quartier GmbH",
+                "timezone": "Europe/Berlin"
+            },
+            "distance": null,
+            "updated_at": 1741953717,
+            "has_ecommerce_terminal": false,
+            "has_vendon_payment_terminal": false,
+            "supports_cci_file_exchange": false,
+            "supports_vid_report": false
+        },
+        {
+            "id": 380593,
+            "name": "Papstdorf, Feuerwehrmuseum",
+            "telemetry_unit_id": 117518,
+            "telemetry_unit": {
+                "id": 117518,
+                "serial": "869951036606774",
+                "last_updated_at": 1743253586,
+                "gsm_signal": 14,
+                "connection_method": "GPRS",
+                "firmware": 8068,
+                "firmware_name": "HW2 8.68",
+                "nfc_id": "041177D2901190",
+                "protocol": "MDB/CommsGW",
+                "protocol_name": "MDB",
+                "audit_protocol": [
+                    "CommsGW"
+                ],
+                "protocol_bits": 2,
+                "config_bits": 65,
+                "configuration": [
+                    "Comms Gateway"
+                ],
+                "sim_active": true,
+                "reference": null,
+                "type": 1,
+                "modem": "4G",
+                "data_usage_previous_month": 1023473,
+                "data_overspend": 0,
+                "last_config_change_at": null,
+                "last_config_success": true,
+                "online": true,
+                "supports_limited_config": false,
+                "supports_pricelists": false,
+                "supports_age_verification": false,
+                "supports_deposit_fee": false,
+                "decimal_position": 2,
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "quickpik_onboarded": false,
+            "serial": "90546799",
+            "machine_id": "",
+            "software_version": "",
+            "type": "snack",
+            "power": true,
+            "power_status": "ON",
+            "manufacturer_id": 15,
+            "model_id": null,
+            "model_name": null,
+            "currency": "EUR",
+            "created_at": 1713262312,
+            "description": "",
+            "location": {
+                "id": 94525,
+                "name": "Papstdorf - Am Feuerwehrmuseum",
+                "address": "K8744 46, 01824 Gohrisch, Germany",
+                "gps": {
+                    "lat": 50.8963675,
+                    "lon": 14.1309389
+                },
+                "type": "other",
+                "working_schedules": [
+                    {
+                        "id": 54725,
+                        "location_id": 94525,
+                        "days": [
+                            1,
+                            2,
+                            3,
+                            4,
+                            5,
+                            6,
+                            7
+                        ],
+                        "hours_from": "00:00",
+                        "hours_to": "23:59",
+                        "created_at": 1737447164,
+                        "updated_at": 1737447164
+                    }
+                ],
+                "machines": 1,
+                "client_id": null,
+                "client_name": null,
+                "reference": "",
+                "refiller": null,
+                "refiller_first_name": null,
+                "refiller_last_name": null,
+                "technician": null,
+                "technician_first_name": null,
+                "technician_last_name": null,
+                "manager": null,
+                "manager_first_name": null,
+                "manager_last_name": null,
+                "encashment": null,
+                "encashment_first_name": null,
+                "encashment_last_name": null,
+                "task_manager": null,
+                "task_manager_first_name": null,
+                "task_manager_last_name": null,
+                "supervisor1": null,
+                "supervisor2": null,
+                "phone": null,
+                "fax": null,
+                "email": null,
+                "refill_time": null,
+                "encashment_time": null,
+                "maintenance_time": null,
+                "holidays": [],
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "location_id": 94525,
+            "picture_url": "https://cloud.vendon.net/images/vending_pic/380593_663bda059f29f.jpg",
+            "picture_url_large": "https://cloud.vendon.net/images/vending_pic/380593_663bda059f29f_large.jpg",
+            "inactive": false,
+            "warehouse_id": 0,
+            "peripheral_devices": [
+                {
+                    "device_type": "comm_gateway",
+                    "status": 1
+                },
+                {
+                    "device_type": "coin_changer",
+                    "status": 1
+                },
+                {
+                    "device_type": "bill_validator",
+                    "status": 1
+                },
+                {
+                    "device_type": "cashless",
+                    "status": 1
+                }
+            ],
+            "tag_ids": [],
+            "last_purchase": 1743249719,
+            "last_refill": 1742573630,
+            "has_audit": true,
+            "has_thermoplan_audit": false,
+            "can_reset_counters": true,
+            "has_coin_changer_data": true,
+            "has_product_groups_enabled": false,
+            "has_pricelists_enabled": false,
+            "supports_eva_dts_price_writing": false,
+            "is_planogram": false,
+            "planogram_id": null,
+            "account": {
+                "id": 4279,
+                "name": "Elbsandstein Proviant & Quartier GmbH",
+                "timezone": "Europe/Berlin"
+            },
+            "distance": null,
+            "updated_at": 1742945755,
+            "has_ecommerce_terminal": false,
+            "has_vendon_payment_terminal": false,
+            "supports_cci_file_exchange": false,
+            "supports_vid_report": false
+        },
+        {
+            "id": 384501,
+            "name": "P\u00f6tzscha",
+            "telemetry_unit_id": 117476,
+            "telemetry_unit": {
+                "id": 117476,
+                "serial": "869951036589798",
+                "last_updated_at": 1743253168,
+                "gsm_signal": 24,
+                "connection_method": "GPRS",
+                "firmware": 8068,
+                "firmware_name": "HW2 8.68",
+                "nfc_id": "040F89D2901190",
+                "protocol": "MDB/CommsGW",
+                "protocol_name": "MDB",
+                "audit_protocol": [
+                    "CommsGW"
+                ],
+                "protocol_bits": 2,
+                "config_bits": 65,
+                "configuration": [
+                    "Comms Gateway"
+                ],
+                "sim_active": true,
+                "reference": null,
+                "type": 1,
+                "modem": "4G",
+                "data_usage_previous_month": 996981,
+                "data_overspend": 0,
+                "last_config_change_at": null,
+                "last_config_success": true,
+                "online": true,
+                "supports_limited_config": false,
+                "supports_pricelists": false,
+                "supports_age_verification": false,
+                "supports_deposit_fee": false,
+                "decimal_position": 2,
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "quickpik_onboarded": false,
+            "serial": "90546798",
+            "machine_id": "",
+            "software_version": "",
+            "type": "snack",
+            "power": true,
+            "power_status": "ON",
+            "manufacturer_id": 15,
+            "model_id": 17569,
+            "model_name": "S\u00fcSi Line",
+            "currency": "EUR",
+            "created_at": 1716366452,
+            "description": "",
+            "location": {
+                "id": 98677,
+                "name": "P\u00f6tzscha",
+                "address": "Saarstra\u00dfe 75, 01829 Stadt Wehlen, Germany",
+                "gps": {
+                    "lat": 50.9542613,
+                    "lon": 14.0317017
+                },
+                "type": "other",
+                "working_schedules": [
+                    {
+                        "id": 58725,
+                        "location_id": 98677,
+                        "days": [
+                            1,
+                            2,
+                            3,
+                            4,
+                            5
+                        ],
+                        "hours_from": "00:00",
+                        "hours_to": "23:59",
+                        "created_at": 1737447169,
+                        "updated_at": 1737447169
+                    }
+                ],
+                "machines": 1,
+                "client_id": null,
+                "client_name": null,
+                "reference": "",
+                "refiller": null,
+                "refiller_first_name": null,
+                "refiller_last_name": null,
+                "technician": null,
+                "technician_first_name": null,
+                "technician_last_name": null,
+                "manager": null,
+                "manager_first_name": null,
+                "manager_last_name": null,
+                "encashment": null,
+                "encashment_first_name": null,
+                "encashment_last_name": null,
+                "task_manager": null,
+                "task_manager_first_name": null,
+                "task_manager_last_name": null,
+                "supervisor1": null,
+                "supervisor2": null,
+                "phone": null,
+                "fax": null,
+                "email": null,
+                "refill_time": null,
+                "encashment_time": null,
+                "maintenance_time": null,
+                "holidays": [],
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "location_id": 98677,
+            "picture_url": "https://cloud.vendon.net/images/vending_pic/384501_66601f25801b2.jpg",
+            "picture_url_large": "https://cloud.vendon.net/images/vending_pic/384501_66601f25801b2_large.jpg",
+            "inactive": false,
+            "warehouse_id": 0,
+            "peripheral_devices": [
+                {
+                    "device_type": "coin_changer",
+                    "status": 1
+                },
+                {
+                    "device_type": "cashless",
+                    "status": 1
+                },
+                {
+                    "device_type": "bill_validator",
+                    "status": 1
+                },
+                {
+                    "device_type": "age_verification",
+                    "status": 3
+                },
+                {
+                    "device_type": "comm_gateway",
+                    "status": 1
+                }
+            ],
+            "tag_ids": [],
+            "last_purchase": 1743248388,
+            "last_refill": 1743107069,
+            "has_audit": true,
+            "has_thermoplan_audit": false,
+            "can_reset_counters": true,
+            "has_coin_changer_data": true,
+            "has_product_groups_enabled": false,
+            "has_pricelists_enabled": false,
+            "supports_eva_dts_price_writing": false,
+            "is_planogram": false,
+            "planogram_id": null,
+            "account": {
+                "id": 4279,
+                "name": "Elbsandstein Proviant & Quartier GmbH",
+                "timezone": "Europe/Berlin"
+            },
+            "distance": null,
+            "updated_at": 1743004911,
+            "has_ecommerce_terminal": false,
+            "has_vendon_payment_terminal": false,
+            "supports_cci_file_exchange": false,
+            "supports_vid_report": false
+        },
+        {
+            "id": 391262,
+            "name": "Bad Schandau, Elbkai",
+            "telemetry_unit_id": 117516,
+            "telemetry_unit": {
+                "id": 117516,
+                "serial": "869951036628687",
+                "last_updated_at": 1743253435,
+                "gsm_signal": 29,
+                "connection_method": "GPRS",
+                "firmware": 8068,
+                "firmware_name": "HW2 8.68",
+                "nfc_id": "041186D2901190",
+                "protocol": "MDB/CommsGW",
+                "protocol_name": "MDB",
+                "audit_protocol": [
+                    "CommsGW"
+                ],
+                "protocol_bits": 2,
+                "config_bits": 65,
+                "configuration": [
+                    "Comms Gateway"
+                ],
+                "sim_active": true,
+                "reference": null,
+                "type": 1,
+                "modem": "4G",
+                "data_usage_previous_month": 1014367,
+                "data_overspend": 0,
+                "last_config_change_at": null,
+                "last_config_success": true,
+                "online": true,
+                "supports_limited_config": false,
+                "supports_pricelists": false,
+                "supports_age_verification": false,
+                "supports_deposit_fee": false,
+                "decimal_position": 2,
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "quickpik_onboarded": false,
+            "serial": "90546782",
+            "machine_id": "",
+            "software_version": "",
+            "type": "snack",
+            "power": true,
+            "power_status": "ON",
+            "manufacturer_id": 15,
+            "model_id": 18057,
+            "model_name": "S\u00fc SiLine",
+            "currency": "EUR",
+            "created_at": 1720680520,
+            "description": "",
+            "location": {
+                "id": 100356,
+                "name": "Elbkai, Bad Schandau",
+                "address": "Elbstra\u00dfe 2, 01814 Bad Schandau, Germany",
+                "gps": {
+                    "lat": 50.9179337,
+                    "lon": 14.1491418
+                },
+                "type": "other",
+                "working_schedules": [
+                    {
+                        "id": 60378,
+                        "location_id": 100356,
+                        "days": [
+                            1,
+                            2,
+                            3,
+                            4,
+                            5
+                        ],
+                        "hours_from": "00:00",
+                        "hours_to": "23:59",
+                        "created_at": 1737447172,
+                        "updated_at": 1737447172
+                    }
+                ],
+                "machines": 1,
+                "client_id": null,
+                "client_name": null,
+                "reference": "",
+                "refiller": null,
+                "refiller_first_name": null,
+                "refiller_last_name": null,
+                "technician": null,
+                "technician_first_name": null,
+                "technician_last_name": null,
+                "manager": null,
+                "manager_first_name": null,
+                "manager_last_name": null,
+                "encashment": null,
+                "encashment_first_name": null,
+                "encashment_last_name": null,
+                "task_manager": null,
+                "task_manager_first_name": null,
+                "task_manager_last_name": null,
+                "supervisor1": null,
+                "supervisor2": null,
+                "phone": null,
+                "fax": null,
+                "email": null,
+                "refill_time": null,
+                "encashment_time": null,
+                "maintenance_time": null,
+                "holidays": [],
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "location_id": 100356,
+            "picture_url": "https://cloud.vendon.net/images/vending_pic/391262_66a7fc95dfa88.jpg",
+            "picture_url_large": "https://cloud.vendon.net/images/vending_pic/391262_66a7fc95dfa88_large.jpg",
+            "inactive": false,
+            "warehouse_id": 0,
+            "peripheral_devices": [
+                {
+                    "device_type": "comm_gateway",
+                    "status": 1
+                },
+                {
+                    "device_type": "coin_changer",
+                    "status": 1
+                },
+                {
+                    "device_type": "cashless",
+                    "status": 1
+                },
+                {
+                    "device_type": "bill_validator",
+                    "status": 1
+                }
+            ],
+            "tag_ids": [],
+            "last_purchase": 1743191591,
+            "last_refill": 1743101491,
+            "has_audit": true,
+            "has_thermoplan_audit": false,
+            "can_reset_counters": true,
+            "has_coin_changer_data": true,
+            "has_product_groups_enabled": false,
+            "has_pricelists_enabled": false,
+            "supports_eva_dts_price_writing": false,
+            "is_planogram": false,
+            "planogram_id": null,
+            "account": {
+                "id": 4279,
+                "name": "Elbsandstein Proviant & Quartier GmbH",
+                "timezone": "Europe/Berlin"
+            },
+            "distance": null,
+            "updated_at": 1743101467,
+            "has_ecommerce_terminal": false,
+            "has_vendon_payment_terminal": false,
+            "supports_cci_file_exchange": false,
+            "supports_vid_report": false
+        },
+        {
+            "id": 391263,
+            "name": "Schmilka, Alte Feuerwehr",
+            "telemetry_unit_id": 117526,
+            "telemetry_unit": {
+                "id": 117526,
+                "serial": "869951036610099",
+                "last_updated_at": 1743253469,
+                "gsm_signal": 31,
+                "connection_method": "GPRS",
+                "firmware": 8068,
+                "firmware_name": "HW2 8.68",
+                "nfc_id": "0411A4D2901190",
+                "protocol": "MDB/CommsGW",
+                "protocol_name": "MDB",
+                "audit_protocol": [
+                    "CommsGW"
+                ],
+                "protocol_bits": 2,
+                "config_bits": 65,
+                "configuration": [
+                    "Comms Gateway"
+                ],
+                "sim_active": true,
+                "reference": null,
+                "type": 1,
+                "modem": "4G",
+                "data_usage_previous_month": 1068474,
+                "data_overspend": 0,
+                "last_config_change_at": null,
+                "last_config_success": true,
+                "online": true,
+                "supports_limited_config": false,
+                "supports_pricelists": false,
+                "supports_age_verification": false,
+                "supports_deposit_fee": false,
+                "decimal_position": 2,
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "quickpik_onboarded": false,
+            "serial": "90546780",
+            "machine_id": "",
+            "software_version": "",
+            "type": "snack",
+            "power": true,
+            "power_status": "ON",
+            "manufacturer_id": 15,
+            "model_id": 17401,
+            "model_name": "S\u00fc SiLine Lift M Outdoor",
+            "currency": "EUR",
+            "created_at": 1720680608,
+            "description": "",
+            "location": {
+                "id": 100358,
+                "name": "Schmilka, Alte Feuerwehr",
+                "address": "B172 25, 01814 Bad Schandau, Germany",
+                "gps": {
+                    "lat": 50.8916903,
+                    "lon": 14.2304931
+                },
+                "type": "other",
+                "working_schedules": [
+                    {
+                        "id": 60380,
+                        "location_id": 100358,
+                        "days": [
+                            1,
+                            2,
+                            3,
+                            4,
+                            5
+                        ],
+                        "hours_from": "00:00",
+                        "hours_to": "23:59",
+                        "created_at": 1737447172,
+                        "updated_at": 1737447172
+                    }
+                ],
+                "machines": 1,
+                "client_id": null,
+                "client_name": null,
+                "reference": "",
+                "refiller": null,
+                "refiller_first_name": null,
+                "refiller_last_name": null,
+                "technician": null,
+                "technician_first_name": null,
+                "technician_last_name": null,
+                "manager": null,
+                "manager_first_name": null,
+                "manager_last_name": null,
+                "encashment": null,
+                "encashment_first_name": null,
+                "encashment_last_name": null,
+                "task_manager": null,
+                "task_manager_first_name": null,
+                "task_manager_last_name": null,
+                "supervisor1": null,
+                "supervisor2": null,
+                "phone": null,
+                "fax": null,
+                "email": null,
+                "refill_time": null,
+                "encashment_time": null,
+                "maintenance_time": null,
+                "holidays": [],
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "location_id": 100358,
+            "picture_url": "https://cloud.vendon.net/images/vending_pic/391263_66a7fc89792dc.jpg",
+            "picture_url_large": "https://cloud.vendon.net/images/vending_pic/391263_66a7fc89792dc_large.jpg",
+            "inactive": false,
+            "warehouse_id": 0,
+            "peripheral_devices": [
+                {
+                    "device_type": "comm_gateway",
+                    "status": 1
+                },
+                {
+                    "device_type": "coin_changer",
+                    "status": 1
+                },
+                {
+                    "device_type": "bill_validator",
+                    "status": 1
+                },
+                {
+                    "device_type": "cashless",
+                    "status": 1
+                }
+            ],
+            "tag_ids": [],
+            "last_purchase": 1743250329,
+            "last_refill": 1743088773,
+            "has_audit": true,
+            "has_thermoplan_audit": false,
+            "can_reset_counters": true,
+            "has_coin_changer_data": true,
+            "has_product_groups_enabled": false,
+            "has_pricelists_enabled": false,
+            "supports_eva_dts_price_writing": false,
+            "is_planogram": false,
+            "planogram_id": null,
+            "account": {
+                "id": 4279,
+                "name": "Elbsandstein Proviant & Quartier GmbH",
+                "timezone": "Europe/Berlin"
+            },
+            "distance": null,
+            "updated_at": 1743087973,
+            "has_ecommerce_terminal": false,
+            "has_vendon_payment_terminal": false,
+            "supports_cci_file_exchange": false,
+            "supports_vid_report": false
+        },
+        {
+            "id": 395727,
+            "name": "zuk\u00fcnftiger standort",
+            "telemetry_unit_id": 128786,
+            "telemetry_unit": {
+                "id": 128786,
+                "serial": "869951037319013",
+                "last_updated_at": 1730976485,
+                "gsm_signal": null,
+                "connection_method": "GPRS",
+                "firmware": 8074,
+                "firmware_name": "HW2 8.74",
+                "nfc_id": "049274F2D91190",
+                "protocol": "MDB Master/DEX#1",
+                "protocol_name": "MDB Master",
+                "audit_protocol": [
+                    "DEX#1"
+                ],
+                "protocol_bits": 48,
+                "config_bits": 2305843009213693952,
+                "configuration": [],
+                "sim_active": true,
+                "reference": null,
+                "type": 1,
+                "modem": "4G",
+                "data_usage_previous_month": 0,
+                "data_overspend": 0,
+                "last_config_change_at": 1724668558,
+                "last_config_success": true,
+                "online": false,
+                "supports_limited_config": true,
+                "supports_pricelists": false,
+                "supports_age_verification": true,
+                "supports_deposit_fee": false,
+                "decimal_position": 2,
+                "account": {
+                    "id": 4279,
+                    "name": "Elbsandstein Proviant & Quartier GmbH",
+                    "timezone": "Europe/Berlin"
+                }
+            },
+            "quickpik_onboarded": false,
+            "serial": "VND000682104040",
+            "machine_id": "",
+            "software_version": "",
+            "type": "snack",
+            "power": false,
+            "power_status": "OFF",
+            "manufacturer_id": 17,
+            "model_id": null,
+            "model_name": null,
+            "currency": "EUR",
+            "created_at": 1724667437,
+            "description": "",
+            "location": {
+                "id": 0,
+                "name": null,
+                "address": null,
+                "gps": {
+                    "lat": null,
+                    "lon": null
+                },
+                "type": null,
+                "working_schedules": [],
+                "machines": 0,
+                "client_id": null,
+                "client_name": null,
+                "reference": null,
+                "refiller": null,
+                "refiller_first_name": null,
+                "refiller_last_name": null,
+                "technician": null,
+                "technician_first_name": null,
+                "technician_last_name": null,
+                "manager": null,
+                "manager_first_name": null,
+                "manager_last_name": null,
+                "encashment": null,
+                "encashment_first_name": null,
+                "encashment_last_name": null,
+                "task_manager": null,
+                "task_manager_first_name": null,
+                "task_manager_last_name": null,
+                "supervisor1": null,
+                "supervisor2": null,
+                "phone": null,
+                "fax": null,
+                "email": null,
+                "refill_time": null,
+                "encashment_time": null,
+                "maintenance_time": null,
+                "holidays": [],
+                "account": {
+                    "id": 0,
+                    "name": null,
+                    "timezone": null
+                }
+            },
+            "location_id": null,
+            "picture_url": null,
+            "picture_url_large": null,
+            "inactive": false,
+            "warehouse_id": 0,
+            "peripheral_devices": [
+                {
+                    "device_type": "coin_changer",
+                    "status": 3
+                },
+                {
+                    "device_type": "age_verification",
+                    "status": 3
+                },
+                {
+                    "device_type": "bill_validator",
+                    "status": 3
+                },
+                {
+                    "device_type": "cashless",
+                    "status": 3
+                }
+            ],
+            "tag_ids": [],
+            "last_purchase": null,
+            "last_refill": null,
+            "has_audit": false,
+            "has_thermoplan_audit": false,
+            "can_reset_counters": false,
+            "has_coin_changer_data": false,
+            "has_product_groups_enabled": false,
+            "has_pricelists_enabled": false,
+            "supports_eva_dts_price_writing": false,
+            "is_planogram": false,
+            "planogram_id": null,
+            "account": {
+                "id": 4279,
+                "name": "Elbsandstein Proviant & Quartier GmbH",
+                "timezone": "Europe/Berlin"
+            },
+            "distance": null,
+            "updated_at": 1732522325,
+            "has_ecommerce_terminal": false,
+            "has_vendon_payment_terminal": false,
+            "supports_cci_file_exchange": false,
+            "supports_vid_report": false
+        }
+    ],
+    "paging": {
+        "total": 17,
+        "offset": 0,
+        "limit": 10000
+    }
+}
