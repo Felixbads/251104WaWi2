@@ -1,4 +1,4 @@
-import { eq, desc, and, gte, lte } from "drizzle-orm";
+import { eq, desc, and, or, gte, lte, like, asc, count } from "drizzle-orm";
 import { db } from "./db";
 import { 
   users, type User, type InsertUser,
@@ -9,7 +9,8 @@ import {
   refillDetails, type RefillDetail, type InsertRefillDetail,
   events, type Event, type InsertEvent,
   syncLogs, type SyncLog, type InsertSyncLog,
-  locations, type Location, type InsertLocation
+  locations, type Location, type InsertLocation,
+  suppliers, type Supplier, type InsertSupplier
 } from "@shared/schema";
 
 // Interface defining all storage operations
@@ -39,7 +40,22 @@ export interface IStorage {
   getTransactionStats(): Promise<{total: number; processed: number; pending: number; error: number}>;
 
   // Product operations
-  getProducts(limit?: number): Promise<Product[]>;
+  getProducts(options?: {
+    limit?: number;
+    offset?: number;
+    category?: string;
+    search?: string;
+    supplierId?: number;
+  } | number): Promise<Product[] | {
+    data: Product[];
+    meta: {
+      total: number;
+      offset: number;
+      limit: number;
+      page: number;
+      pages: number;
+    }
+  }>;
   getProduct(id: number): Promise<Product | undefined>;
   getProductByVendonId(vendonId: string): Promise<Product | undefined>;
   createProduct(product: InsertProduct): Promise<Product>;
@@ -72,6 +88,27 @@ export interface IStorage {
   getLocations(): Promise<Location[]>;
   getLocation(id: number): Promise<Location | undefined>;
   createLocation(location: InsertLocation): Promise<Location>;
+  
+  // Supplier operations
+  getSuppliers(options?: {
+    limit?: number;
+    offset?: number;
+    status?: string;
+    search?: string;
+  }): Promise<{
+    data: Supplier[];
+    meta: {
+      total: number;
+      offset: number;
+      limit: number;
+      page: number;
+      pages: number;
+    }
+  }>;
+  getSupplierById(id: number): Promise<Supplier | undefined>;
+  createSupplier(supplier: InsertSupplier): Promise<Supplier>;
+  updateSupplier(id: number, supplier: Partial<InsertSupplier>): Promise<Supplier | undefined>;
+  deleteSupplier(id: number): Promise<boolean>;
 }
 
 // Database storage implementation
@@ -214,21 +251,21 @@ export class DatabaseStorage implements IStorage {
     error: number;
   }> {
     const totalResult = await db
-      .select({ count: db.fn.count().as('count') })
+      .select({ count: count() })
       .from(transactions);
     
     const processedResult = await db
-      .select({ count: db.fn.count().as('count') })
+      .select({ count: count() })
       .from(transactions)
       .where(eq(transactions.processingStatus, 'processed'));
     
     const pendingResult = await db
-      .select({ count: db.fn.count().as('count') })
+      .select({ count: count() })
       .from(transactions)
       .where(eq(transactions.processingStatus, 'pending'));
     
     const errorResult = await db
-      .select({ count: db.fn.count().as('count') })
+      .select({ count: count() })
       .from(transactions)
       .where(eq(transactions.processingStatus, 'error'));
     
@@ -241,8 +278,88 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Product operations
-  async getProducts(limit: number = 100): Promise<Product[]> {
-    return await db.select().from(products).limit(limit);
+  async getProducts(options?: {
+    limit?: number;
+    offset?: number;
+    category?: string;
+    search?: string;
+    supplierId?: number;
+  } | number): Promise<Product[] | {
+    data: Product[];
+    meta: {
+      total: number;
+      offset: number;
+      limit: number;
+      page: number;
+      pages: number;
+    }
+  }> {
+    // Wenn nur ein Limit als Zahl übergeben wird (altes Interface)
+    if (typeof options === 'number' || options === undefined) {
+      const limit = typeof options === 'number' ? options : 100;
+      return await db.select().from(products).limit(limit);
+    }
+    
+    // Neue, erweiterte Implementierung mit Paginierung und Filtern
+    const limit = options.limit || 100;
+    const offset = options.offset || 0;
+    
+    // Build the filter condition
+    const filters = [];
+    
+    if (options.category) {
+      filters.push(eq(products.category, options.category));
+    }
+    
+    if (options.supplierId) {
+      filters.push(eq(products.supplierId, options.supplierId));
+    }
+    
+    if (options.search) {
+      filters.push(
+        or(
+          like(products.productName, `%${options.search}%`),
+          like(products.description || '', `%${options.search}%`),
+          like(products.sku || '', `%${options.search}%`)
+        )
+      );
+    }
+    
+    // Combine filters or get all products
+    const where = filters.length > 0 ? and(...filters) : undefined;
+    
+    // Get products with optional filter and supplier info
+    const data = await db.select()
+      .from(products)
+      .leftJoin(suppliers, eq(products.supplierId, suppliers.id))
+      .where(where)
+      .limit(limit)
+      .offset(offset)
+      .orderBy(desc(products.createdAt));
+    
+    // Format result to include supplier name
+    const formattedData = data.map(row => ({
+      ...row.products,
+      supplierName: row.suppliers?.name || null
+    }));
+    
+    // Count total for pagination
+    const countResult = await db.select({ count: count() })
+      .from(products)
+      .where(where);
+    
+    const total = parseInt(countResult[0]?.count?.toString() || '0');
+    
+    return {
+      data: formattedData as Product[],
+      meta: {
+        total,
+        offset,
+        limit,
+        page: Math.floor(offset / limit) + 1,
+        pages: Math.ceil(total / limit)
+      }
+    };
   }
 
   async getProduct(id: number): Promise<Product | undefined> {
@@ -393,6 +510,127 @@ export class DatabaseStorage implements IStorage {
     const [newLocation] = await db.insert(locations).values(location).returning();
     return newLocation;
   }
+  
+  // Supplier operations
+  async getSuppliers(options?: {
+    limit?: number;
+    offset?: number;
+    status?: string;
+    search?: string;
+  }): Promise<{
+    data: Supplier[];
+    meta: {
+      total: number;
+      offset: number;
+      limit: number;
+      page: number;
+      pages: number;
+    }
+  }> {
+    const limit = options?.limit || 50;
+    const offset = options?.offset || 0;
+    
+    // Build the filter condition
+    const filters = [];
+    
+    if (options?.status) {
+      filters.push(eq(suppliers.status, options.status));
+    }
+    
+    if (options?.search) {
+      filters.push(
+        or(
+          like(suppliers.name, `%${options.search}%`),
+          like(suppliers.contactPerson || '', `%${options.search}%`),
+          like(suppliers.city || '', `%${options.search}%`),
+          like(suppliers.email || '', `%${options.search}%`)
+        )
+      );
+    }
+    
+    // Combine filters or get all suppliers
+    const where = filters.length > 0 ? and(...filters) : undefined;
+    
+    // Get suppliers with optional filter
+    const data = await db.select()
+      .from(suppliers)
+      .where(where)
+      .limit(limit)
+      .offset(offset)
+      .orderBy(asc(suppliers.name));
+    
+    // Count total for pagination
+    const countResult = await db.select({ count: count() })
+      .from(suppliers)
+      .where(where);
+    
+    const total = parseInt(countResult[0]?.count?.toString() || '0');
+    
+    return {
+      data,
+      meta: {
+        total,
+        offset,
+        limit,
+        page: Math.floor(offset / limit) + 1,
+        pages: Math.ceil(total / limit)
+      }
+    };
+  }
+  
+  async getSupplierById(id: number): Promise<Supplier | undefined> {
+    const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, id));
+    return supplier;
+  }
+  
+  async createSupplier(supplier: InsertSupplier): Promise<Supplier> {
+    const [newSupplier] = await db.insert(suppliers).values(supplier).returning();
+    return newSupplier;
+  }
+  
+  async updateSupplier(id: number, supplier: Partial<InsertSupplier>): Promise<Supplier | undefined> {
+    // Check if supplier exists
+    const existingSupplier = await this.getSupplierById(id);
+    
+    if (!existingSupplier) {
+      return undefined;
+    }
+    
+    const [updatedSupplier] = await db
+      .update(suppliers)
+      .set({ ...supplier, updatedAt: new Date() })
+      .where(eq(suppliers.id, id))
+      .returning();
+    
+    return updatedSupplier;
+  }
+  
+  async deleteSupplier(id: number): Promise<boolean> {
+    // Check if supplier exists
+    const existingSupplier = await this.getSupplierById(id);
+    
+    if (!existingSupplier) {
+      return false;
+    }
+    
+    // Check if supplier has linked products
+    const linkedProducts = await db.select({ count: count() })
+      .from(products)
+      .where(eq(products.supplierId, id));
+    
+    const linkedCount = parseInt(linkedProducts[0]?.count?.toString() || '0');
+    
+    if (linkedCount > 0) {
+      throw new Error(`Cannot delete supplier with linked products (${linkedCount} products)`);
+    }
+    
+    // Delete supplier
+    await db.delete(suppliers).where(eq(suppliers.id, id));
+    
+    return true;
+  }
+  
+
 }
 
 export const storage = new DatabaseStorage();

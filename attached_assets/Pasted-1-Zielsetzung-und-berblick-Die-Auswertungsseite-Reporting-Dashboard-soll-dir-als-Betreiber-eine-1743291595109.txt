@@ -1,0 +1,110 @@
+1. Zielsetzung und Überblick
+
+Die Auswertungsseite (Reporting-Dashboard) soll dir als Betreiber einen umfassenden Überblick über den operativen Zustand und die Performance deines Automaten-Netzwerks bieten. Sie fasst zentrale KPIs, Trends und zeitliche Entwicklungen zusammen, sodass du fundierte Entscheidungen treffen und bei Bedarf zielgerichtet Maßnahmen ergreifen kannst.
+
+2. Layout und Struktur der Auswertungsseite
+
+A. Header und Filterbereich
+Seitentitel & Navigationsleiste:
+Großflächiger Titel „Auswertungen“
+Breadcrumbs, die den aktuellen Filter- oder Detailkontext anzeigen
+Interaktiver Filterbereich:
+Zeitliche Auswahl: Datumsauswahl (Tag, Woche, Monat, benutzerdefinierter Zeitraum)
+Segmentierung:
+Auswahl nach Maschine, Produkt, Kategorie, Standort oder Lieferant
+Weitere Filter:
+Filter für Transaktionsart (Cashless vs. Bar), Fehlerstatus (z. B. bei Maschinen) und Lagerstatus (z. B. niedriger Bestand)
+Export-Funktion:
+Möglichkeit, die aktuell gefilterten Auswertungsdaten als CSV oder PDF herunterzuladen
+B. Dashboard – Übersicht der Kern-KPIs
+Im oberen Bereich werden zentrale Kennzahlen in Form von großen, interaktiven Widgets dargestellt:
+
+Gesamtumsatz:
+Aggregierter Nettoumsatz über den gewählten Zeitraum
+Darstellung als Zahl und als Liniendiagramm (Trend)
+Gesamtzahl der Transaktionen:
+Summe aller Transaktionen – inkl. Aufschlüsselung (z. B. pro Maschine oder Produkt)
+Durchschnittlicher Transaktionswert:
+Durchschnittlicher Umsatz pro Verkauf, zur Einschätzung der Kaufkraft
+Profitabilitäts-KPI:
+Ergebnisrechnung:
+Ergebnis = Umsatz Netto – Kosten Netto – Pfand
+Anzeige der operativen Profitabilität, entweder als absoluter Wert oder als Prozentwert (Deckungsbeitrag)
+Maschinenperformance:
+Anzahl der Transaktionen und generierter Umsatz pro Automat
+Kennzahlen zur Cashless-Performance und Altersverifizierung (Statusindikatoren mit Farbkodierung)
+C. Detaillierte Berichte und Diagramme
+Unterhalb der Kern-KPIs befinden sich mehrere interaktive Bereiche, die in Tabs oder separaten Panels organisiert sind:
+
+1. Zeitreihenanalysen (Verkaufs- & Umsatztrend)
+
+Liniendiagramme:
+Darstellung des Umsatzes und der Transaktionen über den gewählten Zeitraum (z. B. stündlich, täglich, wöchentlich)
+Heatmap:
+Visualisierung der Verkaufsaktivität nach Tageszeit und Wochentag zur Ermittlung von Stoßzeiten
+2. Maschinen-Dashboard
+
+Vergleichsdiagramm:
+Balkendiagramm oder Boxplot, das den Umsatz, die Transaktionsanzahl und die Profitabilität der einzelnen Automaten vergleicht
+Detailansicht:
+Möglichkeit, auf einzelne Maschinen zu klicken und detaillierte Informationen (z. B. Fehlerlogs, letzte Transaktionen) anzuzeigen
+3. Produkt-Dashboard
+
+Top-Seller-Analyse:
+Rangliste der meistverkauften Produkte
+Liniendiagramm zur Darstellung von Verkaufstrends und saisonalen Schwankungen
+Preisentwicklungsanalyse:
+Historische Darstellung der Preisänderungen und deren Auswirkung auf die Verkaufszahlen
+Profitabilitätsanalyse pro Produkt:
+Visualisierung des Ergebnisses (Ergebnis = Umsatz Netto – Kosten Netto – Pfand) je Produkt
+4. Lieferanten- und Bestellanalyse
+
+Lieferantenperformance:
+Kennzahlen zu Lieferzeiten, offenen Bestellungen und Konditionsänderungen
+Diagramme, die den Anteil des Umsatzes pro Lieferant zeigen
+Bestellübersicht:
+Übersicht über Bestellungen (Anzahl, Gesamtwert, Status) und deren zeitliche Entwicklung
+5. Lager- und Bestandsanalyse
+
+Lagerbestandsüberwachung:
+Anzeige der aktuellen Bestände in den einzelnen Lagern
+Warnindikatoren (z. B. rot bei niedrigem Bestand)
+Bestandsdynamik:
+Diagramme, die den Abbau bzw. die Auffüllung des Lagerbestands über den Zeitraum darstellen
+Synchronisation mit Refills:
+Darstellung, wie sich Nachfüllvorgänge (automatisch im Hintergrund) auf den Lagerbestand auswirken
+D. Interaktive Elemente und Zusatzfunktionen
+Dynamische Drilldown-Funktionalität:
+Klickbare Diagramme, die es erlauben, in Detailansichten einzelner KPIs einzutauchen (z. B. aus einem Gesamtumsatztrend heraus auf einzelne Maschinen oder Produkte)
+Live-Updates / Auto-Refresh:
+Option, die Auswertungen in Echtzeit zu aktualisieren, um aktuelle Verkaufszahlen und Maschinenzustände anzuzeigen
+Anpassbare Dashboards:
+Möglichkeit für Benutzer (abhängig von ihren Rechten), eigene Dashboards zusammenzustellen und die anzuzeigenden KPIs individuell zu konfigurieren
+Benachrichtigungen:
+Integration von Alarmen oder Warnmeldungen, z. B. bei ungewöhnlichen Umsatzrückgängen oder bei kritischem Lagerbestand
+3. Wichtige KPIs und Kennzahlen für den Betreiber
+
+Für dich als Betreiber sind folgende Auswertungen besonders relevant:
+
+Umsatz und Transaktionsvolumen:
+Tägliche, wöchentliche und monatliche Gesamtumsätze
+Durchschnittlicher Umsatz pro Transaktion
+Profitabilität:
+Ergebnisrechnung (Umsatz Netto – Kosten Netto – Pfand) pro Produkt, Maschine und gesamt
+Deckungsbeitragsanalyse und Margen pro Produktgruppe
+Maschinenperformance:
+Umsatz und Transaktionsanzahl je Automat
+Kennzahlen zu Cashless-Transaktionen und altersverifizierten Verkäufen, um potenzielle Probleme frühzeitig zu erkennen
+Zeitliche Trends und Saisonalität:
+Erkennung von Stoßzeiten, Tages- und Wochenmustern
+Saisonale Schwankungen, die Rückschlüsse auf Nachbestell- und Marketingzyklen erlauben
+Lager- und Bestandsanalyse:
+Aktueller Lagerbestand, historische Bestandsverläufe und automatisierte Warnungen bei Unterschreitung von Mindestbeständen
+Lieferanten- und Bestellperformance:
+Effizienz der Lieferanten (z. B. pünktliche Lieferungen, Anzahl offener Bestellungen)
+Auswirkungen von Bestellprozessen auf die Lagerbestände und den Umsatz
+4. Zusammenfassung der Auswertungsseite
+
+Die Auswertungsseite bietet ein umfassendes, interaktives Dashboard, das dir als Betreiber einen zentralen Überblick über sämtliche Betriebsdaten liefert. Mit interaktiven Filtern und Drilldown-Funktionen kannst du in spezifische Bereiche wie Maschinen-, Produkt-, Lieferanten- oder Lageranalysen einsteigen. Die Kombination aus Zeitreihenanalysen, Vergleichsdiagrammen und KPI-Dashboards ermöglicht es dir, Trends zu erkennen, Engpässe frühzeitig zu identifizieren und strategische Entscheidungen basierend auf fundierten Daten zu treffen.
+
+Dieses Konzept stellt sicher, dass du alle wichtigen Kennzahlen (Umsatz, Profitabilität, Maschinen- und Produktperformance, Bestandsdynamik sowie Lieferanten- und Bestellanalysen) übersichtlich und intuitiv abrufen kannst – ideal, um den Betrieb effizient zu steuern und kontinuierlich zu optimieren.

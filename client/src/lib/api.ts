@@ -276,3 +276,76 @@ export async function startScheduler(): Promise<any> {
 export async function stopScheduler(): Promise<any> {
   return apiRequest<any>('post', '/scheduler/stop');
 }
+
+// Lieferanten-Schnittstelle
+export interface Supplier {
+  id: number;
+  name: string;
+  contactPerson?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  address?: string;
+  city?: string;
+  postalCode?: string;
+  country: string;
+  status: string;
+  notes?: string;
+  paymentTerms?: string;
+  deliveryTerms?: string;
+  minimumOrderValue?: number;
+  deliveryDays?: string; // JSON array als String ["monday", "wednesday"]
+  taxId?: string;
+  accountNumber?: string;
+  bankDetails?: string;
+  createdAt: string;
+  updatedAt: string;
+  // Virtuelle Felder für die UI
+  productsCount?: number;
+  openOrdersCount?: number;
+}
+
+export interface SupplierResponse {
+  data: Supplier[];
+  meta: {
+    total: number;
+    offset: number;
+    limit: number;
+    page: number;
+    pages: number;
+  }
+}
+
+// Lieferanten-Funktionen
+export async function getSuppliers(params?: {
+  limit?: number;
+  offset?: number;
+  status?: string;
+  search?: string;
+}): Promise<SupplierResponse> {
+  const queryParams = new URLSearchParams();
+  
+  if (params?.limit) queryParams.append('limit', params.limit.toString());
+  if (params?.offset) queryParams.append('offset', params.offset.toString());
+  if (params?.status) queryParams.append('status', params.status);
+  if (params?.search) queryParams.append('search', params.search);
+  
+  const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+  return apiRequest<SupplierResponse>('get', `/suppliers${queryString}`);
+}
+
+export async function getSupplier(id: number): Promise<Supplier> {
+  return apiRequest<Supplier>('get', `/suppliers/${id}`);
+}
+
+export async function createSupplier(supplierData: Omit<Supplier, 'id' | 'createdAt' | 'updatedAt'>): Promise<Supplier> {
+  return apiRequest<Supplier>('post', '/suppliers', supplierData);
+}
+
+export async function updateSupplier(id: number, supplierData: Partial<Omit<Supplier, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Supplier> {
+  return apiRequest<Supplier>('put', `/suppliers/${id}`, supplierData);
+}
+
+export async function deleteSupplier(id: number): Promise<{success: boolean; message: string}> {
+  return apiRequest<{success: boolean; message: string}>('delete', `/suppliers/${id}`);
+}

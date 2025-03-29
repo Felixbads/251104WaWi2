@@ -1,0 +1,135 @@
+Die Seite „Lieferanten“ ist als zentrales Modul zur Verwaltung und Analyse der Lieferantendaten konzipiert. Sie soll sowohl einen schnellen Überblick über alle Lieferanten bieten als auch detaillierte Einblicke in einzelne Lieferanten ermöglichen. Im Folgenden eine detaillierte Beschreibung der Gestaltung, Funktionen und interaktiven Elemente:
+
+---
+
+## 1. Übersichtsseite "Lieferanten"
+
+### **Seitenkopf und Navigation**
+- **Titel und Breadcrumbs:**  
+  Oben auf der Seite steht der Titel „Lieferanten“. Breadcrumbs helfen, die aktuelle Position im System zu verdeutlichen.
+- **Such- und Filterleiste:**  
+  - **Suchfeld:** Ermöglicht die schnelle Suche nach Lieferantennamen, Kontaktdaten oder spezifischen Attributen.  
+  - **Filteroptionen:**  
+    - Filter nach Status (aktiv/inaktiv)
+    - Filter nach Anzahl der zugeordneten Produkte (z. B. Lieferanten mit mehr als 10 Produkten)
+    - Filter nach offenen Bestellungen
+  - **Sortierfunktionen:**  
+    - Sortierung nach Name, Erstellungsdatum oder Anzahl zugeordneter Produkte
+
+### **Darstellung der Lieferanten**
+- **Listen- oder Kachelansicht:**  
+  Je nach Benutzerpräferenz werden die Lieferanten entweder in einer tabellarischen Listenansicht oder als Kacheln dargestellt.
+  
+- **Inhalt einer Lieferanten-Kachel / Tabellenzeile:**
+  - **Lieferantenname:**  
+    Auffällig als Titel dargestellt.
+  - **Kurzinformationen:**  
+    - **Kontaktdaten:** Zum Beispiel Telefonnummer oder E-Mail-Adresse (optional als Kurzinfo oder als Tooltip).
+    - **Anzahl zugeordneter Produkte:** Eine Kennzahl, die anzeigt, wie viele Produkte aktuell mit diesem Lieferanten verknüpft sind.
+    - **Offene Bestellungen:** Eine Zahl, die angibt, wie viele Bestellungen derzeit offen sind.
+  - **Statusanzeige:**  
+    Ein kleiner Indikator (z. B. farblich kodiert) zeigt an, ob der Lieferant aktiv ist oder ob es etwaige Probleme gibt (z. B. fehlende Konditionen oder Dokumente).
+  - **Aktionen:**  
+    - Ein Button oder ein Icon, das den direkten Zugang zur Detailseite ermöglicht.
+    - Eventuell eine Schnellaktion (z. B. „Bearbeiten“ direkt in der Übersicht).
+
+### **Interaktive Elemente**
+- **Refresh-Button:**  
+  Zum manuellen Neuladen der Daten, um aktuelle Informationen anzuzeigen.
+- **Export-Funktion:**  
+  Möglichkeit, die Liste der Lieferanten als CSV oder PDF zu exportieren.
+- **Inline-Bearbeitung:**  
+  Für Felder wie Kontaktdaten oder Statusangaben kann eine Inline-Editierfunktion angeboten werden, um kleine Korrekturen direkt in der Übersicht vorzunehmen.
+
+---
+
+## 2. Detailseite eines Lieferanten
+
+Die Detailseite bietet einen umfassenden Einblick in alle Informationen zu einem einzelnen Lieferanten und ist in mehrere Tabs unterteilt, die unterschiedliche Aspekte beleuchten.
+
+### **Header und Stammdaten**
+- **Übersichtliche Darstellung der Stammdaten:**  
+  - **Lieferantenname:** Groß und prominent.
+  - **Kontaktdaten:** Telefonnummer, E-Mail, Adresse und Website (falls vorhanden).
+  - **Zusätzliche Informationen:**  
+    - Lieferzeiten, Zahlungsbedingungen, Lieferantennummer oder interne Referenzen.
+  - **Statusinformationen:**  
+    - Aktiv/Inaktiv-Status, eventuell Hinweise zu Sonderkonditionen.
+- **Aktionen im Header:**  
+  - **Bearbeiten-Button:** Ermöglicht den Wechsel in einen Editiermodus, um Stammdaten zu aktualisieren.
+  - **Dokumenten-Upload:** Schnellzugriff auf Funktionen zum Hochladen von Preislisten, Zertifikaten oder anderen relevanten Dokumenten.
+
+### **Tab-Navigation – Detailinformationen im Überblick**
+
+#### **A. Allgemeine Informationen**
+- **Stammdatenanzeige:**  
+  - Übersichtliche Darstellung aller grundlegenden Informationen.
+  - Möglichkeit, Notizen oder interne Kommentare zum Lieferanten hinzuzufügen.
+  
+#### **B. Produktzuordnung**
+- **Liste der zugeordneten Produkte:**  
+  - Tabelle mit den Produkten, die diesem Lieferanten aktuell zugeordnet sind.
+  - Spalten: Produktname, Einkaufspreis, Mehrwertsteuer, Pfand, Gebindegröße und gegebenenfalls Staffelpreise.
+  - **Interaktive Funktionen:**  
+    - Möglichkeit, Produkte hinzuzufügen oder die Zuordnung zu entfernen.
+    - Inline-Editierung von Konditionsdaten.
+  
+#### **C. Einkaufskonditionen und Historie**
+- **Aktuelle Einkaufskonditionen:**  
+  - Darstellung der vertraglich vereinbarten Konditionen wie Einkaufspreis, Rabatte und Staffelpreise.
+- **Historie:**  
+  - Eine chronologische Auflistung von Änderungen an den Einkaufskonditionen.  
+  - Jede Änderung wird mit Datum, Verantwortlichen und einer kurzen Begründung protokolliert.
+
+#### **D. Dokumentenverwaltung**
+- **Übersicht der hochgeladenen Dokumente:**  
+  - Auflistung von Dokumenten wie Preislisten, Zertifikaten, Verträgen etc.
+  - Für jedes Dokument: Dateiname, Upload-Datum, Dokumententyp und eine Vorschaufunktion (sofern möglich).
+  - **Funktionen:**  
+    - Upload neuer Dokumente, Download und Löschen von veralteten Dateien.
+
+#### **E. Bestellübersicht**
+- **Aktuelle und historische Bestellungen:**  
+  - Tabelle, die alle Bestellungen anzeigt, die mit diesem Lieferanten verknüpft sind.
+  - Spalten: Bestellnummer, Datum, Status (Offen, Bestellt, Geliefert), Bestellmenge und Gesamtwert.
+  - **Interaktivität:**  
+    - Direkter Zugriff auf die Detailansicht einer Bestellung.
+    - Filter- und Sortieroptionen (z. B. nach Datum oder Status).
+
+### **Footer und Zusatzfunktionen**
+- **Navigation:**  
+  - Links zu verwandten Modulen (z. B. Rückkehr zur Lieferantenübersicht oder zu Bestellungen).
+- **Export:**  
+  - Möglichkeit, alle Detailinformationen als PDF oder CSV zu exportieren.
+- **Aktivitäts-Log:**  
+  - Optional: Eine kleine Übersicht der letzten Aktivitäten, wie etwa Änderungen an Konditionen oder hochgeladene Dokumente, um die Nachvollziehbarkeit zu erhöhen.
+
+---
+
+## 3. Interaktive und Visuelle Gestaltung
+
+- **Responsives Design:**  
+  Alle Elemente passen sich dynamisch an verschiedene Bildschirmgrößen an, sodass auch auf mobilen Geräten alle Informationen gut lesbar sind.
+- **Farbliche Kodierung und Icons:**  
+  - Statusindikatoren (z. B. aktiv vs. inaktiv) werden farblich hervorgehoben.
+  - Icons unterstützen die visuelle Unterscheidung der verschiedenen Tabs (z. B. ein Dokumentensymbol für die Dokumentenverwaltung, ein Einkaufswagen für Bestellungen).
+- **Tooltips und Hilfestellungen:**  
+  Beim Überfahren von Feldern oder Icons werden kurze Erklärungen eingeblendet, die dem Benutzer den Kontext erläutern.
+- **Inline-Bearbeitung:**  
+  Direkte Editiermöglichkeiten in Listenansichten (z. B. bei Kontaktdaten oder Einkaufskonditionen) minimieren Klicks und beschleunigen den Arbeitsfluss.
+
+---
+
+## 4. Zusammenfassung der „Lieferanten“-Seite
+
+Die Seite „Lieferanten“ bietet:
+- **Eine übersichtliche Listen-/Kachelansicht:**  
+  Hier erhalten Benutzer sofort einen schnellen Überblick über alle Lieferanten, ihre Kontaktdaten, die Anzahl zugeordneter Produkte und den Status offener Bestellungen.
+- **Detaillierte Einzelansichten:**  
+  Durch Auswahl eines Lieferanten gelangt der Benutzer in eine Detailseite, die über mehrere Tabs eine vollständige Historie und alle relevanten Daten (Stammdaten, Produktzuordnung, Einkaufskonditionen, Dokumentenverwaltung und Bestellübersicht) übersichtlich darstellt.
+- **Interaktive Funktionen:**  
+  Inline-Bearbeitung, schnelle Aktionen (Bearbeiten, Dokumenten-Upload) und Exportmöglichkeiten ermöglichen eine effiziente Verwaltung und Pflege der Lieferantendaten.
+- **Benutzerfreundlichkeit und Responsivität:**  
+  Dank eines modernen, responsiven Designs und klaren visuellen Hinweisen können Benutzer jederzeit effizient arbeiten – egal ob im Büro oder unterwegs.
+
+Diese detaillierte Konzeption stellt sicher, dass die Verwaltung der Lieferanten intuitiv, umfassend und an den betrieblichen Bedarf angepasst erfolgt. Entwickler erhalten damit eine klare Anleitung, wie sie sowohl das Frontend als auch die zugrunde liegende Logik für diesen zentralen Systembereich umsetzen können.

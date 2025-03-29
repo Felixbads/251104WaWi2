@@ -4,6 +4,41 @@ import { z } from "zod";
 import { relations } from "drizzle-orm";
 
 // Updated users table with more fields
+// Suppliers table
+export const suppliers = pgTable("suppliers", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  contactPerson: text("contact_person"),
+  phone: text("phone"),
+  email: text("email"),
+  website: text("website"),
+  address: text("address"),
+  city: text("city"),
+  postalCode: text("postal_code"),
+  country: text("country").default("Deutschland"),
+  status: text("status").default("active"),
+  notes: text("notes"),
+  paymentTerms: text("payment_terms"),
+  deliveryTerms: text("delivery_terms"),
+  minimumOrderValue: real("minimum_order_value"),
+  deliveryDays: text("delivery_days"), // JSON array as string ["monday", "wednesday"]
+  taxId: text("tax_id"),
+  accountNumber: text("account_number"),
+  bankDetails: text("bank_details"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSupplierSchema = createInsertSchema(suppliers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
+export type Supplier = typeof suppliers.$inferSelect;
+
+// Users table
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
@@ -93,6 +128,10 @@ export const products = pgTable("products", {
   // Weitere Felder für Produktdetails
   sku: text("sku"),
   barcode: text("barcode"),
+  // Lieferanten-Informationen
+  supplierId: integer("supplier_id").references(() => suppliers.id),
+  supplierName: text("supplier_name"),
+  supplierSku: text("supplier_sku"),
   // Extracted from additionalData
   vat: real("vat"),
   depositPrice: real("deposit_price"),
@@ -356,6 +395,17 @@ export type InsertSyncLog = z.infer<typeof insertSyncLogSchema>;
 export type SyncLog = typeof syncLogs.$inferSelect;
 
 // Define relations
+export const suppliersRelations = relations(suppliers, ({ many }) => ({
+  products: many(products),
+}));
+
+export const productsRelations = relations(products, ({ one }) => ({
+  supplier: one(suppliers, {
+    fields: [products.supplierId],
+    references: [suppliers.id],
+  }),
+}));
+
 export const machinesRelations = relations(machines, ({ one }) => ({
   location: one(locations, {
     fields: [machines.locationId],
