@@ -1,0 +1,75 @@
+1. Übersichtsseite "Automaten"
+Header & Navigation
+
+Seitenkopf:
+Titel: „Automaten“
+Eine Suchleiste (mit Filtermöglichkeiten nach Standort, Maschinentyp, Status etc.), um schnell eine bestimmte Maschine zu finden.
+Eventuell ein Dropdown zur Auswahl der Ansicht (z. B. Kachel- oder Listenansicht).
+Hauptinhalt – Maschinen-Kacheln / Listenansicht
+
+Maschinen-Karte:
+Jede Karte repräsentiert einen Automaten und enthält:
+Maschinenname: Hervorgehoben als Titel.
+Vendon ID & Standort: Kleinere Schrift oder als Untertitel.
+KPIs (Statusindikatoren):
+Letzter Verkauf: Anzeige des Datums/Uhrzeit des letzten Verkaufs.
+Transaktionen heute: Eine Zahl, die angibt, wie viele Transaktionen am aktuellen Tag erfolgt sind.
+Heutiger Umsatz: Der Umsatzwert in EUR, der heute generiert wurde.
+Cashless-Status: Ein farblich codierter Indikator (z. B. grünes Icon, wenn in durchschnittlicher Zeit zuletzt eine cashless Transaktion stattgefunden hat, sonst rot).
+Altersverifizierungsindikator: Ein Symbol, das anzeigt, ob bei Verkäufen von Produkten, die eine Altersverifizierung erfordern, der Prozess korrekt abgelaufen ist.
+Aktionen:
+Durch Klicken auf die Karte gelangt der Benutzer zur Detailansicht der jeweiligen Maschine.
+Interaktive Elemente:
+Ein Refresh-Button, um die neuesten KPI-Werte abzurufen.
+Optionale Filter- oder Sortierfunktionen (z. B. nach Umsatzhöhe oder Fehlerstatus).
+2. Detailseite für einen einzelnen Automaten
+Seitenkopf & Zusammenfassung
+
+Maschinen-Header:
+Großflächiger Maschinenname, ergänzt um Details wie Vendon ID, Seriennummer, Maschinentyp und Standort.
+Ein kleiner Info-Bereich, der den allgemeinen Status der Maschine (online/offline, letzter Sync) anzeigt.
+KPI-Sektion
+
+Kennzahlen-Dashboard:
+Letzter Verkauf: Detaillierte Anzeige des Zeitpunkts des letzten Verkaufs.
+Tagesübersicht:
+Anzahl der Transaktionen und der generierte Umsatz (in EUR) des laufenden Tages.
+Statusanzeigen:
+Cashless-Status: Ein Icon mit Farbindikator und Tooltip (z. B. „Letzte cashless Transaktion vor 3 Minuten“).
+Altersverifizierungsstatus: Anzeige, ob und wann zuletzt ein altersrelevanter Verkauf stattfand – ggf. mit einem kleinen Diagramm, das den Verlauf zeigt.
+Detail-Informationen & Tabs
+
+Tab-Navigation:
+Unterhalb der KPI-Sektion können mehrere Tabs angeordnet werden, z. B.:
+Allgemeine Informationen:
+Detaillierte Stammdaten der Maschine (z. B. Hardware-Details, Standortbeschreibung).
+Eventuell Konfigurationsoptionen und Wartungsinformationen.
+Transaktionshistorie:
+Eine Tabelle mit allen Transaktionen, die über diesen Automaten abgewickelt wurden.
+Filter- und Sortieroptionen (Datum, Produkt, Betrag).
+Fehler- und Log-Daten:
+Anzeige von Fehlermeldungen oder Warnungen (z. B. bei Ausfällen oder Problemen mit der Cashless-Funktion).
+Technische Details:
+Firmware-Version, letzte Wartungsarbeiten, geplante Updates etc.
+Aktionen & Zusatzfunktionen
+
+Bearbeiten / Wartung:
+Ein Button „Maschine bearbeiten“ oder „Wartung anstoßen“, der Administratoren oder Technikern erlaubt, direkt in die Detailkonfiguration einzutreten.
+Historische Grafiken:
+Ein Diagramm, das über einen definierten Zeitraum (z. B. 7 Tage, 30 Tage) den Umsatz und Transaktionsverlauf darstellt.
+Export-Funktion:
+Möglichkeit, Transaktions- oder Fehlerdaten als CSV/PDF zu exportieren.
+3. Interaktive Elemente und visuelle Gestaltung
+Farbliche Kodierung:
+Statusindikatoren (z. B. Cashless, Altersverifizierung) nutzen Farben (grün = ok, rot = Problem) und Icons zur schnellen Erkennung.
+Responsives Design:
+Die Seiten passen sich dynamisch an verschiedene Bildschirmgrößen an, sodass die KPIs auch auf mobilen Geräten gut sichtbar und bedienbar sind.
+Tooltips und Hilfestellungen:
+Beim Überfahren von Icons erscheinen kurze Erklärungen (z. B. „Letzte cashless Transaktion: 10:15 Uhr“).
+4. Zusammenfassung der Automaten-Seite
+Die "Automaten"-Seite ist somit eine Kombination aus einer übersichtlichen Kachel-/Listenansicht und einer detaillierten Einzelseitenansicht:
+
+Übersicht: Zeigt alle Maschinen mit ihren wichtigsten KPIs, sodass ein schneller Vergleich und die Erkennung von Auffälligkeiten möglich ist.
+Detailansicht: Bietet umfassende Informationen, historische Daten und technische Details zu einer ausgewählten Maschine sowie Funktionen zur Bearbeitung und Wartung.
+Interaktion: Ermöglicht einfache Navigation, Filterung, manuelle Aktualisierung der Daten und den Export von Informationen.
+Dieses detaillierte Design stellt sicher, dass sowohl operative Mitarbeiter als auch Administratoren stets einen aktuellen Überblick über den Status der Automaten erhalten und bei Bedarf direkt in die Detailbearbeitung einsteigen können.

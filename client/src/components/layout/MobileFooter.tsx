@@ -45,10 +45,10 @@ export default function MobileFooter() {
           isActive={isActive("/transactions")}
         />
         <NavItem 
-          href="/machines" 
+          href="/automaten" 
           icon={<Package className="h-6 w-6" />}
-          label="Maschinen"
-          isActive={isActive("/machines")}
+          label="Automaten"
+          isActive={isActive("/automaten")}
         />
         <NavItem 
           href="/synchronization" 

@@ -5,7 +5,9 @@ import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/Dashboard";
 import Transactions from "@/pages/Transactions";
-import Machines from "@/pages/Machines";
+import Machines from "@/pages/Machines"; // Alte Maschinen-Komponente
+import Automaten from "@/pages/Automaten"; // Neue Automaten-Komponente
+import AutomatDetail from "@/pages/AutomatDetail"; // Detail-Ansicht eines Automaten
 import Products from "@/pages/Products";
 import Synchronization from "@/pages/Synchronization";
 import SyncHistory from "@/pages/SyncHistory";
@@ -41,6 +43,8 @@ function AuthenticatedRouter() {
         <Route path="/" component={Dashboard} />
         <Route path="/transactions" component={Transactions} />
         <Route path="/machines" component={Machines} />
+        <Route path="/automaten" component={Automaten} />
+        <Route path="/automaten/:id" component={AutomatDetail} />
         <Route path="/products" component={Products} />
         <Route path="/synchronization" component={Synchronization} />
         <Route path="/sync-history" component={SyncHistory} />

@@ -70,11 +70,11 @@ export default function Sidebar() {
             Dashboard
           </NavItem>
           <NavItem 
-            href="/machines" 
+            href="/automaten" 
             icon={<Package className="h-5 w-5 mr-3" />}
-            isActive={isActive("/machines")}
+            isActive={isActive("/automaten")}
           >
-            Maschinen
+            Automaten
           </NavItem>
           <NavItem 
             href="/products" 
