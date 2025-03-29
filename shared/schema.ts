@@ -81,6 +81,29 @@ export const products = pgTable("products", {
   // Weitere Felder für Produktdetails
   sku: text("sku"),
   barcode: text("barcode"),
+  // Extracted from additionalData
+  vat: real("vat"),
+  depositPrice: real("deposit_price"),
+  depositVat: real("deposit_vat"),
+  productType: text("product_type"),
+  article: text("article"),
+  tags: text("tags"), // JSON array as string
+  units: text("units"),
+  recipe: text("recipe"),
+  costPrice: real("cost_price"),
+  warehouseLocation: text("warehouse_location"),
+  vendonUpdatedAt: timestamp("vendon_updated_at"),
+  accountId: integer("account_id"),
+  accountName: text("account_name"),
+  accountTimezone: text("account_timezone"),
+  // Machine defaults
+  amountMax: integer("amount_max"),
+  amountStandard: integer("amount_standard"),
+  amountCritical: integer("amount_critical"),
+  refillUnitSize: integer("refill_unit_size"),
+  minRefill: integer("min_refill"),
+  critical: boolean("critical"),
+  // Keep the full JSON for reference and backward compatibility
   additionalData: text("additional_data"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

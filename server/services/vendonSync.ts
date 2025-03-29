@@ -1354,34 +1354,64 @@ export class VendonSyncService {
             continue;
           }
           
+          // Extract all available fields from the product data
+          let extractedData: any = {
+            vendonId: vendonId,
+            productName: productName,
+            price: product.price || 0,
+            status: product.status || 'active',
+            description: product.description || null,
+            category: product.category || null,
+            // Additional data fields extracted from the API response
+            vat: product.vat !== undefined ? product.vat : null,
+            depositPrice: product.deposit_price !== undefined ? product.deposit_price : null,
+            depositVat: product.deposit_vat !== undefined ? product.deposit_vat : null,
+            productType: product.type || null,
+            article: product.article || null,
+            tags: product.tags ? JSON.stringify(product.tags) : null,
+            units: product.units || null,
+            recipe: product.recipe || null,
+            costPrice: product.cost_price !== undefined ? product.cost_price : null,
+            warehouseLocation: product.warehouse_location || null,
+            vendonUpdatedAt: product.updated_at ? new Date(product.updated_at * 1000) : null,
+          };
+          
+          // Extract account information if available
+          if (product.account) {
+            extractedData.accountId = product.account.id || null;
+            extractedData.accountName = product.account.name || null;
+            extractedData.accountTimezone = product.account.timezone || null;
+          }
+          
+          // Extract machine defaults if available
+          if (product.machine_defaults) {
+            extractedData.amountMax = product.machine_defaults.amount_max !== undefined 
+              ? product.machine_defaults.amount_max : null;
+            extractedData.amountStandard = product.machine_defaults.amount_standart !== undefined 
+              ? product.machine_defaults.amount_standart : null;
+            extractedData.amountCritical = product.machine_defaults.amount_critical !== undefined 
+              ? product.machine_defaults.amount_critical : null;
+            extractedData.refillUnitSize = product.machine_defaults.refill_unit_size !== undefined 
+              ? product.machine_defaults.refill_unit_size : null;
+            extractedData.minRefill = product.machine_defaults.min_refill !== undefined 
+              ? product.machine_defaults.min_refill : null;
+            extractedData.critical = product.machine_defaults.critical !== undefined 
+              ? product.machine_defaults.critical : null;
+          }
+          
+          // Always save the complete original data as JSON for reference
+          extractedData.additionalData = JSON.stringify(product);
+          
           // Check if product already exists
           const existing = await storage.getProductByVendonId(vendonId);
           
           if (existing) {
-            // Update product
-            await storage.updateProduct(existing.id, {
-              productName: productName,
-              price: product.price || 0,
-              // Weitere verfügbare Felder
-              status: product.status || 'active',
-              description: product.description || null,
-              category: product.category || null,
-              additionalData: JSON.stringify(product),
-            });
+            // Update product with all extracted fields
+            await storage.updateProduct(existing.id, extractedData);
             itemsUpdated++;
           } else {
-            // Create new product
-            const newProduct: InsertProduct = {
-              vendonId: vendonId,
-              productName: productName,
-              price: product.price || 0,
-              // Weitere verfügbare Felder
-              status: product.status || 'active',
-              description: product.description || null,
-              category: product.category || null,
-              additionalData: JSON.stringify(product),
-            };
-            await storage.createProduct(newProduct);
+            // Create new product with all extracted fields
+            await storage.createProduct(extractedData as InsertProduct);
             itemsSaved++;
           }
         } catch (error) {
