@@ -51,12 +51,16 @@ export default function Products() {
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
   // Kategorien sammeln
+  // Kategorien sammeln und deduplizieren
   const categories = products 
-    ? [...new Set(products.map((product: Product) => product.category || 'Unkategorisiert'))]
+    ? Array.from(new Set(products.map((product: Product) => product.category || 'Unkategorisiert')))
     : [];
 
   // Filter- und Suchfunktionen
   const filteredProducts = products?.filter((product: Product) => {
+    // Sicherstellen, dass product und seine Eigenschaften definiert sind
+    if (!product || !product.name) return false;
+    
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
                          (product.productCode?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
     const matchesCategory = !categoryFilter || product.category === categoryFilter || 

@@ -1,4 +1,4 @@
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import {
   Home,
   FileText,
@@ -15,6 +15,28 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib";
+
+// Statt Link verwenden wir eine Hilfsfunktion, um das verschachtelte <a> Problem zu vermeiden
+const NavItem = ({ href, icon, children, isActive }: { 
+  href: string; 
+  icon: React.ReactNode; 
+  children: React.ReactNode;
+  isActive: boolean;
+}) => {
+  return (
+    <a
+      href={href}
+      className={`flex items-center px-4 py-2 text-sm font-medium ${
+        isActive
+          ? "text-primary-600 bg-primary-50"
+          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+      }`}
+    >
+      {icon}
+      {children}
+    </a>
+  );
+};
 
 export default function Sidebar() {
   const [location] = useLocation();
@@ -40,78 +62,48 @@ export default function Sidebar() {
           Übersicht
         </h3>
         <nav>
-          <Link href="/">
-            <a
-              className={`flex items-center px-4 py-2 text-sm font-medium ${
-                isActive("/")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <Home className="h-5 w-5 mr-3" />
-              Dashboard
-            </a>
-          </Link>
-          <Link href="/machines">
-            <a
-              className={`flex items-center px-4 py-2 text-sm font-medium ${
-                isActive("/machines")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <Package className="h-5 w-5 mr-3" />
-              Maschinen
-            </a>
-          </Link>
-          <Link href="/products">
-            <a
-              className={`flex items-center px-4 py-2 text-sm font-medium ${
-                isActive("/products")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <ShoppingBag className="h-5 w-5 mr-3" />
-              Produkte
-            </a>
-          </Link>
-          <Link href="/suppliers">
-            <a
-              className={`flex items-center px-4 py-2 text-sm font-medium ${
-                isActive("/suppliers")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <Truck className="h-5 w-5 mr-3" />
-              Lieferanten
-            </a>
-          </Link>
-          <Link href="/orders">
-            <a
-              className={`flex items-center px-4 py-2 text-sm font-medium ${
-                isActive("/orders")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <ShoppingCart className="h-5 w-5 mr-3" />
-              Bestellungen
-            </a>
-          </Link>
-          <Link href="/transactions">
-            <a
-              className={`flex items-center px-4 py-2 text-sm font-medium ${
-                isActive("/transactions")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <FileText className="h-5 w-5 mr-3" />
-              Transaktionen
-            </a>
-          </Link>
+          <NavItem 
+            href="/" 
+            icon={<Home className="h-5 w-5 mr-3" />}
+            isActive={isActive("/")}
+          >
+            Dashboard
+          </NavItem>
+          <NavItem 
+            href="/machines" 
+            icon={<Package className="h-5 w-5 mr-3" />}
+            isActive={isActive("/machines")}
+          >
+            Maschinen
+          </NavItem>
+          <NavItem 
+            href="/products" 
+            icon={<ShoppingBag className="h-5 w-5 mr-3" />}
+            isActive={isActive("/products")}
+          >
+            Produkte
+          </NavItem>
+          <NavItem 
+            href="/suppliers" 
+            icon={<Truck className="h-5 w-5 mr-3" />}
+            isActive={isActive("/suppliers")}
+          >
+            Lieferanten
+          </NavItem>
+          <NavItem 
+            href="/orders" 
+            icon={<ShoppingCart className="h-5 w-5 mr-3" />}
+            isActive={isActive("/orders")}
+          >
+            Bestellungen
+          </NavItem>
+          <NavItem 
+            href="/transactions" 
+            icon={<FileText className="h-5 w-5 mr-3" />}
+            isActive={isActive("/transactions")}
+          >
+            Transaktionen
+          </NavItem>
         </nav>
       </div>
 
@@ -121,54 +113,34 @@ export default function Sidebar() {
           System
         </h3>
         <nav>
-          <Link href="/synchronization">
-            <a
-              className={`flex items-center px-4 py-2 text-sm font-medium ${
-                isActive("/synchronization")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <RefreshCw className="h-5 w-5 mr-3" />
-              Synchronisierung
-            </a>
-          </Link>
-          <Link href="/sync-history">
-            <a
-              className={`flex items-center px-4 py-2 text-sm font-medium ${
-                isActive("/sync-history")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <Clock className="h-5 w-5 mr-3" />
-              Sync-Verlauf
-            </a>
-          </Link>
-          <Link href="/forecast">
-            <a
-              className={`flex items-center px-4 py-2 text-sm font-medium ${
-                isActive("/forecast")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <BarChart2 className="h-5 w-5 mr-3" />
-              Prognosen
-            </a>
-          </Link>
-          <Link href="/settings">
-            <a
-              className={`flex items-center px-4 py-2 text-sm font-medium ${
-                isActive("/settings")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <Settings className="h-5 w-5 mr-3" />
-              Einstellungen
-            </a>
-          </Link>
+          <NavItem 
+            href="/synchronization" 
+            icon={<RefreshCw className="h-5 w-5 mr-3" />}
+            isActive={isActive("/synchronization")}
+          >
+            Synchronisierung
+          </NavItem>
+          <NavItem 
+            href="/sync-history" 
+            icon={<Clock className="h-5 w-5 mr-3" />}
+            isActive={isActive("/sync-history")}
+          >
+            Sync-Verlauf
+          </NavItem>
+          <NavItem 
+            href="/forecast" 
+            icon={<BarChart2 className="h-5 w-5 mr-3" />}
+            isActive={isActive("/forecast")}
+          >
+            Prognosen
+          </NavItem>
+          <NavItem 
+            href="/settings" 
+            icon={<Settings className="h-5 w-5 mr-3" />}
+            isActive={isActive("/settings")}
+          >
+            Einstellungen
+          </NavItem>
         </nav>
       </div>
 

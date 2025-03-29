@@ -19,23 +19,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { getMachines } from "@/lib/api";
-
-// Typen für Maschinen
-interface Machine {
-  id: number;
-  name: string;
-  location: string;
-  status: string;
-  last_sync: string;
-  product_count: number;
-  error_count: number;
-  last_sale?: string;
-  coordinates?: {
-    lat: number;
-    lng: number;
-  };
-}
+import { getMachines, Machine } from "@/lib/api";
 
 export default function Machines() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -53,8 +37,11 @@ export default function Machines() {
 
   // Filter- und Suchfunktionen
   const filteredMachines = machines?.filter((machine: Machine) => {
-    const matchesSearch = machine.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          machine.location.toLowerCase().includes(searchTerm.toLowerCase());
+    // Sicherstellen, dass die Maschine und ihre Eigenschaften definiert sind
+    if (!machine || !machine.machineName) return false;
+    
+    const matchesSearch = machine.machineName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                         (machine.location?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
     const matchesStatus = !statusFilter || machine.status === statusFilter;
     return matchesSearch && matchesStatus;
   }) || [];
@@ -65,7 +52,7 @@ export default function Machines() {
       <Card className="overflow-hidden">
         <CardHeader className="pb-2">
           <div className="flex justify-between items-start">
-            <CardTitle className="text-lg truncate">{machine.name}</CardTitle>
+            <CardTitle className="text-lg truncate">{machine.machineName}</CardTitle>
             <StatusBadge status={machine.status} />
           </div>
           <CardDescription>{machine.location}</CardDescription>
@@ -74,24 +61,24 @@ export default function Machines() {
           <div className="flex justify-between items-center mb-2">
             <div>
               <p className="text-sm text-gray-500">Produkte</p>
-              <p className="font-medium">{machine.product_count}</p>
+              <p className="font-medium">{machine.product_count || 0}</p>
             </div>
             <div>
               <p className="text-sm text-gray-500">Fehler</p>
-              <p className="font-medium">{machine.error_count}</p>
+              <p className="font-medium">{machine.error_count || 0}</p>
             </div>
             <div>
               <p className="text-sm text-gray-500">Letzte Synch.</p>
               <p className="font-medium text-sm">
-                {new Date(machine.last_sync).toLocaleDateString()}
+                {machine.lastSync ? new Date(machine.lastSync).toLocaleDateString() : '–'}
               </p>
             </div>
           </div>
-          {machine.last_sale && (
+          {machine.lastSale && (
             <div className="mt-2">
               <p className="text-sm text-gray-500">Letzter Verkauf</p>
               <p className="font-medium text-sm">
-                {new Date(machine.last_sale).toLocaleString()}
+                {new Date(machine.lastSale).toLocaleString()}
               </p>
             </div>
           )}
@@ -117,7 +104,7 @@ export default function Machines() {
       <div className="flex items-center p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors">
         <div className="flex-grow mr-4">
           <div className="flex items-center mb-1">
-            <h3 className="font-medium truncate mr-2">{machine.name}</h3>
+            <h3 className="font-medium truncate mr-2">{machine.machineName}</h3>
             <StatusBadge status={machine.status} />
           </div>
           <p className="text-sm text-gray-600">{machine.location}</p>
@@ -126,16 +113,16 @@ export default function Machines() {
         <div className="flex items-center gap-6 text-sm">
           <div className="text-center">
             <p className="text-gray-500">Produkte</p>
-            <p className="font-medium">{machine.product_count}</p>
+            <p className="font-medium">{machine.product_count || 0}</p>
           </div>
           <div className="text-center">
             <p className="text-gray-500">Fehler</p>
-            <p className="font-medium">{machine.error_count}</p>
+            <p className="font-medium">{machine.error_count || 0}</p>
           </div>
           <div className="text-center">
             <p className="text-gray-500">Letzte Synch.</p>
             <p className="font-medium">
-              {new Date(machine.last_sync).toLocaleDateString()}
+              {machine.lastSync ? new Date(machine.lastSync).toLocaleDateString() : '–'}
             </p>
           </div>
           
@@ -153,17 +140,20 @@ export default function Machines() {
 
   // Status Badge Component
   const StatusBadge = ({ status }: { status: string }) => {
+    // Beachte, dass das ursprüngliche "success" auf "default" geändert wird
+    // um die Badge-Komponente zu unterstützen
     let variant: 
       | "default"
       | "outline"
       | "secondary"
-      | "destructive"
-      | "success" = "default";
+      | "destructive" = "default";
     let icon = null;
+    let className = "";
 
     switch (status) {
       case "active":
-        variant = "success";
+        variant = "default"; // anstatt "success" verwenden wir "default" mit grüner Farbe
+        className = "bg-green-500 hover:bg-green-700";
         icon = <CheckCircle className="h-3 w-3 mr-1" />;
         break;
       case "inactive":
@@ -178,7 +168,7 @@ export default function Machines() {
     }
 
     return (
-      <Badge variant={variant} className="flex items-center">
+      <Badge variant={variant} className={`flex items-center ${className}`}>
         {icon}
         {status === "active" ? "Aktiv" : 
          status === "inactive" ? "Inaktiv" : 
