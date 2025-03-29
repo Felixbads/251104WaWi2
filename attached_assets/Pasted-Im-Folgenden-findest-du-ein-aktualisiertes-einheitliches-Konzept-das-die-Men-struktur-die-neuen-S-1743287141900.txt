@@ -1,0 +1,155 @@
+Im Folgenden findest du ein aktualisiertes, einheitliches Konzept, das die Menüstruktur, die neuen Seiten für Lieferanten und Bestellungen sowie die automatische Bestandsanpassung bei Refills integriert. Dabei wird das Nachfüllen als Hintergrundprozess behandelt – es erscheint nicht als eigener Menüpunkt.
+
+1. UI und Menüstruktur
+
+Das Frontend basiert auf einem modernen, responsiven Design, das den Anwendern eine intuitive Navigation ermöglicht. Die Hauptmenüleiste gliedert sich in folgende Bereiche:
+
+Dashboard
+Zentrale Übersicht mit interaktiven Widgets und Diagrammen, die relevante KPIs anzeigen, wie:
+Gesamtumsatz, Transaktionsvolumen
+Aktuelle Maschinen-Performance (z. B. letzter Verkauf, Anzahl Transaktionen, Umsatz pro Maschine)
+Kurzübersichten zu Produkten, Lieferanten und Bestellungen
+Maschinen
+Verwaltung und Detailansichten aller Warenautomaten.
+Übersicht:
+Anzeige in Kachel- oder Listenansicht mit Maschinendaten (machineName, vendonId, Standort) und KPIs (letzter Verkauf, heutiger Umsatz, Anzahl Transaktionen, Cashless-Status, Altersverifizierungsindikator).
+Detailseite:
+Historie, technische Details und zugehörige Transaktionen.
+Produkte
+Verwaltung der Produktstammdaten und Auswertung der Verkaufszahlen.
+Übersicht:
+Listenansicht mit Produktname, Preis, aktueller Lagerbestand und Kennzeichnung (z. B. Altersverifizierung erforderlich).
+Detailseite:
+Verkaufsentwicklung (Diagramme für Zeitreihenanalysen), Preis- und Bestandsverlauf sowie Zuordnung zu Maschinen.
+Lieferanten
+Verwaltung aller Lieferantendaten und Konditionen.
+Übersicht:
+Liste oder Kacheln mit Lieferantenname, Kontaktdaten, Anzahl zugeordneter Produkte und offenen Bestellungen.
+Detailseite:
+Bearbeitbare Stammdaten, Produktzuordnung, Dokumentenverwaltung (z. B. Preislisten) sowie Historie der Einkaufskonditionen.
+Bestellungen
+Abwicklung und Verwaltung des Bestellprozesses.
+Übersicht:
+Listenansicht aller Bestellungen mit Status (Offen, Bestellt, Geliefert), Datum und zugehörigen Lieferanten.
+Detailseite:
+Detailansicht der Bestellung mit den enthaltenen Positionen, Preisen und Bestellhistorie.
+Hinweis: Bestellungen können auch prognosebasiert, manuell oder per Kopie aus früheren Bestellungen ausgelöst werden.
+Transaktionen
+Übersicht über alle Verkaufstransaktionen.
+Übersicht:
+Filterbare Tabellenansicht (nach Maschine, Produkt, Datum) mit Kennzahlen wie verkaufte Menge, Umsatz und Transaktionszeit.
+Reporting:
+Graphische Auswertungen (Tages-, Wochen- und Monatsberichte) und Integration der Profitabilitätsrechnung (Ergebnis = Umsatz Netto – Kosten Netto – Pfand).
+Einstellungen
+Konfigurationsbereich für Systemadministratoren.
+Untermenüpunkte:
+Benutzer & Rechte: Verwaltung von Zugriffsrechten und Benutzerprofilen.
+Systemkonfiguration: Allgemeine Systemeinstellungen (Sprache, Zeitzonen, etc.).
+Schnittstellen:
+Darstellung aller angebundenen Schnittstellen mit deren Sync-Status (letzter Sync, abgerufene Datensätze, Fehlerstatus) und die Möglichkeit, den Sync manuell anzustoßen.
+2. Datenbankstruktur und Beziehungen
+
+Die zentrale Datenbank umfasst die folgenden Kern-Tabellen, ergänzt um ein Inventar-Modul für die Lagerbestände:
+
+machines
+Felder: id, vendonId, machineName, machineType, serialNumber, locationId (Fremdschlüssel zu locations), createdAt, updatedAt.
+products
+Felder: id, vendonId, productName, price, currency, createdAt, updatedAt.
+refills
+Erfasst alle Nachfüllvorgänge, die im Hintergrund erfolgen.
+Felder: id, vendonId, machineId (Fremdschlüssel zu machines), datetime, operator, status.
+refill_details
+Detailinformationen zu einem Refill-Vorgang (automatisch im Hintergrund erfasst).
+Felder: id, refillId (Fremdschlüssel zu refills), productId (externe ID, Text), productName, quantity, price, datetime, added, removed, vendonProductId, extraData.
+transactions
+Erfasst alle Verkaufstransaktionen.
+Felder: id, machineId (Fremdschlüssel zu machines), productId (Fremdschlüssel zu products), quantity, price, transactionDate.
+suppliers (Lieferanten)
+Neue Tabelle zur Verwaltung von Lieferanten.
+Felder: id, name, contactDetails, deliveryTime, createdAt, updatedAt.
+orders (Bestellungen)
+Neue Tabelle für den Bestellprozess.
+Felder: id, supplierId (Fremdschlüssel zu suppliers), warehouseId (Fremdschlüssel zu warehouses/Lager), status, orderDate, deliveryDate, weitere Bestellparameter.
+inventory (Lagerbestände)
+Verwaltung der Bestände pro Produkt in jedem Lager.
+Felder: id, warehouseId, productId, quantity, lastUpdated.
+sync_logs (optional)
+Protokolliert die Sync-Vorgänge der angebundenen Schnittstellen.
+Felder: id, interfaceName, lastSync, dataCount, errorStatus, errorMessage, syncDuration.
+Beziehungen:
+
+Maschinen, Produkte, Lieferanten und Bestellungen werden über Fremdschlüssel miteinander verknüpft.
+Refills und deren Details werden automatisch im Hintergrund verarbeitet.
+Bei jeder Aufnahme eines Refill_detail-Eintrags (wenn Produkte in einen Automaten gefüllt werden) wird über einen Trigger oder einen Hintergrundprozess der entsprechende Lagerbestand (inventory) des zugeordneten Lagers reduziert.
+3. Module und Geschäftslogik
+
+A. Stammdatenverwaltung
+Maschinen, Produkte, Lieferanten:
+Erfassung und Pflege der Stammdaten.
+Validierung der externen IDs (vendonId, vendonProductId) für konsistente Zuordnungen.
+B. Bestellmanagement
+Bestellungen:
+Bestellungen werden von der Seite „Bestellungen“ aus initiiert.
+Der Prozess umfasst manuelle, kopierte oder prognosebasierte Bestellungen, wobei aktuelle Einkaufskonditionen und Lieferanteninformationen herangezogen werden.
+Detailansichten ermöglichen die Nachverfolgung des Status und der Historie von Bestellungen.
+C. Verkaufstransaktionen und Reporting
+Transaktionen:
+Jede Verkaufstransaktion wird in der Tabelle transactions protokolliert.
+Aggregationen werden genutzt, um Umsatz, verkaufte Mengen und KPIs wie den durchschnittlichen Transaktionswert zu berechnen.
+Ergebnisrechnung:
+Profitabilität wird ermittelt mit:
+Ergebnis = Umsatz Netto – Kosten Netto – Pfand
+Die Daten werden in Berichten und Diagrammen im Transaktions- und Reporting-Bereich visualisiert.
+D. Lagerverwaltung und automatischer Bestandstrigger
+Lagerbestände:
+Über die Tabelle inventory werden Bestände pro Produkt und Lager geführt.
+Automatische Bestandsanpassung:
+Immer wenn in einem Refill_detail-Eintrag ein Produkt „hinzugefügt“ wird (added) und der entsprechende Vorgang in einem Automaten (machine) verzeichnet wird, wird im Hintergrund automatisch der Lagerbestand des zugeordneten Lagers reduziert.
+Diese Logik erfolgt entweder durch einen Datenbank-Trigger oder einen Hintergrundprozess, der die Differenz berechnet und den Bestand in inventory aktualisiert.
+E. Schnittstellen-Management (unter Einstellungen)
+Schnittstellen-Übersicht:
+Zeigt alle angebundenen externen Systeme inklusive deren Sync-Status (letzter Sync, abgerufene Datensätze, Fehlerstatus).
+Manuelles Auslösen des Syncs:
+Administratoren können den Sync über einen Button manuell anstoßen, wodurch die API den Sync-Vorgang startet und der neue Status angezeigt wird.
+4. Technische Architektur und API-Design
+
+A. Backend
+Datenbank:
+Einsatz eines relationalen DBMS (z. B. PostgreSQL) mit der oben beschriebenen Tabellenstruktur.
+API-Schicht:
+RESTful API (alternativ GraphQL) mit Endpunkten für:
+Stammdaten: /machines, /products, /suppliers
+Bestellungen: /orders
+Transaktionen: /transactions
+Lagerverwaltung: /inventory
+Schnittstellen-Management: /settings/interfaces
+Business-Logik:
+Validierungen (z. B. Produkt-Matching) und automatische Trigger zur Bestandsanpassung bei Refill_detail-Einträgen.
+Aggregationsfunktionen für Reporting und Ergebnisrechnung.
+B. Frontend
+Technologien:
+Moderne Frameworks (React, Angular, Vue.js) für ein responsives und interaktives UI.
+Komponenten:
+Dashboard: Übersicht aller KPIs und interaktive Diagramme (z. B. via Chart.js oder D3.js).
+Listen- und Detailseiten: Für Maschinen, Produkte, Lieferanten, Bestellungen und Transaktionen.
+Einstellungen: Schnittstellen-Management mit Echtzeit-Statusanzeigen und manuellen Sync-Triggern.
+Navigation:
+Eine feste Menüleiste mit den oben genannten Hauptmenüpunkten und entsprechenden Breadcrumbs.
+5. Zusammenfassung und Implementierungshinweise
+
+Dieses einheitliche Konzept umfasst:
+
+UI & Menüstruktur:
+Ein übersichtliches Navigationssystem mit den Menüpunkten Dashboard, Maschinen, Produkte, Lieferanten, Bestellungen, Transaktionen und Einstellungen.
+Das Nachfüllen erfolgt als Hintergrundprozess: Beim Anlegen von refill_details wird automatisch der zugehörige Lagerbestand (inventory) des verknüpften Lagers reduziert.
+Datenbankstruktur:
+Eine klare relationale Datenbasis mit den Tabellen machines, products, refills, refill_details, transactions, suppliers, orders, inventory und optional sync_logs.
+Module und Geschäftslogik:
+Stammdatenverwaltung für Maschinen, Produkte und Lieferanten.
+Bestellmanagement mit detaillierten Bestell- und Lieferanteninformationen.
+Automatisierte Lagerverwaltung, die den Bestand bei Refills dynamisch anpasst.
+Umfassende Reporting- und KPI-Berechnungen inklusive Profitabilitätsanalysen.
+Schnittstellen-Management für externe Datenquellen und manuelle Synchronisation.
+Technische Architektur:
+RESTful API, ein robustes relationales DBMS und ein modernes Frontend sorgen für eine skalierbare, erweiterbare Warenwirtschaftslösung.
+Dieses Konzept bietet Programmierern eine vollständige Grundlage, um die Warenwirtschaftslösung inklusive der neuen Lieferanten- und Bestellseiten sowie der automatisierten Bestandsanpassung im Hintergrund umzusetzen.
