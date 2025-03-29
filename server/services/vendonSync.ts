@@ -465,6 +465,145 @@ export class VendonSyncService {
     return this.api;
   }
   
+  /**
+   * Aktualisiert existierende Transaktionen mit Daten aus dem extraData-Feld
+   * Diese Methode extrahiert Informationen aus dem extraData JSON und speichert sie in den entsprechenden Spalten
+   */
+  async updateExistingTransactions(
+    limit: number = 100,
+    offset: number = 0
+  ): Promise<{ status: string; message: string; updated: number; errors: number; total: number }> {
+    try {
+      console.log(`Aktualisiere bestehende Transaktionen mit Limit ${limit} und Offset ${offset}`);
+      const startTime = Date.now();
+      
+      // Zähler für die Verarbeitung
+      let totalItems = 0;
+      let updatedItems = 0;
+      let errors = 0;
+      
+      // Hole Transaktionen, die noch nicht aktualisiert wurden (processingStatus = 'pending')
+      const transactions = await storage.getTransactionsForProcessing(limit, offset);
+      totalItems = transactions.length;
+      
+      console.log(`${totalItems} Transaktionen zur Aktualisierung gefunden`);
+      
+      if (totalItems === 0) {
+        return {
+          status: 'success',
+          message: 'Keine Transaktionen zur Aktualisierung gefunden',
+          updated: 0,
+          errors: 0,
+          total: 0
+        };
+      }
+      
+      // Verarbeite jede Transaktion
+      for (const transaction of transactions) {
+        try {
+          console.log(`Verarbeite Transaktion ${transaction.id} (Vendon-ID: ${transaction.vendonId})`);
+          
+          // Prüfe, ob extraData vorhanden ist
+          if (!transaction.extraData) {
+            console.warn(`Transaktion ${transaction.id} hat keine extraData`);
+            await storage.updateTransactionProcessingStatus(transaction.id, 'skipped', 'Keine extraData vorhanden');
+            continue;
+          }
+          
+          // Versuche extraData zu parsen
+          let extraDataObj: any;
+          try {
+            extraDataObj = JSON.parse(transaction.extraData);
+          } catch (parseError) {
+            console.error(`Fehler beim Parsen von extraData für Transaktion ${transaction.id}:`, parseError);
+            await storage.updateTransactionProcessingStatus(transaction.id, 'error', `JSON Parse-Fehler: ${parseError}`);
+            errors++;
+            continue;
+          }
+          
+          // Erstelle ein Update-Objekt mit den extrahierten Werten
+          const updateData: Partial<InsertTransaction> = {
+            // Extrahiere Preisdaten
+            priceVat: extraDataObj.price_vat || null,
+            priceWoVat: extraDataObj.price_wo_vat || null,
+            vat: extraDataObj.vat || null,
+            
+            // Extrahiere Zeitstempel
+            transactionDt: extraDataObj.transaction_dt 
+              ? new Date(
+                  extraDataObj.transaction_dt > 1577836800000
+                  ? extraDataObj.transaction_dt
+                  : extraDataObj.transaction_dt * 1000
+                )
+              : null,
+            registeredDt: extraDataObj.registered_dt
+              ? new Date(
+                  extraDataObj.registered_dt > 1577836800000
+                  ? extraDataObj.registered_dt
+                  : extraDataObj.registered_dt * 1000
+                )
+              : null,
+            updatedAt: extraDataObj.updated_at
+              ? new Date(
+                  extraDataObj.updated_at > 1577836800000
+                  ? extraDataObj.updated_at
+                  : extraDataObj.updated_at * 1000
+                )
+              : null,
+            
+            // Extrahiere Produktinformationen
+            productName: extraDataObj.name || transaction.productName,
+            stockId: extraDataObj.stock_id || null,
+            selection: extraDataObj.selection || null,
+            
+            // Zahlungsinformationen
+            paymentMethod: extraDataObj.payment_method || null,
+            currency: extraDataObj.currency || null,
+            
+            // Meta-Informationen
+            processingStatus: 'processed',
+            processedAt: new Date(),
+            lastSync: new Date()
+          };
+          
+          // Aktualisiere die Transaktion in der Datenbank
+          await storage.updateTransaction(transaction.id, updateData);
+          updatedItems++;
+          
+        } catch (updateError) {
+          console.error(`Fehler bei der Aktualisierung von Transaktion ${transaction.id}:`, updateError);
+          await storage.updateTransactionProcessingStatus(
+            transaction.id, 
+            'error', 
+            updateError instanceof Error ? updateError.message : String(updateError)
+          );
+          errors++;
+        }
+      }
+      
+      // Berechne die Dauer
+      const durationSeconds = (Date.now() - startTime) / 1000;
+      
+      return {
+        status: 'success',
+        message: `${updatedItems} von ${totalItems} Transaktionen aktualisiert in ${durationSeconds.toFixed(2)} Sekunden`,
+        updated: updatedItems,
+        errors: errors,
+        total: totalItems
+      };
+      
+    } catch (error) {
+      console.error("Fehler bei der Massenaktualisierung von Transaktionen:", error);
+      return {
+        status: 'error',
+        message: `Fehler bei der Aktualisierung: ${error instanceof Error ? error.message : String(error)}`,
+        updated: 0,
+        errors: 1,
+        total: 0
+      };
+    }
+  }
+  
   private formatDate(date: Date): string {
     return date.toISOString();
   }
@@ -832,22 +971,86 @@ export class VendonSyncService {
               || (transaction.product ? transaction.product.name : null) 
               || 'Unbekanntes Produkt';
             
-            // Erstelle die Transaktionsdaten
+            // Erstelle die Transaktionsdaten - extrahiere alle Felder aus dem Transaction-Objekt
+            // und falls nicht vorhanden, versuche sie aus dem extraData-JSON zu lesen
+            const extraDataObj = transaction.extraData 
+              ? (typeof transaction.extraData === 'string' ? JSON.parse(transaction.extraData) : transaction.extraData)
+              : {};
+              
+            // Extrahiere alle verfügbaren Daten aus dem Transaction-Objekt oder aus extraData
+            const vendonId = (transaction.id || transaction.transaction_id || extraDataObj.transaction_id || extraDataObj.id).toString();
+            const machineNameValue = transaction.machine_name || extraDataObj.machine_name || 'Unbekannte Maschine';
+            
+            // Extrahiere Preisdaten
+            const priceValue = transaction.price || extraDataObj.price || 0;
+            const priceVatValue = transaction.price_vat || extraDataObj.price_vat || null;
+            const priceWoVatValue = transaction.price_wo_vat || extraDataObj.price_wo_vat || null;
+            const vatValue = transaction.vat || extraDataObj.vat || null;
+            
+            // Extrahiere wichtige Zeitstempel
+            // transaction_dt und registered_dt sind oft in extraData vorhanden
+            const transactionDt = extraDataObj.transaction_dt 
+              ? new Date(extraDataObj.transaction_dt * 1000) 
+              : null;
+            const registeredDt = extraDataObj.registered_dt 
+              ? new Date(extraDataObj.registered_dt * 1000) 
+              : null;
+            const updatedAt = extraDataObj.updated_at 
+              ? new Date(extraDataObj.updated_at * 1000) 
+              : null;
+              
+            // Extrahiere Produktinformationen
+            // name in extraData ist oft der echte Produktname
+            const productNameValue = productName || extraDataObj.name || 'Unbekanntes Produkt';
+            const selectionValue = transaction.selection || extraDataObj.selection || null;
+            const stockIdValue = transaction.stock_id || extraDataObj.stock_id || null;
+            
+            // Zahlungsinformationen
+            const paymentMethodValue = transaction.payment_method || extraDataObj.payment_method || null;
+            const currencyValue = transaction.currency || extraDataObj.currency || null;
+            const discountCodeValue = transaction.discount_code || extraDataObj.discount_code || null;
+            const discountAmountValue = transaction.discount_amount || extraDataObj.discount_amount || null;
+            const statusValue = transaction.status || extraDataObj.status || null;
+            
+            // Zusätzliche Metadaten
+            const noteValue = transaction.note || extraDataObj.note || null;
+            const transactionDataValue = transaction.transaction_data || extraDataObj.transaction_data || null;
+            const metadataValue = transaction.metadata || extraDataObj.metadata || null;
+              
+            // Erstelle das vollständige Transaktionsobjekt
             const newTransaction: InsertTransaction = {
-              vendonId: (transaction.id || transaction.transaction_id).toString(),
+              vendonId: vendonId,
               machineId: machineId,
-              machineName: transaction.machine_name || 'Unbekannte Maschine',
+              machineName: machineNameValue,
               datetime: transactionDate,
+              transactionDt: transactionDt, 
+              registeredDt: registeredDt,
+              updatedAt: updatedAt,
               amount: transaction.amount || 0,
-              price: transaction.price || 0,
+              price: priceValue,
+              priceVat: priceVatValue,
+              priceWoVat: priceWoVatValue,
+              vat: vatValue,
+              quantity: transaction.quantity || extraDataObj.quantity || 1,
               productId: productId,
-              productName: productName,
+              productName: productNameValue,
+              stockId: stockIdValue,
+              selection: selectionValue,
+              // Nur paymentMethod verwenden, paymentType existiert nicht mehr im Schema
+              paymentMethod: paymentMethodValue,
+              status: statusValue,
+              currency: currencyValue,
               coinCredit: transaction.coin_credit || 0,
               cardCredit: transaction.card_credit || 0,
               cashlessCredit: transaction.cashless_credit || 0,
-              paymentType: transaction.payment_type || 'unknown',
+              discountCode: discountCodeValue,
+              discountAmount: discountAmountValue,
               locationId: transaction.location_id ? transaction.location_id.toString() : null,
               locationName: transaction.location_name || null,
+              note: noteValue,
+              transactionData: transactionDataValue ? JSON.stringify(transactionDataValue) : null,
+              metadata: metadataValue ? JSON.stringify(metadataValue) : null,
+              source: extraDataObj.source || transaction.source || "vendon",
               isTest: transaction.is_test === true,
               extraData: JSON.stringify(transaction)
             };

@@ -123,47 +123,76 @@ export const insertProductSchema = createInsertSchema(products).omit({
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type Product = typeof products.$inferSelect;
 
-// Transactions table based on vendon_transactions
+// Transactions table - neu strukturiert basierend auf der Vendon API
 export const transactions = pgTable("transactions", {
+  // Primärschlüssel und Referenzen
   id: serial("id").primaryKey(),
-  vendonId: text("vendon_id"),
+  
+  // Vendon API Basis-Felder
+  vendonId: text("vendon_id").notNull(), // transaction_id aus der API
   machineId: integer("machine_id").references(() => machines.id),
-  productId: text("product_id"),
-  price: real("price"),
-  priceVat: real("price_vat"),
-  priceWoVat: real("price_wo_vat"),
-  vat: real("vat"),
-  quantity: integer("quantity").default(1),
-  stockId: integer("stock_id"),
-  selection: integer("selection"),
-  discountCode: text("discount_code"),
-  discountAmount: real("discount_amount"),
-  datetime: timestamp("datetime").notNull(),
-  transactionDt: timestamp("transaction_dt"),
-  registeredDt: timestamp("registered_dt"),
-  updatedAt: timestamp("updated_at"),
-  productName: text("product_name"),
   machineName: text("machine_name"),
-  transactionType: text("transaction_type"),
-  paymentType: text("payment_type"),
-  paymentMethod: text("payment_method"),
-  status: text("status"),
-  currency: text("currency"),
-  source: text("source").default("vendon"),
-  note: text("note"),
-  transactionData: text("transaction_data"),
-  metadata: text("metadata"),
-  extraData: text("extra_data"),
+  
+  // Datum und Zeit
+  datetime: timestamp("datetime").notNull(),                   // In ISO-Format konvertiert
+  transactionDt: timestamp("transaction_dt"),                  // In ISO-Format konvertiert
+  registeredDt: timestamp("registered_dt"),                    // In ISO-Format konvertiert
+  updatedAt: timestamp("updated_at"),                          // In ISO-Format konvertiert
+  
+  // Produkt-Details
+  productId: text("product_id"),                               // Optional: Artikel-ID
+  productName: text("product_name"),                           // Name des Produkts
+  selection: integer("selection"),                             // Auswahlnummer
+  
+  // Lager-Details
+  stockId: integer("stock_id"),                                // Lager-ID
+  article: text("article"),                                    // Artikel (normalerweise null)
+  
+  // Mengen und Preis-Informationen
+  quantity: integer("quantity").default(1),                    // Menge
+  price: real("price").notNull(),                              // Preis
+  priceVat: real("price_vat"),                                 // Mehrwertsteuer-Betrag
+  priceWoVat: real("price_wo_vat"),                            // Preis ohne Mehrwertsteuer
+  vat: real("vat"),                                            // Mehrwertsteuersatz in Prozent
+  currency: text("currency"),                                  // Währung
+  
+  // Rabatt-Informationen
+  discountCode: text("discount_code"),                         // Rabattcode
+  discountAmount: real("discount_amount"),                     // Rabattbetrag
+  
+  // Zahlungsinformationen
+  paymentMethod: text("payment_method"),                       // Zahlungsmethode (CASH, CASHLESS, etc.)
+  
+  // Metadaten
+  source: text("source").default("vendon"),                   // Quelle der Daten (REALTIME, etc.)
+  transactionData: text("transaction_data"),                  // Zusätzliche Transaktionsdaten
+  note: text("note"),                                         // Notizen
+  metadata: text("metadata"),                                 // Metadaten
+  
+  // Standort-Zuordnung
   locationId: integer("location_id").references(() => locations.id),
   locationName: text("location_name"),
-  coinCredit: real("coin_credit").default(0),
-  cardCredit: real("card_credit").default(0),
-  cashlessCredit: real("cashless_credit").default(0),
-  isTest: boolean("is_test").default(false),
-  amount: integer("amount").default(1),
+  
+  // Weitere Felder für die Anwendungslogik
+  transactionType: text("transaction_type"),                  // Transaktionstyp
+  status: text("status").default("completed"),                // Status der Transaktion
+  coinCredit: real("coin_credit").default(0),                 // Münz-Guthaben
+  cardCredit: real("card_credit").default(0),                 // Karten-Guthaben
+  cashlessCredit: real("cashless_credit").default(0),         // Bargeldloses Guthaben
+  isTest: boolean("is_test").default(false),                  // Ist dies eine Test-Transaktion
+  
+  // Verarbeitungs-Tracking
+  syncedAt: timestamp("synced_at").defaultNow(),              // Wann wurde die Transaktion synchronisiert
+  lastSync: timestamp("last_sync"),                           // Letzte Synchronisation
+  processedAt: timestamp("processed_at"),                     // Wann wurde die Transaktion verarbeitet
+  processingStatus: text("processing_status").default("pending"), // Verarbeitungsstatus: pending, processed, error
+  processingError: text("processing_error"),                   // Fehlermeldung bei der Verarbeitung
+  
+  // Datensatz-Tracking
+  createdAt: timestamp("created_at").defaultNow(),            // Wann wurde der Datensatz erstellt
 }, (table) => {
   return {
-    vendonIdx: unique().on(table.vendonId, table.machineId, table.datetime),
+    vendonIdx: unique().on(table.vendonId),                   // Eindeutiger Index auf Vendon-ID
   };
 });
 

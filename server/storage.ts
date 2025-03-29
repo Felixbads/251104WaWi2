@@ -33,6 +33,10 @@ export interface IStorage {
   getTransactionsByMachine(machineId: number, limit?: number): Promise<Transaction[]>;
   getTransactionByVendonId(vendonId: string): Promise<Transaction | undefined>;
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
+  updateTransaction(id: number, transaction: Partial<InsertTransaction>): Promise<Transaction | undefined>;
+  getTransactionsForProcessing(limit?: number, offset?: number): Promise<Transaction[]>;
+  updateTransactionProcessingStatus(id: number, status: string, errorMessage?: string): Promise<void>;
+  getTransactionStats(): Promise<{total: number; processed: number; pending: number; error: number}>;
 
   // Product operations
   getProducts(limit?: number): Promise<Product[]>;
@@ -157,6 +161,83 @@ export class DatabaseStorage implements IStorage {
   async createTransaction(transaction: InsertTransaction): Promise<Transaction> {
     const [newTransaction] = await db.insert(transactions).values(transaction).returning();
     return newTransaction;
+  }
+  
+  async updateTransaction(id: number, transaction: Partial<InsertTransaction>): Promise<Transaction | undefined> {
+    try {
+      const [updatedTransaction] = await db
+        .update(transactions)
+        .set(transaction)
+        .where(eq(transactions.id, id))
+        .returning();
+      return updatedTransaction;
+    } catch (error) {
+      console.error(`Fehler beim Aktualisieren der Transaktion ${id}:`, error);
+      return undefined;
+    }
+  }
+  
+  async getTransactionsForProcessing(limit: number = 100, offset: number = 0): Promise<Transaction[]> {
+    return await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.processingStatus, 'pending'))
+      .orderBy(transactions.id)
+      .limit(limit)
+      .offset(offset);
+  }
+  
+  async updateTransactionProcessingStatus(
+    id: number, 
+    status: string, 
+    errorMessage?: string
+  ): Promise<void> {
+    const updateData: Partial<InsertTransaction> = {
+      processingStatus: status,
+      processedAt: new Date()
+    };
+    
+    if (errorMessage) {
+      updateData.processingError = errorMessage;
+    }
+    
+    await db
+      .update(transactions)
+      .set(updateData)
+      .where(eq(transactions.id, id));
+  }
+  
+  async getTransactionStats(): Promise<{
+    total: number;
+    processed: number;
+    pending: number;
+    error: number;
+  }> {
+    const totalResult = await db
+      .select({ count: db.fn.count().as('count') })
+      .from(transactions);
+    
+    const processedResult = await db
+      .select({ count: db.fn.count().as('count') })
+      .from(transactions)
+      .where(eq(transactions.processingStatus, 'processed'));
+    
+    const pendingResult = await db
+      .select({ count: db.fn.count().as('count') })
+      .from(transactions)
+      .where(eq(transactions.processingStatus, 'pending'));
+    
+    const errorResult = await db
+      .select({ count: db.fn.count().as('count') })
+      .from(transactions)
+      .where(eq(transactions.processingStatus, 'error'));
+    
+    return {
+      total: parseInt(totalResult[0]?.count?.toString() || '0'),
+      processed: parseInt(processedResult[0]?.count?.toString() || '0'),
+      pending: parseInt(pendingResult[0]?.count?.toString() || '0'),
+      error: parseInt(errorResult[0]?.count?.toString() || '0')
+    };
   }
 
   // Product operations

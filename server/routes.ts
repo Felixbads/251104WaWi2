@@ -113,7 +113,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get transactions
   app.get(`${API_PREFIX}/transactions`, async (req: Request, res: Response) => {
     try {
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 25;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
       const transactions = await storage.getTransactions(limit);
       res.json(transactions);
     } catch (error) {
