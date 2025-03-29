@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Loader2, Settings, RefreshCw } from "lucide-react";
 import { getSyncStatus, triggerSync, formatDateTime } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { SyncStatus } from "@/lib/types";
 
 interface SyncStatusCardProps {
   onSettingsClick?: () => void;
@@ -17,7 +18,7 @@ export default function SyncStatusCard({ onSettingsClick }: SyncStatusCardProps)
   const [isSyncing, setIsSyncing] = useState(false);
 
   // Fetch sync status
-  const { data: syncStatus, isLoading, error } = useQuery({
+  const { data: syncStatus, isLoading, error } = useQuery<SyncStatus>({
     queryKey: ['/api/sync/status'],
     refetchInterval: 10000, // Refetch every 10 seconds
   });
@@ -112,7 +113,7 @@ export default function SyncStatusCard({ onSettingsClick }: SyncStatusCardProps)
       </CardHeader>
       <CardContent>
         {/* Progress Bars */}
-        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           {/* Transactions Progress */}
           <div className="bg-gray-50 rounded-md p-3">
             <div className="flex justify-between items-center mb-2">
@@ -163,6 +164,35 @@ export default function SyncStatusCard({ onSettingsClick }: SyncStatusCardProps)
                 "Alle Maschinen synchronisiert"
               ) : (
                 "Keine Maschinen vorhanden"
+              )}
+            </p>
+          </div>
+          
+          {/* Refills Progress */}
+          <div className="bg-gray-50 rounded-md p-3">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-sm font-medium text-gray-700">Nachfüllungen</h3>
+              <span className="text-xs font-medium text-primary-700 bg-primary-100 rounded-full py-0.5 px-2">
+                {isLoading ? (
+                  "Laden..."
+                ) : (
+                  `${syncStatus?.refills?.count || 0} / ${syncStatus?.refills?.count || 0}`
+                )}
+              </span>
+            </div>
+            <Progress 
+              value={isLoading ? 0 : 100} 
+              className="h-2.5 bg-gray-200" 
+            />
+            <p className="mt-2 text-xs text-gray-500">
+              {isLoading ? (
+                "Wird geladen..."
+              ) : syncStatus?.refills?.status === "completed" ? (
+                "Alle Nachfüllungen synchronisiert"
+              ) : syncStatus?.refills?.status === "running" ? (
+                "Synchronisierung läuft..."
+              ) : (
+                "Keine Nachfüllungen synchronisiert"
               )}
             </p>
           </div>

@@ -64,6 +64,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         case "transactions":
           result = await vendonSync.syncTransactions(startDateObj, endDateObj, batchSize);
           break;
+        case "refills":
+          result = await vendonSync.syncRefills(startDateObj, endDateObj, batchSize);
+          break;
         case "events":
           result = await vendonSync.syncEvents(startDateObj, endDateObj, batchSize);
           break;

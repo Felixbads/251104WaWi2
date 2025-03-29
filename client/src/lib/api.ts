@@ -7,7 +7,7 @@ export async function getSyncStatus() {
   return res.json();
 }
 
-export async function triggerSync(type: 'machines' | 'transactions' | 'events' | 'all', options?: {
+export async function triggerSync(type: 'machines' | 'transactions' | 'events' | 'refills' | 'all', options?: {
   startDate?: string;
   endDate?: string;
   batchSize?: number;

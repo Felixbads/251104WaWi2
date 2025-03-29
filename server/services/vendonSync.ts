@@ -874,11 +874,215 @@ export class VendonSyncService {
     }
   }
 
+  // Synchronize refills and refill details
+  async syncRefills(
+    startDate?: Date,
+    endDate?: Date,
+    batchSize: number = 100
+  ): Promise<{ syncLogId: number; status: string; message: string }> {
+    // Start sync log
+    const syncLog: InsertSyncLog = {
+      syncType: 'refills',
+      startDate: new Date(),
+      syncStatus: 'running',
+    };
+
+    const logEntry = await storage.createSyncLog(syncLog);
+    const syncLogId = logEntry.id;
+
+    try {
+      const startTime = Date.now();
+      
+      // Default to last 30 days if no start date provided
+      const effectiveStartDate = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const effectiveEndDate = endDate || new Date();
+      
+      console.log(`Syncing refills from ${effectiveStartDate.toISOString()} to ${effectiveEndDate.toISOString()}`);
+      
+      // Fetch refills from Vendon API
+      let page = 1;
+      let totalItems = 0;
+      let hasMoreItems = true;
+      
+      // Track stats
+      let itemsSaved = 0;
+      let itemsUpdated = 0;
+      let duplicates = 0;
+      let errors = 0;
+      let detailsSaved = 0;
+      
+      while (hasMoreItems) {
+        const { data: refills, total } = await this.api.getRefills(
+          effectiveStartDate,
+          effectiveEndDate,
+          page,
+          batchSize
+        );
+        
+        if (!refills || refills.length === 0) {
+          hasMoreItems = false;
+          break;
+        }
+        
+        totalItems += refills.length;
+        console.log(`Processing page ${page} with ${refills.length} refills`);
+        
+        // Process each refill
+        for (const refill of refills) {
+          try {
+            // Get corresponding machine from database
+            const machineData = await storage.getMachineByVendonId(refill.machine_id.toString());
+            if (!machineData) {
+              console.warn(`Machine with Vendon ID ${refill.machine_id} not found. Skipping refill.`);
+              errors++;
+              continue;
+            }
+            
+            // Convert timestamp to JavaScript Date
+            // Note: Vendon API returns refill timestamps in milliseconds
+            const timestamp = typeof refill.datetime === 'number' 
+              ? new Date(refill.datetime) 
+              : new Date(parseInt(refill.datetime) * 1000);
+            
+            // Prepare refill data
+            const refillData = {
+              vendonId: refill.id?.toString() || refill.refill_id?.toString(),
+              machineId: machineData.id,
+              machineName: refill.machine_name || machineData.machineName,
+              datetime: timestamp,
+              operator: refill.operator || '',
+              status: refill.status || 'completed',
+              extraData: JSON.stringify(refill),
+              locationId: machineData.locationId,
+              totalAmount: refill.total_amount || 0,
+            };
+            
+            // Check if refill already exists
+            const existingRefill = await storage.getRefillByVendonId(refillData.vendonId);
+            
+            let refillId: number;
+            
+            if (existingRefill) {
+              // Skip duplicate
+              duplicates++;
+              refillId = existingRefill.id;
+            } else {
+              // Save new refill
+              const savedRefill = await storage.createRefill(refillData);
+              itemsSaved++;
+              refillId = savedRefill.id;
+              
+              // Fetch and save refill details if available
+              try {
+                const refillDetails = await this.api.getRefillDetails(refillData.vendonId);
+                
+                if (refillDetails && Array.isArray(refillDetails.products)) {
+                  for (const product of refillDetails.products) {
+                    try {
+                      // Find product in database or create minimal record
+                      let productId: number | null = null;
+                      
+                      if (product.product_id) {
+                        const existingProduct = await storage.getProductByVendonId(product.product_id.toString());
+                        if (existingProduct) {
+                          productId = existingProduct.id;
+                        } else {
+                          // Create minimal product record
+                          const newProduct = await storage.createProduct({
+                            vendonId: product.product_id.toString(),
+                            productName: product.name || 'Unknown Product',
+                            price: product.price || 0,
+                            status: 'active',
+                          });
+                          productId = newProduct.id;
+                        }
+                      }
+                      
+                      // Save refill detail
+                      await storage.createRefillDetail({
+                        refillId,
+                        productId: productId || undefined,
+                        productName: product.name || 'Unknown Product',
+                        quantity: product.quantity || 0,
+                        price: product.price || 0,
+                        datetime: timestamp,
+                        extraData: JSON.stringify(product),
+                      });
+                      
+                      detailsSaved++;
+                    } catch (detailError) {
+                      console.error(`Error saving refill detail: ${detailError}`);
+                      errors++;
+                    }
+                  }
+                }
+              } catch (detailsError) {
+                console.error(`Error fetching refill details: ${detailsError}`);
+                errors++;
+              }
+            }
+          } catch (refillError) {
+            console.error(`Error processing refill: ${refillError}`);
+            errors++;
+          }
+        }
+        
+        // Check if there are more pages
+        hasMoreItems = refills.length >= batchSize;
+        page++;
+      }
+      
+      // Calculate duration
+      const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
+      
+      // Update sync log with results
+      await storage.updateSyncLog(syncLogId, {
+        endDate: new Date(),
+        syncStatus: 'completed',
+        itemsFound: totalItems,
+        itemsSaved,
+        itemsUpdated,
+        duplicates,
+        errors,
+        durationSeconds,
+        additionalData: JSON.stringify({
+          detailsSaved,
+          startDate: effectiveStartDate.toISOString(),
+          endDate: effectiveEndDate.toISOString(),
+        }),
+      });
+      
+      return {
+        syncLogId,
+        status: 'success',
+        message: `Successfully synced ${totalItems} refills (${itemsSaved} new, ${duplicates} duplicates, ${errors} errors, ${detailsSaved} details)`,
+      };
+    } catch (error) {
+      // Handle exceptions
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Refill sync error: ${errorMessage}`);
+      
+      // Update sync log with error status
+      await storage.updateSyncLog(syncLogId, {
+        endDate: new Date(),
+        syncStatus: 'error',
+        errorMessage,
+      });
+      
+      return {
+        syncLogId,
+        status: 'error',
+        message: `Refill synchronization failed: ${errorMessage}`,
+      };
+    }
+  }
+
   // Run a full synchronization of all data types
   async syncAll(): Promise<{ status: string; message: string; results: any }> {
     const results = {
       machines: await this.syncMachines(),
       transactions: await this.syncTransactions(),
+      refills: await this.syncRefills(),
       events: await this.syncEvents(),
     };
 
@@ -898,16 +1102,19 @@ export class VendonSyncService {
   async getSyncStatus(): Promise<{
     machines: { status: string; lastSync: Date | null; count: number };
     transactions: { status: string; lastSync: Date | null; count: number; latest: Date | null };
+    refills: { status: string; lastSync: Date | null; count: number };
     events: { status: string; lastSync: Date | null; count: number };
   }> {
     // Get latest sync logs
     const machinesSyncLog = await storage.getLatestSyncLog('machines');
     const transactionsSyncLog = await storage.getLatestSyncLog('transactions');
+    const refillsSyncLog = await storage.getLatestSyncLog('refills');
     const eventsSyncLog = await storage.getLatestSyncLog('events');
 
     // Count items in database
     const machines = await storage.getMachines(0); // 0 means no limit
     const transactions = await storage.getTransactions(1); // Just get the latest transaction
+    const refills = await storage.getRefills(0); // 0 means no limit
     const events = await storage.getEvents(0); // 0 means no limit
 
     return {
@@ -921,6 +1128,11 @@ export class VendonSyncService {
         lastSync: transactionsSyncLog?.endDate || null,
         count: transactionsSyncLog?.itemsFound || 0,
         latest: transactions.length > 0 ? transactions[0].datetime : null,
+      },
+      refills: {
+        status: refillsSyncLog?.syncStatus || 'never',
+        lastSync: refillsSyncLog?.endDate || null,
+        count: refillsSyncLog?.itemsFound || 0,
       },
       events: {
         status: eventsSyncLog?.syncStatus || 'never',

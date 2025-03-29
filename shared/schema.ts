@@ -222,6 +222,7 @@ export const syncLogs = pgTable("sync_logs", {
   durationSeconds: real("duration_seconds").default(0),
   syncStatus: text("sync_status").default("running"),
   errorMessage: text("error_message"),
+  additionalData: text("additional_data"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

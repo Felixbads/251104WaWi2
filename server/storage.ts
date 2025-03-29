@@ -42,6 +42,7 @@ export interface IStorage {
   // Refill operations
   getRefills(limit?: number): Promise<Refill[]>;
   getRefill(id: number): Promise<Refill | undefined>;
+  getRefillByVendonId(vendonId: string): Promise<Refill | undefined>;
   createRefill(refill: InsertRefill): Promise<Refill>;
   createRefillDetail(detail: InsertRefillDetail): Promise<RefillDetail>;
 
@@ -179,6 +180,11 @@ export class DatabaseStorage implements IStorage {
 
   async getRefill(id: number): Promise<Refill | undefined> {
     const [refill] = await db.select().from(refills).where(eq(refills.id, id));
+    return refill;
+  }
+
+  async getRefillByVendonId(vendonId: string): Promise<Refill | undefined> {
+    const [refill] = await db.select().from(refills).where(eq(refills.vendonId, vendonId));
     return refill;
   }
 

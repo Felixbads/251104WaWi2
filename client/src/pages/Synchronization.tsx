@@ -15,11 +15,12 @@ import { getSyncStatus, triggerSync, formatDateTime } from "@/lib/api";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
+import { SyncStatus } from "@/lib/types";
 
 export default function Synchronization() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [syncType, setSyncType] = useState<'machines' | 'transactions' | 'events' | 'all'>('all');
+  const [syncType, setSyncType] = useState<'machines' | 'transactions' | 'events' | 'refills' | 'all'>('all');
   const [batchSize, setBatchSize] = useState<number>(100);
   const [startDate, setStartDate] = useState<Date | undefined>(
     new Date(new Date().setDate(new Date().getDate() - 7)) // 7 days ago
@@ -28,7 +29,7 @@ export default function Synchronization() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   // Fetch sync status
-  const { data: syncStatus, isLoading, error } = useQuery({
+  const { data: syncStatus, isLoading, error } = useQuery<SyncStatus>({
     queryKey: ['/api/sync/status'],
     refetchInterval: 10000, // Refetch every 10 seconds
   });
@@ -65,6 +66,7 @@ export default function Synchronization() {
       case 'machines': return 'Maschinen';
       case 'transactions': return 'Transaktionen';
       case 'events': return 'Ereignisse';
+      case 'refills': return 'Nachfüllungen';
       case 'all': return 'Vollständige';
       default: return type;
     }
@@ -76,6 +78,7 @@ export default function Synchronization() {
       case 'machines': return <Package className="h-5 w-5 mr-2" />;
       case 'transactions': return <FileText className="h-5 w-5 mr-2" />;
       case 'events': return <AlertCircle className="h-5 w-5 mr-2" />;
+      case 'refills': return <RefreshCw className="h-5 w-5 mr-2" />;
       case 'all': return <Database className="h-5 w-5 mr-2" />;
       default: return <Clock className="h-5 w-5 mr-2" />;
     }
@@ -187,6 +190,28 @@ export default function Synchronization() {
                     </p>
                   </Card>
 
+                  {/* Refills Status */}
+                  <Card className="p-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="text-sm font-medium flex items-center">
+                        <RefreshCw className="h-4 w-4 mr-2 text-blue-600" />
+                        Nachfüllungen
+                      </h3>
+                      <span className="text-xs font-medium text-primary-700 bg-primary-100 rounded-full py-0.5 px-2">
+                        {syncStatus?.refills?.count || 0} / {syncStatus?.refills?.count || 0}
+                      </span>
+                    </div>
+                    <Progress 
+                      value={100} 
+                      className="h-2 mb-2" 
+                    />
+                    <p className="text-xs text-gray-500">
+                      {syncStatus?.refills?.lastSync 
+                        ? `Letzte Synchronisierung: ${formatDateTime(syncStatus.refills.lastSync)}`
+                        : "Noch keine Synchronisierung durchgeführt"}
+                    </p>
+                  </Card>
+
                   {/* Events Status */}
                   <Card className="p-4">
                     <div className="flex justify-between items-center mb-2">
@@ -231,6 +256,7 @@ export default function Synchronization() {
                         <SelectItem value="transactions">Nur Transaktionen</SelectItem>
                         <SelectItem value="machines">Nur Maschinen</SelectItem>
                         <SelectItem value="events">Nur Ereignisse</SelectItem>
+                        <SelectItem value="refills">Nur Nachfüllungen</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
