@@ -1,177 +1,330 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
+import { 
+  ShoppingBag, 
+  Search, 
+  Plus, 
+  Filter, 
+  Grid, 
+  List, 
+  AlertTriangle, 
+  ExternalLink,
+  FileText,
+  Tag
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Search, RefreshCcw, Package } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { Separator } from "@/components/ui/separator";
+import { getProducts } from "@/lib/api";
+
+// Typen für Produkte
+interface Product {
+  id: number;
+  vendonId: string;
+  name: string;
+  productCode?: string;
+  category?: string;
+  price?: number;
+  vat?: number;
+  inStock?: number;
+  supplier?: string;
+  regionalOrigin?: string;
+  salesCount?: number;
+}
 
 export default function Products() {
-  const { toast } = useToast();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [, setLocation] = useLocation();
 
-  // Mock data for demonstration
-  const mockProducts = [
-    { id: 1, productName: "Espresso", category: "Kaffee", price: 1.5, status: "active" },
-    { id: 2, productName: "Cappuccino", category: "Kaffee", price: 2.0, status: "active" },
-    { id: 3, productName: "Latte Macchiato", category: "Kaffee", price: 2.3, status: "active" },
-    { id: 4, productName: "Schokolade", category: "Heiße Getränke", price: 1.8, status: "active" },
-    { id: 5, productName: "Cola", category: "Kaltgetränke", price: 1.8, status: "active" },
-    { id: 6, productName: "Wasser", category: "Kaltgetränke", price: 1.2, status: "inactive" },
-    { id: 7, productName: "Snickers", category: "Snacks", price: 1.2, status: "active" },
-    { id: 8, productName: "Mars", category: "Snacks", price: 1.2, status: "active" },
-    { id: 9, productName: "Twix", category: "Snacks", price: 1.2, status: "active" },
-  ];
+  // Daten abrufen
+  const { data: products, isLoading, error } = useQuery({
+    queryKey: ['/api/products'],
+    queryFn: () => getProducts(),
+  });
 
-  // Simulate loading
-  setTimeout(() => {
-    setIsLoading(false);
-  }, 1000);
+  // Category Filter
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
-  // Handle refresh
-  const handleRefresh = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      toast({
-        title: "Aktualisiert",
-        description: "Die Produktdaten wurden aktualisiert.",
-      });
-    }, 1000);
+  // Kategorien sammeln
+  const categories = products 
+    ? [...new Set(products.map((product: Product) => product.category || 'Unkategorisiert'))]
+    : [];
+
+  // Filter- und Suchfunktionen
+  const filteredProducts = products?.filter((product: Product) => {
+    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                         (product.productCode?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
+    const matchesCategory = !categoryFilter || product.category === categoryFilter || 
+                           (categoryFilter === 'Unkategorisiert' && !product.category);
+    return matchesSearch && matchesCategory;
+  }) || [];
+
+  // Product Card Component
+  const ProductCard = ({ product }: { product: Product }) => {
+    return (
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-2">
+          <div className="flex justify-between items-start">
+            <CardTitle className="text-lg truncate">{product.name}</CardTitle>
+            {product.regionalOrigin && (
+              <Badge variant="outline" className="ml-2">
+                {product.regionalOrigin}
+              </Badge>
+            )}
+          </div>
+          <CardDescription>
+            {product.productCode && (
+              <span className="text-xs text-gray-500 flex items-center">
+                <Tag className="h-3 w-3 mr-1" />
+                {product.productCode}
+              </span>
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pb-2">
+          <div className="flex justify-between items-center mb-2">
+            <div>
+              <p className="text-sm text-gray-500">Preis</p>
+              <p className="font-medium">{product.price?.toFixed(2) || '–'} €</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Bestand</p>
+              <p className="font-medium">{typeof product.inStock === 'number' ? product.inStock : '–'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Verkäufe</p>
+              <p className="font-medium">{product.salesCount || '0'}</p>
+            </div>
+          </div>
+          {product.supplier && (
+            <div className="mt-2">
+              <p className="text-sm text-gray-500">Lieferant</p>
+              <p className="text-sm font-medium truncate">{product.supplier}</p>
+            </div>
+          )}
+        </CardContent>
+        <CardFooter className="pt-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="w-full"
+            onClick={() => setLocation(`/products/${product.id}`)}
+          >
+            <ExternalLink className="h-4 w-4 mr-2" />
+            Details
+          </Button>
+        </CardFooter>
+      </Card>
+    );
   };
 
-  // Filter products based on search query
-  const filteredProducts = mockProducts.filter(product => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
+  // Product List Item Component
+  const ProductListItem = ({ product }: { product: Product }) => {
     return (
-      product.productName.toLowerCase().includes(query) ||
-      product.category.toLowerCase().includes(query) ||
-      String(product.price).includes(query)
+      <div className="flex items-center p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors">
+        <div className="flex-grow mr-4">
+          <div className="flex items-center mb-1">
+            <h3 className="font-medium truncate mr-2">{product.name}</h3>
+            {product.regionalOrigin && (
+              <Badge variant="outline" className="ml-2">
+                {product.regionalOrigin}
+              </Badge>
+            )}
+          </div>
+          <p className="text-sm text-gray-600">
+            {product.productCode && (
+              <span className="text-xs text-gray-500 flex items-center">
+                <Tag className="h-3 w-3 mr-1" />
+                {product.productCode}
+              </span>
+            )}
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-6 text-sm">
+          <div className="text-center">
+            <p className="text-gray-500">Preis</p>
+            <p className="font-medium">{product.price?.toFixed(2) || '–'} €</p>
+          </div>
+          <div className="text-center">
+            <p className="text-gray-500">Bestand</p>
+            <p className="font-medium">{typeof product.inStock === 'number' ? product.inStock : '–'}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-gray-500">Kategorie</p>
+            <p className="font-medium">{product.category || 'Unkategorisiert'}</p>
+          </div>
+          
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => setLocation(`/products/${product.id}`)}
+          >
+            Details
+          </Button>
+        </div>
+      </div>
     );
-  });
+  };
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle>Produkte</CardTitle>
-          <CardDescription>
-            Alle verfügbaren Produkte im Vendon-System
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
-            {/* Search Field */}
-            <div className="relative flex-grow max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-              <Input
-                className="pl-10"
-                placeholder="Nach Produkten suchen..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center">
+            <ShoppingBag className="h-6 w-6 mr-2" />
+            Produkte
+          </h1>
+          <p className="text-gray-500 mt-1">
+            Verwalten Sie das Produktsortiment aller Automaten
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setLocation("/products/inventory")}
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            Inventurbericht
+          </Button>
+          <Button onClick={() => setLocation("/products/new")}>
+            <Plus className="h-4 w-4 mr-2" />
+            Neues Produkt
+          </Button>
+        </div>
+      </div>
 
-            {/* Refresh Button */}
-            <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
-              {isLoading ? (
-                <><RefreshCcw className="h-4 w-4 mr-2 animate-spin" /> Wird geladen...</>
-              ) : (
-                <><RefreshCcw className="h-4 w-4 mr-2" /> Aktualisieren</>
-              )}
+      <Separator />
+
+      {/* Filter and Search Bar */}
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="relative flex-grow">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+          <Input
+            placeholder="Produkte suchen nach Name oder Artikelnummer..."
+            className="pl-10"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => {/* Filter dialog implementieren */}}
+            className="gap-1"
+          >
+            <Filter className="h-4 w-4" />
+            Filter
+          </Button>
+          <div className="border rounded-md p-1 flex">
+            <Button
+              variant={viewMode === "grid" ? "secondary" : "ghost"}
+              size="icon"
+              onClick={() => setViewMode("grid")}
+              className="h-8 w-8 rounded-sm"
+            >
+              <Grid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "secondary" : "ghost"}
+              size="icon"
+              onClick={() => setViewMode("list")}
+              className="h-8 w-8 rounded-sm"
+            >
+              <List className="h-4 w-4" />
             </Button>
           </div>
+        </div>
+      </div>
 
-          {/* Products Table */}
-          <div className="border rounded-md overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Produkt
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Kategorie
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Preis
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {isLoading ? (
-                    Array.from({ length: 5 }).map((_, index) => (
-                      <tr key={index}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <Skeleton className="h-8 w-8 rounded mr-2" />
-                            <Skeleton className="h-5 w-24" />
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Skeleton className="h-5 w-20" />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Skeleton className="h-5 w-16" />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Skeleton className="h-5 w-20" />
-                        </td>
-                      </tr>
-                    ))
-                  ) : filteredProducts.length > 0 ? (
-                    filteredProducts.map((product) => (
-                      <tr key={product.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center mr-3">
-                              <Package className="h-4 w-4 text-primary-600" />
-                            </div>
-                            <div className="text-sm font-medium text-gray-900">{product.productName}</div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {product.category}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {product.price.toFixed(2)} €
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Badge variant={product.status === "active" ? "default" : "secondary"}>
-                            {product.status === "active" ? "Aktiv" : "Inaktiv"}
-                          </Badge>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={4} className="px-6 py-4 text-center text-sm text-gray-500">
-                        Keine Produkte gefunden
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+      {/* Tabs for Category Filtering */}
+      <Tabs defaultValue="all" className="w-full">
+        <TabsList className="overflow-x-auto">
+          <TabsTrigger value="all" onClick={() => setCategoryFilter(null)}>
+            Alle
+          </TabsTrigger>
+          {categories.map((category) => (
+            <TabsTrigger 
+              key={category} 
+              value={category}
+              onClick={() => setCategoryFilter(category)}
+            >
+              {category}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
+      {/* Loading State */}
+      {isLoading && (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <Card className="bg-red-50 border-red-200">
+          <CardContent className="pt-6">
+            <div className="flex items-center text-red-600">
+              <AlertTriangle className="h-5 w-5 mr-2" />
+              <p>Fehler beim Laden der Produkte: {String(error)}</p>
             </div>
-            <div className="bg-gray-50 px-4 py-3 border-t border-gray-200">
-              <div className="flex justify-between items-center">
-                <div className="text-sm text-gray-700">
-                  Zeige <span className="font-medium">{filteredProducts.length}</span>{" "}
-                  von <span className="font-medium">{mockProducts.length}</span>{" "}
-                  Einträgen
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Results Count */}
+      {!isLoading && !error && (
+        <p className="text-sm text-gray-500">
+          {filteredProducts.length} {filteredProducts.length === 1 ? 'Produkt' : 'Produkte'} gefunden
+        </p>
+      )}
+
+      {/* Products Grid/List View */}
+      {!isLoading && !error && viewMode === "grid" && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filteredProducts.map((product: Product) => (
+            <ProductCard key={product.id} product={product} />
+          ))}
+        </div>
+      )}
+
+      {!isLoading && !error && viewMode === "list" && (
+        <div className="border rounded-md divide-y">
+          {filteredProducts.map((product: Product) => (
+            <ProductListItem key={product.id} product={product} />
+          ))}
+        </div>
+      )}
+
+      {/* No Results */}
+      {!isLoading && !error && filteredProducts.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-12">
+          <ShoppingBag className="h-12 w-12 text-gray-300 mb-4" />
+          <h3 className="text-lg font-medium">Keine Produkte gefunden</h3>
+          <p className="text-gray-500 mb-4">
+            {searchTerm 
+              ? `Keine Ergebnisse für "${searchTerm}"`
+              : "Es wurden keine Produkte gefunden, die den Filterkriterien entsprechen"}
+          </p>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              setSearchTerm("");
+              setCategoryFilter(null);
+            }}
+          >
+            Filter zurücksetzen
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

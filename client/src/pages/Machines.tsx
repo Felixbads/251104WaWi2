@@ -1,174 +1,354 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { useLocation } from "wouter";
+import { 
+  Package, 
+  Search, 
+  Plus, 
+  Filter, 
+  Map, 
+  Grid, 
+  List, 
+  ExternalLink, 
+  AlertTriangle, 
+  CheckCircle
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { getMachines, formatDateTime } from "@/lib/api";
-import { Search, RefreshCcw, Settings, AlertCircle, CheckCircle } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { Separator } from "@/components/ui/separator";
+import { getMachines } from "@/lib/api";
+
+// Typen für Maschinen
+interface Machine {
+  id: number;
+  name: string;
+  location: string;
+  status: string;
+  last_sync: string;
+  product_count: number;
+  error_count: number;
+  last_sale?: string;
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
+}
 
 export default function Machines() {
-  const { toast } = useToast();
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [viewMode, setViewMode] = useState<"grid" | "list" | "map">("grid");
+  const [, setLocation] = useLocation();
 
-  // Query to get machines
-  const { data: machines, isLoading, error, refetch } = useQuery({
+  // Daten abrufen
+  const { data: machines, isLoading, error } = useQuery({
     queryKey: ['/api/machines'],
     queryFn: () => getMachines(),
   });
 
-  // Function to determine the status badge color
-  const getStatusBadgeColor = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case "active":
-      case "online":
-        return <Badge variant="success" className="bg-green-500">
-          <CheckCircle className="h-3 w-3 mr-1" /> Aktiv
-        </Badge>;
-      case "inactive":
-      case "offline":
-        return <Badge variant="destructive">
-          <AlertCircle className="h-3 w-3 mr-1" /> Inaktiv
-        </Badge>;
-      case "maintenance":
-        return <Badge variant="secondary" className="bg-yellow-500 text-white">
-          <Settings className="h-3 w-3 mr-1" /> Wartung
-        </Badge>;
-      default:
-        return <Badge variant="outline">Unbekannt</Badge>;
-    }
-  };
+  // Status Filter
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
-  // Handle machine settings click
-  const handleMachineSettings = (machineId: number) => {
-    toast({
-      title: "Maschineneinstellungen",
-      description: `Einstellungen für Maschine #${machineId} wurden geöffnet.`,
-    });
-  };
+  // Filter- und Suchfunktionen
+  const filteredMachines = machines?.filter((machine: Machine) => {
+    const matchesSearch = machine.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          machine.location.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = !statusFilter || machine.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  }) || [];
 
-  // Filter machines based on search query
-  const filteredMachines = machines?.filter(machine => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
+  // Machine Card Component
+  const MachineCard = ({ machine }: { machine: Machine }) => {
     return (
-      machine.machineName?.toLowerCase().includes(query) ||
-      machine.machineType?.toLowerCase().includes(query) ||
-      machine.model?.toLowerCase().includes(query) ||
-      machine.serialNumber?.toLowerCase().includes(query) ||
-      machine.status?.toLowerCase().includes(query)
+      <Card className="overflow-hidden">
+        <CardHeader className="pb-2">
+          <div className="flex justify-between items-start">
+            <CardTitle className="text-lg truncate">{machine.name}</CardTitle>
+            <StatusBadge status={machine.status} />
+          </div>
+          <CardDescription>{machine.location}</CardDescription>
+        </CardHeader>
+        <CardContent className="pb-2">
+          <div className="flex justify-between items-center mb-2">
+            <div>
+              <p className="text-sm text-gray-500">Produkte</p>
+              <p className="font-medium">{machine.product_count}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Fehler</p>
+              <p className="font-medium">{machine.error_count}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Letzte Synch.</p>
+              <p className="font-medium text-sm">
+                {new Date(machine.last_sync).toLocaleDateString()}
+              </p>
+            </div>
+          </div>
+          {machine.last_sale && (
+            <div className="mt-2">
+              <p className="text-sm text-gray-500">Letzter Verkauf</p>
+              <p className="font-medium text-sm">
+                {new Date(machine.last_sale).toLocaleString()}
+              </p>
+            </div>
+          )}
+        </CardContent>
+        <CardFooter className="pt-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="w-full"
+            onClick={() => setLocation(`/machines/${machine.id}`)}
+          >
+            <ExternalLink className="h-4 w-4 mr-2" />
+            Details
+          </Button>
+        </CardFooter>
+      </Card>
     );
-  });
+  };
+
+  // Machine List Item Component
+  const MachineListItem = ({ machine }: { machine: Machine }) => {
+    return (
+      <div className="flex items-center p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors">
+        <div className="flex-grow mr-4">
+          <div className="flex items-center mb-1">
+            <h3 className="font-medium truncate mr-2">{machine.name}</h3>
+            <StatusBadge status={machine.status} />
+          </div>
+          <p className="text-sm text-gray-600">{machine.location}</p>
+        </div>
+        
+        <div className="flex items-center gap-6 text-sm">
+          <div className="text-center">
+            <p className="text-gray-500">Produkte</p>
+            <p className="font-medium">{machine.product_count}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-gray-500">Fehler</p>
+            <p className="font-medium">{machine.error_count}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-gray-500">Letzte Synch.</p>
+            <p className="font-medium">
+              {new Date(machine.last_sync).toLocaleDateString()}
+            </p>
+          </div>
+          
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => setLocation(`/machines/${machine.id}`)}
+          >
+            Details
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  // Status Badge Component
+  const StatusBadge = ({ status }: { status: string }) => {
+    let variant: 
+      | "default"
+      | "outline"
+      | "secondary"
+      | "destructive"
+      | "success" = "default";
+    let icon = null;
+
+    switch (status) {
+      case "active":
+        variant = "success";
+        icon = <CheckCircle className="h-3 w-3 mr-1" />;
+        break;
+      case "inactive":
+        variant = "secondary";
+        break;
+      case "error":
+        variant = "destructive";
+        icon = <AlertTriangle className="h-3 w-3 mr-1" />;
+        break;
+      default:
+        variant = "outline";
+    }
+
+    return (
+      <Badge variant={variant} className="flex items-center">
+        {icon}
+        {status === "active" ? "Aktiv" : 
+         status === "inactive" ? "Inaktiv" : 
+         status === "error" ? "Fehler" : status}
+      </Badge>
+    );
+  };
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle>Maschinen</CardTitle>
-          <CardDescription>
-            Alle registrierten Maschinen im Vendon-System
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row justify-between gap-4 mb-6">
-            {/* Search Field */}
-            <div className="relative flex-grow max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-              <Input
-                className="pl-10"
-                placeholder="Nach Maschinen suchen..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center">
+            <Package className="h-6 w-6 mr-2" />
+            Maschinen
+          </h1>
+          <p className="text-gray-500 mt-1">
+            Verwalten und überwachen Sie alle Automaten im Netzwerk
+          </p>
+        </div>
+        <Button onClick={() => setLocation("/machines/new")}>
+          <Plus className="h-4 w-4 mr-2" />
+          Neue Maschine
+        </Button>
+      </div>
 
-            {/* Refresh Button */}
-            <Button variant="outline" onClick={() => refetch()}>
-              <RefreshCcw className="h-4 w-4 mr-2" />
-              Aktualisieren
+      <Separator />
+
+      {/* Filter and Search Bar */}
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="relative flex-grow">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+          <Input
+            placeholder="Maschinen suchen..."
+            className="pl-10"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => {/* Filter dialog implementieren */}}
+            className="gap-1"
+          >
+            <Filter className="h-4 w-4" />
+            Filter
+          </Button>
+          <div className="border rounded-md p-1 flex">
+            <Button
+              variant={viewMode === "grid" ? "secondary" : "ghost"}
+              size="icon"
+              onClick={() => setViewMode("grid")}
+              className="h-8 w-8 rounded-sm"
+            >
+              <Grid className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "list" ? "secondary" : "ghost"}
+              size="icon"
+              onClick={() => setViewMode("list")}
+              className="h-8 w-8 rounded-sm"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={viewMode === "map" ? "secondary" : "ghost"}
+              size="icon"
+              onClick={() => setViewMode("map")}
+              className="h-8 w-8 rounded-sm"
+            >
+              <Map className="h-4 w-4" />
             </Button>
           </div>
+        </div>
+      </div>
 
-          {/* Machines Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {isLoading ? (
-              Array.from({ length: 6 }).map((_, index) => (
-                <Card key={index} className="overflow-hidden">
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start mb-3">
-                      <Skeleton className="h-6 w-3/4" />
-                      <Skeleton className="h-6 w-1/4" />
-                    </div>
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-2/3" />
-                      <Skeleton className="h-4 w-1/2" />
-                    </div>
-                    <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between">
-                      <Skeleton className="h-4 w-1/3" />
-                      <Skeleton className="h-8 w-8 rounded-full" />
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            ) : error ? (
-              <div className="col-span-full">
-                <Card className="bg-red-50 border-red-200">
-                  <CardContent className="p-4">
-                    <div className="flex items-center text-red-600">
-                      <AlertCircle className="h-5 w-5 mr-2" />
-                      <p>Fehler beim Laden der Maschinen: {error instanceof Error ? error.message : "Unbekannter Fehler"}</p>
-                    </div>
-                    <Button variant="outline" className="mt-3" onClick={() => refetch()}>
-                      Erneut versuchen
-                    </Button>
-                  </CardContent>
-                </Card>
-              </div>
-            ) : filteredMachines && filteredMachines.length > 0 ? (
-              filteredMachines.map((machine) => (
-                <Card key={machine.id} className="overflow-hidden">
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start mb-3">
-                      <h3 className="text-lg font-medium text-gray-900 truncate">
-                        {machine.machineName || "Unbenannte Maschine"}
-                      </h3>
-                      {getStatusBadgeColor(machine.status || "")}
-                    </div>
-                    <div className="space-y-1 text-sm text-gray-600">
-                      <p><span className="font-medium">Typ:</span> {machine.machineType || "N/A"}</p>
-                      <p><span className="font-medium">Modell:</span> {machine.model || "N/A"}</p>
-                      <p><span className="font-medium">Seriennummer:</span> {machine.serialNumber || "N/A"}</p>
-                    </div>
-                    <div className="mt-4 pt-4 border-t border-gray-200 flex justify-between items-center">
-                      <span className="text-xs text-gray-500">
-                        Letzte Synchronisierung: {machine.lastSync ? formatDateTime(machine.lastSync) : "Nie"}
-                      </span>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        onClick={() => handleMachineSettings(machine.id)}
-                      >
-                        <Settings className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            ) : (
-              <div className="col-span-full">
-                <Card className="bg-gray-50">
-                  <CardContent className="p-6 text-center">
-                    <p className="text-gray-500">Keine Maschinen gefunden</p>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Tabs for Status Filtering */}
+      <Tabs defaultValue="all" className="w-full">
+        <TabsList>
+          <TabsTrigger value="all" onClick={() => setStatusFilter(null)}>
+            Alle
+          </TabsTrigger>
+          <TabsTrigger value="active" onClick={() => setStatusFilter("active")}>
+            Aktiv
+          </TabsTrigger>
+          <TabsTrigger value="inactive" onClick={() => setStatusFilter("inactive")}>
+            Inaktiv
+          </TabsTrigger>
+          <TabsTrigger value="error" onClick={() => setStatusFilter("error")}>
+            Fehler
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {/* Loading State */}
+      {isLoading && (
+        <div className="flex justify-center items-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <Card className="bg-red-50 border-red-200">
+          <CardContent className="pt-6">
+            <div className="flex items-center text-red-600">
+              <AlertTriangle className="h-5 w-5 mr-2" />
+              <p>Fehler beim Laden der Maschinen: {String(error)}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Results Count */}
+      {!isLoading && !error && (
+        <p className="text-sm text-gray-500">
+          {filteredMachines.length} {filteredMachines.length === 1 ? 'Maschine' : 'Maschinen'} gefunden
+        </p>
+      )}
+
+      {/* Machines Grid/List View */}
+      {!isLoading && !error && viewMode === "grid" && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {filteredMachines.map((machine: Machine) => (
+            <MachineCard key={machine.id} machine={machine} />
+          ))}
+        </div>
+      )}
+
+      {!isLoading && !error && viewMode === "list" && (
+        <div className="border rounded-md divide-y">
+          {filteredMachines.map((machine: Machine) => (
+            <MachineListItem key={machine.id} machine={machine} />
+          ))}
+        </div>
+      )}
+
+      {!isLoading && !error && viewMode === "map" && (
+        <Card className="h-[500px] flex items-center justify-center">
+          <CardContent>
+            <p className="text-gray-500">
+              Kartenansicht wird in Kürze verfügbar sein
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* No Results */}
+      {!isLoading && !error && filteredMachines.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-12">
+          <Package className="h-12 w-12 text-gray-300 mb-4" />
+          <h3 className="text-lg font-medium">Keine Maschinen gefunden</h3>
+          <p className="text-gray-500 mb-4">
+            {searchTerm 
+              ? `Keine Ergebnisse für "${searchTerm}"`
+              : "Es wurden keine Maschinen gefunden, die den Filterkriterien entsprechen"}
+          </p>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              setSearchTerm("");
+              setStatusFilter(null);
+            }}
+          >
+            Filter zurücksetzen
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
