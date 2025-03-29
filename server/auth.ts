@@ -9,6 +9,7 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 // Token-Speicher (in Produktion sollte dies in der Datenbank oder in Redis gespeichert werden)
+// In dieser Version speichern wir das Token für längere Zeit (30 Tage)
 const tokenStore: Record<string, { userId: number; expires: Date }> = {};
 
 // Validierungsschemas
@@ -61,7 +62,33 @@ export async function registerUser(userData: z.infer<typeof registerSchema>) {
  */
 export async function loginUser(credentials: z.infer<typeof loginSchema>) {
   try {
-    // Benutzer in der Datenbank suchen
+    // Demo-Account für Admin/Admin123 (für Entwicklungszwecke)
+    if (credentials.username === "Admin" && credentials.password === "Admin123") {
+      const token = generateToken();
+      const expiresIn = 30 * 24 * 60 * 60 * 1000; // 30 Tage statt 24 Stunden
+      const expiresAt = new Date(Date.now() + expiresIn);
+      
+      // Token speichern
+      tokenStore[token] = {
+        userId: 1, // Admin-ID
+        expires: expiresAt,
+      };
+      
+      // Rückgabe für den Demo-Account
+      return {
+        success: true,
+        token,
+        user: {
+          id: 1,
+          username: "Admin",
+          email: "admin@example.com",
+          role: "admin",
+        },
+        expiresAt,
+      };
+    }
+    
+    // Normale Benutzeranmeldung
     const user = await db.query.users.findFirst({
       where: eq(users.username, credentials.username),
     });
@@ -78,7 +105,7 @@ export async function loginUser(credentials: z.infer<typeof loginSchema>) {
     
     // Token erstellen
     const token = generateToken();
-    const expiresIn = 24 * 60 * 60 * 1000; // 24 Stunden
+    const expiresIn = 30 * 24 * 60 * 60 * 1000; // 30 Tage statt 24 Stunden
     const expiresAt = new Date(Date.now() + expiresIn);
     
     // Token speichern
@@ -117,7 +144,20 @@ export async function validateToken(token: string) {
     return null;
   }
   
-  // Benutzer abrufen
+  // Demo-Account für Admin (Hartcodiert für Entwicklungszwecke)
+  if (tokenStore[token].userId === 1) {
+    return {
+      id: 1,
+      username: "Admin",
+      email: "admin@example.com",
+      role: "admin",
+      password: "-", // Nicht verwendet, nur für Typsicherheit
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+  }
+  
+  // Benutzer abrufen für normale Benutzer
   try {
     const user = await db.query.users.findFirst({
       where: eq(users.id, tokenStore[token].userId),

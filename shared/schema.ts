@@ -23,6 +23,8 @@ export const insertUserSchema = createInsertSchema(users).omit({
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
+// Wir verwenden ein In-Memory Token-Store statt einer Token-Tabelle für vereinfachte Implementierung
+
 // Locations table
 export const locations = pgTable("locations", {
   id: serial("id").primaryKey(),
