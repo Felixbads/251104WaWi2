@@ -1,22 +1,405 @@
 import { storage } from "../storage";
 import { InsertSyncLog, InsertMachine, InsertTransaction, InsertEvent } from "@shared/schema";
+import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
 
-// Mock Vendon API client (would be replaced with actual implementation)
+/**
+ * Vendon API Client
+ * Implementiert die Kommunikation mit der Vendon API basierend auf dem verbesserten Python-Code
+ */
 class VendonAPI {
-  // This is a mock implementation - in reality, this would connect to the Vendon API
+  private readonly BASE_URL = "https://cloud.vendon.net/rest/v1.8.0";
+  private readonly headers: Record<string, string>;
+  private readonly client: AxiosInstance;
+  private readonly apiKey: string;
+  
+  constructor(apiKey?: string) {
+    // Hierarchie für API-Schlüssel:
+    // 1. Explizit übergebener Schlüssel hat höchste Priorität
+    // 2. Umgebungsvariable VENDON_API_KEY
+    // 3. Umgebungsvariable API_KEY
+    
+    if (apiKey) {
+      this.apiKey = apiKey;
+      console.log("API-Schlüssel vom Parameter verwendet.");
+    } else if (process.env.VENDON_API_KEY) {
+      this.apiKey = process.env.VENDON_API_KEY;
+      console.log("API-Schlüssel aus VENDON_API_KEY Umgebungsvariable verwendet.");
+    } else if (process.env.API_KEY) {
+      this.apiKey = process.env.API_KEY;
+      console.log("API-Schlüssel aus API_KEY Umgebungsvariable verwendet.");
+    } else {
+      // Standardwert als letzte Option (sollte in der Praxis durch einen echten API-Schlüssel ersetzt werden)
+      this.apiKey = "e5o9SSU4n2XQp9XmShtbIOK1rStoQvoB";
+      console.warn("Fallback auf bekannten API-Schlüssel. Dieser könnte abgelaufen sein.");
+    }
+
+    // Überprüfen, ob wir einen API-Schlüssel haben
+    if (!this.apiKey) {
+      console.error("Kein API-Schlüssel gefunden! Die API wird nicht funktionieren.");
+    } else {
+      // Maske für Protokollierung erstellen
+      const maskedKey = this.apiKey.length >= 4 ? "****" + this.apiKey.slice(-4) : "****";
+      console.log(`Vendon API mit Schlüssel ${maskedKey} initialisiert.`);
+    }
+
+    // WICHTIG: Laut Vendon-Dokumentation muss der Authorization-Header "Token" und nicht "Bearer" verwenden
+    this.headers = {
+      "Authorization": `Token ${this.apiKey}`,
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+    };
+
+    // Axios-Client mit konfigurierten Headers erstellen
+    this.client = axios.create({
+      baseURL: this.BASE_URL,
+      headers: this.headers,
+      timeout: 30000, // 30 Sekunden Timeout
+    });
+  }
+
+  /**
+   * Führt eine API-Anfrage mit Wiederholungsversuchen durch
+   */
+  private async makeRequest<T>(
+    endpoint: string, 
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET', 
+    params?: Record<string, any>, 
+    data?: any, 
+    retries = 3
+  ): Promise<T | null> {
+    const url = `${this.BASE_URL}/${endpoint}`;
+    
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        const config: AxiosRequestConfig = {
+          method,
+          url: endpoint, // URL ist relativ, da wir baseURL in axios.create gesetzt haben
+          params,
+          data,
+        };
+
+        // Log der API-Anfrage
+        console.log(`API Request: ${method} ${url}`);
+        if (params) console.log(`Params: ${JSON.stringify(params)}`);
+        if (data) console.log(`Data: ${JSON.stringify(data)}`);
+
+        const response = await this.client.request<{result: T}>(config);
+        
+        if (response.status === 200 && response.data) {
+          return response.data.result;
+        } else {
+          console.warn(`API-Anfrage fehlgeschlagen: ${response.status}`);
+          return null;
+        }
+      } catch (error: any) {
+        if (error.response) {
+          // Der Server hat mit einem Fehlerstatuscode geantwortet
+          console.warn(`API-Anfrage fehlgeschlagen: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
+          
+          // Bei Authentifizierungsfehler nicht wiederholen
+          if (error.response.status === 401) {
+            console.error("Authentifizierungsfehler bei der Vendon API. Prüfen Sie den API-Schlüssel.");
+            return null;
+          }
+          
+          // Bei Rate-Limiting kurz warten und dann erneut versuchen
+          if (error.response.status === 429 && attempt < retries - 1) {
+            console.log(`Rate-Limiting erkannt, warte vor dem nächsten Versuch (${attempt+1}/${retries})...`);
+            await new Promise(resolve => setTimeout(resolve, 5000)); // 5 Sekunden warten
+            continue;
+          }
+        } else if (error.request) {
+          // Die Anfrage wurde gemacht, aber keine Antwort erhalten
+          console.error(`Netzwerkfehler: Keine Antwort erhalten (${attempt+1}/${retries})`);
+        } else {
+          // Ein Fehler ist bei der Erstellung der Anfrage aufgetreten
+          console.error(`Fehler bei der Anfrageerstellung: ${error.message}`);
+        }
+        
+        if (attempt < retries - 1) {
+          console.log(`Versuche erneut (${attempt+1}/${retries})...`);
+          await new Promise(resolve => setTimeout(resolve, 2000)); // 2 Sekunden warten
+          continue;
+        }
+      }
+    }
+    
+    // Wenn wir hier ankommen, hat die Anfrage nach allen Wiederholungsversuchen fehlgeschlagen
+    return null;
+  }
+
+  /**
+   * Ruft alle Automaten (Maschinen) von der Vendon API ab
+   */
   async getMachines() {
-    // In a real implementation, this would fetch machines from the Vendon API
+    const result = await this.makeRequest<any[]>("machine");
+    if (result) {
+      console.log(`Anzahl der abgerufenen Maschinen: ${result.length}`);
+      return result;
+    }
+    console.warn("Keine Maschinen gefunden oder API-Anfrage fehlgeschlagen");
     return [];
   }
 
-  async getTransactions(startDate: string, endDate: string, page = 1, limit = 100) {
-    // In a real implementation, this would fetch transactions from the Vendon API
-    return { data: [], total: 0, page, limit };
+  /**
+   * Ruft Details zu einem bestimmten Automaten ab
+   */
+  async getMachineDetail(machineId: string) {
+    const result = await this.makeRequest<any>(`machine/${machineId}`);
+    return result || null;
   }
 
-  async getEvents(startDate: string, endDate: string, page = 1, limit = 100) {
-    // In a real implementation, this would fetch events from the Vendon API
-    return { data: [], total: 0, page, limit };
+  /**
+   * Ruft aktuelle Probleme bei Automaten ab
+   */
+  async getMachineIssues() {
+    const result = await this.makeRequest<any[]>("machine/issues");
+    return result || [];
+  }
+
+  /**
+   * Ruft alle Produkte von der Vendon API ab
+   */
+  async getProducts() {
+    const result = await this.makeRequest<any[]>("stock");
+    return result || [];
+  }
+
+  /**
+   * Bereitet Zeitstempel für die API-Anfragen vor
+   */
+  private prepareTimestamps(startDate?: Date | string | number, endDate?: Date | string | number): [number, number] {
+    let startTimestamp: number | null = null;
+    let endTimestamp: number | null = null;
+    
+    // Startdatum konvertieren
+    if (startDate !== undefined) {
+      if (startDate instanceof Date) {
+        startTimestamp = Math.floor(startDate.getTime() / 1000);
+      } else if (typeof startDate === 'string') {
+        try {
+          // Versuchen, das Datum im Format YYYY-MM-DD zu interpretieren
+          const dt = new Date(startDate);
+          if (!isNaN(dt.getTime())) {
+            startTimestamp = Math.floor(dt.getTime() / 1000);
+          } else {
+            // Vielleicht ist es bereits ein UNIX-Timestamp als String
+            startTimestamp = parseInt(startDate, 10);
+            if (isNaN(startTimestamp)) {
+              console.warn(`Ungültiges Startdatum-Format: ${startDate}, verwende Standard`);
+              startTimestamp = null;
+            }
+          }
+        } catch (error) {
+          console.warn(`Fehler beim Parsen des Startdatums: ${error}`);
+          startTimestamp = null;
+        }
+      } else if (typeof startDate === 'number') {
+        startTimestamp = startDate;
+      }
+    }
+    
+    // Enddatum konvertieren
+    if (endDate !== undefined) {
+      if (endDate instanceof Date) {
+        endTimestamp = Math.floor(endDate.getTime() / 1000);
+      } else if (typeof endDate === 'string') {
+        try {
+          // Bei YYYY-MM-DD Format, setze auf Ende des Tages
+          const dt = new Date(endDate);
+          if (!isNaN(dt.getTime())) {
+            dt.setHours(23, 59, 59, 999);
+            endTimestamp = Math.floor(dt.getTime() / 1000);
+          } else {
+            // Vielleicht ist es bereits ein UNIX-Timestamp als String
+            endTimestamp = parseInt(endDate, 10);
+            if (isNaN(endTimestamp)) {
+              console.warn(`Ungültiges Enddatum-Format: ${endDate}, verwende Standard`);
+              endTimestamp = null;
+            }
+          }
+        } catch (error) {
+          console.warn(`Fehler beim Parsen des Enddatums: ${error}`);
+          endTimestamp = null;
+        }
+      } else if (typeof endDate === 'number') {
+        endTimestamp = endDate;
+      }
+    }
+    
+    // Standardwerte, falls keine gültigen Daten angegeben wurden
+    if (startTimestamp === null) {
+      // Standardmäßig 7 Tage zurück
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      startTimestamp = Math.floor(sevenDaysAgo.getTime() / 1000);
+    }
+    
+    if (endTimestamp === null) {
+      // Standardmäßig jetzt
+      endTimestamp = Math.floor(Date.now() / 1000);
+    }
+    
+    // Zeitraum in Tagen berechnen (für Protokollzwecke)
+    const daysRange = Math.floor((endTimestamp - startTimestamp) / 86400) + 1;
+    console.log(`Abfragebereich beträgt ${daysRange} Tage`);
+    
+    return [startTimestamp, endTimestamp];
+  }
+
+  /**
+   * Ruft Ereignisse von der Vendon API ab
+   */
+  async getEvents(
+    startDate?: Date | string,
+    endDate?: Date | string,
+    page = 1,
+    limit = 100,
+    machineId?: string
+  ) {
+    try {
+      const [startTimestamp, endTimestamp] = this.prepareTimestamps(startDate, endDate);
+      
+      const params: Record<string, any> = {
+        from_timestamp: startTimestamp,
+        to_timestamp: endTimestamp,
+        offset: (page - 1) * limit,
+        limit
+      };
+      
+      if (machineId) {
+        params.machine_id = machineId;
+      }
+      
+      console.log(`Rufe Events ab mit Parametern: ${JSON.stringify(params)}`);
+      
+      const events = await this.makeRequest<any[]>("events", "GET", params);
+      if (events) {
+        console.log(`Erfolgreich ${events.length} Events abgerufen`);
+        return { 
+          data: events, 
+          total: events.length >= limit ? (page * limit) + 1 : page * limit, // Schätzung der Gesamtzahl
+          page,
+          limit
+        };
+      }
+      
+      console.warn("Keine Events gefunden oder API-Anfrage fehlgeschlagen");
+      return { data: [], total: 0, page, limit };
+    } catch (error) {
+      console.error(`Fehler beim Abrufen von Ereignissen: ${error}`);
+      return { data: [], total: 0, page, limit };
+    }
+  }
+
+  /**
+   * Ruft Transaktionsdaten von der Vendon API über den stats/vends Endpunkt ab
+   */
+  async getTransactions(
+    startDate?: Date | string,
+    endDate?: Date | string,
+    page = 1,
+    limit = 100,
+    machineId?: string
+  ) {
+    try {
+      const [startTimestamp, endTimestamp] = this.prepareTimestamps(startDate, endDate);
+      
+      const params: Record<string, any> = {
+        from_timestamp: startTimestamp,
+        to_timestamp: endTimestamp,
+        offset: (page - 1) * limit,
+        limit
+      };
+      
+      if (machineId) {
+        params.machine_id = machineId;
+      }
+      
+      console.log(`Rufe Transaktionen ab mit Parametern: ${JSON.stringify(params)}`);
+      
+      // Verwende den stats/vends Endpunkt, der nachweislich funktioniert
+      const transactions = await this.makeRequest<any[]>("stats/vends", "GET", params);
+      
+      if (transactions) {
+        console.log(`Erfolgreich ${transactions.length} Transaktionen abgerufen`);
+        return { 
+          data: transactions, 
+          total: transactions.length >= limit ? (page * limit) + 1 : page * limit, // Schätzung der Gesamtzahl
+          page,
+          limit
+        };
+      }
+      
+      console.warn("Keine Transaktionen gefunden oder API-Anfrage fehlgeschlagen");
+      return { data: [], total: 0, page, limit };
+    } catch (error) {
+      console.error(`Fehler beim Abrufen von Transaktionen: ${error}`);
+      return { data: [], total: 0, page, limit };
+    }
+  }
+
+  /**
+   * Ruft den aktuellen Lagerbestand eines Automaten ab
+   */
+  async getMachineStock(machineId: string) {
+    const result = await this.makeRequest<any[]>(`machine/${machineId}/stock`);
+    return result || [];
+  }
+
+  /**
+   * Ruft Refill-Daten (Auffüllungen) von der Vendon API ab
+   */
+  async getRefills(
+    startDate?: Date | string,
+    endDate?: Date | string,
+    page = 1,
+    limit = 100,
+    machineId?: string
+  ) {
+    try {
+      const [startTimestamp, endTimestamp] = this.prepareTimestamps(startDate, endDate);
+      
+      // Bei Refills verwendet die API Millisekunden statt Sekunden!
+      const params: Record<string, any> = {
+        from: startTimestamp * 1000, // In Millisekunden umwandeln
+        till: endTimestamp * 1000,   // In Millisekunden umwandeln
+        offset: (page - 1) * limit,
+        limit
+      };
+      
+      if (machineId) {
+        params.machine_id = machineId;
+      }
+      
+      console.log(`Rufe Refills ab mit Parametern: ${JSON.stringify(params)}`);
+      
+      const refills = await this.makeRequest<any[]>("refill", "GET", params);
+      
+      if (refills) {
+        console.log(`Erfolgreich ${refills.length} Refills abgerufen`);
+        return { 
+          data: refills, 
+          total: refills.length >= limit ? (page * limit) + 1 : page * limit, // Schätzung der Gesamtzahl
+          page,
+          limit
+        };
+      }
+      
+      console.warn("Keine Refills gefunden oder API-Anfrage fehlgeschlagen");
+      return { data: [], total: 0, page, limit };
+    } catch (error) {
+      console.error(`Fehler beim Abrufen von Refills: ${error}`);
+      return { data: [], total: 0, page, limit };
+    }
+  }
+
+  /**
+   * Ruft Details zu einem bestimmten Refill ab
+   */
+  async getRefillDetails(refillId: string) {
+    const result = await this.makeRequest<any>(`refill/${refillId}`);
+    return result || null;
   }
 }
 
