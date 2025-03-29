@@ -163,26 +163,47 @@ class VendonAPI {
    * Da es keinen direkten Produkte-Endpunkt gibt, kombinieren wir Daten aus verschiedenen Quellen
    */
   async getProducts() {
-    // Zunächst holen wir alle Automaten, da diese Produktinformationen enthalten
-    const machines = await this.getMachines();
+    console.log("Starte verbesserte Produktsynchronisierung...");
     const products: Record<string, any> = {};
     
-    // Dann holen wir für jeden Automaten den Lagerbestand, der Produktdetails enthält
+    // Schritt 1: Hole alle Automaten
+    const machines = await this.getMachines();
+    console.log(`${machines.length} Automaten gefunden für Produktabruf`);
+    
+    // Schritt 2: Hole für jeden Automaten den Stock-Bestand
     for (const machine of machines) {
       try {
+        console.log(`Hole Produktdaten für Automat ${machine.id} (${machine.name || 'Unbekannt'})`);
         const stock = await this.getMachineStock(machine.id.toString());
         
-        // Füge Produkte aus dem Lagerbestand hinzu, wenn sie noch nicht existieren oder aktualisiere sie
+        // Verarbeite Stock-Daten und extrahiere Produkte
         if (stock && Array.isArray(stock)) {
+          console.log(`${stock.length} Produkte im Lagerbestand für Automat ${machine.id} gefunden`);
+          
           for (const item of stock) {
             if (item.product && item.product.id) {
               const productId = item.product.id.toString();
               
-              // Verwende Object.assign, um bestehende Produktdaten zu ergänzen, nicht zu überschreiben
+              // Verwende Object.assign, um bestehende Produktdaten zu ergänzen
               products[productId] = Object.assign({}, 
                 products[productId] || {}, // Bestehende Daten oder leeres Objekt
                 item.product, // Daten aus dem aktuellen Stock-Item
-                { machine_id: machine.id } // Füge Maschinen-ID hinzu
+                { 
+                  machine_id: machine.id,
+                  machine_name: machine.name || 'Unbekannte Maschine',
+                  location: machine.location || null
+                }
+              );
+            } else if (item.id && item.name) {
+              // Fallback, wenn Produkt nicht im üblichen Pfad liegt
+              const productId = item.id.toString();
+              products[productId] = Object.assign({},
+                products[productId] || {},
+                item,
+                { 
+                  machine_id: machine.id,
+                  machine_name: machine.name || 'Unbekannte Maschine'
+                }
               );
             }
           }
@@ -192,8 +213,54 @@ class VendonAPI {
       }
     }
     
+    // Schritt 3: Hole Produkte aus den letzten Transaktionen
+    try {
+      console.log("Hole Produkte aus den letzten Transaktionen...");
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+      
+      const transactions = await this.getTransactions(
+        oneMonthAgo,
+        new Date(),
+        undefined,
+        0,
+        500 // Erhöhe die Anzahl der Transaktionen
+      );
+      
+      if (transactions.data && Array.isArray(transactions.data)) {
+        console.log(`${transactions.data.length} Transaktionen für Produktextraktion gefunden`);
+        
+        for (const transaction of transactions.data) {
+          try {
+            // Versuche, Produkt-ID und Produktnamen zu extrahieren
+            if (transaction.stock_id && !products[transaction.stock_id]) {
+              // Versuche, das Produkt über stock_id zu extrahieren
+              console.log(`Neues Produkt aus Transaktion (stock_id ${transaction.stock_id}) gefunden`);
+              
+              const productObject = {
+                id: transaction.stock_id,
+                name: transaction.name || 'Unbekanntes Produkt',
+                price: transaction.price || 0,
+                machine_id: transaction.machine_id,
+                machine_name: transaction.machine_name,
+                source: 'transaction'
+              };
+              
+              products[transaction.stock_id.toString()] = productObject;
+            }
+          } catch (transactionError) {
+            console.error("Fehler bei der Verarbeitung einer Transaktion für Produktextraktion:", transactionError);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Fehler beim Extrahieren von Produkten aus Transaktionen:", error);
+    }
+    
     // Konvertiere das Objekt in ein Array für die Rückgabe
-    return Object.values(products);
+    const productArray = Object.values(products);
+    console.log(`Insgesamt ${productArray.length} einzigartige Produkte gefunden`);
+    return productArray;
   }
   
   /**
@@ -1682,10 +1749,10 @@ export class VendonSyncService {
     const syncLogId = logEntry.id;
 
     try {
-      console.log("Synchronisiere Produkte...");
+      console.log("Starte erweiterte Produktsynchronisierung...");
       const startTime = Date.now();
       
-      // Produkte von der API abrufen
+      // Produkte von der API abrufen mit der verbesserten Methode
       const products = await this.api.getProducts();
       
       // Zähler für die Synchronisation
@@ -1698,7 +1765,21 @@ export class VendonSyncService {
         throw new Error("Keine Produkte von der API erhalten");
       }
       
-      // Verarbeite jeden Produkt-Datensatz
+      console.log(`${products.length} Produkte von der API erhalten. Starte Verarbeitung...`);
+      
+      // Sammle vorhandene Produkte in einem einzigen Datenbankaufruf
+      console.log("Hole bestehende Produkte aus der Datenbank...");
+      const existingProducts = await storage.getProducts(0); // 0 means no limit
+      const existingProductMap: Record<string, any> = {};
+      
+      // Erstelle eine Map für schnelle Suche
+      existingProducts.forEach(product => {
+        existingProductMap[product.vendonId] = product;
+      });
+      
+      console.log(`${existingProducts.length} bestehende Produkte in der Datenbank gefunden.`);
+      
+      // Verarbeite jeden Produkt-Datensatz einzeln, aber effizienter
       for (const product of products) {
         try {
           if (!product.id) {
@@ -1709,20 +1790,35 @@ export class VendonSyncService {
           
           const vendonId = product.id.toString();
           
-          // Extrahiere Produktdaten
+          // Verbesserte Produktnamenextraktion
+          let productName = product.name;
+          
+          // Wenn kein Name vorhanden ist, versuche verschiedene Felder
+          if (!productName && product.product_name) {
+            productName = product.product_name;
+          } else if (!productName && product.title) {
+            productName = product.title;
+          } else if (!productName && product.label) {
+            productName = product.label;
+          } else if (!productName) {
+            // Fallback
+            productName = `Produkt ${vendonId}`;
+          }
+          
+          // Extrahiere Produktdaten mit mehr Informationen
           const productData = {
             vendonId,
-            productName: product.name || `Produkt ${vendonId}`,
+            productName: productName,
             price: product.price || 0,
             status: product.status || 'active',
-            sku: product.sku || null,
-            barcode: product.barcode || null,
-            category: product.category || null,
+            sku: product.sku || product.code || null,
+            barcode: product.barcode || product.code || null,
+            category: product.category || product.type || null,
             extraData: JSON.stringify(product)
           };
           
-          // Prüfe, ob das Produkt bereits existiert
-          const existing = await storage.getProductByVendonId(vendonId);
+          // Prüfe, ob das Produkt bereits existiert anhand der Map (nicht DB-Abfrage für jedes Produkt)
+          const existing = existingProductMap[vendonId];
           
           if (existing) {
             // Update vorhandenes Produkt
@@ -1734,7 +1830,7 @@ export class VendonSyncService {
             itemsSaved++;
           }
         } catch (error) {
-          console.error("Fehler bei der Verarbeitung eines Produkts:", error);
+          console.error(`Fehler bei der Verarbeitung des Produkts:`, error);
           errors++;
         }
       }
@@ -1755,13 +1851,15 @@ export class VendonSyncService {
         syncStatus: 'completed'
       });
       
+      console.log(`Erweiterte Produktsynchronisierung abgeschlossen. ${itemsSaved} hinzugefügt, ${itemsUpdated} aktualisiert, ${errors} Fehler in ${durationSeconds} Sekunden.`);
+      
       return {
         syncLogId,
         status: 'success',
         message: `${products.length} Produkte synchronisiert: ${itemsSaved} neu, ${itemsUpdated} aktualisiert, ${errors} Fehler`
       };
     } catch (error) {
-      console.error("Fehler bei der Produktsynchronisation:", error);
+      console.error("Fehler bei der erweiterten Produktsynchronisierung:", error);
       
       // Aktualisiere den Sync-Log-Eintrag mit Fehlerinformationen
       await storage.updateSyncLog(syncLogId, {

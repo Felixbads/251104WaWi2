@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { vendonSync } from "./services/vendonSync";
+import { startAutomaticSync, stopAutomaticSync, getSchedulerStatus } from "./scheduler";
 import { z } from "zod";
 
 // API route prefix
@@ -457,6 +458,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Fehler beim API-Debug für Events:", error);
       res.status(500).json({ 
         error: "Debug-Abfrage fehlgeschlagen", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Scheduler API endpoints
+  
+  // Get scheduler status
+  app.get(`${API_PREFIX}/scheduler/status`, async (_req: Request, res: Response) => {
+    try {
+      const status = getSchedulerStatus();
+      res.json(status);
+    } catch (error) {
+      console.error("Error fetching scheduler status:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch scheduler status", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Start scheduler
+  app.post(`${API_PREFIX}/scheduler/start`, async (_req: Request, res: Response) => {
+    try {
+      startAutomaticSync();
+      res.json({ 
+        status: "success", 
+        message: "Automatic synchronization scheduler started" 
+      });
+    } catch (error) {
+      console.error("Error starting scheduler:", error);
+      res.status(500).json({ 
+        error: "Failed to start scheduler", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Stop scheduler
+  app.post(`${API_PREFIX}/scheduler/stop`, async (_req: Request, res: Response) => {
+    try {
+      stopAutomaticSync();
+      res.json({ 
+        status: "success", 
+        message: "Automatic synchronization scheduler stopped" 
+      });
+    } catch (error) {
+      console.error("Error stopping scheduler:", error);
+      res.status(500).json({ 
+        error: "Failed to stop scheduler", 
         details: error instanceof Error ? error.message : String(error) 
       });
     }
