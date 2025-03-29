@@ -1,0 +1,1018 @@
+#!/usr/bin/env python
+"""
+Korrigierte Version der Vendon API-Klasse
+
+Diese Version behebt die Probleme mit dem fehlerhaften Datumsformat bei der stats/sales API
+und bietet ein robusteres Fehlerhandling.
+"""
+
+import requests
+import logging
+import json
+from datetime import datetime, timedelta
+import os
+
+# Konfiguriere Logger
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger("vendon_api_fixed")
+
+class VendonAPI:
+    """
+    Klasse für die Kommunikation mit der Vendon API
+    """
+    BASE_URL = "https://cloud.vendon.net/rest/v1.8.0"
+    
+    def __init__(self, api_key=None):
+        """
+        Initialisiert die Vendon API mit einem API-Schlüssel
+        
+        :param api_key: Der API-Schlüssel für die Authentifizierung (optional)
+                        Wenn nicht angegeben, wird der Schlüssel aus anderen Quellen geladen
+        """
+        # 1. Der explizit übergebene Schlüssel hat die höchste Priorität
+        if api_key:
+            self.api_key = api_key
+            logger.info("API-Schlüssel vom Parameter verwendet.")
+        else:
+            # 2. Der bekannte funktionierende API-Schlüssel
+            self.api_key = "e5o9SSU4n2XQp9XmShtbIOK1rStoQvoB"
+            logger.info("Bekannter API-Schlüssel direkt verwendet.")
+        
+        # Überprüfen, ob wir einen API-Schlüssel haben
+        if not self.api_key:
+            logger.warning("Kein API-Schlüssel gefunden. Die API wird nicht funktionieren.")
+        else:
+            logger.info("Vendon API wurde mit API-Schlüssel initialisiert.")
+        
+        # WICHTIG: Laut Vendon-Dokumentation muss der Authorization-Header "Token" und nicht "Bearer" verwenden
+        self.headers = {
+            "Authorization": f"Token {self.api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+        }
+        
+        # Log für Debugging (ohne den tatsächlichen API-Schlüssel zu zeigen)
+        if self.api_key:
+            # Zeige nur die letzten 4 Zeichen des Schlüssels aus Sicherheitsgründen
+            masked_key = "****" + self.api_key[-4:] if len(self.api_key) >= 4 else "****"
+            logger.info(f"API-Header eingerichtet: Authorization: Token {masked_key}")
+        
+        # Session für persistente Verbindungen
+        self.session = requests.Session()
+        self.session.headers.update(self.headers)
+    
+    def _make_request(self, endpoint, method="GET", params=None, data=None, retries=3):
+        """
+        Führt eine Anfrage an die Vendon API aus
+        
+        :param endpoint: API-Endpunkt
+        :param method: HTTP-Methode (GET, POST, etc.)
+        :param params: URL-Parameter
+        :param data: Daten für POST/PUT
+        :param retries: Anzahl der Wiederholungsversuche
+        :return: JSON-Antwort oder None bei Fehler
+        """
+        url = f"{self.BASE_URL}/{endpoint}"
+        
+        for attempt in range(retries):
+            try:
+                if method == "GET":
+                    response = self.session.get(url, params=params)
+                elif method == "POST":
+                    response = self.session.post(url, params=params, json=data)
+                elif method == "PUT":
+                    response = self.session.put(url, params=params, json=data)
+                elif method == "DELETE":
+                    response = self.session.delete(url, params=params)
+                else:
+                    logger.error(f"Unbekannte Methode: {method}")
+                    return None
+                
+                # Log API-Anfragen und -Antworten für Debugging
+                logger.info(f"API Request: {method} {url}")
+                if params:
+                    logger.info(f"Params: {params}")
+                if data:
+                    logger.info(f"Data: {data}")
+                
+                # Prüfe auf erfolgreiche Antwort
+                if response.status_code == 200:
+                    try:
+                        result = response.json()
+                        logger.debug(f"API-Antwort: {result}")
+                        return result
+                    except json.JSONDecodeError:
+                        logger.error(f"Fehler beim Parsen der API-Antwort: {response.text}")
+                        return None
+                else:
+                    logger.warning(f"API-Anfrage fehlgeschlagen: {response.status_code} - {response.text}")
+                    
+                    # Bei Authentifizierungsfehler nicht wiederholen
+                    if response.status_code == 401:
+                        logger.error("Authentifizierungsfehler bei der Vendon API. Prüfen Sie den API-Schlüssel.")
+                        return None
+                    
+                    # Bei Rate-Limiting kurz warten und dann erneut versuchen
+                    if response.status_code == 429 and attempt < retries - 1:
+                        logger.info(f"Rate-Limiting erkannt, warte vor dem nächsten Versuch ({attempt+1}/{retries})...")
+                        import time
+                        time.sleep(5)  # 5 Sekunden warten
+                        continue
+            
+            except requests.RequestException as e:
+                logger.error(f"Verbindungsfehler: {str(e)}")
+                if attempt < retries - 1:
+                    logger.info(f"Versuche erneut ({attempt+1}/{retries})...")
+                    import time
+                    time.sleep(2)  # 2 Sekunden warten
+                    continue
+                return None
+            
+            # Wenn wir hier ankommen, hat die Anfrage fehlgeschlagen und wir haben alle Wiederholungen ausgeschöpft
+            return None
+    
+    # Machine API Methoden
+    def get_machines(self):
+        """
+        Ruft alle Automaten (Maschinen) von der Vendon API ab
+        
+        :return: Liste der Automaten oder leere Liste bei Fehler
+        """
+        response = self._make_request("machine")
+        if response and "result" in response:
+            return response["result"]
+        return []
+    
+    def get_machine_detail(self, machine_id):
+        """
+        Ruft Details zu einem bestimmten Automaten ab
+        
+        :param machine_id: ID des Automaten
+        :return: Detaillierte Informationen zum Automaten oder None bei Fehler
+        """
+        response = self._make_request(f"machine/{machine_id}")
+        if response and "result" in response:
+            return response["result"]
+        return None
+    
+    def get_machine_issues(self):
+        """
+        Ruft aktuelle Probleme bei Automaten ab
+        
+        :return: Liste der Automatenprobleme oder leere Liste bei Fehler
+        """
+        response = self._make_request("machine/issues")
+        if response and "result" in response:
+            return response["result"]
+        return []
+    
+    # Product API Methoden
+    def get_products(self):
+        """
+        Ruft alle Produkte von der Vendon API ab
+        
+        :return: Liste der Produkte oder leere Liste bei Fehler
+        """
+        # Gemäß Dokumentation gibt es keinen direkten products-Endpunkt,
+        # aber wir können Daten aus dem stock Endpunkt verwenden
+        response = self._make_request("stock")
+        if response and "result" in response:
+            return response["result"]
+        return []
+    
+    def get_product_detail(self, product_id):
+        """
+        Ruft Details zu einem bestimmten Produkt ab
+        
+        :param product_id: ID des Produkts
+        :return: Detaillierte Informationen zum Produkt oder None bei Fehler
+        """
+        # Da es keinen direkten Endpunkt gibt, versuchen wir es mit einem alternativen Ansatz
+        products = self.get_products()
+        for product in products:
+            if product.get("id") == product_id:
+                return product
+        return None
+    
+    def get_events(self, start_date=None, end_date=None, machine_id=None):
+        """
+        Ruft Ereignisse von der Vendon API ab
+        
+        :param start_date: Startdatum für die Abfrage (datetime, String im Format YYYY-MM-DD oder UNIX-Zeitstempel)
+        :param end_date: Enddatum für die Abfrage (datetime, String im Format YYYY-MM-DD oder UNIX-Zeitstempel)
+        :param machine_id: Optional - ID des Automaten für gefilterte Ergebnisse
+        :return: Liste der Ereignisse oder leere Liste bei Fehler
+        """
+        try:
+            response = self._make_request("events")
+            if response and "result" in response:
+                events = response["result"]
+                
+                # Filtere nach Datum, falls angegeben
+                if start_date or end_date:
+                    filtered_events = []
+                    for event in events:
+                        event_time = event.get("datetime") or event.get("created_at")
+                        if not event_time:
+                            continue
+                            
+                        # Konvertiere zu datetime
+                        try:
+                            event_datetime = datetime.fromtimestamp(int(event_time))
+                        except (ValueError, TypeError):
+                            continue
+                            
+                        # Filtere nach Startdatum
+                        if start_date:
+                            if isinstance(start_date, datetime):
+                                start_dt = start_date
+                            elif isinstance(start_date, str):
+                                try:
+                                    start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+                                except ValueError:
+                                    try:
+                                        start_dt = datetime.fromtimestamp(int(start_date))
+                                    except (ValueError, TypeError):
+                                        continue
+                            else:
+                                try:
+                                    start_dt = datetime.fromtimestamp(int(start_date))
+                                except (ValueError, TypeError):
+                                    continue
+                                    
+                            if event_datetime < start_dt:
+                                continue
+                                
+                        # Filtere nach Enddatum
+                        if end_date:
+                            if isinstance(end_date, datetime):
+                                end_dt = end_date
+                            elif isinstance(end_date, str):
+                                try:
+                                    end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+                                    # Ende des Tages
+                                    end_dt = end_dt.replace(hour=23, minute=59, second=59)
+                                except ValueError:
+                                    try:
+                                        end_dt = datetime.fromtimestamp(int(end_date))
+                                    except (ValueError, TypeError):
+                                        continue
+                            else:
+                                try:
+                                    end_dt = datetime.fromtimestamp(int(end_date))
+                                except (ValueError, TypeError):
+                                    continue
+                                    
+                            if event_datetime > end_dt:
+                                continue
+                                
+                        # Filtere nach Maschinen-ID
+                        if machine_id and event.get("machine_id") != machine_id:
+                            continue
+                            
+                        filtered_events.append(event)
+                    
+                    return filtered_events
+                
+                # Wenn keine Filterung erforderlich ist, gib alle Ereignisse zurück
+                return events
+                
+            return []
+        except Exception as e:
+            logger.error(f"Fehler beim Abrufen von Ereignissen: {str(e)}")
+            return []
+    
+    def get_mock_transactions(self, start_date=None, end_date=None, machine_id=None, offset=0, limit=100):
+        """
+        Erstellt simulierte Transaktionsdaten für Tests, basierend auf echten Maschinendaten
+        Diese Methode sollte nur verwendet werden, wenn die tatsächliche API nicht funktioniert,
+        bis der Zugang zur stats/sales API korrekt konfiguriert ist.
+        
+        :param start_date: Startdatum für die Abfrage
+        :param end_date: Enddatum für die Abfrage
+        :param machine_id: Optional - ID des Automaten für gefilterte Ergebnisse
+        :param offset: Optional - Offset für Pagination
+        :param limit: Optional - Anzahl der abzurufenden Einträge
+        :return: Liste der simulierten Transaktionsdaten
+        """
+        # Hole echte Maschinendetails, um realistische Daten zu generieren
+        machines = self.get_machines()
+        if not machines:
+            return []
+            
+        # Wenn machine_id angegeben ist, filtere die Liste
+        if machine_id:
+            machines = [m for m in machines if m.get("id") == machine_id]
+            if not machines:
+                return []
+                
+        # Produkte holen
+        products = self.get_products()
+        if not products:
+            return []
+            
+        # Datumsbereich bestimmen
+        now = datetime.now()
+        if not end_date:
+            end_dt = now
+        elif isinstance(end_date, datetime):
+            end_dt = end_date
+        elif isinstance(end_date, str):
+            try:
+                end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+                end_dt = end_dt.replace(hour=23, minute=59, second=59)
+            except ValueError:
+                try:
+                    end_dt = datetime.fromtimestamp(int(end_date))
+                except (ValueError, TypeError):
+                    end_dt = now
+        else:
+            try:
+                end_dt = datetime.fromtimestamp(int(end_date))
+            except (ValueError, TypeError):
+                end_dt = now
+                
+        if not start_date:
+            start_dt = end_dt - timedelta(days=7)
+        elif isinstance(start_date, datetime):
+            start_dt = start_date
+        elif isinstance(start_date, str):
+            try:
+                start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+            except ValueError:
+                try:
+                    start_dt = datetime.fromtimestamp(int(start_date))
+                except (ValueError, TypeError):
+                    start_dt = end_dt - timedelta(days=7)
+        else:
+            try:
+                start_dt = datetime.fromtimestamp(int(start_date))
+            except (ValueError, TypeError):
+                start_dt = end_dt - timedelta(days=7)
+                
+        # Berechne Anzahl der zu generierenden Transaktionen
+        total_days = (end_dt - start_dt).days + 1
+        transactions_per_day = min(5, max(1, int(limit / total_days))) if total_days > 0 else 1
+        
+        # Generiere Transaktionen
+        transactions = []
+        
+        # Für jede Maschine und jeden Tag im Datumsbereich
+        for machine in machines:
+            machine_id = machine.get("id")
+            machine_name = machine.get("name", "Unbekannt")
+            location = machine.get("location", {})
+            location_name = location.get("name", "Unbekannter Standort") if location else "Unbekannter Standort"
+            
+            # Für jeden Tag
+            current_dt = start_dt
+            while current_dt <= end_dt:
+                # Zufällige Anzahl von Transaktionen pro Tag
+                import random
+                day_transactions = random.randint(1, transactions_per_day * 2)
+                
+                for _ in range(day_transactions):
+                    # Zufälliges Produkt auswählen
+                    if products:
+                        product = random.choice(products)
+                        product_id = product.get("id")
+                        product_name = product.get("name", "Unbekanntes Produkt")
+                        price = product.get("price", random.uniform(1.0, 5.0))
+                    else:
+                        product_id = random.randint(1000, 9999)
+                        product_name = f"Produkt {product_id}"
+                        price = random.uniform(1.0, 5.0)
+                        
+                    # Zufällige Uhrzeit im aktuellen Tag
+                    hour = random.randint(6, 22)
+                    minute = random.randint(0, 59)
+                    second = random.randint(0, 59)
+                    transaction_dt = current_dt.replace(hour=hour, minute=minute, second=second)
+                    timestamp = int(transaction_dt.timestamp())
+                    
+                    # Zahlungsmethode
+                    payment_methods = ["cash", "cashless", "card", "mobile"]
+                    payment_method = random.choice(payment_methods)
+                    
+                    # Transaktion erstellen
+                    transaction = {
+                        "id": random.randint(100000, 999999),
+                        "machine_id": machine_id,
+                        "machine_name": machine_name,
+                        "location_id": location.get("id") if location else None,
+                        "location_name": location_name,
+                        "product_id": product_id,
+                        "product_name": product_name,
+                        "price": price,
+                        "timestamp": timestamp,
+                        "datetime": transaction_dt.strftime('%Y-%m-%d %H:%M:%S'),
+                        "payment_method": payment_method,
+                        "status": "completed",
+                        "is_simulated": True  # Markierung für simulierte Daten
+                    }
+                    
+                    transactions.append(transaction)
+                
+                # Nächster Tag
+                current_dt += timedelta(days=1)
+        
+        # Sortiere nach Zeitstempel, neueste zuerst
+        transactions.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+        
+        # Pagination anwenden
+        start_idx = min(offset, len(transactions))
+        end_idx = min(start_idx + limit, len(transactions))
+        
+        logger.warning("Verwende simulierte Transaktionsdaten, da der stats/sales API-Endpunkt nicht funktioniert!")
+        logger.info(f"Generierte {len(transactions)} simulierte Transaktionen, zeige {end_idx - start_idx} (Offset: {offset}, Limit: {limit})")
+        
+        return transactions[start_idx:end_idx]
+    
+    def _prepare_date_objects(self, start_date=None, end_date=None, days_default=7):
+        """
+        Bereitet Datumsobjekte für API-Anfragen vor
+        
+        :param start_date: Startdatum (datetime, String im Format YYYY-MM-DD oder UNIX-Zeitstempel)
+        :param end_date: Enddatum (datetime, String im Format YYYY-MM-DD oder UNIX-Zeitstempel)
+        :param days_default: Standard-Anzahl der Tage für den Abfragezeitraum
+        :return: Tuple mit (start_dt, end_dt) als datetime-Objekte
+        """
+        start_dt = None
+        end_dt = None
+        
+        # Startdatum konvertieren
+        if start_date is not None:
+            if isinstance(start_date, datetime):
+                start_dt = start_date
+            elif isinstance(start_date, str):
+                try:
+                    # Versuche, das Datum im Format YYYY-MM-DD zu interpretieren
+                    start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+                except ValueError:
+                    try:
+                        # Vielleicht ist es bereits ein UNIX-Timestamp als String
+                        start_dt = datetime.fromtimestamp(int(start_date))
+                    except (ValueError, TypeError):
+                        logger.warning(f"Ungültiges Startdatum-Format: {start_date}, verwende Standard")
+            else:
+                # Vielleicht ist es bereits ein UNIX-Timestamp als Integer
+                try:
+                    start_dt = datetime.fromtimestamp(int(start_date))
+                except (ValueError, TypeError):
+                    logger.warning(f"Ungültiges Startdatum: {start_date}, verwende Standard")
+        
+        # Enddatum konvertieren
+        if end_date is not None:
+            if isinstance(end_date, datetime):
+                end_dt = end_date
+            elif isinstance(end_date, str):
+                try:
+                    # Bei YYYY-MM-DD Format, setze auf Ende des Tages
+                    end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+                    end_dt = end_dt.replace(hour=23, minute=59, second=59)
+                except ValueError:
+                    try:
+                        # Vielleicht ist es bereits ein UNIX-Timestamp als String
+                        end_dt = datetime.fromtimestamp(int(end_date))
+                    except (ValueError, TypeError):
+                        logger.warning(f"Ungültiges Enddatum-Format: {end_date}, verwende Standard")
+            else:
+                # Vielleicht ist es bereits ein UNIX-Timestamp als Integer
+                try:
+                    end_dt = datetime.fromtimestamp(int(end_date))
+                except (ValueError, TypeError):
+                    logger.warning(f"Ungültiges Enddatum: {end_date}, verwende Standard")
+        
+        # Standardwerte, falls keine gültigen Daten angegeben wurden
+        if start_dt is None:
+            # Standardmäßig X Tage zurück
+            start_dt = datetime.now() - timedelta(days=days_default)
+        
+        if end_dt is None:
+            # Standardmäßig jetzt
+            end_dt = datetime.now()
+            
+        return start_dt, end_dt
+    
+    def get_transactions(self, start_date=None, end_date=None, machine_id=None, offset=0, limit=100):
+        """
+        Ruft Transaktionsdaten von der Vendon API über die verfügbaren Endpunkte ab
+        
+        Da die Vendon API derzeit "Invalid date format" Fehler für die Transaktionsendpunkte zurückgibt,
+        führt diese Methode mehrere alternative Strategien durch:
+        1. Versucht, Transaktionsdaten direkt von der API zu erhalten
+        2. Wenn keine API-Daten verfügbar sind, ruft stattdessen die Transaktionen aus der lokalen Datenbank ab
+        
+        :param start_date: Startdatum für die Abfrage (datetime, String im Format YYYY-MM-DD oder UNIX-Zeitstempel)
+        :param end_date: Enddatum für die Abfrage (datetime, String im Format YYYY-MM-DD oder UNIX-Zeitstempel)
+        :param machine_id: Optional - ID des Automaten für gefilterte Ergebnisse
+        :param offset: Optional - Offset für Pagination
+        :param limit: Optional - Anzahl der abzurufenden Einträge
+        :return: Liste der Transaktionsdaten oder leere Liste bei Fehler
+        """
+        # Datumsobjekte vorbereiten
+        start_dt, end_dt = self._prepare_date_objects(start_date, end_date)
+        
+        logger.info(f"Hole Transaktionen für Zeitraum: {start_dt.strftime('%Y-%m-%d')} bis {end_dt.strftime('%Y-%m-%d')}")
+        
+        # Methode 1: Versuche direkten API-Zugriff mit verschiedenen Formaten
+        api_transactions = self._try_direct_api_access(start_dt, end_dt, machine_id, offset, limit)
+        if api_transactions:
+            return api_transactions
+        
+        # Methode 2: Wenn API-Zugriff fehlschlägt, hole Daten aus der lokalen Datenbank
+        logger.info("API-Zugriff fehlgeschlagen, hole Daten aus lokaler Datenbank...")
+        db_transactions = self._get_transactions_from_db(start_dt, end_dt, machine_id, offset, limit)
+        if db_transactions:
+            logger.info(f"Erfolgreich {len(db_transactions)} Transaktionen aus der Datenbank abgerufen")
+            return db_transactions
+        
+        logger.error("Konnte keine Transaktionsdaten abrufen, weder über API noch aus der Datenbank!")
+        return []
+    
+    def _try_direct_api_access(self, start_dt, end_dt, machine_id=None, offset=0, limit=100):
+        """
+        Versucht, direkt auf die Vendon API zuzugreifen mit verschiedenen Formatierungen
+        
+        :param start_dt: Startdatum als datetime
+        :param end_dt: Enddatum als datetime
+        :param machine_id: Optional - ID des Automaten
+        :param offset: Optional - Offset für Pagination
+        :param limit: Optional - Anzahl der abzurufenden Einträge
+        :return: Liste der Transaktionen oder None bei Fehler
+        """
+        # Formatoptionen für die Parameter
+        parameter_sets = [
+            # 1. Standard UNIX Timestamps als int
+            {
+                "from": int(start_dt.timestamp()),
+                "till": int(end_dt.timestamp()),
+                "offset": offset,
+                "limit": limit
+            },
+            # 2. UNIX Timestamps als Strings
+            {
+                "from": str(int(start_dt.timestamp())),
+                "till": str(int(end_dt.timestamp())),
+                "offset": offset,
+                "limit": limit
+            },
+            # 3. ISO Datumsformat
+            {
+                "from": start_dt.strftime("%Y-%m-%d"),
+                "till": end_dt.strftime("%Y-%m-%d"),
+                "offset": offset,
+                "limit": limit
+            },
+            # 4. Alternative Parameternamen
+            {
+                "date_from": int(start_dt.timestamp()),
+                "date_till": int(end_dt.timestamp()),
+                "offset": offset,
+                "limit": limit
+            },
+            # 5. Datum mit Zeit (ISO Format)
+            {
+                "from": start_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+                "till": end_dt.strftime("%Y-%m-%dT%H:%M:%S"),
+                "offset": offset,
+                "limit": limit
+            },
+            # 6. Sekunden seit Epoche (als int und 10-stellig)
+            {
+                "from": int(start_dt.timestamp()),
+                "till": int(end_dt.timestamp()),
+                "offset": offset,
+                "limit": limit
+            },
+            # 7. Millisekunden seit Epoche
+            {
+                "from": int(start_dt.timestamp() * 1000),
+                "till": int(end_dt.timestamp() * 1000),
+                "offset": offset,
+                "limit": limit
+            },
+            # 8. Nur Datum ohne Zeit (für Tagesstatistiken)
+            {
+                "date_from": start_dt.strftime("%Y-%m-%d"),
+                "date_till": end_dt.strftime("%Y-%m-%d"),
+                "offset": offset,
+                "limit": limit
+            }
+        ]
+        
+        # Endpunkte, die Transaktionsdaten liefern könnten - stats/vends ist die bevorzugte Methode
+        endpoints = ["stats/vends"]  # Fokus auf den bekannten funktionierenden Endpunkt
+        
+        # Füge machine_id hinzu, falls vorhanden
+        if machine_id:
+            for params in parameter_sets:
+                params["machine_id"] = machine_id
+        
+        # Probiere verschiedene Kombinationen
+        for endpoint in endpoints:
+            for params in parameter_sets:
+                logger.info(f"Versuche {endpoint} mit {params}")
+                response = self._make_request(endpoint, params=params)
+                
+                if response and "result" in response:
+                    transactions = response["result"]
+                    logger.info(f"Erfolgreich {len(transactions)} Transaktionen über {endpoint} abgerufen")
+                    return transactions
+        
+        logger.warning("Alle API-Zugriffe fehlgeschlagen")
+        return None
+    
+    def _get_transactions_from_db(self, start_dt, end_dt, machine_id=None, offset=0, limit=100):
+        """
+        Ruft Transaktionsdaten aus der lokalen Datenbank ab
+        
+        :param start_dt: Startdatum als datetime
+        :param end_dt: Enddatum als datetime
+        :param machine_id: Optional - ID des Automaten
+        :param offset: Optional - Offset für Pagination
+        :param limit: Optional - Anzahl der abzurufenden Einträge
+        :return: Liste der Transaktionen oder leere Liste bei Fehler
+        """
+        import sqlite3
+        
+        try:
+            # Konvertiere Datumsangaben in Strings für die SQL-Abfrage
+            start_str = start_dt.strftime('%Y-%m-%d %H:%M:%S')
+            end_str = end_dt.strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Verbindung zur Datenbank herstellen
+            conn = sqlite3.connect('inventory.db')
+            cursor = conn.cursor()
+            
+            # Basis der SQL-Abfrage
+            query = """
+            SELECT vt.*, l.name as location_name, p.name as product_name
+            FROM vendon_transactions vt
+            LEFT JOIN locations l ON vt.machine_id = l.vendon_id
+            LEFT JOIN products p ON vt.product_id = p.vendon_id
+            WHERE vt.datetime BETWEEN ? AND ?
+            """
+            params = [start_str, end_str]
+            
+            # Füge machine_id-Filter hinzu, falls angegeben
+            if machine_id:
+                query += " AND vt.machine_id = ?"
+                params.append(machine_id)
+            
+            # Sortierung und Paginierung
+            query += " ORDER BY vt.datetime DESC LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+            
+            # Abfrage ausführen
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+            
+            # Spaltennamen abrufen
+            column_names = [description[0] for description in cursor.description]
+            
+            # Ergebnisse in Dictionary konvertieren
+            transactions = []
+            for row in rows:
+                transaction = {}
+                for i, column_name in enumerate(column_names):
+                    transaction[column_name] = row[i]
+                transactions.append(transaction)
+            
+            conn.close()
+            
+            logger.info(f"Erfolgreicher Abruf von {len(transactions)} Transaktionen aus der Datenbank")
+            return transactions
+            
+        except Exception as e:
+            logger.error(f"Fehler beim Abruf von Transaktionen aus der Datenbank: {str(e)}")
+            return []
+    
+    def get_machine_stock(self, machine_id):
+        """
+        Ruft den aktuellen Lagerbestand eines Automaten ab
+        
+        :param machine_id: ID des Automaten
+        :return: Liste der Produkte mit Lagerbestand oder leere Liste bei Fehler
+        """
+        response = self._make_request(f"machine/{machine_id}/stock")
+        if response and "result" in response:
+            return response["result"]
+        return []
+        
+    def get_refills(self, start_date=None, end_date=None, machine_id=None, offset=0, limit=100):
+        """
+        Ruft Refill-Daten (Auffüllungen) von der Vendon API ab
+        
+        :param start_date: Startdatum für die Abfrage (datetime, String im Format YYYY-MM-DD oder UNIX-Zeitstempel)
+        :param end_date: Enddatum für die Abfrage (datetime, String im Format YYYY-MM-DD oder UNIX-Zeitstempel)
+        :param machine_id: Optional - ID des Automaten für gefilterte Ergebnisse
+        :param offset: Optional - Offset für Pagination
+        :param limit: Optional - Anzahl der abzurufenden Einträge
+        :return: Liste der Refill-Daten oder leere Liste bei Fehler
+        """
+        # Zeitstempel vorbereiten
+        start_dt, end_dt = self._prepare_date_objects(start_date, end_date, days_default=30)
+        start_timestamp = int(start_dt.timestamp())
+        end_timestamp = int(end_dt.timestamp())
+        
+        logger.info(f"Hole Refills für Zeitraum: {start_dt.strftime('%Y-%m-%d')} bis {end_dt.strftime('%Y-%m-%d')}")
+        
+        # Basierend auf Tests nutzen wir den "refills"-Endpunkt mit "from_timestamp" und "to_timestamp" Parametern
+        params = {
+            "from_timestamp": start_timestamp,  # Sekundenzeitstempel
+            "to_timestamp": end_timestamp,      # Sekundenzeitstempel
+            "offset": offset,
+            "limit": limit
+        }
+        
+        # Wenn machine_id angegeben ist, füge sie zu den Parametern hinzu
+        if machine_id:
+            params["machine_id"] = machine_id
+        
+        logger.info(f"Rufe refills ab mit Parametern: {params}")
+        
+        # Verwende den refills-Endpunkt (Plural, nicht Singular)
+        response = self._make_request("refills", params=params)
+        
+        if response and "result" in response:
+            refills = response["result"]
+            logger.info(f"Erfolgreich {len(refills)} Refills abgerufen")
+            return refills
+        
+        # Wenn keine Refills gefunden wurden oder es einen Fehler gab
+        if response:
+            error_message = response.get("error", "Unbekannter Fehler")
+            logger.error(f"API-Fehler beim Abrufen von Refills: {error_message}")
+        else:
+            logger.error("Unbekannter Fehler beim Abrufen von Refills")
+        
+        # Kein Fallback auf alternative Endpunkte, stattdessen klare Fehlermeldung
+        logger.error("Keine Refills gefunden. Stellen Sie sicher, dass der API-Zugriff korrekt konfiguriert ist.")
+        
+        # Versuche, aus der Datenbank zu laden
+        logger.info("Versuche, Refills aus der lokalen Datenbank zu laden")
+        return self._get_refills_from_db(start_dt, end_dt, machine_id, offset, limit)
+        
+    def _get_refills_from_db(self, start_dt, end_dt, machine_id=None, offset=0, limit=100):
+        """
+        Ruft Refill-Daten aus der lokalen Datenbank ab
+        
+        :param start_dt: Startdatum als datetime
+        :param end_dt: Enddatum als datetime
+        :param machine_id: Optional - ID des Automaten
+        :param offset: Optional - Offset für Pagination
+        :param limit: Optional - Anzahl der abzurufenden Einträge
+        :return: Liste der Refills oder leere Liste bei Fehler
+        """
+        import sqlite3
+        
+        try:
+            # Konvertiere Datumsangaben in Strings für die SQL-Abfrage
+            start_str = start_dt.strftime('%Y-%m-%d %H:%M:%S')
+            end_str = end_dt.strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Verbindung zur Datenbank herstellen
+            conn = sqlite3.connect('inventory.db')
+            cursor = conn.cursor()
+            
+            # Prüfe, ob die Tabelle existiert
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='vendon_refills'")
+            if not cursor.fetchone():
+                logger.error("Tabelle vendon_refills existiert nicht in der Datenbank")
+                conn.close()
+                return []
+            
+            # Basis der SQL-Abfrage
+            query = """
+            SELECT vr.*, vm.name as machine_name, l.name as location_name
+            FROM vendon_refills vr
+            LEFT JOIN vendon_machines vm ON vr.machine_id = vm.vendon_id
+            LEFT JOIN locations l ON vm.location_id = l.id
+            WHERE vr.datetime BETWEEN ? AND ?
+            """
+            params = [start_str, end_str]
+            
+            # Füge machine_id-Filter hinzu, falls angegeben
+            if machine_id:
+                query += " AND vr.machine_id = ?"
+                params.append(machine_id)
+            
+            # Füge Sortierung und Limit hinzu
+            query += " ORDER BY vr.datetime DESC LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+            
+            # Führe Abfrage aus
+            cursor.execute(query, params)
+            columns = [desc[0] for desc in cursor.description]
+            
+            # Konvertiere in Liste von Dictionaries
+            refills = []
+            for row in cursor.fetchall():
+                refill = dict(zip(columns, row))
+                
+                # Parse das refill_data-Feld, falls vorhanden
+                if refill.get('refill_data'):
+                    try:
+                        refill['refill_data'] = json.loads(refill['refill_data'])
+                    except json.JSONDecodeError:
+                        pass
+                
+                refills.append(refill)
+            
+            logger.info(f"Abgerufen: {len(refills)} Refills aus der Datenbank")
+            
+            # Schließe die Verbindung
+            conn.close()
+            
+            return refills
+            
+        except sqlite3.Error as e:
+            logger.error(f"SQLite-Fehler beim Abrufen der Refills: {e}")
+            return []
+        except Exception as e:
+            logger.error(f"Unerwarteter Fehler beim Datenzugriff: {e}")
+            return []
+            
+    def get_refill_detail(self, refill_id):
+        """
+        Ruft Details zu einem bestimmten Refill ab
+        
+        :param refill_id: ID des Refills
+        :return: Detaillierte Informationen zum Refill oder None bei Fehler
+        """
+        logger.info(f"Hole Details für Refill {refill_id}")
+        
+        # Der korrekte Endpunkt ist "refills/ID" (Plural mit ID)
+        endpoint = f"refills/{refill_id}"
+        logger.info(f"Versuche Endpunkt: {endpoint}")
+        response = self._make_request(endpoint)
+        
+        if response and "result" in response:
+            refill_detail = response["result"]
+            logger.info(f"Erfolgreich Details für Refill {refill_id} über Endpunkt {endpoint} abgerufen")
+            
+            # Basierend auf Tests: refill_detail ist eine Liste
+            if isinstance(refill_detail, list):
+                if refill_detail:
+                    # Wenn mindestens ein Element vorhanden ist, verwende das gesamte Ergebnis
+                    logger.info(f"Refill-Details enthalten {len(refill_detail)} Produkte/Elemente")
+                    # Erstelle ein zusammengesetztes Objekt mit Refill-ID und Produkten
+                    refill_full = {
+                        "id": refill_id,
+                        "products": refill_detail,
+                        "product_count": len(refill_detail)
+                    }
+                    return refill_full
+                else:
+                    logger.warning(f"Refill {refill_id} hat keine Produkte")
+                    return {"id": refill_id, "products": [], "product_count": 0}
+            else:
+                # Falls das Ergebnis kein erwartetes Listenformat hat
+                logger.info(f"Refill-Details in unerwartetem Format: {type(refill_detail).__name__}")
+                return refill_detail
+        
+        # Wenn der refills/ID-Endpunkt fehlschlägt, probiere alternative Endpunkte
+        for alt_endpoint in [f"refill/{refill_id}", f"refills/detail/{refill_id}"]:
+            logger.info(f"Versuche alternativen Endpunkt: {alt_endpoint}")
+            response = self._make_request(alt_endpoint)
+            
+            if response and "result" in response:
+                refill_detail = response["result"]
+                logger.info(f"Erfolgreich Details für Refill {refill_id} über Endpunkt {alt_endpoint} abgerufen")
+                return refill_detail
+        
+        # Wenn alle direkten Endpunkte fehlschlagen, probiere Filter-Parameter
+        logger.info(f"Versuche Refill-Details über refills-Endpunkt mit filter")
+        response = self._make_request("refills", params={"refill_id": refill_id, "limit": 1})
+        
+        if response and "result" in response and response["result"]:
+            refill_detail = response["result"][0]
+            logger.info(f"Erfolgreich Details für Refill {refill_id} über filter-Parameter abgerufen")
+            return refill_detail
+        
+        # Wenn keine Details gefunden wurden oder es einen Fehler gab
+        if response:
+            error_message = response.get("error", "Unbekannter Fehler")
+            logger.error(f"API-Fehler beim Abrufen von Refill-Details: {error_message}")
+        else:
+            logger.error(f"Unbekannter Fehler beim Abrufen von Refill-Details für ID {refill_id}")
+        
+        # Versuche, aus der Datenbank zu laden
+        logger.info(f"Versuche, Refill {refill_id} aus der lokalen Datenbank zu laden")
+        return self._get_refill_detail_from_db(refill_id)
+        
+    def _get_refill_detail_from_db(self, refill_id):
+        """
+        Ruft Details zu einem bestimmten Refill aus der lokalen Datenbank ab
+        
+        :param refill_id: ID des Refills
+        :return: Detaillierte Informationen zum Refill oder None bei Fehler
+        """
+        import sqlite3
+        
+        try:
+            # Verbindung zur Datenbank herstellen
+            conn = sqlite3.connect('inventory.db')
+            cursor = conn.cursor()
+            
+            # Prüfe, ob die Tabelle existiert
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='vendon_refills'")
+            if not cursor.fetchone():
+                logger.error("Tabelle vendon_refills existiert nicht in der Datenbank")
+                conn.close()
+                return None
+            
+            # Abfrage
+            query = """
+            SELECT vr.*, vm.name as machine_name, l.name as location_name
+            FROM vendon_refills vr
+            LEFT JOIN vendon_machines vm ON vr.machine_id = vm.vendon_id
+            LEFT JOIN locations l ON vm.location_id = l.id
+            WHERE vr.vendon_id = ?
+            LIMIT 1
+            """
+            
+            # Führe Abfrage aus
+            cursor.execute(query, [refill_id])
+            columns = [desc[0] for desc in cursor.description]
+            
+            # Hole das Ergebnis
+            row = cursor.fetchone()
+            
+            if row:
+                refill = dict(zip(columns, row))
+                
+                # Parse das refill_data-Feld, falls vorhanden
+                if refill.get('refill_data'):
+                    try:
+                        refill['refill_data'] = json.loads(refill['refill_data'])
+                    except json.JSONDecodeError:
+                        pass
+                
+                conn.close()
+                logger.info(f"Erfolgreich Details für Refill {refill_id} aus der Datenbank abgerufen")
+                return refill
+            
+            # Schließe die Verbindung, wenn kein Refill gefunden wurde
+            conn.close()
+            logger.warning(f"Refill {refill_id} nicht in der Datenbank gefunden")
+            return None
+            
+        except sqlite3.Error as e:
+            logger.error(f"SQLite-Fehler beim Abrufen der Refill-Details: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Unerwarteter Fehler beim Datenzugriff: {e}")
+            return None
+
+# Testet die API-Verbindung, wenn direkt ausgeführt
+if __name__ == "__main__":
+    api = VendonAPI()
+    
+    # Teste Machine API
+    print("Teste Maschinenabruf...")
+    machines = api.get_machines()
+    print(f"Anzahl der Maschinen: {len(machines)}")
+    if machines:
+        machine_id = machines[0].get("id")
+        print(f"Erste Maschine ID: {machine_id}, Name: {machines[0].get('name')}")
+        
+        # Teste Machine Detail
+        print("\nTeste Maschinendaten...")
+        machine_detail = api.get_machine_detail(machine_id)
+        if machine_detail:
+            print(f"Detaillierte Informationen für Maschine {machine_id} abgerufen")
+        
+        # Teste Machine Stock
+        print("\nTeste Maschinenbestand...")
+        machine_stock = api.get_machine_stock(machine_id)
+        print(f"Anzahl der Produkte im Bestand: {len(machine_stock)}")
+    
+    # Teste Product API
+    print("\nTeste Produktabruf...")
+    products = api.get_products()
+    print(f"Anzahl der Produkte: {len(products)}")
+    
+    # Teste Transaktionen
+    print("\nTeste Transaktionsabruf...")
+    yesterday = datetime.now() - timedelta(days=1)
+    transactions = api.get_transactions(yesterday, datetime.now())
+    print(f"Anzahl der Transaktionen: {len(transactions)}")
+    if transactions:
+        print("Erste Transaktion:")
+        for key, value in transactions[0].items():
+            print(f"  {key}: {value}")
+            
+    # Teste Refills
+    print("\nTeste Refills-Abruf...")
+    last_week = datetime.now() - timedelta(days=7)
+    refills = api.get_refills(last_week, datetime.now())
+    print(f"Anzahl der Refills: {len(refills)}")
+    if refills:
+        print("Erste Refill:")
+        for key, value in refills[0].items():
+            print(f"  {key}: {value}")

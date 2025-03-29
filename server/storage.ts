@@ -21,6 +21,7 @@ export interface IStorage {
 
   // Machine operations
   getMachines(limit?: number): Promise<Machine[]>;
+  getAllMachines(): Promise<Machine[]>;
   getMachine(id: number): Promise<Machine | undefined>;
   getMachineByVendonId(vendonId: string): Promise<Machine | undefined>;
   createMachine(machine: InsertMachine): Promise<Machine>;
@@ -87,6 +88,10 @@ export class DatabaseStorage implements IStorage {
   // Machine operations
   async getMachines(limit: number = 100): Promise<Machine[]> {
     return await db.select().from(machines).limit(limit);
+  }
+  
+  async getAllMachines(): Promise<Machine[]> {
+    return await db.select().from(machines);
   }
 
   async getMachine(id: number): Promise<Machine | undefined> {

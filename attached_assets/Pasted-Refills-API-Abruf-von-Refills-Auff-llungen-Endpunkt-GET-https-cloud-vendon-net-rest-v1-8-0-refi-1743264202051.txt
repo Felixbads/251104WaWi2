@@ -1,0 +1,53 @@
+Refills API
+Abruf von Refills (Auffüllungen)
+Endpunkt: GET https://cloud.vendon.net/rest/v1.8.0/refills
+
+Parameter:
+
+from_timestamp: UNIX-Zeitstempel in Sekunden (nicht Millisekunden)
+to_timestamp: UNIX-Zeitstempel in Sekunden (nicht Millisekunden)
+machine_id: Optional - ID des Automaten für gefilterte Ergebnisse
+offset: Optional - Offset für Paginierung
+limit: Optional - Anzahl der abzurufenden Einträge
+Die Zeitstempel müssen unbedingt in Sekunden und nicht in Millisekunden angegeben werden. Der Endpunkt erwartet "refills" (Plural) als korrekten Pfad.
+
+Abruf von Refill-Details
+Endpunkt: GET https://cloud.vendon.net/rest/v1.8.0/refills/{refill_id}
+
+Parameter:
+
+refill_id: ID des Refills in der URL
+Wichtig: Die Details eines Refills enthalten eine Liste von Produkten und nicht die Metadaten zum Refill selbst. Falls Sie sowohl Metadaten als auch Produktdetails benötigen, müssen beide Anfragen kombiniert werden.
+
+In Ihrem Code gibt es sogar Fallback-Mechanismen, wenn der Hauptendpunkt fehlschlägt:
+
+refill/{refill_id}
+refills/detail/{refill_id}
+refills mit Parameter ?refill_id={refill_id}&limit=1
+Events API
+Die Events können zur Identifizierung von Refill-Ereignissen genutzt werden, besonders wenn direkte Refill-API-Aufrufe fehlschlagen.
+
+Das System filtert Events nach bestimmten Namen wie 'refill' oder 'nachfüllung', um Refill-Ereignisse zu identifizieren.
+
+Lokale API-Endpunkte
+Für Frontend-Entwicklung stehen folgende Endpunkte zur Verfügung:
+
+Refill-Endpunkte
+GET /api/refills - Liste aller Refills abrufen (mit Paginierung und Filterung)
+GET /api/refills/{refill_id} - Details eines spezifischen Refills abrufen
+GET /api/refills/latest - Die neuesten Refills abrufen
+POST /api/refills/{refill_id}/reduce-inventory - Bestand für einen Refill reduzieren
+POST /api/refills/process-unprocessed - Alle unverarbeiteten Refills verarbeiten
+Zusätzliche spezifische Refill-Endpunkte
+GET /api/machines/{machine_id}/refills - Refills für einen bestimmten Automaten abrufen
+GET /api/refills/statistics - Statistiken zu Refills abrufen
+Event-Endpunkte
+GET /api/vendon/events - Liste aller Events abrufen
+Paginierung und Filterung
+Die meisten Endpunkte unterstützen Parameter für Paginierung und Filterung:
+
+limit - Maximale Anzahl der zurückzugebenden Einträge (Standard: 100)
+offset - Offset für Paginierung (Standard: 0)
+days - Anzahl der Tage in die Vergangenheit
+Spezifische Filter wie machine_id, location_id etc.
+Diese Struktur ermöglicht eine flexible Abfrage und Verarbeitung von Refill- und Event-Daten sowohl direkt von der Vendon API als auch über die lokale API-Schnittstelle

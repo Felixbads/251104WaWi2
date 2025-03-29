@@ -167,15 +167,34 @@ export type Transaction = typeof transactions.$inferSelect;
 export const refills = pgTable("refills", {
   id: serial("id").primaryKey(),
   vendonId: text("vendon_id").notNull(),
-  machineId: integer("machine_id").references(() => machines.id),
-  machineName: text("machine_name"),
-  datetime: timestamp("datetime").notNull(),
-  operator: text("operator"),
-  status: text("status"),
-  extraData: text("extra_data"),
-  source: text("source").default("vendon"),
-  locationId: integer("location_id").references(() => locations.id),
-  totalAmount: real("total_amount").default(0),
+  machineId: integer("machine_id").notNull().references(() => machines.id), // Maschinen-ID muss vorhanden sein
+  machineName: text("machine_name").default(''), // Default-Wert für machineName
+  datetime: timestamp("datetime").notNull(), // Datum/Uhrzeit muss vorhanden sein
+  operator: text("operator").default(''), // Operator kann leer sein, Standardwert ist leerer String
+  status: text("status").default('completed'), // Status kann leer sein, Standardwert ist 'completed'
+  // Zusätzliche Felder basierend auf der API-Dokumentation und Implementierung
+  refillType: text("refill_type").default(''),        // Typ der Nachfüllung mit Standardwert
+  plannedAmount: integer("planned_amount").default(0), // Geplante Menge mit Standardwert 0
+  actualAmount: integer("actual_amount").default(0),   // Tatsächliche Menge mit Standardwert 0
+  totalProducts: integer("total_products").default(0), // Anzahl der Produkte mit Standardwert 0
+  notes: text("notes").default(''),                    // Notizen mit Standardwert
+  refillNumber: text("refill_number").default(''),     // Refill-Nummer mit Standardwert
+  accountId: integer("account_id").default(0),         // Konto-ID mit Standardwert 0
+  accountName: text("account_name").default(''),       // Kontoname mit Standardwert
+  timezone: text("timezone").default(''),              // Zeitzone mit Standardwert
+  createdBy: text("created_by").default(''),           // Erstellt von mit Standardwert
+  lastModifiedBy: text("last_modified_by").default(''), // Zuletzt geändert von mit Standardwert
+  vendonCreatedAt: timestamp("vendon_created_at").defaultNow(), // Erstellt am mit aktuellem Datum als Standardwert
+  vendonUpdatedAt: timestamp("vendon_updated_at").defaultNow(), // Aktualisiert am mit aktuellem Datum als Standardwert
+  extraData: text("extra_data").default('{}'),         // JSON mit allen zusätzlichen Daten, Standardwert leeres JSON
+  source: text("source").default("vendon"),            // Quelle der Daten
+  locationId: integer("location_id").references(() => locations.id), // Standort-ID
+  totalAmount: real("total_amount").default(0),        // Gesamtbetrag mit Standardwert 0
+  processedAt: timestamp("processed_at"),              // Wann wurde der Refill verarbeitet
+  processStatus: text("process_status").default("pending"), // Verarbeitungsstatus: pending, processed, failed
+  errorMessage: text("error_message").default(''),     // Fehlermeldung bei der Verarbeitung
+  createdAt: timestamp("created_at").defaultNow(),     // Wann wurde der Datensatz erstellt
+  updatedAt: timestamp("updated_at").defaultNow(),     // Wann wurde der Datensatz aktualisiert
 }, (table) => {
   return {
     vendonIdx: unique().on(table.vendonId, table.machineId, table.datetime),
@@ -194,11 +213,31 @@ export const refillDetails = pgTable("refill_details", {
   id: serial("id").primaryKey(),
   refillId: integer("refill_id").references(() => refills.id).notNull(),
   productId: integer("product_id").references(() => products.id),
-  productName: text("product_name"),
-  quantity: integer("quantity"),
-  price: real("price"),
-  datetime: timestamp("datetime"),
-  extraData: text("extra_data"),
+  productName: text("product_name").default(''),
+  quantity: integer("quantity").default(0),
+  price: real("price").default(0),
+  datetime: timestamp("datetime").defaultNow(),
+  // Zusätzliche Felder für detaillierte Produktinformationen in einer Nachfüllung
+  vendonProductId: text("vendon_product_id").default(''),   // Vendon Produkt-ID
+  position: text("position").default(''),                   // Position im Automaten (z.B. A1, B3)
+  planogramPosition: text("planogram_position").default(''), // Planogramm-Position
+  productSku: text("product_sku").default(''),              // Produkt-SKU
+  productBarcode: text("product_barcode").default(''),      // Produkt-Barcode
+  productCategory: text("product_category").default(''),    // Produkt-Kategorie
+  vat: real("vat").default(0),                              // Mehrwertsteuer
+  depositPrice: real("deposit_price").default(0),           // Pfandpreis
+  depositVat: real("deposit_vat").default(0),               // Mehrwertsteuer auf Pfand
+  previousStock: integer("previous_stock").default(0),      // Vorheriger Bestand
+  currentStock: integer("current_stock").default(0),        // Aktueller Bestand
+  amountMax: integer("amount_max").default(0),              // Maximale Menge
+  amountStandard: integer("amount_standard").default(0),    // Standardmenge
+  amountCritical: integer("amount_critical").default(0),    // Kritische Menge
+  refillUnitSize: integer("refill_unit_size").default(0),   // Größe der Nachfülleinheit
+  minRefill: integer("min_refill").default(0),              // Mindestmenge für Nachfüllung
+  critical: boolean("critical").default(false),             // Kritischer Bestand?
+  extraData: text("extra_data").default('{}'),              // JSON mit allen zusätzlichen Daten
+  createdAt: timestamp("created_at").defaultNow(),          // Erstellungsdatum
+  updatedAt: timestamp("updated_at").defaultNow(),          // Aktualisierungsdatum
 });
 
 export const insertRefillDetailSchema = createInsertSchema(refillDetails).omit({

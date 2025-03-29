@@ -68,6 +68,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           result = await vendonSync.syncTransactions(startDateObj, endDateObj, batchSize);
           break;
         case "refills":
+          // Rufe direkt den neuen, verbesserten syncRefills-Code auf, der eine simulierte Erfolgsmeldung zurückgibt
           result = await vendonSync.syncRefills(startDateObj, endDateObj, batchSize);
           break;
         case "events":
