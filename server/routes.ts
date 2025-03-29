@@ -287,5 +287,176 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // API Debug Endpunkte
+  // Diese Endpunkte sind nur für Debugging und API-Analyse gedacht
+  app.get(`${API_PREFIX}/debug/refills`, async (_req: Request, res: Response) => {
+    try {
+      console.log("Debug-Endpunkt für Refills aufgerufen");
+      const api = vendonSync.getApi();
+      
+      // Letzter Monat bis heute als Standarddatum
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - 1);
+      const endDate = new Date();
+      
+      console.log(`Zeitbereich: ${startDate.toISOString()} bis ${endDate.toISOString()}`);
+      
+      // Direkt die API aufrufen und die Struktur der Antwort analysieren
+      const result = await api.getRefills(startDate, endDate, 1, 5);
+      
+      // Datenstrukturanalyse
+      const analysis = {
+        total: result.total,
+        itemCount: result.data ? result.data.length : 0,
+        fields: result.data && result.data.length > 0 ? Object.keys(result.data[0]) : [],
+        samples: result.data ? result.data.slice(0, 3) : [],
+        fieldTypes: {}
+      };
+      
+      // Typanalyse der ersten Elemente
+      if (result.data && result.data.length > 0) {
+        const sample = result.data[0];
+        for (const key of Object.keys(sample)) {
+          analysis.fieldTypes[key] = typeof sample[key];
+          
+          // Für verschachtelte Objekte
+          if (sample[key] && typeof sample[key] === 'object' && !Array.isArray(sample[key])) {
+            analysis.fieldTypes[key] = {
+              type: 'object',
+              fields: Object.keys(sample[key]),
+              fieldTypes: {}
+            };
+            
+            for (const nestedKey of Object.keys(sample[key])) {
+              analysis.fieldTypes[key].fieldTypes[nestedKey] = typeof sample[key][nestedKey];
+            }
+          }
+        }
+      }
+      
+      res.json({ 
+        message: "API Debug für Refills", 
+        analysis,
+        rawResult: result
+      });
+    } catch (error) {
+      console.error("Fehler beim API-Debug für Refills:", error);
+      res.status(500).json({ 
+        error: "Debug-Abfrage fehlgeschlagen", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  app.get(`${API_PREFIX}/debug/refill/:id/details`, async (req: Request, res: Response) => {
+    try {
+      console.log(`Debug-Endpunkt für Refill-Details aufgerufen, ID: ${req.params.id}`);
+      const api = vendonSync.getApi();
+      
+      // Direkt die API aufrufen und die Struktur der Antwort analysieren
+      const result = await api.getRefillDetails(req.params.id);
+      
+      // Datenstrukturanalyse
+      const analysis = {
+        fields: Object.keys(result),
+        productCount: result.products ? result.products.length : 0,
+        productFields: result.products && result.products.length > 0 ? Object.keys(result.products[0]) : [],
+        fieldTypes: {}
+      };
+      
+      // Typanalyse der Hauptfelder
+      for (const key of Object.keys(result)) {
+        if (key !== 'products') {
+          analysis.fieldTypes[key] = typeof result[key];
+        }
+      }
+      
+      // Typanalyse des ersten Produkts
+      if (result.products && result.products.length > 0) {
+        const sample = result.products[0];
+        analysis.fieldTypes['products'] = {
+          type: 'array',
+          itemType: 'object',
+          itemFields: {}
+        };
+        
+        for (const key of Object.keys(sample)) {
+          analysis.fieldTypes['products'].itemFields[key] = typeof sample[key];
+        }
+      }
+      
+      res.json({ 
+        message: "API Debug für Refill-Details", 
+        analysis,
+        rawResult: result
+      });
+    } catch (error) {
+      console.error(`Fehler beim API-Debug für Refill-Details ID ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Debug-Abfrage fehlgeschlagen", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  app.get(`${API_PREFIX}/debug/events`, async (_req: Request, res: Response) => {
+    try {
+      console.log("Debug-Endpunkt für Events aufgerufen");
+      const api = vendonSync.getApi();
+      
+      // Letzter Monat bis heute als Standarddatum
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - 1);
+      const endDate = new Date();
+      
+      console.log(`Zeitbereich: ${startDate.toISOString()} bis ${endDate.toISOString()}`);
+      
+      // Direkt die API aufrufen und die Struktur der Antwort analysieren
+      const result = await api.getEvents(startDate, endDate, 1, 5);
+      
+      // Datenstrukturanalyse
+      const analysis = {
+        total: result.total,
+        itemCount: result.data ? result.data.length : 0,
+        fields: result.data && result.data.length > 0 ? Object.keys(result.data[0]) : [],
+        samples: result.data ? result.data.slice(0, 3) : [],
+        fieldTypes: {}
+      };
+      
+      // Typanalyse der ersten Elemente
+      if (result.data && result.data.length > 0) {
+        const sample = result.data[0];
+        for (const key of Object.keys(sample)) {
+          analysis.fieldTypes[key] = typeof sample[key];
+          
+          // Für verschachtelte Objekte
+          if (sample[key] && typeof sample[key] === 'object' && !Array.isArray(sample[key])) {
+            analysis.fieldTypes[key] = {
+              type: 'object',
+              fields: Object.keys(sample[key]),
+              fieldTypes: {}
+            };
+            
+            for (const nestedKey of Object.keys(sample[key])) {
+              analysis.fieldTypes[key].fieldTypes[nestedKey] = typeof sample[key][nestedKey];
+            }
+          }
+        }
+      }
+      
+      res.json({ 
+        message: "API Debug für Events", 
+        analysis,
+        rawResult: result
+      });
+    } catch (error) {
+      console.error("Fehler beim API-Debug für Events:", error);
+      res.status(500).json({ 
+        error: "Debug-Abfrage fehlgeschlagen", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
   return httpServer;
 }
