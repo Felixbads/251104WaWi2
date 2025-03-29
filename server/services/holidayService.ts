@@ -15,6 +15,9 @@ import { de } from 'date-fns/locale';
 // API Konfiguration für deutsche Feiertage
 const HOLIDAY_API_URL = "https://feiertage-api.de/api/";
 
+// API Konfiguration für deutsche Schulferien
+const SCHOOL_HOLIDAY_API_URL = "https://openholidaysapi.org/SchoolHolidays";
+
 // Konstanten für Feiertage-Typen
 const HOLIDAY_TYPE = {
   FEDERAL: "federal", // Bundesweiter Feiertag
@@ -383,17 +386,252 @@ export async function getMissingHolidayYears(
 }
 
 /**
+ * Abrufen von Schulferien für ein bestimmtes Jahr und Bundesland
+ *
+ * @param year Das Jahr für die Schulferienabfrage
+ * @param state Das Bundesland (ISO-Code) für die Schulferienabfrage (optional)
+ * @returns Array von Schulferien oder null bei Fehler
+ */
+export async function fetchSchoolHolidays(year: number, state?: string): Promise<any | null> {
+  try {
+    console.log(`Rufe Schulferien für Jahr ${year}${state ? ` und Bundesland ${state}` : ''} ab`);
+    
+    // Formatiere ISO-Code zu ISO-3166-2 Format (z.B. "DE-BY" für Bayern)
+    const stateCode = state ? `DE-${state}` : undefined;
+    
+    // Parameter für die API-Anfrage
+    const params: Record<string, any> = {
+      countryIsoCode: "DE",
+      from: `${year}-01-01`,
+      to: `${year}-12-31`,
+      languageIsoCode: "de"
+    };
+    
+    if (stateCode) {
+      params.subdivisionCode = stateCode;
+    }
+    
+    // API-Anfrage senden
+    const response = await axios.get(SCHOOL_HOLIDAY_API_URL, { params });
+    
+    // Überprüfung und Verarbeitung der Antwort
+    if (response.status === 200 && response.data) {
+      console.log(`Schulferien für Jahr ${year} erfolgreich abgerufen`);
+      return response.data;
+    } else {
+      console.error(`Fehler bei der API-Anfrage für Schulferien im Jahr ${year}:`, response.status);
+      return null;
+    }
+  } catch (error) {
+    console.error(`Fehler beim Abrufen der Schulferien für Jahr ${year}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Speichert Schulferien in der Datenbank
+ *
+ * @param schoolHolidaysData API-Antwort mit Schulferien
+ * @returns Statistik zur Speicherung
+ */
+export async function saveSchoolHolidays(
+  schoolHolidaysData: any[]
+): Promise<{ saved: number; errors: number; duplicates: number }> {
+  let saved = 0;
+  let errors = 0;
+  let duplicates = 0;
+  
+  if (!schoolHolidaysData || schoolHolidaysData.length === 0) {
+    console.warn(`Keine Schulferien zum Speichern vorhanden`);
+    return { saved, errors, duplicates };
+  }
+  
+  console.log(`Speichere ${schoolHolidaysData.length} Schulferien in die Datenbank`);
+  
+  for (const holiday of schoolHolidaysData) {
+    try {
+      // Prüfe, ob die Daten gültig sind
+      if (!holiday.startDate || !holiday.endDate || !holiday.name) {
+        console.warn("Ungültige Schulferiendaten, überspringe:", holiday);
+        errors++;
+        continue;
+      }
+      
+      // Extrahiere ISO-Codes
+      const stateCode = holiday.subdivisionCode ? 
+        holiday.subdivisionCode.replace("DE-", "") : null;
+      
+      // Verarbeite jeden Tag im Ferienbereich
+      const startDate = parseISO(holiday.startDate);
+      const endDate = parseISO(holiday.endDate);
+      
+      if (!isValid(startDate) || !isValid(endDate)) {
+        console.error(`Ungültige Datumsangaben: ${holiday.startDate} - ${holiday.endDate}`);
+        errors++;
+        continue;
+      }
+      
+      let currentDate = startDate;
+      
+      while (!isAfter(currentDate, endDate)) {
+        const dateFormatted = format(currentDate, 'yyyy-MM-dd');
+        const month = parseInt(format(currentDate, 'M'), 10);
+        const day = parseInt(format(currentDate, 'd'), 10);
+        const weekday = getDay(currentDate) || 7; // 0-6 in JS, konvertiert zu 1-7 (Montag-Sonntag)
+        const week = getWeek(currentDate, { locale: de }); // Woche im Jahr
+        const year = parseInt(format(currentDate, 'yyyy'), 10);
+        
+        // Prüfen, ob der Datensatz bereits existiert
+        const existingHoliday = await db.query.holidays.findFirst({
+          where: and(
+            eq(holidays.date, dateFormatted),
+            eq(holidays.type, HOLIDAY_TYPE.SCHOOL),
+            eq(holidays.country, "DE"),
+            eq(holidays.state, stateCode)
+          )
+        });
+        
+        if (existingHoliday) {
+          duplicates++;
+        } else {
+          // Feiertagsdaten zur Datenbank hinzufügen
+          const holidayData = insertHolidaySchema.parse({
+            date: dateFormatted,
+            name: holiday.name,
+            description: holiday.comment || null,
+            type: HOLIDAY_TYPE.SCHOOL,
+            is_official: false,
+            country: "DE",
+            state: stateCode,
+            region: null,
+            year,
+            trimester: Math.ceil(month / 3),
+            month,
+            day,
+            weekday,
+            week,
+            metadata: JSON.stringify({
+              startDate: holiday.startDate,
+              endDate: holiday.endDate,
+              subdivisionCode: holiday.subdivisionCode,
+              holidayType: holiday.holidayType
+            })
+          });
+          
+          await db.insert(holidays).values(holidayData);
+          saved++;
+        }
+        
+        // Nächster Tag
+        currentDate = addDays(currentDate, 1);
+      }
+    } catch (error) {
+      console.error(`Fehler beim Speichern der Schulferien:`, error);
+      errors++;
+    }
+  }
+  
+  console.log(`Gespeichert: ${saved}, Fehler: ${errors}, Duplikate: ${duplicates}`);
+  
+  // Aktualisiere die Datenabdeckungsinformationen
+  await updateHolidayDataCoverage();
+  
+  return { saved, errors, duplicates };
+}
+
+/**
+ * Synchronisiert Schulferien für ein bestimmtes Jahr
+ *
+ * @param year Das zu synchronisierende Jahr
+ * @param states Zu synchronisierende Bundesländer (optional, sonst alle)
+ * @returns Synchronisationsergebnis
+ */
+export async function syncSchoolHolidays(
+  year: number,
+  states: string[] = GERMAN_STATES
+): Promise<{ status: string; saved: number; errors: number; duplicates: number; message?: string }> {
+  try {
+    console.log(`Starte Schulferien-Synchronisation für Jahr ${year}`);
+    
+    let allHolidays: any[] = [];
+    
+    // Schulferien für alle angegebenen Bundesländer abrufen
+    for (const state of states) {
+      const stateHolidays = await fetchSchoolHolidays(year, state);
+      if (stateHolidays && Array.isArray(stateHolidays)) {
+        allHolidays = [...allHolidays, ...stateHolidays];
+      }
+    }
+    
+    if (allHolidays.length === 0) {
+      return { 
+        status: "error", 
+        saved: 0, 
+        errors: 0, 
+        duplicates: 0, 
+        message: `Keine Schulferien für Jahr ${year} von der API erhalten` 
+      };
+    }
+    
+    // Schulferien speichern
+    const { saved, errors, duplicates } = await saveSchoolHolidays(allHolidays);
+    
+    return {
+      status: errors > 0 ? "warning" : "success",
+      saved,
+      errors,
+      duplicates,
+      message: `${saved} Schulferientage für Jahr ${year} synchronisiert, ${duplicates} Duplikate übersprungen, ${errors} Fehler`
+    };
+  } catch (error) {
+    console.error(`Fehler bei der Schulferien-Synchronisation für Jahr ${year}:`, error);
+    return {
+      status: "error",
+      saved: 0,
+      errors: 1,
+      duplicates: 0,
+      message: `Fehler bei der Schulferien-Synchronisation für Jahr ${year}: ${error}`
+    };
+  }
+}
+
+/**
+ * Synchronisiert sowohl Feiertage als auch Schulferien für ein bestimmtes Jahr
+ *
+ * @param year Das zu synchronisierende Jahr
+ * @param states Zu synchronisierende Bundesländer (optional, sonst alle)
+ * @returns Synchronisationsergebnis
+ */
+export async function syncAllHolidays(
+  year: number,
+  states: string[] = GERMAN_STATES
+): Promise<{ 
+  publicHolidays: { status: string; saved: number; errors: number; duplicates: number; message?: string },
+  schoolHolidays: { status: string; saved: number; errors: number; duplicates: number; message?: string }
+}> {
+  const publicResult = await syncHolidays(year, states);
+  const schoolResult = await syncSchoolHolidays(year, states);
+  
+  return {
+    publicHolidays: publicResult,
+    schoolHolidays: schoolResult
+  };
+}
+
+/**
  * Prüft und synchronisiert fehlende Feiertage für einen Zeitraum
  *
  * @param startYear Das Startjahr
  * @param endYear Das Endjahr
  * @param state Der zu synchronisierende Bundesland-ISO-Code (optional)
+ * @param includeSchoolHolidays Ob Schulferien miteinbezogen werden sollen
  * @returns Synchronisationsergebnisse pro fehlendem Jahr
  */
 export async function syncMissingHolidays(
   startYear: number,
   endYear: number,
-  state?: string
+  state?: string,
+  includeSchoolHolidays: boolean = true
 ): Promise<{ years: { year: number; result: any }[] }> {
   try {
     console.log(`Prüfe auf fehlende Feiertage für Jahre ${startYear}-${endYear}${state ? ` und Bundesland ${state}` : ''}`);
@@ -412,7 +650,16 @@ export async function syncMissingHolidays(
     const results = [];
     for (const year of missingYears) {
       console.log(`Synchronisiere fehlende Feiertage für Jahr ${year}`);
-      const result = await syncHolidays(year, state ? [state] : undefined);
+      
+      let result;
+      if (includeSchoolHolidays) {
+        // Synchronisiere beide Arten von Feiertagen
+        result = await syncAllHolidays(year, state ? [state] : undefined);
+      } else {
+        // Synchronisiere nur öffentliche Feiertage
+        result = await syncHolidays(year, state ? [state] : undefined);
+      }
+      
       results.push({
         year,
         result

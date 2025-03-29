@@ -79,7 +79,8 @@ const getMissingWeatherDataSchema = z.object({
 const getMissingHolidaysSchema = z.object({
   startYear: z.number().int().positive(),
   endYear: z.number().int().positive(),
-  state: z.string().optional()
+  state: z.string().optional(),
+  includeSchoolHolidays: z.boolean().default(true)
 });
 
 /**
@@ -347,7 +348,14 @@ export function registerForecastRoutes(app: Express): void {
    * Feiertags-Routen
    */
 
-  // Feiertage synchronisieren
+  // Schema für die Synchronisation aller Feiertagsarten
+  const syncAllHolidaysSchema = z.object({
+    year: z.number().int().positive(),
+    state: z.string().optional(),
+    includeSchoolHolidays: z.boolean().default(true)
+  });
+
+  // Öffentliche Feiertage synchronisieren
   app.post(`${API_PREFIX}/holidays/sync`, async (req: Request, res: Response) => {
     try {
       const validatedData = syncHolidaysSchema.parse(req.body);
@@ -364,6 +372,48 @@ export function registerForecastRoutes(app: Express): void {
       }
       
       console.error("Fehler bei der Feiertagssynchronisation:", error);
+      res.status(500).json({ error: "Interner Serverfehler" });
+    }
+  });
+  
+  // Schulferien synchronisieren
+  app.post(`${API_PREFIX}/holidays/sync-school`, async (req: Request, res: Response) => {
+    try {
+      const validatedData = syncHolidaysSchema.parse(req.body);
+      
+      const result = await holidayService.syncSchoolHolidays(
+        validatedData.year,
+        validatedData.state ? [validatedData.state] : undefined
+      );
+      
+      res.json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Ungültige Daten", details: error.errors });
+      }
+      
+      console.error("Fehler bei der Schulferien-Synchronisation:", error);
+      res.status(500).json({ error: "Interner Serverfehler" });
+    }
+  });
+
+  // Alle Feiertagstypen synchronisieren
+  app.post(`${API_PREFIX}/holidays/sync-all`, async (req: Request, res: Response) => {
+    try {
+      const validatedData = syncAllHolidaysSchema.parse(req.body);
+      
+      const result = await holidayService.syncAllHolidays(
+        validatedData.year,
+        validatedData.state ? [validatedData.state] : undefined
+      );
+      
+      res.json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: "Ungültige Daten", details: error.errors });
+      }
+      
+      console.error("Fehler bei der Feiertags- und Schulferien-Synchronisation:", error);
       res.status(500).json({ error: "Interner Serverfehler" });
     }
   });
@@ -404,7 +454,8 @@ export function registerForecastRoutes(app: Express): void {
       const result = await holidayService.syncMissingHolidays(
         validatedData.startYear,
         validatedData.endYear,
-        validatedData.state
+        validatedData.state,
+        validatedData.includeSchoolHolidays
       );
       
       res.json(result);

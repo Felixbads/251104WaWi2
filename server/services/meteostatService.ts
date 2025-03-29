@@ -19,30 +19,116 @@ const DEFAULT_STATION_ID = "10591"; // Station Dresden
 /**
  * Abrufen von stündlichen Wetterdaten für einen bestimmten Zeitraum
  * 
+ * Diese Funktion holt ALLE verfügbaren Datenpunkte von der Meteostat API.
+ * Sie kann mit langen Zeiträumen umgehen und führt automatisch mehrere Anfragen durch,
+ * um alle Daten zu erhalten, indem sie den Zeitraum in überschaubare Abschnitte unterteilt.
+ * 
  * @param startDate Startdatum im Format YYYY-MM-DD
  * @param endDate Enddatum im Format YYYY-MM-DD
  * @param stationId Stations-ID (default: Dresden)
  * @param timezone Zeitzone (default: Europe/Berlin)
+ * @param maxDaysPerRequest Maximale Anzahl von Tagen pro API-Anfrage (Standard: 31)
  * @returns Array von Wetterdatensätzen oder null bei Fehler
  */
 export async function fetchHourlyWeatherData(
   startDate: string | Date,
   endDate: string | Date,
   stationId: string = DEFAULT_STATION_ID,
-  timezone: string = "Europe/Berlin"
+  timezone: string = "Europe/Berlin",
+  maxDaysPerRequest: number = 31
 ): Promise<any[] | null> {
   try {
     // Formatiere Datumswerte in das erwartete Format YYYY-MM-DD
     const formattedStartDate = typeof startDate === 'string' ? startDate : format(startDate, 'yyyy-MM-dd');
     const formattedEndDate = typeof endDate === 'string' ? endDate : format(endDate, 'yyyy-MM-dd');
 
-    console.log(`Rufe Wetterdaten ab für Zeitraum ${formattedStartDate} bis ${formattedEndDate} von Station ${stationId}`);
+    // Konvertiere zu Date-Objekten für die Berechnung
+    const startDateObj = typeof startDate === 'string' ? parseISO(startDate) : startDate;
+    const endDateObj = typeof endDate === 'string' ? parseISO(endDate) : endDate;
 
+    // Berechne die Anzahl der Tage zwischen Start- und Enddatum
+    const daysDifference = Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24));
+
+    console.log(`Rufe Wetterdaten ab für Zeitraum ${formattedStartDate} bis ${formattedEndDate} (${daysDifference} Tage) von Station ${stationId}`);
+
+    // Wenn der Zeitraum zu lang ist, unterteile ihn in mehrere Anfragen
+    if (daysDifference > maxDaysPerRequest) {
+      console.log(`Zeitraum zu lang (${daysDifference} Tage), unterteile in kleinere Abschnitte`);
+      
+      // Sammle alle Datenpunkte
+      const allData: any[] = [];
+      let currentStartDate = startDateObj;
+      
+      // Iteriere durch alle Teilzeiträume
+      while (currentStartDate <= endDateObj) {
+        // Berechne das Enddatum für den aktuellen Teilzeitraum
+        const currentEndDate = new Date(currentStartDate);
+        currentEndDate.setDate(currentEndDate.getDate() + maxDaysPerRequest - 1);
+        
+        // Stelle sicher, dass das Enddatum nicht über das eigentliche Enddatum hinausgeht
+        if (currentEndDate > endDateObj) {
+          currentEndDate.setTime(endDateObj.getTime());
+        }
+        
+        // Formatiere die Daten für die API-Anfrage
+        const formattedSubStartDate = format(currentStartDate, 'yyyy-MM-dd');
+        const formattedSubEndDate = format(currentEndDate, 'yyyy-MM-dd');
+        
+        console.log(`Abrufen des Teilzeitraums: ${formattedSubStartDate} bis ${formattedSubEndDate}`);
+        
+        // Führe die API-Anfrage für den Teilzeitraum durch
+        const partialData = await fetchWeatherDataSegment(
+          formattedSubStartDate,
+          formattedSubEndDate,
+          stationId,
+          timezone
+        );
+        
+        // Wenn Daten erhalten wurden, füge sie zur Gesamtliste hinzu
+        if (partialData && partialData.length > 0) {
+          console.log(`${partialData.length} Datensätze für Teilzeitraum erhalten`);
+          allData.push(...partialData);
+        } else {
+          console.warn(`Keine Daten für Teilzeitraum ${formattedSubStartDate} bis ${formattedSubEndDate} erhalten`);
+        }
+        
+        // Setze das Startdatum für den nächsten Teilzeitraum
+        currentStartDate.setDate(currentStartDate.getDate() + maxDaysPerRequest);
+      }
+      
+      console.log(`Insgesamt ${allData.length} Wetterdatensätze erhalten`);
+      return allData.length > 0 ? allData : null;
+    } else {
+      // Für kurze Zeiträume direkt eine einzige Anfrage senden
+      return await fetchWeatherDataSegment(formattedStartDate, formattedEndDate, stationId, timezone);
+    }
+  } catch (error) {
+    console.error("Fehler beim Abrufen der Wetterdaten:", error);
+    return null;
+  }
+}
+
+/**
+ * Hilfsfunktion: Ruft Wetterdaten für einen bestimmten Zeitraumsegment ab
+ * 
+ * @param startDate Startdatum im Format YYYY-MM-DD
+ * @param endDate Enddatum im Format YYYY-MM-DD
+ * @param stationId Stations-ID
+ * @param timezone Zeitzone
+ * @returns Array von Wetterdatensätzen oder null bei Fehler
+ */
+async function fetchWeatherDataSegment(
+  startDate: string,
+  endDate: string,
+  stationId: string,
+  timezone: string
+): Promise<any[] | null> {
+  try {
     // Parameter für die API-Anfrage
     const params = {
       station: stationId,
-      start: formattedStartDate,
-      end: formattedEndDate,
+      start: startDate,
+      end: endDate,
       tz: timezone
     };
 
@@ -60,14 +146,14 @@ export async function fetchHourlyWeatherData(
 
     // Überprüfung und Verarbeitung der Antwort
     if (response.status === 200 && response.data && response.data.data) {
-      console.log(`${response.data.data.length} Wetterdatensätze erhalten`);
+      console.log(`${response.data.data.length} Wetterdatensätze für Zeitraum ${startDate} bis ${endDate} erhalten`);
       return response.data.data;
     } else {
-      console.error("Fehler bei der API-Anfrage: Keine Daten erhalten", response.status);
+      console.error(`Fehler bei der API-Anfrage für Zeitraum ${startDate} bis ${endDate}: Keine Daten erhalten`, response.status);
       return null;
     }
   } catch (error) {
-    console.error("Fehler beim Abrufen der Wetterdaten:", error);
+    console.error(`Fehler beim Abrufen der Wetterdaten für Zeitraum ${startDate} bis ${endDate}:`, error);
     return null;
   }
 }
