@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { vendonSync } from "./services/vendonSync";
 import { startAutomaticSync, stopAutomaticSync, getSchedulerStatus } from "./scheduler";
 import { z } from "zod";
+import { registerForecastRoutes } from "./routes/forecast";
 
 // API route prefix
 const API_PREFIX = "/api";
@@ -512,6 +513,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+
+  // Registriere die Forecast-, Wetter- und Feiertags-Routen
+  registerForecastRoutes(app);
 
   return httpServer;
 }

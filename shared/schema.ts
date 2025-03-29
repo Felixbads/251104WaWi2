@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, real, doublePrecision, unique, primaryKey } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, real, doublePrecision, unique, primaryKey, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -162,12 +162,15 @@ export const transactions = pgTable("transactions", {
   
   // Zahlungsinformationen
   paymentMethod: text("payment_method"),                       // Zahlungsmethode (CASH, CASHLESS, etc.)
+  paymentType: text("payment_type"),                           // Zahlungstyp (für Legacy-Kompatibilität)
   
   // Metadaten
   source: text("source").default("vendon"),                   // Quelle der Daten (REALTIME, etc.)
   transactionData: text("transaction_data"),                  // Zusätzliche Transaktionsdaten
   note: text("note"),                                         // Notizen
   metadata: text("metadata"),                                 // Metadaten
+  extraData: text("extra_data"),                              // Zusätzliche Daten (für Legacy-Kompatibilität)
+  amount: real("amount"),                                      // Betrag (für Legacy-Kompatibilität)
   
   // Standort-Zuordnung
   locationId: integer("location_id").references(() => locations.id),
@@ -391,6 +394,295 @@ export const eventsRelations = relations(events, ({ one }) => ({
   }),
   location: one(locations, {
     fields: [events.locationId],
+    references: [locations.id],
+  }),
+}));
+
+// Wetterdaten-Tabelle für historische und zukünftige Daten
+export const weatherData = pgTable("weather_data", {
+  id: serial("id").primaryKey(),
+  // Zeitstempel für den Datenpunkt
+  timestamp: timestamp("timestamp").notNull(),
+  // Datum (nur Tag)
+  date: date("date").notNull(),
+  // Stunde (0-23)
+  hour: integer("hour").notNull(),
+  // Temperatur in Celsius
+  temp: real("temp"),
+  // Gefühlte Temperatur in Celsius
+  feels_like: real("feels_like"),
+  // Minimale Temperatur
+  temp_min: real("temp_min"),
+  // Maximale Temperatur
+  temp_max: real("temp_max"),
+  // Druck auf Meereshöhe, hPa
+  pressure: integer("pressure"),
+  // Luftfeuchtigkeit, %
+  humidity: integer("humidity"),
+  // Windgeschwindigkeit, meter/sec
+  wind_speed: real("wind_speed"),
+  // Windrichtung, Grad (meteorologisch)
+  wind_deg: integer("wind_deg"),
+  // Windböe, m/s
+  wind_gust: real("wind_gust"),
+  // Wolkigkeit, %
+  clouds: integer("clouds"),
+  // Sichtweite, Meter
+  visibility: integer("visibility"),
+  // Niederschlagsmenge letzte Stunde, mm
+  precipitation: real("precipitation"),
+  // Regenvolumen letzte Stunde, mm
+  rain_1h: real("rain_1h"),
+  // Schneevolumen letzte Stunde, mm
+  snow_1h: real("snow_1h"),
+  // Wetterbedingung-ID
+  weather_id: integer("weather_id"),
+  // Wetterbedingung-Hauptkategorie
+  weather_main: text("weather_main"),
+  // Wetterbedingung-Beschreibung
+  weather_description: text("weather_description"),
+  // Wetterbedingung-Symbol
+  weather_icon: text("weather_icon"),
+  // Datenquelle (historisch, vorhersage, aktuell)
+  source: text("source").notNull().default("historical"),
+  // Station ID
+  station_id: text("station_id"),
+  // Station Name
+  station_name: text("station_name"),
+  // Land
+  country: text("country"),
+  // Weitere Metadaten im JSON-Format
+  metadata: text("metadata"),
+  // Synchronisations-Status
+  sync_status: text("sync_status").default("pending"),
+  // Zeitpunkt der Erstellung
+  created_at: timestamp("created_at").defaultNow(),
+  // Zeitpunkt der letzten Aktualisierung
+  updated_at: timestamp("updated_at").defaultNow(),
+}, (table) => {
+  return {
+    // Eindeutiger Index für Datum, Stunde und Station
+    datetimeIdx: unique().on(table.date, table.hour, table.station_id),
+  };
+});
+
+export const insertWeatherDataSchema = createInsertSchema(weatherData).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export type InsertWeatherData = z.infer<typeof insertWeatherDataSchema>;
+export type WeatherData = typeof weatherData.$inferSelect;
+
+// Feiertage- und Urlaube-Tabelle
+export const holidays = pgTable("holidays", {
+  id: serial("id").primaryKey(),
+  // Datum des Feiertags
+  date: date("date").notNull(),
+  // Name des Feiertags
+  name: text("name").notNull(),
+  // Beschreibung
+  description: text("description"),
+  // Art des Feiertags (federal, state, regional, school, public)
+  type: text("type").notNull(),
+  // Ist es ein offizieller Feiertag?
+  is_official: boolean("is_official").default(true),
+  // Land
+  country: text("country").default("DE"),
+  // Bundesland
+  state: text("state"),
+  // Region/Stadt (für lokale Feiertage)
+  region: text("region"),
+  // Jahr
+  year: integer("year").notNull(),
+  // Trimester (1-4)
+  trimester: integer("trimester"),
+  // Monat (1-12)
+  month: integer("month").notNull(),
+  // Tag (1-31)
+  day: integer("day").notNull(),
+  // Wochentag (1-7, wobei 1=Montag)
+  weekday: integer("weekday"),
+  // Woche des Jahres (1-52)
+  week: integer("week"),
+  // Weitere Metadaten im JSON-Format
+  metadata: text("metadata"),
+  // Zeitpunkt der Erstellung
+  created_at: timestamp("created_at").defaultNow(),
+  // Zeitpunkt der letzten Aktualisierung
+  updated_at: timestamp("updated_at").defaultNow(),
+}, (table) => {
+  return {
+    // Eindeutiger Index für Datum und Land/Staat
+    dateRegionIdx: unique().on(table.date, table.country, table.state),
+  };
+});
+
+export const insertHolidaySchema = createInsertSchema(holidays).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export type InsertHoliday = z.infer<typeof insertHolidaySchema>;
+export type Holiday = typeof holidays.$inferSelect;
+
+// Prognosemodell-Tabelle für zukünftige Verkäufe
+export const forecastModels = pgTable("forecast_models", {
+  id: serial("id").primaryKey(),
+  // Name des Modells
+  name: text("name").notNull(),
+  // Beschreibung
+  description: text("description"),
+  // Modell-Typ (regression, time_series, machine_learning)
+  model_type: text("model_type").notNull(),
+  // Modell-Konfiguration im JSON-Format
+  configuration: text("configuration").notNull(),
+  // Trainings-Parameter im JSON-Format
+  training_parameters: text("training_parameters"),
+  // Trainings-Zeitraum Start
+  training_period_start: date("training_period_start"),
+  // Trainings-Zeitraum Ende
+  training_period_end: date("training_period_end"),
+  // Modell-Genauigkeit (0-1)
+  accuracy: real("accuracy"),
+  // Modell-Status (training, ready, deprecated)
+  status: text("status").default("training"),
+  // Basiert auf Maschinendaten?
+  uses_machine_data: boolean("uses_machine_data").default(true),
+  // Basiert auf Wetterdaten?
+  uses_weather_data: boolean("uses_weather_data").default(true),
+  // Basiert auf Urlaubsdaten?
+  uses_holiday_data: boolean("uses_holiday_data").default(true),
+  // Version des Modells
+  version: text("version").default("1.0"),
+  // Erstellt von
+  created_by: text("created_by"),
+  // Speicherort des Modells (Pfad oder URL)
+  model_path: text("model_path"),
+  // Erstellt am
+  created_at: timestamp("created_at").defaultNow(),
+  // Aktualisiert am
+  updated_at: timestamp("updated_at").defaultNow(),
+  // Zuletzt verwendet am
+  last_used_at: timestamp("last_used_at"),
+});
+
+export const insertForecastModelSchema = createInsertSchema(forecastModels).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export type InsertForecastModel = z.infer<typeof insertForecastModelSchema>;
+export type ForecastModel = typeof forecastModels.$inferSelect;
+
+// Vorhersage-Tabelle für einzelne Prognosen
+export const forecasts = pgTable("forecasts", {
+  id: serial("id").primaryKey(),
+  // Fremdschlüssel zum Modell
+  model_id: integer("model_id").references(() => forecastModels.id).notNull(),
+  // Datum der Vorhersage (für welches Datum gilt die Vorhersage)
+  forecast_date: date("forecast_date").notNull(),
+  // Stunde der Vorhersage (0-23, optional für stündliche Vorhersagen)
+  forecast_hour: integer("forecast_hour"),
+  // Fremdschlüssel zum Produkt
+  product_id: text("product_id"), 
+  // Fremdschlüssel zur Maschine
+  machine_id: integer("machine_id").references(() => machines.id),
+  // Standort-ID
+  location_id: integer("location_id").references(() => locations.id),
+  // Prognostizierte Menge
+  predicted_quantity: real("predicted_quantity").notNull(),
+  // Prognosegenauigkeit (0-1)
+  confidence: real("confidence"),
+  // Untere Grenze des Konfidenzintervalls
+  lower_bound: real("lower_bound"),
+  // Obere Grenze des Konfidenzintervalls
+  upper_bound: real("upper_bound"),
+  // Tatsächliche Menge (wird später gefüllt, wenn bekannt)
+  actual_quantity: real("actual_quantity"),
+  // Fehler (tatsächlich - vorhergesagt)
+  error: real("error"),
+  // Wetterinformationen für diesen Zeitpunkt (zusammengefasst)
+  weather_summary: text("weather_summary"),
+  // Ist es ein Feiertag/Urlaub?
+  is_holiday: boolean("is_holiday").default(false),
+  // Name des Feiertags/Urlaubs
+  holiday_name: text("holiday_name"),
+  // Feiertagstyp
+  holiday_type: text("holiday_type"),
+  // Zusätzliche Faktoren, die in die Vorhersage eingeflossen sind
+  features: text("features"),
+  // Erstellt am
+  created_at: timestamp("created_at").defaultNow(),
+  // Aktualisiert am
+  updated_at: timestamp("updated_at").defaultNow(),
+});
+
+export const insertForecastSchema = createInsertSchema(forecasts).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export type InsertForecast = z.infer<typeof insertForecastSchema>;
+export type Forecast = typeof forecasts.$inferSelect;
+
+// Daten-Abdeckungs-Tabelle (für die Frontend-Anzeige der verfügbaren Daten)
+export const dataCoverage = pgTable("data_coverage", {
+  id: serial("id").primaryKey(),
+  // Datentyp (weather, holiday, transaction)
+  data_type: text("data_type").notNull(),
+  // Frühestes verfügbares Datum
+  earliest_date: date("earliest_date"),
+  // Spätestes verfügbares Datum
+  latest_date: date("latest_date"),
+  // Anzahl der Datenpunkte
+  data_points: integer("data_points").default(0),
+  // Datenqualität (0-100%)
+  data_quality: integer("data_quality"),
+  // Abdeckung in Prozent (0-100%)
+  coverage_percentage: integer("coverage_percentage"),
+  // Letzte Synchronisation
+  last_sync: timestamp("last_sync"),
+  // Erstellt am
+  created_at: timestamp("created_at").defaultNow(),
+  // Aktualisiert am
+  updated_at: timestamp("updated_at").defaultNow(),
+}, (table) => {
+  return {
+    // Eindeutiger Index für Datentyp
+    dataTypeIdx: unique().on(table.data_type),
+  };
+});
+
+export const insertDataCoverageSchema = createInsertSchema(dataCoverage).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export type InsertDataCoverage = z.infer<typeof insertDataCoverageSchema>;
+export type DataCoverage = typeof dataCoverage.$inferSelect;
+
+// Beziehungen für die neuen Tabellen
+export const forecastModelsRelations = relations(forecastModels, ({ many }) => ({
+  forecasts: many(forecasts),
+}));
+
+export const forecastsRelations = relations(forecasts, ({ one }) => ({
+  model: one(forecastModels, {
+    fields: [forecasts.model_id],
+    references: [forecastModels.id],
+  }),
+  machine: one(machines, {
+    fields: [forecasts.machine_id],
+    references: [machines.id],
+  }),
+  location: one(locations, {
+    fields: [forecasts.location_id],
     references: [locations.id],
   }),
 }));

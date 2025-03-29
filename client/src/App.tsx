@@ -10,6 +10,7 @@ import Products from "@/pages/Products";
 import Synchronization from "@/pages/Synchronization";
 import SyncHistory from "@/pages/SyncHistory";
 import Settings from "@/pages/Settings";
+import Forecast from "@/pages/Forecast";
 import AppShell from "@/components/layout/AppShell";
 
 function Router() {
@@ -21,6 +22,7 @@ function Router() {
       <Route path="/products" component={Products} />
       <Route path="/synchronization" component={Synchronization} />
       <Route path="/sync-history" component={SyncHistory} />
+      <Route path="/forecast" component={Forecast} />
       <Route path="/settings" component={Settings} />
       <Route component={NotFound} />
     </Switch>

@@ -8,6 +8,7 @@ import {
   Clock,
   Settings,
   LogOut,
+  BarChart2,
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -123,6 +124,18 @@ export default function Sidebar() {
             >
               <Clock className="h-5 w-5 mr-3" />
               Sync-Verlauf
+            </a>
+          </Link>
+          <Link href="/forecast">
+            <a
+              className={`flex items-center px-4 py-2 text-sm font-medium ${
+                isActive("/forecast")
+                  ? "text-primary-600 bg-primary-50"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              }`}
+            >
+              <BarChart2 className="h-5 w-5 mr-3" />
+              Prognosen
             </a>
           </Link>
           <Link href="/settings">

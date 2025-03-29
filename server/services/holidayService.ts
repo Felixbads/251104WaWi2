@@ -1,0 +1,427 @@
+/**
+ * Feiertage- und Urlaubsservice
+ * 
+ * Dieser Service stellt Funktionen bereit, um Feiertage und Schulferien für Deutschland
+ * zu verwalten und in der Datenbank zu speichern.
+ */
+
+import axios from 'axios';
+import { db } from '../db';
+import { holidays, dataCoverage, insertHolidaySchema, insertDataCoverageSchema } from '@shared/schema';
+import { eq, and, between, count } from 'drizzle-orm';
+import { format, parseISO, isValid, getDay, getWeek, addDays, subDays, isAfter } from 'date-fns';
+import { de } from 'date-fns/locale';
+
+// API Konfiguration für deutsche Feiertage
+const HOLIDAY_API_URL = "https://feiertage-api.de/api/";
+
+// Konstanten für Feiertage-Typen
+const HOLIDAY_TYPE = {
+  FEDERAL: "federal", // Bundesweiter Feiertag
+  STATE: "state",     // Landesweiter Feiertag
+  SCHOOL: "school"    // Schulferien
+};
+
+// Liste der deutschen Bundesländer
+const GERMAN_STATES = [
+  "BW", "BY", "BE", "BB", "HB", "HH", "HE", "MV", 
+  "NI", "NW", "RP", "SL", "SN", "ST", "SH", "TH"
+];
+
+/**
+ * Feiertage für ein bestimmtes Jahr und Bundesland abrufen
+ *
+ * @param year Das Jahr für die Feiertagsabfrage
+ * @param state Das Bundesland (ISO-Code) für die Feiertagsabfrage (optional)
+ * @returns Array von Feiertagen oder null bei Fehler
+ */
+export async function fetchHolidays(year: number, state?: string): Promise<any | null> {
+  try {
+    console.log(`Rufe Feiertage für Jahr ${year}${state ? ` und Bundesland ${state}` : ''} ab`);
+    
+    // Parameter für die API-Anfrage
+    const params: Record<string, any> = { jahr: year };
+    if (state && GERMAN_STATES.includes(state)) {
+      params.nur_land = state;
+    }
+    
+    // API-Anfrage senden
+    const response = await axios.get(HOLIDAY_API_URL, { params });
+    
+    // Überprüfung und Verarbeitung der Antwort
+    if (response.status === 200 && response.data) {
+      console.log(`Feiertage für Jahr ${year} erfolgreich abgerufen`);
+      return response.data;
+    } else {
+      console.error(`Fehler bei der API-Anfrage für Feiertage im Jahr ${year}:`, response.status);
+      return null;
+    }
+  } catch (error) {
+    console.error(`Fehler beim Abrufen der Feiertage für Jahr ${year}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Speichert Feiertage in der Datenbank
+ *
+ * @param holidaysData API-Antwort mit Feiertagen
+ * @param year Das Jahr der Feiertage
+ * @returns Statistik zur Speicherung
+ */
+export async function saveHolidays(
+  holidaysData: any,
+  year: number
+): Promise<{ saved: number; errors: number; duplicates: number }> {
+  let saved = 0;
+  let errors = 0;
+  let duplicates = 0;
+  
+  if (!holidaysData) {
+    console.warn(`Keine Feiertage für Jahr ${year} zum Speichern vorhanden`);
+    return { saved, errors, duplicates };
+  }
+  
+  console.log(`Speichere Feiertage für Jahr ${year} in die Datenbank`);
+  
+  // Iteriere durch alle Bundesländer in den Feiertagen
+  for (const [stateName, stateDays] of Object.entries(holidaysData)) {
+    // Bestimme den ISO-Code des Bundeslandes
+    const stateCode = getStateCodeFromName(stateName);
+    
+    // Iteriere durch alle Feiertage des Bundeslandes
+    for (const [holidayName, holidayDateInfo] of Object.entries(stateDays as Record<string, any>)) {
+      try {
+        // Datum und andere Infos extrahieren
+        const dateStr = typeof holidayDateInfo === 'object' ? holidayDateInfo.datum : holidayDateInfo;
+        const timestamp = parseISO(dateStr);
+        
+        if (!isValid(timestamp)) {
+          console.error(`Ungültiges Datum für Feiertag ${holidayName}: ${dateStr}`);
+          errors++;
+          continue;
+        }
+        
+        const dateFormatted = format(timestamp, 'yyyy-MM-dd');
+        const month = parseInt(format(timestamp, 'M'), 10);
+        const day = parseInt(format(timestamp, 'd'), 10);
+        const weekday = getDay(timestamp) || 7; // 0-6 in JS, konvertiert zu 1-7 (Montag-Sonntag)
+        const week = getWeek(timestamp, { locale: de }); // Woche im Jahr
+        
+        // Prüfen, ob der Datensatz bereits existiert
+        const existingHoliday = await db.query.holidays.findFirst({
+          where: and(
+            eq(holidays.date, dateFormatted),
+            eq(holidays.name, holidayName),
+            eq(holidays.country, "DE"),
+            eq(holidays.state, stateCode || null)
+          )
+        });
+        
+        if (existingHoliday) {
+          duplicates++;
+          continue;
+        }
+        
+        // Feiertagstyp bestimmen: landesweit oder bundesweit
+        let holidayType = HOLIDAY_TYPE.STATE;
+        // Wenn alle Bundesländer den gleichen Feiertag am selben Tag haben
+        if (Object.keys(holidaysData).length === GERMAN_STATES.length) {
+          const allSameDate = Object.values(holidaysData).every((stateData: any) => {
+            return Object.entries(stateData).some(([name, date]) => {
+              const dateStrToCompare = typeof date === 'object' ? date.datum : date;
+              return name === holidayName && dateStrToCompare === dateStr;
+            });
+          });
+          
+          if (allSameDate) {
+            holidayType = HOLIDAY_TYPE.FEDERAL;
+          }
+        }
+        
+        // Feiertagsdaten zur Datenbank hinzufügen
+        const holidayData = insertHolidaySchema.parse({
+          date: dateFormatted,
+          name: holidayName,
+          description: null,
+          type: holidayType,
+          is_official: true,
+          country: "DE",
+          state: stateCode,
+          region: null,
+          year,
+          trimester: Math.ceil(month / 3),
+          month,
+          day,
+          weekday,
+          week,
+          metadata: JSON.stringify({
+            hinweis: typeof holidayDateInfo === 'object' ? holidayDateInfo.hinweis : null
+          })
+        });
+        
+        await db.insert(holidays).values(holidayData);
+        saved++;
+      } catch (error) {
+        console.error(`Fehler beim Speichern des Feiertags ${holidayName}:`, error);
+        errors++;
+      }
+    }
+  }
+  
+  console.log(`Gespeichert: ${saved}, Fehler: ${errors}, Duplikate: ${duplicates}`);
+  
+  // Aktualisiere die Datenabdeckungsinformationen
+  await updateHolidayDataCoverage();
+  
+  return { saved, errors, duplicates };
+}
+
+/**
+ * Aktualisiert die Datenabdeckungsinformationen für Feiertage
+ */
+export async function updateHolidayDataCoverage(): Promise<void> {
+  try {
+    // Gesamtanzahl der Feiertage
+    const totalCountResult = await db.select({ count: count() }).from(holidays);
+    const totalCount = totalCountResult[0]?.count || 0;
+
+    if (totalCount === 0) {
+      console.log("Keine Feiertage vorhanden, überspringe Abdeckungsberechnung");
+      return;
+    }
+
+    // Frühestes und spätestes Datum ermitteln
+    const earliestRecord = await db.query.holidays.findFirst({
+      orderBy: (holidays, { asc }) => [asc(holidays.date)]
+    });
+
+    const latestRecord = await db.query.holidays.findFirst({
+      orderBy: (holidays, { desc }) => [desc(holidays.date)]
+    });
+
+    if (!earliestRecord || !latestRecord) {
+      console.error("Keine Feiertage für Abdeckungsberechnung gefunden");
+      return;
+    }
+
+    const earliestDate = earliestRecord.date;
+    const latestDate = latestRecord.date;
+
+    // Prüfen, ob bereits ein Datensatz für Feiertagsabdeckung existiert
+    const existingCoverage = await db.query.dataCoverage.findFirst({
+      where: eq(dataCoverage.data_type, "holiday")
+    });
+
+    // Datenbankoperationen je nach Existenz des Datensatzes
+    if (existingCoverage) {
+      await db.update(dataCoverage)
+        .set({
+          earliest_date: earliestDate,
+          latest_date: latestDate,
+          data_points: totalCount,
+          last_sync: new Date()
+        })
+        .where(eq(dataCoverage.data_type, "holiday"));
+    } else {
+      const coverageData = insertDataCoverageSchema.parse({
+        data_type: "holiday",
+        earliest_date: earliestDate,
+        latest_date: latestDate,
+        data_points: totalCount,
+        last_sync: new Date()
+      });
+
+      await db.insert(dataCoverage).values(coverageData);
+    }
+
+    console.log(`Feiertagsabdeckung aktualisiert: ${earliestDate} bis ${latestDate}, ${totalCount} Datenpunkte`);
+  } catch (error) {
+    console.error("Fehler beim Aktualisieren der Feiertagsabdeckung:", error);
+  }
+}
+
+/**
+ * Synchronisiert Feiertage für ein bestimmtes Jahr
+ *
+ * @param year Das zu synchronisierende Jahr
+ * @param states Zu synchronisierende Bundesländer (optional, sonst alle)
+ * @returns Synchronisationsergebnis
+ */
+export async function syncHolidays(
+  year: number,
+  states: string[] = GERMAN_STATES
+): Promise<{ status: string; saved: number; errors: number; duplicates: number; message?: string }> {
+  try {
+    console.log(`Starte Feiertags-Synchronisation für Jahr ${year}`);
+    
+    // Feiertage für alle angegebenen Bundesländer abrufen
+    const holidaysData: Record<string, any> = {};
+    
+    for (const state of states) {
+      const stateHolidays = await fetchHolidays(year, state);
+      if (stateHolidays) {
+        Object.assign(holidaysData, stateHolidays);
+      }
+    }
+    
+    if (Object.keys(holidaysData).length === 0) {
+      return { 
+        status: "error", 
+        saved: 0, 
+        errors: 0, 
+        duplicates: 0, 
+        message: `Keine Feiertage für Jahr ${year} von der API erhalten` 
+      };
+    }
+    
+    // Feiertage speichern
+    const { saved, errors, duplicates } = await saveHolidays(holidaysData, year);
+    
+    return {
+      status: errors > 0 ? "warning" : "success",
+      saved,
+      errors,
+      duplicates,
+      message: `${saved} Feiertage für Jahr ${year} synchronisiert, ${duplicates} Duplikate übersprungen, ${errors} Fehler`
+    };
+  } catch (error) {
+    console.error(`Fehler bei der Feiertags-Synchronisation für Jahr ${year}:`, error);
+    return {
+      status: "error",
+      saved: 0,
+      errors: 1,
+      duplicates: 0,
+      message: `Fehler bei der Feiertags-Synchronisation für Jahr ${year}: ${error}`
+    };
+  }
+}
+
+/**
+ * Hilfsfunktion: Bestimmt den ISO-Code eines Bundeslandes aus dem Namen
+ *
+ * @param stateName Der Name des Bundeslandes
+ * @returns Der zweistellige ISO-Code des Bundeslandes oder null
+ */
+function getStateCodeFromName(stateName: string): string | null {
+  const stateMapping: Record<string, string> = {
+    'Baden-Württemberg': 'BW',
+    'Bayern': 'BY',
+    'Berlin': 'BE',
+    'Brandenburg': 'BB',
+    'Bremen': 'HB',
+    'Hamburg': 'HH',
+    'Hessen': 'HE',
+    'Mecklenburg-Vorpommern': 'MV',
+    'Niedersachsen': 'NI',
+    'Nordrhein-Westfalen': 'NW',
+    'Rheinland-Pfalz': 'RP',
+    'Saarland': 'SL',
+    'Sachsen': 'SN',
+    'Sachsen-Anhalt': 'ST',
+    'Schleswig-Holstein': 'SH',
+    'Thüringen': 'TH'
+  };
+  
+  return stateMapping[stateName] || null;
+}
+
+/**
+ * Prüft, ob für ein bestimmtes Jahr bereits Feiertage vorhanden sind
+ *
+ * @param year Das zu prüfende Jahr
+ * @param state Der zu prüfende Bundesland-ISO-Code (optional)
+ * @returns true wenn Daten vorhanden sind, sonst false
+ */
+export async function hasHolidaysForYear(year: number, state?: string): Promise<boolean> {
+  try {
+    const whereConditions = [eq(holidays.year, year)];
+    
+    if (state) {
+      whereConditions.push(eq(holidays.state, state));
+    }
+    
+    const existingRecords = await db.select({ count: count() })
+      .from(holidays)
+      .where(and(...whereConditions));
+    
+    return (existingRecords[0]?.count || 0) > 0;
+  } catch (error) {
+    console.error(`Fehler beim Prüfen der Feiertage für Jahr ${year}:`, error);
+    return false;
+  }
+}
+
+/**
+ * Gibt die Jahre zurück, für die keine Feiertage im angegebenen Zeitraum vorhanden sind
+ *
+ * @param startYear Das Startjahr
+ * @param endYear Das Endjahr
+ * @param state Der zu prüfende Bundesland-ISO-Code (optional)
+ * @returns Array von Jahren ohne Feiertage
+ */
+export async function getMissingHolidayYears(
+  startYear: number,
+  endYear: number,
+  state?: string
+): Promise<number[]> {
+  try {
+    const missingYears: number[] = [];
+    
+    for (let year = startYear; year <= endYear; year++) {
+      const hasData = await hasHolidaysForYear(year, state);
+      if (!hasData) {
+        missingYears.push(year);
+      }
+    }
+    
+    return missingYears;
+  } catch (error) {
+    console.error(`Fehler beim Ermitteln fehlender Feiertage für Jahre ${startYear}-${endYear}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Prüft und synchronisiert fehlende Feiertage für einen Zeitraum
+ *
+ * @param startYear Das Startjahr
+ * @param endYear Das Endjahr
+ * @param state Der zu synchronisierende Bundesland-ISO-Code (optional)
+ * @returns Synchronisationsergebnisse pro fehlendem Jahr
+ */
+export async function syncMissingHolidays(
+  startYear: number,
+  endYear: number,
+  state?: string
+): Promise<{ years: { year: number; result: any }[] }> {
+  try {
+    console.log(`Prüfe auf fehlende Feiertage für Jahre ${startYear}-${endYear}${state ? ` und Bundesland ${state}` : ''}`);
+    
+    // Fehlende Jahre ermitteln
+    const missingYears = await getMissingHolidayYears(startYear, endYear, state);
+    
+    if (missingYears.length === 0) {
+      console.log(`Keine fehlenden Feiertage für Jahre ${startYear}-${endYear}`);
+      return { years: [] };
+    }
+    
+    console.log(`${missingYears.length} Jahre mit fehlenden Feiertagen gefunden`);
+    
+    // Jedes fehlende Jahr synchronisieren
+    const results = [];
+    for (const year of missingYears) {
+      console.log(`Synchronisiere fehlende Feiertage für Jahr ${year}`);
+      const result = await syncHolidays(year, state ? [state] : undefined);
+      results.push({
+        year,
+        result
+      });
+    }
+    
+    return { years: results };
+  } catch (error) {
+    console.error(`Fehler bei der Synchronisation fehlender Feiertage für Jahre ${startYear}-${endYear}:`, error);
+    return { years: [] };
+  }
+}

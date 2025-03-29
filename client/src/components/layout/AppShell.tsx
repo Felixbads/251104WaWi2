@@ -28,6 +28,8 @@ export default function AppShell({ children }: AppShellProps) {
         return "Synchronisierung";
       case "/sync-history":
         return "Sync-Verlauf";
+      case "/forecast":
+        return "Prognosen";
       case "/settings":
         return "Einstellungen";
       default:
