@@ -1,4 +1,4 @@
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import {
   Home,
   FileText,
@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib";
 
-// Statt Link verwenden wir eine Hilfsfunktion, um das verschachtelte <a> Problem zu vermeiden
+// Verwenden wir die wouter Link-Komponente für korrekte Navigation
 const NavItem = ({ href, icon, children, isActive }: { 
   href: string; 
   icon: React.ReactNode; 
@@ -24,17 +24,18 @@ const NavItem = ({ href, icon, children, isActive }: {
   isActive: boolean;
 }) => {
   return (
-    <a
-      href={href}
-      className={`flex items-center px-4 py-2 text-sm font-medium ${
-        isActive
-          ? "text-primary-600 bg-primary-50"
-          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-      }`}
-    >
-      {icon}
-      {children}
-    </a>
+    <Link href={href}>
+      <div
+        className={`flex items-center px-4 py-2 text-sm font-medium cursor-pointer ${
+          isActive
+            ? "text-primary-600 bg-primary-50"
+            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+        }`}
+      >
+        {icon}
+        {children}
+      </div>
+    </Link>
   );
 };
 
@@ -103,6 +104,13 @@ export default function Sidebar() {
             isActive={isActive("/transactions")}
           >
             Transaktionen
+          </NavItem>
+          <NavItem 
+            href="/reporting" 
+            icon={<BarChart2 className="h-5 w-5 mr-3" />}
+            isActive={isActive("/reporting")}
+          >
+            Auswertungen
           </NavItem>
         </nav>
       </div>

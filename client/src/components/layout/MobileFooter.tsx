@@ -1,4 +1,4 @@
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { Home, FileText, Package, RefreshCw } from "lucide-react";
 
 // NavItem Komponente für Mobile Footer
@@ -9,15 +9,16 @@ const NavItem = ({ href, icon, label, isActive }: {
   isActive: boolean;
 }) => {
   return (
-    <a
-      href={href}
-      className={`flex flex-col items-center justify-center ${
-        isActive ? "text-primary-600" : "text-gray-500"
-      }`}
-    >
-      {icon}
-      <span className="text-xs mt-1">{label}</span>
-    </a>
+    <Link href={href}>
+      <div
+        className={`flex flex-col items-center justify-center cursor-pointer ${
+          isActive ? "text-primary-600" : "text-gray-500"
+        }`}
+      >
+        {icon}
+        <span className="text-xs mt-1">{label}</span>
+      </div>
+    </Link>
   );
 };
 
