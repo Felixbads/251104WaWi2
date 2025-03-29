@@ -767,22 +767,59 @@ export class VendonSyncService {
         // Konvertiere die machine.id zu einem String
         const vendonId = machine.id.toString();
         
+        // Hole detaillierte Maschineninfos für jede Maschine
+        console.log(`Hole Details für Maschine ${vendonId}...`);
+        let machineDetail;
+        try {
+          machineDetail = await this.api.getMachineDetail(vendonId);
+          console.log(`Details für Maschine ${vendonId} erhalten.`);
+        } catch (error) {
+          console.error(`Fehler beim Abrufen von Maschinendetails für ${vendonId}:`, error);
+          machineDetail = null;
+        }
+        
+        // Kombiniere die Basisdaten mit den Detaildaten
+        const combinedData = machineDetail ? { ...machine, ...machineDetail } : machine;
+        
+        // Extrahiere alle wichtigen Felder aus dem kombinierten Objekt
         // Bereite die Maschinendaten vor
         const newMachine: InsertMachine = {
           vendonId: vendonId,
-          machineName: machine.name || `Maschine ${vendonId}`,
-          serialNumber: machine.serial_number || null,
-          status: machine.status || 'unknown',
-          model: machine.model || null, // Korrigiert von machineModel zu model
-          machineType: machine.type || null,
-          description: machine.description || null,
-          locationName: machine.location?.name || null,
-          locationId: machine.location?.id ? parseInt(machine.location.id) : null, // Konvertierung zu Integer
-          locationAddress: machine.location?.address || null,
-          lastPing: machine.last_ping ? new Date(machine.last_ping * 1000) : null,
-          lastVend: machine.last_vend ? new Date(machine.last_vend * 1000) : null,
+          machineName: combinedData.name || `Maschine ${vendonId}`,
+          serialNumber: combinedData.serial_number || null,
+          status: combinedData.status || 'unknown',
+          model: combinedData.model || null, 
+          machineType: combinedData.type || null,
+          description: combinedData.description || null,
+          
+          // Standortinformationen
+          locationName: combinedData.location?.name || null,
+          // Setze locationId bewusst immer auf null, da wir keine Location-Tabelle haben, die referenziert werden könnte
+          locationId: null, 
+          locationAddress: combinedData.location?.address || combinedData.address || null,
+          
+          // GPS-Koordinaten
+          telemetryUnitId: combinedData.telemetry_unit_id || null,
+          power: combinedData.power || null,
+          powerStatus: combinedData.power_status || null,
+          currency: combinedData.currency || null,
+          
+          // Weitere Standortdaten aus location oder direkt aus dem Objekt
+          additionalData: JSON.stringify({
+            gps: combinedData.gps || combinedData.location?.gps || null,
+            address: combinedData.address || combinedData.location?.address || null,
+            zip: combinedData.zip || combinedData.location?.zip || null,
+            city: combinedData.city || combinedData.location?.city || null,
+            country: combinedData.country || combinedData.location?.country || null,
+          }),
+          
+          // Zeitstempel
+          lastPing: combinedData.last_ping ? new Date(combinedData.last_ping * 1000) : null,
+          lastVend: combinedData.last_vend ? new Date(combinedData.last_vend * 1000) : null,
           lastSync: new Date(),
-          extraData: JSON.stringify(machine),
+          
+          // Vollständiger Datensatz als JSON
+          extraData: JSON.stringify(combinedData),
         };
         
         try {
@@ -961,21 +998,80 @@ export class VendonSyncService {
               transactionDate = new Date();
             }
             
-            // Produkt-ID extrahieren
-            let productId = transaction.product_id 
-              ? transaction.product_id.toString() 
-              : (transaction.product ? transaction.product.id?.toString() : null);
-            
-            // Produktname extrahieren
-            let productName = transaction.product_name 
-              || (transaction.product ? transaction.product.name : null) 
-              || 'Unbekanntes Produkt';
-            
-            // Erstelle die Transaktionsdaten - extrahiere alle Felder aus dem Transaction-Objekt
-            // und falls nicht vorhanden, versuche sie aus dem extraData-JSON zu lesen
-            const extraDataObj = transaction.extraData 
-              ? (typeof transaction.extraData === 'string' ? JSON.parse(transaction.extraData) : transaction.extraData)
+            // JSON-Daten aus extraData extrahieren, falls vorhanden
+            const extraDataStr = transaction.extraData || transaction.extra_data;
+            const extraDataObj = extraDataStr
+              ? (typeof extraDataStr === 'string' ? JSON.parse(extraDataStr) : extraDataStr)
               : {};
+              
+            // Finde den ursprünglichen Produktnamen - er kann in verschiedenen Feldern sein
+            let productId = null;
+            let productName = null;
+            
+            // Versuche zuerst, aus den API-Daten zu extrahieren
+            if (transaction.product_id) {
+              productId = transaction.product_id.toString();
+            } else if (transaction.product && transaction.product.id) {
+              productId = transaction.product.id.toString();
+            } else if (extraDataObj.product_id) {
+              productId = extraDataObj.product_id.toString();
+            } else if (extraDataObj.product && extraDataObj.product.id) {
+              productId = extraDataObj.product.id.toString();
+            }
+            
+            // Versuche, den Produktnamen zu finden
+            if (transaction.product_name) {
+              productName = transaction.product_name;
+            } else if (transaction.product && transaction.product.name) {
+              productName = transaction.product.name;
+            } else if (transaction.name) {
+              productName = transaction.name;
+            } else if (extraDataObj.product_name) {
+              productName = extraDataObj.product_name;
+            } else if (extraDataObj.product && extraDataObj.product.name) {
+              productName = extraDataObj.product.name;
+            } else if (extraDataObj.name) {
+              productName = extraDataObj.name;
+            }
+            
+            // Hole detaillierte Produktinformationen über den stock_id Endpunkt, wenn vorhanden
+            const stockId = transaction.stock_id || extraDataObj.stock_id;
+            if (stockId && !productName) {
+              try {
+                console.log(`Hole Produktdetails für stock_id ${stockId}...`);
+                const machineId = transaction.machine_id ? transaction.machine_id.toString() : null;
+                
+                if (machineId) {
+                  const stockData = await this.api.getMachineStock(machineId);
+                  
+                  if (stockData && Array.isArray(stockData)) {
+                    // Finde das Produkt mit der passenden stock_id
+                    const stockItem = stockData.find(item => item.id?.toString() === stockId.toString());
+                    
+                    if (stockItem) {
+                      if (stockItem.product) {
+                        if (!productId && stockItem.product.id) {
+                          productId = stockItem.product.id.toString();
+                        }
+                        if (!productName && stockItem.product.name) {
+                          productName = stockItem.product.name;
+                        }
+                      } else if (stockItem.name) {
+                        productName = stockItem.name;
+                      }
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error(`Fehler beim Abrufen von Produktdetails für stock_id ${stockId}:`, error);
+              }
+            }
+            
+            // Wenn immer noch kein Produktname gefunden wurde, verwende das Standard-Fallback
+            if (!productName) {
+              productName = 'Unbekanntes Produkt';
+              console.warn(`Kein Produktname für Transaktion ${transaction.id || ''} gefunden. Verwende '${productName}'`);
+            }
               
             // Extrahiere alle verfügbaren Daten aus dem Transaction-Objekt oder aus extraData
             const vendonId = (transaction.id || transaction.transaction_id || extraDataObj.transaction_id || extraDataObj.id).toString();
@@ -1045,7 +1141,8 @@ export class VendonSyncService {
               cashlessCredit: transaction.cashless_credit || 0,
               discountCode: discountCodeValue,
               discountAmount: discountAmountValue,
-              locationId: transaction.location_id ? transaction.location_id.toString() : null,
+              // Setze locationId auf null, um FK-Constraint-Fehler zu vermeiden
+              locationId: null, // war: transaction.location_id ? transaction.location_id.toString() : null,
               locationName: transaction.location_name || null,
               note: noteValue,
               transactionData: transactionDataValue ? JSON.stringify(transactionDataValue) : null,
@@ -1287,7 +1384,8 @@ export class VendonSyncService {
               eventName: event.name || event.event_name || 'Unbekanntes Ereignis',
               severity: event.severity || 'normal',
               description: event.description || event.message || null,
-              locationId: event.location_id || event.machine?.location_id || null,
+              // Setze locationId auf null, um FK-Constraint-Fehler zu vermeiden
+              locationId: null, // war: event.location_id || event.machine?.location_id || null,
               extraData: JSON.stringify(event)
             };
             
