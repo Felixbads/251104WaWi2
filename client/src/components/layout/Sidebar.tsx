@@ -9,11 +9,16 @@ import {
   Settings,
   LogOut,
   BarChart2,
+  Truck,
+  ShoppingCart,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib";
 
 export default function Sidebar() {
   const [location] = useLocation();
+  const { logout, user } = useAuth();
 
   // Helper function to determine if a link is active
   const isActive = (path: string) => {
@@ -23,21 +28,10 @@ export default function Sidebar() {
   return (
     <aside className="hidden md:flex md:flex-col md:w-64 bg-white border-r border-gray-200 h-screen sticky top-0">
       <div className="p-4 flex items-center border-b border-gray-200">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-8 w-8 text-primary-600"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-          />
-        </svg>
-        <span className="ml-2 font-semibold text-lg">Vendon Sync</span>
+        <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
+          <ShoppingBag className="h-5 w-5 text-white" />
+        </div>
+        <span className="ml-2 font-semibold text-lg">Proviantomat</span>
       </div>
 
       {/* Nav Section: Main */}
@@ -56,18 +50,6 @@ export default function Sidebar() {
             >
               <Home className="h-5 w-5 mr-3" />
               Dashboard
-            </a>
-          </Link>
-          <Link href="/transactions">
-            <a
-              className={`flex items-center px-4 py-2 text-sm font-medium ${
-                isActive("/transactions")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <FileText className="h-5 w-5 mr-3" />
-              Transaktionen
             </a>
           </Link>
           <Link href="/machines">
@@ -92,6 +74,42 @@ export default function Sidebar() {
             >
               <ShoppingBag className="h-5 w-5 mr-3" />
               Produkte
+            </a>
+          </Link>
+          <Link href="/suppliers">
+            <a
+              className={`flex items-center px-4 py-2 text-sm font-medium ${
+                isActive("/suppliers")
+                  ? "text-primary-600 bg-primary-50"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              }`}
+            >
+              <Truck className="h-5 w-5 mr-3" />
+              Lieferanten
+            </a>
+          </Link>
+          <Link href="/orders">
+            <a
+              className={`flex items-center px-4 py-2 text-sm font-medium ${
+                isActive("/orders")
+                  ? "text-primary-600 bg-primary-50"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              }`}
+            >
+              <ShoppingCart className="h-5 w-5 mr-3" />
+              Bestellungen
+            </a>
+          </Link>
+          <Link href="/transactions">
+            <a
+              className={`flex items-center px-4 py-2 text-sm font-medium ${
+                isActive("/transactions")
+                  ? "text-primary-600 bg-primary-50"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              }`}
+            >
+              <FileText className="h-5 w-5 mr-3" />
+              Transaktionen
             </a>
           </Link>
         </nav>
@@ -159,33 +177,19 @@ export default function Sidebar() {
         <div className="flex items-center">
           <div className="flex-shrink-0">
             <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-              <svg
-                className="h-6 w-6 text-primary"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                />
-              </svg>
+              <Users className="h-6 w-6 text-primary" />
             </div>
           </div>
           <div className="ml-3">
-            <p className="text-sm font-medium text-gray-700">{localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user') || '{}').username : 'Benutzer'}</p>
-            <p className="text-xs font-medium text-gray-500">{localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user') || '{}').role : 'Gast'}</p>
+            <p className="text-sm font-medium text-gray-700">{user?.username || 'Admin'}</p>
+            <p className="text-xs font-medium text-gray-500">{user?.role || 'Administrator'}</p>
           </div>
           <Button
             variant="ghost"
             size="icon"
             className="ml-auto rounded-full"
             onClick={() => {
-              localStorage.removeItem('user');
-              window.location.href = '/login';
+              logout();
             }}
           >
             <LogOut className="h-5 w-5 text-gray-500" />

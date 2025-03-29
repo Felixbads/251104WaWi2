@@ -1,0 +1,148 @@
+1. UI und Menüstruktur
+
+Das Frontend basiert auf einem modernen, responsiven Design, das sowohl auf Desktop- als auch auf mobilen Geräten intuitiv bedienbar ist. Die Hauptnavigation gliedert sich in folgende Bereiche:
+
+Dashboard
+Zentrale Übersicht mit interaktiven Widgets und Diagrammen, die relevante KPIs anzeigen, wie:
+Gesamtumsatz, Transaktionsvolumen
+Aktuelle Maschinen-Performance (z. B. letzter Verkauf, Anzahl Transaktionen, Umsatz pro Maschine)
+Kurzübersichten zu Produkten, Lieferanten und Bestellungen
+Maschinen
+Verwaltung und Detailansichten aller Warenautomaten.
+Übersicht:
+Anzeige in Kachel- oder Listenansicht mit Maschinendaten (machineName, vendonId, Standort) und KPIs (letzter Verkauf, heutiger Umsatz, Anzahl Transaktionen, Cashless-Status, Altersverifizierungsindikator).
+Detailseite:
+Historie, technische Details und zugehörige Transaktionen.
+Produkte
+Verwaltung der Produktstammdaten und Auswertung der Verkaufszahlen.
+Übersicht:
+Listenansicht mit Produktname, Preis, aktueller Lagerbestand und Kennzeichnung (z. B. Altersverifizierung erforderlich).
+Detailseite:
+Verkaufsentwicklung (Diagramme für Zeitreihenanalysen), Preis- und Bestandsverlauf sowie Zuordnung zu Maschinen.
+Lieferanten
+Verwaltung aller Lieferantendaten und Konditionen.
+Übersicht:
+Liste oder Kacheln mit Lieferantenname, Kontaktdaten, Anzahl zugeordneter Produkte und offenen Bestellungen.
+Detailseite:
+Bearbeitbare Stammdaten, Produktzuordnung, Dokumentenverwaltung (z. B. Preislisten) sowie Historie der Einkaufskonditionen.
+Bestellungen
+Abwicklung und Verwaltung des Bestellprozesses.
+Übersicht:
+Listenansicht aller Bestellungen mit Status (Offen, Bestellt, Geliefert), Datum und zugehörigen Lieferanten.
+Detailseite:
+Detailansicht der Bestellung mit den enthaltenen Positionen, Preisen und Bestellhistorie.
+Transaktionen
+Übersicht über alle Verkaufstransaktionen.
+Übersicht:
+Filterbare Tabellenansicht (nach Maschine, Produkt, Datum) mit Kennzahlen wie verkaufte Menge, Umsatz und Transaktionszeit.
+Reporting:
+Graphische Auswertungen (Tages-, Wochen- und Monatsberichte) und Integration der Profitabilitätsrechnung (Ergebnis = Umsatz Netto – Kosten Netto – Pfand).
+Einstellungen
+Konfigurationsbereich für Systemadministratoren.
+Untermenüpunkte:
+Benutzer & Authentifizierung:
+Verwaltung der Benutzerkonten, Passwörter und Zugriffsrechte. Hier erfolgt auch die Registrierung, das Login/Logout und die Passwortverwaltung.
+Systemkonfiguration:
+Allgemeine Systemeinstellungen (Sprache, Zeitzonen, etc.).
+Schnittstellen:
+Darstellung aller angebundenen externen Schnittstellen mit Sync-Status (letzter Sync, abgerufene Datensätze, Fehlerstatus) und die Möglichkeit, den Sync manuell anzustoßen.
+Login/Logout
+Eine öffentliche Login-Seite, auf der sich Benutzer mit ihrem Benutzernamen und Passwort authentifizieren. Nach erfolgreichem Login gelangen sie ins System; Logout beendet die Session und leitet auf die Login-Seite zurück.
+2. Datenbankstruktur und Beziehungen
+
+Neben den bereits definierten Tabellen wird nun eine neue Tabelle zur Verwaltung der Benutzer eingeführt:
+
+users
+Felder:
+id: serial (Primärschlüssel)
+username: text (eindeutig, nicht null)
+passwordHash: text (gespeicherter, gehashter Passwortwert, nicht null)
+email: text (optional, aber eindeutig)
+role: text (z. B. "admin", "operator", "viewer")
+createdAt: timestamp (Standard: jetzt)
+updatedAt: timestamp (optional)
+Funktion:
+Speichert alle notwendigen Daten zur Authentifizierung und Autorisierung. Die Passwörter werden mittels geeigneter Algorithmen (z. B. bcrypt) gehasht.
+Die übrigen Kern-Tabellen bleiben unverändert:
+
+machines
+products
+refills
+refill_details
+transactions
+suppliers
+orders
+inventory
+sync_logs (optional)
+Beziehungen:
+
+Benutzer (users) werden in der Regel über die API in das Authentifizierungssystem eingebunden.
+Stammdaten (Maschinen, Produkte, Lieferanten, Bestellungen, Transaktionen) werden wie zuvor über Fremdschlüssel verknüpft.
+3. Module und Geschäftslogik
+
+A. Authentifizierung & Benutzerverwaltung
+Registrierung und Login:
+Benutzer registrieren sich (falls Self-Service vorgesehen) oder werden durch Administratoren angelegt.
+Beim Login wird das eingegebene Passwort mit dem in der Datenbank gespeicherten Hash (z. B. mittels bcrypt) verglichen.
+Nach erfolgreicher Authentifizierung erhält der Benutzer ein Token (z. B. JWT) oder eine Session-ID, die für nachfolgende API-Anfragen genutzt wird.
+Passwort-Reset und Änderungsfunktionen sind über die Benutzeroberfläche (im Menü „Benutzer & Authentifizierung“) abrufbar.
+Rechteverwaltung:
+Basierend auf dem role-Feld in der Tabelle users werden unterschiedliche Zugriffsrechte und Sichtbarkeiten in der UI umgesetzt.
+Administratoren können Benutzer verwalten und Rechte anpassen.
+B. Stammdatenverwaltung
+Maschinen, Produkte, Lieferanten:
+Erfassung, Bearbeitung und Validierung der Stammdaten.
+Sicherstellung konsistenter Zuordnungen (Matching von externen IDs wie vendonId, vendonProductId).
+C. Bestellmanagement
+Bestellungen:
+Initiierung von Bestellungen aus der Bestellübersicht.
+Bestellprozesse (manuell, kopiert oder prognosebasiert) unter Berücksichtigung aktueller Einkaufskonditionen und Lieferanteninformationen.
+Detailansichten bieten Nachverfolgung des Status und der Historie.
+D. Verkaufstransaktionen und Reporting
+Transaktionen:
+Jede Verkaufstransaktion wird erfasst und in den Reporting-Tools aggregiert.
+Ergebnisrechnung:
+Berechnung der Profitabilität mit:
+Ergebnis = Umsatz Netto – Kosten Netto – Pfand
+Darstellung in Tabellen und Diagrammen im Reporting-Bereich.
+E. Lagerverwaltung und automatischer Bestandstrigger
+Lagerbestände:
+Verwaltung über die Tabelle inventory, die Bestände pro Produkt und Lager abbildet.
+Automatische Bestandsanpassung:
+Sobald in einem refill_details-Eintrag ein Produkt als „hinzugefügt“ (added) registriert wird, reduziert ein Trigger oder ein Hintergrundprozess automatisch den Lagerbestand des zugeordneten Lagers.
+F. Schnittstellen-Management
+Schnittstellen-Übersicht:
+Anzeige aller angebundenen externen Systeme und deren Sync-Status.
+Manuelles Auslösen des Sync-Prozesses über die UI in den Einstellungen.
+4. Technische Architektur und API-Design
+
+A. Backend
+Datenbank:
+Nutzung eines relationalen DBMS (z. B. PostgreSQL) mit allen oben beschriebenen Tabellen.
+API-Schicht:
+Entwicklung einer RESTful API (alternativ GraphQL) mit folgenden Endpunkten:
+Authentifizierung:
+/auth/login – Login (über Username und Passwort)
+/auth/register – Registrierung (falls vorgesehen)
+/auth/logout – Logout
+/auth/reset – Passwort-Reset (optional)
+Stammdaten & Module:
+/machines, /products, /suppliers, /orders, /transactions, /inventory
+Schnittstellen-Management:
+/settings/interfaces
+Business-Logik:
+Implementierung von Passwort-Hashing, Session-/Token-Management und Rechteverwaltung.
+Validierung und automatische Bestandsanpassung bei Refill-Einträgen.
+Aggregations- und Reportingfunktionen.
+B. Frontend
+Technologien:
+Moderne Frameworks wie React, Angular oder Vue.js für ein responsives UI.
+Komponenten:
+Login-/Registrierungsseite:
+Ermöglicht Benutzern die Authentifizierung mittels Username und Passwort.
+Dashboard, Listen- und Detailseiten:
+Für Maschinen, Produkte, Lieferanten, Bestellungen, Transaktionen und Einstellungen.
+Einstellungen:
+Verwaltung der Benutzer & Authentifizierung sowie Schnittstellen-Management.
+Navigation:
+Eine feste Menüleiste, die nach erfolgreichem Login alle zugelassenen Module anzeigt.
