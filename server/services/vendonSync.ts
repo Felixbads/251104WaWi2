@@ -50,9 +50,9 @@ class VendonAPI {
       console.log(`Vendon API mit Schlüssel ${maskedKey} initialisiert.`);
     }
 
-    // WICHTIG: Vendon-API erfordert "Bearer" für den Authentication-Header
+    // WICHTIG: Vendon-API erfordert "Token" für den Authentication-Header (nicht "Bearer")
     this.headers = {
-      "Authorization": `Bearer ${this.apiKey}`,
+      "Authorization": `Token ${this.apiKey}`,
       "Content-Type": "application/json",
       "Accept": "application/json"
     };
@@ -366,11 +366,11 @@ class VendonAPI {
     try {
       const [startTimestamp, endTimestamp] = this.prepareTimestamps(startDate, endDate);
       
-      // Testen verschiedener Parameterformate für Events
-      // Aus dem Python-Code, aber angepasst für unsere Fehlerbehebung
+      // Verwende für Events das Parameterformat from_timestamp und to_timestamp
+      // wie im Python-Referenzcode
       const params: Record<string, any> = {
-        from: startTimestamp, // Versuche mit 'from' statt 'from_timestamp'
-        to: endTimestamp,     // Versuche mit 'to' statt 'to_timestamp'
+        from_timestamp: startTimestamp, // Sekunden für den Events-Endpunkt
+        to_timestamp: endTimestamp,     // Sekunden für den Events-Endpunkt
         offset: (page - 1) * limit,
         limit
       };
