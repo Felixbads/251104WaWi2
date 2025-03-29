@@ -623,8 +623,9 @@ export class VendonSyncService {
         // Verarbeite jede Transaktion
         for (const transaction of transactions) {
           try {
-            // Prüfe, ob die Transaktion eine ID hat
-            if (!transaction.id) {
+            // Prüfe, ob die Transaktion eine ID hat (entweder id oder transaction_id)
+            const transactionId = transaction.id || transaction.transaction_id;
+            if (!transactionId) {
               console.error("Transaktion ohne ID übersprungen:", transaction);
               errors++;
               continue;
@@ -648,7 +649,7 @@ export class VendonSyncService {
               
               machineId = machineData.id;
             } else {
-              console.warn(`Transaktion ${transaction.id} hat keine Maschinen-ID. Verwende Standardwert.`);
+              console.warn(`Transaktion ${transactionId} hat keine Maschinen-ID. Verwende Standardwert.`);
               machineId = 1; // Standardwert, wenn keine Maschinen-ID vorhanden ist
             }
             
@@ -667,7 +668,7 @@ export class VendonSyncService {
                 transactionDate = new Date(transaction.datetime);
               }
             } else {
-              console.warn(`Transaktion ${transaction.id} hat kein Datum. Verwende aktuelles Datum.`);
+              console.warn(`Transaktion ${transactionId} hat kein Datum. Verwende aktuelles Datum.`);
               transactionDate = new Date();
             }
             
@@ -683,7 +684,7 @@ export class VendonSyncService {
             
             // Erstelle die Transaktionsdaten
             const newTransaction: InsertTransaction = {
-              vendonId: transaction.id.toString(),
+              vendonId: (transaction.id || transaction.transaction_id).toString(),
               machineId: machineId,
               machineName: transaction.machine_name || 'Unbekannte Maschine',
               datetime: transactionDate,

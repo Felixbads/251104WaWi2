@@ -31,6 +31,7 @@ export interface IStorage {
   getTransactions(limit?: number): Promise<Transaction[]>;
   getTransactionsByDateRange(startDate: Date, endDate: Date, limit?: number): Promise<Transaction[]>;
   getTransactionsByMachine(machineId: number, limit?: number): Promise<Transaction[]>;
+  getTransactionByVendonId(vendonId: string): Promise<Transaction | undefined>;
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
 
   // Product operations
@@ -52,7 +53,9 @@ export interface IStorage {
   getEvents(limit?: number): Promise<Event[]>;
   getEventsByDateRange(startDate: Date, endDate: Date, limit?: number): Promise<Event[]>;
   getEvent(id: number): Promise<Event | undefined>;
+  getEventByVendonId(vendonId: string): Promise<Event | undefined>;
   createEvent(event: InsertEvent): Promise<Event>;
+  updateEvent(id: number, event: Partial<InsertEvent>): Promise<Event | undefined>;
 
   // Sync log operations
   getSyncLogs(limit?: number): Promise<SyncLog[]>;
@@ -146,6 +149,11 @@ export class DatabaseStorage implements IStorage {
       .limit(limit);
   }
 
+  async getTransactionByVendonId(vendonId: string): Promise<Transaction | undefined> {
+    const [transaction] = await db.select().from(transactions).where(eq(transactions.vendonId, vendonId));
+    return transaction;
+  }
+
   async createTransaction(transaction: InsertTransaction): Promise<Transaction> {
     const [newTransaction] = await db.insert(transactions).values(transaction).returning();
     return newTransaction;
@@ -237,9 +245,23 @@ export class DatabaseStorage implements IStorage {
     return event;
   }
 
+  async getEventByVendonId(vendonId: string): Promise<Event | undefined> {
+    const [event] = await db.select().from(events).where(eq(events.vendonId, vendonId));
+    return event;
+  }
+
   async createEvent(event: InsertEvent): Promise<Event> {
     const [newEvent] = await db.insert(events).values(event).returning();
     return newEvent;
+  }
+
+  async updateEvent(id: number, event: Partial<InsertEvent>): Promise<Event | undefined> {
+    const [updatedEvent] = await db
+      .update(events)
+      .set({ ...event, updatedAt: new Date() })
+      .where(eq(events.id, id))
+      .returning();
+    return updatedEvent;
   }
 
   // Sync log operations
