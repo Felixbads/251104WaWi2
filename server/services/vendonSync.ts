@@ -181,19 +181,24 @@ class VendonAPI {
     // Startdatum konvertieren
     if (startDate !== undefined) {
       if (startDate instanceof Date) {
+        // Direkt UNIX-Timestamp aus JavaScript Date Object erzeugen
         startTimestamp = Math.floor(startDate.getTime() / 1000);
+        console.log(`Startdatum (Date-Objekt) umgewandelt in Timestamp ${startTimestamp}, was ${new Date(startTimestamp * 1000).toISOString()} entspricht`);
       } else if (typeof startDate === 'string') {
         try {
           // Versuchen, das Datum im Format YYYY-MM-DD zu interpretieren
           const dt = new Date(startDate);
           if (!isNaN(dt.getTime())) {
             startTimestamp = Math.floor(dt.getTime() / 1000);
+            console.log(`Startdatum ${startDate} umgewandelt in Timestamp ${startTimestamp}, was ${new Date(startTimestamp * 1000).toISOString()} entspricht`);
           } else {
             // Vielleicht ist es bereits ein UNIX-Timestamp als String
             startTimestamp = parseInt(startDate, 10);
             if (isNaN(startTimestamp)) {
               console.warn(`Ungültiges Startdatum-Format: ${startDate}, verwende Standard`);
               startTimestamp = null;
+            } else {
+              console.log(`Startdatum als direkter Timestamp ${startTimestamp} erkannt, was ${new Date(startTimestamp * 1000).toISOString()} entspricht`);
             }
           }
         } catch (error) {
@@ -201,14 +206,29 @@ class VendonAPI {
           startTimestamp = null;
         }
       } else if (typeof startDate === 'number') {
-        startTimestamp = startDate;
+        // Wenn bereits eine Zahl, prüfen ob es sich um einen korrekten Timestamp handelt
+        // Ein Timestamp von vor 2020 ist wahrscheinlich falsch, da wir aktuelle Daten erwarten
+        if (startDate > 1577836800) { // 01.01.2020 00:00:00 GMT
+          startTimestamp = startDate;
+          console.log(`Startdatum als Timestamp ${startTimestamp} verarbeitet, was ${new Date(startTimestamp * 1000).toISOString()} entspricht`);
+        } else {
+          // Möglicherweise ist der Timestamp in Millisekunden (JavaScript) statt Sekunden (UNIX)
+          if (startDate > 1577836800000) { // 01.01.2020 in Millisekunden
+            startTimestamp = Math.floor(startDate / 1000);
+            console.log(`Startdatum als Millisekunden-Timestamp erkannt, konvertiert zu ${startTimestamp}, was ${new Date(startTimestamp * 1000).toISOString()} entspricht`);
+          } else {
+            console.warn(`Zeitstempel ${startDate} scheint ungültig zu sein (vor 2020), verwende Standard`);
+            startTimestamp = null;
+          }
+        }
       }
     }
     
-    // Enddatum konvertieren
+    // Enddatum konvertieren - analog zum Startdatum
     if (endDate !== undefined) {
       if (endDate instanceof Date) {
         endTimestamp = Math.floor(endDate.getTime() / 1000);
+        console.log(`Enddatum (Date-Objekt) umgewandelt in Timestamp ${endTimestamp}, was ${new Date(endTimestamp * 1000).toISOString()} entspricht`);
       } else if (typeof endDate === 'string') {
         try {
           // Bei YYYY-MM-DD Format, setze auf Ende des Tages
@@ -216,12 +236,15 @@ class VendonAPI {
           if (!isNaN(dt.getTime())) {
             dt.setHours(23, 59, 59, 999);
             endTimestamp = Math.floor(dt.getTime() / 1000);
+            console.log(`Enddatum ${endDate} umgewandelt in Timestamp ${endTimestamp}, was ${new Date(endTimestamp * 1000).toISOString()} entspricht`);
           } else {
             // Vielleicht ist es bereits ein UNIX-Timestamp als String
             endTimestamp = parseInt(endDate, 10);
             if (isNaN(endTimestamp)) {
               console.warn(`Ungültiges Enddatum-Format: ${endDate}, verwende Standard`);
               endTimestamp = null;
+            } else {
+              console.log(`Enddatum als direkter Timestamp ${endTimestamp} erkannt, was ${new Date(endTimestamp * 1000).toISOString()} entspricht`);
             }
           }
         } catch (error) {
@@ -229,7 +252,20 @@ class VendonAPI {
           endTimestamp = null;
         }
       } else if (typeof endDate === 'number') {
-        endTimestamp = endDate;
+        // Gleiche Prüfung wie beim Startdatum
+        if (endDate > 1577836800) { // 01.01.2020 00:00:00 GMT
+          endTimestamp = endDate;
+          console.log(`Enddatum als Timestamp ${endTimestamp} verarbeitet, was ${new Date(endTimestamp * 1000).toISOString()} entspricht`);
+        } else {
+          // Möglicherweise ist der Timestamp in Millisekunden (JavaScript) statt Sekunden (UNIX)
+          if (endDate > 1577836800000) { // 01.01.2020 in Millisekunden
+            endTimestamp = Math.floor(endDate / 1000);
+            console.log(`Enddatum als Millisekunden-Timestamp erkannt, konvertiert zu ${endTimestamp}, was ${new Date(endTimestamp * 1000).toISOString()} entspricht`);
+          } else {
+            console.warn(`Zeitstempel ${endDate} scheint ungültig zu sein (vor 2020), verwende Standard`);
+            endTimestamp = null;
+          }
+        }
       }
     }
     
@@ -239,16 +275,18 @@ class VendonAPI {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       startTimestamp = Math.floor(sevenDaysAgo.getTime() / 1000);
+      console.log(`Kein gültiger Startzeitstempel angegeben, verwende Standardwert von 7 Tagen zurück: ${new Date(startTimestamp * 1000).toISOString()}`);
     }
     
     if (endTimestamp === null) {
       // Standardmäßig jetzt
       endTimestamp = Math.floor(Date.now() / 1000);
+      console.log(`Kein gültiger Endzeitstempel angegeben, verwende aktuelle Zeit: ${new Date(endTimestamp * 1000).toISOString()}`);
     }
     
     // Zeitraum in Tagen berechnen (für Protokollzwecke)
     const daysRange = Math.floor((endTimestamp - startTimestamp) / 86400) + 1;
-    console.log(`Abfragebereich beträgt ${daysRange} Tage`);
+    console.log(`Abfragebereich beträgt ${daysRange} Tage von ${new Date(startTimestamp * 1000).toISOString()} bis ${new Date(endTimestamp * 1000).toISOString()}`);
     
     return [startTimestamp, endTimestamp];
   }
@@ -266,6 +304,7 @@ class VendonAPI {
     try {
       const [startTimestamp, endTimestamp] = this.prepareTimestamps(startDate, endDate);
       
+      // Für Events verwendet die API das Parameterformat from_timestamp und to_timestamp (ohne Millisekunden)
       const params: Record<string, any> = {
         from_timestamp: startTimestamp,
         to_timestamp: endTimestamp,
@@ -279,6 +318,7 @@ class VendonAPI {
       
       console.log(`Rufe Events ab mit Parametern: ${JSON.stringify(params)}`);
       
+      // Laut Python-Code ist "events" der korrekte Endpunkt
       const events = await this.makeRequest<any[]>("events", "GET", params);
       if (events) {
         console.log(`Erfolgreich ${events.length} Events abgerufen`);
@@ -630,13 +670,52 @@ export class VendonSyncService {
               }
             }
 
+            // Zeitstempel in Date-Objekt umwandeln - API liefert entweder Sekunden oder Millisekunden
+            let transactionDate: Date;
+            if (typeof transaction.datetime === 'number') {
+              // Wenn der Timestamp bereits eine Zahl ist
+              if (transaction.datetime > 1577836800000) { // > 01.01.2020 in Millisekunden
+                // Timestamp ist in Millisekunden
+                transactionDate = new Date(transaction.datetime);
+              } else {
+                // Timestamp ist in Sekunden
+                transactionDate = new Date(transaction.datetime * 1000);
+              }
+            } else if (typeof transaction.datetime === 'string') {
+              // Versuche, den String als Timestamp zu parsen
+              const parsedTimestamp = parseInt(transaction.datetime, 10);
+              if (!isNaN(parsedTimestamp)) {
+                if (parsedTimestamp > 1577836800000) { // > 01.01.2020 in Millisekunden
+                  // Timestamp ist in Millisekunden
+                  transactionDate = new Date(parsedTimestamp);
+                } else {
+                  // Timestamp ist in Sekunden
+                  transactionDate = new Date(parsedTimestamp * 1000);
+                }
+              } else {
+                // Versuche, es als ISO-Datum zu parsen
+                transactionDate = new Date(transaction.datetime);
+                if (isNaN(transactionDate.getTime())) {
+                  // Notfallösung: Verwende die aktuelle Zeit
+                  console.error(`Ungültiges Datumsformat in Transaktion ${transaction.id}: ${transaction.datetime}`);
+                  transactionDate = new Date();
+                }
+              }
+            } else {
+              // Wenn datetime nicht vorhanden oder undefiniert ist
+              console.error(`Fehlendes Datum in Transaktion ${transaction.id}`);
+              transactionDate = new Date();
+            }
+            
+            console.log(`Transaktion ${transaction.id}: Originaldatum ${transaction.datetime} → Konvertiert zu ${transactionDate.toISOString()}`);
+
             // Create transaction object with resolved IDs
             const newTransaction: InsertTransaction = {
               vendonId: transaction.id,
               machineId: machineId,
               productId: productId,
               price: transaction.price,
-              datetime: new Date(transaction.datetime),
+              datetime: transactionDate,
               productName: transaction.product_name,
               machineName: transaction.machine_name,
               transactionType: transaction.type,
@@ -797,6 +876,72 @@ export class VendonSyncService {
               }
             }
 
+            // Zeitstempel in Date-Objekt umwandeln - API liefert entweder Sekunden oder Millisekunden
+            let eventDate: Date;
+            if (typeof event.datetime === 'number') {
+              // Wenn der Timestamp bereits eine Zahl ist
+              if (event.datetime > 1577836800000) { // > 01.01.2020 in Millisekunden
+                // Timestamp ist in Millisekunden
+                eventDate = new Date(event.datetime);
+              } else {
+                // Timestamp ist in Sekunden
+                eventDate = new Date(event.datetime * 1000);
+              }
+            } else if (typeof event.datetime === 'string') {
+              // Versuche, den String als Timestamp zu parsen
+              const parsedTimestamp = parseInt(event.datetime, 10);
+              if (!isNaN(parsedTimestamp)) {
+                if (parsedTimestamp > 1577836800000) { // > 01.01.2020 in Millisekunden
+                  // Timestamp ist in Millisekunden
+                  eventDate = new Date(parsedTimestamp);
+                } else {
+                  // Timestamp ist in Sekunden
+                  eventDate = new Date(parsedTimestamp * 1000);
+                }
+              } else {
+                // Versuche, es als ISO-Datum zu parsen
+                eventDate = new Date(event.datetime);
+                if (isNaN(eventDate.getTime())) {
+                  // Notfallösung: Verwende die aktuelle Zeit
+                  console.error(`Ungültiges Datumsformat in Event ${event.id}: ${event.datetime}`);
+                  eventDate = new Date();
+                }
+              }
+            } else {
+              // Wenn datetime nicht vorhanden oder undefiniert ist
+              console.error(`Fehlendes Datum in Event ${event.id}`);
+              eventDate = new Date();
+            }
+            
+            console.log(`Event ${event.id}: Originaldatum ${event.datetime} → Konvertiert zu ${eventDate.toISOString()}`);
+
+            // Ähnliche Behandlung für resolved_at
+            let resolvedDate: Date | null = null;
+            if (event.resolved_at) {
+              if (typeof event.resolved_at === 'number') {
+                if (event.resolved_at > 1577836800000) { // > 01.01.2020 in Millisekunden
+                  resolvedDate = new Date(event.resolved_at);
+                } else {
+                  resolvedDate = new Date(event.resolved_at * 1000);
+                }
+              } else if (typeof event.resolved_at === 'string') {
+                const parsedTimestamp = parseInt(event.resolved_at, 10);
+                if (!isNaN(parsedTimestamp)) {
+                  if (parsedTimestamp > 1577836800000) {
+                    resolvedDate = new Date(parsedTimestamp);
+                  } else {
+                    resolvedDate = new Date(parsedTimestamp * 1000);
+                  }
+                } else {
+                  resolvedDate = new Date(event.resolved_at);
+                  if (isNaN(resolvedDate.getTime())) {
+                    console.error(`Ungültiges resolved_at Format in Event ${event.id}: ${event.resolved_at}`);
+                    resolvedDate = null;
+                  }
+                }
+              }
+            }
+
             // Create event object with resolved machine ID
             const newEvent: InsertEvent = {
               vendonId: event.id,
@@ -805,9 +950,9 @@ export class VendonSyncService {
               description: event.description,
               machineId: machineId,
               machineName: event.machine_name,
-              datetime: new Date(event.datetime),
+              datetime: eventDate,
               status: event.status,
-              resolvedAt: event.resolved_at ? new Date(event.resolved_at) : null,
+              resolvedAt: resolvedDate,
               severity: event.severity,
               extraData: JSON.stringify(event.extra_data),
             };
