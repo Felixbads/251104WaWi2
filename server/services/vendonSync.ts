@@ -133,23 +133,29 @@ class VendonAPI {
   
   /**
    * Ruft alle Automaten (Maschinen) von der Vendon API ab
+   * 
+   * Laut Dokumentation ist der korrekte Endpunkt '/machine/' (Singular)
    */
   async getMachines() {
-    return this.makeRequest<any[]>('/machines');
+    return this.makeRequest<any[]>('/machine/');
   }
   
   /**
    * Ruft Details zu einem bestimmten Automaten ab
+   * 
+   * Laut Dokumentation ist der korrekte Endpunkt '/machine/{id}'
    */
   async getMachineDetail(machineId: string) {
-    return this.makeRequest<any>(`/machines/${machineId}`);
+    return this.makeRequest<any>(`/machine/${machineId}`);
   }
   
   /**
    * Ruft aktuelle Probleme bei Automaten ab
+   * 
+   * Laut Dokumentation ist der korrekte Endpunkt '/machine/issues'
    */
   async getMachineIssues() {
-    return this.makeRequest<any[]>('/machines/issues');
+    return this.makeRequest<any[]>('/machine/issues');
   }
   
   /**
@@ -252,6 +258,8 @@ class VendonAPI {
   
   /**
    * Ruft Ereignisse von der Vendon API ab
+   * 
+   * Laut Dokumentation ist der korrekte Endpunkt '/event/' (Singular)
    */
   async getEvents(
     startDate?: Date | string | number,
@@ -274,7 +282,8 @@ class VendonAPI {
     }
     
     try {
-      const events = await this.makeRequest<any[]>('/events', 'GET', params);
+      // Korrekter Endpunkt ist '/event/' (Singular) anstatt '/events'
+      const events = await this.makeRequest<any[]>('/event/', 'GET', params);
       const result = {
         data: events,
         total: events.length, // Die API gibt die Gesamtzahl nicht direkt zurück, nehmen wir an, dass das alles ist
@@ -336,10 +345,12 @@ class VendonAPI {
   
   /**
    * Ruft den aktuellen Lagerbestand eines Automaten ab
+   * 
+   * Laut Dokumentation ist der korrekte Endpunkt '/machine/{id}/stock'
    */
   async getMachineStock(machineId: string) {
     try {
-      return this.makeRequest<any[]>(`/machines/${machineId}/stock`);
+      return this.makeRequest<any[]>(`/machine/${machineId}/stock`);
     } catch (error) {
       console.error(`Fehler beim Abrufen des Lagerbestands für Maschine ${machineId}:`, error);
       return [];
