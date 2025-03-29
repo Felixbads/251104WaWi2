@@ -43,11 +43,13 @@ export interface IStorage {
   getRefills(limit?: number): Promise<Refill[]>;
   getRefill(id: number): Promise<Refill | undefined>;
   getRefillByVendonId(vendonId: string): Promise<Refill | undefined>;
+  getRefillDetails(refillId: number): Promise<RefillDetail[]>;
   createRefill(refill: InsertRefill): Promise<Refill>;
   createRefillDetail(detail: InsertRefillDetail): Promise<RefillDetail>;
 
   // Event operations
   getEvents(limit?: number): Promise<Event[]>;
+  getEventsByDateRange(startDate: Date, endDate: Date, limit?: number): Promise<Event[]>;
   getEvent(id: number): Promise<Event | undefined>;
   createEvent(event: InsertEvent): Promise<Event>;
 
@@ -187,6 +189,14 @@ export class DatabaseStorage implements IStorage {
     const [refill] = await db.select().from(refills).where(eq(refills.vendonId, vendonId));
     return refill;
   }
+  
+  async getRefillDetails(refillId: number): Promise<RefillDetail[]> {
+    return await db
+      .select()
+      .from(refillDetails)
+      .where(eq(refillDetails.refillId, refillId))
+      .orderBy(refillDetails.id);
+  }
 
   async createRefill(refill: InsertRefill): Promise<Refill> {
     const [newRefill] = await db.insert(refills).values(refill).returning();
@@ -201,6 +211,20 @@ export class DatabaseStorage implements IStorage {
   // Event operations
   async getEvents(limit: number = 100): Promise<Event[]> {
     return await db.select().from(events).orderBy(desc(events.datetime)).limit(limit);
+  }
+
+  async getEventsByDateRange(startDate: Date, endDate: Date, limit: number = 100): Promise<Event[]> {
+    return await db
+      .select()
+      .from(events)
+      .where(
+        and(
+          gte(events.datetime, startDate),
+          lte(events.datetime, endDate)
+        )
+      )
+      .orderBy(desc(events.datetime))
+      .limit(limit);
   }
 
   async getEvent(id: number): Promise<Event | undefined> {

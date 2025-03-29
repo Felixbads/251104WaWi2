@@ -225,6 +225,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+  
+  // Get events by date range
+  app.get(`${API_PREFIX}/events/byDateRange`, async (req: Request, res: Response) => {
+    try {
+      const { startDate, endDate, limit } = req.query;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: "startDate and endDate are required" });
+      }
+      
+      const events = await storage.getEventsByDateRange(
+        new Date(startDate as string),
+        new Date(endDate as string),
+        limit ? parseInt(limit as string) : 25
+      );
+      
+      res.json(events);
+    } catch (error) {
+      console.error("Error fetching events by date range:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch events by date range", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Get refills
+  app.get(`${API_PREFIX}/refills`, async (req: Request, res: Response) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 25;
+      const refills = await storage.getRefills(limit);
+      res.json(refills);
+    } catch (error) {
+      console.error("Error fetching refills:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch refills", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Get refill details
+  app.get(`${API_PREFIX}/refills/:id/details`, async (req: Request, res: Response) => {
+    try {
+      const refillId = parseInt(req.params.id);
+      const details = await storage.getRefillDetails(refillId);
+      
+      if (!details || details.length === 0) {
+        return res.status(404).json({ error: "Refill details not found" });
+      }
+      
+      res.json(details);
+    } catch (error) {
+      console.error(`Error fetching refill details for ID ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch refill details", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
 
   return httpServer;
 }
