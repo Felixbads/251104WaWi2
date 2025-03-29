@@ -351,10 +351,10 @@ class VendonAPI {
     try {
       const [startTimestamp, endTimestamp] = this.prepareTimestamps(startDate, endDate);
       
-      // Für Events verwendet die API das Parameterformat from und to
+      // Für Events verwendet die API das Parameterformat from_timestamp und to_timestamp
       const params: Record<string, any> = {
-        from: startTimestamp, // Sekunden für den Events-Endpunkt
-        to: endTimestamp,     // Sekunden für den Events-Endpunkt
+        from_timestamp: startTimestamp, // Sekunden für den Events-Endpunkt
+        to_timestamp: endTimestamp,     // Sekunden für den Events-Endpunkt
         offset: (page - 1) * limit,
         limit
       };
@@ -399,8 +399,8 @@ class VendonAPI {
       const [startTimestamp, endTimestamp] = this.prepareTimestamps(startDate, endDate);
       
       const params: Record<string, any> = {
-        from: startTimestamp, // Verwende 'from' statt 'from_timestamp'
-        to: endTimestamp,     // Verwende 'to' statt 'to_timestamp'
+        from_timestamp: startTimestamp, // Verwende 'from_timestamp' für den stats/vends Endpunkt
+        to_timestamp: endTimestamp,     // Verwende 'to_timestamp' für den stats/vends Endpunkt
         offset: (page - 1) * limit,
         limit
       };
@@ -455,8 +455,8 @@ class VendonAPI {
       
       // Bei Refills verwendet die API Millisekunden statt Sekunden!
       const params: Record<string, any> = {
-        from: startTimestamp * 1000, // In Millisekunden umwandeln
-        till: endTimestamp * 1000,   // In Millisekunden umwandeln
+        from: startTimestamp * 1000, // In Millisekunden umwandeln mit dem Parameter 'from'
+        till: endTimestamp * 1000,   // In Millisekunden umwandeln mit dem Parameter 'till'
         offset: (page - 1) * limit,
         limit
       };
