@@ -535,3 +535,107 @@ export async function getLocations(): Promise<Location[]> {
 export async function getLocation(id: number): Promise<Location> {
   return apiRequest<Location>('get', `/locations/${id}`);
 }
+
+// Formatiert ein Datum im ISO-Format
+export function formatDateISO(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
+
+// Wetterdaten für Dashboard
+export interface WeatherCurrent {
+  location: string;
+  timestamp: string;
+  temperature: number;
+  humidity: number;
+  windSpeed: number;
+  windDirection: string;
+  description: string;
+  icon: string;
+}
+
+export interface WeatherForecast {
+  date: string;
+  temperature: {
+    min: number;
+    max: number;
+  };
+  humidity: number;
+  description: string;
+  icon: string;
+}
+
+export interface Holiday {
+  id: number;
+  date: string;
+  name: string;
+  type: string;
+  state: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RevenueForecast {
+  date: string;
+  amount: number;
+  confidence: number;
+}
+
+export interface ProductDemandForecast {
+  productId: number;
+  productName: string;
+  machineId?: number;
+  machineName?: string;
+  date: string;
+  quantity: number;
+  confidence: number;
+}
+
+export async function getCurrentWeather(): Promise<WeatherCurrent> {
+  return apiRequest<WeatherCurrent>('get', '/weather/current');
+}
+
+export async function getWeatherForecast(days = 5): Promise<WeatherForecast[]> {
+  return apiRequest<WeatherForecast[]>('get', `/weather/forecast?days=${days}`);
+}
+
+// Feiertage für Dashboard
+export async function getUpcomingHolidays(days = 7): Promise<Holiday[]> {
+  const today = new Date();
+  const endDate = new Date();
+  endDate.setDate(today.getDate() + days);
+  
+  return apiRequest<Holiday[]>('get', `/holidays/by-date-range?startDate=${formatDateISO(today)}&endDate=${formatDateISO(endDate)}`);
+}
+
+// Umsatzprognose für Dashboard
+export async function getRevenueForecast(days = 7): Promise<RevenueForecast[]> {
+  const today = new Date();
+  const endDate = new Date();
+  endDate.setDate(today.getDate() + days);
+  
+  return apiRequest<RevenueForecast[]>('get', `/forecast/revenue?startDate=${formatDateISO(today)}&endDate=${formatDateISO(endDate)}`);
+}
+
+// Warenbedarf-Prognose
+export async function getProductDemandForecast(params: {
+  machineId?: number;
+  productId?: number;
+  startDate?: Date;
+  endDate?: Date;
+} = {}): Promise<ProductDemandForecast[]> {
+  const queryParams = new URLSearchParams();
+  
+  if (params.machineId) queryParams.append('machineId', params.machineId.toString());
+  if (params.productId) queryParams.append('productId', params.productId.toString());
+  
+  const startDate = params.startDate || new Date();
+  const endDate = params.endDate || new Date();
+  if (params.endDate === undefined) {
+    endDate.setDate(startDate.getDate() + 7);
+  }
+  
+  queryParams.append('startDate', formatDateISO(startDate));
+  queryParams.append('endDate', formatDateISO(endDate));
+  
+  return apiRequest<ProductDemandForecast[]>('get', `/forecast/demand?${queryParams.toString()}`);
+}

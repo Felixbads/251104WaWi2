@@ -17,6 +17,7 @@ import { format, parseISO, isValid, subDays, addDays, isBefore, isAfter } from '
 // API-Konfiguration
 const API_KEY = process.env.OPENWEATHER_API_KEY;
 const BASE_URL = 'https://api.openweathermap.org/data/3.0/onecall';
+const CURRENT_WEATHER_URL = 'https://api.openweathermap.org/data/2.5/weather';
 
 // Default-Koordinaten für Bad Schandau
 const DEFAULT_LAT = 50.9196; // Bad Schandau
@@ -495,6 +496,169 @@ export async function updateWeatherDataCoverage(): Promise<void> {
   
   // Historische Datenabdeckung aktualisieren
   await updateCoverageForType(WEATHER_TYPE.HISTORICAL);
+}
+
+/**
+ * Aktuelle Wetterdaten für das Dashboard abrufen
+ * 
+ * @param location Standort (Stadt,Land-Code oder Koordinaten)
+ * @returns Aufbereitete Wetterdaten für das Frontend
+ */
+export async function getCurrentWeather(location: string = 'Dresden,DE'): Promise<any> {
+  if (!API_KEY) {
+    console.error('OpenWeather API-Schlüssel fehlt');
+    throw new Error('API-Schlüssel nicht konfiguriert');
+  }
+
+  try {
+    // Koordinaten oder Stadtname?
+    let lat, lon;
+    
+    if (location.includes(',')) {
+      const [city, country] = location.split(',');
+      
+      // Anfrage an die Geocoding API, um Koordinaten für die Stadt zu erhalten
+      const geocodeResponse = await axios.get('https://api.openweathermap.org/geo/1.0/direct', {
+        params: {
+          q: `${city},${country}`,
+          limit: 1,
+          appid: API_KEY
+        }
+      });
+      
+      if (geocodeResponse.data && geocodeResponse.data.length > 0) {
+        lat = geocodeResponse.data[0].lat;
+        lon = geocodeResponse.data[0].lon;
+      } else {
+        // Fallback auf Default-Koordinaten
+        lat = DEFAULT_LAT;
+        lon = DEFAULT_LON;
+      }
+    } else {
+      // Verwende Default-Koordinaten
+      lat = DEFAULT_LAT;
+      lon = DEFAULT_LON;
+    }
+
+    // Aktuelle Wetterdaten abrufen
+    const response = await axios.get(CURRENT_WEATHER_URL, {
+      params: {
+        lat,
+        lon,
+        appid: API_KEY,
+        units: 'metric',
+        lang: 'de'
+      }
+    });
+
+    if (response.status !== 200) {
+      throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
+    }
+
+    const data = response.data;
+    const weather = data.weather && data.weather.length > 0 ? data.weather[0] : null;
+
+    // Daten für das Frontend aufbereiten
+    return {
+      location: data.name,
+      timestamp: new Date(data.dt * 1000).toISOString(),
+      temperature: data.main.temp,
+      humidity: data.main.humidity,
+      windSpeed: data.wind.speed,
+      windDirection: getWindDirection(data.wind.deg),
+      description: weather ? weather.description : '',
+      icon: weather ? weather.icon : ''
+    };
+  } catch (error) {
+    console.error('Fehler beim Abrufen aktueller Wetterdaten:', error);
+    throw error;
+  }
+}
+
+/**
+ * Wettervorhersage für das Dashboard abrufen
+ * 
+ * @param location Standort (Stadt,Land-Code oder Koordinaten)
+ * @param days Anzahl der vorherzusagenden Tage
+ * @returns Aufbereitete Wettervorhersage für das Frontend
+ */
+export async function getWeatherForecast(location: string = 'Dresden,DE', days: number = 5): Promise<any[]> {
+  if (!API_KEY) {
+    console.error('OpenWeather API-Schlüssel fehlt');
+    throw new Error('API-Schlüssel nicht konfiguriert');
+  }
+
+  try {
+    // Koordinaten oder Stadtname?
+    let lat, lon;
+    
+    if (location.includes(',')) {
+      const [city, country] = location.split(',');
+      
+      // Anfrage an die Geocoding API, um Koordinaten für die Stadt zu erhalten
+      const geocodeResponse = await axios.get('https://api.openweathermap.org/geo/1.0/direct', {
+        params: {
+          q: `${city},${country}`,
+          limit: 1,
+          appid: API_KEY
+        }
+      });
+      
+      if (geocodeResponse.data && geocodeResponse.data.length > 0) {
+        lat = geocodeResponse.data[0].lat;
+        lon = geocodeResponse.data[0].lon;
+      } else {
+        // Fallback auf Default-Koordinaten
+        lat = DEFAULT_LAT;
+        lon = DEFAULT_LON;
+      }
+    } else {
+      // Verwende Default-Koordinaten
+      lat = DEFAULT_LAT;
+      lon = DEFAULT_LON;
+    }
+
+    // Wettervorhersage abrufen
+    const forecastData = await fetchWeatherForecast(lat, lon, 'metric', 'de');
+    
+    if (!forecastData || !forecastData.daily) {
+      throw new Error('Keine Vorhersagedaten verfügbar');
+    }
+
+    // Nur die angeforderte Anzahl von Tagen zurückgeben
+    const dailyForecasts = forecastData.daily.slice(0, days);
+
+    // Daten für das Frontend aufbereiten
+    return dailyForecasts.map((day: any) => {
+      const weather = day.weather && day.weather.length > 0 ? day.weather[0] : null;
+      
+      return {
+        date: new Date(day.dt * 1000).toISOString().split('T')[0],
+        temperature: {
+          min: day.temp.min,
+          max: day.temp.max
+        },
+        humidity: day.humidity,
+        description: weather ? weather.description : '',
+        icon: weather ? weather.icon : ''
+      };
+    });
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Wettervorhersage:', error);
+    throw error;
+  }
+}
+
+/**
+ * Hilfsfunktion zur Umwandlung von Windrichtung in Grad zu Himmelsrichtung
+ * 
+ * @param degrees Windrichtung in Grad
+ * @returns Windrichtung als Text (z.B. "N", "NO", usw.)
+ */
+function getWindDirection(degrees: number): string {
+  const directions = ["N", "NNO", "NO", "ONO", "O", "OSO", "SO", "SSO", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+  const index = Math.round(degrees / 22.5) % 16;
+  return directions[index];
 }
 
 /**

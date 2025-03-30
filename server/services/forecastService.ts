@@ -513,6 +513,133 @@ export async function getForecastModel(modelId: number): Promise<any | null> {
 }
 
 /**
+ * Ruft Umsatzprognosen für einen bestimmten Zeitraum ab
+ * 
+ * @param modelId ID des Prognosemodells
+ * @param startDate Startdatum im Format YYYY-MM-DD
+ * @param endDate Enddatum im Format YYYY-MM-DD
+ * @returns Array von Umsatzprognosen
+ */
+export async function getRevenueForecast(
+  modelId: number,
+  startDate: string,
+  endDate: string
+): Promise<any[]> {
+  try {
+    // Validierung der Parameter
+    if (!modelId || !startDate || !endDate) {
+      console.error("Fehlerhafte Parameter für Umsatzprognose:", { modelId, startDate, endDate });
+      return [];
+    }
+
+    // Prüfe, ob das Modell existiert und vom Typ 'revenue' ist
+    const model = await getForecastModel(modelId);
+    if (!model || !model.modelType.includes('revenue')) {
+      console.error("Modell existiert nicht oder ist kein Umsatzprognosemodell:", modelId);
+      return [];
+    }
+
+    // Rufe die Prognosen aus der Datenbank ab
+    const forecastsTable = forecasts; // Umbenennen, um Konflikte zu vermeiden
+    const forecastItems = await db.select()
+      .from(forecastsTable)
+      .where(
+        and(
+          eq(forecastsTable.model_id, modelId),
+          between(forecastsTable.forecast_date, startDate, endDate)
+        )
+      )
+      .orderBy(asc(forecastsTable.forecast_date));
+
+    // Formatiere die Daten für die Frontend-Anzeige
+    return forecastItems.map(forecast => ({
+      date: forecast.forecast_date,
+      amount: parseFloat(forecast.predicted_quantity?.toString() || '0'),
+      confidence: forecast.confidence || 95
+    }));
+  } catch (error) {
+    console.error("Fehler beim Abrufen der Umsatzprognose:", error);
+    return [];
+  }
+}
+
+/**
+ * Ruft Produktbedarfsprognosen für einen bestimmten Zeitraum ab
+ * 
+ * @param modelId ID des Prognosemodells
+ * @param startDate Startdatum im Format YYYY-MM-DD
+ * @param endDate Enddatum im Format YYYY-MM-DD
+ * @param machineId Optional: ID der Maschine für gefilterte Prognosen
+ * @param productId Optional: ID des Produkts für gefilterte Prognosen
+ * @returns Array von Produktbedarfsprognosen
+ */
+export async function getProductDemandForecast(
+  modelId: number,
+  startDate: string,
+  endDate: string,
+  machineId?: number,
+  productId?: number
+): Promise<any[]> {
+  try {
+    // Validierung der Parameter
+    if (!modelId || !startDate || !endDate) {
+      console.error("Fehlerhafte Parameter für Produktbedarfsprognose:", { modelId, startDate, endDate });
+      return [];
+    }
+
+    // Prüfe, ob das Modell existiert und vom Typ 'demand' ist
+    const model = await getForecastModel(modelId);
+    if (!model || !model.modelType.includes('demand')) {
+      console.error("Modell existiert nicht oder ist kein Bedarfsprognosemodell:", modelId);
+      return [];
+    }
+
+    // Basisabfrage
+    const forecastsTable = forecasts; // Umbenennen, um Konflikte zu vermeiden
+    
+    // Vereinfachte Abfrage, da uns die Schemastruktur nicht bekannt ist
+    let query = db.select()
+      .from(forecastsTable)
+      .where(
+        and(
+          eq(forecastsTable.model_id, modelId),
+          between(forecastsTable.forecast_date, startDate, endDate)
+        )
+      );
+
+    // Filter nach Maschine, falls angegeben
+    if (machineId) {
+      query = query.where(eq(forecastsTable.machine_id, machineId));
+    }
+
+    // Filter nach Produkt, falls angegeben
+    if (productId) {
+      query = query.where(eq(forecastsTable.product_id, productId));
+    }
+
+    // Sortierung
+    query = query.orderBy(asc(forecastsTable.forecast_date));
+
+    // Daten abrufen
+    const results = await query;
+
+    // Formatiere die Daten für die Frontend-Anzeige
+    return results.map(forecast => ({
+      date: forecast.forecast_date,
+      productId: forecast.product_id,
+      productName: forecast.product_name || 'Unbekanntes Produkt',
+      machineId: forecast.machine_id,
+      machineName: forecast.machine_name || 'Unbekannter Automat',
+      quantity: parseInt(forecast.predicted_quantity?.toString() || '0'),
+      confidence: forecast.confidence || 90
+    }));
+  } catch (error) {
+    console.error("Fehler beim Abrufen der Produktbedarfsprognose:", error);
+    return [];
+  }
+}
+
+/**
  * Ruft Prognosen für einen bestimmten Zeitraum ab
  * 
  * @param startDate Startdatum
@@ -533,23 +660,24 @@ export async function getForecasts(
     const formattedStartDate = typeof startDate === 'string' ? startDate : format(startDate, 'yyyy-MM-dd');
     const formattedEndDate = typeof endDate === 'string' ? endDate : format(endDate, 'yyyy-MM-dd');
     
-    let whereConditions: any[] = [between(forecasts.forecast_date, formattedStartDate, formattedEndDate)];
+    const forecastsTable = forecasts; // Umbenennen, um Konflikte zu vermeiden
+    let whereConditions: any[] = [between(forecastsTable.forecast_date, formattedStartDate, formattedEndDate)];
     
     if (modelId !== undefined) {
-      whereConditions.push(eq(forecasts.model_id, modelId));
+      whereConditions.push(eq(forecastsTable.model_id, modelId));
     }
     
     if (locationId !== undefined) {
-      whereConditions.push(eq(forecasts.location_id, locationId));
+      whereConditions.push(eq(forecastsTable.location_id, locationId));
     }
     
     if (machineId !== undefined) {
-      whereConditions.push(eq(forecasts.machine_id, machineId));
+      whereConditions.push(eq(forecastsTable.machine_id, machineId));
     }
     
-    return await db.select().from(forecasts)
+    return await db.select().from(forecastsTable)
       .where(and(...whereConditions))
-      .orderBy(asc(forecasts.forecast_date));
+      .orderBy(asc(forecastsTable.forecast_date));
   } catch (error) {
     console.error("Fehler beim Abrufen der Prognosen:", error);
     return [];
@@ -577,21 +705,22 @@ export async function forecastsExistForPeriod(
     const formattedStartDate = typeof startDate === 'string' ? startDate : format(startDate, 'yyyy-MM-dd');
     const formattedEndDate = typeof endDate === 'string' ? endDate : format(endDate, 'yyyy-MM-dd');
     
+    const forecastsTable = forecasts; // Umbenennen, um Konflikte zu vermeiden
     let whereConditions: any[] = [
-      between(forecasts.forecast_date, formattedStartDate, formattedEndDate),
-      eq(forecasts.model_id, modelId)
+      between(forecastsTable.forecast_date, formattedStartDate, formattedEndDate),
+      eq(forecastsTable.model_id, modelId)
     ];
     
     if (locationId !== undefined) {
-      whereConditions.push(eq(forecasts.location_id, locationId));
+      whereConditions.push(eq(forecastsTable.location_id, locationId));
     }
     
     if (machineId !== undefined) {
-      whereConditions.push(eq(forecasts.machine_id, machineId));
+      whereConditions.push(eq(forecastsTable.machine_id, machineId));
     }
     
     const existingForecasts = await db.select({ count: count() })
-      .from(forecasts)
+      .from(forecastsTable)
       .where(and(...whereConditions));
     
     return (existingForecasts[0]?.count || 0) > 0;
@@ -614,26 +743,32 @@ export async function updateForecastWithActual(
 ): Promise<boolean> {
   try {
     // Prognose abrufen
-    const forecast = await db.query.forecasts.findFirst({
-      where: eq(forecasts.id, forecastId)
-    });
+    const forecastsTable = forecasts; // Umbenennen, um Konflikte zu vermeiden
     
-    if (!forecast) {
+    // Vereinfachte Abfrage
+    const forecastResult = await db.select()
+      .from(forecastsTable)
+      .where(eq(forecastsTable.id, forecastId))
+      .limit(1);
+    
+    if (!forecastResult.length) {
       console.error(`Prognose mit ID ${forecastId} nicht gefunden`);
       return false;
     }
     
+    const forecast = forecastResult[0];
+    
     // Berechne den Fehler
-    const error = actualQuantity - forecast.predicted_quantity;
+    const error = actualQuantity - (forecast.predicted_quantity || 0);
     
     // Aktualisiere die Prognose
-    await db.update(forecasts)
+    await db.update(forecastsTable)
       .set({
         actual_quantity: actualQuantity,
         error,
         updated_at: new Date()
       })
-      .where(eq(forecasts.id, forecastId));
+      .where(eq(forecastsTable.id, forecastId));
     
     return true;
   } catch (error) {

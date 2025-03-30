@@ -528,6 +528,101 @@ export function registerForecastRoutes(app: Express): void {
       res.status(500).json({ error: "Interner Serverfehler" });
     }
   });
+  
+  // Aktuelle Wetterdaten abrufen
+  app.get(`${API_PREFIX}/weather/current`, async (req: Request, res: Response) => {
+    try {
+      // Default-Standort verwenden (kann später parametrisiert werden)
+      const location = "Dresden,DE"; 
+      const weatherData = await openWeatherService.getCurrentWeather(location);
+      
+      res.json(weatherData);
+    } catch (error) {
+      console.error("Fehler beim Abrufen aktueller Wetterdaten:", error);
+      res.status(500).json({ error: "Interner Serverfehler" });
+    }
+  });
+  
+  // Wettervorhersage abrufen
+  app.get(`${API_PREFIX}/weather/forecast`, async (req: Request, res: Response) => {
+    try {
+      const days = parseInt(req.query.days as string) || 5;
+      // Default-Standort verwenden (kann später parametrisiert werden)
+      const location = "Dresden,DE"; 
+      const forecastData = await openWeatherService.getWeatherForecast(location, days);
+      
+      res.json(forecastData);
+    } catch (error) {
+      console.error("Fehler beim Abrufen der Wettervorhersage:", error);
+      res.status(500).json({ error: "Interner Serverfehler" });
+    }
+  });
+  
+  // Umsatzprognose abrufen
+  app.get(`${API_PREFIX}/forecast/revenue`, async (req: Request, res: Response) => {
+    try {
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: "startDate und endDate sind erforderlich" });
+      }
+      
+      // Verwende das neueste Modell für die Umsatzprognose
+      const models = await forecastService.getForecastModels();
+      let revenueModel = models.find(m => m.modelType.includes('revenue'));
+      
+      if (!revenueModel) {
+        return res.status(404).json({ error: "Kein Umsatzprognosemodell gefunden" });
+      }
+      
+      const revenueForecast = await forecastService.getRevenueForecast(
+        revenueModel.id,
+        startDate,
+        endDate
+      );
+      
+      res.json(revenueForecast);
+    } catch (error) {
+      console.error("Fehler beim Abrufen der Umsatzprognose:", error);
+      res.status(500).json({ error: "Interner Serverfehler" });
+    }
+  });
+  
+  // Warenbedarf-Prognose abrufen
+  app.get(`${API_PREFIX}/forecast/demand`, async (req: Request, res: Response) => {
+    try {
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+      const machineId = req.query.machineId ? parseInt(req.query.machineId as string) : undefined;
+      const productId = req.query.productId ? parseInt(req.query.productId as string) : undefined;
+      
+      if (!startDate || !endDate) {
+        return res.status(400).json({ error: "startDate und endDate sind erforderlich" });
+      }
+      
+      // Verwende das neueste Modell für die Bedarfsprognose
+      const models = await forecastService.getForecastModels();
+      let demandModel = models.find(m => m.modelType.includes('demand'));
+      
+      if (!demandModel) {
+        return res.status(404).json({ error: "Kein Bedarfsprognosemodell gefunden" });
+      }
+      
+      const demandForecast = await forecastService.getProductDemandForecast(
+        demandModel.id,
+        startDate,
+        endDate,
+        machineId,
+        productId
+      );
+      
+      res.json(demandForecast);
+    } catch (error) {
+      console.error("Fehler beim Abrufen der Bedarfsprognose:", error);
+      res.status(500).json({ error: "Interner Serverfehler" });
+    }
+  });
 
   /**
    * Feiertags-Routen
