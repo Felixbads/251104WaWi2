@@ -9,11 +9,13 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatDateTime } from '@/lib/api';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState<string>('details');
+  const { toast } = useToast();
 
   // Hole Produktdaten
   const { data: product, isLoading, error } = useQuery({
@@ -85,14 +87,14 @@ export default function ProductDetail() {
                   </div>
                   <div className="flex gap-2">
                     {isAlcohol && (
-                      <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">
+                      <span><Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">
                         18+
-                      </Badge>
+                      </Badge></span>
                     )}
                     {product.category && (
-                      <Badge variant="secondary">
+                      <span><Badge variant="secondary">
                         {product.category}
-                      </Badge>
+                      </Badge></span>
                     )}
                   </div>
                 </div>
@@ -172,9 +174,11 @@ export default function ProductDetail() {
                           <h3 className="text-sm font-medium text-gray-500 mb-2">Tags</h3>
                           <div className="flex flex-wrap gap-2">
                             {tags.map((tag: string) => (
-                              <Badge key={tag} variant="outline" className="bg-gray-50">
-                                {tag}
-                              </Badge>
+                              <span key={tag}>
+                                <Badge variant="outline" className="bg-gray-50">
+                                  {tag}
+                                </Badge>
+                              </span>
                             ))}
                           </div>
                         </div>
@@ -267,17 +271,17 @@ export default function ProductDetail() {
                         <h3 className="text-sm font-medium text-gray-500 mb-1">Status</h3>
                         <div className="flex gap-2">
                           {product.critical && (
-                            <Badge variant="destructive">Kritischer Bestand</Badge>
+                            <span><Badge variant="destructive">Kritischer Bestand</Badge></span>
                           )}
                           {!product.critical && typeof product.inStock === 'number' && product.inStock > 0 && (
-                            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                            <span><Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                               Auf Lager
-                            </Badge>
+                            </Badge></span>
                           )}
                           {!product.critical && typeof product.inStock === 'number' && product.inStock <= 0 && (
-                            <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                            <span><Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
                               Nicht auf Lager
-                            </Badge>
+                            </Badge></span>
                           )}
                         </div>
                       </div>
@@ -304,28 +308,92 @@ export default function ProductDetail() {
                 <CardTitle className="text-lg">Aktionen</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
-                <Button className="w-full justify-start">
+                <Button 
+                  className="w-full justify-start"
+                  onClick={() => {
+                    toast({
+                      title: "Bestand anpassen",
+                      description: `Weiterleitung zur Bestandsanpassung für "${product?.productName || `Produkt #${id}`}"`,
+                    });
+                    setLocation(`/lager?adjust=product&id=${id}`);
+                  }}
+                >
                   <Package className="h-4 w-4 mr-2" />
                   Bestand anpassen
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => {
+                    toast({
+                      title: "Verkaufsstatistik",
+                      description: `Weiterleitung zur Verkaufsstatistik für "${product?.productName || `Produkt #${id}`}"`,
+                      variant: "default",
+                    });
+                    setLocation(`/auswertungen?productId=${id}&view=sales`);
+                  }}
+                >
                   <BarChart3 className="h-4 w-4 mr-2" />
                   Verkaufsstatistik
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => {
+                    toast({
+                      title: "Bestandsverlauf",
+                      description: `Weiterleitung zum Bestandsverlauf für "${product?.productName || `Produkt #${id}`}"`,
+                      variant: "default",
+                    });
+                    setLocation(`/lager?productId=${id}&view=history`);
+                  }}
+                >
                   <Clipboard className="h-4 w-4 mr-2" />
                   Bestandsverlauf
                 </Button>
                 <Separator className="my-2" />
-                <Button variant="outline" className="w-full justify-start">
+                <Button 
+                  variant={product?.critical || (typeof product?.inStock === 'number' && product?.inStock <= 0) ? "default" : "outline"}
+                  className={`w-full justify-start ${product?.critical || (typeof product?.inStock === 'number' && product?.inStock <= 0) ? "bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-200 hover:text-amber-900" : ""}`}
+                  onClick={() => {
+                    toast({
+                      title: "Bestellung anlegen",
+                      description: `Weiterleitung zur Bestellungsseite mit "${product?.productName || `Produkt #${id}`}"`,
+                      variant: "default",
+                    });
+                    setLocation(`/bestellungen/neu?productId=${id}`);
+                  }}
+                >
                   <Truck className="h-4 w-4 mr-2" />
                   Bestellung anlegen
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => {
+                    toast({
+                      title: "Nachfüllungen anzeigen",
+                      description: `Weiterleitung zur Übersicht der Nachfüllungen für "${product?.productName || `Produkt #${id}`}"`,
+                      variant: "default",
+                    });
+                    setLocation(`/automaten?view=refills&productId=${id}`);
+                  }}
+                >
                   <Calendar className="h-4 w-4 mr-2" />
                   Nachfüllungen anzeigen
                 </Button>
-                <Button variant="outline" className="w-full justify-start">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => {
+                    toast({
+                      title: "Verkäufe anzeigen",
+                      description: `Weiterleitung zur Transaktionsübersicht für "${product?.productName || `Produkt #${id}`}"`,
+                      variant: "default",
+                    });
+                    setLocation(`/transactions?productId=${id}`);
+                  }}
+                >
                   <ShoppingCart className="h-4 w-4 mr-2" />
                   Verkäufe anzeigen
                 </Button>
