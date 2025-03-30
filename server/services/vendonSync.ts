@@ -519,10 +519,29 @@ class VendonAPI {
 
 export class VendonSyncService {
   private api: VendonAPI;
+  // Status für inkrementelle historische Synchronisierung
+  private historicalSyncState: {
+    inProgress: boolean;
+    currentYear: number;
+    currentMonth: number;
+    targetDate: Date;
+    startDate: Date;
+    batchSize: number;
+  };
   
   constructor() {
     // Initialisiere die API mit dem Schlüssel aus den Umgebungsvariablen
     this.api = new VendonAPI();
+    
+    // Initialwerte für historische Synchronisierung
+    this.historicalSyncState = {
+      inProgress: false,
+      currentYear: new Date().getFullYear(),
+      currentMonth: new Date().getMonth(),
+      targetDate: new Date(2023, 0, 1), // Ziel: 1. Januar 2023
+      startDate: new Date(), // Startdatum ist das aktuelle Datum
+      batchSize: 100
+    };
   }
   
   /**
@@ -1899,13 +1918,92 @@ export class VendonSyncService {
     };
   }
   
+  /**
+   * Führt einen einzelnen Batch der historischen Synchronisierung durch
+   * Diese Methode ruft einen Monat ab und aktualisiert den historischen Status
+   */
+  async syncHistoricalBatch(): Promise<{ status: string; message: string; isComplete: boolean }> {
+    // Wenn keine historische Synchronisierung läuft, starte eine neue
+    if (!this.historicalSyncState.inProgress) {
+      console.log("Starte neue historische Synchronisierung...");
+      this.historicalSyncState = {
+        inProgress: true,
+        currentYear: new Date().getFullYear(),
+        currentMonth: new Date().getMonth(),
+        targetDate: new Date(2023, 0, 1), // Ziel: 1. Januar 2023
+        startDate: new Date(), // Startdatum ist das aktuelle Datum
+        batchSize: 100
+      };
+    }
+    
+    try {
+      // Prüfe, ob wir das Ziel bereits erreicht haben
+      const currentDate = new Date(this.historicalSyncState.currentYear, this.historicalSyncState.currentMonth, 1);
+      if (currentDate < this.historicalSyncState.targetDate) {
+        console.log("Historische Synchronisierung abgeschlossen, Zieldatum erreicht.");
+        this.historicalSyncState.inProgress = false;
+        return {
+          status: 'success',
+          message: 'Historische Synchronisierung abgeschlossen (Zieldatum erreicht)',
+          isComplete: true
+        };
+      }
+      
+      // Berechne Start- und Enddatum für diesen Batch
+      const batchStartDate = new Date(this.historicalSyncState.currentYear, this.historicalSyncState.currentMonth, 1);
+      const batchEndDate = new Date(this.historicalSyncState.currentYear, this.historicalSyncState.currentMonth + 1, 0);
+      
+      console.log(`Synchronisiere historischen Batch: ${batchStartDate.toLocaleDateString()} bis ${batchEndDate.toLocaleDateString()}`);
+      
+      // Führe die eigentliche Synchronisierung für diesen Monat durch
+      const result = await this.syncTransactions(
+        batchStartDate, 
+        batchEndDate, 
+        this.historicalSyncState.batchSize
+      );
+      
+      // Hole die Ergebnisse aus dem Sync-Log
+      const syncLog = await storage.getSyncLog(result.syncLogId);
+      
+      // Gehe zum vorherigen Monat für den nächsten Durchlauf
+      this.historicalSyncState.currentMonth--;
+      if (this.historicalSyncState.currentMonth < 0) {
+        this.historicalSyncState.currentMonth = 11; // Dezember
+        this.historicalSyncState.currentYear--;
+      }
+      
+      // Erstelle eine statistische Zusammenfassung
+      const summary = syncLog 
+        ? `${syncLog.itemsSaved || 0} neue Transaktionen, ${syncLog.duplicates || 0} Duplikate, ${syncLog.errors || 0} Fehler`
+        : "Keine Statistiken verfügbar";
+      
+      return {
+        status: 'success',
+        message: `Historischer Batch abgeschlossen: ${batchStartDate.toLocaleDateString()} bis ${batchEndDate.toLocaleDateString()}. ${summary}. Nächster Batch: ${new Date(this.historicalSyncState.currentYear, this.historicalSyncState.currentMonth, 1).toLocaleDateString()}`,
+        isComplete: false
+      };
+    } catch (error) {
+      console.error("Fehler bei der historischen Batch-Synchronisierung:", error);
+      
+      // Setze die Synchronisierung zurück, damit sie beim nächsten Mal neu gestartet wird
+      this.historicalSyncState.inProgress = false;
+      
+      return {
+        status: 'error',
+        message: `Historische Batch-Synchronisierung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`,
+        isComplete: false
+      };
+    }
+  }
+  
   // Status der Synchronisation abrufen
   async getSyncStatus(): Promise<{
     machines: { status: string; lastSync: number; count: number },
     products: { status: string; lastSync: number; count: number },
     transactions: { status: string; lastSync: number; count: number; latest: number },
     refills: { status: string; lastSync: number; count: number },
-    events: { status: string; lastSync: number; count: number }
+    events: { status: string; lastSync: number; count: number },
+    historicalSync: { inProgress: boolean; currentDate: string; targetDate: string; progress: number }
   }> {
     // Hole den letzten Sync-Log-Eintrag für jeden Typ
     const machinesSyncLog = await storage.getLatestSyncLog('machines');
@@ -1913,6 +2011,7 @@ export class VendonSyncService {
     const transactionsSyncLog = await storage.getLatestSyncLog('transactions');
     const refillsSyncLog = await storage.getLatestSyncLog('refills');
     const eventsSyncLog = await storage.getLatestSyncLog('events');
+    const historicalSyncLog = await storage.getLatestSyncLog('historical_transactions');
     
     // Hole die Anzahl der Datensätze für jeden Typ
     const machines = await storage.getMachines(0); // 0 means no limit
@@ -1921,32 +2020,50 @@ export class VendonSyncService {
     const refills = await storage.getRefills(0); // 0 means no limit
     const events = await storage.getEvents(0); // 0 means no limit
     
+    // Berechne den aktuellen Fortschritt der historischen Synchronisierung
+    const currentDate = this.historicalSyncState.inProgress
+      ? new Date(this.historicalSyncState.currentYear, this.historicalSyncState.currentMonth, 1)
+      : new Date();
+      
+    const targetDate = this.historicalSyncState.targetDate;
+    
+    // Berechne den Fortschritt in Prozent
+    const totalDays = Math.floor((this.historicalSyncState.startDate.getTime() - targetDate.getTime()) / (1000 * 60 * 60 * 24));
+    const daysProcessed = Math.floor((this.historicalSyncState.startDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+    const progressPercent = totalDays > 0 ? Math.round((daysProcessed / totalDays) * 100) : 0;
+    
     return {
       machines: {
         status: machinesSyncLog?.syncStatus || 'never',
         lastSync: machinesSyncLog ? machinesSyncLog.endDate?.getTime() || 0 : 0,
-        count: machines.length
+        count: Array.isArray(machines) ? machines.length : 0
       },
       products: {
         status: productsSyncLog?.syncStatus || 'never',
         lastSync: productsSyncLog ? productsSyncLog.endDate?.getTime() || 0 : 0,
-        count: products.length
+        count: Array.isArray(products) ? products.length : 0
       },
       transactions: {
         status: transactionsSyncLog?.syncStatus || 'never',
         lastSync: transactionsSyncLog ? transactionsSyncLog.endDate?.getTime() || 0 : 0,
         count: 0, // Wir würden hier die tatsächliche Anzahl abfragen
-        latest: transactions.length > 0 ? transactions[0].datetime.getTime() : 0
+        latest: Array.isArray(transactions) && transactions.length > 0 ? transactions[0].datetime.getTime() : 0
       },
       refills: {
         status: refillsSyncLog?.syncStatus || 'never',
         lastSync: refillsSyncLog ? refillsSyncLog.endDate?.getTime() || 0 : 0,
-        count: refills.length
+        count: Array.isArray(refills) ? refills.length : 0
       },
       events: {
         status: eventsSyncLog?.syncStatus || 'never',
         lastSync: eventsSyncLog ? eventsSyncLog.endDate?.getTime() || 0 : 0,
-        count: events.length
+        count: Array.isArray(events) ? events.length : 0
+      },
+      historicalSync: {
+        inProgress: this.historicalSyncState.inProgress,
+        currentDate: currentDate.toISOString().split('T')[0],
+        targetDate: targetDate.toISOString().split('T')[0],
+        progress: progressPercent
       }
     };
   }

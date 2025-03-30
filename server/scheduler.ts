@@ -26,6 +26,10 @@ const syncConfig = {
   slow: {
     interval: 24 * 60 * 60 * 1000, // 24 Stunden
     syncTypes: ['holidays'] // Langsame Sync-Typen, die nicht oft aktualisiert werden müssen
+  },
+  historical: {
+    interval: 12 * 60 * 60 * 1000, // 12 Stunden
+    syncTypes: ['historical_batch'] // Historische Daten schrittweise synchronisieren
   }
 };
 
@@ -62,6 +66,16 @@ async function performSync(syncType: string): Promise<void> {
         const yesterdayEvents = new Date();
         yesterdayEvents.setDate(yesterdayEvents.getDate() - 1);
         result = await vendonSync.syncEvents(yesterdayEvents);
+        break;
+      case 'historical_batch':
+        // Führe einen Batch der historischen Synchronisierung durch
+        result = await vendonSync.syncHistoricalBatch();
+        // Wenn der historische Prozess abgeschlossen ist, stoppe die historische Synchronisierung
+        if (result && result.isComplete) {
+          console.log("Historische Synchronisierung vollständig abgeschlossen. Entferne aus der Scheduler-Liste.");
+          delete timers[syncType];
+          return; // Keine weitere Planung
+        }
         break;
       case 'weather_forecast':
         // Synchronisiere Wetterprognosen für Bad Schandau (50.9196, 14.1524)
@@ -112,6 +126,8 @@ function scheduleNextSync(syncType: string): void {
     interval = syncConfig.medium.interval;
   } else if (syncConfig.slow.syncTypes.includes(syncType)) {
     interval = syncConfig.slow.interval;
+  } else if (syncConfig.historical.syncTypes.includes(syncType)) {
+    interval = syncConfig.historical.interval;
   } else {
     // Fallback auf 1 Stunde
     interval = syncConfig.medium.interval;
@@ -152,6 +168,13 @@ export function startAutomaticSync(): void {
     console.log(`Plane initiale langsame Synchronisierung für: ${syncType}`);
     // Starte mit noch größerer Verzögerung (2 Minuten + Zufallswert)
     timers[syncType] = setTimeout(() => performSync(syncType), 120000 + Math.random() * 60000);
+  });
+  
+  // Starte historische Synchronisierungen
+  syncConfig.historical.syncTypes.forEach(syncType => {
+    console.log(`Plane initiale historische Synchronisierung für: ${syncType}`);
+    // Starte mit mittlerer Verzögerung (90 Sekunden + Zufallswert)
+    timers[syncType] = setTimeout(() => performSync(syncType), 90000 + Math.random() * 60000);
   });
 }
 

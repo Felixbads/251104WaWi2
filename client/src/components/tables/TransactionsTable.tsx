@@ -147,28 +147,28 @@ export default function TransactionsTable({ limit = 5 }: TransactionsTableProps)
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
-                      {transaction.productName}
+                      {transaction.product_name || transaction.productName}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {transaction.price.toFixed(2)} {transaction.currency || "€"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {transaction.machineName}
+                    {transaction.machine_name || transaction.machineName}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
                       className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(
-                        transaction.status
+                        transaction.status || transaction.processing_status || "pending"
                       )}`}
                     >
-                      {transaction.status === "success"
+                      {(transaction.status || transaction.processing_status) === "success"
                         ? "Erfolg"
-                        : transaction.status === "pending"
+                        : (transaction.status || transaction.processing_status) === "pending"
                         ? "Ausstehend"
-                        : transaction.status === "failed"
+                        : (transaction.status || transaction.processing_status) === "failed"
                         ? "Fehlgeschlagen"
-                        : transaction.status}
+                        : transaction.status || transaction.processing_status || "Ausstehend"}
                     </span>
                   </td>
                 </tr>
