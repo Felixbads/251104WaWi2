@@ -290,8 +290,9 @@ export default function RefillDetail() {
                         <TableRow>
                           <TableHead>Produkt</TableHead>
                           <TableHead>Menge</TableHead>
-                          <TableHead>Fachnummer</TableHead>
-                          <TableHead>Preis</TableHead>
+                          <TableHead>Typ</TableHead>
+                          <TableHead>Fach/Position</TableHead>
+                          <TableHead>Lagerbestand</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -299,8 +300,20 @@ export default function RefillDetail() {
                           <TableRow key={product.id}>
                             <TableCell className="font-medium">{product.productName}</TableCell>
                             <TableCell>{product.quantity} Stk.</TableCell>
-                            <TableCell>{product.slot || '–'}</TableCell>
-                            <TableCell>{product.price ? `${product.price.toFixed(2)} €` : '–'}</TableCell>
+                            <TableCell>
+                              {product.quantity > 0 ? (
+                                <Badge variant="outline" className="bg-green-100 text-green-800">Aufgefüllt</Badge>
+                              ) : product.quantity < 0 ? (
+                                <Badge variant="outline" className="bg-amber-100 text-amber-800">Entnommen</Badge>
+                              ) : (
+                                <Badge variant="outline">Ausgetauscht</Badge>
+                              )}
+                            </TableCell>
+                            <TableCell>{product.position || product.slot || '–'}</TableCell>
+                            <TableCell>
+                              {/* Lagerbestandsänderung würde hier angezeigt werden, falls verfügbar */}
+                              <span className="text-gray-500">Wird geladen...</span>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

@@ -165,7 +165,12 @@ export interface RefillProduct {
   quantity: number;
   price?: number;
   slot?: string;
+  position?: string;
   vendonProductId?: string;
+  added?: number;            // Anzahl der hinzugefügten Produkte
+  removed?: number;          // Anzahl der entfernten Produkte
+  previousStock?: number;    // Vorheriger Lagerbestand
+  currentStock?: number;     // Aktueller Lagerbestand nach der Auffüllung
   createdAt?: string;
   updatedAt?: string;
 }
