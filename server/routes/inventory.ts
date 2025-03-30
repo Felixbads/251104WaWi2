@@ -209,7 +209,7 @@ export function registerInventoryRoutes(app: Express) {
       const newInventoryItem = await storage.createInventoryItem(inventoryItemData);
       
       // Erzeugen eines Warenbewegungseintrags für die Erstanlage
-      if (inventoryItemData.quantity && inventoryItemData.quantity > 0) {
+      if (inventoryItemData.quantity > 0) {
         await storage.createInventoryMovement({
           destinationWarehouseId: inventoryItemData.warehouseId,
           productId: inventoryItemData.productId,
@@ -250,7 +250,6 @@ export function registerInventoryRoutes(app: Express) {
       // Mengenänderung als Warenbewegung erfassen
       if (
         'quantity' in inventoryItemData &&
-        inventoryItemData.quantity !== null &&
         inventoryItemData.quantity !== undefined &&
         inventoryItemData.quantity !== existingItem.quantity
       ) {
@@ -448,71 +447,121 @@ export function registerInventoryRoutes(app: Express) {
       // Refill-Details abrufen
       const refillDetails = await storage.getRefillDetails(refillId);
       if (refillDetails.length === 0) {
-        return res.status(400).json({ error: "Keine Refill-Details gefunden" });
+        return res.status(400).json({ error: "Keine Refill-Details vorhanden" });
       }
       
-      // Überprüfen, ob bereits Warenbewegungen für diesen Refill existieren
-      const existingMovements = await storage.getInventoryMovementsByReference("REFILL", refillId);
+      // Prüfen, ob bereits Warenbewegungen für diesen Refill erstellt wurden
+      const existingMovements = await storage.getInventoryMovementsByReference("REFILL", refillId.toString());
       if (existingMovements.length > 0 && !processAll) {
         return res.status(400).json({ 
-          error: "Für diesen Refill wurden bereits Warenbewegungen erstellt", 
-          existingMovements 
+          error: "Für diesen Refill wurden bereits Warenbewegungen erstellt",
+          existingMovements
         });
       }
       
-      // Warenbewegungen für alle Produkte im Refill erstellen
+      // Warenbewegungen für alle Refill-Details erstellen, die eine Entnahme (added > 0) darstellen
       const createdMovements = [];
       
       for (const detail of refillDetails) {
-        // Prüfen, ob für dieses Produkt bereits eine Bewegung existiert
-        const existingProductMovement = existingMovements.find(
-          m => m.productId === detail.productId
-        );
+        // Nur Refill-Details mit Hinzufügungen verarbeiten, wenn nicht explizit alle gewünscht
+        if (detail.added <= 0 && !processAll) continue;
         
-        if (existingProductMovement && !processAll) {
-          continue; // Überspringen, wenn bereits verarbeitet
+        // Produkt-ID abrufen
+        let productId = detail.productId;
+        
+        // Wenn detail.productId eine Vendon-ID ist (string), entsprechendes Produkt in der DB suchen
+        if (typeof detail.productId === 'string') {
+          const product = await storage.getProductByVendonId(detail.productId);
+          if (!product) {
+            console.warn(`Produkt mit Vendon-ID ${detail.productId} nicht gefunden`);
+            continue;
+          }
+          productId = product.id;
         }
         
-        // Produkt abrufen um sicherzustellen, dass es existiert
-        const product = await storage.getProduct(detail.productId);
-        if (!product) {
-          return res.status(400).json({ 
-            error: `Produkt mit ID ${detail.productId} nicht gefunden` 
-          });
-        }
-        
-        // Warenbewegung erstellen (OUT vom Lager)
-        const movement = await storage.createInventoryMovement({
-          sourceWarehouseId: warehouseId,
-          machineId,
-          productId: detail.productId,
-          quantity: detail.quantity,
-          movementType: "OUT",
-          referenceType: "REFILL",
-          referenceId: refillId,
-          status: "completed",
-          notes: `Nachfüllung vom ${new Date(refill.createdAt).toLocaleDateString()} für Automat ${refill.machineName || machineId}`
-        });
-        
-        // Bestand im Lager reduzieren
-        const inventoryItem = await storage.getInventoryItemByProductAndWarehouse(
-          detail.productId,
-          warehouseId
-        );
-        
-        if (inventoryItem) {
-          const newQuantity = Math.max(0, inventoryItem.quantity - detail.quantity);
+        // Bei Hinzufügungen (added > 0) eine OUT-Bewegung vom Lager zum Automaten erstellen
+        if (detail.added > 0) {
+          const movementData = {
+            sourceWarehouseId: warehouseId,
+            machineId: machineId,
+            productId: productId as number,
+            quantity: detail.added,
+            movementType: "OUT",
+            referenceType: "REFILL",
+            referenceId: refillId.toString(),
+            status: "completed",
+            notes: `Automaten-Befüllung: ${refill.machineName}`
+          };
+          
+          // Prüfen, ob genug Bestand im Lager vorhanden ist
+          const inventoryItem = await storage.getInventoryItemByProductAndWarehouse(
+            productId as number, 
+            warehouseId
+          );
+          
+          if (!inventoryItem) {
+            console.warn(`Produkt ${productId} ist im Lager ${warehouseId} nicht vorhanden`);
+            continue;
+          }
+          
+          if (inventoryItem.quantity < detail.added) {
+            console.warn(`Nicht genügend Bestand für Produkt ${productId} im Lager ${warehouseId}`);
+            continue;
+          }
+          
+          // Bestand im Lager reduzieren
           await storage.updateInventoryItem(inventoryItem.id, {
-            quantity: newQuantity
+            quantity: inventoryItem.quantity - detail.added
           });
+          
+          // Warenbewegung speichern
+          const newMovement = await storage.createInventoryMovement(movementData);
+          createdMovements.push(newMovement);
         }
         
-        createdMovements.push(movement);
+        // Bei Entnahmen (removed > 0) und falls processAll aktiv ist, eine IN-Bewegung vom Automaten zum Lager erstellen
+        if (processAll && detail.removed > 0) {
+          const movementData = {
+            destinationWarehouseId: warehouseId,
+            machineId: machineId,
+            productId: productId as number,
+            quantity: detail.removed,
+            movementType: "IN",
+            referenceType: "REFILL",
+            referenceId: refillId.toString(),
+            status: "completed",
+            notes: `Rücknahme aus Automat: ${refill.machineName}`
+          };
+          
+          // Bestand im Lager erhöhen
+          let inventoryItem = await storage.getInventoryItemByProductAndWarehouse(
+            productId as number, 
+            warehouseId
+          );
+          
+          if (inventoryItem) {
+            await storage.updateInventoryItem(inventoryItem.id, {
+              quantity: inventoryItem.quantity + detail.removed
+            });
+          } else {
+            // Neuen Artikel anlegen, wenn noch nicht vorhanden
+            await storage.createInventoryItem({
+              warehouseId: warehouseId,
+              productId: productId as number,
+              quantity: detail.removed,
+              minQuantity: 0
+            });
+          }
+          
+          // Warenbewegung speichern
+          const newMovement = await storage.createInventoryMovement(movementData);
+          createdMovements.push(newMovement);
+        }
       }
       
       res.status(201).json({
         success: true,
-        message: `${createdMovements.length} Warenbewegungen für Refill ${refillId} erstellt`,
+        message: `${createdMovements.length} Warenbewegungen wurden erstellt`,
         movements: createdMovements
       });
     } catch (error: any) {
@@ -525,13 +574,11 @@ export function registerInventoryRoutes(app: Express) {
         });
       }
       
-      res.status(500).json({ 
-        error: error.message || "Fehler beim Erstellen der Warenbewegungen aus Refill" 
-      });
+      res.status(500).json({ error: error.message || "Fehler beim Erstellen der Warenbewegungen" });
     }
   });
 
-  // Zuordnungen zwischen Automaten und Lagern
+  // Maschinen-Lager-Zuordnungen
   app.get(`${apiPrefix}/machine-warehouse-assignments`, async (req: Request, res: Response) => {
     try {
       const machineId = req.query.machineId ? Number(req.query.machineId) : undefined;
@@ -544,10 +591,8 @@ export function registerInventoryRoutes(app: Express) {
       
       res.json(assignments);
     } catch (error: any) {
-      console.error("Fehler beim Abrufen der Automaten-Lager-Zuordnungen:", error);
-      res.status(500).json({ 
-        error: error.message || "Fehler beim Abrufen der Automaten-Lager-Zuordnungen" 
-      });
+      console.error("Fehler beim Abrufen der Maschinen-Lager-Zuordnungen:", error);
+      res.status(500).json({ error: error.message || "Fehler beim Abrufen der Maschinen-Lager-Zuordnungen" });
     }
   });
 
@@ -555,23 +600,28 @@ export function registerInventoryRoutes(app: Express) {
     try {
       const assignmentData = insertMachineWarehouseAssignmentSchema.parse(req.body);
       
-      // Prüfen, ob bereits eine Zuordnung existiert
-      const existingAssignment = await storage.getMachineWarehouseAssignmentByMachineAndWarehouse(
+      // Prüfen, ob die Zuordnung bereits existiert
+      const existingAssignment = await storage.getMachineWarehouseAssignment(
         assignmentData.machineId, 
         assignmentData.warehouseId
       );
       
       if (existingAssignment) {
         return res.status(400).json({
-          error: "Diese Zuordnung existiert bereits",
+          error: "Diese Maschine ist bereits diesem Lager zugeordnet",
           existingAssignment
         });
+      }
+      
+      // Wenn isPrimary = true, dann andere Zuordnungen auf isPrimary = false setzen
+      if (assignmentData.isPrimary) {
+        await storage.updatePrimaryWarehouseForMachine(assignmentData.machineId);
       }
       
       const newAssignment = await storage.createMachineWarehouseAssignment(assignmentData);
       res.status(201).json(newAssignment);
     } catch (error: any) {
-      console.error("Fehler beim Erstellen der Automaten-Lager-Zuordnung:", error);
+      console.error("Fehler beim Erstellen der Maschinen-Lager-Zuordnung:", error);
       
       if (error.name === "ZodError") {
         return res.status(400).json({ 
@@ -580,9 +630,7 @@ export function registerInventoryRoutes(app: Express) {
         });
       }
       
-      res.status(500).json({ 
-        error: error.message || "Fehler beim Erstellen der Automaten-Lager-Zuordnung" 
-      });
+      res.status(500).json({ error: error.message || "Fehler beim Erstellen der Maschinen-Lager-Zuordnung" });
     }
   });
 
@@ -590,6 +638,14 @@ export function registerInventoryRoutes(app: Express) {
     try {
       const { id } = idParamSchema.parse(req.params);
       const assignmentData = insertMachineWarehouseAssignmentSchema.partial().parse(req.body);
+      
+      // Wenn isPrimary = true, dann andere Zuordnungen auf isPrimary = false setzen
+      if (assignmentData.isPrimary) {
+        const assignment = await storage.getMachineWarehouseAssignmentById(id);
+        if (assignment) {
+          await storage.updatePrimaryWarehouseForMachine(assignment.machineId);
+        }
+      }
       
       const updatedAssignment = await storage.updateMachineWarehouseAssignment(id, assignmentData);
       
@@ -599,7 +655,7 @@ export function registerInventoryRoutes(app: Express) {
       
       res.json(updatedAssignment);
     } catch (error: any) {
-      console.error(`Fehler beim Aktualisieren der Zuordnung ${req.params.id}:`, error);
+      console.error(`Fehler beim Aktualisieren der Maschinen-Lager-Zuordnung ${req.params.id}:`, error);
       
       if (error.name === "ZodError") {
         return res.status(400).json({ 
@@ -608,9 +664,7 @@ export function registerInventoryRoutes(app: Express) {
         });
       }
       
-      res.status(500).json({ 
-        error: error.message || "Fehler beim Aktualisieren der Zuordnung" 
-      });
+      res.status(500).json({ error: error.message || "Fehler beim Aktualisieren der Maschinen-Lager-Zuordnung" });
     }
   });
 
@@ -626,25 +680,29 @@ export function registerInventoryRoutes(app: Express) {
       
       res.json({ success: true, message: "Zuordnung erfolgreich gelöscht" });
     } catch (error: any) {
-      console.error(`Fehler beim Löschen der Zuordnung ${req.params.id}:`, error);
+      console.error(`Fehler beim Löschen der Maschinen-Lager-Zuordnung ${req.params.id}:`, error);
       
       if (error.name === "ZodError") {
         return res.status(400).json({ error: "Ungültige Zuordnungs-ID" });
       }
       
-      res.status(500).json({ error: error.message || "Fehler beim Löschen der Zuordnung" });
+      res.status(500).json({ error: error.message || "Fehler beim Löschen der Maschinen-Lager-Zuordnung" });
     }
   });
 
-  // Inventuren
+  // Inventur-Prozesse
   app.get(`${apiPrefix}/inventory-counts`, async (req: Request, res: Response) => {
     try {
       const warehouseId = req.query.warehouseId ? Number(req.query.warehouseId) : undefined;
       const status = req.query.status as string | undefined;
+      const limit = req.query.limit ? Number(req.query.limit) : 50;
+      const offset = req.query.offset ? Number(req.query.offset) : 0;
       
       const inventoryCounts = await storage.getInventoryCounts({
         warehouseId,
-        status
+        status,
+        limit,
+        offset
       });
       
       res.json(inventoryCounts);
@@ -663,12 +721,12 @@ export function registerInventoryRoutes(app: Express) {
         return res.status(404).json({ error: "Inventur nicht gefunden" });
       }
       
-      // Inventur-Positionen abrufen
-      const inventoryCountItems = await storage.getInventoryCountItems(id);
+      // Inventur-Items abrufen
+      const items = await storage.getInventoryCountItems(id);
       
       res.json({
         ...inventoryCount,
-        items: inventoryCountItems
+        items
       });
     } catch (error: any) {
       console.error(`Fehler beim Abrufen der Inventur ${req.params.id}:`, error);
@@ -685,25 +743,26 @@ export function registerInventoryRoutes(app: Express) {
     try {
       const inventoryCountData = insertInventoryCountSchema.parse(req.body);
       
-      // Prüfen, ob es eine offene Inventur für dieses Lager gibt
-      const openInventoryCounts = await storage.getInventoryCounts({
+      // Prüfen, ob bereits eine aktive Inventur für dieses Lager existiert
+      const existingInventoryCounts = await storage.getInventoryCounts({
         warehouseId: inventoryCountData.warehouseId,
-        status: 'open'
+        status: "pending,in_progress"
       });
       
-      if (openInventoryCounts.length > 0) {
+      if (existingInventoryCounts.length > 0) {
         return res.status(400).json({
-          error: "Es gibt bereits eine offene Inventur für dieses Lager",
-          openInventory: openInventoryCounts[0]
+          error: "Es existiert bereits eine aktive Inventur für dieses Lager",
+          existingCount: existingInventoryCounts[0]
         });
       }
       
-      // Neue Inventur anlegen
+      // Neue Inventur erstellen
       const newInventoryCount = await storage.createInventoryCount(inventoryCountData);
       
-      // Aktuelle Lagerbestände als Inventurpositionen anlegen
+      // Alle Lagerartikel des Lagers abrufen
       const inventoryItems = await storage.getInventoryItemsByWarehouse(inventoryCountData.warehouseId);
       
+      // Für jeden Artikel ein Inventur-Item anlegen
       const inventoryCountItems = [];
       
       for (const item of inventoryItems) {
@@ -711,7 +770,7 @@ export function registerInventoryRoutes(app: Express) {
           inventoryCountId: newInventoryCount.id,
           productId: item.productId,
           expectedQuantity: item.quantity,
-          actualQuantity: null // Wird bei der Zählung ausgefüllt
+          status: "pending"
         });
         
         inventoryCountItems.push(countItem);
@@ -740,81 +799,94 @@ export function registerInventoryRoutes(app: Express) {
       const { id } = idParamSchema.parse(req.params);
       const inventoryCountData = insertInventoryCountSchema.partial().parse(req.body);
       
-      const existingCount = await storage.getInventoryCount(id);
-      if (!existingCount) {
+      // Inventur abrufen
+      const inventoryCount = await storage.getInventoryCount(id);
+      if (!inventoryCount) {
         return res.status(404).json({ error: "Inventur nicht gefunden" });
       }
       
-      // Prüfen, ob eine abgeschlossene Inventur wieder geöffnet werden soll
+      // Status-Änderungen behandeln
       if (
-        existingCount.status === 'completed' && 
-        inventoryCountData.status === 'open'
+        inventoryCountData.status === "completed" && 
+        (inventoryCount.status === "pending" || inventoryCount.status === "in_progress")
       ) {
-        return res.status(400).json({ 
-          error: "Eine abgeschlossene Inventur kann nicht wieder geöffnet werden" 
-        });
-      }
-      
-      // Wenn die Inventur abgeschlossen wird, Lagerbuchungen vornehmen
-      if (
-        existingCount.status !== 'completed' && 
-        inventoryCountData.status === 'completed'
-      ) {
-        const inventoryCountItems = await storage.getInventoryCountItems(id);
+        // Endzeit setzen
+        inventoryCountData.endDate = new Date();
         
-        // Prüfen, ob alle Positionen gezählt wurden
-        const uncountedItems = inventoryCountItems.filter(item => item.actualQuantity === null);
+        // Alle Items checken, ob sie gezählt wurden
+        const items = await storage.getInventoryCountItems(id);
+        const uncountedItems = items.filter(item => 
+          item.status === "pending" || item.actualQuantity === null || item.actualQuantity === undefined
+        );
+        
         if (uncountedItems.length > 0) {
-          return res.status(400).json({ 
-            error: "Die Inventur kann nicht abgeschlossen werden, da nicht alle Positionen gezählt wurden",
+          return res.status(400).json({
+            error: "Es gibt noch ungezählte Artikel in dieser Inventur",
             uncountedItems
           });
         }
         
-        // Bestände aktualisieren
-        for (const item of inventoryCountItems) {
-          if (item.actualQuantity === item.expectedQuantity) {
-            continue; // Keine Anpassung nötig
-          }
-          
-          // Lagerposition finden
-          const inventoryItem = await storage.getInventoryItemByProductAndWarehouse(
-            item.productId,
-            existingCount.warehouseId
-          );
-          
-          if (inventoryItem) {
-            // Bestand aktualisieren
-            await storage.updateInventoryItem(inventoryItem.id, {
-              quantity: item.actualQuantity
-            });
+        // Bestandsdifferenzen in Lagerbeständen anpassen
+        for (const item of items) {
+          if (item.difference !== 0) {
+            // Lagerposition abrufen
+            const inventoryItem = await storage.getInventoryItemByProductAndWarehouse(
+              item.productId, 
+              inventoryCount.warehouseId
+            );
             
-            // Warenbewegung für die Korrektur erzeugen
-            const quantityDiff = item.actualQuantity - item.expectedQuantity;
-            
-            await storage.createInventoryMovement({
-              sourceWarehouseId: quantityDiff < 0 ? existingCount.warehouseId : undefined,
-              destinationWarehouseId: quantityDiff > 0 ? existingCount.warehouseId : undefined,
-              productId: item.productId,
-              quantity: Math.abs(quantityDiff),
-              movementType: quantityDiff > 0 ? "IN" : "OUT",
-              referenceType: "INVENTORY_COUNT",
-              referenceId: id,
-              status: "completed",
-              notes: `Bestandskorrektur durch Inventur #${id}`
-            });
+            if (inventoryItem) {
+              // Lagerbestand anpassen
+              await storage.updateInventoryItem(inventoryItem.id, {
+                quantity: item.actualQuantity,
+                lastCountDate: new Date()
+              });
+              
+              // Warenbewegung für die Bestandsanpassung erstellen
+              if (item.difference > 0) {
+                // Zuwachs: IN-Bewegung
+                await storage.createInventoryMovement({
+                  destinationWarehouseId: inventoryCount.warehouseId,
+                  productId: item.productId,
+                  quantity: item.difference,
+                  movementType: "IN",
+                  referenceType: "INVENTORY_COUNT",
+                  referenceId: id.toString(),
+                  status: "completed",
+                  notes: "Bestandserhöhung durch Inventur"
+                });
+              } else if (item.difference < 0) {
+                // Abnahme: OUT-Bewegung
+                await storage.createInventoryMovement({
+                  sourceWarehouseId: inventoryCount.warehouseId,
+                  productId: item.productId,
+                  quantity: Math.abs(item.difference),
+                  movementType: "OUT",
+                  referenceType: "INVENTORY_COUNT",
+                  referenceId: id.toString(),
+                  status: "completed",
+                  notes: "Bestandsminderung durch Inventur"
+                });
+              }
+            }
           }
         }
+      } else if (
+        inventoryCountData.status === "in_progress" && 
+        inventoryCount.status === "pending"
+      ) {
+        // Startzeit setzen
+        inventoryCountData.startDate = new Date();
       }
       
       const updatedInventoryCount = await storage.updateInventoryCount(id, inventoryCountData);
       
-      // Inventur-Positionen abrufen
-      const inventoryCountItems = await storage.getInventoryCountItems(id);
+      // Inventur-Items abrufen
+      const items = await storage.getInventoryCountItems(id);
       
       res.json({
         ...updatedInventoryCount,
-        items: inventoryCountItems
+        items
       });
     } catch (error: any) {
       console.error(`Fehler beim Aktualisieren der Inventur ${req.params.id}:`, error);
@@ -834,22 +906,23 @@ export function registerInventoryRoutes(app: Express) {
     try {
       const { id } = idParamSchema.parse(req.params);
       
-      const existingCount = await storage.getInventoryCount(id);
-      if (!existingCount) {
+      // Inventur abrufen
+      const inventoryCount = await storage.getInventoryCount(id);
+      if (!inventoryCount) {
         return res.status(404).json({ error: "Inventur nicht gefunden" });
       }
       
-      // Prüfen, ob die Inventur abgeschlossen ist
-      if (existingCount.status === 'completed') {
-        return res.status(400).json({ 
-          error: "Eine abgeschlossene Inventur kann nicht gelöscht werden" 
+      // Prüfen, ob die Inventur bereits abgeschlossen oder in Bearbeitung ist
+      if (inventoryCount.status !== "pending") {
+        return res.status(400).json({
+          error: "Nur ausstehende Inventuren können gelöscht werden"
         });
       }
       
-      // Zuerst die Inventurpositionen löschen
-      await storage.deleteInventoryCountItems(id);
+      // Alle zugehörigen Inventur-Items löschen
+      await storage.deleteInventoryCountItemsByInventoryCount(id);
       
-      // Dann die Inventur selbst löschen
+      // Inventur löschen
       const deleted = await storage.deleteInventoryCount(id);
       
       res.json({ success: true, message: "Inventur erfolgreich gelöscht" });
@@ -864,23 +937,39 @@ export function registerInventoryRoutes(app: Express) {
     }
   });
 
-  // Inventurpositionen aktualisieren
+  // Inventur-Items
   app.put(`${apiPrefix}/inventory-count-items/:id`, async (req: Request, res: Response) => {
     try {
       const { id } = idParamSchema.parse(req.params);
       const itemData = insertInventoryCountItemSchema.partial().parse(req.body);
       
-      const existingItem = await storage.getInventoryCountItem(id);
-      if (!existingItem) {
-        return res.status(404).json({ error: "Inventurposition nicht gefunden" });
+      // Inventur-Item abrufen
+      const inventoryCountItem = await storage.getInventoryCountItemById(id);
+      if (!inventoryCountItem) {
+        return res.status(404).json({ error: "Inventur-Position nicht gefunden" });
       }
       
-      // Inventur abrufen um zu prüfen, ob sie noch offen ist
-      const inventoryCount = await storage.getInventoryCount(existingItem.inventoryCountId);
-      if (inventoryCount?.status !== 'open') {
-        return res.status(400).json({ 
-          error: "Die Inventur ist nicht mehr offen und kann nicht mehr bearbeitet werden" 
+      // Inventur abrufen
+      const inventoryCount = await storage.getInventoryCount(inventoryCountItem.inventoryCountId);
+      if (!inventoryCount) {
+        return res.status(404).json({ error: "Zugehörige Inventur nicht gefunden" });
+      }
+      
+      // Prüfen, ob die Inventur bereits abgeschlossen ist
+      if (inventoryCount.status === "completed" || inventoryCount.status === "cancelled") {
+        return res.status(400).json({
+          error: "Die Inventur ist bereits abgeschlossen oder storniert"
         });
+      }
+      
+      // Wenn die tatsächliche Menge gesetzt wird, die Differenz berechnen
+      if (
+        'actualQuantity' in itemData && 
+        itemData.actualQuantity !== null && 
+        itemData.actualQuantity !== undefined
+      ) {
+        itemData.difference = itemData.actualQuantity - inventoryCountItem.expectedQuantity;
+        itemData.status = "counted";
       }
       
       const updatedItem = await storage.updateInventoryCountItem(id, itemData);
@@ -897,6 +986,132 @@ export function registerInventoryRoutes(app: Express) {
       }
       
       res.status(500).json({ error: error.message || "Fehler beim Aktualisieren der Inventur-Position" });
+    }
+  });
+}
+import type { Express, Request, Response } from "express";
+import { storage } from "../storage";
+import { insertWarehouseSchema, idParamSchema } from "@shared/schema";
+import { z } from "zod";
+
+const apiPrefix = "/api";
+
+export function registerInventoryRoutes(app: Express) {
+  // Get all warehouses
+  app.get(`${apiPrefix}/warehouses`, async (_req: Request, res: Response) => {
+    try {
+      const warehouses = await storage.getWarehouses();
+      res.json(warehouses);
+    } catch (error: any) {
+      console.error("Error fetching warehouses:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch warehouses", 
+        details: error.message || String(error) 
+      });
+    }
+  });
+
+  // Get warehouse by ID
+  app.get(`${apiPrefix}/warehouses/:id`, async (req: Request, res: Response) => {
+    try {
+      const { id } = idParamSchema.parse({ id: parseInt(req.params.id) });
+      const warehouse = await storage.getWarehouseById(id);
+      
+      if (!warehouse) {
+        return res.status(404).json({ error: "Warehouse not found" });
+      }
+      
+      res.json(warehouse);
+    } catch (error: any) {
+      console.error(`Error fetching warehouse with ID ${req.params.id}:`, error);
+      
+      if (error.name === "ZodError") {
+        return res.status(400).json({ 
+          error: "Invalid warehouse ID", 
+          details: error.errors 
+        });
+      }
+      
+      res.status(500).json({ 
+        error: "Failed to fetch warehouse", 
+        details: error.message || String(error) 
+      });
+    }
+  });
+
+  // Create warehouse
+  app.post(`${apiPrefix}/warehouses`, async (req: Request, res: Response) => {
+    try {
+      const warehouseData = insertWarehouseSchema.parse(req.body);
+      const newWarehouse = await storage.createWarehouse(warehouseData);
+      res.status(201).json(newWarehouse);
+    } catch (error: any) {
+      console.error("Fehler beim Erstellen des Lagers:", error);
+      
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: "Ungültige Lagerdaten", details: error.errors });
+      }
+      
+      res.status(500).json({ error: error.message || "Fehler beim Erstellen des Lagers" });
+    }
+  });
+
+  // Update warehouse
+  app.put(`${apiPrefix}/warehouses/:id`, async (req: Request, res: Response) => {
+    try {
+      const { id } = idParamSchema.parse({ id: parseInt(req.params.id) });
+      const warehouseData = insertWarehouseSchema.partial().parse(req.body);
+      
+      const updatedWarehouse = await storage.updateWarehouse(id, warehouseData);
+      
+      if (!updatedWarehouse) {
+        return res.status(404).json({ error: "Lager nicht gefunden" });
+      }
+      
+      res.json(updatedWarehouse);
+    } catch (error: any) {
+      console.error(`Fehler beim Aktualisieren des Lagers ${req.params.id}:`, error);
+      
+      if (error.name === "ZodError") {
+        return res.status(400).json({ 
+          error: "Ungültige Lagerdaten oder ID", 
+          details: error.errors 
+        });
+      }
+      
+      res.status(500).json({ error: error.message || "Fehler beim Aktualisieren des Lagers" });
+    }
+  });
+
+  // Delete warehouse
+  app.delete(`${apiPrefix}/warehouses/:id`, async (req: Request, res: Response) => {
+    try {
+      const { id } = idParamSchema.parse({ id: parseInt(req.params.id) });
+      
+      const result = await storage.deleteWarehouse(id);
+      
+      if (!result) {
+        return res.status(404).json({ error: "Lager nicht gefunden" });
+      }
+      
+      res.json({ success: true, message: "Lager erfolgreich gelöscht" });
+    } catch (error: any) {
+      console.error(`Fehler beim Löschen des Lagers ${req.params.id}:`, error);
+      
+      if (error.name === "ZodError") {
+        return res.status(400).json({ 
+          error: "Ungültige Lager-ID", 
+          details: error.errors 
+        });
+      }
+      
+      if (error.message && error.message.includes("has_items")) {
+        return res.status(409).json({ 
+          error: "Lager kann nicht gelöscht werden, da es noch Artikel enthält" 
+        });
+      }
+      
+      res.status(500).json({ error: error.message || "Fehler beim Löschen des Lagers" });
     }
   });
 }

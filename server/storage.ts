@@ -353,7 +353,7 @@ export class DatabaseStorage implements IStorage {
         .returning();
       return updatedTransaction;
     } catch (error) {
-      console.error("Fehler beim Aktualisieren der Transaktion " + id + ":", error);
+      console.error(`Fehler beim Aktualisieren der Transaktion ${id}:`, error);
       return undefined;
     }
   }
@@ -813,7 +813,7 @@ export class DatabaseStorage implements IStorage {
 
       return result.length > 0;
     } catch (error) {
-      console.error("Fehler beim Löschen des Lagers mit ID " + id + ":", error);
+      console.error(`Fehler beim Löschen des Lagers mit ID ${id}:`, error);
       return false;
     }
   }
@@ -950,7 +950,7 @@ export class DatabaseStorage implements IStorage {
 
       return result.length > 0;
     } catch (error) {
-      console.error("Error deleting inventory item with ID: " + id, error);
+      console.error(`Fehler beim Löschen der Lagerposition mit ID ${id}:`, error);
       return false;
     }
   }
@@ -1183,7 +1183,7 @@ export class DatabaseStorage implements IStorage {
 
       return result.length > 0;
     } catch (error) {
-      console.error("Error deleting assignment with ID: " + id, error);
+      console.error(`Fehler beim Löschen der Zuordnung mit ID ${id}:`, error);
       return false;
     }
   }
@@ -1306,7 +1306,7 @@ export class DatabaseStorage implements IStorage {
 
       return result.length > 0;
     } catch (error) {
-      console.error("Error deleting inventory count with ID: " + id, error);
+      console.error(`Fehler beim Löschen der Inventur mit ID ${id}:`, error);
       return false;
     }
   }

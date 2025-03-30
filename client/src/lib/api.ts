@@ -210,13 +210,6 @@ export interface DashboardSummary {
     count: number;
     revenue: number;
   }[];
-  topMachines: {
-    id: number;
-    name: string;
-    machineName: string;
-    revenue: number;
-    transactions: number;
-  }[];
   paymentMethods: {
     method: string;
     count: number;

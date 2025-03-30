@@ -21,18 +21,27 @@ import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getDashboardSummary, getSyncStatus } from "@/lib/api";
+import { getTransactions, getMachines, getEvents, getSyncStatus } from "@/lib/api";
 import { formatDateTime } from "@/lib/api";
 
 export default function Dashboard() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  // Fetch summary data from database (not direct API)
-  const { data: summary, isLoading: isLoadingSummary } = useQuery({
-    queryKey: ['/api/transactions/summary'],
-    queryFn: () => getDashboardSummary(),
-    refetchInterval: 60000, // Jede Minute aktualisieren
+  // Fetch data for metrics
+  const { data: transactions, isLoading: isLoadingTransactions } = useQuery({
+    queryKey: ['/api/transactions'],
+    queryFn: () => getTransactions(50),
+  });
+
+  const { data: machines, isLoading: isLoadingMachines } = useQuery({
+    queryKey: ['/api/machines'],
+    queryFn: () => getMachines(),
+  });
+  
+  const { data: events, isLoading: isLoadingEvents } = useQuery({
+    queryKey: ['/api/events'],
+    queryFn: () => getEvents(10),
   });
   
   const { data: syncStatus, isLoading: isLoadingSyncStatus } = useQuery({
@@ -51,23 +60,102 @@ export default function Dashboard() {
     setLocation("/events");
   };
 
-  // Extrahiere Werte aus der Zusammenfassung oder verwende Standardwerte
-  const totalTransactions = summary?.totalTransactions || 0;
-  const totalRevenue = summary?.totalRevenue || 0;
-  const activeMachines = summary?.activeMachines || 0;
-  const totalMachines = summary?.totalMachines || 0;
-  const dailyRevenue = summary?.todayRevenue || 0;
-  const revenueTrend = summary?.trendDaily || 0;
-  const openErrors = summary?.recentIssues || 0;
+  // Berechne aktuelle Metriken aus realen Daten
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
   
-  // Top Produkte aus der Zusammenfassung
-  const topProductsList = summary?.popularProducts || [];
+  // Transaktionen
+  const totalTransactions = transactions?.length || 0;
   
-  // Top 5 Maschinen nach Transaktionen (falls implementiert in API)
-  const topMachinesList = summary?.topMachines || [];
+  // Maschinen-Statistiken
+  const activeMachines = machines?.filter(m => m.status === "active").length || 0;
+  const totalMachines = machines?.length || 0;
+  const machineStatuses = machines?.reduce((acc: Record<string, number>, machine) => {
+    acc[machine.status] = (acc[machine.status] || 0) + 1;
+    return acc;
+  }, {}) || {};
+
+  // Umsatz heute
+  const dailyRevenue = transactions?.reduce((sum, tx) => {
+    const txDate = new Date(tx.datetime);
+    if (txDate.toDateString() === today.toDateString()) {
+      return sum + (tx.price || 0);
+    }
+    return sum;
+  }, 0) || 0;
+  
+  // Umsatz gestern (als Vergleich)
+  const yesterdayRevenue = transactions?.reduce((sum, tx) => {
+    const txDate = new Date(tx.datetime);
+    if (txDate.toDateString() === yesterday.toDateString()) {
+      return sum + (tx.price || 0);
+    }
+    return sum;
+  }, 0) || 0;
+  
+  // Trend berechnen
+  const revenueTrend = yesterdayRevenue > 0 
+    ? ((dailyRevenue - yesterdayRevenue) / yesterdayRevenue * 100) 
+    : 0;
+
+  // Offene Fehler/Warnungen
+  const openErrors = events?.filter(e => 
+    e.status === "open" && 
+    (e.severity === "error" || e.severity === "warning")
+  ).length || 0;
   
   // Zahlungsmethoden
-  const paymentMethodsArray = summary?.paymentMethods || [];
+  const paymentMethods = transactions?.reduce((acc: Record<string, {count: number, revenue: number}>, tx) => {
+    if (!acc[tx.paymentMethod]) {
+      acc[tx.paymentMethod] = { count: 0, revenue: 0 };
+    }
+    acc[tx.paymentMethod].count += 1;
+    acc[tx.paymentMethod].revenue += tx.price || 0;
+    return acc;
+  }, {}) || {};
+  
+  // Top Produkte
+  const topProducts = transactions?.reduce((acc: Record<string, {count: number, revenue: number}>, tx) => {
+    if (!acc[tx.productName]) {
+      acc[tx.productName] = { count: 0, revenue: 0 };
+    }
+    acc[tx.productName].count += 1;
+    acc[tx.productName].revenue += tx.price || 0;
+    return acc;
+  }, {}) || {};
+  
+  // Top 5 Produkte nach Anzahl
+  const topProductsList = Object.entries(topProducts)
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 5)
+    .map(([name, stats]) => ({
+      name,
+      count: stats.count,
+      revenue: stats.revenue
+    }));
+  
+  // Top 5 Maschinen nach Transaktionen
+  const machineTransactions = transactions?.reduce((acc: Record<string, {count: number, revenue: number}>, tx) => {
+    if (!acc[tx.machineName]) {
+      acc[tx.machineName] = { count: 0, revenue: 0 };
+    }
+    acc[tx.machineName].count += 1;
+    acc[tx.machineName].revenue += tx.price || 0;
+    return acc;
+  }, {}) || {};
+  
+  const topMachinesList = Object.entries(machineTransactions)
+    .sort((a, b) => b[1].revenue - a[1].revenue)
+    .slice(0, 5)
+    .map(([name, stats]) => ({
+      name,
+      count: stats.count,
+      revenue: stats.revenue
+    }));
+
+  // Gesamtumsatz
+  const totalRevenue = transactions?.reduce((sum, tx) => sum + (tx.price || 0), 0) || 0;
   
   // Synchronisationsstatus
   const getLatestSyncTime = () => {
@@ -196,8 +284,8 @@ export default function Dashboard() {
                     {topProductsList.map((product, index) => (
                       <div key={index} className="space-y-1">
                         <div className="flex justify-between text-sm">
-                          <span className="font-medium truncate" title={product.productName}>
-                            {product.productName}
+                          <span className="font-medium truncate" title={product.name}>
+                            {product.name}
                           </span>
                           <span className="font-medium">{product.count}x</span>
                         </div>
@@ -228,8 +316,8 @@ export default function Dashboard() {
                     {topMachinesList.map((machine, index) => (
                       <div key={index} className="space-y-1">
                         <div className="flex justify-between text-sm">
-                          <span className="font-medium truncate" title={machine.machineName || machine.name}>
-                            {machine.machineName || machine.name}
+                          <span className="font-medium truncate" title={machine.name}>
+                            {machine.name}
                           </span>
                           <span className="font-medium">{machine.revenue.toFixed(2)} €</span>
                         </div>
@@ -256,24 +344,24 @@ export default function Dashboard() {
               <CardDescription>Verteilung nach Zahlungsart</CardDescription>
             </CardHeader>
             <CardContent>
-              {paymentMethodsArray.length > 0 ? (
+              {Object.keys(paymentMethods).length > 0 ? (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {paymentMethodsArray.map((payment, index) => (
+                  {Object.entries(paymentMethods).map(([method, stats], index) => (
                     <div key={index} className="space-y-1">
                       <div className="flex justify-between text-sm">
                         <span className="font-medium">
-                          {payment.method === "CASH" ? "Bargeld" : 
-                           payment.method === "CASHLESS" ? "Kartenzahlung" :
-                           payment.method}
+                          {method === "CASH" ? "Bargeld" : 
+                           method === "CASHLESS" ? "Kartenzahlung" :
+                           method}
                         </span>
-                        <span className="font-medium">{payment.count} Transaktionen</span>
+                        <span className="font-medium">{stats.count} Transaktionen</span>
                       </div>
                       <Progress 
-                        value={payment.count / totalTransactions * 100} 
-                        className={payment.method === "CASH" ? "bg-blue-100" : "bg-green-100"}
+                        value={stats.count / totalTransactions * 100} 
+                        className={method === "CASH" ? "bg-blue-100" : "bg-green-100"}
                       />
                       <div className="text-right text-sm text-gray-500">
-                        {payment.revenue.toFixed(2)} € ({(payment.revenue / totalRevenue * 100).toFixed(1)}%)
+                        {stats.revenue.toFixed(2)} € ({(stats.revenue / totalRevenue * 100).toFixed(1)}%)
                       </div>
                     </div>
                   ))}
@@ -405,12 +493,12 @@ export default function Dashboard() {
                   {topMachinesList.map((machine, index) => (
                     <div key={index}>
                       <div className="flex justify-between mb-1">
-                        <span className="font-medium">{machine.machineName || machine.name}</span>
+                        <span className="font-medium">{machine.name}</span>
                         <span>{machine.revenue.toFixed(2)} €</span>
                       </div>
                       <div className="flex justify-between text-sm text-gray-500">
-                        <span>{machine.transactions} Transaktionen</span>
-                        <span>∅ {(machine.revenue / machine.transactions).toFixed(2)} €</span>
+                        <span>{machine.count} Transaktionen</span>
+                        <span>∅ {(machine.revenue / machine.count).toFixed(2)} €</span>
                       </div>
                       <Progress 
                         value={machine.revenue / topMachinesList[0].revenue * 100} 
