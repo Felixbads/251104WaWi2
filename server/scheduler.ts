@@ -64,8 +64,8 @@ async function performSync(syncType: string): Promise<void> {
         result = await vendonSync.syncEvents(yesterdayEvents);
         break;
       case 'weather_forecast':
-        // Synchronisiere Wetterprognosen für Bad Schandau
-        result = await syncWeatherForecast("Bad Schandau");
+        // Synchronisiere Wetterprognosen für Bad Schandau (50.9196, 14.1524)
+        result = await syncWeatherForecast(50.9196, 14.1524);
         break;
       case 'holidays':
         // Synchronisiere fehlende Feiertage für die nächsten 2 Jahre
@@ -75,7 +75,7 @@ async function performSync(syncType: string): Promise<void> {
       case 'all':
         result = await vendonSync.syncAll();
         // Auch Wetter und Feiertage synchronisieren
-        await syncWeatherForecast("Bad Schandau");
+        await syncWeatherForecast(50.9196, 14.1524);
         const currentYearForAll = new Date().getFullYear();
         await syncMissingHolidays(currentYearForAll, currentYearForAll + 1, undefined, true);
         break;

@@ -15,6 +15,21 @@ export default function AppShell({ children }: AppShellProps) {
   
   // Extract page title from current location
   const getPageTitle = () => {
+    // Erkennen, ob Pfad mit bestimmten Präfixen beginnt
+    if (location.startsWith("/automaten")) {
+      if (location === "/automaten") return "Automaten";
+      return "Automat Details";
+    } else if (location.startsWith("/produkte")) {
+      if (location === "/produkte") return "Produkte";
+      return "Produkt Details";
+    } else if (location.startsWith("/lieferanten")) {
+      if (location === "/lieferanten") return "Lieferanten";
+      return "Lieferant Details";
+    } else if (location.startsWith("/bestellungen")) {
+      if (location === "/bestellungen") return "Bestellungen";
+      return "Neue Bestellung";
+    }
+    
     switch (location) {
       case "/":
         return "Dashboard";
@@ -22,8 +37,10 @@ export default function AppShell({ children }: AppShellProps) {
         return "Transaktionen";
       case "/machines":
         return "Maschinen";
-      case "/products":
-        return "Produkte";
+      case "/lager":
+        return "Lager";
+      case "/auswertungen":
+        return "Auswertungen";
       case "/synchronization":
         return "Synchronisierung";
       case "/sync-history":
@@ -33,7 +50,7 @@ export default function AppShell({ children }: AppShellProps) {
       case "/settings":
         return "Einstellungen";
       default:
-        return "Vendon Sync";
+        return "Proviantomat";
     }
   };
 
