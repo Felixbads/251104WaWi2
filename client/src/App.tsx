@@ -18,31 +18,29 @@ import Register from "@/pages/Register";
 import AppShell from "@/components/layout/AppShell";
 import { AuthProvider, useAuth } from "@/lib";
 
+// Geschützte Route Komponente
+function ProtectedRoute({ component: Component, ...rest }: any) {
+  const { isAuthenticated, isLoading } = useAuth();
+  const [location] = useLocation();
+  
+  // Während des Ladens zeigen wir nichts an
+  if (isLoading) {
+    return <div className="flex items-center justify-center h-screen">Lade...</div>;
+  }
+  
+  if (!isAuthenticated) {
+    return <Redirect to={`/login?redirect=${encodeURIComponent(location)}`} />;
+  }
+  
+  return <Component {...rest} />;
+}
+
 // Importiere fehlende Komponenten
 import Suppliers from "@/pages/Suppliers";
 import Reporting from "@/pages/Reporting";
 import Orders from "@/pages/Orders";
 import NewOrder from "@/pages/NewOrder";
 import Inventory from "@/pages/Inventory";
-import Lager from "@/pages/Lager"; // Added Lager import
-
-
-// Geschützte Route Komponente
-function ProtectedRoute({ component: Component, ...rest }: any) {
-  const { isAuthenticated, isLoading } = useAuth();
-  const [location] = useLocation();
-
-  // Während des Ladens zeigen wir nichts an
-  if (isLoading) {
-    return <div className="flex items-center justify-center h-screen">Lade...</div>;
-  }
-
-  if (!isAuthenticated) {
-    return <Redirect to={`/login?redirect=${encodeURIComponent(location)}`} />;
-  }
-
-  return <Component {...rest} />;
-}
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -50,7 +48,6 @@ function AuthenticatedRouter() {
     <AppShell>
       <Switch>
         <Route path="/" component={Dashboard} />
-        <Route path="/dashboard" component={Dashboard} />
         <Route path="/transactions" component={Transactions} />
         <Route path="/machines" component={Machines} />
         <Route path="/automaten" component={Automaten} />
@@ -61,13 +58,13 @@ function AuthenticatedRouter() {
         <Route path="/lieferanten/:id" component={() => <div>Lieferantendetails</div>} />
         <Route path="/bestellungen" component={Orders} />
         <Route path="/bestellungen/neu" component={NewOrder} />
-        <Route path="/lager" component={Lager} /> {/* Added Lager route */}
+        <Route path="/lager" component={Inventory} />
         <Route path="/auswertungen" component={Reporting} />
         <Route path="/synchronization" component={Synchronization} />
         <Route path="/sync-history" component={SyncHistory} />
         <Route path="/forecast" component={Forecast} />
         <Route path="/settings" component={Settings} />
-        <Route path="/:rest*" component={NotFound} />
+        <Route component={NotFound} />
       </Switch>
     </AppShell>
   );
@@ -78,7 +75,7 @@ function PublicRouter() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
-      <Route path="/:rest*">
+      <Route>
         <Redirect to="/login" />
       </Route>
     </Switch>

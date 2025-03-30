@@ -104,7 +104,7 @@ export interface IStorage {
   getLocations(): Promise<Location[]>;
   getLocation(id: number): Promise<Location | undefined>;
   createLocation(location: InsertLocation): Promise<Location>;
-
+  
   // Supplier operations
   getSuppliers(options?: {
     limit?: number;
@@ -125,14 +125,14 @@ export interface IStorage {
   createSupplier(supplier: InsertSupplier): Promise<Supplier>;
   updateSupplier(id: number, supplier: Partial<InsertSupplier>): Promise<Supplier | undefined>;
   deleteSupplier(id: number): Promise<boolean>;
-
+  
   // Warehouse operations
   getWarehouses(): Promise<Warehouse[]>;
   getWarehouse(id: number): Promise<Warehouse | undefined>;
   createWarehouse(warehouse: InsertWarehouse): Promise<Warehouse>;
   updateWarehouse(id: number, warehouse: Partial<InsertWarehouse>): Promise<Warehouse | undefined>;
   deleteWarehouse(id: number): Promise<boolean>;
-
+  
   // Inventory Item operations
   getInventoryItems(params?: {
     warehouseId?: number;
@@ -145,7 +145,7 @@ export interface IStorage {
   createInventoryItem(item: InsertInventoryItem): Promise<InventoryItem>;
   updateInventoryItem(id: number, item: Partial<InsertInventoryItem>): Promise<InventoryItem | undefined>;
   deleteInventoryItem(id: number): Promise<boolean>;
-
+  
   // Inventory Movement operations
   getInventoryMovements(params?: {
     sourceWarehouseId?: number;
@@ -154,14 +154,13 @@ export interface IStorage {
     machineId?: number;
     movementType?: string;
     referenceType?: string;
-    referenceId?: string;
     limit?: number;
     offset?: number;
   }): Promise<InventoryMovement[]>;
   getInventoryMovementsByInventoryItem(inventoryItemId: number): Promise<InventoryMovement[]>;
   getInventoryMovementsByReference(referenceType: string, referenceId: string): Promise<InventoryMovement[]>;
   createInventoryMovement(movement: InsertInventoryMovement): Promise<InventoryMovement>;
-
+  
   // Inventory Count operations
   getInventoryCounts(params?: {
     warehouseId?: number;
@@ -173,14 +172,14 @@ export interface IStorage {
   createInventoryCount(count: InsertInventoryCount): Promise<InventoryCount>;
   updateInventoryCount(id: number, count: Partial<InsertInventoryCount>): Promise<InventoryCount | undefined>;
   deleteInventoryCount(id: number): Promise<boolean>;
-
+  
   // Inventory Count Item operations
   getInventoryCountItems(inventoryCountId: number): Promise<InventoryCountItem[]>;
   getInventoryCountItemById(id: number): Promise<InventoryCountItem | undefined>;
   createInventoryCountItem(item: InsertInventoryCountItem): Promise<InventoryCountItem>;
   updateInventoryCountItem(id: number, item: Partial<InsertInventoryCountItem>): Promise<InventoryCountItem | undefined>;
   deleteInventoryCountItemsByInventoryCount(inventoryCountId: number): Promise<void>;
-
+  
   // Machine-Warehouse Assignment operations
   getMachineWarehouseAssignments(params?: {
     machineId?: number;
@@ -208,27 +207,27 @@ export class DatabaseStorage implements IStorage {
     // Get transaction count and latest date
     const transCountResult = await db.select({ count: count() }).from(transactions);
     const [latestTrans] = await db.select().from(transactions).orderBy(desc(transactions.datetime)).limit(1);
-
+    
     // Get machine count and latest update
     const machineCountResult = await db.select({ count: count() }).from(machines);
     const [latestMachine] = await db.select().from(machines).orderBy(desc(machines.updatedAt)).limit(1);
-
+    
     // Get refill count and latest date
     const refillCountResult = await db.select({ count: count() }).from(refills);
     const [latestRefill] = await db.select().from(refills).orderBy(desc(refills.datetime)).limit(1);
-
+    
     // Get refill detail count and latest date
     const refillDetailCountResult = await db.select({ count: count() }).from(refillDetails);
     const [latestRefillDetail] = await db.select().from(refillDetails).orderBy(desc(refillDetails.createdAt)).limit(1);
-
+    
     // Get event count and latest date
     const eventCountResult = await db.select({ count: count() }).from(events);
     const [latestEvent] = await db.select().from(events).orderBy(desc(events.datetime)).limit(1);
-
+    
     // Get product count and latest update
     const productCountResult = await db.select({ count: count() }).from(products);
     const [latestProduct] = await db.select().from(products).orderBy(desc(products.updatedAt)).limit(1);
-
+    
     return {
       transactions: {
         count: parseInt(transCountResult[0]?.count?.toString() || '0'),
@@ -277,7 +276,7 @@ export class DatabaseStorage implements IStorage {
   async getMachines(limit: number = 100): Promise<Machine[]> {
     return await db.select().from(machines).limit(limit);
   }
-
+  
   async getAllMachines(): Promise<Machine[]> {
     return await db.select().from(machines);
   }
@@ -343,7 +342,7 @@ export class DatabaseStorage implements IStorage {
     const [newTransaction] = await db.insert(transactions).values(transaction).returning();
     return newTransaction;
   }
-
+  
   async updateTransaction(id: number, transaction: Partial<InsertTransaction>): Promise<Transaction | undefined> {
     try {
       const [updatedTransaction] = await db
@@ -357,7 +356,7 @@ export class DatabaseStorage implements IStorage {
       return undefined;
     }
   }
-
+  
   async getTransactionsForProcessing(limit: number = 100, offset: number = 0): Promise<Transaction[]> {
     return await db
       .select()
@@ -367,7 +366,7 @@ export class DatabaseStorage implements IStorage {
       .limit(limit)
       .offset(offset);
   }
-
+  
   async updateTransactionProcessingStatus(
     id: number, 
     status: string, 
@@ -377,17 +376,17 @@ export class DatabaseStorage implements IStorage {
       processingStatus: status,
       processedAt: new Date()
     };
-
+    
     if (errorMessage) {
       updateData.processingError = errorMessage;
     }
-
+    
     await db
       .update(transactions)
       .set(updateData)
       .where(eq(transactions.id, id));
   }
-
+  
   async getTransactionStats(): Promise<{
     total: number;
     processed: number;
@@ -397,22 +396,22 @@ export class DatabaseStorage implements IStorage {
     const totalResult = await db
       .select({ count: count() })
       .from(transactions);
-
+    
     const processedResult = await db
       .select({ count: count() })
       .from(transactions)
       .where(eq(transactions.processingStatus, 'processed'));
-
+    
     const pendingResult = await db
       .select({ count: count() })
       .from(transactions)
       .where(eq(transactions.processingStatus, 'pending'));
-
+    
     const errorResult = await db
       .select({ count: count() })
       .from(transactions)
       .where(eq(transactions.processingStatus, 'error'));
-
+    
     return {
       total: parseInt(totalResult[0]?.count?.toString() || '0'),
       processed: parseInt(processedResult[0]?.count?.toString() || '0'),
@@ -443,22 +442,22 @@ export class DatabaseStorage implements IStorage {
       const limit = typeof options === 'number' ? options : 100;
       return await db.select().from(products).limit(limit);
     }
-
+    
     // Neue, erweiterte Implementierung mit Paginierung und Filtern
     const limit = options.limit || 100;
     const offset = options.offset || 0;
-
+    
     // Build the filter condition
     const filters = [];
-
+    
     if (options.category) {
       filters.push(eq(products.category, options.category));
     }
-
+    
     if (options.supplierId) {
       filters.push(eq(products.supplierId, options.supplierId));
     }
-
+    
     if (options.search) {
       filters.push(
         or(
@@ -468,10 +467,10 @@ export class DatabaseStorage implements IStorage {
         )
       );
     }
-
+    
     // Combine filters or get all products
     const where = filters.length > 0 ? and(...filters) : undefined;
-
+    
     // Get products with optional filter and supplier info
     const data = await db.select()
       .from(products)
@@ -480,20 +479,20 @@ export class DatabaseStorage implements IStorage {
       .limit(limit)
       .offset(offset)
       .orderBy(desc(products.createdAt));
-
+    
     // Format result to include supplier name
     const formattedData = data.map(row => ({
       ...row.products,
       supplierName: row.suppliers?.name || null
     }));
-
+    
     // Count total for pagination
     const countResult = await db.select({ count: count() })
       .from(products)
       .where(where);
-
+    
     const total = parseInt(countResult[0]?.count?.toString() || '0');
-
+    
     return {
       data: formattedData as Product[],
       meta: {
@@ -544,7 +543,7 @@ export class DatabaseStorage implements IStorage {
     const [refill] = await db.select().from(refills).where(eq(refills.vendonId, vendonId));
     return refill;
   }
-
+  
   async getRefillDetails(refillId: number): Promise<RefillDetail[]> {
     return await db
       .select()
@@ -654,7 +653,7 @@ export class DatabaseStorage implements IStorage {
     const [newLocation] = await db.insert(locations).values(location).returning();
     return newLocation;
   }
-
+  
   // Supplier operations
   async getSuppliers(options?: {
     limit?: number;
@@ -673,14 +672,14 @@ export class DatabaseStorage implements IStorage {
   }> {
     const limit = options?.limit || 50;
     const offset = options?.offset || 0;
-
+    
     // Build the filter condition
     const filters = [];
-
+    
     if (options?.status) {
       filters.push(eq(suppliers.status, options.status));
     }
-
+    
     if (options?.search) {
       filters.push(
         or(
@@ -691,10 +690,10 @@ export class DatabaseStorage implements IStorage {
         )
       );
     }
-
+    
     // Combine filters or get all suppliers
     const where = filters.length > 0 ? and(...filters) : undefined;
-
+    
     // Get suppliers with optional filter
     const data = await db.select()
       .from(suppliers)
@@ -702,14 +701,14 @@ export class DatabaseStorage implements IStorage {
       .limit(limit)
       .offset(offset)
       .orderBy(asc(suppliers.name));
-
+    
     // Count total for pagination
     const countResult = await db.select({ count: count() })
       .from(suppliers)
       .where(where);
-
+    
     const total = parseInt(countResult[0]?.count?.toString() || '0');
-
+    
     return {
       data,
       meta: {
@@ -721,59 +720,59 @@ export class DatabaseStorage implements IStorage {
       }
     };
   }
-
+  
   async getSupplierById(id: number): Promise<Supplier | undefined> {
     const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, id));
     return supplier;
   }
-
+  
   async createSupplier(supplier: InsertSupplier): Promise<Supplier> {
     const [newSupplier] = await db.insert(suppliers).values(supplier).returning();
     return newSupplier;
   }
-
+  
   async updateSupplier(id: number, supplier: Partial<InsertSupplier>): Promise<Supplier | undefined> {
     // Check if supplier exists
     const existingSupplier = await this.getSupplierById(id);
-
+    
     if (!existingSupplier) {
       return undefined;
     }
-
+    
     const [updatedSupplier] = await db
       .update(suppliers)
       .set({ ...supplier, updatedAt: new Date() })
       .where(eq(suppliers.id, id))
       .returning();
-
+    
     return updatedSupplier;
   }
-
+  
   async deleteSupplier(id: number): Promise<boolean> {
     // Check if supplier exists
     const existingSupplier = await this.getSupplierById(id);
-
+    
     if (!existingSupplier) {
       return false;
     }
-
+    
     // Check if supplier has linked products
     const linkedProducts = await db.select({ count: count() })
       .from(products)
       .where(eq(products.supplierId, id));
-
+    
     const linkedCount = parseInt(linkedProducts[0]?.count?.toString() || '0');
-
+    
     if (linkedCount > 0) {
       throw new Error(`Cannot delete supplier with linked products (${linkedCount} products)`);
     }
-
+    
     // Delete supplier
     await db.delete(suppliers).where(eq(suppliers.id, id));
-
+    
     return true;
   }
-
+  
   // Warehouse operations
   async getWarehouses(): Promise<Warehouse[]> {
     return await db.select().from(warehouses).orderBy(warehouses.name);
@@ -810,7 +809,7 @@ export class DatabaseStorage implements IStorage {
         .delete(warehouses)
         .where(eq(warehouses.id, id))
         .returning({ id: warehouses.id });
-
+      
       return result.length > 0;
     } catch (error) {
       console.error(`Fehler beim Löschen des Lagers mit ID ${id}:`, error);
@@ -832,17 +831,17 @@ export class DatabaseStorage implements IStorage {
     .from(inventoryItems)
     .leftJoin(products, eq(inventoryItems.productId, products.id))
     .leftJoin(warehouses, eq(inventoryItems.warehouseId, warehouses.id));
-
+    
     const conditions = [];
-
+    
     if (params?.warehouseId) {
       conditions.push(eq(inventoryItems.warehouseId, params.warehouseId));
     }
-
+    
     if (params?.productId) {
       conditions.push(eq(inventoryItems.productId, params.productId));
     }
-
+    
     if (params?.critical) {
       conditions.push(
         and(
@@ -851,13 +850,13 @@ export class DatabaseStorage implements IStorage {
         )
       );
     }
-
+    
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
     }
-
+    
     const result = await query.orderBy(asc(warehouses.name), asc(products.productName));
-
+    
     // Formatieren der Ergebnisse für eine bessere Nutzbarkeit
     return result.map(row => ({
       ...row.inventory,
@@ -875,10 +874,10 @@ export class DatabaseStorage implements IStorage {
     .from(inventoryItems)
     .leftJoin(products, eq(inventoryItems.productId, products.id))
     .leftJoin(warehouses, eq(inventoryItems.warehouseId, warehouses.id))
-`.where(eq(inventoryItems.id, id));
-
+    .where(eq(inventoryItems.id, id));
+    
     if (!item) return undefined;
-
+    
     return {
       ...item.inventory,
       productName: item.product?.productName,
@@ -895,7 +894,7 @@ export class DatabaseStorage implements IStorage {
     .leftJoin(products, eq(inventoryItems.productId, products.id))
     .where(eq(inventoryItems.warehouseId, warehouseId))
     .orderBy(asc(products.productName));
-
+    
     return result.map(row => ({
       ...row.inventory,
       productName: row.product?.productName
@@ -914,7 +913,7 @@ export class DatabaseStorage implements IStorage {
           eq(inventoryItems.warehouseId, warehouseId)
         )
       );
-
+    
     return item;
   }
 
@@ -924,7 +923,7 @@ export class DatabaseStorage implements IStorage {
       lastCountDate: new Date(),
       createdAt: new Date()
     }).returning();
-
+    
     return newItem;
   }
 
@@ -937,7 +936,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(inventoryItems.id, id))
       .returning();
-
+    
     return updatedItem;
   }
 
@@ -947,7 +946,7 @@ export class DatabaseStorage implements IStorage {
         .delete(inventoryItems)
         .where(eq(inventoryItems.id, id))
         .returning({ id: inventoryItems.id });
-
+      
       return result.length > 0;
     } catch (error) {
       console.error(`Fehler beim Löschen der Lagerposition mit ID ${id}:`, error);
@@ -984,29 +983,29 @@ export class DatabaseStorage implements IStorage {
       eq(inventoryMovements.destinationWarehouseId, warehouses.id),
       { alias: 'destination_warehouse' }
     );
-
+    
     const conditions = [];
-
+    
     if (params?.sourceWarehouseId) {
       conditions.push(eq(inventoryMovements.sourceWarehouseId, params.sourceWarehouseId));
     }
-
+    
     if (params?.destinationWarehouseId) {
       conditions.push(eq(inventoryMovements.destinationWarehouseId, params.destinationWarehouseId));
     }
-
+    
     if (params?.productId) {
       conditions.push(eq(inventoryMovements.productId, params.productId));
     }
-
+    
     if (params?.machineId) {
       conditions.push(eq(inventoryMovements.machineId, params.machineId));
     }
-
+    
     if (params?.movementType) {
       conditions.push(eq(inventoryMovements.movementType, params.movementType));
     }
-
+    
     if (params?.referenceType) {
       conditions.push(eq(inventoryMovements.referenceType, params.referenceType));
     }
@@ -1014,23 +1013,23 @@ export class DatabaseStorage implements IStorage {
     if (params?.referenceId) {
       conditions.push(eq(inventoryMovements.referenceId, params.referenceId));
     }
-
+    
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
     }
-
+    
     query = query.orderBy(desc(inventoryMovements.createdAt));
-
+    
     if (params?.limit) {
       query = query.limit(params.limit);
     }
-
+    
     if (params?.offset) {
       query = query.offset(params.offset);
     }
-
+    
     const result = await query;
-
+    
     // Formatieren der Ergebnisse für eine bessere Nutzbarkeit
     return result.map(row => ({
       ...row.movement,
@@ -1044,18 +1043,18 @@ export class DatabaseStorage implements IStorage {
     // Zuerst das Lager und Produkt des Items abrufen
     const item = await this.getInventoryItem(inventoryItemId);
     if (!item) return [];
-
+    
     // Bewegungen finden, die entweder Quelle oder Ziel dieses Lagers und für dieses Produkt sind
     const sourceMovements = await this.getInventoryMovements({
       productId: item.productId,
       sourceWarehouseId: item.warehouseId
     });
-
+    
     const destinationMovements = await this.getInventoryMovements({
       productId: item.productId,
       destinationWarehouseId: item.warehouseId
     });
-
+    
     // Beide Arrays zusammenführen und nach Datum sortieren
     const allMovements = [...sourceMovements, ...destinationMovements];
     return allMovements.sort((a, b) => 
@@ -1079,7 +1078,7 @@ export class DatabaseStorage implements IStorage {
       createdAt: new Date(),
       processedAt: new Date()
     }).returning();
-
+    
     return newMovement;
   }
 
@@ -1096,25 +1095,25 @@ export class DatabaseStorage implements IStorage {
     .from(machineWarehouseAssignments)
     .leftJoin(machines, eq(machineWarehouseAssignments.machineId, machines.id))
     .leftJoin(warehouses, eq(machineWarehouseAssignments.warehouseId, warehouses.id));
-
+    
     const conditions = [];
-
+    
     if (params?.machineId) {
       conditions.push(eq(machineWarehouseAssignments.machineId, params.machineId));
     }
-
+    
     if (params?.warehouseId) {
       conditions.push(eq(machineWarehouseAssignments.warehouseId, params.warehouseId));
     }
-
+    
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
     }
-
+    
     query = query.orderBy(desc(machineWarehouseAssignments.isPrimary), asc(warehouses.name));
-
+    
     const result = await query;
-
+    
     // Formatieren der Ergebnisse für eine bessere Nutzbarkeit
     return result.map(row => ({
       ...row.assignment,
@@ -1127,7 +1126,7 @@ export class DatabaseStorage implements IStorage {
     const [assignment] = await db.select()
       .from(machineWarehouseAssignments)
       .where(eq(machineWarehouseAssignments.id, id));
-
+    
     return assignment;
   }
 
@@ -1143,7 +1142,7 @@ export class DatabaseStorage implements IStorage {
           eq(machineWarehouseAssignments.warehouseId, warehouseId)
         )
       );
-
+    
     return assignment;
   }
 
@@ -1154,7 +1153,7 @@ export class DatabaseStorage implements IStorage {
       ...assignment,
       createdAt: new Date()
     }).returning();
-
+    
     return newAssignment;
   }
 
@@ -1170,7 +1169,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(machineWarehouseAssignments.id, id))
       .returning();
-
+    
     return updatedAssignment;
   }
 
@@ -1180,7 +1179,7 @@ export class DatabaseStorage implements IStorage {
         .delete(machineWarehouseAssignments)
         .where(eq(machineWarehouseAssignments.id, id))
         .returning({ id: machineWarehouseAssignments.id });
-
+      
       return result.length > 0;
     } catch (error) {
       console.error(`Fehler beim Löschen der Zuordnung mit ID ${id}:`, error);
@@ -1214,13 +1213,13 @@ export class DatabaseStorage implements IStorage {
     })
     .from(inventoryCounts)
     .leftJoin(warehouses, eq(inventoryCounts.warehouseId, warehouses.id));
-
+    
     const conditions = [];
-
+    
     if (params?.warehouseId) {
       conditions.push(eq(inventoryCounts.warehouseId, params.warehouseId));
     }
-
+    
     if (params?.status) {
       if (params.status.includes(',')) {
         const statuses = params.status.split(',');
@@ -1231,23 +1230,23 @@ export class DatabaseStorage implements IStorage {
         conditions.push(eq(inventoryCounts.status, params.status));
       }
     }
-
+    
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
     }
-
+    
     query = query.orderBy(desc(inventoryCounts.createdAt));
-
+    
     if (params?.limit) {
       query = query.limit(params.limit);
     }
-
+    
     if (params?.offset) {
       query = query.offset(params.offset);
     }
-
+    
     const result = await query;
-
+    
     // Formatieren der Ergebnisse für eine bessere Nutzbarkeit
     return result.map(row => ({
       ...row.count,
@@ -1263,9 +1262,9 @@ export class DatabaseStorage implements IStorage {
     .from(inventoryCounts)
     .leftJoin(warehouses, eq(inventoryCounts.warehouseId, warehouses.id))
     .where(eq(inventoryCounts.id, id));
-
+    
     if (!count) return undefined;
-
+    
     return {
       ...count.count,
       warehouseName: count.warehouse?.name
@@ -1277,7 +1276,7 @@ export class DatabaseStorage implements IStorage {
       ...count,
       createdAt: new Date()
     }).returning();
-
+    
     return newCount;
   }
 
@@ -1293,7 +1292,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(inventoryCounts.id, id))
       .returning();
-
+    
     return updatedCount;
   }
 
@@ -1303,7 +1302,7 @@ export class DatabaseStorage implements IStorage {
         .delete(inventoryCounts)
         .where(eq(inventoryCounts.id, id))
         .returning({ id: inventoryCounts.id });
-
+      
       return result.length > 0;
     } catch (error) {
       console.error(`Fehler beim Löschen der Inventur mit ID ${id}:`, error);
@@ -1321,7 +1320,7 @@ export class DatabaseStorage implements IStorage {
     .leftJoin(products, eq(inventoryCountItems.productId, products.id))
     .where(eq(inventoryCountItems.inventoryCountId, inventoryCountId))
     .orderBy(asc(products.productName));
-
+    
     return result.map(row => ({
       ...row.item,
       productName: row.product?.productName
@@ -1336,9 +1335,9 @@ export class DatabaseStorage implements IStorage {
     .from(inventoryCountItems)
     .leftJoin(products, eq(inventoryCountItems.productId, products.id))
     .where(eq(inventoryCountItems.id, id));
-
+    
     if (!item) return undefined;
-
+    
     return {
       ...item.item,
       productName: item.product?.productName
@@ -1350,7 +1349,7 @@ export class DatabaseStorage implements IStorage {
       ...item,
       createdAt: new Date()
     }).returning();
-
+    
     return newItem;
   }
 
@@ -1366,7 +1365,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(inventoryCountItems.id, id))
       .returning();
-
+    
     return updatedItem;
   }
 
