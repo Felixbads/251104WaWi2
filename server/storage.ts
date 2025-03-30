@@ -16,7 +16,9 @@ import {
   inventoryMovements, type InventoryMovement, type InsertInventoryMovement,
   inventoryCounts, type InventoryCount, type InsertInventoryCount,
   inventoryCountItems, type InventoryCountItem, type InsertInventoryCountItem,
-  machineWarehouseAssignments, type MachineWarehouseAssignment, type InsertMachineWarehouseAssignment
+  machineWarehouseAssignments, type MachineWarehouseAssignment, type InsertMachineWarehouseAssignment,
+  productDisposals, type ProductDisposal, type InsertProductDisposal,
+  productDisposalItems, type ProductDisposalItem, type InsertProductDisposalItem
 } from "@shared/schema";
 
 // Interface defining all storage operations
@@ -35,6 +37,17 @@ export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  
+  // Product Disposal operations
+  getProductDisposals(filter?: { status?: string; warehouseId?: string }): Promise<ProductDisposal[]>;
+  getProductDisposalById(id: number): Promise<ProductDisposal | undefined>;
+  getProductDisposalItems(filter: { disposalId: number }): Promise<ProductDisposalItem[]>;
+  createProductDisposal(disposal: InsertProductDisposal): Promise<ProductDisposal>;
+  createProductDisposalItems(items: InsertProductDisposalItem[]): Promise<ProductDisposalItem[]>;
+  updateProductDisposal(id: number, disposal: Partial<InsertProductDisposal>): Promise<ProductDisposal | undefined>;
+  deleteProductDisposal(id: number): Promise<boolean>;
+  deleteProductDisposalItems(filter: { disposalId: number }): Promise<void>;
+  updateInventoryForDisposal(warehouseId: string, productId: string, quantity: number): Promise<void>;
 
   // Machine operations
   getMachines(limit?: number): Promise<Machine[]>;
@@ -192,6 +205,17 @@ export interface IStorage {
   updateMachineWarehouseAssignment(id: number, assignment: Partial<InsertMachineWarehouseAssignment>): Promise<MachineWarehouseAssignment | undefined>;
   deleteMachineWarehouseAssignment(id: number): Promise<boolean>;
   updatePrimaryWarehouseForMachine(machineId: number): Promise<void>;
+
+  // Product Disposal operations
+  getProductDisposals(filter?: { status?: string; warehouseId?: string }): Promise<ProductDisposal[]>;
+  getProductDisposalById(id: number): Promise<ProductDisposal | undefined>;
+  getProductDisposalItems(filter: { disposalId: number }): Promise<ProductDisposalItem[]>;
+  createProductDisposal(disposal: InsertProductDisposal): Promise<ProductDisposal>;
+  createProductDisposalItems(items: InsertProductDisposalItem[]): Promise<ProductDisposalItem[]>;
+  updateProductDisposal(id: number, disposal: Partial<InsertProductDisposal>): Promise<ProductDisposal | undefined>;
+  deleteProductDisposal(id: number): Promise<boolean>;
+  deleteProductDisposalItems(filter: { disposalId: number }): Promise<void>;
+  updateInventoryForDisposal(warehouseId: string, productId: string, quantity: number): Promise<void>;
 }
 
 // Database storage implementation
@@ -1444,6 +1468,145 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(inventoryCountItems)
       .where(eq(inventoryCountItems.inventoryCountId, inventoryCountId));
+  }
+
+  // Product Disposal operations
+  async getProductDisposals(filter?: { status?: string; warehouseId?: string }): Promise<ProductDisposal[]> {
+    let query = db.select().from(productDisposals).orderBy(desc(productDisposals.createdAt));
+    
+    if (filter) {
+      const conditions = [];
+      
+      if (filter.status) {
+        conditions.push(eq(productDisposals.status, filter.status));
+      }
+      
+      if (filter.warehouseId) {
+        conditions.push(eq(productDisposals.warehouseId, filter.warehouseId));
+      }
+      
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
+      }
+    }
+    
+    return await query;
+  }
+
+  async getProductDisposalById(id: number): Promise<ProductDisposal | undefined> {
+    const [disposal] = await db
+      .select()
+      .from(productDisposals)
+      .where(eq(productDisposals.id, id));
+    
+    return disposal;
+  }
+
+  async getProductDisposalItems(filter: { disposalId: number }): Promise<ProductDisposalItem[]> {
+    return await db
+      .select()
+      .from(productDisposalItems)
+      .where(eq(productDisposalItems.disposalId, filter.disposalId))
+      .orderBy(asc(productDisposalItems.createdAt));
+  }
+
+  async createProductDisposal(disposal: InsertProductDisposal): Promise<ProductDisposal> {
+    const [newDisposal] = await db
+      .insert(productDisposals)
+      .values(disposal)
+      .returning();
+    
+    return newDisposal;
+  }
+
+  async createProductDisposalItems(items: InsertProductDisposalItem[]): Promise<ProductDisposalItem[]> {
+    if (items.length === 0) {
+      return [];
+    }
+    
+    return await db
+      .insert(productDisposalItems)
+      .values(items)
+      .returning();
+  }
+
+  async updateProductDisposal(
+    id: number, 
+    disposal: Partial<InsertProductDisposal>
+  ): Promise<ProductDisposal | undefined> {
+    const [updatedDisposal] = await db
+      .update(productDisposals)
+      .set(disposal)
+      .where(eq(productDisposals.id, id))
+      .returning();
+    
+    return updatedDisposal;
+  }
+
+  async deleteProductDisposal(id: number): Promise<boolean> {
+    const [deletedDisposal] = await db
+      .delete(productDisposals)
+      .where(eq(productDisposals.id, id))
+      .returning();
+    
+    return !!deletedDisposal;
+  }
+
+  async deleteProductDisposalItems(filter: { disposalId: number }): Promise<void> {
+    await db
+      .delete(productDisposalItems)
+      .where(eq(productDisposalItems.disposalId, filter.disposalId));
+  }
+
+  async updateInventoryForDisposal(
+    warehouseId: string, 
+    productId: string, 
+    quantity: number
+  ): Promise<void> {
+    // Finde das entsprechende Inventar-Item
+    const [inventoryItem] = await db
+      .select()
+      .from(inventoryItems)
+      .where(
+        and(
+          eq(inventoryItems.warehouseId, parseInt(warehouseId)),
+          eq(inventoryItems.productId, parseInt(productId))
+        )
+      );
+    
+    if (!inventoryItem) {
+      console.error(`Kein Inventar-Item gefunden für Produkt ${productId} in Lager ${warehouseId}`);
+      return;
+    }
+    
+    // Aktualisiere die Menge
+    const currentQuantity = inventoryItem.quantity || 0;
+    const newQuantity = Math.max(0, currentQuantity - quantity); // Nie unter 0 gehen
+    
+    // Erstelle eine Inventarbewegung
+    const movementData: InsertInventoryMovement = {
+      productId: parseInt(productId),
+      quantity,
+      movementType: 'disposal', // Typ 'disposal' für Entsorgung/Entnahme
+      referenceType: 'product_disposal',
+      referenceId: `manual-${Date.now()}`, // Generiere eine eindeutige Referenz-ID
+      sourceWarehouseId: parseInt(warehouseId),
+      notes: `Warenentnahme von ${quantity} Einheiten`,
+      performedAt: new Date(),
+      performedById: 1, // System-ID oder aktueller Benutzer
+    };
+    
+    // Speichere die Bewegung
+    await this.createInventoryMovement(movementData);
+    
+    // Aktualisiere das Inventar-Item
+    await db
+      .update(inventoryItems)
+      .set({ 
+        quantity: newQuantity,
+        updatedAt: new Date()
+      })
+      .where(eq(inventoryItems.id, inventoryItem.id));
   }
 }
 

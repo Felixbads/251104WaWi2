@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, real, doublePrecision, unique, primaryKey, date } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, real, doublePrecision, unique, primaryKey, date, varchar } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { sql } from "drizzle-orm";
@@ -1244,6 +1244,7 @@ export const warehouseRelations = relations(warehouses, ({ one, many }) => ({
   }),
   inventoryItems: many(inventoryItems),
   machineAssignments: many(machineWarehouseAssignments),
+  disposals: many(productDisposals),
 }));
 
 export const inventoryItemRelations = relations(inventoryItems, ({ one, many }) => ({
@@ -1309,6 +1310,69 @@ export const inventoryCountItemRelations = relations(inventoryCountItems, ({ one
   }),
 }));
 
+// Product Disposals (Warenentnahme) schema
+export const productDisposals = pgTable("product_disposals", {
+  id: serial("id").primaryKey(),
+  warehouseId: varchar("warehouse_id", { length: 50 }).notNull(), // ID des Lagers
+  warehouseName: varchar("warehouse_name", { length: 255 }).notNull(), // Name des Lagers
+  reason: varchar("reason", { length: 50 }).notNull(), // Grund der Entnahme (z.B. "expired", "damaged", "quality_issues")
+  description: text("description"), // Optionale Beschreibung
+  status: varchar("status", { length: 20 }).default("pending").notNull(), // Status (pending, completed, cancelled)
+  createdById: integer("created_by_id"), // User ID, der die Entnahme erstellt hat
+  createdByName: varchar("created_by_name", { length: 100 }), // Username, der die Entnahme erstellt hat
+  completedAt: timestamp("completed_at"), // Wann wurde die Entnahme abgeschlossen
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const productDisposalItems = pgTable("product_disposal_items", {
+  id: serial("id").primaryKey(),
+  disposalId: integer("disposal_id").notNull().references(() => productDisposals.id),
+  productId: varchar("product_id", { length: 50 }).notNull(), // Produkt-ID
+  productName: varchar("product_name", { length: 255 }).notNull(), // Produktname
+  quantity: integer("quantity").notNull(), // Menge der entnommenen Produkte
+  reason: varchar("reason", { length: 100 }), // Spezifischer Grund für dieses Produkt (optional)
+  previousStock: integer("previous_stock"), // Vorheriger Lagerbestand
+  currentStock: integer("current_stock"), // Aktueller Lagerbestand nach der Entnahme
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Product Disposals relations
+export const productDisposalsRelations = relations(productDisposals, ({ many, one }) => ({
+  items: many(productDisposalItems),
+  warehouse: one(warehouses, {
+    fields: [productDisposals.warehouseId],
+    references: [warehouses.id],
+  }),
+}));
+
+export const productDisposalItemsRelations = relations(productDisposalItems, ({ one }) => ({
+  disposal: one(productDisposals, {
+    fields: [productDisposalItems.disposalId],
+    references: [productDisposals.id],
+  }),
+}));
+
+export const insertProductDisposalSchema = createInsertSchema(productDisposals).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  completedAt: true,
+});
+
+export const insertProductDisposalItemSchema = createInsertSchema(productDisposalItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertProductDisposal = z.infer<typeof insertProductDisposalSchema>;
+export type ProductDisposal = typeof productDisposals.$inferSelect;
+
+export type InsertProductDisposalItem = z.infer<typeof insertProductDisposalItemSchema>;
+export type ProductDisposalItem = typeof productDisposalItems.$inferSelect;
+
 // Add warehouse relations to existing relations object
 export const allRelations = {
   orderRelations,
@@ -1319,4 +1383,6 @@ export const allRelations = {
   machineWarehouseAssignmentRelations,
   inventoryCountRelations,
   inventoryCountItemRelations,
+  productDisposalsRelations,
+  productDisposalItemsRelations,
 };

@@ -18,6 +18,7 @@ import {
 } from "./auth";
 import { insertSupplierSchema } from "@shared/schema";
 import vendonRoutes from "./routes/vendon";
+import productDisposalsRoutes from "./routes/productDisposals";
 
 // API route prefix
 const API_PREFIX = "/api";
@@ -1048,6 +1049,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Registriere Vendon-API-Routen
   app.use(`${API_PREFIX}/vendon`, vendonRoutes);
+  app.use(`${API_PREFIX}/product-disposals`, productDisposalsRoutes);
 
   return httpServer;
 }
