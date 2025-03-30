@@ -45,7 +45,7 @@ export default function Sidebar() {
 
   // Helper function to determine if a link is active
   const isActive = (path: string) => {
-    return location === path;
+    return location.startsWith(path);
   };
 
   return (
@@ -78,23 +78,23 @@ export default function Sidebar() {
             Automaten
           </NavItem>
           <NavItem 
-            href="/products" 
+            href="/produkte" 
             icon={<ShoppingBag className="h-5 w-5 mr-3" />}
-            isActive={isActive("/products")}
+            isActive={isActive("/produkte")}
           >
             Produkte
           </NavItem>
           <NavItem 
-            href="/suppliers" 
+            href="/lieferanten" 
             icon={<Truck className="h-5 w-5 mr-3" />}
-            isActive={isActive("/suppliers")}
+            isActive={isActive("/lieferanten")}
           >
             Lieferanten
           </NavItem>
           <NavItem 
-            href="/orders" 
+            href="/bestellungen" 
             icon={<ShoppingCart className="h-5 w-5 mr-3" />}
-            isActive={isActive("/orders")}
+            isActive={isActive("/bestellungen")}
           >
             Bestellungen
           </NavItem>
@@ -106,9 +106,9 @@ export default function Sidebar() {
             Transaktionen
           </NavItem>
           <NavItem 
-            href="/reporting" 
+            href="/auswertungen" 
             icon={<BarChart2 className="h-5 w-5 mr-3" />}
-            isActive={isActive("/reporting")}
+            isActive={isActive("/auswertungen")}
           >
             Auswertungen
           </NavItem>

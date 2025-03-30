@@ -37,25 +37,25 @@ export default function MobileFooter() {
           href="/" 
           icon={<Home className="h-6 w-6" />}
           label="Dashboard"
-          isActive={location === "/"}
+          isActive={isActive("/")}
         />
         <NavItem 
           href="/automaten" 
           icon={<Package className="h-6 w-6" />}
           label="Automaten"
-          isActive={location.startsWith("/automaten")}
+          isActive={isActive("/automaten")}
         />
         <NavItem 
           href="/bestellungen" 
           icon={<ShoppingCart className="h-6 w-6" />}
           label="Bestellungen"
-          isActive={location.startsWith("/bestellungen")}
+          isActive={isActive("/bestellungen")}
         />
         <NavItem 
-          href="/inventory" 
+          href="/lager" 
           icon={<PackageOpen className="h-6 w-6" />}
           label="Lager"
-          isActive={location.startsWith("/inventory")}
+          isActive={isActive("/lager")}
         />
       </div>
     </nav>

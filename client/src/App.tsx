@@ -58,7 +58,7 @@ function AuthenticatedRouter() {
         <Route path="/lieferanten/:id" component={() => <div>Lieferantendetails</div>} />
         <Route path="/bestellungen" component={Orders} />
         <Route path="/bestellungen/neu" component={NewOrder} />
-        <Route path="/inventory" component={Inventory} />
+        <Route path="/lager" component={Inventory} />
         <Route path="/auswertungen" component={Reporting} />
         <Route path="/synchronization" component={Synchronization} />
         <Route path="/sync-history" component={SyncHistory} />
