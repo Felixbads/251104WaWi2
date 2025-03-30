@@ -52,10 +52,10 @@ export default function MobileFooter() {
           isActive={location.startsWith("/orders")}
         />
         <NavItem 
-          href="/products" 
+          href="/inventory" 
           icon={<PackageOpen className="h-6 w-6" />}
           label="Lager"
-          isActive={location.startsWith("/products")}
+          isActive={location.startsWith("/inventory")}
         />
       </div>
     </nav>

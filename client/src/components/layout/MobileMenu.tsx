@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { X, Home, FileText, Package, ShoppingBag, RefreshCw, Clock, Settings, BarChart2 } from "lucide-react";
+import { X, Home, FileText, Package, ShoppingBag, RefreshCw, Clock, Settings, BarChart2, Truck, ShoppingCart, Database } from "lucide-react";
 
 interface MobileMenuProps {
   isOpen: boolean;
@@ -82,17 +82,17 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
                 Transaktionen
               </a>
             </Link>
-            <Link href="/machines">
+            <Link href="/automaten">
               <a
                 onClick={handleLinkClick}
                 className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium ${
-                  isActive("/machines")
+                  isActive("/automaten")
                     ? "text-primary-600 bg-primary-50"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                 }`}
               >
                 <Package className="h-5 w-5 mr-3" />
-                Maschinen
+                Automaten
               </a>
             </Link>
             <Link href="/products">
@@ -106,6 +106,45 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
               >
                 <ShoppingBag className="h-5 w-5 mr-3" />
                 Produkte
+              </a>
+            </Link>
+            <Link href="/suppliers">
+              <a
+                onClick={handleLinkClick}
+                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium ${
+                  isActive("/suppliers")
+                    ? "text-primary-600 bg-primary-50"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <Truck className="h-5 w-5 mr-3" />
+                Lieferanten
+              </a>
+            </Link>
+            <Link href="/orders">
+              <a
+                onClick={handleLinkClick}
+                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium ${
+                  isActive("/orders")
+                    ? "text-primary-600 bg-primary-50"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <ShoppingCart className="h-5 w-5 mr-3" />
+                Bestellungen
+              </a>
+            </Link>
+            <Link href="/inventory">
+              <a
+                onClick={handleLinkClick}
+                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium ${
+                  isActive("/inventory")
+                    ? "text-primary-600 bg-primary-50"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <Database className="h-5 w-5 mr-3" />
+                Lager
               </a>
             </Link>
           </nav>
