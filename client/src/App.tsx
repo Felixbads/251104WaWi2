@@ -18,6 +18,13 @@ import Register from "@/pages/Register";
 import AppShell from "@/components/layout/AppShell";
 import { AuthProvider, useAuth } from "@/lib";
 
+// Importiere fehlende Komponenten
+import Suppliers from "@/pages/Suppliers";
+import Reporting from "@/pages/Reporting";
+import Orders from "@/pages/Orders";
+import NewOrder from "@/pages/NewOrder";
+import Inventory from "@/pages/Inventory";
+
 // Geschützte Route Komponente
 function ProtectedRoute({ component: Component, ...rest }: any) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -35,19 +42,13 @@ function ProtectedRoute({ component: Component, ...rest }: any) {
   return <Component {...rest} />;
 }
 
-// Importiere fehlende Komponenten
-import Suppliers from "@/pages/Suppliers";
-import Reporting from "@/pages/Reporting";
-import Orders from "@/pages/Orders";
-import NewOrder from "@/pages/NewOrder";
-import Inventory from "@/pages/Inventory";
-
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
   return (
     <AppShell>
       <Switch>
         <Route path="/" component={Dashboard} />
+        <Route path="/dashboard" component={Dashboard} />
         <Route path="/transactions" component={Transactions} />
         <Route path="/machines" component={Machines} />
         <Route path="/automaten" component={Automaten} />
@@ -64,7 +65,7 @@ function AuthenticatedRouter() {
         <Route path="/sync-history" component={SyncHistory} />
         <Route path="/forecast" component={Forecast} />
         <Route path="/settings" component={Settings} />
-        <Route component={NotFound} />
+        <Route path="/:rest*" component={NotFound} />
       </Switch>
     </AppShell>
   );
@@ -75,7 +76,7 @@ function PublicRouter() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
-      <Route>
+      <Route path="/:rest*">
         <Redirect to="/login" />
       </Route>
     </Switch>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+
 import { 
   Package, 
   Search, 
@@ -28,7 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatDateTime, getMachines, Machine } from "@/lib/api";
+import { formatDateTime, getMachines, getTransactionsByMachine, Machine, Transaction } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
 
 // Erweiterte Maschinenschnittstelle mit den zusätzlichen KPIs
@@ -53,16 +54,57 @@ export default function Automaten() {
     queryFn: async () => {
       const data = await getMachines();
       
-      // Wir verwenden die echten Daten aus der API
-      return data.map(machine => ({
-        ...machine,
-        // Initiale Werte setzen, die später durch API-Daten ersetzt werden
-        todayTransactions: 0,
-        todayRevenue: 0,
-        cashlessStatus: machine.status === 'online' ? 'ok' : 'warning',
-        ageVerificationStatus: 'ok'
-      } as EnhancedMachine));
+      // Für jeden Automaten die Transaktionsdaten laden
+      const enhancedMachines: EnhancedMachine[] = [];
+      
+      for (const machine of data) {
+        try {
+          // Abfrage nach Transaktionen pro Maschine
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          
+          const todayTransactions = await getTransactionsByMachine(
+            machine.vendonId, 
+            50, // Limitieren, da wir nur Statistik berechnen
+            0
+          );
+          
+          // Heute-Transaktionen filtern
+          const todayDateStr = today.toISOString().split('T')[0];
+          const transactionsToday = todayTransactions.filter(
+            (t: any) => new Date(t.datetime).toISOString().split('T')[0] === todayDateStr
+          );
+          
+          // Statistiken berechnen
+          const todayCount = transactionsToday.length;
+          const todayRevenue = transactionsToday.reduce(
+            (sum: number, t: any) => sum + t.price, 0
+          );
+          
+          enhancedMachines.push({
+            ...machine,
+            todayTransactions: todayCount,
+            todayRevenue: todayRevenue,
+            cashlessStatus: machine.status === 'online' ? 'ok' : 'warning',
+            ageVerificationStatus: 'ok',
+            lastSale: todayTransactions.length > 0 ? todayTransactions[0].datetime : undefined
+          });
+        } catch (error) {
+          console.error(`Fehler beim Laden der Transaktionen für Maschine ${machine.machineName}:`, error);
+          // Fallback auf Standardwerte bei Fehler
+          enhancedMachines.push({
+            ...machine,
+            todayTransactions: 0,
+            todayRevenue: 0,
+            cashlessStatus: machine.status === 'online' ? 'ok' : 'warning',
+            ageVerificationStatus: 'ok'
+          });
+        }
+      }
+      
+      return enhancedMachines;
     },
+    staleTime: 60000, // 1 Minute bevor die Daten als veraltet gelten
   });
 
   // Extrahiere verfügbare Standorte und Maschinentypen für die Filter
@@ -434,7 +476,7 @@ export default function Automaten() {
             <SelectContent>
               <SelectItem value="alle">Alle Typen</SelectItem>
               {machineTypes.map(type => (
-                <SelectItem key={type} value={type}>{type}</SelectItem>
+                <SelectItem key={type} value={type || "unbekannt"}>{type || "Unbekannter Typ"}</SelectItem>
               ))}
             </SelectContent>
           </Select>

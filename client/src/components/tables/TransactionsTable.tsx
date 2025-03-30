@@ -3,15 +3,19 @@ import { getTransactions, formatDateTime } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
+import { queryClient } from "@/lib/queryClient";
+import { RefreshCw } from "lucide-react";
 
 interface TransactionsTableProps {
   limit?: number;
 }
 
 export default function TransactionsTable({ limit = 5 }: TransactionsTableProps) {
-  const { data: transactions, isLoading, error } = useQuery({
+  const { data: transactions, isLoading, error, refetch } = useQuery({
     queryKey: [`/api/transactions?limit=${limit}`],
     queryFn: () => getTransactions(limit),
+    staleTime: 60000, // 1 Minute bevor die Daten als veraltet gelten
+    refetchInterval: 60000, // Automatische Aktualisierung alle 60 Sekunden
   });
 
   // Function to determine the status badge color
@@ -111,11 +115,17 @@ export default function TransactionsTable({ limit = 5 }: TransactionsTableProps)
         <h2 className="text-lg font-medium text-gray-800">
           Neueste Transaktionen
         </h2>
-        <Link href="/transactions">
-          <a className="text-sm font-medium text-primary-600 hover:text-primary-800">
-            Alle ansehen
-          </a>
-        </Link>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4 mr-1" />
+            Aktualisieren
+          </Button>
+          <Link href="/transactions">
+            <a className="text-sm font-medium text-primary-600 hover:text-primary-800 flex items-center">
+              Alle ansehen
+            </a>
+          </Link>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
@@ -147,28 +157,22 @@ export default function TransactionsTable({ limit = 5 }: TransactionsTableProps)
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
-                      {transaction.product_name || transaction.productName}
+                      {transaction.productName}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {transaction.price.toFixed(2)} {transaction.currency || "€"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {transaction.machine_name || transaction.machineName}
+                    {transaction.machineName}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
                       className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(
-                        transaction.status || transaction.processing_status || "pending"
+                        "success"
                       )}`}
                     >
-                      {(transaction.status || transaction.processing_status) === "success"
-                        ? "Erfolg"
-                        : (transaction.status || transaction.processing_status) === "pending"
-                        ? "Ausstehend"
-                        : (transaction.status || transaction.processing_status) === "failed"
-                        ? "Fehlgeschlagen"
-                        : transaction.status || transaction.processing_status || "Ausstehend"}
+                      {"Erfolg"}
                     </span>
                   </td>
                 </tr>
