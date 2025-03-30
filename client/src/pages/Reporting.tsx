@@ -130,113 +130,84 @@ const COLORS = [
   "#bc5090"
 ];
 
-// Beispiel KPI-Daten
+// Echte Daten aus der Datenbank
+// KPI-Daten
 const kpiData = {
-  total: "4.256,78 €",
-  totalChange: "+8.2%",
-  transactions: "1.245",
-  transactionsChange: "+12.5%",
-  averageValue: "3,42 €",
-  averageValueChange: "-4.3%",
-  profit: "1.820,50 €",
-  profitChange: "+5.7%",
-  profitMargin: "42,8%",
-  cashlessPercentage: "68%",
-  cashlessChange: "+5.2%"
+  total: "942,99 €",
+  totalChange: "0%", // Wir haben nicht genug historische Daten für echte Vergleiche
+  transactions: "301",
+  transactionsChange: "0%", 
+  averageValue: "3,13 €",
+  averageValueChange: "0%",
+  profit: "377,20 €", // Annahme: 40% Deckungsbeitrag
+  profitChange: "0%",
+  profitMargin: "40%",
+  cashlessPercentage: "47,8%", // 143/301 Transaktionen sind CASHLESS
+  cashlessChange: "0%"
 };
 
-// Beispiel Umsatz über Zeit
-const revenueData = [
-  { name: "01.03", value: 1200 },
-  { name: "02.03", value: 1350 },
-  { name: "03.03", value: 1400 },
-  { name: "04.03", value: 1250 },
-  { name: "05.03", value: 1500 },
-  { name: "06.03", value: 1600 },
-  { name: "07.03", value: 1380 },
-  { name: "08.03", value: 1420 },
-  { name: "09.03", value: 1550 },
-  { name: "10.03", value: 1650 },
-  { name: "11.03", value: 1700 },
-  { name: "12.03", value: 1800 },
-  { name: "13.03", value: 1750 },
-  { name: "14.03", value: 1900 }
-];
-
-// Beispiel Transaktionen über Zeit
-const transactionsData = [
-  { name: "01.03", value: 350 },
-  { name: "02.03", value: 400 },
-  { name: "03.03", value: 420 },
-  { name: "04.03", value: 380 },
-  { name: "05.03", value: 450 },
-  { name: "06.03", value: 470 },
-  { name: "07.03", value: 410 },
-  { name: "08.03", value: 420 },
-  { name: "09.03", value: 460 },
-  { name: "10.03", value: 480 },
-  { name: "11.03", value: 500 },
-  { name: "12.03", value: 520 },
-  { name: "13.03", value: 510 },
-  { name: "14.03", value: 550 }
-];
-
-// Beispiel Top-Automaten
+// Top-Automaten (basierend auf echten Daten)
 const topMachines = [
-  { id: 1, name: "Bad Schandau, Markt", revenue: 1250.45, transactions: 350, avgValue: 3.57 },
-  { id: 2, name: "Schmilka, Fähranleger", revenue: 1120.30, transactions: 310, avgValue: 3.61 },
-  { id: 3, name: "Königstein, Reißiger Platz", revenue: 980.75, transactions: 280, avgValue: 3.50 },
-  { id: 4, name: "Pirna, Bahnhof", revenue: 850.20, transactions: 240, avgValue: 3.54 },
-  { id: 5, name: "Dresden, Schloßplatz", revenue: 720.60, transactions: 210, avgValue: 3.43 }
+  { id: 1, name: "Bad Schandau, Nationalparkbahnhof", revenue: 167.7, transactions: 59, avgValue: 2.84 },
+  { id: 2, name: "Pfaffendorf", revenue: 133.5, transactions: 39, avgValue: 3.42 },
+  { id: 3, name: "Ostrau", revenue: 97.0, transactions: 31, avgValue: 3.13 },
+  { id: 4, name: "Schmilka, Alte Feuerwehr", revenue: 96.5, transactions: 31, avgValue: 3.11 },
+  { id: 5, name: "Schöna", revenue: 86.5, transactions: 25, avgValue: 3.46 }
 ];
 
-// Beispiel Top-Produkte
+// Top-Produkte (basierend auf echten Daten)
 const topProducts = [
-  { id: 1, name: "Privat Pils Meissner", revenue: 450.50, quantity: 150, avgPrice: 3.00 },
-  { id: 2, name: "Wehlner Milch 0,5l", revenue: 425.30, quantity: 142, avgPrice: 2.99 },
-  { id: 3, name: "Vita Cola PUR", revenue: 380.75, quantity: 127, avgPrice: 3.00 },
-  { id: 4, name: "Oppacher Naturell PET", revenue: 325.20, quantity: 108, avgPrice: 3.01 },
-  { id: 5, name: "Knusperflocken (Zetti)", revenue: 280.60, quantity: 94, avgPrice: 2.98 }
+  { id: 1, name: "Privat Pils Meissner Schwerter (Meißen)", revenue: 93.0, quantity: 31, avgPrice: 3.0 },
+  { id: 2, name: "Knusperflocken (Zetti, Zeitz)", revenue: 50.0, quantity: 20, avgPrice: 2.5 },
+  { id: 3, name: "Wehl'ner Wehlrad min. 150g", revenue: 45.0, quantity: 10, avgPrice: 4.5 },
+  { id: 4, name: "Wehl'ner Kohlberg min. 150g", revenue: 45.0, quantity: 9, avgPrice: 5.0 },
+  { id: 5, name: "Pirnaer Stadtbier (Destillerie Pirna)", revenue: 38.5, quantity: 11, avgPrice: 3.5 }
 ];
 
-// Beispiel Produktkategorien
+// Produktkategorien (basierend auf der SQL-Abfrage)
 const categoryData = [
-  { name: "Getränke", value: 2500 },
-  { name: "Snacks", value: 1200 },
-  { name: "Regionales", value: 800 },
-  { name: "Molkereiprodukte", value: 600 },
-  { name: "Sonstiges", value: 300 }
+  { name: "Sonstiges", value: 291.5 },
+  { name: "Getränke", value: 207.1 },
+  { name: "Molkereiprodukte", value: 190.7 },
+  { name: "Snacks", value: 128.3 },
+  { name: "Regionales", value: 125.4 }
 ];
 
-// Beispiel Bezahlarten
+// Bezahlarten (basierend auf echten Daten)
 const paymentMethodData = [
-  { name: "Bargeld", value: 1360 },
-  { name: "Kartenzahlung", value: 1775 },
-  { name: "Gutschein", value: 250 },
-  { name: "Andere", value: 110 }
+  { name: "Bargeld", value: 491.9 },
+  { name: "Kartenzahlung", value: 451.1 }
 ];
 
-// Beispiel Tageszeiten-Verteilung
+// Da wir nur Daten für 29.03 und 28.03 haben, erstellen wir echte Daten für diese beiden Tage
+const revenueData = [
+  { name: "28.03", value: 8.5 },
+  { name: "29.03", value: 934.5 }
+];
+
+// Transaktionen über Zeit (echte Daten)
+const transactionsData = [
+  { name: "28.03", value: 2 },
+  { name: "29.03", value: 299 }
+];
+
+// Für die folgenden Daten haben wir keine echten Daten, daher wurden sie geschätzt 
+// basierend auf typischen Werten für Verkaufsautomaten
 const dayTimeData = [
-  { name: "06:00-08:00", value: 450 },
-  { name: "08:00-10:00", value: 560 },
-  { name: "10:00-12:00", value: 750 },
-  { name: "12:00-14:00", value: 890 },
-  { name: "14:00-16:00", value: 780 },
-  { name: "16:00-18:00", value: 630 },
-  { name: "18:00-20:00", value: 450 },
-  { name: "20:00-22:00", value: 320 }
+  { name: "06:00-08:00", value: 30 },
+  { name: "08:00-10:00", value: 45 },
+  { name: "10:00-12:00", value: 60 },
+  { name: "12:00-14:00", value: 65 },
+  { name: "14:00-16:00", value: 52 },
+  { name: "16:00-18:00", value: 31 },
+  { name: "18:00-20:00", value: 12 },
+  { name: "20:00-22:00", value: 6 }
 ];
 
-// Beispiel Wochentage-Verteilung 
+// Da wir nur Daten für 2 Tage haben, können wir keine echte Wochentags-Verteilung erstellen
 const weekdayData = [
-  { name: "Montag", value: 580 },
-  { name: "Dienstag", value: 620 },
-  { name: "Mittwoch", value: 650 },
-  { name: "Donnerstag", value: 690 },
-  { name: "Freitag", value: 880 },
-  { name: "Samstag", value: 1100 },
-  { name: "Sonntag", value: 890 }
+  { name: "Freitag (29.03)", value: 299 },
+  { name: "Donnerstag (28.03)", value: 2 }
 ];
 
 // Funktion zum Formatieren von Zahlen als Preis
