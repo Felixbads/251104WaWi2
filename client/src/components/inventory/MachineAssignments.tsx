@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -7,11 +7,27 @@ import { CircleAlert, Package, Truck } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
 
 export default function MachineAssignments() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  // Filterzustände
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>('all');
   const [selectedMachine, setSelectedMachine] = useState<string>('all');
-
+  
+  // Zustand für den Zuordnungsdialog
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [newAssignMachine, setNewAssignMachine] = useState<number | null>(null);
+  const [newAssignWarehouse, setNewAssignWarehouse] = useState<number | null>(null);
+  const [isPrimary, setIsPrimary] = useState(true);
+  const [assignNotes, setAssignNotes] = useState('');
+  
   // Abfrage der Lager
   const { data: warehouses, isLoading: warehousesLoading } = useQuery({
     queryKey: ['/api/warehouses'],
@@ -32,6 +48,59 @@ export default function MachineAssignments() {
     }],
     staleTime: 1000 * 30, // 30 Sekunden
   });
+  
+  // Mutation für das Erstellen von Automaten-Zuordnungen
+  const createAssignmentMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest('/api/machine-warehouse-assignments', {
+        method: 'POST',
+        data
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
+      toast({
+        title: 'Automat zugeordnet',
+        description: 'Der Automat wurde erfolgreich dem Lager zugeordnet.',
+      });
+      closeAndResetDialog();
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Fehler bei der Zuordnung',
+        description: error.message || 'Der Automat konnte nicht zugeordnet werden.',
+        variant: 'destructive'
+      });
+    }
+  });
+  
+  // Hilfsfunktion zum Schließen und Zurücksetzen des Dialogs
+  const closeAndResetDialog = () => {
+    setIsAssignDialogOpen(false);
+    setNewAssignMachine(null);
+    setNewAssignWarehouse(null);
+    setIsPrimary(true);
+    setAssignNotes('');
+  };
+  
+  // Handler für das Erstellen einer neuen Zuordnung
+  const handleCreateAssignment = () => {
+    if (!newAssignMachine || !newAssignWarehouse) {
+      toast({
+        title: 'Eingaben unvollständig',
+        description: 'Bitte wählen Sie sowohl einen Automaten als auch ein Lager aus.',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    createAssignmentMutation.mutate({
+      machineId: newAssignMachine,
+      warehouseId: newAssignWarehouse,
+      isPrimary,
+      notes: assignNotes
+    });
+  };
 
   // Rendering bei Ladevorgang
   if (warehousesLoading || machinesLoading || assignmentsLoading) {
@@ -105,10 +174,103 @@ export default function MachineAssignments() {
           </div>
         </div>
         
-        <Button onClick={() => window.location.hash = 'new-assignment'}>
-          <Package className="mr-2 h-4 w-4" />
-          Neue Zuordnung
-        </Button>
+        <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Package className="mr-2 h-4 w-4" />
+              Neue Zuordnung
+            </Button>
+          </DialogTrigger>
+          
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Neue Automaten-Lager-Zuordnung</DialogTitle>
+              <DialogDescription>
+                Ordnen Sie einen Automaten einem Lager zu. Die Zuordnung bestimmt, aus welchem Lager Produkte für den Automaten entnommen werden.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="assign-machine">Automat</Label>
+                <Select
+                  value={newAssignMachine?.toString() || ''}
+                  onValueChange={(value) => setNewAssignMachine(parseInt(value))}
+                >
+                  <SelectTrigger id="assign-machine">
+                    <SelectValue placeholder="Automat auswählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {machines?.filter((machine: any) => {
+                      if (newAssignWarehouse === null) return true;
+                      // Nur Automaten anzeigen, die noch nicht diesem Lager zugeordnet sind
+                      return !assignments?.some(
+                        (assignment: any) => 
+                          assignment.machineId === machine.id && 
+                          assignment.warehouseId === newAssignWarehouse
+                      );
+                    }).map((machine: any) => (
+                      <SelectItem key={machine.id} value={machine.id.toString()}>
+                        {machine.machineName || machine.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="assign-warehouse">Lager</Label>
+                <Select
+                  value={newAssignWarehouse?.toString() || ''}
+                  onValueChange={(value) => setNewAssignWarehouse(parseInt(value))}
+                >
+                  <SelectTrigger id="assign-warehouse">
+                    <SelectValue placeholder="Lager auswählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {warehouses?.filter((warehouse: any) => warehouse.isActive)
+                      .map((warehouse: any) => (
+                        <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
+                          {warehouse.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="isPrimary" 
+                  checked={isPrimary}
+                  onCheckedChange={(checked) => setIsPrimary(!!checked)}
+                />
+                <Label htmlFor="isPrimary">Als Primärlager festlegen</Label>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notizen (optional)</Label>
+                <Input
+                  id="notes"
+                  value={assignNotes}
+                  onChange={(e) => setAssignNotes(e.target.value)}
+                  placeholder="Notizen zur Zuordnung"
+                />
+              </div>
+            </div>
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={closeAndResetDialog}>
+                Abbrechen
+              </Button>
+              <Button 
+                onClick={handleCreateAssignment}
+                disabled={createAssignmentMutation.isPending || !newAssignMachine || !newAssignWarehouse}
+              >
+                {createAssignmentMutation.isPending ? 'Wird erstellt...' : 'Zuordnung erstellen'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Hauptinhalt */}
@@ -121,7 +283,7 @@ export default function MachineAssignments() {
               ? "Es wurden keine Zuordnungen gefunden, die den Filterkriterien entsprechen."
               : "Es wurden noch keine Lager den Automaten zugeordnet."}
           </p>
-          <Button onClick={() => window.location.hash = 'new-assignment'}>
+          <Button onClick={() => setIsAssignDialogOpen(true)}>
             Erste Zuordnung erstellen
           </Button>
         </div>
@@ -164,7 +326,12 @@ export default function MachineAssignments() {
                     <Button 
                       variant="outline" 
                       size="sm"
-                      onClick={() => {/* ToDo: Bearbeiten-Dialog öffnen */}}
+                      onClick={() => {
+                        toast({
+                          title: "Hinweis",
+                          description: "Das Bearbeiten vorhandener Zuordnungen ist derzeit nicht verfügbar. Bitte löschen Sie die Zuordnung und erstellen Sie eine neue.",
+                        });
+                      }}
                     >
                       Bearbeiten
                     </Button>
@@ -175,8 +342,6 @@ export default function MachineAssignments() {
           </Table>
         </div>
       )}
-
-      {/* ToDo: Implementieren Sie die Dialoge für das Hinzufügen und Bearbeiten von Zuordnungen */}
     </div>
   );
 }

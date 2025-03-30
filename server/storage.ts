@@ -1,4 +1,4 @@
-import { eq, desc, and, or, gte, lte, like, asc, count } from "drizzle-orm";
+import { eq, desc, and, or, gte, lte, like, asc, count, aliasedTable, sql, gt, ilike, isNull, isNotNull, inArray } from "drizzle-orm";
 import { db } from "./db";
 import { 
   users, type User, type InsertUser,
@@ -966,22 +966,25 @@ export class DatabaseStorage implements IStorage {
     limit?: number;
     offset?: number;
   }): Promise<InventoryMovement[]> {
+    // Für sourceWarehouse und destinationWarehouse müssen wir separate Aliase verwenden
+    const sourceWarehouseAlias = aliasedTable(warehouses, 'source_warehouse');
+    const destWarehouseAlias = aliasedTable(warehouses, 'dest_warehouse');
+    
     let query = db.select({
       movement: inventoryMovements,
       product: products,
-      sourceWarehouse: warehouses,
-      destinationWarehouse: warehouses
+      sourceWarehouse: sourceWarehouseAlias,
+      destinationWarehouse: destWarehouseAlias
     })
     .from(inventoryMovements)
     .leftJoin(products, eq(inventoryMovements.productId, products.id))
     .leftJoin(
-      warehouses, 
-      eq(inventoryMovements.sourceWarehouseId, warehouses.id)
+      sourceWarehouseAlias, 
+      eq(inventoryMovements.sourceWarehouseId, sourceWarehouseAlias.id)
     )
     .leftJoin(
-      warehouses, 
-      eq(inventoryMovements.destinationWarehouseId, warehouses.id),
-      { alias: 'destination_warehouse' }
+      destWarehouseAlias, 
+      eq(inventoryMovements.destinationWarehouseId, destWarehouseAlias.id)
     );
     
     const conditions = [];
