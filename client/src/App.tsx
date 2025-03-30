@@ -8,6 +8,7 @@ import Transactions from "@/pages/Transactions";
 import Machines from "@/pages/Machines"; // Alte Maschinen-Komponente
 import Automaten from "@/pages/Automaten"; // Neue Automaten-Komponente
 import AutomatDetail from "@/pages/AutomatDetail"; // Detail-Ansicht eines Automaten
+import RefillDetail from "@/pages/RefillDetail"; // Detail-Ansicht einer Auffüllung
 import Products from "@/pages/Products";
 import ProductDetail from "@/pages/ProductDetail"; // Detail-Ansicht eines Produkts
 import Synchronization from "@/pages/Synchronization";
@@ -54,6 +55,7 @@ function AuthenticatedRouter() {
         <Route path="/machines" component={Machines} />
         <Route path="/automaten" component={Automaten} />
         <Route path="/automaten/:id" component={AutomatDetail} />
+        <Route path="/automaten/:id/refills/:refillId" component={RefillDetail} />
         <Route path="/produkte" component={Products} />
         <Route path="/produkte/:id" component={ProductDetail} />
         <Route path="/lieferanten" component={Suppliers} />

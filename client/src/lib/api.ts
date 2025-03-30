@@ -157,6 +157,45 @@ export interface Event {
   status: string;
 }
 
+export interface RefillProduct {
+  id: string;
+  refillId: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  price?: number;
+  slot?: string;
+  vendonProductId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Refill {
+  id: number;
+  vendonId: string;
+  machineId: number;
+  machineName: string;
+  datetime: string;
+  timestamp: string;
+  status: string;
+  notes?: string;
+  warehouseId?: string;
+  products: RefillProduct[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RefillDetail {
+  id: number;
+  refillId: number;
+  productId: number;
+  productName: string;
+  vendonProductId?: string;
+  quantity: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // Basis API Anfrage Funktion
 async function apiRequest<T>(
   method: 'get' | 'post' | 'put' | 'delete',
@@ -636,6 +675,67 @@ export interface ProductDemandForecast {
 
 export async function getCurrentWeather(): Promise<WeatherCurrent> {
   return apiRequest<WeatherCurrent>('get', '/weather/current');
+}
+
+// Refills functions
+export async function getRefills(limit = 50): Promise<Refill[]> {
+  return apiRequest<Refill[]>('get', `/refills?limit=${limit}`);
+}
+
+export async function getRefillsByMachine(
+  machineId: string,
+  limit = 50
+): Promise<Refill[]> {
+  return apiRequest<Refill[]>(
+    'get',
+    `/machines/${machineId}/refills?limit=${limit}`
+  );
+}
+
+export async function getRefillDetails(refillId: number): Promise<RefillDetail[]> {
+  return apiRequest<RefillDetail[]>('get', `/refills/${refillId}/details`);
+}
+
+export async function getRefillById(refillId: string): Promise<Refill> {
+  return apiRequest<Refill>('get', `/refills/${refillId}`);
+}
+
+// Lager (Warehouse) API-Funktionen
+export interface Warehouse {
+  id: string;
+  name: string;
+  location: string;
+  description?: string;
+  machineIds?: string[]; // Zugeordnete Automaten
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface WarehouseProduct {
+  id: string;
+  warehouseId: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  minQuantity: number;
+  lastUpdated: string;
+}
+
+export async function getWarehouseById(warehouseId?: string): Promise<Warehouse> {
+  if (!warehouseId) throw new Error("Warehouse ID is required");
+  return apiRequest<Warehouse>('get', `/warehouses/${warehouseId}`);
+}
+
+export async function getWarehouseInventory(warehouseId?: string): Promise<WarehouseProduct[]> {
+  if (!warehouseId) throw new Error("Warehouse ID is required");
+  return apiRequest<WarehouseProduct[]>('get', `/warehouses/${warehouseId}/inventory`);
+}
+
+export async function updateWarehouseInventory(
+  warehouseId: string, 
+  products: WarehouseProduct[]
+): Promise<WarehouseProduct[]> {
+  return apiRequest<WarehouseProduct[]>('put', `/warehouses/${warehouseId}/inventory`, { products });
 }
 
 export async function getWeatherForecast(days = 5): Promise<WeatherForecast[]> {

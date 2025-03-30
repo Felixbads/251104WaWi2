@@ -17,7 +17,8 @@ import {
   History,
   Download,
   Info,
-  MapPin
+  MapPin,
+  PackagePlus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,9 +37,12 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   getMachine, 
-  getTransactionsByMachine, 
+  getTransactionsByMachine,
+  getRefillsByMachine,
   Machine, 
-  Transaction, 
+  Transaction,
+  Refill,
+  RefillDetail,
   formatDateTime
 } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
@@ -98,11 +102,24 @@ export default function AutomatDetail() {
     enabled: !!id && activeTab === "transaktionen"
   });
 
+  // Auffüllungen für diese Maschine abrufen
+  const {
+    data: refills,
+    isLoading: refillsLoading
+  } = useQuery({
+    queryKey: ['/api/machines', id, 'refills'],
+    queryFn: () => getRefillsByMachine(id, 20),
+    enabled: !!id && activeTab === "auffullungen"
+  });
+
   // Maschine aktualisieren
   const handleRefresh = () => {
     refetchMachine();
     if (activeTab === "transaktionen") {
       queryClient.invalidateQueries({ queryKey: ['/api/machines', id, 'transactions'] });
+    }
+    if (activeTab === "auffullungen") {
+      queryClient.invalidateQueries({ queryKey: ['/api/machines', id, 'refills'] });
     }
   };
 
@@ -411,9 +428,13 @@ export default function AutomatDetail() {
         value={activeTab}
         onValueChange={setActiveTab}
       >
-        <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:grid-cols-none lg:flex">
+        <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:grid-cols-none lg:flex">
           <TabsTrigger value="allgemein">Allgemeine Informationen</TabsTrigger>
           <TabsTrigger value="transaktionen">Transaktionshistorie</TabsTrigger>
+          <TabsTrigger value="auffullungen">
+            <PackagePlus className="h-4 w-4 mr-2" />
+            Auffüllungen
+          </TabsTrigger>
           <TabsTrigger value="fehler">Fehler & Logs</TabsTrigger>
           <TabsTrigger value="technisch">Technische Details</TabsTrigger>
         </TabsList>
@@ -544,6 +565,89 @@ export default function AutomatDetail() {
               )}
             </CardContent>
             {transactions && transactions.length > 0 && (
+              <CardFooter className="flex justify-between">
+                <Button variant="ghost" size="sm" disabled>
+                  Vorherige
+                </Button>
+                <div className="text-sm text-gray-500">
+                  Seite 1 von 1
+                </div>
+                <Button variant="ghost" size="sm" disabled>
+                  Nächste
+                </Button>
+              </CardFooter>
+            )}
+          </Card>
+        </TabsContent>
+        
+        {/* Auffüllungen Tab */}
+        <TabsContent value="auffullungen" className="mt-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-lg">Auffüllungen</CardTitle>
+                <CardDescription>Protokoll der Auffüllungen und Warennachschübe</CardDescription>
+              </div>
+              <Button variant="outline" className="gap-2">
+                <Download className="h-4 w-4" />
+                Exportieren
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {refillsLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+                </div>
+              ) : refills && refills.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Datum & Zeit</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Notizen</TableHead>
+                      <TableHead>Aktionen</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {refills.map((refill: Refill) => (
+                      <TableRow key={refill.id}>
+                        <TableCell>{formatDateTime(refill.datetime, 'datetime')}</TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={refill.status === 'completed' ? 'default' : 'secondary'}
+                            className={refill.status === 'completed' ? 'bg-green-500 hover:bg-green-700' : ''}
+                          >
+                            {refill.status === 'completed' ? 'Abgeschlossen' : 
+                             refill.status === 'in_progress' ? 'In Bearbeitung' : 
+                             refill.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {refill.notes || '–'}
+                        </TableCell>
+                        <TableCell>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => {
+                              // Hier zur Detailseite navigieren
+                              setLocation(`/automaten/${id}/refills/${refill.id}`);
+                            }}
+                          >
+                            Details
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">Keine Auffüllungen gefunden</p>
+                </div>
+              )}
+            </CardContent>
+            {refills && refills.length > 0 && (
               <CardFooter className="flex justify-between">
                 <Button variant="ghost" size="sm" disabled>
                   Vorherige

@@ -79,6 +79,7 @@ export interface IStorage {
 
   // Refill operations
   getRefills(limit?: number): Promise<Refill[]>;
+  getRefillsByMachine(machineId: number, limit?: number): Promise<Refill[]>;
   getRefill(id: number): Promise<Refill | undefined>;
   getRefillByVendonId(vendonId: string): Promise<Refill | undefined>;
   getRefillDetails(refillId: number): Promise<RefillDetail[]>;
@@ -532,6 +533,15 @@ export class DatabaseStorage implements IStorage {
   // Refill operations
   async getRefills(limit: number = 100): Promise<Refill[]> {
     return await db.select().from(refills).orderBy(desc(refills.datetime)).limit(limit);
+  }
+
+  async getRefillsByMachine(machineId: number, limit: number = 100): Promise<Refill[]> {
+    return await db
+      .select()
+      .from(refills)
+      .where(eq(refills.machineId, machineId))
+      .orderBy(desc(refills.datetime))
+      .limit(limit);
   }
 
   async getRefill(id: number): Promise<Refill | undefined> {

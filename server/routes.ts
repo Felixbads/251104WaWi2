@@ -427,6 +427,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+  
+  // Get refills by machine ID
+  app.get(`${API_PREFIX}/machines/:id/refills`, async (req: Request, res: Response) => {
+    try {
+      const machineId = parseInt(req.params.id);
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
+      
+      const refills = await storage.getRefillsByMachine(machineId, limit);
+      res.json(refills);
+    } catch (error) {
+      console.error(`Error fetching refills for machine ID ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch machine refills", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
 
   // Get events
   app.get(`${API_PREFIX}/events`, async (req: Request, res: Response) => {
