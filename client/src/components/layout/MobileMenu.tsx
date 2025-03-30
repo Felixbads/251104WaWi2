@@ -11,7 +11,7 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
 
   // Helper function to determine if a link is active
   const isActive = (path: string) => {
-    return location === path;
+    return location.startsWith(path);
   };
 
   // Helper function to close menu when a link is clicked
@@ -56,94 +56,102 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             Übersicht
           </h3>
           <nav>
-            <div
-              onClick={() => { handleLinkClick(); window.location.href = '/'; }}
-              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
-                isActive("/")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <Home className="h-5 w-5 mr-3" />
-              Dashboard
-            </div>
-            <div
-              onClick={() => { handleLinkClick(); window.location.href = '/transactions'; }}
-              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
-                isActive("/transactions")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <FileText className="h-5 w-5 mr-3" />
-              Transaktionen
-            </div>
-            <div
-              onClick={() => { handleLinkClick(); window.location.href = '/automaten'; }}
-              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
-                isActive("/automaten")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <Package className="h-5 w-5 mr-3" />
-              Automaten
-            </div>
-            <div
-              onClick={() => { handleLinkClick(); window.location.href = '/produkte'; }}
-              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
-                isActive("/produkte")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <ShoppingBag className="h-5 w-5 mr-3" />
-              Produkte
-            </div>
-            <div
-              onClick={() => { handleLinkClick(); window.location.href = '/lieferanten'; }}
-              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
-                isActive("/lieferanten")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <Truck className="h-5 w-5 mr-3" />
-              Lieferanten
-            </div>
-            <div
-              onClick={() => { handleLinkClick(); window.location.href = '/bestellungen'; }}
-              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
-                isActive("/bestellungen")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <ShoppingCart className="h-5 w-5 mr-3" />
-              Bestellungen
-            </div>
-            <div
-              onClick={() => { handleLinkClick(); window.location.href = '/inventory'; }}
-              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
-                isActive("/inventory")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <Database className="h-5 w-5 mr-3" />
-              Lager
-            </div>
-            <div
-              onClick={() => { handleLinkClick(); window.location.href = '/auswertungen'; }}
-              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
-                isActive("/auswertungen")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <BarChart2 className="h-5 w-5 mr-3" />
-              Auswertungen
-            </div>
+            <Link href="/" onClick={handleLinkClick}>
+              <div
+                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                  isActive("/")
+                    ? "text-primary-600 bg-primary-50"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <Home className="h-5 w-5 mr-3" />
+                Dashboard
+              </div>
+            </Link>
+            <Link href="/transactions" onClick={handleLinkClick}>
+              <div
+                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                  isActive("/transactions")
+                    ? "text-primary-600 bg-primary-50"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <FileText className="h-5 w-5 mr-3" />
+                Transaktionen
+              </div>
+            </Link>
+            <Link href="/automaten" onClick={handleLinkClick}>
+              <div
+                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                  isActive("/automaten")
+                    ? "text-primary-600 bg-primary-50"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <Package className="h-5 w-5 mr-3" />
+                Automaten
+              </div>
+            </Link>
+            <Link href="/produkte" onClick={handleLinkClick}>
+              <div
+                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                  isActive("/produkte")
+                    ? "text-primary-600 bg-primary-50"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <ShoppingBag className="h-5 w-5 mr-3" />
+                Produkte
+              </div>
+            </Link>
+            <Link href="/lieferanten" onClick={handleLinkClick}>
+              <div
+                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                  isActive("/lieferanten")
+                    ? "text-primary-600 bg-primary-50"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <Truck className="h-5 w-5 mr-3" />
+                Lieferanten
+              </div>
+            </Link>
+            <Link href="/bestellungen" onClick={handleLinkClick}>
+              <div
+                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                  isActive("/bestellungen")
+                    ? "text-primary-600 bg-primary-50"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <ShoppingCart className="h-5 w-5 mr-3" />
+                Bestellungen
+              </div>
+            </Link>
+            <Link href="/inventory" onClick={handleLinkClick}>
+              <div
+                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                  isActive("/inventory")
+                    ? "text-primary-600 bg-primary-50"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <Database className="h-5 w-5 mr-3" />
+                Lager
+              </div>
+            </Link>
+            <Link href="/auswertungen" onClick={handleLinkClick}>
+              <div
+                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                  isActive("/auswertungen")
+                    ? "text-primary-600 bg-primary-50"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <BarChart2 className="h-5 w-5 mr-3" />
+                Auswertungen
+              </div>
+            </Link>
           </nav>
         </div>
 
@@ -153,50 +161,54 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             System
           </h3>
           <nav>
-            <div
-              onClick={() => { handleLinkClick(); window.location.href = '/synchronization'; }}
-              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
-                isActive("/synchronization")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <RefreshCw className="h-5 w-5 mr-3" />
-              Synchronisierung
-            </div>
-            <div
-              onClick={() => { handleLinkClick(); window.location.href = '/sync-history'; }}
-              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
-                isActive("/sync-history")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <Clock className="h-5 w-5 mr-3" />
-              Sync-Verlauf
-            </div>
-            <div
-              onClick={() => { handleLinkClick(); window.location.href = '/forecast'; }}
-              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
-                isActive("/forecast")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <BarChart2 className="h-5 w-5 mr-3" />
-              Prognosen
-            </div>
-            <div
-              onClick={() => { handleLinkClick(); window.location.href = '/settings'; }}
-              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
-                isActive("/settings")
-                  ? "text-primary-600 bg-primary-50"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}
-            >
-              <Settings className="h-5 w-5 mr-3" />
-              Einstellungen
-            </div>
+            <Link href="/synchronization" onClick={handleLinkClick}>
+              <div
+                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                  isActive("/synchronization")
+                    ? "text-primary-600 bg-primary-50"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <RefreshCw className="h-5 w-5 mr-3" />
+                Synchronisierung
+              </div>
+            </Link>
+            <Link href="/sync-history" onClick={handleLinkClick}>
+              <div
+                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                  isActive("/sync-history")
+                    ? "text-primary-600 bg-primary-50"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <Clock className="h-5 w-5 mr-3" />
+                Sync-Verlauf
+              </div>
+            </Link>
+            <Link href="/forecast" onClick={handleLinkClick}>
+              <div
+                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                  isActive("/forecast")
+                    ? "text-primary-600 bg-primary-50"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <BarChart2 className="h-5 w-5 mr-3" />
+                Prognosen
+              </div>
+            </Link>
+            <Link href="/settings" onClick={handleLinkClick}>
+              <div
+                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                  isActive("/settings")
+                    ? "text-primary-600 bg-primary-50"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <Settings className="h-5 w-5 mr-3" />
+                Einstellungen
+              </div>
+            </Link>
           </nav>
         </div>
 
