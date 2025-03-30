@@ -192,6 +192,35 @@ export async function getTransactions(limit = 50, offset = 0): Promise<Transacti
   return apiRequest<Transaction[]>('get', `/transactions?limit=${limit}&offset=${offset}`);
 }
 
+// Dashboard-Zusammenfassung
+export interface DashboardSummary {
+  totalTransactions: number;
+  totalRevenue: number;
+  todayTransactions: number;
+  todayRevenue: number;
+  weeklyTransactions: number;
+  weeklyRevenue: number;
+  activeMachines: number;
+  totalMachines: number;
+  recentIssues: number;
+  trendWeekly: number; // Prozentuale Änderung zum Vorwochenzeitraum
+  trendDaily: number;  // Prozentuale Änderung zum Vortag
+  popularProducts: {
+    productName: string;
+    count: number;
+    revenue: number;
+  }[];
+  paymentMethods: {
+    method: string;
+    count: number;
+    revenue: number;
+  }[];
+}
+
+export async function getDashboardSummary(): Promise<DashboardSummary> {
+  return apiRequest<DashboardSummary>('get', '/transactions/summary');
+}
+
 export async function getTransactionsByDateRange(
   startDate: string,
   endDate: string,

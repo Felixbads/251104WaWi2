@@ -1,5 +1,5 @@
 import { useLocation, Link } from "wouter";
-import { Home, FileText, Package, RefreshCw } from "lucide-react";
+import { Home, Package, ShoppingCart, PackageOpen } from "lucide-react";
 
 // NavItem Komponente für Mobile Footer
 const NavItem = ({ href, icon, label, isActive }: { 
@@ -27,7 +27,7 @@ export default function MobileFooter() {
 
   // Helper function to determine if a link is active
   const isActive = (path: string) => {
-    return location === path;
+    return location.startsWith(path);
   };
 
   return (
@@ -37,25 +37,25 @@ export default function MobileFooter() {
           href="/" 
           icon={<Home className="h-6 w-6" />}
           label="Dashboard"
-          isActive={isActive("/")}
-        />
-        <NavItem 
-          href="/transactions" 
-          icon={<FileText className="h-6 w-6" />}
-          label="Transaktionen"
-          isActive={isActive("/transactions")}
+          isActive={location === "/"}
         />
         <NavItem 
           href="/automaten" 
           icon={<Package className="h-6 w-6" />}
           label="Automaten"
-          isActive={isActive("/automaten")}
+          isActive={location.startsWith("/automaten")}
         />
         <NavItem 
-          href="/synchronization" 
-          icon={<RefreshCw className="h-6 w-6" />}
-          label="Sync"
-          isActive={isActive("/synchronization")}
+          href="/orders" 
+          icon={<ShoppingCart className="h-6 w-6" />}
+          label="Bestellungen"
+          isActive={location.startsWith("/orders")}
+        />
+        <NavItem 
+          href="/products" 
+          icon={<PackageOpen className="h-6 w-6" />}
+          label="Lager"
+          isActive={location.startsWith("/products")}
         />
       </div>
     </nav>

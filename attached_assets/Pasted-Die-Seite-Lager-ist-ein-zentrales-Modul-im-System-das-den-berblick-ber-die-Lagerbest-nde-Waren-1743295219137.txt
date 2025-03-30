@@ -1,0 +1,114 @@
+Die Seite „Lager“ ist ein zentrales Modul im System, das den Überblick über die Lagerbestände, Warenbewegungen und Inventurprozesse bietet. Sie unterstützt sowohl die tägliche Bestandsführung als auch strategische Entscheidungen, indem sie detaillierte Informationen zu den einzelnen Lagern, den darin enthaltenen Produkten und den Bewegungen zwischen den Lagern darstellt. Im Folgenden wird die Struktur der Seite sowie die wichtigsten Funktionen im Detail erläutert.
+
+⸻
+
+1. Überblick und Zielsetzung
+
+Ziel der Lager-Seite:
+	•	Übersichtliche Darstellung der Lagerstandorte und ihrer aktuellen Bestände.
+	•	Verwaltung und Nachverfolgung von Warenbewegungen, etwa wenn Produkte ins Lager ein- oder ausgelagert oder von einem Lager in ein anderes transferiert werden.
+	•	Durchführung von Inventuren, um die tatsächlichen Bestände mit den Systemdaten abzugleichen und eventuelle Differenzen zu identifizieren.
+	•	Steuerung von Wareneingängen, -ausgängen und Umlagerungen durch interaktive Funktionen.
+
+⸻
+
+2. Layout und Benutzeroberfläche
+
+A. Seitenkopf und Navigationsleiste
+	•	Titel und Breadcrumbs:
+Der Seitenkopf zeigt den Titel „Lager“ sowie Breadcrumbs, die den Pfad (z. B. Dashboard > Lager) abbilden.
+	•	Such- und Filterleiste:
+Ein Suchfeld erlaubt die gezielte Suche nach Lagerstandorten oder Produkten. Zusätzlich stehen Filter zur Verfügung, um beispielsweise Lager nach Standort, Bestandsstatus (z. B. kritische Bestände) oder Lagerart zu sortieren.
+
+B. Hauptbereich – Lagerübersicht
+	•	Kachel-/Listenansicht:
+Jeder Lagerstandort wird als eigenständige Kachel oder Zeile dargestellt, mit folgenden Informationen:
+	•	Lagername und Standort: Deutlich hervorgehoben, oft ergänzt um ein Symbol (z. B. Gebäude-Icon).
+	•	Aktueller Lagerbestand: Aggregierte Bestandszahlen aller darin geführten Produkte. Oft mit einer Ampelanzeige (grün/gelb/rot) zur schnellen Identifikation kritischer Bestände.
+	•	Anzahl verschiedener Produkte: Kurze Information, wie viele unterschiedliche Produkte im Lager vorhanden sind.
+	•	Letzte Aktualisierung: Datum und Uhrzeit des letzten Bestandsabgleichs oder der letzten Warenbewegung.
+	•	Interaktive Funktionen:
+	•	Ein Button „Details“ oder ein Klick auf die Lagerkarte öffnet die Detailansicht eines bestimmten Lagers.
+	•	Schnellzugriffe auf Funktionen wie „Inventur starten“ oder „Umlagerung anstoßen“ (wenn die Berechtigung vorhanden ist).
+
+⸻
+
+3. Detailseite eines Lagers
+
+Beim Öffnen eines einzelnen Lagers erhält der Benutzer eine umfassende Detailansicht, die in mehrere Abschnitte unterteilt ist:
+
+A. Header und Lagerinformationen
+	•	Stammdaten:
+	•	Lagername, Adresse, Verantwortliche Person(en) und Kontaktinformationen.
+	•	Angaben zum Lagertyp (z. B. Hauptlager, Zweigstelle) und spezifische Hinweise (z. B. besondere Lagerbedingungen).
+	•	Statusanzeige:
+	•	Übersicht über den aktuellen Bestandsstatus (z. B. Gesamtsumme, kritische Produkte) und das Datum der letzten Aktualisierung.
+
+B. Warenbestand und Inventur
+	•	Bestandsübersicht:
+	•	Eine detaillierte Tabelle, in der alle Produkte im Lager mit den folgenden Informationen gelistet werden:
+	•	Produktname und Identifikationsnummer
+	•	Aktueller Bestand: Anzahl der Einheiten im Lager.
+	•	Mindestbestand: Referenzwert, der anzeigt, ob der Bestand kritisch niedrig ist.
+	•	Ursprünglicher Bestand: Falls vorhanden, um den Unterschied zur aktuellen Menge zu erkennen.
+	•	Visuelle Indikatoren:
+	•	Farblich hinterlegte Zellen (z. B. rot bei Beständen unterhalb des Mindestwerts), um Engpässe schnell sichtbar zu machen.
+	•	Inventurfunktion:
+	•	Inventur-Button:
+Ein prominenter Button, um den Inventurprozess zu starten.
+	•	Inventur-Workflow:
+	•	Der Benutzer kann entweder manuell die aktuellen Bestände erfassen oder eine Barcode-/Scanner-basierte Eingabe verwenden.
+	•	Die eingegebenen Werte werden mit den im System erfassten Beständen verglichen, und etwaige Abweichungen werden hervorgehoben.
+	•	Ergebnis: Eine Zusammenfassung, die Differenzen aufzeigt und eine Option bietet, die Systemdaten zu aktualisieren oder eine weitergehende Analyse (z. B. Ursachenprüfung) zu starten.
+
+C. Warenbewegungen und Umlagerungen
+	•	Historie der Warenbewegungen:
+	•	Eine tabellarische Darstellung, die alle Warenbewegungen (Eingänge, Ausgänge, Umlagerungen) chronologisch anzeigt.
+	•	Wichtige Spalten:
+	•	Datum und Uhrzeit der Bewegung.
+	•	Produktname und Anzahl (Ein- oder Ausgänge).
+	•	Art der Bewegung (z. B. Wareneingang, Abgang, Umlagerung von Lager A zu Lager B).
+	•	Verantwortliche Person oder Systemquelle (z. B. automatisierter Prozess, manueller Eingriff).
+	•	Funktion „Warenumlagerung initiieren“:
+	•	Button „Umlagerung anstoßen“:
+Ermöglicht es, eine geplante Warenbewegung von diesem Lager zu einem anderen zu initiieren.
+	•	Workflow:
+	•	Auswahl des Ziel-Lagers aus einer Dropdown-Liste.
+	•	Auswahl des Produkts und Angabe der zu transferierenden Menge.
+	•	Validierung: Das System prüft, ob im Ausgangslager genügend Bestand vorhanden ist.
+	•	Bestätigung und Aktualisierung: Nach Bestätigung wird die Bewegung registriert, und beide Lagerbestände (Ausgang und Eingang) werden automatisch angepasst.
+	•	Protokollierung: Die Bewegung wird in der Historie der Warenbewegungen vermerkt.
+
+⸻
+
+4. Interaktive Elemente und Zusatzfunktionen
+	•	Live-Datenaktualisierung:
+	•	Ein Refresh-Button oder automatische Updates (z. B. per WebSocket) sorgen dafür, dass die angezeigten Bestände und Bewegungen aktuell bleiben.
+	•	Exportfunktionen:
+	•	Möglichkeit, den aktuellen Bestand oder die Historie der Warenbewegungen als CSV oder PDF herunterzuladen.
+	•	Filter- und Suchoptionen:
+	•	In der Bestands- und Bewegungsansicht können Filter (z. B. nach Produktname, Datum oder Bewegungsart) eingesetzt werden, um gezielt nach Informationen zu suchen.
+	•	Warnmeldungen:
+	•	Automatische visuelle Benachrichtigungen (z. B. rot markierte Felder) bei kritischen Bestandsniveaus oder ungewöhnlichen Bewegungsmustern.
+	•	Responsive Gestaltung:
+	•	Das Layout passt sich an verschiedene Bildschirmgrößen an. Auf mobilen Geräten wird beispielsweise eine vereinfachte Darstellung der wichtigsten Kennzahlen angeboten, während Detailtabellen in einem scrollbaren Format angezeigt werden.
+
+⸻
+
+5. Zusammenfassung der Lager-Seite
+
+Die Lager-Seite besteht aus zwei zentralen Bereichen:
+	1.	Lagerübersicht:
+Eine Kachel- oder Listenansicht aller Lagerstandorte, die auf einen Blick den aktuellen Bestandsstatus, den Lagerort und wichtige Kennzahlen (z. B. kritische Bestände) darstellen.
+	2.	Detailansicht eines Lagers:
+	•	Stammdaten und Status: Detaillierte Informationen zum Lager, wie Name, Adresse und Ansprechpartner.
+	•	Warenbestand & Inventur:
+	•	Eine Tabelle mit allen Produkten im Lager, ihren aktuellen Beständen, Mindestwerten und farblichen Indikatoren zur schnellen Identifikation von Problemen.
+	•	Eine integrierte Inventurfunktion, die den Abgleich zwischen Soll- und Ist-Bestand ermöglicht.
+	•	Warenbewegungen:
+	•	Chronologische Übersicht aller Ein- und Ausgänge sowie Umlagerungen.
+	•	Funktion zum Initiieren von Warenumlagerungen, bei der der Bestand im Ausgangs- und Ziel-Lager automatisch angepasst wird.
+	•	Interaktive Funktionen:
+	•	Live-Updates, Filteroptionen, Exportmöglichkeiten und visuelle Warnmeldungen unterstützen den Benutzer bei der täglichen Lagerverwaltung.
+
+Dieses detaillierte Konzept der Lager-Seite stellt sicher, dass der gesamte Bestands- und Warenbewegungsprozess transparent, nachvollziehbar und benutzerfreundlich abgebildet wird. Es ermöglicht sowohl die regelmäßige Kontrolle und Inventur als auch die schnelle Reaktion auf Veränderungen, etwa bei Umlagerungen oder kritischen Bestandsniveaus. Entwicklern und Betreibern steht damit ein umfassendes Werkzeug zur Verfügung, um den Lagerbetrieb effizient zu steuern.
