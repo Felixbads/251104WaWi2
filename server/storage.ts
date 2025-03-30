@@ -56,6 +56,7 @@ export interface IStorage {
   getMachineByVendonId(vendonId: string): Promise<Machine | undefined>;
   createMachine(machine: InsertMachine): Promise<Machine>;
   updateMachine(id: number, machine: Partial<InsertMachine>): Promise<Machine | undefined>;
+  getMachineProducts(machineId: number): Promise<{ productName: string; price: number }[]>;
 
   // Transaction operations
   getTransactions(limit?: number): Promise<Transaction[]>;
@@ -328,6 +329,34 @@ export class DatabaseStorage implements IStorage {
       .where(eq(machines.id, id))
       .returning();
     return updatedMachine;
+  }
+  
+  async getMachineProducts(machineId: number): Promise<{ productName: string; price: number }[]> {
+    // Alle Transaktionen für diese Maschine abrufen
+    const machineTransactions = await db
+      .select({
+        productName: transactions.name,
+        price: transactions.price
+      })
+      .from(transactions)
+      .where(eq(transactions.machineId, machineId))
+      .orderBy(desc(transactions.datetime));
+    
+    // Eine Map erstellen, um eindeutige Produkte zu identifizieren (basierend auf dem Namen)
+    const uniqueProducts = new Map<string, { productName: string; price: number }>();
+    
+    // Durchlaufe alle Transaktionen und füge jedes Produkt nur einmal hinzu
+    machineTransactions.forEach(transaction => {
+      if (!uniqueProducts.has(transaction.productName)) {
+        uniqueProducts.set(transaction.productName, {
+          productName: transaction.productName,
+          price: transaction.price
+        });
+      }
+    });
+    
+    // Konvertiere die Map-Werte zurück in ein Array
+    return Array.from(uniqueProducts.values());
   }
 
   // Transaction operations

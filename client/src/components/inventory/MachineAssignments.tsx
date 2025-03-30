@@ -48,6 +48,54 @@ export default function MachineAssignments() {
     staleTime: 1000 * 30, // 30 Sekunden
   });
   
+  // Abfrage der Maschinenprodukte für den aktuell ausgewählten Automaten
+  const { data: machineProducts, isLoading: machineProductsLoading } = useQuery({
+    queryKey: ['/api/machines', newAssignMachine, 'products'],
+    enabled: !!newAssignMachine,
+    queryFn: async () => {
+      if (!newAssignMachine) return [];
+      const response = await apiRequest(`/api/machines/${newAssignMachine}/products`, {
+        method: 'GET'
+      });
+      return response;
+    },
+    staleTime: 1000 * 60, // 1 Minute
+  });
+  
+  // Mutation für das Hinzufügen von Produkten zum Inventar eines Lagers
+  const addInventoryItemsMutation = useMutation({
+    mutationFn: async ({ warehouseId, products }: { warehouseId: number, products: any[] }) => {
+      const promises = products.map(product => 
+        apiRequest('/api/inventory', {
+          method: 'POST',
+          data: {
+            warehouseId,
+            productName: product.productName,
+            quantity: 0, // Startmenge ist 0
+            minQuantity: 5, // Standardwert für Mindestbestand
+            notes: `Automatisch hinzugefügt bei Maschinenzuordnung am ${new Date().toLocaleDateString()}`
+          }
+        })
+      );
+      
+      return Promise.all(promises);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
+      toast({
+        title: 'Produkte hinzugefügt',
+        description: 'Die Produkte aus dem Automaten wurden dem Lagerbestand hinzugefügt (Menge: 0).',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Fehler beim Hinzufügen der Produkte',
+        description: error.message || 'Die Produkte aus dem Automaten konnten nicht zum Lagerbestand hinzugefügt werden.',
+        variant: 'destructive'
+      });
+    }
+  });
+  
   // Mutation für das Erstellen von Automaten-Zuordnungen
   const createAssignmentMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -56,12 +104,26 @@ export default function MachineAssignments() {
         data
       });
     },
-    onSuccess: () => {
+    onSuccess: async (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
       toast({
         title: 'Automat zugeordnet',
         description: 'Der Automat wurde erfolgreich dem Lager zugeordnet.',
       });
+      
+      // Nach erfolgreicher Zuordnung die Produkte zum Lager hinzufügen
+      if (machineProducts && machineProducts.length > 0) {
+        try {
+          await addInventoryItemsMutation.mutateAsync({
+            warehouseId: variables.warehouseId,
+            products: machineProducts
+          });
+        } catch (error) {
+          console.error("Fehler beim Hinzufügen der Produkte:", error);
+          // Fehlerbehandlung wurde bereits in der Mutation durchgeführt
+        }
+      }
+      
       closeAndResetDialog();
     },
     onError: (error: any) => {

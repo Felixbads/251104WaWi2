@@ -445,6 +445,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+  
+  // Get products by machine ID
+  app.get(`${API_PREFIX}/machines/:id/products`, async (req: Request, res: Response) => {
+    try {
+      const machineId = parseInt(req.params.id);
+      
+      if (isNaN(machineId)) {
+        return res.status(400).json({ error: "Ungültige Maschinen-ID" });
+      }
+      
+      const products = await storage.getMachineProducts(machineId);
+      res.json(products);
+    } catch (error) {
+      console.error(`Error fetching products for machine ID ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch machine products", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
 
   // Get events
   app.get(`${API_PREFIX}/events`, async (req: Request, res: Response) => {
