@@ -1,0 +1,109 @@
+1. Übersichtsseite “Produkte”
+
+Header & Such-/Filterleiste
+	•	Seitentitel:
+„Produkte“ – prominent oben platziert.
+	•	Suchfeld:
+Ermöglicht die schnelle Suche nach Produktnamen, Kategorien oder anderen relevanten Attributen.
+	•	Filteroptionen:
+Dropdown-Menüs oder Checkboxen zur Eingrenzung nach:
+	•	Kategorie (z. B. Getränke, Snacks)
+	•	Preisspanne
+	•	Lagerbestand (z. B. „niedrig“ oder „ausverkauft“)
+	•	Kennzeichnung für „Altersverifizierung erforderlich“ (falls relevant)
+	•	Sortierfunktion:
+Möglichkeit, die Liste nach Namen, Preis oder Bestandsmenge auf- bzw. absteigend zu sortieren.
+
+Produktübersicht in Listen- oder Kachelansicht
+	•	Darstellung:
+Die Produkte werden als Kacheln oder in einer Tabellenliste angezeigt.
+	•	Inhalt jeder Kachel bzw. Zeile:
+	•	Produktname:
+Hervorgehoben als Titel.
+	•	Preis:
+Darstellung des aktuellen Verkaufspreises (inklusive Währung).
+	•	Kategorie:
+Zeigt die Zugehörigkeit (z. B. „Getränke“, „Snacks“).
+	•	Lagerbestand:
+Aggregierter Bestand über alle Lager – entweder als Zahl oder mit einem farbigen Indikator (z. B. grün bei ausreichendem Bestand, rot bei niedrigem Bestand).
+	•	Kennzeichnung:
+Ein Icon oder Badge, das anzeigt, ob für das Produkt eine Altersverifizierung erforderlich ist.
+	•	Interaktive Elemente:
+	•	Durch Klicken auf eine Kachel/Zeile gelangt der Benutzer in die Detailansicht des Produkts.
+	•	Möglichkeit, direkt in der Übersicht einzelne Produkte zu bearbeiten (z. B. Inline-Editing für den Preis oder Bestand).
+
+⸻
+
+2. Detailseite eines Produkts
+
+Sobald ein Produkt ausgewählt wurde, öffnet sich eine Detailansicht, die über ein Tab-System strukturiert ist.
+
+Seitenkopf & Stammdaten (Header-Bereich)
+	•	Produktname und Grunddaten:
+	•	Großflächiger Produktname
+	•	Kurze Zusammenfassung mit wesentlichen Daten (z. B. Preis, Kategorie, Währung)
+	•	Anzeige von Erstellungs- und Aktualisierungsdatum
+	•	Optional: Ein kleines Icon, das den Status „Altersverifizierung erforderlich“ visualisiert
+	•	Aktionen:
+	•	Button „Bearbeiten“ zur Änderung der Stammdaten
+	•	Optionale Aktionen wie „Bestand prüfen“ oder „Details exportieren“
+
+Tab-Navigation für Detailinformationen
+	1.	Stammdaten / Produktdetails
+	•	Felder:
+	•	Produktname, Beschreibung, Kategorie
+	•	Preis, Währung, Mindestbestand, Gebindegröße
+	•	Angaben zu speziellen Anforderungen (z. B. Altersverifizierung)
+	•	Bearbeitungsoptionen:
+	•	Möglichkeit, Daten zu aktualisieren, mit Validierungen (z. B. für numerische Werte)
+	2.	Verkaufsentwicklung
+	•	Diagramm:
+	•	Liniendiagramm oder Balkendiagramm, das die Verkaufszahlen über definierte Zeiträume (z. B. letzte Woche, letzter Monat, letztes Jahr) darstellt.
+	•	KPIs:
+	•	Gesamtverkaufte Menge
+	•	Trendindikatoren (z. B. steigende oder fallende Tendenz)
+	•	Filter:
+	•	Zeiträume auswählen, um den Verlauf detailliert zu betrachten.
+	3.	Preisentwicklung
+	•	Diagramm:
+	•	Darstellung der Preisänderungen über die Zeit.
+	•	Historie:
+	•	Tabelle oder Liste, die frühere Preise und Datum der Änderungen anzeigt.
+	4.	Bezug & Konditionen
+	•	Lieferantenbezug:
+	•	Anzeige des aktuell hinterlegten Lieferanten oder einer Liste vergangener Lieferantenbezüge.
+	•	Einkaufskonditionen:
+	•	Details zu Einkaufspreis, Mehrwertsteuer, Pfand und eventuell Staffelpreisen.
+	•	Aktuelle Bestellungen:
+	•	Übersicht offener Bestellungen für das Produkt, inklusive Status und Bestellmenge.
+	•	Lagerbestand:
+	•	Aufschlüsselung des Bestands pro Lager (ggf. als Tabelle mit Lagername und Menge).
+
+⸻
+
+3. Interaktive Elemente und Benutzerfreundlichkeit
+	•	Responsive Design:
+Das Layout passt sich flexibel an verschiedene Bildschirmgrößen an – von Desktop-Monitoren bis zu mobilen Geräten.
+	•	Tooltips & Hilfestellungen:
+Beim Überfahren von Icons oder speziellen Feldern werden kurze Erklärungen eingeblendet, um dem Benutzer die Funktion und Bedeutung zu verdeutlichen.
+	•	Live-Daten & Refresh:
+Ein Refresh-Button in der Übersichtsseite und in den Detailansichten ermöglicht, aktuelle Daten (z. B. aktuellen Lagerbestand oder Verkaufszahlen) abzurufen.
+	•	Export-Funktion:
+Möglichkeit, detaillierte Produktinformationen, Verkaufs- oder Preisverläufe als CSV oder PDF herunterzuladen.
+	•	Inline-Bearbeitung:
+Wo sinnvoll, beispielsweise in der Übersichtsliste, können bestimmte Felder direkt bearbeitet werden (z. B. Preisänderungen), ohne dass der Benutzer in die Detailansicht wechseln muss.
+
+⸻
+
+4. Zusammenfassung der „Produkte“-Seite
+
+Die „Produkte“-Seite besteht aus zwei Hauptkomponenten:
+	•	Übersichtsseite:
+Bietet einen schnellen, filterbaren Überblick über alle Produkte, inklusive Kerninformationen wie Name, Preis, Kategorie, Lagerbestand und besondere Kennzeichnungen (z. B. Altersverifizierung).
+	•	Detailseite:
+Ermöglicht einen tiefen Einblick in ein einzelnes Produkt über ein Tab-basiertes Interface:
+	•	Stammdaten: Alle grundlegenden Produktinformationen und Bearbeitungsoptionen.
+	•	Verkaufs- und Preisentwicklung: Grafische Darstellungen, die Trends und historische Daten visualisieren.
+	•	Bezug & Konditionen: Darstellung der Lieferantenbezüge, Einkaufskonditionen und aktueller Bestellungen sowie eine Übersicht der Lagerbestände.
+
+Dieses detaillierte Layout stellt sicher, dass alle relevanten Informationen übersichtlich und intuitiv präsentiert werden. Die interaktiven und responsiven Elemente ermöglichen eine effiziente Verwaltung und Analyse der Produkte, sodass sowohl operative Aufgaben als auch strategische Entscheidungen unterstützt werden.

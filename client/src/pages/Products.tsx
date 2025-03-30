@@ -219,16 +219,16 @@ export default function Products() {
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
   // Kategorien und Lieferanten sammeln
-  const categories = products 
-    ? Array.from(new Set(products.map((product: Product) => product.category || 'Unkategorisiert')))
+  const categories = products?.data 
+    ? Array.from(new Set(products.data.map((product: Product) => product.category || 'Unkategorisiert')))
     : [];
     
-  const suppliers = products
-    ? Array.from(new Set(products.filter(p => p.supplier).map(p => p.supplier as string)))
+  const suppliers = products?.data
+    ? Array.from(new Set(products.data.filter(p => p.supplier).map(p => p.supplier as string)))
     : [];
 
   // Filter- und Suchfunktionen
-  const filteredProducts = products?.filter((product: Product) => {
+  const filteredProducts = products?.data?.filter((product: Product) => {
     // Sicherstellen, dass product und seine Eigenschaften definiert sind
     if (!product || !product.productName) return false;
     
