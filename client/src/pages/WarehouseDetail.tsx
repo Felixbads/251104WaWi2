@@ -33,7 +33,7 @@ export default function WarehouseDetail() {
   const [isEditWarehouseDialogOpen, setIsEditWarehouseDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMachine, setSelectedMachine] = useState<number | null>(null);
-  const [isPrimary, setIsPrimary] = useState(true);
+  // Primärlager-Funktion wurde entfernt
   const [assignNotes, setAssignNotes] = useState('');
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
@@ -85,7 +85,7 @@ export default function WarehouseDetail() {
       });
       setIsAssignDialogOpen(false);
       setSelectedMachine(null);
-      setIsPrimary(true);
+      // Primärlager-Funktion wurde entfernt
       setAssignNotes('');
     },
     onError: (error: any) => {
@@ -191,10 +191,12 @@ export default function WarehouseDetail() {
     item.quantity <= item.minQuantity
   ).length || 0;
   const assignedMachines = machineAssignments?.length || 0;
-  const primaryAssignments = machineAssignments?.filter(a => a.isPrimary).length || 0;
+  // Primärlager-Funktion wurde entfernt
+  const primaryAssignments = 0;
   
   // Filter-Funktion für Produkte basierend auf Suchbegriff und bereits vorhandenen Einträgen
-  const filteredProducts = products?.filter(product => {
+  const productsList = products && 'data' in products ? products.data : [];
+  const filteredProducts = productsList.filter(product => {
     // Prüfen, ob das Produkt bereits dem Lager zugeordnet ist
     const isAlreadyInInventory = inventoryItems?.some(item => item.productId === product.id) || false;
     
@@ -225,7 +227,7 @@ export default function WarehouseDetail() {
     createAssignmentMutation.mutate({
       machineId: selectedMachine,
       warehouseId: parseInt(id),
-      isPrimary,
+      isPrimary: false, // Primärlager-Funktion entfernt, für Kompatibilität auf false gesetzt
       notes: assignNotes
     });
   };
@@ -374,7 +376,7 @@ export default function WarehouseDetail() {
           </CardHeader>
           <CardContent className="py-0">
             <div className="text-3xl font-bold">{assignedMachines}</div>
-            <p className="text-sm text-muted-foreground">{primaryAssignments} als Primärlager</p>
+            <p className="text-sm text-muted-foreground">Keine Primärlager-Funktion</p>
           </CardContent>
         </Card>
       </div>
@@ -636,14 +638,7 @@ export default function WarehouseDetail() {
                       </Select>
                     </div>
                     
-                    <div className="flex items-center space-x-2">
-                      <Checkbox 
-                        id="isPrimary" 
-                        checked={isPrimary}
-                        onCheckedChange={(checked) => setIsPrimary(!!checked)}
-                      />
-                      <Label htmlFor="isPrimary">Als Primärlager festlegen</Label>
-                    </div>
+                    {/* Primärlager-Funktion wurde entfernt */}
                     
                     <div className="space-y-2">
                       <Label htmlFor="notes">Notizen (optional)</Label>
@@ -682,7 +677,7 @@ export default function WarehouseDetail() {
                     <thead>
                       <tr className="bg-muted/50">
                         <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Automat</th>
-                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Primärlager</th>
+                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
                         <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Zugewiesen am</th>
                         <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Notizen</th>
                         <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Aktionen</th>
@@ -695,11 +690,8 @@ export default function WarehouseDetail() {
                             <div className="font-medium">{assignment.machineName}</div>
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap">
-                            {assignment.isPrimary ? (
-                              <Badge className="bg-primary text-primary-foreground">Primär</Badge>
-                            ) : (
-                              <Badge variant="outline">Sekundär</Badge>
-                            )}
+                            {/* Primärlager-Funktion wurde entfernt */}
+                            <Badge variant="outline">Standard</Badge>
                           </td>
                           <td className="px-3 py-2 whitespace-nowrap">
                             {assignment.assignedAt ? 

@@ -1120,7 +1120,7 @@ export class DatabaseStorage implements IStorage {
     // Formatieren der Ergebnisse für eine bessere Nutzbarkeit
     return result.map(row => ({
       ...row.assignment,
-      machineName: row.machine?.name,
+      machineName: row.machine?.machineName || "Unbekannter Automat",
       warehouseName: row.warehouse?.name
     })) as MachineWarehouseAssignment[];
   }

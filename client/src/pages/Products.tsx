@@ -16,7 +16,11 @@ import {
   CircleDollarSign,
   PackageOpen,
   Clock,
-  BadgeAlert
+  BadgeAlert,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -200,6 +204,10 @@ export default function Products() {
   const [, setLocation] = useLocation();
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [limit] = useState(20);
+  
   // Filterzustand
   const [filters, setFilters] = useState<FilterState>({
     onlyInStock: false,
@@ -211,8 +219,11 @@ export default function Products() {
 
   // Daten abrufen
   const { data: products, isLoading, error } = useQuery({
-    queryKey: ['/api/products'],
-    queryFn: () => getProducts(),
+    queryKey: ['/api/products', { page: currentPage, limit }],
+    queryFn: () => getProducts({ 
+      offset: (currentPage - 1) * limit,
+      limit
+    }),
   });
 
   // Category Filter
@@ -594,6 +605,79 @@ export default function Products() {
             <X className="h-4 w-4 mr-2" />
             Filter zurücksetzen
           </Button>
+        </div>
+      )}
+      
+      {/* Pagination */}
+      {!isLoading && !error && products?.meta && products.meta.pages > 1 && (
+        <div className="flex justify-center mt-6">
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+            >
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(currentPage - 1)}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            
+            <div className="flex items-center space-x-1">
+              {(() => {
+                const totalPages = products.meta.pages || 1;
+                const buttons = [];
+                
+                // Logik für die anzuzeigenden Seitenzahlen
+                let startPage = Math.max(1, currentPage - 2);
+                let endPage = Math.min(totalPages, startPage + 4);
+                
+                // Wenn wir weniger als 5 Seiten zeigen würden, starten wir früher
+                if (endPage - startPage < 4) {
+                  startPage = Math.max(1, endPage - 4);
+                }
+                
+                for (let i = startPage; i <= endPage; i++) {
+                  buttons.push(
+                    <Button
+                      key={i}
+                      variant={currentPage === i ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCurrentPage(i)}
+                      className="w-8 h-8 p-0"
+                    >
+                      {i}
+                    </Button>
+                  );
+                }
+                
+                return buttons;
+              })()}
+            </div>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(currentPage + 1)}
+              disabled={currentPage >= (products.meta.pages || 1)}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(products.meta.pages || 1)}
+              disabled={currentPage >= (products.meta.pages || 1)}
+            >
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       )}
     </div>

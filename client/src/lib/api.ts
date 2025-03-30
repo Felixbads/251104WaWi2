@@ -253,8 +253,27 @@ export async function getMachine(id: string): Promise<Machine> {
 }
 
 // Produkte
-export async function getProducts(): Promise<Product[]> {
-  return apiRequest<Product[]>('get', '/products');
+export async function getProducts(params?: {
+  limit?: number;
+  offset?: number;
+  category?: string;
+  search?: string;
+  supplierId?: number;
+}): Promise<any> {
+  const queryParams = new URLSearchParams();
+  
+  if (params) {
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.offset) queryParams.append('offset', params.offset.toString());
+    if (params.category) queryParams.append('category', params.category);
+    if (params.search) queryParams.append('search', params.search);
+    if (params.supplierId) queryParams.append('supplierId', params.supplierId.toString());
+  }
+  
+  const queryString = queryParams.toString();
+  const url = `/products${queryString ? '?' + queryString : ''}`;
+  
+  return apiRequest<any>('get', url);
 }
 
 export async function getProduct(id: string): Promise<Product> {
