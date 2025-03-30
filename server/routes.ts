@@ -351,6 +351,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+  
+  // Get product by ID
+  app.get(`${API_PREFIX}/products/:id`, async (req: Request, res: Response) => {
+    try {
+      const productId = parseInt(req.params.id);
+      
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+      
+      const product = await storage.getProduct(productId);
+      
+      if (!product) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      
+      res.json(product);
+    } catch (error) {
+      console.error(`Error fetching product with ID ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch product", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
 
   // Get machines
   app.get(`${API_PREFIX}/machines`, async (req: Request, res: Response) => {
