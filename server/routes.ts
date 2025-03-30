@@ -199,8 +199,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const status = req.query.status as string | undefined;
       const search = req.query.search as string | undefined;
       
-      const suppliers = await storage.getSuppliers({limit, offset, status, search});
-      res.json(suppliers);
+      const suppliersResponse = await storage.getSuppliers({limit, offset, status, search});
+      res.json(suppliersResponse.data);
     } catch (error) {
       console.error("Error fetching suppliers:", error);
       res.status(500).json({ 
@@ -722,14 +722,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const status = req.query.status as string | undefined;
       const search = req.query.search as string | undefined;
       
-      const suppliers = await storage.getSuppliers({
+      const suppliersResponse = await storage.getSuppliers({
         limit,
         offset,
         status,
         search
       });
       
-      res.json(suppliers);
+      res.json(suppliersResponse.data);
     } catch (error) {
       console.error("Error fetching suppliers:", error);
       res.status(500).json({ 
