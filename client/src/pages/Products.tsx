@@ -331,7 +331,7 @@ export default function Products() {
             variant="outline" 
             size="sm" 
             className="w-full"
-            onClick={() => setLocation(`/products/${product.id}`)}
+            onClick={() => setLocation(`/produkte/${product.id}`)}
           >
             <ExternalLink className="h-4 w-4 mr-2" />
             Details
@@ -407,7 +407,7 @@ export default function Products() {
           <Button 
             variant="outline" 
             size="sm"
-            onClick={() => setLocation(`/products/${product.id}`)}
+            onClick={() => setLocation(`/produkte/${product.id}`)}
           >
             <ExternalLink className="h-4 w-4 mr-2" />
             Details
@@ -433,12 +433,12 @@ export default function Products() {
         <div className="flex gap-2">
           <Button 
             variant="outline" 
-            onClick={() => setLocation("/products/inventory")}
+            onClick={() => setLocation("/produkte/inventory")}
           >
             <FileText className="h-4 w-4 mr-2" />
             Inventurbericht
           </Button>
-          <Button onClick={() => setLocation("/products/new")}>
+          <Button onClick={() => setLocation("/produkte/new")}>
             <Plus className="h-4 w-4 mr-2" />
             Neues Produkt
           </Button>
