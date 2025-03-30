@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { 
@@ -24,7 +24,9 @@ import {
   CheckCircle,
   PackageCheck,
   Edit,
-  Trash2
+  Trash2,
+  FileSpreadsheet,
+  Upload
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -982,6 +984,271 @@ const SupplierListSkeleton = () => {
 };
 
 // Hauptseite für Lieferanten
+// Excel Import Dialog Component
+interface ExcelImportDialogProps {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+const ExcelImportDialog = ({ isOpen, onOpenChange }: ExcelImportDialogProps) => {
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
+  const [importStats, setImportStats] = useState<{
+    total: number;
+    added: number;
+    updated: number;
+    skipped: number;
+    errors: number;
+  } | null>(null);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    try {
+      setIsUploading(true);
+      setUploadStatus('processing');
+      
+      // Datei einlesen
+      const reader = new FileReader();
+      
+      reader.onload = async (event) => {
+        try {
+          const data = new Uint8Array(event.target?.result as ArrayBuffer);
+          
+          // Excel-Datei parsen mit xlsx
+          const workbook = await import('xlsx').then(XLSX => XLSX.read(data, { type: 'array' }));
+          
+          // Erste Tabelle auswählen
+          const sheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[sheetName];
+          
+          // In JSON konvertieren
+          const jsonData = await import('xlsx').then(XLSX => XLSX.utils.sheet_to_json(sheet));
+          
+          if (!jsonData || jsonData.length === 0) {
+            throw new Error("Die Excel-Datei enthält keine gültigen Daten.");
+          }
+          
+          // Importierte Daten verarbeiten und importieren
+          const importResults = await processExcelData(jsonData);
+          
+          setImportStats(importResults);
+          setUploadStatus('success');
+          
+          // Lieferantenliste aktualisieren
+          queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
+          
+          // Erfolgsbenachrichtigung
+          toast({
+            title: "Import erfolgreich",
+            description: `${importResults.added} neue Lieferanten hinzugefügt, ${importResults.updated} aktualisiert.`,
+          });
+          
+        } catch (error) {
+          console.error("Fehler beim Verarbeiten der Excel-Datei:", error);
+          setUploadStatus('error');
+          toast({
+            title: "Importfehler",
+            description: `Die Excel-Datei konnte nicht verarbeitet werden: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
+            variant: "destructive",
+          });
+        }
+      };
+      
+      reader.onerror = (error) => {
+        console.error("Fehler beim Lesen der Datei:", error);
+        setUploadStatus('error');
+        toast({
+          title: "Uploadfehler",
+          description: "Die Datei konnte nicht gelesen werden.",
+          variant: "destructive",
+        });
+      };
+      
+      reader.readAsArrayBuffer(file);
+      
+    } catch (error) {
+      console.error("Fehler beim Dateiupload:", error);
+      setUploadStatus('error');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+  
+  // Verarbeitet die Excel-Daten und importiert sie
+  const processExcelData = async (data: any[]): Promise<{
+    total: number;
+    added: number;
+    updated: number;
+    skipped: number;
+    errors: number;
+  }> => {
+    const stats = {
+      total: data.length,
+      added: 0,
+      updated: 0,
+      skipped: 0,
+      errors: 0
+    };
+    
+    // Field mapping from Excel to our schema
+    for (const row of data) {
+      try {
+        // Standardisierte Feldnamen
+        const supplierData = {
+          name: row['Name'] || row['Lieferant'] || row['Firma'] || row['Lieferantenname'] || '',
+          contactPerson: row['Ansprechpartner'] || row['Kontaktperson'] || '',
+          email: row['E-Mail'] || row['Email'] || row['E-mail'] || '',
+          phone: row['Telefon'] || row['Tel'] || row['Telefonnummer'] || '',
+          website: row['Website'] || row['Webseite'] || row['URL'] || '',
+          address: row['Adresse'] || row['Straße'] || '',
+          city: row['Stadt'] || row['Ort'] || '',
+          postalCode: row['PLZ'] || row['Postleitzahl'] || '',
+          country: row['Land'] || 'Deutschland',
+          status: row['Status'] === 'Inaktiv' ? 'inactive' : 'active',
+          notes: row['Notizen'] || row['Bemerkungen'] || '',
+          paymentTerms: row['Zahlungsbedingungen'] || '',
+          deliveryTerms: row['Lieferbedingungen'] || '',
+          minimumOrderValue: row['Mindestbestellwert'] || undefined,
+          deliveryDays: row['Liefertage'] || '',
+          taxId: row['Steuernummer'] || row['USt-ID'] || '',
+          accountNumber: row['Kontonummer'] || '',
+          bankDetails: row['Bankverbindung'] || ''
+        };
+        
+        // Pflichtfeld prüfen
+        if (!supplierData.name) {
+          stats.skipped++;
+          continue;
+        }
+        
+        // Prüfen, ob Lieferant bereits existiert (nach Namen)
+        const existingSuppliers = await getSuppliers({ search: supplierData.name });
+        const existingSupplier = existingSuppliers.data?.find((s: any) => 
+          s.name.toLowerCase() === supplierData.name.toLowerCase()
+        );
+        
+        if (existingSupplier) {
+          // Aktualisieren
+          await updateSupplier(existingSupplier.id, supplierData);
+          stats.updated++;
+        } else {
+          // Neu anlegen
+          await createSupplier(supplierData);
+          stats.added++;
+        }
+      } catch (error) {
+        console.error("Fehler beim Importieren des Lieferanten:", error);
+        stats.errors++;
+      }
+    }
+    
+    return stats;
+  };
+  
+  const handleResetClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    setUploadStatus('idle');
+    setImportStats(null);
+  };
+  
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Lieferanten importieren</DialogTitle>
+          <DialogDescription>
+            Laden Sie eine Excel-Datei mit Lieferantendaten hoch. Die Datei sollte mindestens eine Spalte "Name" enthalten.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-6">
+          {uploadStatus === 'idle' && (
+            <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
+              <FileSpreadsheet className="mx-auto h-12 w-12 text-gray-400" />
+              <div className="mt-4 flex text-sm leading-6 text-gray-600 dark:text-gray-400">
+                <label
+                  htmlFor="file-upload"
+                  className="relative cursor-pointer rounded-md font-semibold text-primary hover:text-primary/80 focus-within:outline-none"
+                >
+                  <span>Excel-Datei hochladen</span>
+                  <input
+                    id="file-upload"
+                    name="file-upload"
+                    type="file"
+                    ref={fileInputRef}
+                    className="sr-only"
+                    accept=".xlsx,.xls"
+                    onChange={handleFileChange}
+                  />
+                </label>
+                <p className="pl-1">oder hier ablegen</p>
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
+                Unterstützte Formate: Excel (.xlsx, .xls)
+              </p>
+            </div>
+          )}
+          
+          {uploadStatus === 'processing' && (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+              <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                Daten werden verarbeitet...
+              </p>
+            </div>
+          )}
+          
+          {uploadStatus === 'success' && importStats && (
+            <div className="rounded-lg p-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+              <div className="flex items-center">
+                <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
+                <h3 className="ml-2 text-lg font-medium text-green-800 dark:text-green-300">
+                  Import erfolgreich
+                </h3>
+              </div>
+              <div className="mt-4 text-sm text-gray-700 dark:text-gray-300">
+                <p><strong>Gesamt:</strong> {importStats.total} Lieferanten verarbeitet</p>
+                <p><strong>Neu hinzugefügt:</strong> {importStats.added} Lieferanten</p>
+                <p><strong>Aktualisiert:</strong> {importStats.updated} Lieferanten</p>
+                <p><strong>Übersprungen:</strong> {importStats.skipped} Einträge (kein Name)</p>
+                <p><strong>Fehler:</strong> {importStats.errors} Einträge</p>
+              </div>
+            </div>
+          )}
+          
+          {uploadStatus === 'error' && (
+            <div className="rounded-lg p-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+              <div className="flex items-center">
+                <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
+                <h3 className="ml-2 text-lg font-medium text-red-800 dark:text-red-300">
+                  Import fehlgeschlagen
+                </h3>
+              </div>
+              <p className="mt-2 text-sm text-red-700 dark:text-red-300">
+                Beim Import ist ein Fehler aufgetreten. Bitte überprüfen Sie das Format Ihrer Excel-Datei.
+              </p>
+            </div>
+          )}
+        </div>
+        
+        <DialogFooter>
+          {uploadStatus === 'success' || uploadStatus === 'error' ? (
+            <Button onClick={handleResetClick}>Zurücksetzen</Button>
+          ) : (
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
 export default function Suppliers() {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
@@ -989,6 +1256,7 @@ export default function Suppliers() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [excelImportOpen, setExcelImportOpen] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [currentFilters, setCurrentFilters] = useState<FilterState>(defaultFilters);
   const [page, setPage] = useState(1);
@@ -1089,6 +1357,16 @@ export default function Suppliers() {
                 {Object.values(currentFilters).filter(v => v !== null && v !== 'name' && v !== 'asc').length}
               </Badge>
             )}
+          </Button>
+          
+          <Button 
+            variant="outline" 
+            className="flex items-center gap-2"
+            onClick={() => setExcelImportOpen(true)}
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            <span className="hidden sm:inline">Excel Import</span>
+            <span className="sm:hidden">Import</span>
           </Button>
           
           <Tabs defaultValue={viewMode} onValueChange={(value) => setViewMode(value as "grid" | "list")}>
@@ -1257,6 +1535,11 @@ export default function Suppliers() {
         isOpen={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         mode="create"
+      />
+      
+      <ExcelImportDialog
+        isOpen={excelImportOpen}
+        onOpenChange={setExcelImportOpen}
       />
       
       {selectedSupplier && (

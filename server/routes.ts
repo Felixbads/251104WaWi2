@@ -686,6 +686,153 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Suppliers Routes
+  // Get all suppliers
+  app.get(`${API_PREFIX}/suppliers`, async (req: Request, res: Response) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
+      const status = req.query.status as string | undefined;
+      const search = req.query.search as string | undefined;
+      
+      const suppliers = await storage.getSuppliers({
+        limit,
+        offset,
+        status,
+        search
+      });
+      
+      res.json(suppliers);
+    } catch (error) {
+      console.error("Error fetching suppliers:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch suppliers", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Get supplier by ID
+  app.get(`${API_PREFIX}/suppliers/:id`, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const supplier = await storage.getSupplierById(id);
+      
+      if (!supplier) {
+        return res.status(404).json({ error: "Supplier not found" });
+      }
+      
+      res.json(supplier);
+    } catch (error) {
+      console.error(`Error fetching supplier with ID ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch supplier", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Create supplier
+  app.post(`${API_PREFIX}/suppliers`, async (req: Request, res: Response) => {
+    try {
+      const parsedData = insertSupplierSchema.safeParse(req.body);
+      
+      if (!parsedData.success) {
+        return res.status(400).json({ 
+          error: "Invalid supplier data", 
+          details: parsedData.error 
+        });
+      }
+      
+      const supplier = await storage.createSupplier(parsedData.data);
+      res.status(201).json(supplier);
+    } catch (error) {
+      console.error("Error creating supplier:", error);
+      res.status(500).json({ 
+        error: "Failed to create supplier", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Update supplier
+  app.put(`${API_PREFIX}/suppliers/:id`, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      // Partial validation of the update data
+      const partialSchema = insertSupplierSchema.partial();
+      const parsedData = partialSchema.safeParse(req.body);
+      
+      if (!parsedData.success) {
+        return res.status(400).json({ 
+          error: "Invalid supplier data", 
+          details: parsedData.error 
+        });
+      }
+      
+      const updatedSupplier = await storage.updateSupplier(id, parsedData.data);
+      
+      if (!updatedSupplier) {
+        return res.status(404).json({ error: "Supplier not found" });
+      }
+      
+      res.json(updatedSupplier);
+    } catch (error) {
+      console.error(`Error updating supplier with ID ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to update supplier", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Delete supplier
+  app.delete(`${API_PREFIX}/suppliers/:id`, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      try {
+        const result = await storage.deleteSupplier(id);
+        
+        if (!result) {
+          return res.status(404).json({ error: "Supplier not found" });
+        }
+        
+        res.json({ success: true, message: "Supplier deleted successfully" });
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("linked products")) {
+          return res.status(400).json({ 
+            error: "Cannot delete supplier with linked products", 
+            details: error.message 
+          });
+        }
+        throw error;
+      }
+    } catch (error) {
+      console.error(`Error deleting supplier with ID ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to delete supplier", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Locations Routes
+  // Get all locations
+  app.get(`${API_PREFIX}/locations`, async (_req: Request, res: Response) => {
+    try {
+      const locations = await storage.getLocations();
+      res.json(locations);
+    } catch (error) {
+      console.error("Error fetching locations:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch locations", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
   // Registriere die Forecast-, Wetter- und Feiertags-Routen
   // Authentication Routes
   // Register new user
