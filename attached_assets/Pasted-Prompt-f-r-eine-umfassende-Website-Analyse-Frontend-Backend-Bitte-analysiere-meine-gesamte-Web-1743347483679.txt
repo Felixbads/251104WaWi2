@@ -1,0 +1,32 @@
+Prompt für eine umfassende Website-Analyse (Frontend & Backend):
+
+Bitte analysiere meine gesamte Website sowohl im Frontend als auch im Backend äußerst gründlich. Ich möchte, dass du alle Funktionen, Darstellungen und Interaktionen auf Fehler, Inkonsistenzen und mögliche Bugs prüfst.
+
+Bitte beachte und prüfe dabei im Detail:
+
+1. Frontend (Desktop & Mobile):
+– Funktionieren alle Buttons, Links und Menüpunkte korrekt auf Desktop und Mobilgerät?
+– Entspricht das Mobile-Menü in Darstellung, Struktur und Funktion der Desktop-Version?
+– Werden Inhalte responsiv dargestellt (z. B. keine abgeschnittenen Texte oder verschobene Elemente)?
+– Lädt die Seite in allen gängigen Browsern (Chrome, Firefox, Safari) fehlerfrei?
+
+2. Backend (Admin-Bereich / CMS / Benutzerinteraktion):
+– Funktioniert die Erstellung von Exports, z. B. PDF-Export von Bestellungen oder Reports?
+– Wird der E-Mail-Versand bei Bestellungen, Formularen etc. zuverlässig ausgeführt?
+– Werden Fehlermeldungen korrekt angezeigt, wenn Eingaben fehlen oder falsch sind?
+– Funktionieren Uploads, Speichern, Löschen und Bearbeiten von Daten korrekt?
+
+3. Allgemeine technische Prüfung:
+– Gibt es JavaScript-Fehler, fehlende Ressourcen (z. B. Bilder, Stylesheets)?
+– Wie ist die Performance (Ladezeit, Verhalten bei langsamer Verbindung)?
+– Gibt es Sicherheitswarnungen oder ungesicherte Endpunkte?
+
+WICHTIG:
+Führe zunächst nur eine vollständige Dokumentation aller gefundenen Fehler, Probleme, Auffälligkeiten und Verbesserungspotenziale durch – ohne Änderungen vorzunehmen.
+
+Bitte liefere einen ausführlichen Bericht mit:
+– Einer Liste aller gefundenen Fehler und Abweichungen (mit Beschreibung, Priorität, betroffener Seite/Komponente)
+– Einer Empfehlung, an welchen Stellen nachgearbeitet werden sollte (inkl. technischer Hinweise, z. B. im Code, Layout oder Datenfluss)
+
+Erst im Anschluss an diesen Bericht sollen konkrete Korrekturmaßnahmen erfolgen.
+Ziel ist ein vollständig funktionierendes, stabiles und benutzerfreundliches System auf allen Endgeräten.

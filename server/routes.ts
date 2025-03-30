@@ -93,8 +93,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           result = await vendonSync.syncEvents(startDateObj, endDateObj, batchSize);
           break;
         case "weather_forecast":
-          // Synchronisiere Wetterprognosen für Bad Schandau
-          result = await syncWeatherForecast("Bad Schandau");
+          // Synchronisiere Wetterprognosen für Bad Schandau mit korrekten Koordinaten
+          result = await syncWeatherForecast();
           break;
         case "holidays":
           // Synchronisiere Feiertage
