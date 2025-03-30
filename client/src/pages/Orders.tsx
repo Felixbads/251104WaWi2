@@ -501,8 +501,8 @@ const OrderFilter = ({ filterForm, onResetFilter }: any) => {
                     <FormLabel>Status</FormLabel>
                     <Select 
                       onValueChange={field.onChange} 
-                      value={field.value || ""}
-                      defaultValue=""
+                      value={field.value || "all"}
+                      defaultValue="all"
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -510,7 +510,7 @@ const OrderFilter = ({ filterForm, onResetFilter }: any) => {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">Alle Status</SelectItem>
+                        <SelectItem value="all">Alle Status</SelectItem>
                         <SelectItem value="open">Offen</SelectItem>
                         <SelectItem value="ordered">Bestellt</SelectItem>
                         <SelectItem value="partial">Teilgeliefert</SelectItem>
@@ -532,8 +532,8 @@ const OrderFilter = ({ filterForm, onResetFilter }: any) => {
                     <FormLabel>Lieferant</FormLabel>
                     <Select 
                       onValueChange={field.onChange} 
-                      value={field.value || ""}
-                      defaultValue=""
+                      value={field.value || "all"}
+                      defaultValue="all"
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -541,7 +541,7 @@ const OrderFilter = ({ filterForm, onResetFilter }: any) => {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">Alle Lieferanten</SelectItem>
+                        <SelectItem value="all">Alle Lieferanten</SelectItem>
                         <SelectItem value="1">Milchhof Fiedler</SelectItem>
                         <SelectItem value="2">Privatbrauerei Schwerter</SelectItem>
                         <SelectItem value="3">Zetti Knusperflocken GmbH</SelectItem>
