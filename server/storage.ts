@@ -1121,6 +1121,10 @@ export class DatabaseStorage implements IStorage {
       warehouseName: row.warehouse?.name
     })) as MachineWarehouseAssignment[];
   }
+  
+  async getMachineWarehouseAssignmentsByWarehouse(warehouseId: number): Promise<MachineWarehouseAssignment[]> {
+    return this.getMachineWarehouseAssignments({ warehouseId });
+  }
 
   async getMachineWarehouseAssignmentById(id: number): Promise<MachineWarehouseAssignment | undefined> {
     const [assignment] = await db.select()

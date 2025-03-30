@@ -41,6 +41,7 @@ import Reporting from "@/pages/Reporting";
 import Orders from "@/pages/Orders";
 import NewOrder from "@/pages/NewOrder";
 import Inventory from "@/pages/Inventory";
+import WarehouseDetail from "@/pages/WarehouseDetail";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -59,6 +60,7 @@ function AuthenticatedRouter() {
         <Route path="/bestellungen" component={Orders} />
         <Route path="/bestellungen/neu" component={NewOrder} />
         <Route path="/lager" component={Inventory} />
+        <Route path="/lager/:id" component={WarehouseDetail} />
         <Route path="/auswertungen" component={Reporting} />
         <Route path="/synchronization" component={Synchronization} />
         <Route path="/sync-history" component={SyncHistory} />
