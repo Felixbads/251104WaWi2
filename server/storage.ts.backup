@@ -950,7 +950,7 @@ export class DatabaseStorage implements IStorage {
 
       return result.length > 0;
     } catch (error) {
-      console.error("Error deleting inventory item with ID: " + id, error);
+      console.error(`Error deleting inventory item with ID: ${id}`, error);
       return false;
     }
   }
@@ -1183,7 +1183,7 @@ export class DatabaseStorage implements IStorage {
 
       return result.length > 0;
     } catch (error) {
-      console.error("Error deleting assignment with ID: " + id, error);
+      console.error(`Error deleting assignment with ID: ${id}`, error);
       return false;
     }
   }
@@ -1306,7 +1306,7 @@ export class DatabaseStorage implements IStorage {
 
       return result.length > 0;
     } catch (error) {
-      console.error("Error deleting inventory count with ID: " + id, error);
+      console.error(`Error deleting inventory count with ID: ${id}`, error);
       return false;
     }
   }
