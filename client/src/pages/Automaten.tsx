@@ -47,20 +47,22 @@ export default function Automaten() {
   const [machineTypeFilter, setMachineTypeFilter] = useState<string>("alle");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
-  // Daten abrufen
+  // Daten abrufen und aktuelle Werte aus der API verwenden
   const { data: machines, isLoading, error, refetch } = useQuery({
     queryKey: ['/api/machines'],
-    queryFn: () => getMachines().then(data => {
-      // Erweitere die Maschinen mit simulierten KPIs für die UI
+    queryFn: async () => {
+      const data = await getMachines();
+      
+      // Wir verwenden die echten Daten aus der API
       return data.map(machine => ({
         ...machine,
-        // Simulierte Beispielwerte (in einer echten App würden diese von der API kommen)
-        todayTransactions: Math.floor(Math.random() * 30),
-        todayRevenue: Math.floor(Math.random() * 500) / 10,
-        cashlessStatus: Math.random() > 0.3 ? 'ok' : (Math.random() > 0.5 ? 'warning' : 'error'),
-        ageVerificationStatus: Math.random() > 0.2 ? 'ok' : (Math.random() > 0.5 ? 'warning' : 'error')
+        // Initiale Werte setzen, die später durch API-Daten ersetzt werden
+        todayTransactions: 0,
+        todayRevenue: 0,
+        cashlessStatus: machine.status === 'online' ? 'ok' : 'warning',
+        ageVerificationStatus: 'ok'
       } as EnhancedMachine));
-    }),
+    },
   });
 
   // Extrahiere verfügbare Standorte und Maschinentypen für die Filter
@@ -529,9 +531,11 @@ export default function Automaten() {
 
       {!isLoading && !error && viewMode === "map" && (
         <Card className="h-[500px] flex items-center justify-center">
-          <CardContent>
-            <p className="text-gray-500">
-              Kartenansicht wird in Kürze verfügbar sein
+          <CardContent className="text-center">
+            <Map className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium mb-2">Kartenansicht</h3>
+            <p className="text-gray-500 max-w-md">
+              Die Kartenansicht mit den genauen Standorten aller Automaten wird in einem kommenden Update verfügbar sein. Wir arbeiten daran!
             </p>
           </CardContent>
         </Card>

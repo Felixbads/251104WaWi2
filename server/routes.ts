@@ -126,7 +126,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get sync logs
   app.get(`${API_PREFIX}/sync/logs`, async (req: Request, res: Response) => {
     try {
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 25;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
       const logs = await storage.getSyncLogs(limit);
       res.json(logs);
     } catch (error) {
@@ -141,7 +141,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get transactions
   app.get(`${API_PREFIX}/transactions`, async (req: Request, res: Response) => {
     try {
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
       const transactions = await storage.getTransactions(limit);
       res.json(transactions);
     } catch (error) {
@@ -159,13 +159,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { startDate, endDate, limit } = req.query;
       
       if (!startDate || !endDate) {
-        return res.status(400).json({ error: "startDate and endDate are required" });
+        // Wenn keine Daten angegeben sind, verwenden wir Standardwerte für den letzten Monat
+        const endDateObj = new Date();
+        const startDateObj = new Date();
+        startDateObj.setMonth(startDateObj.getMonth() - 1);
+        
+        const transactions = await storage.getTransactionsByDateRange(
+          startDateObj,
+          endDateObj,
+          limit ? parseInt(limit as string) : 200
+        );
+        
+        return res.json(transactions);
       }
       
       const transactions = await storage.getTransactionsByDateRange(
         new Date(startDate as string),
         new Date(endDate as string),
-        limit ? parseInt(limit as string) : 25
+        limit ? parseInt(limit as string) : 200
       );
       
       res.json(transactions);
@@ -317,7 +328,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get products
   app.get(`${API_PREFIX}/products`, async (req: Request, res: Response) => {
     try {
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 25;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
       const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
       const category = req.query.category as string | undefined;
       const search = req.query.search as string | undefined;
@@ -343,7 +354,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get machines
   app.get(`${API_PREFIX}/machines`, async (req: Request, res: Response) => {
     try {
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 25;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
       const machines = await storage.getMachines(limit);
       res.json(machines);
     } catch (error) {
@@ -378,7 +389,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/machines/:id/transactions`, async (req: Request, res: Response) => {
     try {
       const machineId = parseInt(req.params.id);
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 25;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
       
       const transactions = await storage.getTransactionsByMachine(machineId, limit);
       res.json(transactions);
@@ -394,7 +405,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get events
   app.get(`${API_PREFIX}/events`, async (req: Request, res: Response) => {
     try {
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 25;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
       const events = await storage.getEvents(limit);
       res.json(events);
     } catch (error) {
@@ -418,7 +429,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const events = await storage.getEventsByDateRange(
         new Date(startDate as string),
         new Date(endDate as string),
-        limit ? parseInt(limit as string) : 25
+        limit ? parseInt(limit as string) : 200
       );
       
       res.json(events);
@@ -434,7 +445,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get refills
   app.get(`${API_PREFIX}/refills`, async (req: Request, res: Response) => {
     try {
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : 25;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 200;
       const refills = await storage.getRefills(limit);
       res.json(refills);
     } catch (error) {
