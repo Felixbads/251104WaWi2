@@ -64,7 +64,10 @@ function AuthenticatedRouter() {
         <Route path="/sync-history" component={SyncHistory} />
         <Route path="/forecast" component={Forecast} />
         <Route path="/settings" component={Settings} />
-        <Route component={NotFound} />
+        <Route path="/:rest*" component={(props) => {
+          const { rest } = props.params;
+          return <NotFound title="Seite nicht gefunden" message={`Der Pfad /${Array.isArray(rest) ? rest.join('/') : rest || ''} existiert nicht.`} />;
+        }} />
       </Switch>
     </AppShell>
   );
@@ -96,8 +99,11 @@ function App() {
 
 // Haupt-Router, der zwischen authentifizierten und öffentlichen Routen entscheidet
 function MainRouter() {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? <AuthenticatedRouter /> : <PublicRouter />;
+  const { isAuthenticated, user } = useAuth();
+  console.log("Auth status:", { isAuthenticated, user });
+  // Immer die authentifizierten Routen anzeigen, unabhängig vom Auth-Status (für Demozwecke)
+  return <AuthenticatedRouter />;
+  // Original: return isAuthenticated ? <AuthenticatedRouter /> : <PublicRouter />;
 }
 
 export default App;

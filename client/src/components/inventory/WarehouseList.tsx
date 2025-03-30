@@ -89,7 +89,7 @@ export default function WarehouseList() {
   }
 
   // Leeres Raster, wenn keine Lager vorhanden sind
-  if (!warehouses || warehouses.length === 0) {
+  if (!warehouses || !Array.isArray(warehouses) || warehouses.length === 0) {
     return (
       <div className="text-center p-8 border rounded-lg">
         <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -123,7 +123,7 @@ export default function WarehouseList() {
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {warehouses.map((warehouse: any) => (
+        {Array.isArray(warehouses) && warehouses.map((warehouse: any) => (
           <Card key={warehouse.id} className={warehouse.isActive ? '' : 'opacity-60'}>
             <CardHeader className="pb-2">
               <div className="flex justify-between items-start">
