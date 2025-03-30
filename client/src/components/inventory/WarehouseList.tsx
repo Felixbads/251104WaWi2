@@ -6,222 +6,12 @@ import { Badge } from '@/components/ui/badge';
 import { CircleAlert, Building2, PlusCircle, Edit, Trash } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { apiRequest } from '@/lib/queryClient';
+import { WarehouseFormDialog } from './WarehouseFormDialog';
+import { z } from 'zod';
 
-// Schema für das Lager-Formular
-const warehouseFormSchema = z.object({
-  name: z.string().min(2, {
-    message: 'Der Name muss mindestens 2 Zeichen lang sein.'
-  }),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  postalCode: z.string().optional(),
-  isActive: z.boolean().default(true),
-  description: z.string().optional()
-});
 
-// Dialog-Komponente für das Lager-Formular
-function WarehouseFormDialog({ warehouse = null, open, onOpenChange }: { warehouse?: any, open: boolean, onOpenChange: (open: boolean) => void }) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const isEditing = !!warehouse;
-
-  // Form-Hook initialisieren
-  const form = useForm<z.infer<typeof warehouseFormSchema>>({
-    resolver: zodResolver(warehouseFormSchema),
-    defaultValues: {
-      name: warehouse?.name || '',
-      address: warehouse?.address || '',
-      city: warehouse?.city || '',
-      postalCode: warehouse?.postalCode || '',
-      isActive: warehouse?.isActive ?? true,
-      description: warehouse?.description || ''
-    }
-  });
-
-  // Mutation für das Erstellen/Aktualisieren eines Lagers
-  const mutation = useMutation({
-    mutationFn: async (values: z.infer<typeof warehouseFormSchema>) => {
-      if (isEditing) {
-        return await apiRequest(`/api/warehouses/${warehouse.id}`, {
-          method: 'PUT',
-          data: values
-        });
-      } else {
-        return await apiRequest('/api/warehouses', {
-          method: 'POST',
-          data: values
-        });
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/warehouses'] });
-      toast({
-        title: isEditing ? 'Lager aktualisiert' : 'Lager erstellt',
-        description: isEditing 
-          ? `Das Lager "${form.getValues().name}" wurde erfolgreich aktualisiert.` 
-          : `Das Lager "${form.getValues().name}" wurde erfolgreich erstellt.`,
-      });
-      form.reset();
-      onOpenChange(false);
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Fehler',
-        description: error.message || 'Ein Fehler ist aufgetreten.',
-        variant: 'destructive'
-      });
-    }
-  });
-
-  // Form-Submit-Handler
-  const onSubmit = (values: z.infer<typeof warehouseFormSchema>) => {
-    mutation.mutate(values);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>{isEditing ? 'Lager bearbeiten' : 'Neues Lager erstellen'}</DialogTitle>
-          <DialogDescription>
-            {isEditing 
-              ? 'Bearbeiten Sie die Informationen des Lagers.' 
-              : 'Erstellen Sie ein neues Lager für die Verwaltung Ihrer Bestände.'}
-          </DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Name*</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Hauptlager" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Adresse</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Beispielstraße 123" {...field} value={field.value || ''} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <div className="grid grid-cols-2 gap-2">
-                <FormField
-                  control={form.control}
-                  name="postalCode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>PLZ</FormLabel>
-                      <FormControl>
-                        <Input placeholder="12345" {...field} value={field.value || ''} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="city"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Stadt</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Dresden" {...field} value={field.value || ''} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </div>
-            
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Beschreibung</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Beschreibung des Lagers..." 
-                      {...field} 
-                      value={field.value || ''}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="isActive"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                  <div className="space-y-0.5">
-                    <FormLabel>Aktiv</FormLabel>
-                    <FormDescription>
-                      Inaktive Lager werden im System nicht mehr für neue Buchungen verwendet.
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <DialogFooter>
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => onOpenChange(false)}
-                disabled={mutation.isPending}
-              >
-                Abbrechen
-              </Button>
-              <Button type="submit" disabled={mutation.isPending}>
-                {mutation.isPending 
-                  ? 'Wird gespeichert...' 
-                  : isEditing ? 'Aktualisieren' : 'Erstellen'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 export default function WarehouseList() {
   const { toast } = useToast();
@@ -315,7 +105,9 @@ export default function WarehouseList() {
         {/* Dialog für neues Lager */}
         <WarehouseFormDialog 
           open={isNewWarehouseDialogOpen} 
-          onOpenChange={setIsNewWarehouseDialogOpen} 
+          onOpenChange={setIsNewWarehouseDialogOpen}
+          warehouse={null}
+          isNew={true}
         />
       </div>
     );
@@ -383,7 +175,9 @@ export default function WarehouseList() {
       {/* Dialog für neues Lager */}
       <WarehouseFormDialog 
         open={isNewWarehouseDialogOpen} 
-        onOpenChange={setIsNewWarehouseDialogOpen} 
+        onOpenChange={setIsNewWarehouseDialogOpen}
+        warehouse={null}
+        isNew={true}
       />
       
       {/* Dialog für Lager bearbeiten */}
@@ -392,6 +186,7 @@ export default function WarehouseList() {
           warehouse={selectedWarehouse}
           open={isEditWarehouseDialogOpen} 
           onOpenChange={setIsEditWarehouseDialogOpen} 
+          isNew={false}
         />
       )}
       
