@@ -426,3 +426,245 @@ export default function WarehouseList() {
     </div>
   );
 }
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { CircleAlert, Building2, PlusCircle, Edit, Trash2 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { apiRequest } from '@/lib/queryClient';
+import { WarehouseFormDialog } from './WarehouseFormDialog';
+
+export default function WarehouseList() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [selectedWarehouse, setSelectedWarehouse] = useState<any>(null);
+  const [isNewWarehouseDialogOpen, setIsNewWarehouseDialogOpen] = useState(false);
+  const [isEditWarehouseDialogOpen, setIsEditWarehouseDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  // Get warehouses
+  const { data: warehouses, isLoading, error } = useQuery({
+    queryKey: ['/api/warehouses'],
+    staleTime: 1000 * 60, // 1 minute
+  });
+
+  // Delete warehouse mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      return await apiRequest(`/api/warehouses/${id}`, {
+        method: 'DELETE'
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/warehouses'] });
+      toast({
+        title: 'Lager gelöscht',
+        description: `Das Lager "${selectedWarehouse?.name}" wurde erfolgreich gelöscht.`,
+      });
+      setSelectedWarehouse(null);
+      setIsDeleteDialogOpen(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Fehler beim Löschen',
+        description: error.message || 'Das Lager konnte nicht gelöscht werden.',
+        variant: 'destructive'
+      });
+    }
+  });
+
+  // Edit warehouse handler
+  const handleEditWarehouse = (warehouse: any) => {
+    setSelectedWarehouse(warehouse);
+    setIsEditWarehouseDialogOpen(true);
+  };
+
+  // Delete warehouse handler
+  const handleDeleteWarehouse = (warehouse: any) => {
+    setSelectedWarehouse(warehouse);
+    setIsDeleteDialogOpen(true);
+  };
+
+  // Confirm delete handler
+  const confirmDelete = () => {
+    if (selectedWarehouse) {
+      deleteMutation.mutate(selectedWarehouse.id);
+    }
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex justify-end">
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="min-h-[200px]">
+              <CardHeader className="pb-2">
+                <Skeleton className="h-6 w-40" />
+                <Skeleton className="h-4 w-60 mt-2" />
+              </CardHeader>
+              <CardContent className="pb-2">
+                <Skeleton className="h-16 w-full" />
+              </CardContent>
+              <CardFooter>
+                <div className="flex justify-end gap-2 w-full">
+                  <Skeleton className="h-9 w-9" />
+                  <Skeleton className="h-9 w-9" />
+                </div>
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="bg-destructive/10 p-4 rounded-lg border border-destructive">
+        <div className="flex items-start">
+          <CircleAlert className="h-5 w-5 text-destructive mr-3 mt-0.5" />
+          <div>
+            <h3 className="font-medium text-destructive">Fehler beim Laden der Lager</h3>
+            <p className="text-muted-foreground mt-1">
+              {error instanceof Error ? error.message : 'Ein unbekannter Fehler ist aufgetreten.'}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty state if no warehouses
+  if (!warehouses || warehouses.length === 0) {
+    return (
+      <div className="text-center p-8 border rounded-lg">
+        <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+        <h3 className="text-lg font-medium mb-2">Keine Lager vorhanden</h3>
+        <p className="text-muted-foreground mb-4">
+          Sie haben noch keine Lager angelegt. Erstellen Sie Ihr erstes Lager, um Ihre Bestände zu verwalten.
+        </p>
+        <Button onClick={() => setIsNewWarehouseDialogOpen(true)}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Erstes Lager erstellen
+        </Button>
+        
+        {/* New warehouse dialog */}
+        <WarehouseFormDialog 
+          open={isNewWarehouseDialogOpen} 
+          onOpenChange={setIsNewWarehouseDialogOpen} 
+          isNew={true}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-end">
+        <Button onClick={() => setIsNewWarehouseDialogOpen(true)}>
+          <PlusCircle className="mr-2 h-4 w-4" />
+          Neues Lager
+        </Button>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {warehouses.map((warehouse: any) => (
+          <Card key={warehouse.id} className={warehouse.isActive ? '' : 'opacity-60'}>
+            <CardHeader className="pb-2">
+              <div className="flex justify-between items-start">
+                <CardTitle className="text-lg">{warehouse.name}</CardTitle>
+                {!warehouse.isActive && (
+                  <Badge variant="outline" className="bg-muted">Inaktiv</Badge>
+                )}
+              </div>
+              {(warehouse.city || warehouse.address) && (
+                <CardDescription>
+                  {[warehouse.address, `${warehouse.postalCode || ''} ${warehouse.city || ''}`]
+                    .filter(Boolean)
+                    .join(', ')}
+                </CardDescription>
+              )}
+            </CardHeader>
+            <CardContent className="pb-2">
+              {warehouse.description ? (
+                <p className="text-sm text-muted-foreground">{warehouse.description}</p>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">Keine Beschreibung vorhanden</p>
+              )}
+            </CardContent>
+            <CardFooter className="flex justify-end gap-2">
+              <Button
+                size="icon"
+                variant="outline"
+                onClick={() => handleEditWarehouse(warehouse)}
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="outline"
+                className="text-destructive"
+                onClick={() => handleDeleteWarehouse(warehouse)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
+      
+      {/* New warehouse dialog */}
+      <WarehouseFormDialog 
+        open={isNewWarehouseDialogOpen} 
+        onOpenChange={setIsNewWarehouseDialogOpen}
+        isNew={true} 
+      />
+      
+      {/* Edit warehouse dialog */}
+      <WarehouseFormDialog 
+        open={isEditWarehouseDialogOpen} 
+        onOpenChange={setIsEditWarehouseDialogOpen}
+        warehouse={selectedWarehouse}
+        isNew={false}
+      />
+      
+      {/* Delete confirmation dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Lager löschen</DialogTitle>
+            <DialogDescription>
+              Möchten Sie das Lager "{selectedWarehouse?.name}" wirklich löschen?
+              Diese Aktion kann nicht rückgängig gemacht werden.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsDeleteDialogOpen(false)}
+            >
+              Abbrechen
+            </Button>
+            <Button 
+              type="button" 
+              variant="destructive"
+              onClick={confirmDelete}
+            >
+              Lager löschen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

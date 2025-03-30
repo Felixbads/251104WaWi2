@@ -24,21 +24,23 @@ import Reporting from "@/pages/Reporting";
 import Orders from "@/pages/Orders";
 import NewOrder from "@/pages/NewOrder";
 import Inventory from "@/pages/Inventory";
+import Lager from "@/pages/Lager"; // Added Lager import
+
 
 // Geschützte Route Komponente
 function ProtectedRoute({ component: Component, ...rest }: any) {
   const { isAuthenticated, isLoading } = useAuth();
   const [location] = useLocation();
-  
+
   // Während des Ladens zeigen wir nichts an
   if (isLoading) {
     return <div className="flex items-center justify-center h-screen">Lade...</div>;
   }
-  
+
   if (!isAuthenticated) {
     return <Redirect to={`/login?redirect=${encodeURIComponent(location)}`} />;
   }
-  
+
   return <Component {...rest} />;
 }
 
@@ -59,7 +61,7 @@ function AuthenticatedRouter() {
         <Route path="/lieferanten/:id" component={() => <div>Lieferantendetails</div>} />
         <Route path="/bestellungen" component={Orders} />
         <Route path="/bestellungen/neu" component={NewOrder} />
-        <Route path="/lager" component={Inventory} />
+        <Route path="/lager" component={Lager} /> {/* Added Lager route */}
         <Route path="/auswertungen" component={Reporting} />
         <Route path="/synchronization" component={Synchronization} />
         <Route path="/sync-history" component={SyncHistory} />

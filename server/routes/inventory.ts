@@ -989,3 +989,129 @@ export function registerInventoryRoutes(app: Express) {
     }
   });
 }
+import type { Express, Request, Response } from "express";
+import { storage } from "../storage";
+import { insertWarehouseSchema, idParamSchema } from "@shared/schema";
+import { z } from "zod";
+
+const apiPrefix = "/api";
+
+export function registerInventoryRoutes(app: Express) {
+  // Get all warehouses
+  app.get(`${apiPrefix}/warehouses`, async (_req: Request, res: Response) => {
+    try {
+      const warehouses = await storage.getWarehouses();
+      res.json(warehouses);
+    } catch (error: any) {
+      console.error("Error fetching warehouses:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch warehouses", 
+        details: error.message || String(error) 
+      });
+    }
+  });
+
+  // Get warehouse by ID
+  app.get(`${apiPrefix}/warehouses/:id`, async (req: Request, res: Response) => {
+    try {
+      const { id } = idParamSchema.parse({ id: parseInt(req.params.id) });
+      const warehouse = await storage.getWarehouseById(id);
+      
+      if (!warehouse) {
+        return res.status(404).json({ error: "Warehouse not found" });
+      }
+      
+      res.json(warehouse);
+    } catch (error: any) {
+      console.error(`Error fetching warehouse with ID ${req.params.id}:`, error);
+      
+      if (error.name === "ZodError") {
+        return res.status(400).json({ 
+          error: "Invalid warehouse ID", 
+          details: error.errors 
+        });
+      }
+      
+      res.status(500).json({ 
+        error: "Failed to fetch warehouse", 
+        details: error.message || String(error) 
+      });
+    }
+  });
+
+  // Create warehouse
+  app.post(`${apiPrefix}/warehouses`, async (req: Request, res: Response) => {
+    try {
+      const warehouseData = insertWarehouseSchema.parse(req.body);
+      const newWarehouse = await storage.createWarehouse(warehouseData);
+      res.status(201).json(newWarehouse);
+    } catch (error: any) {
+      console.error("Fehler beim Erstellen des Lagers:", error);
+      
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: "Ungültige Lagerdaten", details: error.errors });
+      }
+      
+      res.status(500).json({ error: error.message || "Fehler beim Erstellen des Lagers" });
+    }
+  });
+
+  // Update warehouse
+  app.put(`${apiPrefix}/warehouses/:id`, async (req: Request, res: Response) => {
+    try {
+      const { id } = idParamSchema.parse({ id: parseInt(req.params.id) });
+      const warehouseData = insertWarehouseSchema.partial().parse(req.body);
+      
+      const updatedWarehouse = await storage.updateWarehouse(id, warehouseData);
+      
+      if (!updatedWarehouse) {
+        return res.status(404).json({ error: "Lager nicht gefunden" });
+      }
+      
+      res.json(updatedWarehouse);
+    } catch (error: any) {
+      console.error(`Fehler beim Aktualisieren des Lagers ${req.params.id}:`, error);
+      
+      if (error.name === "ZodError") {
+        return res.status(400).json({ 
+          error: "Ungültige Lagerdaten oder ID", 
+          details: error.errors 
+        });
+      }
+      
+      res.status(500).json({ error: error.message || "Fehler beim Aktualisieren des Lagers" });
+    }
+  });
+
+  // Delete warehouse
+  app.delete(`${apiPrefix}/warehouses/:id`, async (req: Request, res: Response) => {
+    try {
+      const { id } = idParamSchema.parse({ id: parseInt(req.params.id) });
+      
+      const result = await storage.deleteWarehouse(id);
+      
+      if (!result) {
+        return res.status(404).json({ error: "Lager nicht gefunden" });
+      }
+      
+      res.json({ success: true, message: "Lager erfolgreich gelöscht" });
+    } catch (error: any) {
+      console.error(`Fehler beim Löschen des Lagers ${req.params.id}:`, error);
+      
+      if (error.name === "ZodError") {
+        return res.status(400).json({ 
+          error: "Ungültige Lager-ID", 
+          details: error.errors 
+        });
+      }
+      
+      if (error.message && error.message.includes("has_items")) {
+        return res.status(409).json({ 
+          error: "Lager kann nicht gelöscht werden, da es noch Artikel enthält" 
+        });
+      }
+      
+      res.status(500).json({ error: error.message || "Fehler beim Löschen des Lagers" });
+    }
+  });
+}
