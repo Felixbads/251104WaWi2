@@ -748,9 +748,11 @@ export default function Orders() {
         </div>
         
         <div className="flex space-x-2">
-          <Button onClick={() => setIsNewOrderOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Neue Bestellung
+          <Button asChild>
+            <Link to="/bestellungen/neu">
+              <Plus className="h-4 w-4 mr-2" />
+              Neue Bestellung
+            </Link>
           </Button>
           
           <DropdownMenu>
@@ -862,9 +864,11 @@ export default function Orders() {
               <TableRow>
                 <TableCell colSpan={9} className="text-center py-8">
                   <p className="text-muted-foreground">Keine Bestellungen gefunden.</p>
-                  <Button variant="outline" className="mt-4" onClick={() => setIsNewOrderOpen(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Erste Bestellung anlegen
+                  <Button variant="outline" className="mt-4" asChild>
+                    <Link to="/bestellungen/neu">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Erste Bestellung anlegen
+                    </Link>
                   </Button>
                 </TableCell>
               </TableRow>

@@ -53,7 +53,7 @@ function WarehouseFormDialog({ warehouse = null, open, onOpenChange }: { warehou
     mutationFn: async (values: z.infer<typeof warehouseFormSchema>) => {
       if (isEditing) {
         return await apiRequest(`/api/warehouses/${warehouse.id}`, {
-          method: 'PATCH',
+          method: 'PUT',
           data: values
         });
       } else {

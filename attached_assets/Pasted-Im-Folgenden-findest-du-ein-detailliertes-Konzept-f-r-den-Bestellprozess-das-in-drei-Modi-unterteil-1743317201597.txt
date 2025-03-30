@@ -1,0 +1,132 @@
+Im Folgenden findest du ein detailliertes Konzept für den Bestellprozess, das in drei Modi unterteilt ist – jeweils basierend auf der vorher notwendigen Auswahl eines Lagertyps (Warehouse):
+
+⸻
+
+Gemeinsamer Einstieg: Lager auswählen
+
+Bevor irgendein Bestellmodus gestartet wird, wählt der Benutzer zunächst das Ziellager aus, in das die Bestellung geliefert werden soll. Dies erfolgt über eine dedizierte Seite oder einen Dialog:
+	•	Lager-Auswahlseite:
+	•	Darstellung: Eine Übersicht aller Lager (Kacheln oder Liste) mit Name, Standort und aktuellem Bestandsstatus.
+	•	Interaktive Filter: Möglichkeit, Lager nach Standort, Kapazität oder besonderen Eigenschaften zu filtern.
+	•	Auswahl: Durch Klick auf ein Lager wird dieses als Ziellager festgelegt und im weiteren Bestellprozess übernommen.
+	•	Bestätigung: Ein „Weiter“-Button leitet den Benutzer zum Bestellmodus-Dashboard weiter.
+
+⸻
+
+Bestellprozess-Modi
+
+Nach der Lager-Auswahl hat der Benutzer drei Optionen, um den Bestellvorgang zu initiieren:
+
+1. Komplette neue Bestellung
+
+Ziel:
+
+Erstellung einer völlig neuen Bestellung ohne Bezug zu vorherigen Bestellungen oder Prognosen.
+
+Prozessschritte:
+	1.	Auswahl des Bestellmodus:
+	•	Der Benutzer wählt die Option „Neue Bestellung anlegen“ aus.
+	2.	Initialisierung:
+	•	Das System zeigt ein leeres Bestellformular an, in dem alle relevanten Felder frei sind.
+	•	Wichtige Felder:
+	•	Lieferant (Dropdown-Liste oder Suchfeld zur Auswahl eines existierenden Lieferanten)
+	•	Bestelldatum (Standard: aktuelles Datum)
+	•	Erwartetes Lieferdatum
+	•	Weitere Angaben wie Zahlungsbedingungen oder Sonderwünsche.
+	3.	Produktübersicht hinzufügen:
+	•	Der Benutzer kann Produkte manuell hinzufügen:
+	•	Produktsuche: Suchfeld zum Finden von Produkten (Abgleich über Produktname oder vendonId).
+	•	Mengenangabe: Für jedes Produkt wird die zu bestellende Menge eingetragen.
+	•	Preis-/Konditionen-Validierung: Das System überprüft und zeigt aktuelle Einkaufspreise und Konditionen des ausgewählten Lieferanten an.
+	4.	Überprüfung und Abschluss:
+	•	Zusammenfassung der Bestellung wird angezeigt, inklusive Gesamtwert.
+	•	Option zur Anpassung einzelner Positionen.
+	•	Button „Bestellung abschließen“ löst den finalen Bestellvorgang aus.
+	•	Das System protokolliert die Bestellung, aktualisiert Bestellhistorie und löst ggf. Benachrichtigungen aus.
+
+⸻
+
+2. Alte Bestellung kopieren
+
+Ziel:
+
+Wiederverwendung einer bereits existierenden Bestellung als Vorlage, um den Bestellprozess zu beschleunigen, indem alle oder ausgewählte Bestellpositionen übernommen werden.
+
+Prozessschritte:
+	1.	Auswahl des Bestellmodus:
+	•	Der Benutzer wählt die Option „Bestellung kopieren“ aus.
+	2.	Historie anzeigen:
+	•	Das System zeigt eine Liste vergangener Bestellungen (idealerweise sortiert nach Datum oder Lieferant).
+	•	Filter: Auswahl nach Lieferant, Zeitraum oder Lager.
+	3.	Vorlage auswählen:
+	•	Der Benutzer klickt auf eine frühere Bestellung, deren Positionen übernommen werden sollen.
+	•	Das System lädt alle Positionen, Konditionen und Lieferanteninformationen der ausgewählten Bestellung in ein neues Bestellformular.
+	4.	Anpassung der Bestellung:
+	•	Der Benutzer kann:
+	•	Einzelne Positionen bearbeiten oder entfernen.
+	•	Mengen und Preise anpassen, falls sich die aktuellen Konditionen geändert haben.
+	•	Den Liefertermin und andere administrative Details anpassen.
+	5.	Überprüfung und Abschluss:
+	•	Eine Zusammenfassungsseite zeigt alle übernommenen Daten und den Gesamtwert.
+	•	Nach Bestätigung wird die neue Bestellung als Kopie (mit eigenem Bestellnummern-Satz) finalisiert.
+	•	Änderungen werden in der Historie protokolliert.
+
+⸻
+
+3. Bestellung aufgrund Prognose
+
+Ziel:
+
+Automatische Erstellung einer Bestellung auf Basis von Prognosedaten, die Verkaufszahlen, Lagerbestände und historische Daten analysieren, um optimal abgestimmte Bestellmengen zu ermitteln.
+
+Prozessschritte:
+	1.	Auswahl des Bestellmodus:
+	•	Der Benutzer wählt die Option „Prognosebasierte Bestellung“ aus.
+	2.	Datenintegration und Analyse:
+	•	Das System greift auf Prognosedaten zu, die aus den Transaktionen, Lagerbewegungen und externen Faktoren (z. B. saisonale Schwankungen, Trends) abgeleitet sind.
+	•	Eine grafische Übersicht (z. B. Balkendiagramm oder Heatmap) zeigt die prognostizierten Mengen pro Produkt für den gewählten Zeitraum an.
+	3.	Erstellung des Bestellvorschlags:
+	•	Das System erstellt automatisch einen Bestellvorschlag:
+	•	Für jedes Produkt wird die prognostizierte Nachbestellmenge berechnet.
+	•	Zusätzlich erfolgt eine Überprüfung des aktuellen Lagerbestands, sodass nur Produkte berücksichtigt werden, die unter einem definierten Schwellenwert liegen.
+	•	Konditionen und Einkaufspreise werden automatisch aus den hinterlegten Lieferantendaten übernommen.
+	4.	Überprüfung und Anpassung:
+	•	Der Bestellvorschlag wird in einem übersichtlichen Formular dargestellt.
+	•	Der Benutzer hat die Möglichkeit, einzelne Positionen zu modifizieren:
+	•	Mengen anpassen, Produkte entfernen oder neue Produkte hinzufügen.
+	•	Den Bestellvorschlag manuell übersteuern, falls besondere Umstände vorliegen.
+	5.	Überprüfung und Abschluss:
+	•	Zusammenfassung der prognosebasierten Bestellung inklusive Gesamtwert.
+	•	Bestätigung durch den Benutzer finalisiert den Bestellvorgang.
+	•	Das System speichert die Bestellung, notiert die prognostischen Berechnungen und aktualisiert den Bestellstatus.
+
+⸻
+
+4. Gemeinsame technische Aspekte und Validierungen
+	•	Lagerintegration:
+Alle Bestellungen werden in direktem Bezug zum ausgewählten Lager erstellt. Das System stellt sicher, dass der Lagerbestand vor Bestellvorgängen aktualisiert wird (zum Beispiel durch Abzug der in Refills erfassten Mengen).
+	•	Konditionen und Preisabgleich:
+Vor Abschluss jeder Bestellung werden aktuelle Einkaufskonditionen und Preise abgeglichen, um Diskrepanzen zwischen alten Bestellungen und aktuellen Marktsituationen zu vermeiden.
+	•	Workflow-Validierung:
+Jeder Schritt (neu, kopiert, prognosebasiert) beinhaltet Validierungen, wie z. B.:
+	•	Prüfung, ob alle Pflichtfelder (Lieferant, Produkte, Mengen) ausgefüllt sind.
+	•	Überprüfung der Verfügbarkeit von Produkten und der Lagerkapazitäten.
+	•	Einbindung von Warnungen bei kritischen Werten (z. B. zu niedriger Bestand oder stark abweichende Prognosen).
+	•	Benutzerrechte:
+Je nach Rolle (z. B. Administrator, Einkäufer) sind unterschiedliche Bearbeitungsoptionen freigeschaltet. Ein Administrator kann beispielsweise Bestellungen freigeben oder ändern, während ein normaler Einkäufer nur Vorschläge erstellen kann.
+	•	Protokollierung und Historie:
+Jede Bestellung wird protokolliert, und alle Änderungen (insbesondere beim Kopieren oder Prognose-basierten Anpassen) werden in einer Historie gespeichert, sodass Rückschlüsse auf frühere Entscheidungen gezogen werden können.
+
+⸻
+
+5. Zusammenfassung
+
+Das Konzept zur Bestellung besteht aus einem initialen Schritt, in dem das Ziellager ausgewählt wird, gefolgt von drei Bestellmodi:
+	1.	Komplett neue Bestellung:
+Ein vollständig leeres Formular, in dem der Benutzer alle relevanten Daten manuell eingibt.
+	2.	Alte Bestellung kopieren:
+Übernahme einer bestehenden Bestellung als Vorlage, mit anschließender manueller Anpassung.
+	3.	Bestellung aufgrund Prognose:
+Automatisch erstellter Bestellvorschlag basierend auf historischen Verkaufs- und Bestandsdaten, der dem Benutzer als Ausgangspunkt dient und bei Bedarf angepasst werden kann.
+
+Dieses detaillierte Konzept ermöglicht eine flexible, bedarfsgerechte und valide Bestellabwicklung, die sich an die dynamischen Anforderungen eines Warenwirtschaftssystems anpasst. Entwickler erhalten damit eine klare Roadmap zur Implementierung der unterschiedlichen Bestellprozesse, die nahtlos in das Gesamtsystem integriert werden.

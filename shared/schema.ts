@@ -1087,6 +1087,7 @@ export const warehouses = pgTable("warehouses", {
   contactPerson: text("contact_person"),
   phone: text("phone"),
   email: text("email"),
+  isActive: boolean("is_active").default(true),
   status: text("status").default("active"),
   type: text("type").default("main"), // main, branch, temporary, etc.
   notes: text("notes"),
