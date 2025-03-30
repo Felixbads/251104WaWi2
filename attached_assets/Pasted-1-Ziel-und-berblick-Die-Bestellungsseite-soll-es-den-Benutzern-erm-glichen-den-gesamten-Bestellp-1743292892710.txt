@@ -1,0 +1,108 @@
+1. Ziel und Überblick
+
+Die Bestellungsseite soll es den Benutzern ermöglichen, den gesamten Bestellprozess zu steuern und zu überwachen. Dies umfasst die Initiierung von Bestellungen, die Detailansicht einzelner Bestellungen, den Statusabgleich (Offen, Bestellt, Geliefert) sowie die Analyse von Bestellhistorien. Gleichzeitig dient die Seite als Schnittstelle, um Lieferanteninformationen und Lagerverknüpfungen zu berücksichtigen, sodass sichergestellt wird, dass die richtigen Produkte in den richtigen Mengen und zur richtigen Zeit bestellt werden.
+
+2. Layout und Struktur
+
+A. Seitenkopf und Navigation
+Titel & Breadcrumbs:
+Der Seitenkopf zeigt den Titel „Bestellungen“ und entsprechende Breadcrumbs, die dem Benutzer den Navigationspfad (z. B. Dashboard > Bestellungen) anzeigen.
+Schnellzugriffs-Buttons:
+Direkt oberhalb der Bestellübersicht befinden sich Buttons wie:
+„Neue Bestellung anlegen“: Leitet den Benutzer in den Bestellprozess.
+„Filter zurücksetzen“: Setzt alle aktiven Filter zurück.
+„Exportieren“: Ermöglicht den Export der aktuellen Bestellübersicht als CSV oder PDF.
+Such- und Filterleiste:
+Ein interaktives Suchfeld und erweiterte Filteroptionen (als Dropdown oder seitliche Sidebar) ermöglichen:
+Datumsauswahl: Auswahl von Bestellungen nach Bestelldatum oder Lieferdatum.
+Statusfilter: Auswahl zwischen „Offen“, „Bestellt“, „Geliefert“ oder anderen benutzerdefinierten Status.
+Lieferant: Filter nach dem zugeordneten Lieferanten.
+Lager: Filter nach dem Ziellager, in das geliefert wird.
+Betragsfilter: Auswahl nach Gesamtbestellwert (z. B. klein, mittel, groß).
+B. Bestellübersicht (Listen- oder Tabellenansicht)
+Tabellarische Darstellung:
+Die Bestellungen werden in einer Tabelle aufgelistet, wobei jede Zeile einen Bestellvorgang repräsentiert.
+Spalten und Inhalte:
+Bestellnummer: Eine eindeutige Kennung, die den Vorgang identifiziert.
+Lieferant: Name des Lieferanten, häufig als Hyperlink, der direkt zur Detailseite des Lieferanten führt.
+Ziellager: Das Lager, in das die Bestellung geliefert werden soll.
+Bestellstatus: Statusanzeige (z. B. farbkodiert: Grün für „Geliefert“, Gelb für „Bestellt“, Rot für „Offen“).
+Bestelldatum: Datum und Uhrzeit, zu der die Bestellung initiiert wurde.
+Lieferdatum (geplant/aktuell): Falls vorhanden, das geplante bzw. tatsächliche Lieferdatum.
+Gesamtwert: Summierter Bestellwert in der jeweiligen Währung.
+Aktionen:
+Detailansicht: Ein Button oder Icon, das den Benutzer zur Detailansicht der jeweiligen Bestellung führt.
+Bearbeiten: Je nach Benutzerrechten, ein Schnellzugriffsbutton zum Editieren (z. B. Änderung des Status oder Korrekturen der Bestellpositionen).
+Interaktive Funktionen:
+Sortierung: Alle Spalten können sortiert werden (z. B. nach Datum, Status oder Gesamtwert).
+Mehrfachauswahl: Möglichkeit, mehrere Bestellungen auszuwählen, um Massendownloads oder Statusänderungen vorzunehmen.
+C. Detailseite einer Bestellung
+Beim Klick auf eine Bestellung öffnet sich eine ausführliche Detailansicht, die in mehrere Abschnitte und Tabs unterteilt ist.
+
+1. Header-Bereich
+
+Bestellübersicht:
+Anzeige der Bestellnummer, des Lieferanten und des Ziellagers.
+Zusammenfassung der wichtigsten Kennzahlen: Bestelldatum, geplanter Liefertermin, aktueller Status und Gesamtwert.
+Statusanzeige mit farblicher Markierung und, falls vorhanden, einem Hinweis auf Verzögerungen oder Probleme (z. B. „Verspätete Lieferung“).
+Aktionen:
+Button „Bearbeiten“, um Details wie Lieferdatum oder Status anzupassen.
+Button „Bestellung stornieren“ (bei Bedarf, abhängig von den Rechten und dem Status).
+2. Tab-Navigation – Detailinformationen
+
+A. Bestellpositionen:
+Liste der Produkte:
+Eine Tabelle, die alle Produkte der Bestellung anzeigt, inklusive Spalten:
+Produktname (als Link zur Produktdetailseite)
+Bestellte Menge
+Einzelpreis
+Gesamtpreis pro Position (Menge × Einzelpreis)
+Status (z. B. „Bereitgestellt“, „Teilweise geliefert“)
+Bearbeitungsfunktion:
+Möglichkeit, Positionen hinzuzufügen, zu bearbeiten oder zu entfernen (abhängig vom Bestellstatus).
+B. Lieferantendetails:
+Detaillierte Informationen zum Lieferanten, z. B. Kontaktdaten, vereinbarte Lieferzeiten und Einkaufskonditionen.
+Historie der Konditionsänderungen (falls vorhanden).
+C. Zahlungs- und Abrechnungsinformationen:
+Übersicht der Zahlungsbedingungen, eventuell verknüpft mit Rechnungsdaten.
+Hinweise zu Zahlungsstatus und Abrechnungen (z. B. offene Zahlungen).
+D. Status- und Log-Informationen:
+Chronologischer Verlauf des Bestellstatus (z. B. wann wurde die Bestellung angelegt, wann der Status geändert, wer hat dies vorgenommen).
+Eventuelle Kommentare oder Notizen, die im Laufe des Bestellvorgangs hinzugefügt wurden.
+E. Dokumentenverwaltung:
+Falls verfügbar, können Bestelldokumente (wie Bestellbestätigungen, Lieferscheine) als Anhänge angezeigt und heruntergeladen werden.
+D. Interaktive Elemente und Zusatzfunktionen
+Filter und Drilldowns:
+Aus der Übersichtsseite können einzelne Bestellungen nach spezifischen Kriterien gefiltert und bei Bedarf im Detail betrachtet werden.
+Echtzeit-Updates:
+Bei Bestellungen, die sich im Bearbeitungsstatus befinden, können Live-Statusaktualisierungen eingeblendet werden (z. B. wenn sich der Status von „Bestellt“ zu „Geliefert“ ändert).
+Benutzerfreundliche Editierung:
+Inline-Editierung von Feldern (wie Lieferdatum oder Bestellstatus) in der Detailansicht, um schnelle Korrekturen zu ermöglichen.
+Benachrichtigungen:
+Integrierte Hinweise, wenn Bestellungen verspätet sind oder wenn kritische Schwellenwerte (z. B. Bestellwert oder Lieferzeiten) überschritten werden.
+Export- und Druckoption:
+Möglichkeit, die Bestelldetails in druckfreundlichen Formaten (PDF) oder als CSV-Datei zu exportieren, um diese beispielsweise in Buchhaltungssysteme zu integrieren.
+3. Technische und Usability-Aspekte
+
+Responsives Design:
+Die Bestellungsseite passt sich flexibel an verschiedene Endgeräte an. Auf kleineren Bildschirmen werden beispielsweise Tabellen in Akkordeon-Elemente umgewandelt oder wichtige Informationen priorisiert dargestellt.
+Visuelle Kennzeichnung:
+Farbliche Statusindikatoren (z. B. grün, gelb, rot) helfen, den aktuellen Bestellstatus auf einen Blick zu erkennen.
+Icons und Tooltips unterstützen den Benutzer dabei, Funktionen und Statusmeldungen schnell zu erfassen.
+Zugriffsrechte:
+Je nach Benutzerrolle (z. B. Administrator, Einkäufer, Lagerverwalter) werden unterschiedliche Bearbeitungs- und Anzeigeoptionen freigeschaltet.
+Performance und Ladezeiten:
+Da die Bestellungen häufig komplexe Datenmengen beinhalten können, wird auf eine effiziente Datenabfrage und asynchrone Aktualisierung der Informationen (z. B. per AJAX oder WebSockets) geachtet.
+4. Zusammenfassung der „Bestellungen“-Seite
+
+Die Bestellungsseite ist so konzipiert, dass sie einen vollständigen Überblick über den Bestellprozess bietet:
+
+Übersicht:
+Zeigt alle Bestellungen in einer sortier- und filterbaren Tabelle an, inklusive wichtiger Kennzahlen wie Bestellnummer, Lieferant, Status, Datum und Gesamtwert.
+Detailansicht:
+Bietet eine umfassende Darstellung einzelner Bestellungen mit mehreren Tabs, die Bestellpositionen, Lieferanten- und Zahlungsinformationen, Statushistorie sowie Dokumente abdecken.
+Interaktivität und Usability:
+Ermöglicht schnelle Bearbeitung, Echtzeit-Statusupdates, Exportfunktionen und benutzerfreundliche Filtermöglichkeiten.
+Integration:
+Verknüpft die Bestellungen nahtlos mit anderen Modulen (z. B. Lieferanten, Lager und Transaktionen) und sorgt so für einen durchgängigen Informationsfluss.
+Dieses detaillierte Konzept stellt sicher, dass der gesamte Bestellprozess transparent, nachvollziehbar und effizient gesteuert werden kann – von der Initiierung bis zur abschließenden Auswertung der Bestellhistorie. Entwickler erhalten somit eine klare Anleitung, wie sowohl das Frontend als auch die zugrunde liegende Logik realisiert werden sollen.
