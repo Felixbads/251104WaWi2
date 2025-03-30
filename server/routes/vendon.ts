@@ -114,13 +114,19 @@ router.post('/historical-sync', async (req, res) => {
     
     if (action === 'start') {
       // Starte manuell die historische Synchronisierung durch Initialisierung des Status
+      // Aktuelle Anzahl der Transaktionen ermitteln
+      const transactionCount = await vendonSync.getTransactionCount();
+      
       vendonSync['historicalSyncState'] = {
         inProgress: true,
         currentYear: new Date().getFullYear(),
         currentMonth: new Date().getMonth(),
         targetDate: new Date(targetYear, targetMonth, 1), // Standard: 1. Januar 2023
         startDate: new Date(),
-        batchSize: batchSize
+        batchSize: batchSize,
+        totalTransactions: transactionCount,
+        completedMonths: [],
+        processingStart: Date.now()
       };
       
       // Führe einen ersten Batch durch

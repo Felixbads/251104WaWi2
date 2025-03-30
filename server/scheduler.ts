@@ -15,9 +15,13 @@ const timers: Record<string, NodeJS.Timeout> = {};
 
 // Konfiguration für verschiedene Syncs
 const syncConfig = {
+  immediate: {
+    interval: 5 * 60 * 1000, // 5 Minuten (war: 5 Minuten)
+    syncTypes: ['transactions'] // Sehr schnelle Sync-Typen, die in Echtzeit benötigt werden
+  },
   fast: {
-    interval: 5 * 60 * 1000, // 5 Minuten
-    syncTypes: ['transactions', 'refills'] // Schnelle Sync-Typen
+    interval: 30 * 60 * 1000, // 30 Minuten (war: 5 Minuten)
+    syncTypes: ['refills'] // Schnelle Sync-Typen
   },
   medium: {
     interval: 60 * 60 * 1000, // 1 Stunde
@@ -28,7 +32,7 @@ const syncConfig = {
     syncTypes: ['holidays'] // Langsame Sync-Typen, die nicht oft aktualisiert werden müssen
   },
   historical: {
-    interval: 12 * 60 * 60 * 1000, // 12 Stunden
+    interval: 2 * 60 * 60 * 1000, // 2 Stunden (war: 12 Stunden)
     syncTypes: ['historical_batch'] // Historische Daten schrittweise synchronisieren
   }
 };
@@ -120,7 +124,9 @@ function scheduleNextSync(syncType: string): void {
   let interval = 0;
   
   // Finde das passende Intervall für den Sync-Typ
-  if (syncConfig.fast.syncTypes.includes(syncType)) {
+  if (syncConfig.immediate.syncTypes.includes(syncType)) {
+    interval = syncConfig.immediate.interval;
+  } else if (syncConfig.fast.syncTypes.includes(syncType)) {
     interval = syncConfig.fast.interval;
   } else if (syncConfig.medium.syncTypes.includes(syncType)) {
     interval = syncConfig.medium.interval;
@@ -148,6 +154,13 @@ function scheduleNextSync(syncType: string): void {
  */
 export function startAutomaticSync(): void {
   console.log('Starte automatische Synchronisierung...');
+  
+  // Starte sofortige Synchronisierungen
+  syncConfig.immediate.syncTypes.forEach(syncType => {
+    console.log(`Plane sofortige Synchronisierung für: ${syncType}`);
+    // Starte mit minimaler Verzögerung (5 Sekunden)
+    timers[syncType] = setTimeout(() => performSync(syncType), 5000);
+  });
   
   // Starte schnelle Synchronisierungen
   syncConfig.fast.syncTypes.forEach(syncType => {

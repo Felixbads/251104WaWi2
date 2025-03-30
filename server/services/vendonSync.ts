@@ -527,6 +527,9 @@ export class VendonSyncService {
     targetDate: Date;
     startDate: Date;
     batchSize: number;
+    totalTransactions: number; // Gesamtzahl der geladenen historischen Transaktionen
+    completedMonths: Array<string>; // Liste der fertig synchronisierten Monate im Format YYYY-MM
+    processingStart: number; // Zeitstempel für den Beginn der aktuellen Synchronisierung
   };
   
   constructor() {
@@ -540,7 +543,10 @@ export class VendonSyncService {
       currentMonth: new Date().getMonth(),
       targetDate: new Date(2023, 0, 1), // Ziel: 1. Januar 2023
       startDate: new Date(), // Startdatum ist das aktuelle Datum
-      batchSize: 100
+      batchSize: 200, // Erhöht für bessere Performance
+      totalTransactions: 0,
+      completedMonths: [],
+      processingStart: 0
     };
   }
   
@@ -692,6 +698,20 @@ export class VendonSyncService {
   
   private formatDate(date: Date): string {
     return date.toISOString();
+  }
+  
+  /**
+   * Holt die aktuelle Anzahl von Transaktionen aus der Datenbank
+   * @returns Die Anzahl der Transaktionen
+   */
+  public async getTransactionCount(): Promise<number> {
+    try {
+      const count = await storage.getTransactionCount();
+      return count;
+    } catch (error) {
+      console.error("Fehler beim Abrufen der Transaktionsanzahl:", error);
+      return 0;
+    }
   }
   
   /**
@@ -1926,13 +1946,20 @@ export class VendonSyncService {
     // Wenn keine historische Synchronisierung läuft, starte eine neue
     if (!this.historicalSyncState.inProgress) {
       console.log("Starte neue historische Synchronisierung...");
+      
+      // Aktuelle Anzahl der Transaktionen ermitteln
+      const transactionCount = await this.getTransactionCount();
+      
       this.historicalSyncState = {
         inProgress: true,
         currentYear: new Date().getFullYear(),
         currentMonth: new Date().getMonth(),
         targetDate: new Date(2023, 0, 1), // Ziel: 1. Januar 2023
         startDate: new Date(), // Startdatum ist das aktuelle Datum
-        batchSize: 100
+        batchSize: 200, // Erhöhte Batchgröße für schnellere Verarbeitung
+        totalTransactions: transactionCount,
+        completedMonths: [],
+        processingStart: Date.now()
       };
     }
     
@@ -1965,6 +1992,15 @@ export class VendonSyncService {
       // Hole die Ergebnisse aus dem Sync-Log
       const syncLog = await storage.getSyncLog(result.syncLogId);
       
+      // Aktualisiere die Transaktionszahl
+      this.historicalSyncState.totalTransactions = await this.getTransactionCount();
+      
+      // Füge den abgeschlossenen Monat zu den vollständig verarbeiteten Monaten hinzu
+      const monthKey = `${this.historicalSyncState.currentYear}-${(this.historicalSyncState.currentMonth + 1).toString().padStart(2, '0')}`;
+      if (!this.historicalSyncState.completedMonths.includes(monthKey)) {
+        this.historicalSyncState.completedMonths.push(monthKey);
+      }
+      
       // Gehe zum vorherigen Monat für den nächsten Durchlauf
       this.historicalSyncState.currentMonth--;
       if (this.historicalSyncState.currentMonth < 0) {
@@ -1973,8 +2009,9 @@ export class VendonSyncService {
       }
       
       // Erstelle eine statistische Zusammenfassung
+      const monthsSyncedCount = this.historicalSyncState.completedMonths.length;
       const summary = syncLog 
-        ? `${syncLog.itemsSaved || 0} neue Transaktionen, ${syncLog.duplicates || 0} Duplikate, ${syncLog.errors || 0} Fehler`
+        ? `${syncLog.itemsSaved || 0} neue Transaktionen, ${syncLog.duplicates || 0} Duplikate, ${syncLog.errors || 0} Fehler. Insgesamt ${this.historicalSyncState.totalTransactions} Transaktionen in ${monthsSyncedCount} Monaten.`
         : "Keine Statistiken verfügbar";
       
       return {
@@ -2003,7 +2040,15 @@ export class VendonSyncService {
     transactions: { status: string; lastSync: number; count: number; latest: number },
     refills: { status: string; lastSync: number; count: number },
     events: { status: string; lastSync: number; count: number },
-    historicalSync: { inProgress: boolean; currentDate: string; targetDate: string; progress: number }
+    historicalSync: { 
+      inProgress: boolean; 
+      currentDate: string; 
+      targetDate: string; 
+      progress: number;
+      completedMonths: string[];
+      totalTransactions: number;
+      processingTimeMin: number;
+    }
   }> {
     // Hole den letzten Sync-Log-Eintrag für jeden Typ
     const machinesSyncLog = await storage.getLatestSyncLog('machines');
@@ -2046,7 +2091,7 @@ export class VendonSyncService {
       transactions: {
         status: transactionsSyncLog?.syncStatus || 'never',
         lastSync: transactionsSyncLog ? transactionsSyncLog.endDate?.getTime() || 0 : 0,
-        count: 0, // Wir würden hier die tatsächliche Anzahl abfragen
+        count: await this.getTransactionCount(), // Aktuelle Transaktionsanzahl aus der Datenbank
         latest: Array.isArray(transactions) && transactions.length > 0 ? transactions[0].datetime.getTime() : 0
       },
       refills: {
@@ -2063,7 +2108,11 @@ export class VendonSyncService {
         inProgress: this.historicalSyncState.inProgress,
         currentDate: currentDate.toISOString().split('T')[0],
         targetDate: targetDate.toISOString().split('T')[0],
-        progress: progressPercent
+        progress: progressPercent,
+        completedMonths: this.historicalSyncState.completedMonths,
+        totalTransactions: this.historicalSyncState.totalTransactions,
+        processingTimeMin: this.historicalSyncState.processingStart ? 
+          Math.floor((Date.now() - this.historicalSyncState.processingStart) / (1000 * 60)) : 0
       }
     };
   }

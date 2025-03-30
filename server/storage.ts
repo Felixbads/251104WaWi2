@@ -32,6 +32,9 @@ export interface IStorage {
     events: { count: number; latest: Date | null };
     products: { count: number; latest: Date | null };
   }>;
+  
+  // Transaction count method for sync status tracking
+  getTransactionCount(): Promise<number>;
 
   // User operations
   getUser(id: number): Promise<User | undefined>;
@@ -221,6 +224,12 @@ export interface IStorage {
 
 // Database storage implementation
 export class DatabaseStorage implements IStorage {
+  // Get transaction count for sync status
+  async getTransactionCount(): Promise<number> {
+    const countResult = await db.select({ count: count() }).from(transactions);
+    return parseInt(countResult[0]?.count?.toString() || '0');
+  }
+
   // Database statistics operations
   async getDatabaseStats(): Promise<{
     transactions: { count: number; latest: Date | null };

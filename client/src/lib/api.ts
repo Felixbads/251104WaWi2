@@ -343,8 +343,35 @@ export async function getProduct(id: string): Promise<Product> {
 }
 
 // Synchronisierung
-export async function getSyncStatus(): Promise<any> {
-  return apiRequest<any>('get', '/sync/status');
+export interface SyncStatusData {
+  status: string;
+  lastSync: number;
+  count: number;
+  latest?: number;
+}
+
+export interface HistoricalSyncStatus {
+  inProgress: boolean;
+  currentDate: string;
+  targetDate: string;
+  progress: number;
+  completedMonths: string[];
+  totalTransactions: number;
+  processingTimeMin: number;
+}
+
+export interface SyncStatus {
+  machines: SyncStatusData;
+  products: SyncStatusData;
+  transactions: SyncStatusData;
+  refills: SyncStatusData;
+  refillDetails?: SyncStatusData;
+  events: SyncStatusData;
+  historicalSync: HistoricalSyncStatus;
+}
+
+export async function getSyncStatus(): Promise<SyncStatus> {
+  return apiRequest<SyncStatus>('get', '/sync/status');
 }
 
 export async function startSync(syncType: string): Promise<any> {

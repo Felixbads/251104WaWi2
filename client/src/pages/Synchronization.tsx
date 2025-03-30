@@ -13,7 +13,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarIcon, Database, FileText, Package, AlertCircle, Clock, RefreshCw, Loader2, LayoutDashboard } from "lucide-react";
-import { getSyncStatus, triggerSync, formatDateTime, getDatabaseStats, DatabaseStats } from "@/lib/api";
+import { getSyncStatus, triggerSync, formatDateTime, getDatabaseStats, DatabaseStats, SyncStatus } from "@/lib/api";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -34,7 +34,7 @@ export default function Synchronization() {
   const [datePreset, setDatePreset] = useState<string>("last7days");
 
   // Fetch sync status
-  const { data: syncStatus, isLoading: isLoadingSyncStatus, error: syncError } = useQuery({
+  const { data: syncStatus, isLoading: isLoadingSyncStatus, error: syncError } = useQuery<SyncStatus>({
     queryKey: ['/api/sync/status'],
     refetchInterval: 10000, // Refetch every 10 seconds
   });
@@ -237,6 +237,59 @@ export default function Synchronization() {
                     <p className="text-xs text-gray-600 mt-2">
                       Ziel: 130.000+ Transaktionen seit Januar 2023
                     </p>
+                  </Card>
+
+                  {/* Historical Sync Status */}
+                  <Card className="p-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="text-sm font-medium flex items-center">
+                        <Clock className="h-4 w-4 mr-2 text-amber-600" />
+                        Historische Synchronisierung
+                      </h3>
+                      <Badge 
+                        variant={syncStatus?.historicalSync?.inProgress ? "default" : "outline"} 
+                        className="text-xs"
+                      >
+                        {syncStatus?.historicalSync?.inProgress ? "Aktiv" : "Inaktiv"}
+                      </Badge>
+                    </div>
+                    <Progress 
+                      value={syncStatus?.historicalSync?.progress || 0} 
+                      className="h-2 mb-2" 
+                    />
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <p className="text-xs text-gray-500">
+                        Aktuell: {syncStatus?.historicalSync?.currentDate || "Nicht aktiv"}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Zieldatum: {syncStatus?.historicalSync?.targetDate || "01.01.2023"}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Fortschritt: {syncStatus?.historicalSync?.progress ? `${syncStatus.historicalSync.progress}%` : "0%"}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Laufzeit: {syncStatus?.historicalSync?.processingTimeMin ? `${syncStatus.historicalSync.processingTimeMin} Min.` : "0 Min."}
+                      </p>
+                    </div>
+                    {syncStatus?.historicalSync?.completedMonths && syncStatus.historicalSync.completedMonths.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-xs text-gray-600">
+                          {syncStatus.historicalSync.completedMonths.length} Monate vervollständigt
+                        </p>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {syncStatus.historicalSync.completedMonths.slice(0, 10).map((month, index) => (
+                            <Badge key={index} variant="outline" className="text-xs">
+                              {month}
+                            </Badge>
+                          ))}
+                          {syncStatus.historicalSync.completedMonths.length > 10 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{syncStatus.historicalSync.completedMonths.length - 10} weitere
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </Card>
 
                   {/* Machines Status */}
