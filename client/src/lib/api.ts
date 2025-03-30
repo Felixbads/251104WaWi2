@@ -197,6 +197,13 @@ export interface RefillDetail {
   productName: string;
   vendonProductId?: string;
   quantity: number;
+  price?: number;
+  position?: string;
+  added?: number;           // Anzahl der hinzugefügten Produkte
+  removed?: number;         // Anzahl der entfernten Produkte
+  previousStock?: number;   // Vorheriger Lagerbestand
+  currentStock?: number;    // Aktueller Lagerbestand
+  datetime?: string;
   createdAt: string;
   updatedAt: string;
 }

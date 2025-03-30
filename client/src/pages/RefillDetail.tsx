@@ -23,7 +23,17 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDateTime } from "@/lib/api";
-import { getRefillById, getWarehouseById, getWarehouseInventory, updateWarehouseInventory, Refill, RefillProduct, WarehouseProduct } from "@/lib/api";
+import { 
+  getRefillById, 
+  getRefillDetails, 
+  getWarehouseById, 
+  getWarehouseInventory, 
+  updateWarehouseInventory, 
+  Refill, 
+  RefillProduct, 
+  RefillDetail as RefillDetailType,
+  WarehouseProduct 
+} from "@/lib/api";
 
 export default function RefillDetail() {
   const { id, refillId } = useParams();
@@ -41,6 +51,17 @@ export default function RefillDetail() {
   } = useQuery({
     queryKey: ['/api/refills', refillId],
     queryFn: () => refillId ? getRefillById(refillId) : Promise.reject('Refill ID is required'),
+    enabled: !!refillId,
+  });
+  
+  // Refill Details abrufen
+  const {
+    data: refillDetails,
+    isLoading: isLoadingRefillDetails,
+    isError: isErrorRefillDetails
+  } = useQuery({
+    queryKey: ['/api/refills', refillId, 'details'],
+    queryFn: () => refillId ? getRefillDetails(Number(refillId)) : Promise.reject('Refill ID is required'),
     enabled: !!refillId,
   });
 
@@ -284,7 +305,50 @@ export default function RefillDetail() {
                   <CardDescription>Produkte, die bei dieser Auffüllung verwendet wurden</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {refill.products && refill.products.length > 0 ? (
+                  {isLoadingRefillDetails ? (
+                    <div className="space-y-3">
+                      <Skeleton className="h-8 w-full" />
+                      <Skeleton className="h-8 w-full" />
+                      <Skeleton className="h-8 w-full" />
+                    </div>
+                  ) : isErrorRefillDetails ? (
+                    <div className="text-center py-8">
+                      <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+                      <p className="text-gray-500">Fehler beim Laden der Detaildaten</p>
+                    </div>
+                  ) : refillDetails && refillDetails.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Produkt</TableHead>
+                          <TableHead>Hinzugefügt</TableHead>
+                          <TableHead>Entnommen</TableHead>
+                          <TableHead>Fach/Position</TableHead>
+                          <TableHead>Lagerbestand</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {refillDetails.map((detail: RefillDetailType) => (
+                          <TableRow key={detail.id}>
+                            <TableCell className="font-medium">{detail.productName}</TableCell>
+                            <TableCell>{(detail.added || 0) > 0 ? `${detail.added} Stk.` : '–'}</TableCell>
+                            <TableCell>{(detail.removed || 0) > 0 ? `${detail.removed} Stk.` : '–'}</TableCell>
+                            <TableCell>{detail.position || '–'}</TableCell>
+                            <TableCell>
+                              {detail.previousStock !== null && detail.currentStock !== null ? (
+                                <div className="flex flex-col text-xs">
+                                  <span>Vorher: {detail.previousStock} Stk.</span>
+                                  <span>Nachher: {detail.currentStock} Stk.</span>
+                                </div>
+                              ) : (
+                                <span className="text-gray-500">Keine Daten</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : refill.products && refill.products.length > 0 ? (
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -311,8 +375,7 @@ export default function RefillDetail() {
                             </TableCell>
                             <TableCell>{product.position || product.slot || '–'}</TableCell>
                             <TableCell>
-                              {/* Lagerbestandsänderung würde hier angezeigt werden, falls verfügbar */}
-                              <span className="text-gray-500">Wird geladen...</span>
+                              <span className="text-gray-500">Keine Detaildaten</span>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -327,14 +390,37 @@ export default function RefillDetail() {
                 </CardContent>
                 <CardFooter className="border-t pt-4">
                   <div className="space-y-2 w-full">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Gesamtzahl Produkte:</span>
-                      <span className="font-medium">{refill.products?.reduce((sum, p) => sum + p.quantity, 0) || 0} Stk.</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Anzahl unterschiedlicher Produkte:</span>
-                      <span className="font-medium">{refill.products?.length || 0}</span>
-                    </div>
+                    {refillDetails && refillDetails.length > 0 ? (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Hinzugefügte Produkte:</span>
+                          <span className="font-medium">
+                            {refillDetails.reduce((sum, p) => sum + (p.added || 0), 0)} Stk.
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Entnommene Produkte:</span>
+                          <span className="font-medium">
+                            {refillDetails.reduce((sum, p) => sum + (p.removed || 0), 0)} Stk.
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Anzahl unterschiedlicher Produkte:</span>
+                          <span className="font-medium">{refillDetails.length}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Gesamtzahl Produkte:</span>
+                          <span className="font-medium">{refill.products?.reduce((sum, p) => sum + p.quantity, 0) || 0} Stk.</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-500">Anzahl unterschiedlicher Produkte:</span>
+                          <span className="font-medium">{refill.products?.length || 0}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </CardFooter>
               </Card>
