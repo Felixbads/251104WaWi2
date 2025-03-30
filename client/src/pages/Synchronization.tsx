@@ -13,11 +13,12 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarIcon, Database, FileText, Package, AlertCircle, Clock, RefreshCw, Loader2, LayoutDashboard } from "lucide-react";
-import { getSyncStatus, triggerSync, formatDateTime } from "@/lib/api";
+import { getSyncStatus, triggerSync, formatDateTime, getDatabaseStats, DatabaseStats } from "@/lib/api";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
-import { SyncStatus } from "@/lib/types";
+// Direkt API-Typen verwenden
+// import { SyncStatus } from "@/lib/types";
 
 export default function Synchronization() {
   const { toast } = useToast();
@@ -33,20 +34,21 @@ export default function Synchronization() {
   const [datePreset, setDatePreset] = useState<string>("last7days");
 
   // Fetch sync status
-  const { data: syncStatus, isLoading, error } = useQuery<SyncStatus>({
+  const { data: syncStatus, isLoading: isLoadingSyncStatus, error: syncError } = useQuery({
     queryKey: ['/api/sync/status'],
     refetchInterval: 10000, // Refetch every 10 seconds
+  });
+  
+  // Fetch database statistics
+  const { data: dbStats, isLoading: isLoadingDbStats, error: dbError } = useQuery<DatabaseStats>({
+    queryKey: ['/api/database/stats'],
+    refetchInterval: 60000, // Refetch every minute
   });
 
   // Sync mutation
   const syncMutation = useMutation({
     mutationFn: () => 
-      triggerSync(syncType, {
-        startDate: startDate?.toISOString(),
-        endDate: endDate?.toISOString(),
-        batchSize,
-        isHistorical: isHistoricalSync
-      }),
+      triggerSync(syncType),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
       queryClient.invalidateQueries({ queryKey: ['/api/sync/logs'] });
@@ -127,15 +129,17 @@ export default function Synchronization() {
 
             {/* Status Tab */}
             <TabsContent value="status" className="space-y-4">
-              {error ? (
+              {syncError || dbError ? (
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
                   <AlertTitle>Fehler</AlertTitle>
                   <AlertDescription>
-                    {error instanceof Error ? error.message : "Fehler beim Laden des Synchronisierungsstatus."}
+                    {(syncError || dbError) instanceof Error 
+                      ? (syncError || dbError).message 
+                      : "Fehler beim Laden der Daten."}
                   </AlertDescription>
                 </Alert>
-              ) : isLoading ? (
+              ) : isLoadingSyncStatus || isLoadingDbStats ? (
                 <>
                   <div className="flex items-center space-x-2">
                     <Loader2 className="h-4 w-4 animate-spin" />

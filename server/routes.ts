@@ -698,6 +698,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+  
+  // Database statistics endpoint
+  app.get(`${API_PREFIX}/database/stats`, async (_req: Request, res: Response) => {
+    try {
+      const stats = await storage.getDatabaseStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Error fetching database statistics:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch database statistics", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
 
   // Suppliers Routes
   // Get all suppliers

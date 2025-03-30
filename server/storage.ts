@@ -21,6 +21,16 @@ import {
 
 // Interface defining all storage operations
 export interface IStorage {
+  // Database statistics operations
+  getDatabaseStats(): Promise<{
+    transactions: { count: number; latest: Date | null };
+    machines: { count: number; latest: Date | null };
+    refills: { count: number; latest: Date | null };
+    refillDetails: { count: number; latest: Date | null };
+    events: { count: number; latest: Date | null };
+    products: { count: number; latest: Date | null };
+  }>;
+
   // User operations
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
@@ -185,6 +195,67 @@ export interface IStorage {
 
 // Database storage implementation
 export class DatabaseStorage implements IStorage {
+  // Database statistics operations
+  async getDatabaseStats(): Promise<{
+    transactions: { count: number; latest: Date | null };
+    machines: { count: number; latest: Date | null };
+    refills: { count: number; latest: Date | null };
+    refillDetails: { count: number; latest: Date | null };
+    events: { count: number; latest: Date | null };
+    products: { count: number; latest: Date | null };
+  }> {
+    // Get transaction count and latest date
+    const transCountResult = await db.select({ count: count() }).from(transactions);
+    const [latestTrans] = await db.select().from(transactions).orderBy(desc(transactions.datetime)).limit(1);
+    
+    // Get machine count and latest update
+    const machineCountResult = await db.select({ count: count() }).from(machines);
+    const [latestMachine] = await db.select().from(machines).orderBy(desc(machines.updatedAt)).limit(1);
+    
+    // Get refill count and latest date
+    const refillCountResult = await db.select({ count: count() }).from(refills);
+    const [latestRefill] = await db.select().from(refills).orderBy(desc(refills.datetime)).limit(1);
+    
+    // Get refill detail count and latest date
+    const refillDetailCountResult = await db.select({ count: count() }).from(refillDetails);
+    const [latestRefillDetail] = await db.select().from(refillDetails).orderBy(desc(refillDetails.createdAt)).limit(1);
+    
+    // Get event count and latest date
+    const eventCountResult = await db.select({ count: count() }).from(events);
+    const [latestEvent] = await db.select().from(events).orderBy(desc(events.datetime)).limit(1);
+    
+    // Get product count and latest update
+    const productCountResult = await db.select({ count: count() }).from(products);
+    const [latestProduct] = await db.select().from(products).orderBy(desc(products.updatedAt)).limit(1);
+    
+    return {
+      transactions: {
+        count: parseInt(transCountResult[0]?.count?.toString() || '0'),
+        latest: latestTrans?.datetime || null
+      },
+      machines: {
+        count: parseInt(machineCountResult[0]?.count?.toString() || '0'),
+        latest: latestMachine?.updatedAt || null
+      },
+      refills: {
+        count: parseInt(refillCountResult[0]?.count?.toString() || '0'),
+        latest: latestRefill?.datetime || null
+      },
+      refillDetails: {
+        count: parseInt(refillDetailCountResult[0]?.count?.toString() || '0'),
+        latest: latestRefillDetail?.createdAt || null
+      },
+      events: {
+        count: parseInt(eventCountResult[0]?.count?.toString() || '0'),
+        latest: latestEvent?.datetime || null
+      },
+      products: {
+        count: parseInt(productCountResult[0]?.count?.toString() || '0'),
+        latest: latestProduct?.updatedAt || null
+      }
+    };
+  }
+
   // User operations
   async getUser(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));

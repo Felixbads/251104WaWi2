@@ -541,6 +541,20 @@ export function formatDateISO(date: Date): string {
   return date.toISOString().split('T')[0];
 }
 
+// Datenbank-Statistiken
+export interface DatabaseStats {
+  transactions: { count: number; latest: Date | null };
+  machines: { count: number; latest: Date | null };
+  refills: { count: number; latest: Date | null };
+  refillDetails: { count: number; latest: Date | null };
+  events: { count: number; latest: Date | null };
+  products: { count: number; latest: Date | null };
+}
+
+export async function getDatabaseStats(): Promise<DatabaseStats> {
+  return apiRequest<DatabaseStats>('get', '/database/stats');
+}
+
 // Wetterdaten für Dashboard
 export interface WeatherCurrent {
   location: string;
