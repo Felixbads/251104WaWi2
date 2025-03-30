@@ -25,7 +25,6 @@ export default function MachineAssignments() {
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [newAssignMachine, setNewAssignMachine] = useState<number | null>(null);
   const [newAssignWarehouse, setNewAssignWarehouse] = useState<number | null>(null);
-  const [isPrimary, setIsPrimary] = useState(true);
   const [assignNotes, setAssignNotes] = useState('');
   
   // Abfrage der Lager
@@ -79,7 +78,6 @@ export default function MachineAssignments() {
     setIsAssignDialogOpen(false);
     setNewAssignMachine(null);
     setNewAssignWarehouse(null);
-    setIsPrimary(true);
     setAssignNotes('');
   };
   
@@ -97,7 +95,6 @@ export default function MachineAssignments() {
     createAssignmentMutation.mutate({
       machineId: newAssignMachine,
       warehouseId: newAssignWarehouse,
-      isPrimary,
       notes: assignNotes
     });
   };
@@ -238,14 +235,7 @@ export default function MachineAssignments() {
                 </Select>
               </div>
               
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="isPrimary" 
-                  checked={isPrimary}
-                  onCheckedChange={(checked) => setIsPrimary(!!checked)}
-                />
-                <Label htmlFor="isPrimary">Als Primärlager festlegen</Label>
-              </div>
+
               
               <div className="space-y-2">
                 <Label htmlFor="notes">Notizen (optional)</Label>
@@ -294,7 +284,6 @@ export default function MachineAssignments() {
               <TableRow>
                 <TableHead>Automat</TableHead>
                 <TableHead>Lager</TableHead>
-                <TableHead>Status</TableHead>
                 <TableHead>Notizen</TableHead>
                 <TableHead className="text-right">Aktualisiert</TableHead>
                 <TableHead className="text-right">Aktionen</TableHead>
@@ -307,13 +296,6 @@ export default function MachineAssignments() {
                     {assignment.machineName || "Unbekannter Automat"}
                   </TableCell>
                   <TableCell>{assignment.warehouseName || "Unbekanntes Lager"}</TableCell>
-                  <TableCell>
-                    {assignment.isPrimary ? (
-                      <Badge variant="default">Primär</Badge>
-                    ) : (
-                      <Badge variant="outline">Sekundär</Badge>
-                    )}
-                  </TableCell>
                   <TableCell className="max-w-[200px] truncate">
                     {assignment.notes || "-"}
                   </TableCell>
