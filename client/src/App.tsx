@@ -39,6 +39,7 @@ function ProtectedRoute({ component: Component, ...rest }: any) {
 import Suppliers from "@/pages/Suppliers";
 import Reporting from "@/pages/Reporting";
 import Orders from "@/pages/Orders";
+import Inventory from "@/pages/Inventory";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -53,6 +54,7 @@ function AuthenticatedRouter() {
         <Route path="/products" component={Products} />
         <Route path="/suppliers" component={Suppliers} />
         <Route path="/orders" component={Orders} />
+        <Route path="/inventory" component={Inventory} />
         <Route path="/reporting" component={Reporting} />
         <Route path="/synchronization" component={Synchronization} />
         <Route path="/sync-history" component={SyncHistory} />

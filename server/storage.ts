@@ -10,7 +10,13 @@ import {
   events, type Event, type InsertEvent,
   syncLogs, type SyncLog, type InsertSyncLog,
   locations, type Location, type InsertLocation,
-  suppliers, type Supplier, type InsertSupplier
+  suppliers, type Supplier, type InsertSupplier,
+  warehouses, type Warehouse, type InsertWarehouse,
+  inventoryItems, type InventoryItem, type InsertInventoryItem,
+  inventoryMovements, type InventoryMovement, type InsertInventoryMovement,
+  inventoryCounts, type InventoryCount, type InsertInventoryCount,
+  inventoryCountItems, type InventoryCountItem, type InsertInventoryCountItem,
+  machineWarehouseAssignments, type MachineWarehouseAssignment, type InsertMachineWarehouseAssignment
 } from "@shared/schema";
 
 // Interface defining all storage operations
@@ -109,6 +115,72 @@ export interface IStorage {
   createSupplier(supplier: InsertSupplier): Promise<Supplier>;
   updateSupplier(id: number, supplier: Partial<InsertSupplier>): Promise<Supplier | undefined>;
   deleteSupplier(id: number): Promise<boolean>;
+  
+  // Warehouse operations
+  getWarehouses(): Promise<Warehouse[]>;
+  getWarehouse(id: number): Promise<Warehouse | undefined>;
+  createWarehouse(warehouse: InsertWarehouse): Promise<Warehouse>;
+  updateWarehouse(id: number, warehouse: Partial<InsertWarehouse>): Promise<Warehouse | undefined>;
+  deleteWarehouse(id: number): Promise<boolean>;
+  
+  // Inventory Item operations
+  getInventoryItems(params?: {
+    warehouseId?: number;
+    productId?: number;
+    critical?: boolean;
+  }): Promise<InventoryItem[]>;
+  getInventoryItem(id: number): Promise<InventoryItem | undefined>;
+  getInventoryItemsByWarehouse(warehouseId: number): Promise<InventoryItem[]>;
+  getInventoryItemByProductAndWarehouse(productId: number, warehouseId: number): Promise<InventoryItem | undefined>;
+  createInventoryItem(item: InsertInventoryItem): Promise<InventoryItem>;
+  updateInventoryItem(id: number, item: Partial<InsertInventoryItem>): Promise<InventoryItem | undefined>;
+  deleteInventoryItem(id: number): Promise<boolean>;
+  
+  // Inventory Movement operations
+  getInventoryMovements(params?: {
+    sourceWarehouseId?: number;
+    destinationWarehouseId?: number;
+    productId?: number;
+    machineId?: number;
+    movementType?: string;
+    referenceType?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<InventoryMovement[]>;
+  getInventoryMovementsByInventoryItem(inventoryItemId: number): Promise<InventoryMovement[]>;
+  getInventoryMovementsByReference(referenceType: string, referenceId: string): Promise<InventoryMovement[]>;
+  createInventoryMovement(movement: InsertInventoryMovement): Promise<InventoryMovement>;
+  
+  // Inventory Count operations
+  getInventoryCounts(params?: {
+    warehouseId?: number;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<InventoryCount[]>;
+  getInventoryCount(id: number): Promise<InventoryCount | undefined>;
+  createInventoryCount(count: InsertInventoryCount): Promise<InventoryCount>;
+  updateInventoryCount(id: number, count: Partial<InsertInventoryCount>): Promise<InventoryCount | undefined>;
+  deleteInventoryCount(id: number): Promise<boolean>;
+  
+  // Inventory Count Item operations
+  getInventoryCountItems(inventoryCountId: number): Promise<InventoryCountItem[]>;
+  getInventoryCountItemById(id: number): Promise<InventoryCountItem | undefined>;
+  createInventoryCountItem(item: InsertInventoryCountItem): Promise<InventoryCountItem>;
+  updateInventoryCountItem(id: number, item: Partial<InsertInventoryCountItem>): Promise<InventoryCountItem | undefined>;
+  deleteInventoryCountItemsByInventoryCount(inventoryCountId: number): Promise<void>;
+  
+  // Machine-Warehouse Assignment operations
+  getMachineWarehouseAssignments(params?: {
+    machineId?: number;
+    warehouseId?: number;
+  }): Promise<MachineWarehouseAssignment[]>;
+  getMachineWarehouseAssignmentById(id: number): Promise<MachineWarehouseAssignment | undefined>;
+  getMachineWarehouseAssignment(machineId: number, warehouseId: number): Promise<MachineWarehouseAssignment | undefined>;
+  createMachineWarehouseAssignment(assignment: InsertMachineWarehouseAssignment): Promise<MachineWarehouseAssignment>;
+  updateMachineWarehouseAssignment(id: number, assignment: Partial<InsertMachineWarehouseAssignment>): Promise<MachineWarehouseAssignment | undefined>;
+  deleteMachineWarehouseAssignment(id: number): Promise<boolean>;
+  updatePrimaryWarehouseForMachine(machineId: number): Promise<void>;
 }
 
 // Database storage implementation
@@ -630,7 +702,607 @@ export class DatabaseStorage implements IStorage {
     return true;
   }
   
+  // Warehouse operations
+  async getWarehouses(): Promise<Warehouse[]> {
+    return await db.select().from(warehouses).orderBy(warehouses.name);
+  }
 
+  async getWarehouse(id: number): Promise<Warehouse | undefined> {
+    const [warehouse] = await db.select().from(warehouses).where(eq(warehouses.id, id));
+    return warehouse;
+  }
+
+  async createWarehouse(warehouse: InsertWarehouse): Promise<Warehouse> {
+    const [newWarehouse] = await db.insert(warehouses).values({
+      ...warehouse,
+      createdAt: new Date()
+    }).returning();
+    return newWarehouse;
+  }
+
+  async updateWarehouse(id: number, warehouse: Partial<InsertWarehouse>): Promise<Warehouse | undefined> {
+    const [updatedWarehouse] = await db
+      .update(warehouses)
+      .set({
+        ...warehouse,
+        updatedAt: new Date()
+      })
+      .where(eq(warehouses.id, id))
+      .returning();
+    return updatedWarehouse;
+  }
+
+  async deleteWarehouse(id: number): Promise<boolean> {
+    try {
+      const result = await db
+        .delete(warehouses)
+        .where(eq(warehouses.id, id))
+        .returning({ id: warehouses.id });
+      
+      return result.length > 0;
+    } catch (error) {
+      console.error(`Fehler beim Löschen des Lagers mit ID ${id}:`, error);
+      return false;
+    }
+  }
+
+  // Inventory Item operations
+  async getInventoryItems(params?: {
+    warehouseId?: number;
+    productId?: number;
+    critical?: boolean;
+  }): Promise<InventoryItem[]> {
+    let query = db.select({
+      inventory: inventoryItems,
+      product: products,
+      warehouse: warehouses
+    })
+    .from(inventoryItems)
+    .leftJoin(products, eq(inventoryItems.productId, products.id))
+    .leftJoin(warehouses, eq(inventoryItems.warehouseId, warehouses.id));
+    
+    const conditions = [];
+    
+    if (params?.warehouseId) {
+      conditions.push(eq(inventoryItems.warehouseId, params.warehouseId));
+    }
+    
+    if (params?.productId) {
+      conditions.push(eq(inventoryItems.productId, params.productId));
+    }
+    
+    if (params?.critical) {
+      conditions.push(
+        and(
+          lte(inventoryItems.quantity, inventoryItems.minQuantity),
+          gte(inventoryItems.minQuantity, 1) // Nur Items mit einem Mindestbestand > 0
+        )
+      );
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+    
+    const result = await query.orderBy(asc(warehouses.name), asc(products.productName));
+    
+    // Formatieren der Ergebnisse für eine bessere Nutzbarkeit
+    return result.map(row => ({
+      ...row.inventory,
+      productName: row.product?.productName,
+      warehouseName: row.warehouse?.name
+    })) as InventoryItem[];
+  }
+
+  async getInventoryItem(id: number): Promise<InventoryItem | undefined> {
+    const [item] = await db.select({
+      inventory: inventoryItems,
+      product: products,
+      warehouse: warehouses
+    })
+    .from(inventoryItems)
+    .leftJoin(products, eq(inventoryItems.productId, products.id))
+    .leftJoin(warehouses, eq(inventoryItems.warehouseId, warehouses.id))
+    .where(eq(inventoryItems.id, id));
+    
+    if (!item) return undefined;
+    
+    return {
+      ...item.inventory,
+      productName: item.product?.productName,
+      warehouseName: item.warehouse?.name
+    } as InventoryItem;
+  }
+
+  async getInventoryItemsByWarehouse(warehouseId: number): Promise<InventoryItem[]> {
+    const result = await db.select({
+      inventory: inventoryItems,
+      product: products
+    })
+    .from(inventoryItems)
+    .leftJoin(products, eq(inventoryItems.productId, products.id))
+    .where(eq(inventoryItems.warehouseId, warehouseId))
+    .orderBy(asc(products.productName));
+    
+    return result.map(row => ({
+      ...row.inventory,
+      productName: row.product?.productName
+    })) as InventoryItem[];
+  }
+
+  async getInventoryItemByProductAndWarehouse(
+    productId: number, 
+    warehouseId: number
+  ): Promise<InventoryItem | undefined> {
+    const [item] = await db.select()
+      .from(inventoryItems)
+      .where(
+        and(
+          eq(inventoryItems.productId, productId),
+          eq(inventoryItems.warehouseId, warehouseId)
+        )
+      );
+    
+    return item;
+  }
+
+  async createInventoryItem(item: InsertInventoryItem): Promise<InventoryItem> {
+    const [newItem] = await db.insert(inventoryItems).values({
+      ...item,
+      lastCountDate: new Date(),
+      createdAt: new Date()
+    }).returning();
+    
+    return newItem;
+  }
+
+  async updateInventoryItem(id: number, item: Partial<InsertInventoryItem>): Promise<InventoryItem | undefined> {
+    const [updatedItem] = await db
+      .update(inventoryItems)
+      .set({
+        ...item,
+        updatedAt: new Date()
+      })
+      .where(eq(inventoryItems.id, id))
+      .returning();
+    
+    return updatedItem;
+  }
+
+  async deleteInventoryItem(id: number): Promise<boolean> {
+    try {
+      const result = await db
+        .delete(inventoryItems)
+        .where(eq(inventoryItems.id, id))
+        .returning({ id: inventoryItems.id });
+      
+      return result.length > 0;
+    } catch (error) {
+      console.error(`Fehler beim Löschen der Lagerposition mit ID ${id}:`, error);
+      return false;
+    }
+  }
+
+  // Inventory Movement operations
+  async getInventoryMovements(params?: {
+    sourceWarehouseId?: number;
+    destinationWarehouseId?: number;
+    productId?: number;
+    machineId?: number;
+    movementType?: string;
+    referenceType?: string;
+    referenceId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<InventoryMovement[]> {
+    let query = db.select({
+      movement: inventoryMovements,
+      product: products,
+      sourceWarehouse: warehouses,
+      destinationWarehouse: warehouses
+    })
+    .from(inventoryMovements)
+    .leftJoin(products, eq(inventoryMovements.productId, products.id))
+    .leftJoin(
+      warehouses, 
+      eq(inventoryMovements.sourceWarehouseId, warehouses.id)
+    )
+    .leftJoin(
+      warehouses, 
+      eq(inventoryMovements.destinationWarehouseId, warehouses.id),
+      { alias: 'destination_warehouse' }
+    );
+    
+    const conditions = [];
+    
+    if (params?.sourceWarehouseId) {
+      conditions.push(eq(inventoryMovements.sourceWarehouseId, params.sourceWarehouseId));
+    }
+    
+    if (params?.destinationWarehouseId) {
+      conditions.push(eq(inventoryMovements.destinationWarehouseId, params.destinationWarehouseId));
+    }
+    
+    if (params?.productId) {
+      conditions.push(eq(inventoryMovements.productId, params.productId));
+    }
+    
+    if (params?.machineId) {
+      conditions.push(eq(inventoryMovements.machineId, params.machineId));
+    }
+    
+    if (params?.movementType) {
+      conditions.push(eq(inventoryMovements.movementType, params.movementType));
+    }
+    
+    if (params?.referenceType) {
+      conditions.push(eq(inventoryMovements.referenceType, params.referenceType));
+    }
+
+    if (params?.referenceId) {
+      conditions.push(eq(inventoryMovements.referenceId, params.referenceId));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+    
+    query = query.orderBy(desc(inventoryMovements.createdAt));
+    
+    if (params?.limit) {
+      query = query.limit(params.limit);
+    }
+    
+    if (params?.offset) {
+      query = query.offset(params.offset);
+    }
+    
+    const result = await query;
+    
+    // Formatieren der Ergebnisse für eine bessere Nutzbarkeit
+    return result.map(row => ({
+      ...row.movement,
+      productName: row.product?.productName,
+      sourceWarehouseName: row.sourceWarehouse?.name,
+      destinationWarehouseName: row.destinationWarehouse?.name
+    })) as InventoryMovement[];
+  }
+
+  async getInventoryMovementsByInventoryItem(inventoryItemId: number): Promise<InventoryMovement[]> {
+    // Zuerst das Lager und Produkt des Items abrufen
+    const item = await this.getInventoryItem(inventoryItemId);
+    if (!item) return [];
+    
+    // Bewegungen finden, die entweder Quelle oder Ziel dieses Lagers und für dieses Produkt sind
+    const sourceMovements = await this.getInventoryMovements({
+      productId: item.productId,
+      sourceWarehouseId: item.warehouseId
+    });
+    
+    const destinationMovements = await this.getInventoryMovements({
+      productId: item.productId,
+      destinationWarehouseId: item.warehouseId
+    });
+    
+    // Beide Arrays zusammenführen und nach Datum sortieren
+    const allMovements = [...sourceMovements, ...destinationMovements];
+    return allMovements.sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }
+
+  async getInventoryMovementsByReference(
+    referenceType: string, 
+    referenceId: string
+  ): Promise<InventoryMovement[]> {
+    return this.getInventoryMovements({
+      referenceType,
+      referenceId
+    });
+  }
+
+  async createInventoryMovement(movement: InsertInventoryMovement): Promise<InventoryMovement> {
+    const [newMovement] = await db.insert(inventoryMovements).values({
+      ...movement,
+      createdAt: new Date(),
+      processedAt: new Date()
+    }).returning();
+    
+    return newMovement;
+  }
+
+  // Machine-Warehouse Assignment operations
+  async getMachineWarehouseAssignments(params?: {
+    machineId?: number;
+    warehouseId?: number;
+  }): Promise<MachineWarehouseAssignment[]> {
+    let query = db.select({
+      assignment: machineWarehouseAssignments,
+      machine: machines,
+      warehouse: warehouses
+    })
+    .from(machineWarehouseAssignments)
+    .leftJoin(machines, eq(machineWarehouseAssignments.machineId, machines.id))
+    .leftJoin(warehouses, eq(machineWarehouseAssignments.warehouseId, warehouses.id));
+    
+    const conditions = [];
+    
+    if (params?.machineId) {
+      conditions.push(eq(machineWarehouseAssignments.machineId, params.machineId));
+    }
+    
+    if (params?.warehouseId) {
+      conditions.push(eq(machineWarehouseAssignments.warehouseId, params.warehouseId));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+    
+    query = query.orderBy(desc(machineWarehouseAssignments.isPrimary), asc(warehouses.name));
+    
+    const result = await query;
+    
+    // Formatieren der Ergebnisse für eine bessere Nutzbarkeit
+    return result.map(row => ({
+      ...row.assignment,
+      machineName: row.machine?.name,
+      warehouseName: row.warehouse?.name
+    })) as MachineWarehouseAssignment[];
+  }
+
+  async getMachineWarehouseAssignmentById(id: number): Promise<MachineWarehouseAssignment | undefined> {
+    const [assignment] = await db.select()
+      .from(machineWarehouseAssignments)
+      .where(eq(machineWarehouseAssignments.id, id));
+    
+    return assignment;
+  }
+
+  async getMachineWarehouseAssignment(
+    machineId: number, 
+    warehouseId: number
+  ): Promise<MachineWarehouseAssignment | undefined> {
+    const [assignment] = await db.select()
+      .from(machineWarehouseAssignments)
+      .where(
+        and(
+          eq(machineWarehouseAssignments.machineId, machineId),
+          eq(machineWarehouseAssignments.warehouseId, warehouseId)
+        )
+      );
+    
+    return assignment;
+  }
+
+  async createMachineWarehouseAssignment(
+    assignment: InsertMachineWarehouseAssignment
+  ): Promise<MachineWarehouseAssignment> {
+    const [newAssignment] = await db.insert(machineWarehouseAssignments).values({
+      ...assignment,
+      createdAt: new Date()
+    }).returning();
+    
+    return newAssignment;
+  }
+
+  async updateMachineWarehouseAssignment(
+    id: number, 
+    assignment: Partial<InsertMachineWarehouseAssignment>
+  ): Promise<MachineWarehouseAssignment | undefined> {
+    const [updatedAssignment] = await db
+      .update(machineWarehouseAssignments)
+      .set({
+        ...assignment,
+        updatedAt: new Date()
+      })
+      .where(eq(machineWarehouseAssignments.id, id))
+      .returning();
+    
+    return updatedAssignment;
+  }
+
+  async deleteMachineWarehouseAssignment(id: number): Promise<boolean> {
+    try {
+      const result = await db
+        .delete(machineWarehouseAssignments)
+        .where(eq(machineWarehouseAssignments.id, id))
+        .returning({ id: machineWarehouseAssignments.id });
+      
+      return result.length > 0;
+    } catch (error) {
+      console.error(`Fehler beim Löschen der Zuordnung mit ID ${id}:`, error);
+      return false;
+    }
+  }
+
+  async updatePrimaryWarehouseForMachine(machineId: number): Promise<void> {
+    // Alle bisherigen Primär-Zuordnungen für die Maschine zurücksetzen
+    await db
+      .update(machineWarehouseAssignments)
+      .set({ isPrimary: false })
+      .where(
+        and(
+          eq(machineWarehouseAssignments.machineId, machineId),
+          eq(machineWarehouseAssignments.isPrimary, true)
+        )
+      );
+  }
+
+  // Inventory Count operations
+  async getInventoryCounts(params?: {
+    warehouseId?: number;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<InventoryCount[]> {
+    let query = db.select({
+      count: inventoryCounts,
+      warehouse: warehouses
+    })
+    .from(inventoryCounts)
+    .leftJoin(warehouses, eq(inventoryCounts.warehouseId, warehouses.id));
+    
+    const conditions = [];
+    
+    if (params?.warehouseId) {
+      conditions.push(eq(inventoryCounts.warehouseId, params.warehouseId));
+    }
+    
+    if (params?.status) {
+      if (params.status.includes(',')) {
+        const statuses = params.status.split(',');
+        conditions.push(
+          or(...statuses.map(status => eq(inventoryCounts.status, status.trim())))
+        );
+      } else {
+        conditions.push(eq(inventoryCounts.status, params.status));
+      }
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+    
+    query = query.orderBy(desc(inventoryCounts.createdAt));
+    
+    if (params?.limit) {
+      query = query.limit(params.limit);
+    }
+    
+    if (params?.offset) {
+      query = query.offset(params.offset);
+    }
+    
+    const result = await query;
+    
+    // Formatieren der Ergebnisse für eine bessere Nutzbarkeit
+    return result.map(row => ({
+      ...row.count,
+      warehouseName: row.warehouse?.name
+    })) as InventoryCount[];
+  }
+
+  async getInventoryCount(id: number): Promise<InventoryCount | undefined> {
+    const [count] = await db.select({
+      count: inventoryCounts,
+      warehouse: warehouses
+    })
+    .from(inventoryCounts)
+    .leftJoin(warehouses, eq(inventoryCounts.warehouseId, warehouses.id))
+    .where(eq(inventoryCounts.id, id));
+    
+    if (!count) return undefined;
+    
+    return {
+      ...count.count,
+      warehouseName: count.warehouse?.name
+    } as InventoryCount;
+  }
+
+  async createInventoryCount(count: InsertInventoryCount): Promise<InventoryCount> {
+    const [newCount] = await db.insert(inventoryCounts).values({
+      ...count,
+      createdAt: new Date()
+    }).returning();
+    
+    return newCount;
+  }
+
+  async updateInventoryCount(
+    id: number, 
+    count: Partial<InsertInventoryCount>
+  ): Promise<InventoryCount | undefined> {
+    const [updatedCount] = await db
+      .update(inventoryCounts)
+      .set({
+        ...count,
+        updatedAt: new Date()
+      })
+      .where(eq(inventoryCounts.id, id))
+      .returning();
+    
+    return updatedCount;
+  }
+
+  async deleteInventoryCount(id: number): Promise<boolean> {
+    try {
+      const result = await db
+        .delete(inventoryCounts)
+        .where(eq(inventoryCounts.id, id))
+        .returning({ id: inventoryCounts.id });
+      
+      return result.length > 0;
+    } catch (error) {
+      console.error(`Fehler beim Löschen der Inventur mit ID ${id}:`, error);
+      return false;
+    }
+  }
+
+  // Inventory Count Item operations
+  async getInventoryCountItems(inventoryCountId: number): Promise<InventoryCountItem[]> {
+    const result = await db.select({
+      item: inventoryCountItems,
+      product: products
+    })
+    .from(inventoryCountItems)
+    .leftJoin(products, eq(inventoryCountItems.productId, products.id))
+    .where(eq(inventoryCountItems.inventoryCountId, inventoryCountId))
+    .orderBy(asc(products.productName));
+    
+    return result.map(row => ({
+      ...row.item,
+      productName: row.product?.productName
+    })) as InventoryCountItem[];
+  }
+
+  async getInventoryCountItemById(id: number): Promise<InventoryCountItem | undefined> {
+    const [item] = await db.select({
+      item: inventoryCountItems,
+      product: products
+    })
+    .from(inventoryCountItems)
+    .leftJoin(products, eq(inventoryCountItems.productId, products.id))
+    .where(eq(inventoryCountItems.id, id));
+    
+    if (!item) return undefined;
+    
+    return {
+      ...item.item,
+      productName: item.product?.productName
+    } as InventoryCountItem;
+  }
+
+  async createInventoryCountItem(item: InsertInventoryCountItem): Promise<InventoryCountItem> {
+    const [newItem] = await db.insert(inventoryCountItems).values({
+      ...item,
+      createdAt: new Date()
+    }).returning();
+    
+    return newItem;
+  }
+
+  async updateInventoryCountItem(
+    id: number, 
+    item: Partial<InsertInventoryCountItem>
+  ): Promise<InventoryCountItem | undefined> {
+    const [updatedItem] = await db
+      .update(inventoryCountItems)
+      .set({
+        ...item,
+        updatedAt: new Date()
+      })
+      .where(eq(inventoryCountItems.id, id))
+      .returning();
+    
+    return updatedItem;
+  }
+
+  async deleteInventoryCountItemsByInventoryCount(inventoryCountId: number): Promise<void> {
+    await db
+      .delete(inventoryCountItems)
+      .where(eq(inventoryCountItems.inventoryCountId, inventoryCountId));
+  }
 }
 
 export const storage = new DatabaseStorage();

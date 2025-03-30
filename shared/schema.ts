@@ -1,7 +1,8 @@
 import { pgTable, text, serial, integer, boolean, timestamp, real, doublePrecision, unique, primaryKey, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { relations, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
+import { relations } from "drizzle-orm";
 
 // Updated users table with more fields
 // Suppliers table
@@ -1073,3 +1074,248 @@ export const orderItemRelations = relations(orderItems, ({ one }) => ({
     references: [machines.id],
   }),
 }));
+
+// Lager (Warehouses) table
+export const warehouses = pgTable("warehouses", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  address: text("address"),
+  city: text("city"),
+  postalCode: text("postal_code"),
+  country: text("country").default("Deutschland"),
+  contactPerson: text("contact_person"),
+  phone: text("phone"),
+  email: text("email"),
+  status: text("status").default("active"),
+  type: text("type").default("main"), // main, branch, temporary, etc.
+  notes: text("notes"),
+  locationId: integer("location_id").references(() => locations.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertWarehouseSchema = createInsertSchema(warehouses).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertWarehouse = z.infer<typeof insertWarehouseSchema>;
+export type Warehouse = typeof warehouses.$inferSelect;
+
+// Inventory Items table
+export const inventoryItems = pgTable("inventory_items", {
+  id: serial("id").primaryKey(),
+  warehouseId: integer("warehouse_id").notNull().references(() => warehouses.id),
+  productId: integer("product_id").notNull().references(() => products.id),
+  quantity: integer("quantity").default(0),
+  minQuantity: integer("min_quantity").default(0),
+  maxQuantity: integer("max_quantity"),
+  reorderPoint: integer("reorder_point").default(0),
+  reorderQuantity: integer("reorder_quantity"),
+  locationInWarehouse: text("location_in_warehouse"),
+  status: text("status").default("active"), // active, inactive, discontinued
+  lastCountDate: timestamp("last_count_date"),
+  expiryDate: date("expiry_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertInventoryItemSchema = createInsertSchema(inventoryItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertInventoryItem = z.infer<typeof insertInventoryItemSchema>;
+export type InventoryItem = typeof inventoryItems.$inferSelect;
+
+// Inventory Movements table
+export const inventoryMovements = pgTable("inventory_movements", {
+  id: serial("id").primaryKey(),
+  sourceWarehouseId: integer("source_warehouse_id").references(() => warehouses.id),
+  destinationWarehouseId: integer("destination_warehouse_id").references(() => warehouses.id),
+  productId: integer("product_id").notNull().references(() => products.id),
+  quantity: integer("quantity").notNull(),
+  movementType: text("movement_type").notNull(), // IN, OUT, TRANSFER, ADJUSTMENT, REFILL
+  referenceType: text("reference_type"), // ORDER, REFILL, INVENTORY_COUNT, MANUAL
+  referenceId: text("reference_id"), // ID of the order, refill, etc.
+  status: text("status").default("completed"),
+  notes: text("notes"),
+  performedBy: integer("performed_by").references(() => users.id),
+  performedAt: timestamp("performed_at").defaultNow(),
+  machineId: integer("machine_id").references(() => machines.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertInventoryMovementSchema = createInsertSchema(inventoryMovements).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertInventoryMovement = z.infer<typeof insertInventoryMovementSchema>;
+export type InventoryMovement = typeof inventoryMovements.$inferSelect;
+
+// Inventory Count table
+export const inventoryCounts = pgTable("inventory_counts", {
+  id: serial("id").primaryKey(),
+  warehouseId: integer("warehouse_id").notNull().references(() => warehouses.id),
+  status: text("status").default("pending"), // pending, in_progress, completed, cancelled
+  scheduledDate: timestamp("scheduled_date"),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  notes: text("notes"),
+  initiatedBy: integer("initiated_by").references(() => users.id),
+  completedBy: integer("completed_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertInventoryCountSchema = createInsertSchema(inventoryCounts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertInventoryCount = z.infer<typeof insertInventoryCountSchema>;
+export type InventoryCount = typeof inventoryCounts.$inferSelect;
+
+// Inventory Count Items table
+export const inventoryCountItems = pgTable("inventory_count_items", {
+  id: serial("id").primaryKey(),
+  inventoryCountId: integer("inventory_count_id").notNull().references(() => inventoryCounts.id),
+  productId: integer("product_id").notNull().references(() => products.id),
+  expectedQuantity: integer("expected_quantity").default(0),
+  actualQuantity: integer("actual_quantity"),
+  difference: integer("difference"),
+  notes: text("notes"),
+  status: text("status").default("pending"), // pending, counted, adjusted, skipped
+  countedBy: integer("counted_by").references(() => users.id),
+  countedAt: timestamp("counted_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertInventoryCountItemSchema = createInsertSchema(inventoryCountItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertInventoryCountItem = z.infer<typeof insertInventoryCountItemSchema>;
+export type InventoryCountItem = typeof inventoryCountItems.$inferSelect;
+
+// Machine-Warehouse Assignment table
+export const machineWarehouseAssignments = pgTable("machine_warehouse_assignments", {
+  id: serial("id").primaryKey(),
+  machineId: integer("machine_id").notNull().references(() => machines.id),
+  warehouseId: integer("warehouse_id").notNull().references(() => warehouses.id),
+  isPrimary: boolean("is_primary").default(true),
+  notes: text("notes"),
+  assignedBy: integer("assigned_by").references(() => users.id),
+  assignedAt: timestamp("assigned_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => {
+  return {
+    machineWarehouseUnique: unique().on(table.machineId, table.warehouseId),
+  };
+});
+
+export const insertMachineWarehouseAssignmentSchema = createInsertSchema(machineWarehouseAssignments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertMachineWarehouseAssignment = z.infer<typeof insertMachineWarehouseAssignmentSchema>;
+export type MachineWarehouseAssignment = typeof machineWarehouseAssignments.$inferSelect;
+
+// Define relations
+export const warehouseRelations = relations(warehouses, ({ one, many }) => ({
+  location: one(locations, {
+    fields: [warehouses.locationId],
+    references: [locations.id],
+  }),
+  inventoryItems: many(inventoryItems),
+  machineAssignments: many(machineWarehouseAssignments),
+}));
+
+export const inventoryItemRelations = relations(inventoryItems, ({ one, many }) => ({
+  warehouse: one(warehouses, {
+    fields: [inventoryItems.warehouseId],
+    references: [warehouses.id],
+  }),
+  product: one(products, {
+    fields: [inventoryItems.productId],
+    references: [products.id],
+  }),
+  movements: many(inventoryMovements),
+}));
+
+export const inventoryMovementRelations = relations(inventoryMovements, ({ one }) => ({
+  sourceWarehouse: one(warehouses, {
+    fields: [inventoryMovements.sourceWarehouseId],
+    references: [warehouses.id],
+    relationName: "source_warehouse",
+  }),
+  destinationWarehouse: one(warehouses, {
+    fields: [inventoryMovements.destinationWarehouseId],
+    references: [warehouses.id],
+    relationName: "destination_warehouse",
+  }),
+  product: one(products, {
+    fields: [inventoryMovements.productId],
+    references: [products.id],
+  }),
+  machine: one(machines, {
+    fields: [inventoryMovements.machineId],
+    references: [machines.id],
+  }),
+}));
+
+export const machineWarehouseAssignmentRelations = relations(machineWarehouseAssignments, ({ one }) => ({
+  machine: one(machines, {
+    fields: [machineWarehouseAssignments.machineId],
+    references: [machines.id],
+  }),
+  warehouse: one(warehouses, {
+    fields: [machineWarehouseAssignments.warehouseId],
+    references: [warehouses.id],
+  }),
+}));
+
+export const inventoryCountRelations = relations(inventoryCounts, ({ one, many }) => ({
+  warehouse: one(warehouses, {
+    fields: [inventoryCounts.warehouseId],
+    references: [warehouses.id],
+  }),
+  items: many(inventoryCountItems),
+}));
+
+export const inventoryCountItemRelations = relations(inventoryCountItems, ({ one }) => ({
+  inventoryCount: one(inventoryCounts, {
+    fields: [inventoryCountItems.inventoryCountId],
+    references: [inventoryCounts.id],
+  }),
+  product: one(products, {
+    fields: [inventoryCountItems.productId],
+    references: [products.id],
+  }),
+}));
+
+// Add warehouse relations to existing relations object
+export const allRelations = {
+  orderRelations,
+  orderItemRelations,
+  warehouseRelations,
+  inventoryItemRelations,
+  inventoryMovementRelations,
+  machineWarehouseAssignmentRelations,
+  inventoryCountRelations,
+  inventoryCountItemRelations,
+};

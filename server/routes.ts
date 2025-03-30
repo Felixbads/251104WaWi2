@@ -7,6 +7,7 @@ import { syncMissingHolidays } from './services/holidayService';
 import { startAutomaticSync, stopAutomaticSync, getSchedulerStatus } from "./scheduler";
 import { z } from "zod";
 import { registerForecastRoutes } from "./routes/forecast";
+import { registerInventoryRoutes } from "./routes/inventory";
 import { 
   registerUser, 
   loginUser, 
@@ -975,6 +976,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   registerForecastRoutes(app);
+  registerInventoryRoutes(app);
 
   return httpServer;
 }
