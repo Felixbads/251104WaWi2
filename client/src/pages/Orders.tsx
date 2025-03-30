@@ -1165,7 +1165,7 @@ export default function Orders() {
                         <CardContent className="p-4">
                           <div className="mb-4">
                             <Label htmlFor="document-type">Dokumenttyp</Label>
-                            <Select>
+                            <Select defaultValue="order">
                               <SelectTrigger id="document-type">
                                 <SelectValue placeholder="Dokumenttyp auswählen" />
                               </SelectTrigger>
@@ -1226,7 +1226,7 @@ export default function Orders() {
                         <CardContent className="p-4">
                           <div className="mb-4">
                             <Label htmlFor="status-update">Neuer Status</Label>
-                            <Select>
+                            <Select defaultValue="open">
                               <SelectTrigger id="status-update">
                                 <SelectValue placeholder="Status auswählen" />
                               </SelectTrigger>
@@ -1395,7 +1395,7 @@ export default function Orders() {
                     <FormLabel>Priorität</FormLabel>
                     <Select 
                       onValueChange={field.onChange} 
-                      defaultValue={field.value}
+                      defaultValue={field.value || "normal"}
                     >
                       <FormControl>
                         <SelectTrigger>
