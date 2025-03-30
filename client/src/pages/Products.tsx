@@ -239,48 +239,50 @@ export default function Products() {
     : [];
 
   // Filter- und Suchfunktionen
-  const filteredProducts = products?.data?.filter((product: Product) => {
-    // Sicherstellen, dass product und seine Eigenschaften definiert sind
-    if (!product || !product.productName) return false;
-    
-    // Suchterm-Filter
-    const matchesSearch = product.productName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         (product.sku?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
-    
-    // Kategorie-Filter
-    const matchesCategory = !categoryFilter || product.category === categoryFilter || 
-                           (categoryFilter === 'Unkategorisiert' && !product.category);
-    
-    // Erweiterte Filter
-    
-    // Bestand-Filter
-    const hasStock = !filters.onlyInStock || (typeof product.inStock === 'number' && product.inStock > 0);
-    
-    // Kritischer Bestand
-    const hasLowStock = !filters.onlyLowStock || 
-                        (typeof product.inStock === 'number' && 
-                         typeof product.amountCritical === 'number' && 
-                         product.inStock <= product.amountCritical && 
-                         product.inStock > 0);
-    
-    // Preis-Filter
-    const priceInRange = !product.price || 
-                         (product.price >= filters.priceRange[0] && 
-                          product.price <= filters.priceRange[1]);
-    
-    // Altersüberprüfung
-    const tags = product.tags ? JSON.parse(product.tags) : [];
-    const isAlcohol = tags.includes('alcohol') || product.requiresAgeVerification;
-    const matchesAgeVerification = filters.requiresAgeVerification === null || 
-                                   isAlcohol === filters.requiresAgeVerification;
-    
-    return matchesSearch && 
-           matchesCategory && 
-           hasStock && 
-           hasLowStock && 
-           priceInRange && 
-           matchesAgeVerification;
-  }) || [];
+  const filteredProducts = products?.data 
+    ? products.data.filter((product: Product) => {
+        // Sicherstellen, dass product und seine Eigenschaften definiert sind
+        if (!product || !product.productName) return false;
+        
+        // Suchterm-Filter
+        const matchesSearch = product.productName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            (product.sku?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
+        
+        // Kategorie-Filter
+        const matchesCategory = !categoryFilter || product.category === categoryFilter || 
+                              (categoryFilter === 'Unkategorisiert' && !product.category);
+        
+        // Erweiterte Filter
+        
+        // Bestand-Filter
+        const hasStock = !filters.onlyInStock || (typeof product.inStock === 'number' && product.inStock > 0);
+        
+        // Kritischer Bestand
+        const hasLowStock = !filters.onlyLowStock || 
+                            (typeof product.inStock === 'number' && 
+                            typeof product.amountCritical === 'number' && 
+                            product.inStock <= product.amountCritical && 
+                            product.inStock > 0);
+        
+        // Preis-Filter
+        const priceInRange = !product.price || 
+                            (product.price >= filters.priceRange[0] && 
+                             product.price <= filters.priceRange[1]);
+        
+        // Altersüberprüfung
+        const tags = product.tags ? JSON.parse(product.tags) : [];
+        const isAlcohol = tags.includes('alcohol') || product.requiresAgeVerification;
+        const matchesAgeVerification = filters.requiresAgeVerification === null || 
+                                      isAlcohol === filters.requiresAgeVerification;
+        
+        return matchesSearch && 
+              matchesCategory && 
+              hasStock && 
+              hasLowStock && 
+              priceInRange && 
+              matchesAgeVerification;
+      })
+    : [];
 
   // Product Card Component
   const ProductCard = ({ product }: { product: Product }) => {

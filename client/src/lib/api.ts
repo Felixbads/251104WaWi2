@@ -253,13 +253,24 @@ export async function getMachine(id: string): Promise<Machine> {
 }
 
 // Produkte
+export interface ProductsResponse {
+  data: Product[];
+  meta: {
+    total: number;
+    offset: number;
+    limit: number;
+    page: number;
+    pages: number;
+  }
+}
+
 export async function getProducts(params?: {
   limit?: number;
   offset?: number;
   category?: string;
   search?: string;
   supplierId?: number;
-}): Promise<any> {
+}): Promise<ProductsResponse> {
   const queryParams = new URLSearchParams();
   
   if (params) {
@@ -273,7 +284,7 @@ export async function getProducts(params?: {
   const queryString = queryParams.toString();
   const url = `/products${queryString ? '?' + queryString : ''}`;
   
-  return apiRequest<any>('get', url);
+  return apiRequest<ProductsResponse>('get', url);
 }
 
 export async function getProduct(id: string): Promise<Product> {

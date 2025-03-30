@@ -1299,11 +1299,11 @@ export default function Suppliers() {
   };
 
   // Simulierte Kopplung von Produkten und Bestellungen (in einer echten App würden diese vom Backend kommen)
-  const enhancedSuppliers = data?.data.map(supplier => ({
+  const enhancedSuppliers = data?.data ? data.data.map(supplier => ({
     ...supplier,
     productsCount: Math.floor(Math.random() * 20), // In einer echten App: supplier.productsCount
     openOrdersCount: Math.floor(Math.random() * 3) // In einer echten App: supplier.openOrdersCount
-  }));
+  })) : [];
 
   return (
     <div className="space-y-6">
@@ -1442,7 +1442,7 @@ export default function Suppliers() {
       {/* Content / Data */}
       {isLoading ? (
         viewMode === 'grid' ? <SupplierGridSkeleton /> : <SupplierListSkeleton />
-      ) : data?.data.length === 0 ? (
+      ) : !data?.data || data.data.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <Truck className="h-12 w-12 text-gray-300 mb-4" />
           <h3 className="text-lg font-medium mb-1">Keine Lieferanten gefunden</h3>
