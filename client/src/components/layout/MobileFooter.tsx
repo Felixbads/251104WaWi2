@@ -46,10 +46,10 @@ export default function MobileFooter() {
           isActive={location.startsWith("/automaten")}
         />
         <NavItem 
-          href="/orders" 
+          href="/bestellungen" 
           icon={<ShoppingCart className="h-6 w-6" />}
           label="Bestellungen"
-          isActive={location.startsWith("/orders")}
+          isActive={location.startsWith("/bestellungen")}
         />
         <NavItem 
           href="/inventory" 

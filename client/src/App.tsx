@@ -51,11 +51,13 @@ function AuthenticatedRouter() {
         <Route path="/machines" component={Machines} />
         <Route path="/automaten" component={Automaten} />
         <Route path="/automaten/:id" component={AutomatDetail} />
-        <Route path="/products" component={Products} />
-        <Route path="/suppliers" component={Suppliers} />
-        <Route path="/orders" component={Orders} />
+        <Route path="/produkte" component={Products} />
+        <Route path="/produkte/:id" component={() => <div>Produktdetails</div>} />
+        <Route path="/lieferanten" component={Suppliers} />
+        <Route path="/lieferanten/:id" component={() => <div>Lieferantendetails</div>} />
+        <Route path="/bestellungen" component={Orders} />
         <Route path="/inventory" component={Inventory} />
-        <Route path="/reporting" component={Reporting} />
+        <Route path="/auswertungen" component={Reporting} />
         <Route path="/synchronization" component={Synchronization} />
         <Route path="/sync-history" component={SyncHistory} />
         <Route path="/forecast" component={Forecast} />

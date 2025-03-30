@@ -56,97 +56,94 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             Übersicht
           </h3>
           <nav>
-            <Link href="/">
-              <a
-                onClick={handleLinkClick}
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium ${
-                  isActive("/")
-                    ? "text-primary-600 bg-primary-50"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-              >
-                <Home className="h-5 w-5 mr-3" />
-                Dashboard
-              </a>
-            </Link>
-            <Link href="/transactions">
-              <a
-                onClick={handleLinkClick}
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium ${
-                  isActive("/transactions")
-                    ? "text-primary-600 bg-primary-50"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-              >
-                <FileText className="h-5 w-5 mr-3" />
-                Transaktionen
-              </a>
-            </Link>
-            <Link href="/automaten">
-              <a
-                onClick={handleLinkClick}
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium ${
-                  isActive("/automaten")
-                    ? "text-primary-600 bg-primary-50"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-              >
-                <Package className="h-5 w-5 mr-3" />
-                Automaten
-              </a>
-            </Link>
-            <Link href="/products">
-              <a
-                onClick={handleLinkClick}
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium ${
-                  isActive("/products")
-                    ? "text-primary-600 bg-primary-50"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-              >
-                <ShoppingBag className="h-5 w-5 mr-3" />
-                Produkte
-              </a>
-            </Link>
-            <Link href="/suppliers">
-              <a
-                onClick={handleLinkClick}
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium ${
-                  isActive("/suppliers")
-                    ? "text-primary-600 bg-primary-50"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-              >
-                <Truck className="h-5 w-5 mr-3" />
-                Lieferanten
-              </a>
-            </Link>
-            <Link href="/orders">
-              <a
-                onClick={handleLinkClick}
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium ${
-                  isActive("/orders")
-                    ? "text-primary-600 bg-primary-50"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-              >
-                <ShoppingCart className="h-5 w-5 mr-3" />
-                Bestellungen
-              </a>
-            </Link>
-            <Link href="/inventory">
-              <a
-                onClick={handleLinkClick}
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium ${
-                  isActive("/inventory")
-                    ? "text-primary-600 bg-primary-50"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-              >
-                <Database className="h-5 w-5 mr-3" />
-                Lager
-              </a>
-            </Link>
+            <div
+              onClick={() => { handleLinkClick(); window.location.href = '/'; }}
+              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                isActive("/")
+                  ? "text-primary-600 bg-primary-50"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              }`}
+            >
+              <Home className="h-5 w-5 mr-3" />
+              Dashboard
+            </div>
+            <div
+              onClick={() => { handleLinkClick(); window.location.href = '/transactions'; }}
+              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                isActive("/transactions")
+                  ? "text-primary-600 bg-primary-50"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              }`}
+            >
+              <FileText className="h-5 w-5 mr-3" />
+              Transaktionen
+            </div>
+            <div
+              onClick={() => { handleLinkClick(); window.location.href = '/automaten'; }}
+              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                isActive("/automaten")
+                  ? "text-primary-600 bg-primary-50"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              }`}
+            >
+              <Package className="h-5 w-5 mr-3" />
+              Automaten
+            </div>
+            <div
+              onClick={() => { handleLinkClick(); window.location.href = '/produkte'; }}
+              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                isActive("/produkte")
+                  ? "text-primary-600 bg-primary-50"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              }`}
+            >
+              <ShoppingBag className="h-5 w-5 mr-3" />
+              Produkte
+            </div>
+            <div
+              onClick={() => { handleLinkClick(); window.location.href = '/lieferanten'; }}
+              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                isActive("/lieferanten")
+                  ? "text-primary-600 bg-primary-50"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              }`}
+            >
+              <Truck className="h-5 w-5 mr-3" />
+              Lieferanten
+            </div>
+            <div
+              onClick={() => { handleLinkClick(); window.location.href = '/bestellungen'; }}
+              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                isActive("/bestellungen")
+                  ? "text-primary-600 bg-primary-50"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              }`}
+            >
+              <ShoppingCart className="h-5 w-5 mr-3" />
+              Bestellungen
+            </div>
+            <div
+              onClick={() => { handleLinkClick(); window.location.href = '/inventory'; }}
+              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                isActive("/inventory")
+                  ? "text-primary-600 bg-primary-50"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              }`}
+            >
+              <Database className="h-5 w-5 mr-3" />
+              Lager
+            </div>
+            <div
+              onClick={() => { handleLinkClick(); window.location.href = '/auswertungen'; }}
+              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                isActive("/auswertungen")
+                  ? "text-primary-600 bg-primary-50"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              }`}
+            >
+              <BarChart2 className="h-5 w-5 mr-3" />
+              Auswertungen
+            </div>
           </nav>
         </div>
 
@@ -156,58 +153,50 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             System
           </h3>
           <nav>
-            <Link href="/synchronization">
-              <a
-                onClick={handleLinkClick}
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium ${
-                  isActive("/synchronization")
-                    ? "text-primary-600 bg-primary-50"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-              >
-                <RefreshCw className="h-5 w-5 mr-3" />
-                Synchronisierung
-              </a>
-            </Link>
-            <Link href="/sync-history">
-              <a
-                onClick={handleLinkClick}
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium ${
-                  isActive("/sync-history")
-                    ? "text-primary-600 bg-primary-50"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-              >
-                <Clock className="h-5 w-5 mr-3" />
-                Sync-Verlauf
-              </a>
-            </Link>
-            <Link href="/forecast">
-              <a
-                onClick={handleLinkClick}
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium ${
-                  isActive("/forecast")
-                    ? "text-primary-600 bg-primary-50"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-              >
-                <BarChart2 className="h-5 w-5 mr-3" />
-                Prognosen
-              </a>
-            </Link>
-            <Link href="/settings">
-              <a
-                onClick={handleLinkClick}
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium ${
-                  isActive("/settings")
-                    ? "text-primary-600 bg-primary-50"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-              >
-                <Settings className="h-5 w-5 mr-3" />
-                Einstellungen
-              </a>
-            </Link>
+            <div
+              onClick={() => { handleLinkClick(); window.location.href = '/synchronization'; }}
+              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                isActive("/synchronization")
+                  ? "text-primary-600 bg-primary-50"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              }`}
+            >
+              <RefreshCw className="h-5 w-5 mr-3" />
+              Synchronisierung
+            </div>
+            <div
+              onClick={() => { handleLinkClick(); window.location.href = '/sync-history'; }}
+              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                isActive("/sync-history")
+                  ? "text-primary-600 bg-primary-50"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              }`}
+            >
+              <Clock className="h-5 w-5 mr-3" />
+              Sync-Verlauf
+            </div>
+            <div
+              onClick={() => { handleLinkClick(); window.location.href = '/forecast'; }}
+              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                isActive("/forecast")
+                  ? "text-primary-600 bg-primary-50"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              }`}
+            >
+              <BarChart2 className="h-5 w-5 mr-3" />
+              Prognosen
+            </div>
+            <div
+              onClick={() => { handleLinkClick(); window.location.href = '/settings'; }}
+              className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                isActive("/settings")
+                  ? "text-primary-600 bg-primary-50"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              }`}
+            >
+              <Settings className="h-5 w-5 mr-3" />
+              Einstellungen
+            </div>
           </nav>
         </div>
 
