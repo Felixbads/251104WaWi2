@@ -1263,7 +1263,7 @@ export default function Suppliers() {
   const limit = 20; // Anzahl der Lieferanten pro Seite
 
   // Daten abrufen
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery<SupplierResponse>({
     queryKey: ['/api/suppliers', searchTerm, currentFilters, page, limit],
     queryFn: () => getSuppliers({ 
       limit,
@@ -1299,7 +1299,7 @@ export default function Suppliers() {
   };
 
   // Simulierte Kopplung von Produkten und Bestellungen (in einer echten App würden diese vom Backend kommen)
-  const enhancedSuppliers = data?.data ? data.data.map(supplier => ({
+  const enhancedSuppliers = data?.data ? data.data.map((supplier: Supplier) => ({
     ...supplier,
     productsCount: Math.floor(Math.random() * 20), // In einer echten App: supplier.productsCount
     openOrdersCount: Math.floor(Math.random() * 3) // In einer echten App: supplier.openOrdersCount

@@ -671,16 +671,28 @@ export default function Orders() {
     }
   });
   
-  // Daten abrufen (simuliert mit Demo-Daten)
-  /*
-  const { data: orders, isLoading: ordersLoading } = useQuery({
-    queryKey: ['/api/orders'],
-    queryFn: () => getOrders(),
+  // Daten abrufen
+  /* Echte API-Abfrage (aktuell deaktiviert zugunsten der Demo-Daten)
+  const { data: apiOrders, isLoading: apiOrdersLoading } = useQuery({
+    queryKey: ['/api/orders', filterForm.watch()],
+    queryFn: () => {
+      const filters = filterForm.getValues();
+      return getOrders({
+        status: filters.status === 'all' ? undefined : filters.status,
+        supplier: filters.supplier === 'all' ? undefined : filters.supplier,
+        location: filters.location === 'all' ? undefined : filters.location,
+        dateFrom: filters.dateFrom ? format(filters.dateFrom, 'yyyy-MM-dd') : undefined,
+        dateTo: filters.dateTo ? format(filters.dateTo, 'yyyy-MM-dd') : undefined,
+        paymentStatus: filters.paymentStatus === 'all' ? undefined : filters.paymentStatus,
+        priority: filters.priority === 'all' ? undefined : filters.priority,
+        search: filters.search || undefined
+      });
+    }
   });
   
-  const { data: selectedOrder, isLoading: orderDetailLoading } = useQuery({
+  const { data: apiSelectedOrder, isLoading: apiOrderDetailLoading } = useQuery({
     queryKey: ['/api/orders', selectedOrderId],
-    queryFn: () => getOrder(selectedOrderId),
+    queryFn: () => selectedOrderId ? getOrder(selectedOrderId) : Promise.reject('No order ID'),
     enabled: !!selectedOrderId
   });
   */

@@ -453,6 +453,41 @@ export interface SupplierResponse {
   }
 }
 
+// Lieferanten-Typen
+export interface Supplier {
+  id: number;
+  name: string;
+  contactPerson: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  address: string | null;
+  city: string | null;
+  postalCode: string | null;
+  country: string | null;
+  status: 'active' | 'inactive';
+  notes: string | null;
+  paymentTerms: string | null;
+  deliveryTerms: string | null;
+  minimumOrderValue: number | null;
+  deliveryDays: string | null;
+  taxId: string | null;
+  accountNumber: string | null;
+  bankDetails: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SupplierResponse {
+  data: Supplier[];
+  meta: {
+    total: number;
+    limit: number;
+    page: number;
+    pages: number;
+  }
+}
+
 // Lieferanten-Funktionen
 export async function getSuppliers(params?: {
   limit?: number;
