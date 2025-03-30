@@ -44,6 +44,9 @@ import Orders from "@/pages/Orders";
 import NewOrder from "@/pages/NewOrder";
 import Inventory from "@/pages/Inventory";
 import WarehouseDetail from "@/pages/WarehouseDetail";
+import WarenentnahmePage from "@/pages/WarenentnahmePage";
+import WarenentnahmeDetail from "@/pages/WarenentnahmeDetail";
+import WarenentnahmeNew from "@/pages/WarenentnahmeNew";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -64,6 +67,9 @@ function AuthenticatedRouter() {
         <Route path="/bestellungen/neu" component={NewOrder} />
         <Route path="/lager" component={Inventory} />
         <Route path="/lager/:id" component={WarehouseDetail} />
+        <Route path="/warenentnahme" component={WarenentnahmePage} />
+        <Route path="/warenentnahme/new" component={WarenentnahmeNew} />
+        <Route path="/warenentnahme/:id" component={WarenentnahmeDetail} />
         <Route path="/auswertungen" component={Reporting} />
         <Route path="/synchronization" component={Synchronization} />
         <Route path="/sync-history" component={SyncHistory} />

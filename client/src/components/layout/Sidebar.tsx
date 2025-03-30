@@ -13,6 +13,7 @@ import {
   ShoppingCart,
   Users,
   Building2,
+  TrashIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib";
@@ -105,6 +106,13 @@ export default function Sidebar() {
             isActive={isActive("/lager")}
           >
             Lager
+          </NavItem>
+          <NavItem 
+            href="/warenentnahme" 
+            icon={<TrashIcon className="h-5 w-5 mr-3" />}
+            isActive={isActive("/warenentnahme")}
+          >
+            Warenentnahme
           </NavItem>
           <NavItem 
             href="/transactions" 

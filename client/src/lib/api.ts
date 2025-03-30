@@ -685,6 +685,33 @@ export interface ProductDemandForecast {
   confidence: number;
 }
 
+// Warenentnahme Interfaces
+export interface ProductDisposalItem {
+  id?: number;
+  productId: string;
+  productName: string;
+  quantity: number;
+  reason?: string;
+  previousStock?: number;
+  currentStock?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ProductDisposal {
+  id: number;
+  warehouseId: string;
+  warehouseName: string;
+  reason: string;
+  description?: string;
+  status: string;
+  createdById?: number;
+  createdByName?: string;
+  createdAt: string;
+  completedAt?: string;
+  items: ProductDisposalItem[];
+}
+
 export async function getCurrentWeather(): Promise<WeatherCurrent> {
   return apiRequest<WeatherCurrent>('get', '/weather/current');
 }
@@ -752,6 +779,51 @@ export async function updateWarehouseInventory(
 
 export async function getWeatherForecast(days = 5): Promise<WeatherForecast[]> {
   return apiRequest<WeatherForecast[]>('get', `/weather/forecast?days=${days}`);
+}
+
+// Warehouses List API Functions
+export async function getWarehouses(): Promise<Warehouse[]> {
+  return apiRequest<Warehouse[]>('get', '/warehouses');
+}
+
+// Product Disposal API Functions
+export async function getProductDisposals(params: {
+  warehouseId?: string;
+  status?: string;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<ProductDisposal[]> {
+  const queryParams = new URLSearchParams();
+  
+  if (params.warehouseId) queryParams.append('warehouseId', params.warehouseId);
+  if (params.status) queryParams.append('status', params.status);
+  if (params.limit) queryParams.append('limit', params.limit.toString());
+  if (params.offset) queryParams.append('offset', params.offset.toString());
+  
+  const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+  return apiRequest<ProductDisposal[]>('get', `/product-disposals${queryString}`);
+}
+
+export async function getProductDisposal(id: number): Promise<ProductDisposal> {
+  return apiRequest<ProductDisposal>('get', `/product-disposals/${id}`);
+}
+
+export async function createProductDisposal(data: {
+  warehouseId: string;
+  reason: string;
+  description?: string;
+  items: {
+    productId: string;
+    productName: string;
+    quantity: number;
+    reason?: string;
+  }[];
+}): Promise<ProductDisposal> {
+  return apiRequest<ProductDisposal>('post', '/product-disposals', data);
+}
+
+export async function updateProductDisposalStatus(id: number, status: string): Promise<ProductDisposal> {
+  return apiRequest<ProductDisposal>('put', `/product-disposals/${id}/status`, { status });
 }
 
 // Feiertage für Dashboard
