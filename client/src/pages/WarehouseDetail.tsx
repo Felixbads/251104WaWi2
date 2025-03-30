@@ -1,27 +1,54 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useLocation } from 'wouter';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { CircleAlert, Building2, ArrowLeft, Edit, Truck, Package2, ClipboardList } from 'lucide-react';
+import { 
+  CircleAlert, Building2, ArrowLeft, Edit, Truck, Package2, ClipboardList,
+  Plus, Minus, RefreshCw, Archive, Pencil, RotateCw, MoveRight, ArrowRightLeft,
+  FileSpreadsheet, ClipboardList as ClipboardListIcon
+} from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { WarehouseFormDialog } from '@/components/inventory/WarehouseFormDialog';
-import MachineAssignments from '@/components/inventory/MachineAssignments';
+import { 
+  Dialog, DialogContent, DialogDescription, DialogFooter, 
+  DialogHeader, DialogTitle, DialogTrigger 
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { apiRequest } from '@/lib/queryClient';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function WarehouseDetail() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<string>('info');
   const [isEditWarehouseDialogOpen, setIsEditWarehouseDialogOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedMachine, setSelectedMachine] = useState<number | null>(null);
+  const [isPrimary, setIsPrimary] = useState(true);
+  const [assignNotes, setAssignNotes] = useState('');
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
+  const [isAddInventoryDialogOpen, setIsAddInventoryDialogOpen] = useState(false);
   
   // Abfrage des Lagers
   const { data: warehouse, isLoading: warehouseLoading, error } = useQuery({
     queryKey: [`/api/warehouses/${id}`],
     staleTime: 1000 * 30, // 30 Sekunden
+  });
+  
+  // Abfrage aller Produkte (Vendon)
+  const { data: products, isLoading: productsLoading } = useQuery({
+    queryKey: ['/api/products'],
+    staleTime: 1000 * 60, // 1 Minute
   });
   
   // Abfrage der Lagerbestände in diesem Lager
@@ -30,10 +57,129 @@ export default function WarehouseDetail() {
     staleTime: 1000 * 30, // 30 Sekunden
   });
   
+  // Abfrage aller Automaten für die Zuordnung
+  const { data: machines, isLoading: machinesLoading } = useQuery({
+    queryKey: ['/api/machines'],
+    staleTime: 1000 * 60, // 1 Minute
+  });
+  
   // Abfrage der Maschinen, die diesem Lager zugeordnet sind
   const { data: machineAssignments, isLoading: assignmentsLoading } = useQuery({
     queryKey: ['/api/machine-warehouse-assignments', { warehouseId: id }],
     staleTime: 1000 * 30, // 30 Sekunden
+  });
+  
+  // Mutation für das Erstellen von Automaten-Zuordnungen
+  const createAssignmentMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest('/api/machine-warehouse-assignments', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
+      toast({
+        title: 'Automat zugeordnet',
+        description: 'Der Automat wurde erfolgreich diesem Lager zugeordnet.',
+      });
+      setIsAssignDialogOpen(false);
+      setSelectedMachine(null);
+      setIsPrimary(true);
+      setAssignNotes('');
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Fehler bei der Zuordnung',
+        description: error.message || 'Der Automat konnte nicht zugeordnet werden.',
+        variant: 'destructive'
+      });
+    }
+  });
+  
+  // Mutation für das Löschen von Automaten-Zuordnungen
+  const deleteAssignmentMutation = useMutation({
+    mutationFn: async (assignmentId: number) => {
+      return await apiRequest(`/api/machine-warehouse-assignments/${assignmentId}`, {
+        method: 'DELETE'
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
+      toast({
+        title: 'Zuordnung entfernt',
+        description: 'Die Zuordnung wurde erfolgreich entfernt.',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Fehler beim Entfernen',
+        description: error.message || 'Die Zuordnung konnte nicht entfernt werden.',
+        variant: 'destructive'
+      });
+    }
+  });
+  
+  // Mutation für das Hinzufügen von Produkten zum Inventar
+  const addInventoryMutation = useMutation({
+    mutationFn: async (data: any) => {
+      // Für jedes ausgewählte Produkt einen Inventareintrag erstellen
+      const promises = data.productIds.map((productId: number) => {
+        return apiRequest('/api/inventory', {
+          method: 'POST',
+          body: JSON.stringify({
+            warehouseId: parseInt(id),
+            productId: productId,
+            quantity: 0, // Anfangsbestand 0
+            minQuantity: data.minQuantity || 5, // Standardwert für min. Bestand
+            location: data.location || '',
+            notes: data.notes || ''
+          })
+        });
+      });
+      
+      return Promise.all(promises);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
+      toast({
+        title: 'Produkte hinzugefügt',
+        description: 'Die ausgewählten Produkte wurden dem Lagerbestand hinzugefügt.',
+      });
+      setIsAddInventoryDialogOpen(false);
+      setSelectedProductIds([]);
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Fehler beim Hinzufügen',
+        description: error.message || 'Die Produkte konnten nicht hinzugefügt werden.',
+        variant: 'destructive'
+      });
+    }
+  });
+  
+  // Mutation für Bestandsänderungen
+  const updateInventoryMutation = useMutation({
+    mutationFn: async ({ id, quantity }: { id: number, quantity: number }) => {
+      return await apiRequest(`/api/inventory/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ quantity })
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
+      toast({
+        title: 'Bestand aktualisiert',
+        description: 'Der Lagerbestand wurde erfolgreich aktualisiert.',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Fehler bei der Aktualisierung',
+        description: error.message || 'Der Bestand konnte nicht aktualisiert werden.',
+        variant: 'destructive'
+      });
+    }
   });
   
   // Metriken berechnen
@@ -46,6 +192,73 @@ export default function WarehouseDetail() {
   ).length || 0;
   const assignedMachines = machineAssignments?.length || 0;
   const primaryAssignments = machineAssignments?.filter(a => a.isPrimary).length || 0;
+  
+  // Filter-Funktion für Produkte basierend auf Suchbegriff und bereits vorhandenen Einträgen
+  const filteredProducts = products?.filter(product => {
+    // Prüfen, ob das Produkt bereits dem Lager zugeordnet ist
+    const isAlreadyInInventory = inventoryItems?.some(item => item.productId === product.id) || false;
+    
+    // Prüfen, ob der Suchbegriff im Produktnamen enthalten ist
+    const matchesSearch = product.productName?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
+    
+    // Nur Produkte anzeigen, die noch nicht im Inventar sind und dem Suchbegriff entsprechen
+    return !isAlreadyInInventory && matchesSearch;
+  });
+  
+  // Handler für die Bestandsänderung
+  const handleQuantityChange = (inventoryItemId: number, currentQuantity: number, delta: number) => {
+    const newQuantity = Math.max(0, currentQuantity + delta); // Verhindere negative Bestände
+    updateInventoryMutation.mutate({ id: inventoryItemId, quantity: newQuantity });
+  };
+  
+  // Handler für die Automaten-Zuordnung
+  const handleAssignMachine = () => {
+    if (!selectedMachine) {
+      toast({
+        title: 'Fehler',
+        description: 'Bitte wählen Sie einen Automaten aus.',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    createAssignmentMutation.mutate({
+      machineId: selectedMachine,
+      warehouseId: parseInt(id),
+      isPrimary,
+      notes: assignNotes
+    });
+  };
+  
+  // Handler für das Hinzufügen von Produkten
+  const handleAddProducts = () => {
+    if (selectedProductIds.length === 0) {
+      toast({
+        title: 'Fehler',
+        description: 'Bitte wählen Sie mindestens ein Produkt aus.',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    addInventoryMutation.mutate({
+      productIds: selectedProductIds,
+      minQuantity: 5, // Standardwert
+      location: '', // Optional
+      notes: '' // Optional
+    });
+  };
+  
+  // Toggle-Funktion für Produkt-Auswahl
+  const toggleProductSelection = (productId: number) => {
+    setSelectedProductIds(prevSelected => {
+      if (prevSelected.includes(productId)) {
+        return prevSelected.filter(id => id !== productId);
+      } else {
+        return [...prevSelected, productId];
+      }
+    });
+  };
   
   // Rendering bei Ladevorgang
   if (warehouseLoading) {
@@ -171,7 +384,9 @@ export default function WarehouseDetail() {
         <TabsList className="mb-4">
           <TabsTrigger value="info">Lagerinfo</TabsTrigger>
           <TabsTrigger value="inventory">Lagerbestand</TabsTrigger>
-          <TabsTrigger value="machines">Automaten</TabsTrigger>
+          <TabsTrigger value="movements">Warenbewegungen</TabsTrigger>
+          <TabsTrigger value="machines">Automaten-Zuordnung</TabsTrigger>
+          <TabsTrigger value="counts">Inventur</TabsTrigger>
         </TabsList>
         
         <TabsContent value="info" className="mt-0">
@@ -219,9 +434,21 @@ export default function WarehouseDetail() {
         
         <TabsContent value="inventory" className="mt-0">
           <Card>
-            <CardHeader>
-              <CardTitle>Lagerbestand</CardTitle>
-              <CardDescription>Übersicht aller Artikel in diesem Lager</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Lagerbestand</CardTitle>
+                <CardDescription>Übersicht aller Artikel in diesem Lager</CardDescription>
+              </div>
+              <div className="flex space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setIsAddInventoryDialogOpen(true)}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Produkte hinzufügen
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {inventoryLoading ? (
@@ -239,6 +466,7 @@ export default function WarehouseDetail() {
                         <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Bestand</th>
                         <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Min. Bestand</th>
                         <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Aktionen</th>
                       </tr>
                     </thead>
                     <tbody className="bg-popover divide-y divide-border">
@@ -271,6 +499,34 @@ export default function WarehouseDetail() {
                                 {statusText}
                               </span>
                             </td>
+                            <td className="px-3 py-2 whitespace-nowrap">
+                              <div className="flex space-x-1">
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => handleQuantityChange(item.id, item.quantity || 0, 1)}
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => handleQuantityChange(item.id, item.quantity || 0, -1)}
+                                  disabled={(item.quantity || 0) <= 0}
+                                >
+                                  <Minus className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </td>
                           </tr>
                         );
                       })}
@@ -281,20 +537,137 @@ export default function WarehouseDetail() {
                 <div className="text-center py-6">
                   <Building2 className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                   <h3 className="text-lg font-medium">Keine Artikel vorhanden</h3>
-                  <p className="text-muted-foreground">
+                  <p className="text-muted-foreground mb-4">
                     In diesem Lager sind noch keine Artikel hinterlegt.
                   </p>
+                  <Button onClick={() => setIsAddInventoryDialogOpen(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Produkte hinzufügen
+                  </Button>
                 </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
         
-        <TabsContent value="machines" className="mt-0">
+        <TabsContent value="movements" className="mt-0">
           <Card>
             <CardHeader>
-              <CardTitle>Zugeordnete Automaten</CardTitle>
-              <CardDescription>Automaten, die diesem Lager zugewiesen sind</CardDescription>
+              <CardTitle>Warenbewegungen</CardTitle>
+              <CardDescription>Ein- und Ausgänge von Waren in diesem Lager</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-between mb-4">
+                <div className="flex space-x-2">
+                  <Button variant="outline">
+                    <ArrowRightLeft className="h-4 w-4 mr-2" />
+                    Alle Bewegungen
+                  </Button>
+                  <Button variant="outline">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Eingang
+                  </Button>
+                  <Button variant="outline">
+                    <Minus className="h-4 w-4 mr-2" />
+                    Ausgang
+                  </Button>
+                </div>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Neue Bewegung
+                </Button>
+              </div>
+              
+              <div className="rounded-md border p-8 text-center">
+                <MoveRight className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium">Keine Warenbewegungen</h3>
+                <p className="text-muted-foreground mb-2 max-w-md mx-auto">
+                  Für dieses Lager wurden noch keine Warenbewegungen erfasst. 
+                  Erfassen Sie Ein- und Ausgänge, um Ihren Lagerbestand zu verfolgen.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="machines" className="mt-0">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Automaten-Zuordnung</CardTitle>
+                <CardDescription>Verwalten Sie, welche Automaten mit diesem Lager verknüpft sind</CardDescription>
+              </div>
+              <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Automat zuordnen
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Automat diesem Lager zuordnen</DialogTitle>
+                    <DialogDescription>
+                      Wählen Sie einen Automaten aus, der diesem Lager zugeordnet werden soll.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="machine">Automat</Label>
+                      <Select
+                        value={selectedMachine?.toString() || ''}
+                        onValueChange={(value) => setSelectedMachine(parseInt(value))}
+                      >
+                        <SelectTrigger id="machine">
+                          <SelectValue placeholder="Automat auswählen" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {machines?.filter(machine => {
+                            // Prüfen, ob der Automat bereits zugeordnet ist
+                            return !machineAssignments?.some(
+                              assignment => assignment.machineId === machine.id
+                            );
+                          }).map(machine => (
+                            <SelectItem key={machine.id} value={machine.id.toString()}>
+                              {machine.machineName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <Checkbox 
+                        id="isPrimary" 
+                        checked={isPrimary}
+                        onCheckedChange={(checked) => setIsPrimary(!!checked)}
+                      />
+                      <Label htmlFor="isPrimary">Als Primärlager festlegen</Label>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="notes">Notizen (optional)</Label>
+                      <Input
+                        id="notes"
+                        value={assignNotes}
+                        onChange={(e) => setAssignNotes(e.target.value)}
+                        placeholder="Notizen zur Zuordnung"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsAssignDialogOpen(false)}>
+                      Abbrechen
+                    </Button>
+                    <Button 
+                      onClick={handleAssignMachine}
+                      disabled={createAssignmentMutation.isPending || !selectedMachine}
+                    >
+                      {createAssignmentMutation.isPending ? 'Wird zugeordnet...' : 'Zuordnen'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </CardHeader>
             <CardContent>
               {assignmentsLoading ? (
@@ -312,6 +685,7 @@ export default function WarehouseDetail() {
                         <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Primärlager</th>
                         <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Zugewiesen am</th>
                         <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Notizen</th>
+                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Aktionen</th>
                       </tr>
                     </thead>
                     <tbody className="bg-popover divide-y divide-border">
@@ -337,6 +711,17 @@ export default function WarehouseDetail() {
                               {assignment.notes || '-'}
                             </div>
                           </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() => deleteAssignmentMutation.mutate(assignment.id)}
+                              disabled={deleteAssignmentMutation.isPending}
+                            >
+                              Entfernen
+                            </Button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -346,11 +731,40 @@ export default function WarehouseDetail() {
                 <div className="text-center py-6">
                   <Truck className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                   <h3 className="text-lg font-medium">Keine Automaten zugeordnet</h3>
-                  <p className="text-muted-foreground">
+                  <p className="text-muted-foreground mb-4">
                     Diesem Lager sind noch keine Automaten zugewiesen.
                   </p>
+                  <Button onClick={() => setIsAssignDialogOpen(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Automat zuordnen
+                  </Button>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="counts" className="mt-0">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Inventuren</CardTitle>
+                <CardDescription>Verwalten und durchführen von Lagerbestandsaufnahmen</CardDescription>
+              </div>
+              <Button>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Neue Inventur starten
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border p-8 text-center">
+                <ClipboardListIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium">Keine Inventuren vorhanden</h3>
+                <p className="text-muted-foreground mb-2 max-w-md mx-auto">
+                  Es wurden noch keine Inventuren für dieses Lager durchgeführt. 
+                  Starten Sie eine neue Inventur, um den tatsächlichen Bestand zu ermitteln.
+                </p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -363,6 +777,84 @@ export default function WarehouseDetail() {
         onOpenChange={setIsEditWarehouseDialogOpen} 
         isNew={false}
       />
+      
+      {/* Dialog für Produkte hinzufügen */}
+      <Dialog open={isAddInventoryDialogOpen} onOpenChange={setIsAddInventoryDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Produkte zum Lagerbestand hinzufügen</DialogTitle>
+            <DialogDescription>
+              Wählen Sie die Produkte aus, die Sie dem Lagerbestand hinzufügen möchten.
+              Der Anfangsbestand ist zunächst 0.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="flex items-center space-x-2">
+              <Input
+                placeholder="Produkte suchen..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="max-w-sm"
+              />
+              <Badge variant="outline">
+                {filteredProducts?.length || 0} Produkte verfügbar
+              </Badge>
+            </div>
+            
+            <div className="border rounded-md">
+              <ScrollArea className="h-[400px]">
+                <div className="p-4 space-y-2">
+                  {productsLoading ? (
+                    <div className="space-y-2">
+                      {[1, 2, 3, 4, 5].map(i => (
+                        <Skeleton key={i} className="h-8 w-full" />
+                      ))}
+                    </div>
+                  ) : filteredProducts && filteredProducts.length > 0 ? (
+                    filteredProducts.map(product => (
+                      <div key={product.id} className="flex items-center space-x-2 py-2 border-b last:border-0">
+                        <Checkbox 
+                          id={`product-${product.id}`}
+                          checked={selectedProductIds.includes(product.id)}
+                          onCheckedChange={() => toggleProductSelection(product.id)}
+                        />
+                        <Label 
+                          htmlFor={`product-${product.id}`}
+                          className="flex-grow cursor-pointer"
+                        >
+                          {product.productName}
+                        </Label>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-4">
+                      <p className="text-muted-foreground">Keine passenden Produkte gefunden</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          </div>
+          <DialogFooter>
+            <div className="flex justify-between items-center w-full">
+              <span className="text-sm text-muted-foreground">
+                {selectedProductIds.length} Produkte ausgewählt
+              </span>
+              <div className="space-x-2">
+                <Button variant="outline" onClick={() => setIsAddInventoryDialogOpen(false)}>
+                  Abbrechen
+                </Button>
+                <Button 
+                  onClick={handleAddProducts}
+                  disabled={addInventoryMutation.isPending || selectedProductIds.length === 0}
+                >
+                  {addInventoryMutation.isPending ? 'Wird hinzugefügt...' : 'Produkte hinzufügen'}
+                </Button>
+              </div>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
