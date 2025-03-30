@@ -38,6 +38,7 @@ function ProtectedRoute({ component: Component, ...rest }: any) {
 // Importiere fehlende Komponenten
 import Suppliers from "@/pages/Suppliers";
 import Reporting from "@/pages/Reporting";
+import Orders from "@/pages/Orders";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -51,7 +52,7 @@ function AuthenticatedRouter() {
         <Route path="/automaten/:id" component={AutomatDetail} />
         <Route path="/products" component={Products} />
         <Route path="/suppliers" component={Suppliers} />
-        <Route path="/orders" component={() => <NotFound title="Bestellungen" message="Diese Seite wird gerade entwickelt." />} />
+        <Route path="/orders" component={Orders} />
         <Route path="/reporting" component={Reporting} />
         <Route path="/synchronization" component={Synchronization} />
         <Route path="/sync-history" component={SyncHistory} />
