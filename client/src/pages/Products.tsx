@@ -28,6 +28,7 @@ import {
   Percent,
   RefreshCw
 } from "lucide-react";
+import { ExportImportButtons } from "@/components/ExportImportButtons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -634,6 +635,7 @@ export default function Products() {
             <FileText className="h-4 w-4 mr-2" />
             Inventurbericht
           </Button>
+          <ExportImportButtons type="products" />
           <Button onClick={() => setLocation("/produkte/new")}>
             <Plus className="h-4 w-4 mr-2" />
             Neues Produkt
