@@ -1,5 +1,5 @@
 import { useLocation, Link } from "wouter";
-import { Home, Package, ShoppingCart, PackageOpen } from "lucide-react";
+import { Home, Package, ShoppingCart, PackageOpen, Trash2 } from "lucide-react";
 
 // NavItem Komponente für Mobile Footer
 const NavItem = ({ href, icon, label, isActive }: { 
@@ -32,7 +32,7 @@ export default function MobileFooter() {
 
   return (
     <nav className="md:hidden bg-white border-t border-gray-200 fixed bottom-0 left-0 right-0 z-10">
-      <div className="grid grid-cols-4 h-16">
+      <div className="grid grid-cols-5 h-16">
         <NavItem 
           href="/" 
           icon={<Home className="h-6 w-6" />}
@@ -56,6 +56,12 @@ export default function MobileFooter() {
           icon={<PackageOpen className="h-6 w-6" />}
           label="Lager"
           isActive={isActive("/lager")}
+        />
+        <NavItem 
+          href="/warenentnahme" 
+          icon={<Trash2 className="h-6 w-6" />}
+          label="Entnahme"
+          isActive={isActive("/warenentnahme")}
         />
       </div>
     </nav>

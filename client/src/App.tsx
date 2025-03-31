@@ -43,6 +43,7 @@ import Reporting from "@/pages/Reporting";
 import Orders from "@/pages/Orders";
 import NewOrder from "@/pages/NewOrder";
 import Inventory from "@/pages/Inventory";
+import LagerPage from "@/pages/LagerPage";
 import WarehouseDetail from "@/pages/WarehouseDetail";
 import WarenentnahmePage from "@/pages/WarenentnahmePage";
 import WarenentnahmeDetail from "@/pages/WarenentnahmeDetail";
@@ -65,7 +66,8 @@ function AuthenticatedRouter() {
         <Route path="/lieferanten/:id" component={() => <div>Lieferantendetails</div>} />
         <Route path="/bestellungen" component={Orders} />
         <Route path="/bestellungen/neu" component={NewOrder} />
-        <Route path="/lager" component={Inventory} />
+        <Route path="/lager" component={LagerPage} />
+        <Route path="/inventory" component={Inventory} />
         <Route path="/lager/:id" component={WarehouseDetail} />
         <Route path="/warenentnahme" component={WarenentnahmePage} />
         <Route path="/warenentnahme/new" component={WarenentnahmeNew} />

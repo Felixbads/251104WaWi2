@@ -128,10 +128,10 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
                 Bestellungen
               </div>
             </Link>
-            <Link href="/inventory" onClick={handleLinkClick}>
+            <Link href="/lager" onClick={handleLinkClick}>
               <div
                 className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
-                  isActive("/inventory")
+                  isActive("/lager")
                     ? "text-primary-600 bg-primary-50"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                 }`}
