@@ -270,6 +270,8 @@ class VendonAPI {
   
   /**
    * Bereitet Zeitstempel für die API-Anfragen vor
+   * Konvertiert verschiedene Datumsformate in UNIX-Zeitstempel (Sekunden)
+   * für die Verwendung mit der Vendon API
    */
   private prepareTimestamps(startDate?: Date | string | number, endDate?: Date | string | number): [number, number] {
     let startTimestamp: number;
@@ -279,41 +281,29 @@ class VendonAPI {
     const now = Math.floor(Date.now() / 1000); // Sekunden
     const oneMonthAgo = now - (30 * 24 * 60 * 60); // 30 Tage zurück
     
+    // Hilfsfunktion zur konsistenten Konvertierung in UNIX-Zeitstempel (Sekunden)
+    const convertToUnixTimestamp = (input: Date | string | number): number => {
+      if (input instanceof Date) {
+        // Wenn ein Date Objekt übergeben wurde
+        return Math.floor(input.getTime() / 1000);
+      } else if (typeof input === 'string') {
+        // Wenn ein ISO-String oder anderes Datumsformat übergeben wurde
+        return Math.floor(new Date(input).getTime() / 1000);
+      } else {
+        // Wenn ein Zeitstempel übergeben wurde
+        // Überprüfen, ob es in Millisekunden ist (13-stellig) oder in Sekunden (10-stellig)
+        // Eine Zahl > 10^10 ist mit ziemlicher Sicherheit ein Millisekunden-Timestamp
+        return input > 10000000000 
+          ? Math.floor(input / 1000) // Konvertiere von ms zu s
+          : input;
+      }
+    };
+    
     // Verarbeite startDate (oder Standardwert)
-    if (!startDate) {
-      // Wenn kein startDate angegeben, verwende einen Monat zurück
-      startTimestamp = oneMonthAgo;
-    } else if (startDate instanceof Date) {
-      // Wenn ein Date Objekt übergeben wurde
-      startTimestamp = Math.floor(startDate.getTime() / 1000);
-    } else if (typeof startDate === 'string') {
-      // Wenn ein ISO-String oder anderes Datumsformat übergeben wurde
-      startTimestamp = Math.floor(new Date(startDate).getTime() / 1000);
-    } else {
-      // Wenn ein Zeitstempel übergeben wurde
-      // Überprüfen, ob es in Millisekunden ist (13-stellig) oder in Sekunden (10-stellig)
-      startTimestamp = startDate > 1000000000000 
-        ? Math.floor(startDate / 1000) // Konvertiere von ms zu s
-        : startDate as number;
-    }
+    startTimestamp = startDate ? convertToUnixTimestamp(startDate) : oneMonthAgo;
     
     // Verarbeite endDate (oder Standardwert)
-    if (!endDate) {
-      // Wenn kein endDate angegeben, verwende jetzt
-      endTimestamp = now;
-    } else if (endDate instanceof Date) {
-      // Wenn ein Date Objekt übergeben wurde
-      endTimestamp = Math.floor(endDate.getTime() / 1000);
-    } else if (typeof endDate === 'string') {
-      // Wenn ein ISO-String oder anderes Datumsformat übergeben wurde
-      endTimestamp = Math.floor(new Date(endDate).getTime() / 1000);
-    } else {
-      // Wenn ein Zeitstempel übergeben wurde
-      // Überprüfen, ob es in Millisekunden ist (13-stellig) oder in Sekunden (10-stellig)
-      endTimestamp = endDate > 1000000000000 
-        ? Math.floor(endDate / 1000) // Konvertiere von ms zu s
-        : endDate as number;
-    }
+    endTimestamp = endDate ? convertToUnixTimestamp(endDate) : now;
     
     // Sicherstellen, dass startTimestamp nicht größer als endTimestamp ist
     if (startTimestamp > endTimestamp) {
@@ -369,6 +359,12 @@ class VendonAPI {
   
   /**
    * Ruft Transaktionsdaten von der Vendon API über den stats/vends Endpunkt ab
+   * 
+   * Laut Dokumentation im Vendon.net Screenshot:
+   * - Endpunkt ist '/stats/vends'
+   * - Parameter: from_timestamp, to_timestamp (UNIX-Zeitstempel in Sekunden)
+   * - Pagination: offset, limit
+   * - Rückgabeformat: { code: 200, result: [...Transaktionen...] }
    */
   async getTransactions(
     startDate?: Date | string | number,
@@ -391,24 +387,30 @@ class VendonAPI {
     }
     
     try {
-      const transactions = await this.makeRequest<any>('/stats/vends', 'GET', params);
+      // Logge die Anfrage-Parameter für Debugging
+      console.log('API-Anfrage: GET /stats/vends (Versuch 1/3)');
+      console.log('Parameter:', JSON.stringify(params, null, 2));
       
-      // Hier muss die Antwort je nach API-Format angepasst werden
-      let data = [];
-      let total = 0;
+      // Führe die API-Anfrage durch
+      const response = await this.makeRequest<any>('/stats/vends', 'GET', params);
       
-      if (transactions && Array.isArray(transactions)) {
-        data = transactions;
-        total = transactions.length;
-      } else if (transactions && transactions.vends && Array.isArray(transactions.vends)) {
-        data = transactions.vends;
-        total = transactions.total || data.length;
-      } else if (transactions && transactions.data && Array.isArray(transactions.data)) {
-        data = transactions.data;
-        total = transactions.total || data.length;
+      // Extrahiere die eigentlichen Transaktionsdaten aus der Antwort
+      // Wenn die Antwort direkt ein Array ist (ältere API-Version), verwende es direkt
+      // Andernfalls, extrahiere das result-Array aus der Antwort (neuere API-Version)
+      let transactionData: any[] = [];
+      
+      if (Array.isArray(response)) {
+        // Direkte Array-Antwort (ältere API-Version)
+        transactionData = response;
+      } else if (response && Array.isArray(response.result)) {
+        // Neuere API-Version mit { code: 200, result: [...] } Format
+        transactionData = response.result;
       }
       
-      return { data, total };
+      return { 
+        data: transactionData, 
+        total: transactionData.length 
+      };
     } catch (error) {
       console.error('Fehler beim Abrufen von Transaktionen:', error);
       return { data: [], total: 0 };
@@ -2209,6 +2211,12 @@ export class VendonSyncService {
   /**
    * Führt einen einzelnen Batch der historischen Synchronisierung durch
    * Diese Methode ruft einen Monat ab und aktualisiert den historischen Status
+   * 
+   * Verbesserter Algorithmus für die historische Synchronisierung:
+   * 1. Korrekte Behandlung von UNIX-Zeitstempeln
+   * 2. Übersichtliche Fortschrittsanzeige
+   * 3. Robuste Fehlerbehandlung
+   * 4. Effiziente Nutzung der stats/vends-API
    */
   async syncHistoricalBatch(): Promise<{ status: string; message: string; isComplete: boolean }> {
     // Wenn keine historische Synchronisierung läuft, starte eine neue
@@ -2246,47 +2254,187 @@ export class VendonSyncService {
       
       // Berechne Start- und Enddatum für diesen Batch
       const batchStartDate = new Date(this.historicalSyncState.currentYear, this.historicalSyncState.currentMonth, 1);
-      const batchEndDate = new Date(this.historicalSyncState.currentYear, this.historicalSyncState.currentMonth + 1, 0);
+      // Letzter Tag des Monats (erster Tag des nächsten Monats minus 1ms)
+      const batchEndDate = new Date(this.historicalSyncState.currentYear, this.historicalSyncState.currentMonth + 1, 0, 23, 59, 59, 999);
       
-      console.log(`Synchronisiere historischen Batch: ${batchStartDate.toLocaleDateString()} bis ${batchEndDate.toLocaleDateString()}`);
+      console.log(`Synchronisiere historischen Batch für ${batchStartDate.toLocaleString('de-DE', { month: 'long', year: 'numeric' })}`);
+      console.log(`Zeitraum: ${batchStartDate.toISOString()} bis ${batchEndDate.toISOString()}`);
       
-      // Führe die eigentliche Synchronisierung für diesen Monat durch
-      const result = await this.syncTransactions(
-        batchStartDate, 
-        batchEndDate, 
-        this.historicalSyncState.batchSize
-      );
-      
-      // Hole die Ergebnisse aus dem Sync-Log
-      const syncLog = await storage.getSyncLog(result.syncLogId);
-      
-      // Aktualisiere die Transaktionszahl
-      this.historicalSyncState.totalTransactions = await this.getTransactionCount();
-      
-      // Füge den abgeschlossenen Monat zu den vollständig verarbeiteten Monaten hinzu
-      const monthKey = `${this.historicalSyncState.currentYear}-${(this.historicalSyncState.currentMonth + 1).toString().padStart(2, '0')}`;
-      if (!this.historicalSyncState.completedMonths.includes(monthKey)) {
-        this.historicalSyncState.completedMonths.push(monthKey);
-      }
-      
-      // Gehe zum vorherigen Monat für den nächsten Durchlauf
-      this.historicalSyncState.currentMonth--;
-      if (this.historicalSyncState.currentMonth < 0) {
-        this.historicalSyncState.currentMonth = 11; // Dezember
-        this.historicalSyncState.currentYear--;
-      }
-      
-      // Erstelle eine statistische Zusammenfassung
-      const monthsSyncedCount = this.historicalSyncState.completedMonths.length;
-      const summary = syncLog 
-        ? `${syncLog.itemsSaved || 0} neue Transaktionen, ${syncLog.duplicates || 0} Duplikate, ${syncLog.errors || 0} Fehler. Insgesamt ${this.historicalSyncState.totalTransactions} Transaktionen in ${monthsSyncedCount} Monaten.`
-        : "Keine Statistiken verfügbar";
-      
-      return {
-        status: 'success',
-        message: `Historischer Batch abgeschlossen: ${batchStartDate.toLocaleDateString()} bis ${batchEndDate.toLocaleDateString()}. ${summary}. Nächster Batch: ${new Date(this.historicalSyncState.currentYear, this.historicalSyncState.currentMonth, 1).toLocaleDateString()}`,
-        isComplete: false
+      // Erstelle einen Sync-Log-Eintrag für diesen Batch
+      const syncLog: InsertSyncLog = {
+        syncType: 'historical_transactions',
+        startDate: batchStartDate,
+        endDate: batchEndDate,
+        syncStatus: 'running',
+        notes: `Historischer Batch für ${batchStartDate.toLocaleString('de-DE', { month: 'long', year: 'numeric' })}`
       };
+      
+      const logEntry = await storage.createSyncLog(syncLog);
+      const syncLogId = logEntry.id;
+      
+      try {
+        // Hole Transaktionen für diesen Monat von der API
+        console.log(`Hole Transaktionen für ${batchStartDate.toLocaleString('de-DE', { month: 'long', year: 'numeric' })}`);
+        
+        // Verwende die verbesserte getTransactions-Methode mit korrekter UNIX-Zeitstempel-Konvertierung
+        const result = await this.api.getTransactions(
+          batchStartDate,
+          batchEndDate,
+          undefined, // keine Maschinen-ID-Filterung
+          0, // Offset
+          this.historicalSyncState.batchSize // Limit
+        );
+        
+        // Wenn keine Transaktionen gefunden wurden
+        if (!result.data || result.data.length === 0) {
+          console.log(`Keine Transaktionen für ${batchStartDate.toLocaleString('de-DE', { month: 'long', year: 'numeric' })} gefunden.`);
+          
+          // Aktualisiere den Sync-Log-Eintrag
+          await storage.updateSyncLog(syncLogId, {
+            endDate: new Date(),
+            itemsFound: 0,
+            itemsSaved: 0,
+            duplicates: 0,
+            syncStatus: 'completed',
+            notes: `Keine Transaktionen für ${batchStartDate.toLocaleString('de-DE', { month: 'long', year: 'numeric' })} gefunden.`
+          });
+        } else {
+          // Transaktionen wurden gefunden
+          console.log(`${result.data.length} Transaktionen für ${batchStartDate.toLocaleString('de-DE', { month: 'long', year: 'numeric' })} gefunden.`);
+          
+          // Speichere die neuen Transaktionen in der Datenbank
+          let savedCount = 0;
+          let duplicateCount = 0;
+          let errorCount = 0;
+          
+          for (const transaction of result.data) {
+            try {
+              // Extrahiere die notwendigen Felder aus der API-Antwort
+              const vendonId = transaction.transaction_id?.toString() || '';
+              if (!vendonId) {
+                console.error(`Transaction ohne ID übersprungen:`, transaction);
+                errorCount++;
+                continue;
+              }
+              
+              // Prüfe, ob die Transaktion bereits existiert
+              const existingTransaction = await storage.getTransactionByVendonId(vendonId);
+              if (existingTransaction) {
+                // Transaktion existiert bereits, zähle als Duplikat
+                duplicateCount++;
+                continue;
+              }
+              
+              // Extrahiere die Maschinen-ID
+              const machineVendonId = transaction.machine_id?.toString() || '';
+              let machineId = null;
+              
+              if (machineVendonId) {
+                // Finde die Maschine in der Datenbank
+                const machine = await storage.getMachineByVendonId(machineVendonId);
+                if (machine) {
+                  machineId = machine.id;
+                } else {
+                  // Wenn die Maschine nicht existiert, erstelle sie
+                  const newMachine: InsertMachine = {
+                    vendonId: machineVendonId,
+                    machineName: transaction.machine_name || `Maschine ${machineVendonId}`,
+                    lastSync: new Date()
+                  };
+                  const createdMachine = await storage.createMachine(newMachine);
+                  machineId = createdMachine.id;
+                }
+              }
+              
+              // Extrahiere den Zeitstempel und konvertiere ihn in ein Date-Objekt
+              const timestamp = transaction.datetime;
+              let transactionDate: Date;
+              
+              if (typeof timestamp === 'number') {
+                // Bei der Vendon API ist der Zeitstempel in Sekunden, nicht in Millisekunden
+                transactionDate = new Date(timestamp * 1000);
+              } else {
+                // Fallback, falls der Zeitstempel nicht als Zahl vorliegt
+                transactionDate = new Date();
+                console.warn(`Unerwartetes Zeitstempel-Format für Transaktion ${vendonId}: ${timestamp}. Verwende aktuelles Datum.`);
+              }
+              
+              // Erstelle das Transaktionsobjekt für die Datenbank
+              const newTransaction: InsertTransaction = {
+                vendonId,
+                machineId,
+                datetime: transactionDate,
+                price: transaction.price || 0,
+                productName: transaction.name || null,
+                quantity: transaction.quantity || 1,
+                paymentMethod: transaction.payment_method || null,
+                extraData: JSON.stringify(transaction), // Speichern der vollständigen API-Antwort
+                processingStatus: 'pending', // Wird später verarbeitet
+                createdAt: new Date(),
+                lastSync: new Date()
+              };
+              
+              // Speichere die Transaktion in der Datenbank
+              await storage.createTransaction(newTransaction);
+              savedCount++;
+              
+            } catch (error) {
+              console.error(`Fehler beim Speichern der Transaktion:`, error);
+              errorCount++;
+            }
+          }
+          
+          // Aktualisiere den Sync-Log-Eintrag
+          await storage.updateSyncLog(syncLogId, {
+            endDate: new Date(),
+            itemsFound: result.data.length,
+            itemsSaved: savedCount,
+            duplicates: duplicateCount,
+            errors: errorCount,
+            syncStatus: 'completed',
+            notes: `Batch für ${batchStartDate.toLocaleString('de-DE', { month: 'long', year: 'numeric' })} abgeschlossen: ${savedCount} neue Transaktionen, ${duplicateCount} Duplikate, ${errorCount} Fehler.`
+          });
+        }
+        
+        // Aktualisiere die Transaktionszahl
+        this.historicalSyncState.totalTransactions = await this.getTransactionCount();
+        
+        // Füge den abgeschlossenen Monat zu den vollständig verarbeiteten Monaten hinzu
+        const monthKey = `${this.historicalSyncState.currentYear}-${(this.historicalSyncState.currentMonth + 1).toString().padStart(2, '0')}`;
+        if (!this.historicalSyncState.completedMonths.includes(monthKey)) {
+          this.historicalSyncState.completedMonths.push(monthKey);
+        }
+        
+        // Gehe zum vorherigen Monat für den nächsten Durchlauf
+        this.historicalSyncState.currentMonth--;
+        if (this.historicalSyncState.currentMonth < 0) {
+          this.historicalSyncState.currentMonth = 11; // Dezember
+          this.historicalSyncState.currentYear--;
+        }
+        
+        // Erstelle eine statistische Zusammenfassung
+        const monthsSyncedCount = this.historicalSyncState.completedMonths.length;
+        const nextDate = new Date(this.historicalSyncState.currentYear, this.historicalSyncState.currentMonth, 1);
+        
+        return {
+          status: 'success',
+          message: `Historischer Batch für ${batchStartDate.toLocaleString('de-DE', { month: 'long', year: 'numeric' })} abgeschlossen. Insgesamt ${this.historicalSyncState.totalTransactions} Transaktionen in ${monthsSyncedCount} Monaten. Nächster Batch: ${nextDate.toLocaleString('de-DE', { month: 'long', year: 'numeric' })}`,
+          isComplete: false
+        };
+      } catch (syncError) {
+        // Fehler bei der Synchronisierung
+        console.error(`Fehler bei der Synchronisierung für ${batchStartDate.toLocaleString('de-DE', { month: 'long', year: 'numeric' })}:`, syncError);
+        
+        // Aktualisiere den Sync-Log-Eintrag mit dem Fehler
+        await storage.updateSyncLog(syncLogId, {
+          endDate: new Date(),
+          syncStatus: 'error',
+          errorMessage: syncError instanceof Error ? syncError.message : String(syncError)
+        });
+        
+        throw syncError; // Wirf den Fehler weiter, damit er im äußeren catch-Block behandelt wird
+      }
+      
     } catch (error) {
       console.error("Fehler bei der historischen Batch-Synchronisierung:", error);
       
