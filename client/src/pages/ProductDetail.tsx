@@ -538,12 +538,12 @@ export default function ProductDetail() {
                                   {refill.datetime ? formatDateTime(refill.datetime, 'date') : formatDateTime(refill.createdAt, 'date')}
                                 </div>
                                 <div className="col-span-4">
-                                  {refill.added > 0 && (
+                                  {(refill.added && refill.added > 0) && (
                                     <span className="font-semibold text-green-600">+{refill.added}</span>
                                   )}
                                 </div>
                                 <div className="col-span-4 text-right">
-                                  {refill.removed > 0 && (
+                                  {(refill.removed && refill.removed > 0) && (
                                     <span className="font-semibold text-amber-600">-{refill.removed}</span>
                                   )}
                                 </div>
@@ -881,12 +881,23 @@ export default function ProductDetail() {
                                 <Select
                                   value={editedProduct.supplierId?.toString() || ""}
                                   onValueChange={(value) => {
+                                    // Bei leerem Wert keinen Lieferanten auswählen
+                                    if (!value) {
+                                      setEditedProduct({
+                                        ...editedProduct,
+                                        supplierId: undefined,
+                                        supplier: undefined
+                                      });
+                                      return;
+                                    }
+
                                     const selectedSupplier = suppliersData?.data && Array.isArray(suppliersData.data) 
-                                  ? suppliersData.data.find(s => s.id.toString() === value)
-                                  : undefined;
+                                      ? suppliersData.data.find(s => s.id.toString() === value)
+                                      : undefined;
+                                    
                                     setEditedProduct({
                                       ...editedProduct,
-                                      supplierId: value ? parseInt(value) : undefined,
+                                      supplierId: parseInt(value),
                                       supplier: selectedSupplier?.name
                                     });
                                   }}

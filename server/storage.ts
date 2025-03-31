@@ -759,7 +759,7 @@ export class DatabaseStorage implements IStorage {
     // Maschinen-Stocks für das Produkt mit vendonId abrufen
     const machineStocksResult = await db.select({
       machineId: machineStocks.machineId,
-      machineName: machines.machineName || sql`''`,
+      machineName: machines.machineName,
       currentStock: machineStocks.quantity || sql`0`,
       productVendonId: machineStocks.productVendonId,
       updatedAt: machineStocks.updatedAt
@@ -789,7 +789,7 @@ export class DatabaseStorage implements IStorage {
 
         return {
           machineId: stock.machineId,
-          machineName: stock.machineName || "",
+          machineName: String(stock.machineName || ""),
           currentStock: stock.currentStock || 0,
           lastRefill: lastRefill?.datetime ? lastRefill.datetime.toISOString() : null
         };
