@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { getOrder, processOrderReceipt } from "@/lib/api";
 
 // UI Komponenten
 import { Button } from "@/components/ui/button";
@@ -176,11 +177,7 @@ export default function OrderReceipt() {
   const queryClient = useQueryClient();
   
   // Form state
-  const [orderItems, setOrderItems] = useState(mockOrder.orderItems.map(item => ({
-    ...item,
-    receivedQuantity: item.quantity, // Default to ordered quantity
-    qualityStatus: "good" // Default to good
-  })));
+  const [orderItems, setOrderItems] = useState<any[]>([]);
   
   const [notes, setNotes] = useState("");
   const [showIssueDialog, setShowIssueDialog] = useState(false);
@@ -192,15 +189,37 @@ export default function OrderReceipt() {
   // Lade Bestelldetails
   const { data: order, isLoading, error } = useQuery({
     queryKey: [`/api/orders/${id}`],
-    queryFn: () => Promise.resolve(mockOrder),
+    queryFn: () => getOrder(Number(id)),
     staleTime: 1000 * 60 // 1 Minute
   });
   
+  // Initialize orderItems when order data is loaded
+  useEffect(() => {
+    if (order && order.orderItems && order.orderItems.length > 0) {
+      setOrderItems(order.orderItems.map(item => ({
+        ...item,
+        receivedQuantity: item.quantity, // Default to ordered quantity
+        qualityStatus: "good" // Default to good quality
+      })));
+    }
+  }, [order]);
+  
   // Mutation für Wareneingang
   const receiptMutation = useMutation({
-    mutationFn: async (data: any) => {
-      // Mock implementation
-      return Promise.resolve({ success: true });
+    mutationFn: (data: any) => {
+      if (!order) return Promise.reject(new Error("Keine Bestelldaten vorhanden"));
+      
+      return processOrderReceipt(Number(id), {
+        receiptDate: new Date(),
+        receiptNumber: `RE-${order.orderNumber || 'NEW'}-${new Date().getTime().toString().slice(-6)}`,
+        notes: data.notes,
+        receivedItems: data.items.map((item: any) => ({
+          orderItemId: item.orderItemId,
+          receivedQuantity: item.receivedQuantity || 0,
+          qualityIssues: item.qualityStatus === 'damaged',
+          damageDescription: item.qualityStatus === 'damaged' ? item.notes : undefined
+        }))
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/orders/${id}`] });
@@ -291,6 +310,16 @@ export default function OrderReceipt() {
       item.qualityStatus === "missing" || 
       (item.receivedQuantity || 0) !== item.quantity
     );
+    
+    // Sicherheitscheck: Nur fortfahren, wenn wir einen gültigen order haben
+    if (!order || !order.id) {
+      toast({
+        title: "Fehler",
+        description: "Bestelldaten nicht verfügbar. Bitte laden Sie die Seite neu.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     const receiptData = {
       orderId: order.id,
@@ -410,7 +439,7 @@ export default function OrderReceipt() {
             <h1 className="text-2xl font-bold">Wareneingang für Bestellung #{order.orderNumber}</h1>
             <p className="text-muted-foreground flex items-center gap-2">
               <Calendar className="h-4 w-4" />
-              {formatDate(order.deliveryDate)} {formatTime(order.deliveryDate)}
+              {formatDate(order.expectedDeliveryDate)} {formatTime(order.expectedDeliveryDate)}
             </p>
           </div>
         </div>
@@ -599,7 +628,7 @@ export default function OrderReceipt() {
               
               <div>
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Lieferdatum</h3>
-                <p>{formatDate(order.deliveryDate)} {formatTime(order.deliveryDate)}</p>
+                <p>{formatDate(order.expectedDeliveryDate)} {formatTime(order.expectedDeliveryDate)}</p>
               </div>
               
               <Separator />

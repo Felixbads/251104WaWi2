@@ -398,7 +398,7 @@ export default function Dashboard() {
                           variant="outline" 
                           size="sm" 
                           className="gap-1"
-                          onClick={() => setLocation(`/orders/${order.id}`)}
+                          onClick={() => setLocation(`/bestellungen/${order.id}/wareneingang`)}
                         >
                           <ArrowUpRight className="h-4 w-4" />
                           Warenannahme starten
