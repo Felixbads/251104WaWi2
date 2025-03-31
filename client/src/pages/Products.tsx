@@ -206,7 +206,7 @@ export default function Products() {
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
-  const [limit] = useState(20);
+  const [limit] = useState(200); // Erhöht auf 200, um mehr Produkte zu laden
   
   // Filterzustand
   const [filters, setFilters] = useState<FilterState>({

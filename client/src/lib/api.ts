@@ -4,7 +4,9 @@ const API_BASE_URL = '/api';
 
 // Funktion zum Abrufen aller Vendon-Produkte direkt von der API
 export async function getAllVendonProducts() {
-  const response = await axios.get(`${API_BASE_URL}/vendon/products`);
+  // Ändere die Route von /vendon/products zu /vendon/vendon/products
+  // um die Liste direkt von der Vendon API zu bekommen
+  const response = await axios.get(`${API_BASE_URL}/vendon/vendon/products`);
   return response.data;
 }
 

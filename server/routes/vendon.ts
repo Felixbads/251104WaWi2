@@ -98,8 +98,16 @@ router.get('/status', async (req, res) => {
  */
 router.get('/products', async (req, res) => {
   try {
+    // Hole alle Produkte ohne Limit und gib sie als Array (nicht als Paginated-Response) zurück
     const products = await storage.getProducts(0); // 0 = kein Limit
-    return res.json(products);
+    if (Array.isArray(products)) {
+      return res.json(products);
+    } else if (products && products.data && Array.isArray(products.data)) {
+      return res.json(products.data);  // Extrahiere die Daten aus der paginierten Antwort
+    } else {
+      console.log("Unerwartetes Format der Produktdaten:", products);
+      return res.json([]);  // Fallback: Leeres Array zurückgeben
+    }
   } catch (error) {
     console.error("Fehler beim Abrufen der Produkte:", error);
     return res.status(500).json({ 
