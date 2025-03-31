@@ -86,6 +86,7 @@ export interface IStorage {
   getTransactions(limit?: number): Promise<Transaction[]>;
   getTransactionsByDateRange(startDate: Date, endDate: Date, limit?: number): Promise<Transaction[]>;
   getTransactionsByMachine(machineId: number, limit?: number): Promise<Transaction[]>;
+  getTransactionsByProduct(productId: number, limit?: number): Promise<Transaction[]>;
   getTransactionByVendonId(vendonId: string): Promise<Transaction | undefined>;
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
   updateTransaction(id: number, transaction: Partial<InsertTransaction>): Promise<Transaction | undefined>;
@@ -522,6 +523,15 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(transactions)
       .where(eq(transactions.machineId, machineId))
+      .orderBy(desc(transactions.datetime))
+      .limit(limit);
+  }
+  
+  async getTransactionsByProduct(productId: number, limit: number = 100): Promise<Transaction[]> {
+    return await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.productId, productId))
       .orderBy(desc(transactions.datetime))
       .limit(limit);
   }

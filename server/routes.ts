@@ -3,6 +3,100 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { vendonSync } from "./services/vendonSync";
 import { syncWeatherForecast } from './services/openWeatherService';
+
+// Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
+function groupTransactionsByPeriod(transactions, period) {
+  // Sicherstellen, dass transactions ein Array ist
+  if (!Array.isArray(transactions) || transactions.length === 0) {
+    return [];
+  }
+
+  const now = new Date();
+  let startDate = new Date();
+  let dateFormat = {};
+  let groupByFormat = '';
+
+  // Startdatum und Format basierend auf Zeitraum setzen
+  switch (period) {
+    case 'day':
+      // Aktuelle 24 Stunden
+      startDate.setHours(0, 0, 0, 0);
+      dateFormat = { hour: '2-digit', hour12: false };
+      groupByFormat = 'hour';
+      break;
+    case 'week':
+      // Letzte 7 Tage
+      startDate.setDate(now.getDate() - 7);
+      startDate.setHours(0, 0, 0, 0);
+      dateFormat = { weekday: 'short' };
+      groupByFormat = 'day';
+      break;
+    case 'year':
+      // Aktuelles Jahr
+      startDate = new Date(now.getFullYear(), 0, 1);
+      dateFormat = { month: 'short' };
+      groupByFormat = 'month';
+      break;
+    case 'month':
+    default:
+      // Aktueller Monat
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      dateFormat = { day: '2-digit' };
+      groupByFormat = 'day';
+      break;
+  }
+
+  // Gruppieren nach dem entsprechenden Format
+  const grouped = {};
+  
+  transactions.forEach(transaction => {
+    if (!transaction.datetime) return;
+    
+    const transactionDate = new Date(transaction.datetime);
+    
+    // Transaktionen filtern, die außerhalb des Zeitraums liegen
+    if (transactionDate < startDate) return;
+    
+    let key;
+    switch (groupByFormat) {
+      case 'hour':
+        key = transactionDate.getHours().toString().padStart(2, '0');
+        break;
+      case 'day':
+        if (period === 'week') {
+          // Bei Woche nach Wochentag (0-6) gruppieren
+          key = transactionDate.getDay();
+        } else {
+          // Bei Monat nach Tag gruppieren
+          key = transactionDate.getDate();
+        }
+        break;
+      case 'month':
+        key = transactionDate.getMonth();
+        break;
+      default:
+        key = transactionDate.toISOString().split('T')[0];
+    }
+    
+    if (!grouped[key]) {
+      grouped[key] = {
+        count: 0,
+        revenue: 0,
+        date: transactionDate.toISOString()
+      };
+    }
+    
+    grouped[key].count += 1;
+    grouped[key].revenue += parseFloat(transaction.price) || 0;
+  });
+  
+  // In ein Array umwandeln und sortieren
+  const result = Object.values(grouped).sort((a, b) => {
+    return new Date(a.date).getTime() - new Date(b.date).getTime();
+  });
+  
+  return result;
+}
 import { syncMissingHolidays } from './services/holidayService';
 import { startAutomaticSync, stopAutomaticSync, getSchedulerStatus } from "./scheduler";
 import { z } from "zod";
@@ -392,6 +486,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error(`Error fetching product with ID ${req.params.id}:`, error);
       res.status(500).json({ 
         error: "Failed to fetch product", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Produkt-Verkaufsdaten abrufen
+  app.get(`${API_PREFIX}/products/:id/sales`, async (req: Request, res: Response) => {
+    try {
+      const productId = parseInt(req.params.id);
+      const period = req.query.period as 'day' | 'week' | 'month' | 'year' || 'month';
+      
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+      
+      // Transaktionen des Produkts mit Zeitraumfilter abrufen
+      const transactions = await storage.getTransactionsByProduct(productId);
+      
+      if (!transactions || transactions.length === 0) {
+        return res.json([]);
+      }
+      
+      // Verkaufsdaten nach Zeitraum gruppieren
+      const salesData = groupTransactionsByPeriod(transactions, period);
+      
+      res.json(salesData);
+    } catch (error) {
+      console.error(`Error fetching sales data for product ID ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch product sales data", 
         details: error instanceof Error ? error.message : String(error) 
       });
     }
