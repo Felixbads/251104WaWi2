@@ -1,0 +1,38 @@
+ Überarbeitung der Bestellübersicht, Dashboard-Funktion und Prüfung bestehender Daten:
+
+Es gibt drei Probleme, die wir angehen müssen:
+
+Problem 1:
+Unter Bestellungen wird aktuell eine Übersicht der laufenden Bestellungen angezeigt. Diese Übersicht basiert nicht auf dem Datensatz, der entsteht, wenn eine Bestellung über das System erzeugt wird.
+→ Bitte analysieren, in welche Tabelle(n) neue Bestellungen tatsächlich geschrieben werden, und nutzt diese als Grundlage für die Bestellübersicht.
+
+Die Übersicht soll erweitert werden um:
+	•	Start des Wareneingangs-Workflows direkt aus der Übersicht
+	•	Detailansicht bei Klick auf eine Bestellung, mit:
+	•	Übersicht aller enthaltenen Lieferpositionen
+	•	Anzeige des PDFs der Bestellung
+	•	Anzeige der gesendeten E-Mail-Korrespondenz mit dem Lieferanten
+
+Problem 2:
+Auf dem Dashboard soll eine Übersicht aller offenen Bestellungen (also noch nicht gelieferten) erscheinen.
+Diese Funktion soll identisch zur allgemeinen Bestellübersicht sein:
+	•	Klick auf eine Bestellung öffnet die Detailansicht
+	•	Möglichkeit, von dort aus den Wareneingang zu planen bzw. zu bestätigen
+
+Problem 3:
+Die aktuell angezeigte Bestellübersicht enthält zahlreiche Bestellungen, zum Teil mit Lieferanten, die nicht existieren.
+→ Bitte prüfen, ob es sich hierbei um echte Daten, Dummy-Daten oder Testdaten handelt.
+→ Falls es echte Daten sind:
+	•	Existieren dazu auch Lieferpositionen?
+	•	Welche Tabellen sind hier verknüpft?
+
+Wenn man auf eine dieser Bestellungen klickt, öffnet sich ein Layout mit kaum Funktionalität.
+→ Die Detailansicht soll zukünftig enthalten:
+	•	Übersicht der Lieferpositionen
+	•	Geplantes Lieferdatum
+	•	Status der Lieferantenbestätigung (via Lieferantenportal)
+	•	Button zur Bestätigung des Wareneingangs
+
+Diese Funktionen fehlen aktuell vollständig – sowohl in der Bestellübersicht als auch auf dem Dashboard.
+→ Warum sind diese Funktionen nicht implementiert worden?
+→ Bitte priorisiert die Umsetzung, da diese Funktionalitäten für die tägliche Arbeit essenziell sind.
