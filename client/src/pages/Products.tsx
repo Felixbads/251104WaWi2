@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { 
@@ -20,7 +20,13 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  SlidersHorizontal,
+  Download,
+  BarChart,
+  Truck,
+  Percent,
+  RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,7 +48,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getProducts, getAllVendonProducts } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 // Import die Produkt-Definition aus der API
 import { Product } from "@/lib/api";
@@ -61,7 +69,10 @@ interface FilterState {
   onlyLowStock: boolean;
   priceRange: [number, number];
   suppliers: string[];
+  categories: string[];
   requiresAgeVerification: boolean | null;
+  sortBy: "name" | "price" | "stock" | "sales";
+  sortDirection: "asc" | "desc";
 }
 
 // Filter Dialog Component
@@ -75,20 +86,23 @@ function FilterDialog({ isOpen, onOpenChange, onApplyFilters, categories, initia
       onlyLowStock: false,
       priceRange: [0, 100],
       suppliers: [],
-      requiresAgeVerification: null
+      categories: [],
+      requiresAgeVerification: null,
+      sortBy: "name",
+      sortDirection: "asc"
     });
   };
   
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Produkte filtern
+            <SlidersHorizontal className="h-5 w-5" />
+            Produkte filtern und sortieren
           </DialogTitle>
           <DialogDescription>
-            Filtern Sie die Produktliste nach verschiedenen Kriterien.
+            Filtern und sortieren Sie die Produktliste nach verschiedenen Kriterien.
           </DialogDescription>
         </DialogHeader>
         
@@ -123,6 +137,62 @@ function FilterDialog({ isOpen, onOpenChange, onApplyFilters, categories, initia
             </div>
           </div>
           
+          {/* Kategorien */}
+          <div className="space-y-4">
+            <h4 className="font-medium flex items-center">
+              <Tag className="h-4 w-4 mr-2" />
+              Kategorien
+            </h4>
+            <div className="flex flex-wrap gap-2">
+              {categories.map((category) => (
+                <Badge 
+                  key={category}
+                  variant={filters.categories.includes(category) ? "default" : "outline"}
+                  className="cursor-pointer"
+                  onClick={() => {
+                    const newCategories = filters.categories.includes(category)
+                      ? filters.categories.filter(c => c !== category)
+                      : [...filters.categories, category];
+                    setFilters({...filters, categories: newCategories});
+                  }}
+                >
+                  {category}
+                </Badge>
+              ))}
+            </div>
+          </div>
+          
+          {/* Lieferanten */}
+          <div className="space-y-4">
+            <h4 className="font-medium flex items-center">
+              <Truck className="h-4 w-4 mr-2" />
+              Lieferanten
+            </h4>
+            <Select 
+              value={filters.suppliers[0] || ""}
+              onValueChange={(value) => {
+                if (value === "") {
+                  setFilters({...filters, suppliers: []});
+                } else {
+                  setFilters({...filters, suppliers: [value]});
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Alle Lieferanten" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Alle Lieferanten</SelectItem>
+                {Array.isArray(initialFilters.suppliers) && 
+                 initialFilters.suppliers.map((supplier) => (
+                  <SelectItem key={supplier} value={supplier}>
+                    {supplier}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
           {/* Preis */}
           <div className="space-y-4">
             <h4 className="font-medium flex items-center">
@@ -142,6 +212,52 @@ function FilterDialog({ isOpen, onOpenChange, onApplyFilters, categories, initia
                 <span>{filters.priceRange[0]}€</span>
                 <span>bis</span>
                 <span>{filters.priceRange[1]}€</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Sortierung */}
+          <div className="space-y-4">
+            <h4 className="font-medium flex items-center">
+              <BarChart className="h-4 w-4 mr-2" />
+              Sortierung
+            </h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="sort-by" className="text-sm mb-1 block">Sortieren nach</Label>
+                <Select 
+                  value={filters.sortBy}
+                  onValueChange={(value) => 
+                    setFilters({...filters, sortBy: value as "name" | "price" | "stock" | "sales"})
+                  }
+                >
+                  <SelectTrigger id="sort-by">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="name">Name</SelectItem>
+                    <SelectItem value="price">Preis</SelectItem>
+                    <SelectItem value="stock">Bestand</SelectItem>
+                    <SelectItem value="sales">Verkäufe</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="sort-direction" className="text-sm mb-1 block">Reihenfolge</Label>
+                <Select 
+                  value={filters.sortDirection}
+                  onValueChange={(value) => 
+                    setFilters({...filters, sortDirection: value as "asc" | "desc"})
+                  }
+                >
+                  <SelectTrigger id="sort-direction">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="asc">Aufsteigend</SelectItem>
+                    <SelectItem value="desc">Absteigend</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>
@@ -214,7 +330,10 @@ export default function Products() {
     onlyLowStock: false,
     priceRange: [0, 100],
     suppliers: [],
-    requiresAgeVerification: null
+    categories: [],
+    requiresAgeVerification: null,
+    sortBy: "name",
+    sortDirection: "asc"
   });
 
   // Daten abrufen
@@ -280,7 +399,13 @@ export default function Products() {
         const matchesCategory = !categoryFilter || product.category === categoryFilter || 
                               (categoryFilter === 'Unkategorisiert' && !product.category);
         
-        // Erweiterte Filter
+        // Filter für Lieferanten
+        const matchesSupplier = filters.suppliers.length === 0 || 
+                               (product.supplier && filters.suppliers.includes(product.supplier));
+        
+        // Filter für ausgewählte Kategorien
+        const matchesSelectedCategories = filters.categories.length === 0 || 
+                                        (product.category && filters.categories.includes(product.category));
         
         // Bestand-Filter
         const hasStock = !filters.onlyInStock || (typeof product.inStock === 'number' && product.inStock > 0);
@@ -305,10 +430,40 @@ export default function Products() {
         
         return matchesSearch && 
               matchesCategory && 
+              matchesSupplier &&
+              matchesSelectedCategories &&
               hasStock && 
               hasLowStock && 
               priceInRange && 
               matchesAgeVerification;
+      })
+      .sort((a, b) => {
+        // Sortierung anwenden
+        let comparison = 0;
+        
+        switch (filters.sortBy) {
+          case "name":
+            comparison = a.productName.localeCompare(b.productName);
+            break;
+          case "price":
+            const priceA = a.price || 0;
+            const priceB = b.price || 0;
+            comparison = priceA - priceB;
+            break;
+          case "stock":
+            const stockA = typeof a.inStock === 'number' ? a.inStock : -1;
+            const stockB = typeof b.inStock === 'number' ? b.inStock : -1;
+            comparison = stockA - stockB;
+            break;
+          case "sales":
+            const salesA = a.salesCount || 0;
+            const salesB = b.salesCount || 0;
+            comparison = salesA - salesB;
+            break;
+        }
+        
+        // Sortierrichtung anwenden
+        return filters.sortDirection === "asc" ? comparison : -comparison;
       })
     : [];
 
@@ -512,7 +667,11 @@ export default function Products() {
               filters.onlyLowStock || 
               filters.priceRange[0] > 0 || 
               filters.priceRange[1] < 100 || 
-              filters.requiresAgeVerification !== null) && (
+              filters.suppliers.length > 0 ||
+              filters.categories.length > 0 ||
+              filters.requiresAgeVerification !== null ||
+              filters.sortBy !== "name" ||
+              filters.sortDirection !== "asc") && (
               <span className="absolute -top-1 -right-1 rounded-full bg-primary w-2 h-2" />
             )}
           </Button>
@@ -642,7 +801,10 @@ export default function Products() {
                 onlyLowStock: false,
                 priceRange: [0, 100],
                 suppliers: [],
-                requiresAgeVerification: null
+                categories: [],
+                requiresAgeVerification: null,
+                sortBy: "name",
+                sortDirection: "asc"
               });
             }}
           >
