@@ -402,7 +402,7 @@ function OrderModeSelection({
           Wählen Sie, wie Sie Ihre Bestellung für{' '}
           {isLoading 
             ? <span className="inline-block w-24 h-4 bg-muted animate-pulse rounded"></span> 
-            : <strong>{warehouse?.name}</strong>
+            : <strong>{warehouse && typeof warehouse === 'object' ? warehouse.name : ''}</strong>
           } erstellen möchten.
         </CardDescription>
       </CardHeader>
@@ -623,7 +623,7 @@ function NewOrderForm({
           <span>Neue Bestellung erstellen</span>
         </CardTitle>
         <CardDescription>
-          Erstellen Sie eine neue Bestellung für {warehouse?.name}
+          Erstellen Sie eine neue Bestellung für {warehouse && typeof warehouse === 'object' ? warehouse.name : ''}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -904,11 +904,13 @@ function NewOrderForm({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {products?.map((product: any) => (
+                        {Array.isArray(products) ? products.map((product: any) => (
                           <SelectItem key={product.id} value={product.id.toString()}>
                             {product.productName}
                           </SelectItem>
-                        ))}
+                        )) : (
+                          <SelectItem value="no-products" disabled>Keine Produkte verfügbar</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -975,11 +977,13 @@ function NewOrderForm({
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="">Keine spezifische Maschine</SelectItem>
-                        {machines?.map((machine: any) => (
+                        {Array.isArray(machines) ? machines.map((machine: any) => (
                           <SelectItem key={machine.id} value={machine.id.toString()}>
                             {machine.machineName}
                           </SelectItem>
-                        ))}
+                        )) : (
+                          <SelectItem value="no-machines" disabled>Keine Maschinen verfügbar</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                     <FormDescription>
@@ -1196,7 +1200,7 @@ function CopyOrderForm({
           <span>Bestellung kopieren</span>
         </CardTitle>
         <CardDescription>
-          Erstellen Sie eine neue Bestellung basierend auf einer bestehenden Bestellung für {warehouse?.name}
+          Erstellen Sie eine neue Bestellung basierend auf einer bestehenden Bestellung für {warehouse && typeof warehouse === 'object' ? warehouse.name : ''}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -1234,7 +1238,7 @@ function CopyOrderForm({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {orders && orders.length > 0 ? orders.map((order: any) => (
+                    {Array.isArray(orders) && orders.length > 0 ? orders.map((order: any) => (
                       <TableRow key={order.id}>
                         <TableCell>{order.orderNumber || `#${order.id}`}</TableCell>
                         <TableCell>{order.supplierName}</TableCell>
@@ -1787,7 +1791,7 @@ function ForecastOrderForm({
           <span>Prognosebasierte Bestellung</span>
         </CardTitle>
         <CardDescription>
-          Erstellen Sie eine Bestellung basierend auf Prognosen für {warehouse?.name}
+          Erstellen Sie eine Bestellung basierend auf Prognosen für {warehouse && typeof warehouse === 'object' ? warehouse.name : ''}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -1951,7 +1955,7 @@ function ForecastOrderForm({
               {isGenerating ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
-                <RefreshCcw className="h-4 w-4 mr-2" />
+                <span className="h-4 w-4 mr-2">↻</span>
               )}
               Prognose neu berechnen
             </Button>
