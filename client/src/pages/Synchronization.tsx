@@ -328,7 +328,9 @@ Zeitraum: ${formattedStart} - ${formattedEnd}`;
                           (syncStatus?.refills?.count || 0) +
                           (syncStatus?.refillDetails?.count || 0) +
                           (syncStatus?.events?.count || 0) +
-                          (syncStatus?.products?.count || 0)
+                          (syncStatus?.products?.count || 0) +
+                          (dbStats?.stocks?.count || 0) +
+                          (dbStats?.machineStocks?.count || 0)
                         ).toLocaleString()} Datensätze
                       </Badge>
                     </div>
@@ -569,6 +571,50 @@ Zeitraum: ${formattedStart} - ${formattedEnd}`;
                       {syncStatus?.events?.lastSync 
                         ? `Letzte Synchronisierung: ${formatDateTime(syncStatus.events.lastSync)}`
                         : "Noch keine Synchronisierung durchgeführt"}
+                    </p>
+                  </Card>
+
+                  {/* Stocks Status */}
+                  <Card className="p-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="text-sm font-medium flex items-center">
+                        <Package className="h-4 w-4 mr-2 text-indigo-600" />
+                        Lagerbestände
+                      </h3>
+                      <Badge variant="outline" className="text-xs">
+                        {dbStats?.stocks?.count?.toLocaleString() || 0}
+                      </Badge>
+                    </div>
+                    <Progress 
+                      value={100} 
+                      className="h-2 mb-2" 
+                    />
+                    <p className="text-xs text-gray-500">
+                      {dbStats?.stocks?.latest 
+                        ? `Letztes Update: ${formatDateTime(dbStats.stocks.latest)}`
+                        : "Noch keine Lagerbestände"}
+                    </p>
+                  </Card>
+
+                  {/* Machine Stocks Status */}
+                  <Card className="p-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="text-sm font-medium flex items-center">
+                        <Package className="h-4 w-4 mr-2 text-purple-600" />
+                        Automatenbestände
+                      </h3>
+                      <Badge variant="outline" className="text-xs">
+                        {dbStats?.machineStocks?.count?.toLocaleString() || 0}
+                      </Badge>
+                    </div>
+                    <Progress 
+                      value={100} 
+                      className="h-2 mb-2" 
+                    />
+                    <p className="text-xs text-gray-500">
+                      {dbStats?.machineStocks?.latest 
+                        ? `Letztes Update: ${formatDateTime(dbStats.machineStocks.latest)}`
+                        : "Noch keine Automatenbestände"}
                     </p>
                   </Card>
                 </>

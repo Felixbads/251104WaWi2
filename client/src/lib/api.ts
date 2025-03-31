@@ -720,6 +720,8 @@ export interface DatabaseStats {
   refillDetails: { count: number; latest: Date | null };
   events: { count: number; latest: Date | null };
   products: { count: number; latest: Date | null };
+  stocks: { count: number; latest: Date | null };
+  machineStocks: { count: number; latest: Date | null };
 }
 
 export async function getDatabaseStats(): Promise<DatabaseStats> {
