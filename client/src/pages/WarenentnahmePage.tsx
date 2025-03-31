@@ -1,85 +1,78 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
-import { format } from 'date-fns';
-import { de } from 'date-fns/locale';
+import { useQuery } from '@tanstack/react-query';
+import { getProductDisposals, formatDateTime } from '@/lib/api';
+import { getAllWarehouses } from '@/lib/warehouseApi';
 import {
-  AlertTriangle,
-  Calendar,
-  ChevronLeft,
-  Filter,
-  Info,
-  MoreHorizontal,
-  Plus,
-  RefreshCw,
-  Search,
-  Trash2,
-} from 'lucide-react';
-
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { Skeleton } from '@/components/ui/skeleton';
-import { formatDateTime } from '@/lib/api';
-import { 
-  createProductDisposal, 
-  getProductDisposals,
-  getWarehouses,
-  ProductDisposal,
-  ProductDisposalItem,
-  Warehouse
-} from '@/lib/api';
+import {
+  AlertTriangle,
+  ChevronLeft,
+  Info,
+  MoreHorizontal,
+  Plus,
+  RefreshCw,
+  Search
+} from 'lucide-react';
 
 export default function WarenentnahmePage() {
   const [, setLocation] = useLocation();
-  const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("current");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeTab, setActiveTab] = useState<string>('current');
   const [selectedWarehouse, setSelectedWarehouse] = useState<string | null>(null);
-
-  // API-Anfragen
-  const { 
-    data: warehouses,
-    isLoading: isLoadingWarehouses,
-  } = useQuery({
-    queryKey: ['/api/warehouses'],
-    queryFn: () => getWarehouses(),
-  });
   
-  const { 
-    data: disposals, 
-    isLoading: isLoadingDisposals,
-    isError: isErrorDisposals,
-    error: disposalsError,
-    refetch: refetchDisposals,
-  } = useQuery({
+  // Lade Lager-Daten
+  const { data: warehouses, isLoading: isLoadingWarehouses } = useQuery({
+    queryKey: ['/api/warehouses'],
+    queryFn: getAllWarehouses
+  });
+
+  // Lade Warenentnahmen
+  const { data: disposals, isLoading: isLoadingDisposals, isError: isErrorDisposals, error: disposalsError, refetch: refetchDisposals } = useQuery({
     queryKey: ['/api/product-disposals', selectedWarehouse],
-    queryFn: () => getProductDisposals({ warehouseId: selectedWarehouse }),
+    queryFn: () => getProductDisposals({ warehouseId: selectedWarehouse || undefined }),
   });
 
   // Filter und Sortierung
-  const filteredDisposals = disposals?.filter(disposal => {
+  const safeDisposals = disposals || [];
+  const filteredDisposals = safeDisposals.filter(disposal => {
     if (!searchTerm) return true;
     
     // Suche in Beschreibung, Lager und Produkten
     return (
       disposal.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       disposal.warehouseName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      disposal.items.some(item => 
-        item.productName.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+      (disposal.items && Array.isArray(disposal.items) && disposal.items.some(item => 
+        item && item.productName && item.productName.toLowerCase().includes(searchTerm.toLowerCase())
+      ))
     );
-  }) || [];
+  });
 
   // Disposal-Gruppen berechnen (aktuelle, geplante, abgeschlossene)
   const currentDisposals = filteredDisposals.filter(d => d.status === 'pending');
@@ -193,7 +186,7 @@ export default function WarenentnahmePage() {
                 <DropdownMenuItem onClick={() => setSelectedWarehouse(null)}>
                   Alle Lager
                 </DropdownMenuItem>
-                {warehouses?.map((warehouse) => (
+                {Array.isArray(warehouses) && warehouses.map((warehouse) => (
                   <DropdownMenuItem 
                     key={warehouse.id}
                     onClick={() => handleSelectWarehouse(warehouse.id)}
@@ -263,10 +256,16 @@ export default function WarenentnahmePage() {
                         <TableCell>{disposal.warehouseName}</TableCell>
                         <TableCell>
                           <div className="flex flex-col">
-                            <span>{disposal.items.length} Produkt(e)</span>
+                            <span>{disposal.items?.length || 0} Produkt(e)</span>
                             <span className="text-xs text-muted-foreground">
-                              {disposal.items.map(i => i.productName).slice(0, 1).join(', ')}
-                              {disposal.items.length > 1 ? ` und ${disposal.items.length - 1} weitere` : ''}
+                              {disposal.items && disposal.items.length > 0 
+                                ? (
+                                  <>
+                                    {disposal.items.map(i => i.productName).slice(0, 1).join(', ')}
+                                    {disposal.items.length > 1 ? ` und ${disposal.items.length - 1} weitere` : ''}
+                                  </>
+                                ) : 'Keine Produkte'
+                              }
                             </span>
                           </div>
                         </TableCell>
@@ -338,10 +337,16 @@ export default function WarenentnahmePage() {
                         <TableCell>{disposal.warehouseName}</TableCell>
                         <TableCell>
                           <div className="flex flex-col">
-                            <span>{disposal.items.length} Produkt(e)</span>
+                            <span>{disposal.items?.length || 0} Produkt(e)</span>
                             <span className="text-xs text-muted-foreground">
-                              {disposal.items.map(i => i.productName).slice(0, 1).join(', ')}
-                              {disposal.items.length > 1 ? ` und ${disposal.items.length - 1} weitere` : ''}
+                              {disposal.items && disposal.items.length > 0 
+                                ? (
+                                  <>
+                                    {disposal.items.map(i => i.productName).slice(0, 1).join(', ')}
+                                    {disposal.items.length > 1 ? ` und ${disposal.items.length - 1} weitere` : ''}
+                                  </>
+                                ) : 'Keine Produkte'
+                              }
                             </span>
                           </div>
                         </TableCell>
