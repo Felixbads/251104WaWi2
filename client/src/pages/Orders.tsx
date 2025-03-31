@@ -1248,25 +1248,31 @@ export default function Orders() {
                   <div className="space-y-4">
                     <h3 className="text-lg font-medium">Status-Historie</h3>
                     <div className="relative border-l-2 border-gray-200 ml-4 pl-6 space-y-6">
-                      {selectedOrder.statusHistory.map((event, index) => (
-                        <div key={index} className="relative">
-                          <div className="absolute -left-10 mt-1 w-4 h-4 rounded-full bg-primary"></div>
-                          <div className="mb-1 flex items-center justify-between">
-                            <span className="font-medium">{event.status === "created" ? "Erstellt" : 
-                                             event.status === "open" ? "Offen" : 
-                                             event.status === "ordered" ? "Bestellt" : 
-                                             event.status === "partial" ? "Teilgeliefert" : 
-                                             event.status === "delivered" ? "Geliefert" : 
-                                             event.status === "canceled" ? "Storniert" : 
-                                             event.status}
-                            </span>
-                            <span className="text-sm text-muted-foreground">{formatDate(event.date)}</span>
+                      {selectedOrder.statusHistory && selectedOrder.statusHistory.length > 0 ? (
+                        selectedOrder.statusHistory.map((event, index) => (
+                          <div key={index} className="relative">
+                            <div className="absolute -left-10 mt-1 w-4 h-4 rounded-full bg-primary"></div>
+                            <div className="mb-1 flex items-center justify-between">
+                              <span className="font-medium">{event.status === "created" ? "Erstellt" : 
+                                               event.status === "open" ? "Offen" : 
+                                               event.status === "ordered" ? "Bestellt" : 
+                                               event.status === "partial" ? "Teilgeliefert" : 
+                                               event.status === "delivered" ? "Geliefert" : 
+                                               event.status === "canceled" ? "Storniert" : 
+                                               event.status}
+                              </span>
+                              <span className="text-sm text-muted-foreground">{formatDate(event.date)}</span>
+                            </div>
+                            <p className="text-sm">
+                              {event.user && <span className="font-medium">{event.user}</span>}: {event.note}
+                            </p>
                           </div>
-                          <p className="text-sm">
-                            {event.user && <span className="font-medium">{event.user}</span>}: {event.note}
-                          </p>
+                        ))
+                      ) : (
+                        <div className="text-center py-4 text-muted-foreground">
+                          Keine Status-Historie verfügbar
                         </div>
-                      ))}
+                      )}
                     </div>
                     
                     <div className="mt-6">
