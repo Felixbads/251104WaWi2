@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -45,10 +45,79 @@ export default function Synchronization() {
     refetchInterval: 60000, // Refetch every minute
   });
 
+  // Status für die API-Anfrage und Fortschritt
+  const [apiRequest, setApiRequest] = useState<string>("");
+  const [syncProgress, setSyncProgress] = useState<{
+    total: number;
+    processed: number;
+    status: 'idle' | 'loading' | 'success' | 'error';
+  }>({
+    total: 0,
+    processed: 0,
+    status: 'idle'
+  });
+  
   // Sync mutation
   const syncMutation = useMutation({
-    mutationFn: () => 
-      triggerSync(syncType),
+    mutationFn: () => {
+      const options: any = {};
+      
+      // Für Transaktionen, setze Zeiträume und Batch-Size
+      if (syncType === 'transactions' || syncType === 'events' || syncType === 'refills') {
+        if (startDate) options.startDate = startDate;
+        if (endDate) options.endDate = endDate;
+        options.batchSize = batchSize;
+        
+        // Generiere API-Request für Anzeige
+        const timestampFrom = Math.floor(startDate!.getTime() / 1000);
+        const timestampTo = Math.floor(endDate!.getTime() / 1000);
+        
+        // Formattierte Zeitstempel für Anzeige
+        const formattedStart = format(startDate!, "dd.MM.yyyy HH:mm", { locale: de });
+        const formattedEnd = format(endDate!, "dd.MM.yyyy HH:mm", { locale: de });
+        
+        // Pfad
+        let apiPath = '';
+        if (syncType === 'transactions') {
+          apiPath = '/stats/vends';
+        } else if (syncType === 'events') {
+          apiPath = '/events';
+        } else if (syncType === 'refills') {
+          apiPath = '/servicing';
+        }
+        
+        const requestPreview = 
+`GET ${apiPath}
+Parameter: {
+  "from_timestamp": ${timestampFrom},
+  "to_timestamp": ${timestampTo},
+  "offset": 0,
+  "limit": ${batchSize}
+}
+
+Zeitraum: ${formattedStart} - ${formattedEnd}`;
+
+        setApiRequest(requestPreview);
+        
+        // Setze initialen Fortschritt
+        setSyncProgress({
+          total: 0,
+          processed: 0,
+          status: 'loading'
+        });
+      } else {
+        setApiRequest("");
+        setSyncProgress({ total: 0, processed: 0, status: 'idle' });
+      }
+      
+      // Historische Synchronisierung
+      if (isHistoricalSync && syncType === 'transactions') {
+        options.startDate = new Date(2023, 0, 1); // 1. Januar 2023
+        options.maxDays = 3000; // Großer Wert, um alle Tage zu laden
+      }
+      
+      return triggerSync(syncType, options);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
       queryClient.invalidateQueries({ queryKey: ['/api/sync/logs'] });
@@ -58,6 +127,12 @@ export default function Synchronization() {
         message = 'Die historische Transaktions-Synchronisierung seit Januar 2023 wurde gestartet.';
       }
       
+      // Setze Fortschritt auf Erfolg
+      setSyncProgress(prev => ({
+        ...prev,
+        status: 'success'
+      }));
+      
       toast({
         title: "Synchronisierung gestartet",
         description: message,
@@ -65,6 +140,11 @@ export default function Synchronization() {
       });
     },
     onError: (error) => {
+      setSyncProgress(prev => ({
+        ...prev,
+        status: 'error'
+      }));
+      
       toast({
         title: "Synchronisierungsfehler",
         description: error instanceof Error ? error.message : "Ein unbekannter Fehler ist aufgetreten.",
@@ -110,6 +190,61 @@ export default function Synchronization() {
     if (total === 0) return 100;
     return Math.min(100, Math.round((found / total) * 100));
   };
+  
+  // WebSocket für Live-Updates
+  useEffect(() => {
+    // WebSocket Verbindung einrichten
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/sync-progress`;
+    const ws = new WebSocket(wsUrl);
+    
+    ws.onopen = () => {
+      console.log("WebSocket-Verbindung für Sync-Progress hergestellt");
+    };
+    
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        console.log("Sync-Progress Update erhalten:", data);
+        
+        if (data.type === 'sync_progress' && data.syncType) {
+          // Nur Updates für den aktuell gewählten Sync-Typ berücksichtigen
+          if (data.syncType === syncType) {
+            setSyncProgress({
+              total: data.total || 0,
+              processed: data.processed || 0,
+              status: 'loading'
+            });
+          }
+        } else if (data.type === 'sync_complete') {
+          // Synchronisierung abgeschlossen
+          setSyncProgress(prev => ({
+            ...prev,
+            status: 'success'
+          }));
+          
+          // Daten aktualisieren
+          queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/database/stats'] });
+        }
+      } catch (error) {
+        console.error("Fehler beim Verarbeiten der WebSocket-Nachricht:", error);
+      }
+    };
+    
+    ws.onerror = (error) => {
+      console.error("WebSocket-Fehler:", error);
+    };
+    
+    ws.onclose = (event) => {
+      console.log("WebSocket-Verbindung geschlossen:", event.code, event.reason);
+    };
+    
+    // Aufräumen beim Entladen der Komponente
+    return () => {
+      ws.close();
+    };
+  }, [syncType, queryClient]);
 
   return (
     <div className="space-y-6">
@@ -239,7 +374,47 @@ export default function Synchronization() {
                     </p>
                   </Card>
 
-                  {/* Historical Sync Status */}
+                  {/* Current Sync Progress */}
+                  {syncProgress.status === 'loading' && (
+                    <Card className="p-4 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800">
+                      <div className="flex justify-between items-center mb-2">
+                        <h3 className="text-sm font-medium flex items-center">
+                          <Loader2 className="h-4 w-4 mr-2 text-blue-600 animate-spin" />
+                          Synchronisierung läuft
+                        </h3>
+                        <Badge variant="outline" className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                          {syncType === 'transactions' ? 'Transaktionen' : 
+                           syncType === 'events' ? 'Ereignisse' : 
+                           syncType === 'refills' ? 'Nachfüllungen' : 
+                           getSyncTypeLabel(syncType)}
+                        </Badge>
+                      </div>
+                      <Progress 
+                        value={syncProgress.total ? (syncProgress.processed / syncProgress.total) * 100 : 0} 
+                        className="h-2 mb-2" 
+                      />
+                      <div className="grid grid-cols-2 gap-2 mt-2">
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                          Verarbeitet: <span className="font-medium">{syncProgress.processed.toLocaleString()}</span>
+                        </p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                          Gefunden: <span className="font-medium">{syncProgress.total.toLocaleString()}</span>
+                        </p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                          Fortschritt: <span className="font-medium">
+                            {syncProgress.total ? 
+                              `${Math.round((syncProgress.processed / syncProgress.total) * 100)}%` : 
+                              "Warte auf Daten..."}
+                          </span>
+                        </p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                          Status: <span className="font-medium">Aktiv</span>
+                        </p>
+                      </div>
+                    </Card>
+                  )}
+
+                {/* Historical Sync Status */}
                   <Card className="p-4">
                     <div className="flex justify-between items-center mb-2">
                       <h3 className="text-sm font-medium flex items-center">
@@ -596,6 +771,20 @@ export default function Synchronization() {
                       Bei Aktivierung werden alle Transaktionen seit Januar 2023 synchronisiert.
                       Dies kann je nach Datenmenge einige Zeit in Anspruch nehmen.
                     </p>
+                  </div>
+                )}
+
+                {/* API Request Preview */}
+                {apiRequest && syncType !== 'all' && (
+                  <div className="space-y-2 pt-2">
+                    <Label>API-Anfrage Vorschau</Label>
+                    <Card className="bg-gray-50 dark:bg-gray-900 border rounded-md">
+                      <CardContent className="p-4">
+                        <pre className="text-xs overflow-auto whitespace-pre-wrap">
+                          {apiRequest}
+                        </pre>
+                      </CardContent>
+                    </Card>
                   </div>
                 )}
 

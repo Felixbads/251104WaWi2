@@ -384,8 +384,13 @@ export async function getSyncStatus(): Promise<SyncStatus> {
   return apiRequest<SyncStatus>('get', '/sync/status');
 }
 
-export async function startSync(syncType: string): Promise<any> {
-  return apiRequest<any>('post', `/sync/${syncType}`);
+export async function startSync(syncType: string, options?: {
+  startDate?: Date,
+  endDate?: Date,
+  batchSize?: number,
+  maxDays?: number
+}): Promise<any> {
+  return apiRequest<any>('post', `/sync/${syncType}`, options);
 }
 
 // Alias für startSync für bestehende Komponenten
