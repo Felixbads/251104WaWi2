@@ -94,6 +94,7 @@ import {
   AlertCircle,
   Check,
   X
+  // Hinweis: RefreshCcw wurde entfernt und durch Text-Icon ersetzt
 } from "lucide-react";
 
 // Schema für Lagerwahl
@@ -365,6 +366,11 @@ function OrderModeSelection({
     queryKey: [`/api/warehouses/${warehouseId}`],
     staleTime: 1000 * 60, // 1 Minute
   });
+  
+  // Typensicherheit für warehouse gewährleisten
+  const warehouseName = warehouse && typeof warehouse === 'object' && 'name' in warehouse 
+    ? warehouse.name 
+    : '';
 
   // Bestellmodi mit Metadaten
   const orderModes = [
@@ -976,7 +982,7 @@ function NewOrderForm({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">Keine spezifische Maschine</SelectItem>
+                        <SelectItem value="none">Keine spezifische Maschine</SelectItem>
                         {Array.isArray(machines) ? machines.map((machine: any) => (
                           <SelectItem key={machine.id} value={machine.id.toString()}>
                             {machine.machineName}
