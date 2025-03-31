@@ -528,10 +528,25 @@ export class DatabaseStorage implements IStorage {
   }
   
   async getTransactionsByProduct(productId: number, limit: number = 100): Promise<Transaction[]> {
+    // Hole das Produkt, um den Namen zu bekommen
+    const product = await this.getProduct(productId);
+    
+    if (!product) {
+      return [];
+    }
+    
+    // Suche nach Transaktionen mit dem Produktnamen, da die produkt_id oft NULL ist
     return await db
       .select()
       .from(transactions)
-      .where(eq(transactions.productId, productId))
+      .where(
+        or(
+          // Entweder nach productId suchen (falls gesetzt)
+          eq(transactions.productId, productId),
+          // Oder nach dem Produktnamen (wie er in der Transaktion gespeichert ist)
+          like(transactions.productName, `%${product.productName}%`)
+        )
+      )
       .orderBy(desc(transactions.datetime))
       .limit(limit);
   }

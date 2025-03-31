@@ -496,13 +496,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const productId = parseInt(req.params.id);
       const period = req.query.period as 'day' | 'week' | 'month' | 'year' || 'month';
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 1000;
       
       if (isNaN(productId)) {
         return res.status(400).json({ error: "Invalid product ID" });
       }
       
-      // Transaktionen des Produkts mit Zeitraumfilter abrufen
-      const transactions = await storage.getTransactionsByProduct(productId);
+      // Produkt abrufen, um zu überprüfen, ob es existiert
+      const product = await storage.getProduct(productId);
+      
+      if (!product) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      
+      // Transaktionen des Produkts mit Limit abrufen
+      // Der verbesserte getTransactionsByProduct sucht nun auch nach dem Produktnamen
+      const transactions = await storage.getTransactionsByProduct(productId, limit);
+      
+      console.log(`Gefundene Transaktionen für Produkt ${productId} (${product.productName}): ${transactions.length}`);
       
       if (!transactions || transactions.length === 0) {
         return res.json([]);
