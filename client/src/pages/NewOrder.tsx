@@ -166,7 +166,7 @@ function WarehouseSelectionForm({
   const { toast } = useToast();
   
   // Abfrage der Lager
-  const { data: warehouses, isLoading, error } = useQuery<{data: any[], meta: any}>({
+  const { data: warehouses, isLoading, error } = useQuery<any[]>({
     queryKey: ['/api/warehouses'],
     staleTime: 1000 * 60, // 1 Minute
   });
@@ -232,7 +232,7 @@ function WarehouseSelectionForm({
   }
   
   // Keine Lager vorhanden
-  if (!warehouses || !warehouses.data || warehouses.data.length === 0) {
+  if (!warehouses || warehouses.length === 0) {
     return (
       <Card className="w-full max-w-3xl mx-auto">
         <CardHeader>
@@ -258,7 +258,7 @@ function WarehouseSelectionForm({
   }
   
   // Nur aktive Lager anzeigen
-  const activeWarehouses = warehouses.data.filter((wh: any) => wh.isActive);
+  const activeWarehouses = warehouses.filter((wh: any) => wh.isActive);
   
   return (
     <Card className="w-full max-w-3xl mx-auto">
