@@ -1,13 +1,10 @@
-import React, { useState, useEffect } from "react";
-import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { format } from "date-fns";
-import { de } from "date-fns/locale";
 
 // UI Komponenten
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -17,398 +14,425 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
   Table,
-  TableHeader,
   TableBody,
-  TableHead,
-  TableRow,
   TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
-import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { AlertCircle, Camera, FileUp, PackageCheck, Truck, X } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-// Icons
-import {
-  Calendar as CalendarIcon,
-  Loader2,
-  Upload,
-  Camera,
-  Info,
-  PackageCheck,
-  XCircle,
-  AlertTriangle,
-} from "lucide-react";
+// Schema für die Wareneingangs-Erfassung
+const receiveOrderSchema = z.object({
+  receiptDate: z.date().default(() => new Date()),
+  receiptNumber: z.string().optional(),
+  notes: z.string().optional(),
+  deliveryNoteNumber: z.string().optional(),
+  carrierName: z.string().optional(),
+  documentsAttached: z.boolean().default(false),
+  qualityCheckPassed: z.boolean().default(true),
+  customsChecked: z.boolean().default(false),
+  receivedItems: z.array(
+    z.object({
+      orderItemId: z.number(),
+      receivedQuantity: z.number().min(0, {
+        message: "Die Menge kann nicht negativ sein"
+      }),
+      damageDescription: z.string().optional(),
+      qualityIssues: z.boolean().default(false)
+    })
+  )
+});
 
-// Formatierung von Währungen
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat("de-DE", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2
-  }).format(amount);
-};
+type ReceiveOrderValues = z.infer<typeof receiveOrderSchema>;
 
-// Formatierung des Datums
-const formatDate = (dateString: string | null) => {
-  if (!dateString) return "-";
-  const date = new Date(dateString);
-  return format(date, "dd.MM.yyyy", { locale: de });
-};
-
-type ReceiveOrderDialogProps = {
-  order: any; // In der tatsächlichen Implementierung sollte hier ein Typ definiert werden
+// Props für die Komponente
+interface ReceiveOrderDialogProps {
   open: boolean;
-  onClose: () => void;
-  onSubmit: (receivedItems: any[], deliveryDetails: any) => void;
-};
+  onOpenChange: (open: boolean) => void;
+  order: any; // In echter Implementierung typisch Order
+  onComplete: (updatedOrder: any) => void;
+}
 
-export default function ReceiveOrderDialog({
-  order,
-  open,
-  onClose,
-  onSubmit,
+// Wareneingang-Dialog Komponente
+export default function ReceiveOrderDialog({ 
+  open, 
+  onOpenChange, 
+  order, 
+  onComplete 
 }: ReceiveOrderDialogProps) {
-  // Zustand für die tatsächlich gelieferten Mengen und andere Details
-  const [receivedItems, setReceivedItems] = useState<any[]>([]);
-  const [deliveryNoteNumber, setDeliveryNoteNumber] = useState("");
-  const [comments, setComments] = useState("");
-  const [deliveryDate, setDeliveryDate] = useState<Date | undefined>(new Date());
-  const [loading, setLoading] = useState(false);
-  const [hasDeliveryPhoto, setHasDeliveryPhoto] = useState(false);
-  const { toast } = useToast();
-
-  // Initialisiere die Formulardaten basierend auf der Bestellung
-  useEffect(() => {
-    if (order && order.orderItems) {
-      // Erstelle eine Kopie der Bestellpositionen mit zusätzlichen Feldern für den Wareneingang
-      const items = order.orderItems.map((item: any) => ({
-        ...item,
-        receivedQuantity: item.receivedQuantity || item.quantity, // Standardmäßig die bestellte Menge
-        isDamaged: false,
-        damageNotes: "",
-        batchNumber: "",
-        expiryDate: ""
-      }));
-      setReceivedItems(items);
+  // Zustände
+  const [hasUploaded, setHasUploaded] = useState(false);
+  const [showQualityIssues, setShowQualityIssues] = useState(false);
+  
+  // Formular
+  const form = useForm<ReceiveOrderValues>({
+    resolver: zodResolver(receiveOrderSchema),
+    defaultValues: {
+      receiptDate: new Date(),
+      receiptNumber: `WE-${format(new Date(), 'yyyyMMdd')}-${order?.id || '0000'}`,
+      receivedItems: order?.orderItems?.map((item: any) => ({
+        orderItemId: item.id,
+        receivedQuantity: item.quantity,
+        damageDescription: '',
+        qualityIssues: false
+      })) || []
     }
-  }, [order]);
-
-  // Aktualisiere die empfangene Menge für einen Artikel
-  const handleQuantityChange = (index: number, value: string) => {
-    const newReceivedItems = [...receivedItems];
-    const numericValue = parseInt(value) || 0;
+  });
+  
+  // Wenn Bestellung null ist oder nicht im Status "ordered"/"partial"
+  if (!order || (order.status !== "ordered" && order.status !== "partial")) {
+    return null;
+  }
+  
+  // Formular absenden
+  const onSubmit = (data: ReceiveOrderValues) => {
+    console.log("Wareneingang erfasst:", data);
     
-    // Stelle sicher, dass die Menge nicht negativ ist
-    newReceivedItems[index].receivedQuantity = Math.max(0, numericValue);
-    setReceivedItems(newReceivedItems);
-  };
-
-  // Markiere einen Artikel als beschädigt oder nicht
-  const handleDamageToggle = (index: number, checked: boolean) => {
-    const newReceivedItems = [...receivedItems];
-    newReceivedItems[index].isDamaged = checked;
-    setReceivedItems(newReceivedItems);
-  };
-
-  // Aktualisiere die Beschädigungsnotizen für einen Artikel
-  const handleDamageNotesChange = (index: number, value: string) => {
-    const newReceivedItems = [...receivedItems];
-    newReceivedItems[index].damageNotes = value;
-    setReceivedItems(newReceivedItems);
-  };
-
-  // Aktualisiere die Chargennummer für einen Artikel
-  const handleBatchNumberChange = (index: number, value: string) => {
-    const newReceivedItems = [...receivedItems];
-    newReceivedItems[index].batchNumber = value;
-    setReceivedItems(newReceivedItems);
-  };
-
-  // Foto des Lieferscheins hochladen (Mock-Funktion)
-  const handlePhotoUpload = () => {
-    // In einer tatsächlichen Implementierung würde hier ein Datei-Upload-Dialog geöffnet
-    toast({
-      title: "Foto hinzugefügt",
-      description: "Der Lieferschein wurde als Foto gespeichert."
-    });
-    setHasDeliveryPhoto(true);
-  };
-
-  // Wareneingang abschließen
-  const handleSubmit = () => {
-    setLoading(true);
+    // In echter Implementierung: API-Aufruf zur Aktualisierung der Bestellung
+    // ...
     
-    // Wareneingangsdaten zusammenstellen
-    const deliveryDetails = {
-      orderId: order.id,
-      deliveryNoteNumber,
-      comments,
-      deliveryDate: deliveryDate?.toISOString(),
-      hasDeliveryPhoto
+    // Demo: Bestellung aktualisieren und zurückgeben
+    const updatedOrder = {
+      ...order,
+      status: "delivered",
+      actualDeliveryDate: data.receiptDate.toISOString(),
+      // Weitere Aktualisierungen...
     };
     
-    // Kurze Verzögerung für Demo-Zwecke
-    setTimeout(() => {
-      onSubmit(receivedItems, deliveryDetails);
-      setLoading(false);
-    }, 1000);
+    onComplete(updatedOrder);
   };
-
-  // Berechne den Gesamtprozentsatz der gelieferten Artikel
-  const calculateCompletionPercentage = () => {
-    if (!receivedItems.length) return 0;
-    
-    const orderedTotal = receivedItems.reduce((sum, item) => sum + item.quantity, 0);
-    const receivedTotal = receivedItems.reduce((sum, item) => sum + (item.receivedQuantity || 0), 0);
-    
-    return Math.min(100, Math.round((receivedTotal / orderedTotal) * 100));
-  };
-
-  // Prüfe, ob es Abweichungen zwischen bestellter und gelieferter Menge gibt
-  const hasDiscrepancies = receivedItems.some(
-    item => item.receivedQuantity !== item.quantity || item.isDamaged
+  
+  // Unvollständigen Wareneingang prüfen
+  const hasPartialReceipt = form.watch('receivedItems').some(
+    (item) => {
+      const orderItem = order.orderItems.find((oi: any) => oi.id === item.orderItemId);
+      return item.receivedQuantity > 0 && item.receivedQuantity < orderItem.quantity;
+    }
   );
-
-  // Dialog-Inhalt
+  
+  // Fehlenden Wareneingang prüfen
+  const hasMissingItems = form.watch('receivedItems').some(
+    (item) => item.receivedQuantity === 0
+  );
+  
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <PackageCheck className="h-5 w-5" />
-            Wareneingang erfassen für Bestellung #{order?.orderNumber}
+          <DialogTitle className="text-xl flex items-center">
+            <PackageCheck className="h-5 w-5 mr-2 text-primary" />
+            Wareneingang erfassen
           </DialogTitle>
           <DialogDescription>
-            Bitte überprüfen Sie die gelieferten Artikel und dokumentieren Sie eventuelle Abweichungen.
+            Bestellung {order.orderNumber} von {order.supplierName} für {order.locationName}
           </DialogDescription>
         </DialogHeader>
         
-        <div className="space-y-6 py-4">
-          {/* Liefer- und Bestellinformationen */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-muted/30 p-4 rounded-lg">
-            <div>
-              <h3 className="text-sm font-medium mb-2">Bestelldetails</h3>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="text-muted-foreground">Bestellnummer:</div>
-                <div>{order?.orderNumber}</div>
-                <div className="text-muted-foreground">Lieferant:</div>
-                <div>{order?.supplierName}</div>
-                <div className="text-muted-foreground">Bestelldatum:</div>
-                <div>{formatDate(order?.createdAt)}</div>
-              </div>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 overflow-hidden flex flex-col">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <FormField
+                control={form.control}
+                name="receiptDate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Eingangsdatum</FormLabel>
+                    <FormControl>
+                      <Input 
+                        type="date" 
+                        value={format(field.value, 'yyyy-MM-dd')}
+                        onChange={(e) => {
+                          const date = new Date(e.target.value);
+                          field.onChange(date);
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="receiptNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Wareneingangsnummer</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="deliveryNoteNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Lieferscheinnummer</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="z.B. LS-12345" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
-            <div>
-              <h3 className="text-sm font-medium mb-2">Lieferinformationen</h3>
-              <div className="space-y-3">
-                <div className="grid grid-cols-[100px_1fr] items-center gap-2">
-                  <Label htmlFor="delivery-note" className="text-right">Lieferschein-Nr.</Label>
-                  <Input
-                    id="delivery-note"
-                    value={deliveryNoteNumber}
-                    onChange={(e) => setDeliveryNoteNumber(e.target.value)}
-                    placeholder="z.B. LS-2025-12345"
-                  />
+            
+            <div className="flex items-center space-x-6 mb-4">
+              <FormField
+                control={form.control}
+                name="documentsAttached"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center space-x-2">
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-0.5">
+                      <FormLabel>Lieferschein beigefügt</FormLabel>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="qualityCheckPassed"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center space-x-2">
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={(checked) => {
+                          field.onChange(checked);
+                          setShowQualityIssues(!checked);
+                        }}
+                      />
+                    </FormControl>
+                    <div className="space-y-0.5">
+                      <FormLabel>Qualitätsprüfung bestanden</FormLabel>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="customsChecked"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center space-x-2">
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-0.5">
+                      <FormLabel>Zollprüfung (wenn erforderlich)</FormLabel>
+                    </div>
+                  </FormItem>
+                )}
+              />
+            </div>
+            
+            <Card className="mb-4">
+              <CardHeader className="py-3">
+                <CardTitle className="text-base">Dokumente hochladen</CardTitle>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="border rounded-md p-4 flex flex-col items-center justify-center text-center">
+                  <FileUp className="h-10 w-10 text-muted-foreground mb-2" />
+                  <p className="font-medium">Lieferschein hochladen</p>
+                  <p className="text-sm text-muted-foreground mt-1 mb-4">
+                    PDF, JPG oder PNG Datei
+                  </p>
+                  <Button variant="outline" size="sm" type="button">
+                    Datei auswählen
+                  </Button>
                 </div>
                 
-                <div className="grid grid-cols-[100px_1fr] items-center gap-2">
-                  <Label htmlFor="delivery-date" className="text-right">Lieferdatum</Label>
-                  <div className="flex-1">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start text-left font-normal"
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {deliveryDate ? format(deliveryDate, "dd.MM.yyyy", { locale: de }) : "Datum auswählen"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={deliveryDate}
-                          onSelect={setDeliveryDate}
-                          locale={de}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
+                <div className="border rounded-md p-4 flex flex-col items-center justify-center text-center">
+                  <Camera className="h-10 w-10 text-muted-foreground mb-2" />
+                  <p className="font-medium">Foto aufnehmen</p>
+                  <p className="text-sm text-muted-foreground mt-1 mb-4">
+                    Dokumentieren Sie den Zustand der Lieferung
+                  </p>
+                  <Button variant="outline" size="sm" type="button">
+                    Kamera öffnen
+                  </Button>
                 </div>
-              </div>
-            </div>
-          </div>
-          
-          {/* Lieferschein Foto Upload */}
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div className="flex items-center gap-3">
-              <Upload className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <h3 className="text-sm font-medium">Lieferschein Foto</h3>
-                <p className="text-xs text-muted-foreground">Laden Sie ein Foto des Lieferscheins hoch (optional)</p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              {hasDeliveryPhoto ? (
-                <Button variant="outline" onClick={() => setHasDeliveryPhoto(false)} className="gap-1.5">
-                  <XCircle className="h-4 w-4" />
-                  Foto entfernen
-                </Button>
-              ) : (
-                <Button variant="outline" onClick={handlePhotoUpload} className="gap-1.5">
-                  <Camera className="h-4 w-4" />
-                  Foto hinzufügen
-                </Button>
-              )}
-            </div>
-          </div>
-          
-          {/* Bestellpositionen */}
-          <div>
-            <h3 className="text-sm font-medium mb-2">Bestellpositionen</h3>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Artikel</TableHead>
-                  <TableHead className="text-right">Bestellt</TableHead>
-                  <TableHead className="text-right">Geliefert</TableHead>
-                  <TableHead>Charge / MHD</TableHead>
-                  <TableHead>Beschädigt</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {receivedItems.map((item, index) => (
-                  <TableRow key={item.id}>
-                    <TableCell>
-                      <div>
-                        <div className="font-medium">{item.productName}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {item.sku} • {formatCurrency(item.unitPrice)} / {item.unit}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">{item.quantity} {item.unit}</TableCell>
-                    <TableCell>
-                      <div className="flex justify-end">
-                        <Input
-                          type="number"
-                          value={item.receivedQuantity}
-                          onChange={(e) => handleQuantityChange(index, e.target.value)}
-                          min="0"
-                          className="w-20 text-right"
-                        />
-                        <span className="ml-1 flex items-center text-muted-foreground">{item.unit}</span>
-                      </div>
-                      {item.receivedQuantity !== item.quantity && (
-                        <p className="text-xs text-amber-600 text-right mt-1">
-                          {item.receivedQuantity > item.quantity ? "Überlieferung" : "Unterlieferung"}
-                        </p>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        placeholder="Charge / MHD"
-                        value={item.batchNumber}
-                        onChange={(e) => handleBatchNumberChange(index, e.target.value)}
-                        className="w-full"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-2">
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            checked={item.isDamaged}
-                            onCheckedChange={(checked) => handleDamageToggle(index, checked as boolean)}
-                            id={`damaged-${item.id}`}
-                          />
-                          <Label htmlFor={`damaged-${item.id}`} className="text-sm cursor-pointer">
-                            Beschädigt
-                          </Label>
-                        </div>
-                        {item.isDamaged && (
-                          <Textarea
-                            placeholder="Beschreibung des Schadens"
-                            value={item.damageNotes}
-                            onChange={(e) => handleDamageNotesChange(index, e.target.value)}
-                            className="h-16 text-xs mt-1"
-                          />
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {receivedItems.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
-                      Keine Bestellpositionen gefunden.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+              </CardContent>
+            </Card>
             
-            {/* Übersicht zur Lieferung */}
-            <div className="mt-4 p-3 rounded-md bg-muted/30">
-              <div className="flex justify-between mb-1 text-sm">
-                <span>Lieferstatus:</span>
-                <span className="font-medium">
-                  {calculateCompletionPercentage()}% komplett
-                  {hasDiscrepancies && " (mit Abweichungen)"}
-                </span>
-              </div>
-              {hasDiscrepancies && (
-                <div className="flex items-start gap-2 mt-2 p-2 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-200 rounded text-xs">
-                  <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium">Achtung: Abweichungen festgestellt</p>
-                    <p className="mt-0.5">
-                      Es gibt Unterschiede zwischen der bestellten und der tatsächlich gelieferten Menge oder beschädigte Artikel.
-                      Diese Abweichungen werden im System dokumentiert.
-                    </p>
-                  </div>
-                </div>
-              )}
+            <div className="flex-1 overflow-hidden">
+              <h3 className="text-lg font-medium mb-2">Wareneingang Positionen</h3>
+              
+              <ScrollArea className="h-[300px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[40px]">Pos.</TableHead>
+                      <TableHead>Produkt</TableHead>
+                      <TableHead className="text-right">Bestellt</TableHead>
+                      <TableHead className="text-right">Erhalten</TableHead>
+                      <TableHead>Qualität</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {order.orderItems.map((item: any, index: number) => (
+                      <TableRow key={item.id}>
+                        <TableCell>{item.positionNumber}</TableCell>
+                        <TableCell className="font-medium">{item.productName}</TableCell>
+                        <TableCell className="text-right">
+                          {item.quantity} {item.unit}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <FormField
+                            control={form.control}
+                            name={`receivedItems.${index}.receivedQuantity`}
+                            render={({ field }) => (
+                              <FormItem className="space-y-0">
+                                <FormControl>
+                                  <Input
+                                    {...field}
+                                    type="number"
+                                    className="w-20 text-right"
+                                    onChange={e => field.onChange(parseInt(e.target.value) || 0)}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <FormField
+                            control={form.control}
+                            name={`receivedItems.${index}.qualityIssues`}
+                            render={({ field }) => (
+                              <FormItem className="flex flex-row items-center space-x-2">
+                                <FormControl>
+                                  <Switch
+                                    checked={field.value}
+                                    onCheckedChange={field.onChange}
+                                  />
+                                </FormControl>
+                                <div className="space-y-0 text-sm">
+                                  {field.value ? "Problem" : "OK"}
+                                </div>
+                              </FormItem>
+                            )}
+                          />
+                          
+                          {form.watch(`receivedItems.${index}.qualityIssues`) && (
+                            <FormField
+                              control={form.control}
+                              name={`receivedItems.${index}.damageDescription`}
+                              render={({ field }) => (
+                                <FormItem className="mt-2">
+                                  <FormControl>
+                                    <Textarea
+                                      {...field}
+                                      placeholder="Beschreibung der Mängel"
+                                      className="text-sm h-20"
+                                    />
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
             </div>
-          </div>
-          
-          {/* Kommentare */}
-          <div>
-            <Label htmlFor="comments" className="text-sm font-medium">
-              Kommentare zum Wareneingang
-            </Label>
-            <Textarea
-              id="comments"
-              placeholder="Zusätzliche Bemerkungen zum Wareneingang..."
-              value={comments}
-              onChange={(e) => setComments(e.target.value)}
-              className="mt-1.5 min-h-32"
+            
+            {(hasPartialReceipt || hasMissingItems) && (
+              <Alert variant="warning" className="mt-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>
+                  {hasMissingItems ? "Unvollständige Lieferung" : "Teillieferung"}
+                </AlertTitle>
+                <AlertDescription>
+                  {hasMissingItems
+                    ? "Einige bestellte Artikel wurden nicht geliefert. Die Bestellung bleibt im Status 'Teilgeliefert'."
+                    : "Nicht alle bestellten Mengen wurden vollständig geliefert. Die Bestellung wird als 'Teilgeliefert' markiert."}
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem className="mt-4">
+                  <FormLabel>Anmerkungen zum Wareneingang</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      {...field}
+                      placeholder="Zusätzliche Informationen zum Wareneingang..."
+                      className="min-h-[80px]"
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Dokumentieren Sie hier besondere Vorkommnisse oder Abweichungen.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-        </div>
-
-        <Separator />
-        
-        {/* Info */}
-        <div className="flex items-start gap-2 py-4 text-sm text-muted-foreground">
-          <Info className="h-4 w-4 mt-0.5" />
-          <p>
-            Nach Abschluss des Wareneingangs wird der Lagerbestand automatisch aktualisiert und ein Protokoll erstellt.
-          </p>
-        </div>
-        
-        {/* Aktionen */}
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Abbrechen</Button>
-          <Button onClick={handleSubmit} disabled={loading}>
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Wareneingang abschließen
-          </Button>
-        </DialogFooter>
+            
+            <DialogFooter className="mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+              >
+                <X className="h-4 w-4 mr-2" />
+                Abbrechen
+              </Button>
+              <Button type="submit">
+                <PackageCheck className="h-4 w-4 mr-2" />
+                Wareneingang abschließen
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

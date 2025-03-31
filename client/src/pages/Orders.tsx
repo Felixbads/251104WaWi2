@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { Link, useLocation } from "wouter";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -103,13 +104,15 @@ import {
   ChevronDown,
   CalendarDays,
   Loader2,
+  PackageCheck,
 } from "lucide-react";
 
 // API und Formulare
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { getOrders, getOrder, getSuppliers, getProducts, getLocations } from "@/lib/api";
+import { getOrders, getOrder, getSuppliers, getProducts, getLocations, updateOrder } from "@/lib/api";
+import ReceiveOrderDialog from "@/components/orders/ReceiveOrderDialog";
 
 // Demo-Daten für Bestellungen
 // Diese würden normalerweise aus der API kommen
@@ -647,6 +650,8 @@ export default function Orders() {
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
+  const [isGoodsReceiptOpen, setIsGoodsReceiptOpen] = useState(false);
+  const [selectedOrderForReceipt, setSelectedOrderForReceipt] = useState<any>(null);
   const [activeTab, setActiveTab] = useState("items");
   
   // Filter-Formular
@@ -672,8 +677,7 @@ export default function Orders() {
   });
   
   // Daten abrufen
-  /* Echte API-Abfrage (aktuell deaktiviert zugunsten der Demo-Daten)
-  const { data: apiOrders, isLoading: apiOrdersLoading } = useQuery({
+  const { data: apiOrdersResponse, isLoading: apiOrdersLoading } = useQuery({
     queryKey: ['/api/orders', filterForm.watch()],
     queryFn: () => {
       const filters = filterForm.getValues();
@@ -695,13 +699,12 @@ export default function Orders() {
     queryFn: () => selectedOrderId ? getOrder(selectedOrderId) : Promise.reject('No order ID'),
     enabled: !!selectedOrderId
   });
-  */
   
-  // Demo-Daten verwenden
-  const orders = demoOrders;
-  const ordersLoading = false;
-  const selectedOrder = demoOrderDetail;
-  const orderDetailLoading = false;
+  // Daten aus der API oder Fallback auf Demo-Daten
+  const orders = apiOrdersResponse?.data || demoOrders;
+  const ordersLoading = apiOrdersLoading;
+  const selectedOrder = apiSelectedOrder || (selectedOrderId ? demoOrderDetail : null);
+  const orderDetailLoading = apiOrderDetailLoading;
   
   // Filter zurücksetzen
   const resetFilter = () => {
@@ -858,6 +861,15 @@ export default function Orders() {
                           <FileText className="h-4 w-4 mr-2" />
                           Details anzeigen
                         </DropdownMenuItem>
+                        {(order.status === "ordered" || order.status === "partial") && (
+                          <DropdownMenuItem onClick={() => {
+                            setSelectedOrderForReceipt(order);
+                            setIsGoodsReceiptOpen(true);
+                          }}>
+                            <Package className="h-4 w-4 mr-2" />
+                            Wareneingang erfassen
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem>
                           <Edit className="h-4 w-4 mr-2" />
                           Bearbeiten
@@ -891,6 +903,27 @@ export default function Orders() {
       
       {/* Dialog: Bestellungsdetails */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+      
+      {/* Dialog: Wareneingang erfassen */}
+      <ReceiveOrderDialog 
+        open={isGoodsReceiptOpen} 
+        onOpenChange={setIsGoodsReceiptOpen}
+        order={selectedOrderForReceipt}
+        onComplete={(updatedOrder) => {
+          // In der echten Implementierung würde hier die API aktualisiert
+          toast({
+            title: "Wareneingang erfasst",
+            description: `Der Wareneingang für Bestellung ${updatedOrder.orderNumber} wurde erfolgreich erfasst.`,
+          });
+          
+          // Bestellungen neu laden
+          queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+          
+          // Dialog schließen
+          setIsGoodsReceiptOpen(false);
+          setSelectedOrderForReceipt(null);
+        }}
+      />
         {selectedOrder && (
           <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
             <DialogHeader>
