@@ -9,6 +9,7 @@ import { jsPDF } from "jspdf";
 import QRCode from "qrcode";
 import ReceiveOrderDialog from "@/components/orders/ReceiveOrderDialog";
 import html2canvas from "html2canvas";
+import { getOrder, updateOrder } from "@/lib/api";
 
 // UI Komponenten
 import { Button } from "@/components/ui/button";
@@ -288,22 +289,18 @@ export default function OrderDetail() {
   const { data: order, isLoading, error } = useQuery({
     queryKey: [`/api/orders/${id}`],
     staleTime: 1000 * 60, // 1 Minute
-    // Mock data instead of actual API fetch
-    queryFn: () => Promise.resolve(mockOrderData)
+    queryFn: () => getOrder(Number(id))
   });
   
   // Mutations für Bestellstatus-Updates
   const updateOrderMutation = useMutation({
     mutationFn: async (updateData: any) => {
-      // In tatsächlicher Implementierung:
-      // return apiRequest(`/api/orders/${id}`, 'PATCH', updateData);
-      
-      // Mock für Demo-Zwecke
-      return Promise.resolve({ success: true });
+      return updateOrder(Number(id), updateData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/orders/${id}`] });
       queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/orders/dashboard/open'] });
     }
   });
   
@@ -316,17 +313,22 @@ export default function OrderDetail() {
   const handleSendOrder = () => {
     if (!order) return;
     
+    // Bestehende Statushistorie als Array verarbeiten
+    const currentHistory = Array.isArray(order.statusHistory) 
+      ? order.statusHistory 
+      : (order.statusHistory ? JSON.parse(order.statusHistory as string) : []);
+    
+    // Neuen Status hinzufügen
+    const newStatusEntry = {
+      status: "pending",
+      timestamp: new Date().toISOString(),
+      note: sendNote || "Bestellung beim Lieferanten eingereicht"
+    };
+    
     updateOrderMutation.mutate(
       { 
         status: "pending", 
-        statusHistory: [
-          ...order.statusHistory,
-          {
-            status: "pending",
-            timestamp: new Date().toISOString(),
-            note: sendNote || "Bestellung beim Lieferanten eingereicht"
-          }
-        ]
+        statusHistory: JSON.stringify([...currentHistory, newStatusEntry])
       },
       {
         onSuccess: () => {
@@ -351,18 +353,23 @@ export default function OrderDetail() {
   const handleAddTracking = () => {
     if (!order) return;
     
+    // Bestehende Statushistorie als Array verarbeiten
+    const currentHistory = Array.isArray(order.statusHistory) 
+      ? order.statusHistory 
+      : (order.statusHistory ? JSON.parse(order.statusHistory as string) : []);
+    
+    // Neuen Status hinzufügen
+    const newStatusEntry = {
+      status: "shipped",
+      timestamp: new Date().toISOString(),
+      note: `Tracking-Code hinzugefügt: ${trackingCode}`
+    };
+    
     updateOrderMutation.mutate(
       { 
         status: "shipped", 
         trackingCode,
-        statusHistory: [
-          ...order.statusHistory,
-          {
-            status: "shipped",
-            timestamp: new Date().toISOString(),
-            note: `Tracking-Code hinzugefügt: ${trackingCode}`
-          }
-        ]
+        statusHistory: JSON.stringify([...currentHistory, newStatusEntry])
       },
       {
         onSuccess: () => {
@@ -387,18 +394,23 @@ export default function OrderDetail() {
   const handleMarkAsDelivered = () => {
     if (!order) return;
     
+    // Bestehende Statushistorie als Array verarbeiten
+    const currentHistory = Array.isArray(order.statusHistory) 
+      ? order.statusHistory 
+      : (order.statusHistory ? JSON.parse(order.statusHistory as string) : []);
+    
+    // Neuen Status hinzufügen
+    const newStatusEntry = {
+      status: "delivered",
+      timestamp: new Date().toISOString(),
+      note: "Bestellung wurde geliefert"
+    };
+    
     updateOrderMutation.mutate(
       { 
         status: "delivered", 
         actualDeliveryDate: new Date().toISOString(),
-        statusHistory: [
-          ...order.statusHistory,
-          {
-            status: "delivered",
-            timestamp: new Date().toISOString(),
-            note: "Bestellung wurde geliefert"
-          }
-        ]
+        statusHistory: JSON.stringify([...currentHistory, newStatusEntry])
       },
       {
         onSuccess: () => {
@@ -438,21 +450,26 @@ export default function OrderDetail() {
     // Status basierend auf der Vollständigkeit der Lieferung
     const newStatus = isComplete ? "completed" : "partial";
     
+    // Bestehende Statushistorie als Array verarbeiten
+    const currentHistory = Array.isArray(order.statusHistory) 
+      ? order.statusHistory 
+      : (order.statusHistory ? JSON.parse(order.statusHistory as string) : []);
+    
+    // Neuen Status hinzufügen
+    const newStatusEntry = {
+      status: newStatus,
+      timestamp: new Date().toISOString(),
+      note: isComplete 
+        ? "Wareneingang vollständig erfasst"
+        : "Wareneingang teilweise erfasst (unvollständig oder beschädigt)"
+    };
+    
     // Update der Bestellung mit den Daten aus dem Dialog
     updateOrderMutation.mutate(
       {
         ...updatedOrder,
         status: newStatus,
-        statusHistory: [
-          ...(order.statusHistory || []),
-          {
-            status: newStatus,
-            timestamp: new Date().toISOString(),
-            note: isComplete 
-              ? "Wareneingang vollständig erfasst"
-              : "Wareneingang teilweise erfasst (unvollständig oder beschädigt)"
-          }
-        ]
+        statusHistory: JSON.stringify([...currentHistory, newStatusEntry])
       },
       {
         onSuccess: () => {
@@ -482,17 +499,22 @@ export default function OrderDetail() {
   const handleCancelOrder = () => {
     if (!order) return;
     
+    // Bestehende Statushistorie als Array verarbeiten
+    const currentHistory = Array.isArray(order.statusHistory) 
+      ? order.statusHistory 
+      : (order.statusHistory ? JSON.parse(order.statusHistory as string) : []);
+    
+    // Neuen Status hinzufügen
+    const newStatusEntry = {
+      status: "cancelled",
+      timestamp: new Date().toISOString(),
+      note: cancelReason || "Bestellung storniert"
+    };
+    
     updateOrderMutation.mutate(
       { 
         status: "cancelled",
-        statusHistory: [
-          ...order.statusHistory,
-          {
-            status: "cancelled",
-            timestamp: new Date().toISOString(),
-            note: cancelReason || "Bestellung storniert"
-          }
-        ]
+        statusHistory: JSON.stringify([...currentHistory, newStatusEntry])
       },
       {
         onSuccess: () => {
@@ -1131,7 +1153,9 @@ Einkaufsabteilung`);
               <div className="relative">
                 <div className="absolute top-0 bottom-0 left-7 w-px bg-muted-foreground/20"></div>
                 <ol className="space-y-8">
-                  {[...order.statusHistory].reverse().map((entry, index) => (
+                  {(Array.isArray(order.statusHistory) ? [...order.statusHistory] : 
+                  (order.statusHistory ? JSON.parse(order.statusHistory as string) : []))
+                  .reverse().map((entry, index) => (
                     <li key={entry.id} className="relative pl-14">
                       <div className="absolute left-0 flex h-14 w-14 items-center justify-center rounded-full border bg-card">
                         {entry.status === "draft" && <FileText className="h-6 w-6 text-blue-500" />}
