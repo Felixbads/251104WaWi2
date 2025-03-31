@@ -1,128 +1,54 @@
-// Lager-API
-// Diese Datei enthält Funktionen für den Zugriff auf Lager-Daten über die API
+import { apiRequest } from "./queryClient";
 
-// Typen für Lager
 export interface Warehouse {
   id: string;
   name: string;
-  description?: string;
-  address?: string;
-  city?: string;
-  postalCode?: string;
-  country?: string;
-  phone?: string;
-  email?: string;
-  isActive: boolean;
+  location: string;
+  description: string | null;
   createdAt: string;
-  updatedAt?: string;
+  updatedAt: string | null;
+  inventoryCount: number;
 }
 
 /**
  * Ruft alle Lager ab
  * @returns Eine Liste aller Lager
  */
-export async function getAllWarehouses(): Promise<any[]> {
-  try {
-    const response = await fetch('/api/warehouses');
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('Fehler beim Abrufen der Lager:', error);
-    return [];
-  }
+export async function getWarehouses(): Promise<Warehouse[]> {
+  const response = await apiRequest('/api/warehouses');
+  return response.json();
 }
 
 /**
  * Ruft ein bestimmtes Lager anhand seiner ID ab
- * @param id ID des Lagers
- * @returns Details des Lagers
+ * @param id Lager-ID
+ * @returns Lager oder null, wenn nicht gefunden
  */
-export async function getWarehouseById(id: string): Promise<any> {
+export async function getWarehouse(id: string): Promise<Warehouse | null> {
   try {
-    const response = await fetch(`/api/warehouses/${id}`);
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    return await response.json();
+    const response = await apiRequest(`/api/warehouses/${id}`);
+    return response.json();
   } catch (error) {
-    console.error(`Fehler beim Abrufen des Lagers ${id}:`, error);
+    if (error instanceof Response && error.status === 404) {
+      return null;
+    }
     throw error;
   }
 }
 
 /**
- * Erstellt ein neues Lager
- * @param data Lagerdaten
- * @returns Das erstellte Lager
+ * Ruft Produkte in einem bestimmten Lager ab
+ * @param warehouseId Lager-ID
+ * @param search Optionaler Suchbegriff für Produkte
+ * @returns Liste der Produkte im Lager
  */
-export async function createWarehouse(data: Omit<Warehouse, 'id' | 'createdAt' | 'updatedAt'>): Promise<any> {
-  try {
-    const response = await fetch('/api/warehouses', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Fehler beim Erstellen des Lagers:', error);
-    throw error;
-  }
-}
-
-/**
- * Aktualisiert ein bestehendes Lager
- * @param id ID des Lagers
- * @param data Zu aktualisierende Lagerdaten
- * @returns Das aktualisierte Lager
- */
-export async function updateWarehouse(id: string, data: Partial<Omit<Warehouse, 'id' | 'createdAt' | 'updatedAt'>>): Promise<any> {
-  try {
-    const response = await fetch(`/api/warehouses/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error(`Fehler beim Aktualisieren des Lagers ${id}:`, error);
-    throw error;
-  }
-}
-
-/**
- * Löscht ein Lager
- * @param id ID des Lagers
- * @returns Erfolg oder Misserfolg des Löschvorgangs
- */
-export async function deleteWarehouse(id: string): Promise<any> {
-  try {
-    const response = await fetch(`/api/warehouses/${id}`, {
-      method: 'DELETE'
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error(`Fehler beim Löschen des Lagers ${id}:`, error);
-    throw error;
-  }
+export async function getWarehouseProducts(warehouseId: string, search?: string): Promise<any[]> {
+  const queryParams = new URLSearchParams();
+  
+  if (search) queryParams.append('search', search);
+  
+  const url = `/api/warehouses/${warehouseId}/products${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+  
+  const response = await apiRequest(url);
+  return response.json();
 }

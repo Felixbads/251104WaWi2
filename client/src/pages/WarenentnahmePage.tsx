@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import { getProductDisposals, formatDateTime } from '@/lib/api';
-import { getAllWarehouses } from '@/lib/warehouseApi';
+import { getWarehouses } from '@/lib/warehouseApi';
 import { getRemovedProducts, getRemovedProductsSummary } from '@/lib/removedProductsApi';
+import { utils, writeFile } from 'xlsx';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import {
   Card,
   CardContent,
@@ -53,7 +55,7 @@ export default function WarenentnahmePage() {
   // Lade Lager-Daten
   const { data: warehouses, isLoading: isLoadingWarehouses } = useQuery({
     queryKey: ['/api/warehouses'],
-    queryFn: getAllWarehouses
+    queryFn: getWarehouses
   });
 
   // Lade Warenentnahmen
@@ -156,7 +158,7 @@ export default function WarenentnahmePage() {
           </Button>
           <Button size="sm" onClick={handleCreateNew}>
             <Plus className="h-4 w-4 mr-1" />
-            Neue Warenentnahme
+            Neue Warenentnahme aus Lager
           </Button>
         </div>
       </div>
@@ -219,7 +221,7 @@ export default function WarenentnahmePage() {
             )}
           </TabsTrigger>
           <TabsTrigger value="removed">
-            Entnommene
+            Entnahme aus Automaten
             <Badge className="ml-2 bg-amber-400 text-white">NEU</Badge>
           </TabsTrigger>
         </TabsList>
@@ -228,9 +230,9 @@ export default function WarenentnahmePage() {
         <TabsContent value="current">
           <Card>
             <CardHeader>
-              <CardTitle>Aktuelle Warenentnahmen</CardTitle>
+              <CardTitle>Warenentnahme aus Lager</CardTitle>
               <CardDescription>
-                Überalterte oder beschädigte Produkte, die aus dem Lager entnommen werden müssen
+                Produkte, die aus dem Lager entnommen werden müssen
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -398,7 +400,7 @@ export default function WarenentnahmePage() {
         <TabsContent value="removed">
           <Card>
             <CardHeader>
-              <CardTitle>Entnommene Produkte</CardTitle>
+              <CardTitle>Entnahme aus Automaten</CardTitle>
               <CardDescription>
                 Produkte, die bei der Auffüllung aus Automaten entnommen wurden (aus Refill-Details)
               </CardDescription>
@@ -426,13 +428,30 @@ export default function WarenentnahmePage() {
                     onChange={(e) => setDateFilter(prev => ({ ...prev, endDate: e.target.value }))}
                   />
                 </div>
-                <div className="flex items-end">
+                <div className="flex items-end gap-2">
                   <Button
                     variant="outline" 
                     className="mb-1"
                     onClick={() => setDateFilter({})}
                   >
                     Filter zurücksetzen
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="mb-1"
+                    onClick={() => {
+                      // Standardwerte setzen: 30 Tage zurück bis heute
+                      const today = new Date();
+                      const startDate = new Date();
+                      startDate.setDate(today.getDate() - 30);
+                      
+                      setDateFilter({
+                        startDate: startDate.toISOString().split('T')[0],
+                        endDate: today.toISOString().split('T')[0]
+                      });
+                    }}
+                  >
+                    Letzte 30 Tage
                   </Button>
                 </div>
               </div>
@@ -467,6 +486,27 @@ function RemovedProductsSection({
       endDate: dateFilter.endDate
     }),
   });
+  
+  // Export-Funktion
+  const handleExport = (format: 'excel' | 'csv') => {
+    if (!data) return;
+    
+    exportRemovedProducts({
+      machineId: selectedMachine || undefined,
+      startDate: dateFilter.startDate,
+      endDate: dateFilter.endDate
+    }, format).then(blob => {
+      const fileName = `entnahme-automaten-${new Date().toISOString().slice(0, 10)}.${format === 'excel' ? 'xlsx' : 'csv'}`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+  };
 
   if (isLoading) {
     return (
@@ -510,6 +550,55 @@ function RemovedProductsSection({
 
   return (
     <div>
+      {/* Export-Buttons */}
+      <div className="flex justify-end mb-4 gap-2">
+        <Button variant="outline" size="sm" onClick={() => handleExport('excel')}>
+          Excel exportieren
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => handleExport('csv')}>
+          CSV exportieren
+        </Button>
+      </div>
+      
+      {/* Zeitliche Verteilung Grafik */}
+      <div className="mb-6">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Zeitliche Verteilung der Entnahmen</CardTitle>
+            <CardDescription>
+              Analyse der Entnahmen im Zeitverlauf
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart
+                  data={data.analytics.byDate.map(item => ({
+                    date: new Date(item.date).toLocaleDateString('de-DE'),
+                    count: item.count
+                  }))}
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Line 
+                    type="monotone" 
+                    dataKey="count" 
+                    name="Entnommene Produkte" 
+                    stroke="#8884d8"
+                    strokeWidth={2}
+                    activeDot={{ r: 8 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      
       {/* Statistik-Widgets und Zusammenfassung */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         <Card>
