@@ -3,9 +3,9 @@ import { useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import { getProductDisposals, formatDateTime } from '@/lib/api';
 import { getWarehouses } from '@/lib/warehouseApi';
-import { getRemovedProducts, getRemovedProductsSummary } from '@/lib/removedProductsApi';
+import { getRemovedProducts, getRemovedProductsSummary, exportRemovedProducts } from '@/lib/removedProductsApi';
 import { utils, writeFile } from 'xlsx';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import {
   Card,
   CardContent,
@@ -495,7 +495,7 @@ function RemovedProductsSection({
       machineId: selectedMachine || undefined,
       startDate: dateFilter.startDate,
       endDate: dateFilter.endDate
-    }, format).then(blob => {
+    }, format).then((blob: Blob) => {
       const fileName = `entnahme-automaten-${new Date().toISOString().slice(0, 10)}.${format === 'excel' ? 'xlsx' : 'csv'}`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -561,43 +561,167 @@ function RemovedProductsSection({
       </div>
       
       {/* Zeitliche Verteilung Grafik */}
-      <div className="mb-6">
+      {/* Grafik-Tabs für verschiedene Analysen */}
+      <Tabs defaultValue="time" className="mb-6">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Zeitliche Verteilung der Entnahmen</CardTitle>
-            <CardDescription>
-              Analyse der Entnahmen im Zeitverlauf
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={data.analytics.byDate.map(item => ({
-                    date: new Date(item.date).toLocaleDateString('de-DE'),
-                    count: item.count
-                  }))}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey="count" 
-                    name="Entnommene Produkte" 
-                    stroke="#8884d8"
-                    strokeWidth={2}
-                    activeDot={{ r: 8 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+          <CardHeader className="pb-2 border-b">
+            <div className="flex flex-row justify-between items-center">
+              <div>
+                <CardTitle className="text-lg">Grafische Analyse der Entnahmen</CardTitle>
+                <CardDescription>
+                  Visualisierung der Entnahmen nach verschiedenen Kriterien
+                </CardDescription>
+              </div>
+              <TabsList>
+                <TabsTrigger value="time">Nach Zeit</TabsTrigger>
+                <TabsTrigger value="product">Nach Produkt</TabsTrigger>
+                <TabsTrigger value="machine">Nach Standort</TabsTrigger>
+                <TabsTrigger value="combined">Produkt + Standort</TabsTrigger>
+              </TabsList>
             </div>
+          </CardHeader>
+          <CardContent className="pt-4">
+            {/* Zeitliche Verteilung */}
+            <TabsContent value="time" className="m-0">
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={data.analytics.byDate.map(item => ({
+                      date: new Date(item.date).toLocaleDateString('de-DE'),
+                      count: item.count
+                    }))}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip />
+                    <Legend />
+                    <Line 
+                      type="monotone" 
+                      dataKey="count" 
+                      name="Entnommene Produkte" 
+                      stroke="#8884d8"
+                      strokeWidth={2}
+                      activeDot={{ r: 8 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </TabsContent>
+            
+            {/* Verteilung nach Produkt */}
+            <TabsContent value="product" className="m-0">
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={data.analytics.byProduct.slice(0, 10).map(item => ({
+                      name: item.name.length > 25 ? item.name.substring(0, 25) + '...' : item.name,
+                      count: item.count
+                    }))}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                    layout="vertical"
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" />
+                    <YAxis dataKey="name" type="category" width={150} />
+                    <Tooltip />
+                    <Legend />
+                    <Bar 
+                      dataKey="count" 
+                      name="Entnahmen pro Produkt" 
+                      fill="#82ca9d"
+                      radius={[0, 4, 4, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </TabsContent>
+            
+            {/* Verteilung nach Standort/Automat */}
+            <TabsContent value="machine" className="m-0">
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={data.analytics.byMachine.slice(0, 10).map(item => ({
+                      name: item.name.length > 25 ? item.name.substring(0, 25) + '...' : item.name,
+                      count: item.count
+                    }))}
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                    layout="vertical"
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" />
+                    <YAxis dataKey="name" type="category" width={150} />
+                    <Tooltip />
+                    <Legend />
+                    <Bar 
+                      dataKey="count" 
+                      name="Entnahmen pro Standort" 
+                      fill="#ff7300"
+                      radius={[0, 4, 4, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </TabsContent>
+            
+            {/* Kombinierte Ansicht: Top Produkte pro Standort */}
+            <TabsContent value="combined" className="m-0">
+              <div className="h-72">
+                {/* For the combined view, we'll create a specialized visualization */}
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={
+                      // Take top 5 machines and get their top products
+                      data.analytics.byMachine.slice(0, 5).flatMap(machine => 
+                        // Find products for this machine in the products list
+                        data.products
+                          .filter(p => p.machineId === machine.name || p.machineName === machine.name)
+                          .reduce((acc, product) => {
+                            // Group by product name and count
+                            const existing = acc.find(p => p.productName === product.productName);
+                            if (existing) {
+                              existing.count += product.removed;
+                            } else {
+                              acc.push({
+                                machineName: machine.name.length > 15 ? machine.name.substring(0, 15) + '...' : machine.name,
+                                productName: product.productName.length > 15 ? product.productName.substring(0, 15) + '...' : product.productName,
+                                count: product.removed
+                              });
+                            }
+                            return acc;
+                          }, [] as {machineName: string; productName: string; count: number}[])
+                          // Take top 3 products for each machine
+                          .sort((a, b) => b.count - a.count)
+                          .slice(0, 3)
+                          .map(item => ({
+                            name: `${item.productName} (${item.machineName})`,
+                            count: item.count
+                          }))
+                      )
+                    }
+                    margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                    layout="vertical"
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" />
+                    <YAxis dataKey="name" type="category" width={200} />
+                    <Tooltip />
+                    <Legend />
+                    <Bar 
+                      dataKey="count" 
+                      name="Top Produkte pro Standort" 
+                      fill="#8884d8"
+                      radius={[0, 4, 4, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </TabsContent>
           </CardContent>
         </Card>
-      </div>
+      </Tabs>
       
       {/* Statistik-Widgets und Zusammenfassung */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
