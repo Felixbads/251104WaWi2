@@ -166,7 +166,7 @@ function WarehouseSelectionForm({
   const { toast } = useToast();
   
   // Abfrage der Lager
-  const { data: warehouses, isLoading, error } = useQuery({
+  const { data: warehouses, isLoading, error } = useQuery<{data: any[], meta: any}>({
     queryKey: ['/api/warehouses'],
     staleTime: 1000 * 60, // 1 Minute
   });
@@ -232,7 +232,7 @@ function WarehouseSelectionForm({
   }
   
   // Keine Lager vorhanden
-  if (!warehouses || warehouses.length === 0) {
+  if (!warehouses || !warehouses.data || warehouses.data.length === 0) {
     return (
       <Card className="w-full max-w-3xl mx-auto">
         <CardHeader>
@@ -258,7 +258,7 @@ function WarehouseSelectionForm({
   }
   
   // Nur aktive Lager anzeigen
-  const activeWarehouses = warehouses.filter((wh: any) => wh.isActive);
+  const activeWarehouses = warehouses.data.filter((wh: any) => wh.isActive);
   
   return (
     <Card className="w-full max-w-3xl mx-auto">
@@ -362,15 +362,13 @@ function OrderModeSelection({
   onBack: () => void
 }) {
   // Warehouse-Daten abfragen
-  const { data: warehouse, isLoading } = useQuery({
+  const { data: warehouse, isLoading } = useQuery<{id: number, name: string}>({
     queryKey: [`/api/warehouses/${warehouseId}`],
     staleTime: 1000 * 60, // 1 Minute
   });
   
-  // Typensicherheit für warehouse gewährleisten
-  const warehouseName = warehouse && typeof warehouse === 'object' && 'name' in warehouse 
-    ? warehouse.name 
-    : '';
+  // Warehouse-Name extrahieren
+  const warehouseName = warehouse?.name || '';
 
   // Bestellmodi mit Metadaten
   const orderModes = [
@@ -408,7 +406,7 @@ function OrderModeSelection({
           Wählen Sie, wie Sie Ihre Bestellung für{' '}
           {isLoading 
             ? <span className="inline-block w-24 h-4 bg-muted animate-pulse rounded"></span> 
-            : <strong>{warehouse && typeof warehouse === 'object' ? warehouse.name : ''}</strong>
+            : <strong>{warehouse?.name || ''}</strong>
           } erstellen möchten.
         </CardDescription>
       </CardHeader>
@@ -458,25 +456,25 @@ function NewOrderForm({
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   
   // Warehouse-Daten abfragen
-  const { data: warehouse, isLoading: isWarehouseLoading } = useQuery({
+  const { data: warehouse, isLoading: isWarehouseLoading } = useQuery<{id: number, name: string}>({
     queryKey: [`/api/warehouses/${warehouseId}`],
     staleTime: 1000 * 60, // 1 Minute
   });
   
   // Lieferanten abfragen
-  const { data: suppliers, isLoading: isSuppliersLoading } = useQuery({
+  const { data: suppliers, isLoading: isSuppliersLoading } = useQuery<{data: any[], meta: any}>({
     queryKey: ['/api/suppliers'],
     staleTime: 1000 * 60, // 1 Minute
   });
   
   // Produkte abfragen
-  const { data: products, isLoading: isProductsLoading } = useQuery({
+  const { data: products, isLoading: isProductsLoading } = useQuery<{data: any[], meta: any}>({
     queryKey: ['/api/products'],
     staleTime: 1000 * 60, // 1 Minute
   });
   
   // Maschinen abfragen
-  const { data: machines, isLoading: isMachinesLoading } = useQuery({
+  const { data: machines, isLoading: isMachinesLoading } = useQuery<{data: any[], meta: any}>({
     queryKey: ['/api/machines'],
     staleTime: 1000 * 60, // 1 Minute
   });
@@ -971,8 +969,8 @@ function NewOrderForm({
                     <FormItem>
                       <FormLabel>Zielmaschine (optional)</FormLabel>
                       <Select 
-                        onValueChange={(value) => field.onChange(value ? parseInt(value) : undefined)}
-                        defaultValue={field.value?.toString()}
+                        onValueChange={(value) => field.onChange(value === "none" ? undefined : parseInt(value))}
+                        defaultValue={field.value?.toString() || "none"}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -980,7 +978,7 @@ function NewOrderForm({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="">Keine spezifische Maschine</SelectItem>
+                          <SelectItem value="none">Keine spezifische Maschine</SelectItem>
                           {machines?.data ? machines.data.map((machine: any) => (
                             <SelectItem key={machine.id} value={machine.id.toString()}>
                               {machine.name || machine.serialNumber || `Maschine ${machine.id}`}

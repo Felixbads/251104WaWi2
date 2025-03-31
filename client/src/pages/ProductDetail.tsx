@@ -879,7 +879,7 @@ export default function ProductDetail() {
                               <Label htmlFor="supplier">Lieferant</Label>
                               <div className="flex gap-2 mt-1">
                                 <Select
-                                  value={editedProduct.supplierId?.toString() || ""}
+                                  value={editedProduct.supplierId?.toString() || "none"}
                                   onValueChange={(value) => {
                                     // Bei leerem Wert keinen Lieferanten auswählen
                                     if (!value) {
@@ -897,7 +897,7 @@ export default function ProductDetail() {
                                     
                                     setEditedProduct({
                                       ...editedProduct,
-                                      supplierId: parseInt(value),
+                                      supplierId: value === "none" ? undefined : parseInt(value),
                                       supplier: selectedSupplier?.name
                                     });
                                   }}
@@ -906,7 +906,7 @@ export default function ProductDetail() {
                                     <SelectValue placeholder="Lieferant auswählen" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="">Kein Lieferant</SelectItem>
+                                    <SelectItem value="none">Kein Lieferant</SelectItem>
                                     {suppliersData?.data && Array.isArray(suppliersData.data) ? 
                                       suppliersData.data.map((supplier) => (
                                         <SelectItem key={supplier.id} value={supplier.id.toString()}>
