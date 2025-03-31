@@ -286,6 +286,60 @@ export class DatabaseStorage implements IStorage {
     return parseInt(countResult[0]?.count?.toString() || '0');
   }
   
+  // Implementierung der getOrderStatistics Methode
+  async getOrderStatistics(): Promise<{
+    total: number;
+    open: number;
+    ordered: number;
+    partial: number;
+    completed: number;
+    cancelled: number;
+  }> {
+    // Total orders
+    const totalResult = await db
+      .select({ count: count() })
+      .from(orders);
+    
+    // Open orders
+    const openResult = await db
+      .select({ count: count() })
+      .from(orders)
+      .where(eq(orders.status, "open"));
+    
+    // Ordered orders
+    const orderedResult = await db
+      .select({ count: count() })
+      .from(orders)
+      .where(eq(orders.status, "ordered"));
+    
+    // Partial orders
+    const partialResult = await db
+      .select({ count: count() })
+      .from(orders)
+      .where(eq(orders.status, "partial"));
+    
+    // Completed orders
+    const completedResult = await db
+      .select({ count: count() })
+      .from(orders)
+      .where(eq(orders.status, "completed"));
+    
+    // Cancelled orders
+    const cancelledResult = await db
+      .select({ count: count() })
+      .from(orders)
+      .where(eq(orders.status, "cancelled"));
+    
+    return {
+      total: Number(totalResult[0]?.count?.toString() || '0'),
+      open: Number(openResult[0]?.count?.toString() || '0'),
+      ordered: Number(orderedResult[0]?.count?.toString() || '0'),
+      partial: Number(partialResult[0]?.count?.toString() || '0'),
+      completed: Number(completedResult[0]?.count?.toString() || '0'),
+      cancelled: Number(cancelledResult[0]?.count?.toString() || '0')
+    };
+  }
+  
   // Stock operations
   async getStocks(limit: number = 100): Promise<Stock[]> {
     return await db.select().from(stocks).orderBy(stocks.productName).limit(limit);

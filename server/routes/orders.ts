@@ -2,7 +2,7 @@ import { Request, Response, Router } from "express";
 import { db } from "../db";
 import { orders, orderItems } from "@shared/schema";
 import { storage } from "../storage";
-import { eq, and, like, ilike, or, desc, asc, isNull, isNotNull, sql } from "drizzle-orm";
+import { eq, and, like, ilike, or, desc, asc, isNull, isNotNull, sql, count } from "drizzle-orm";
 
 const router = Router();
 
@@ -14,6 +14,45 @@ router.get("/statistics", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Fehler beim Abrufen der Bestellungs-Statistiken:", error);
     res.status(500).json({ error: "Fehler beim Abrufen der Bestellungs-Statistiken" });
+  }
+});
+
+// Bestellungen nach Lieferanten zählen
+router.get("/countBySupplier", async (req: Request, res: Response) => {
+  try {
+    // SQL-Abfrage für Zählung nach Lieferant und Status
+    const result = await db.execute(sql`
+      SELECT 
+        supplier_id as "supplierId", 
+        supplier_name as "supplierName",
+        COUNT(*) as "total",
+        COUNT(CASE WHEN status = 'open' THEN 1 END) as "open",
+        COUNT(CASE WHEN status = 'ordered' THEN 1 END) as "ordered",
+        COUNT(CASE WHEN status = 'partial' THEN 1 END) as "partial",
+        COUNT(CASE WHEN status = 'completed' THEN 1 END) as "completed",
+        COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as "cancelled"
+      FROM orders
+      WHERE supplier_id IS NOT NULL
+      GROUP BY supplier_id, supplier_name
+      ORDER BY "supplierName"
+    `);
+    
+    // Ergebnisse umwandeln
+    const supplierCounts = result.map(row => ({
+      supplierId: Number(row.supplierId),
+      supplierName: row.supplierName as string,
+      total: Number(row.total),
+      open: Number(row.open),
+      ordered: Number(row.ordered),
+      partial: Number(row.partial),
+      completed: Number(row.completed),
+      cancelled: Number(row.cancelled)
+    }));
+    
+    res.json(supplierCounts);
+  } catch (error) {
+    console.error("Fehler beim Zählen der Bestellungen nach Lieferanten:", error);
+    res.status(500).json({ error: "Fehler beim Zählen der Bestellungen nach Lieferanten" });
   }
 });
 
@@ -172,49 +211,7 @@ router.get("/dashboard/open", async (req: Request, res: Response) => {
   }
 });
 
-// Eine bestimmte Bestellung abrufen
-router.get("/:id", async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const orderId = parseInt(id);
 
-    if (isNaN(orderId)) {
-      return res.status(400).json({ error: "Ungültige Bestellungs-ID" });
-    }
-
-    // Bestellung abrufen
-    const order = await db
-      .select()
-      .from(orders)
-      .where(eq(orders.id, orderId))
-      .limit(1);
-
-    if (!order || order.length === 0) {
-      return res.status(404).json({ error: "Bestellung nicht gefunden" });
-    }
-
-    // Bestellpositionen abrufen
-    const items = await db
-      .select()
-      .from(orderItems)
-      .where(eq(orderItems.orderId, orderId));
-
-    // Lieferanten-Details abrufen
-    let supplier = null;
-    if (order[0].supplierId) {
-      supplier = await storage.getSupplierById(order[0].supplierId);
-    }
-
-    res.json({
-      ...order[0],
-      orderItems: items,
-      supplier,
-    });
-  } catch (error) {
-    console.error("Fehler beim Abrufen der Bestellungsdetails:", error);
-    res.status(500).json({ error: "Fehler beim Abrufen der Bestellungsdetails" });
-  }
-});
 
 // Neue Bestellung erstellen
 router.post("/", async (req: Request, res: Response) => {
@@ -852,6 +849,50 @@ router.delete("/:id", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Fehler beim Löschen der Bestellung:", error);
     res.status(500).json({ error: "Fehler beim Löschen der Bestellung" });
+  }
+});
+
+// Eine bestimmte Bestellung abrufen
+router.get("/:id", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const orderId = parseInt(id);
+
+    if (isNaN(orderId)) {
+      return res.status(400).json({ error: "Ungültige Bestellungs-ID" });
+    }
+
+    // Bestellung abrufen
+    const order = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+
+    if (!order || order.length === 0) {
+      return res.status(404).json({ error: "Bestellung nicht gefunden" });
+    }
+
+    // Bestellpositionen abrufen
+    const items = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, orderId));
+
+    // Lieferanten-Details abrufen
+    let supplier = null;
+    if (order[0].supplierId) {
+      supplier = await storage.getSupplierById(order[0].supplierId);
+    }
+
+    res.json({
+      ...order[0],
+      orderItems: items,
+      supplier,
+    });
+  } catch (error) {
+    console.error("Fehler beim Abrufen der Bestellungsdetails:", error);
+    res.status(500).json({ error: "Fehler beim Abrufen der Bestellungsdetails" });
   }
 });
 
