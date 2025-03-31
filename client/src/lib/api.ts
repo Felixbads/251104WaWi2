@@ -659,6 +659,10 @@ export async function getOrder(id: number): Promise<OrderDetail> {
   return apiRequest<OrderDetail>('get', `/orders/${id}`);
 }
 
+export async function getOpenOrders(limit = 5): Promise<Order[]> {
+  return apiRequest<Order[]>('get', `/orders/dashboard/open?limit=${limit}`);
+}
+
 export async function createOrder(orderData: Omit<Order, 'id' | 'createdAt' | 'updatedAt' | 'orderNumber'>): Promise<Order> {
   return apiRequest<Order>('post', '/orders', orderData);
 }

@@ -9,7 +9,10 @@ import {
   ShoppingBag, 
   CreditCard,
   BarChart3,
-  Percent
+  Percent,
+  Truck,
+  ArrowUpRight,
+  Clock
 } from "lucide-react";
 import SyncStatusCard from "@/components/dashboard/SyncStatusCard";
 import MetricCard from "@/components/dashboard/MetricCard";
@@ -21,8 +24,9 @@ import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getTransactions, getMachines, getEvents, getSyncStatus } from "@/lib/api";
-import { formatDateTime } from "@/lib/api";
+import { getTransactions, getMachines, getEvents, getSyncStatus, getOpenOrders, formatDateTime } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -48,6 +52,13 @@ export default function Dashboard() {
     queryKey: ['/api/sync/status'],
     queryFn: () => getSyncStatus(),
     refetchInterval: 30000, // Alle 30 Sekunden aktualisieren
+  });
+  
+  // Offene Bestellungen für die Dashboard-Ansicht
+  const { data: openOrders, isLoading: isLoadingOpenOrders } = useQuery({
+    queryKey: ['/api/orders/dashboard/open'],
+    queryFn: () => getOpenOrders(),
+    refetchInterval: 60000 // Jede Minute aktualisieren
   });
 
   // Handle settings click
@@ -334,6 +345,76 @@ export default function Dashboard() {
             </Card>
           </div>
           
+          {/* Anstehende Lieferungen */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center">
+                <Truck className="h-5 w-5 mr-2 text-primary" />
+                Anstehende Lieferungen
+              </CardTitle>
+              <CardDescription>Offene Bestellungen mit erwartetem Liefertermin</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {openOrders && openOrders.length > 0 ? (
+                <div className="space-y-4">
+                  {openOrders.map((order) => (
+                    <div key={order.id} className="border rounded-md p-4 space-y-2 hover:bg-gray-50">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-medium">{order.orderNumber}</div>
+                          <div className="text-sm text-gray-500">{order.supplierName}</div>
+                        </div>
+                        <Badge className={
+                          order.status === "open" ? "bg-gray-100 text-gray-800" :
+                          order.status === "ordered" ? "bg-blue-100 text-blue-800" :
+                          order.status === "partial" ? "bg-amber-100 text-amber-800" :
+                          order.status === "delivered" ? "bg-green-100 text-green-800" :
+                          "bg-gray-100 text-gray-800"
+                        }>
+                          {order.status === "open" ? "Offen" :
+                           order.status === "ordered" ? "Bestellt" :
+                           order.status === "partial" ? "Teilgeliefert" :
+                           order.status === "delivered" ? "Geliefert" :
+                           order.status}
+                        </Badge>
+                      </div>
+                      
+                      <div className="text-sm">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <span>
+                            Erwartete Lieferung: {order.expectedDeliveryDate ? 
+                              formatDateTime(order.expectedDeliveryDate, 'date') : 'Nicht angegeben'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Package className="h-4 w-4 text-muted-foreground" />
+                          <span>Positionen: {order.itemCount || 0}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex justify-end pt-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="gap-1"
+                          onClick={() => setLocation(`/orders/${order.id}`)}
+                        >
+                          <ArrowUpRight className="h-4 w-4" />
+                          Warenannahme starten
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-4 text-gray-500">
+                  Keine anstehenden Lieferungen
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Zahlungsmethoden */}
           <Card>
             <CardHeader className="pb-2">
