@@ -483,8 +483,9 @@ function NewOrderForm({
   
   // Produkte abfragen mit Lieferantenfilter
   const { data: products, isLoading: isProductsLoading } = useQuery<{data: any[], meta: any}>({
-    queryKey: ['/api/products', currentSupplierId ? { supplierId: currentSupplierId } : {}],
+    queryKey: ['/api/products', { supplierId: currentSupplierId }],
     staleTime: 1000 * 60, // 1 Minute
+    enabled: !!currentSupplierId, // Abfrage erst ausführen, wenn ein Lieferant ausgewählt wurde
   });
   
   // Maschinen abfragen
@@ -514,7 +515,7 @@ function NewOrderForm({
     
     // Produktauswahl zurücksetzen, wenn der Lieferant geändert wird
     if (itemForm.getValues('productId')) {
-      itemForm.setValue('productId', undefined);
+      itemForm.setValue('productId', null);  // null statt undefined verwenden
       setSelectedProduct(null);
     }
   }, [orderForm.watch('supplierId')]);

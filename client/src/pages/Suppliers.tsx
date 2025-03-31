@@ -694,8 +694,24 @@ const SupplierCard = ({
   onEdit: (supplier: Supplier) => void;
   onDelete: (supplier: Supplier) => void;
 }) => {
+  const navigate = useLocation()[1];
+  
+  const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Nur navigieren, wenn wir nicht auf einen anklickbaren internen Link oder Button geklickt haben
+    const target = e.target as HTMLElement;
+    const isClickableElement = 
+      target.tagName === 'A' || 
+      target.tagName === 'BUTTON' ||
+      target.closest('a') || 
+      target.closest('button');
+    
+    if (!isClickableElement) {
+      navigate(`/lieferanten/${supplier.id}`);
+    }
+  };
+  
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={handleCardClick}>
       <CardHeader className="pb-2">
         <div className="flex justify-between items-start">
           <CardTitle className="text-lg font-medium truncate">{supplier.name}</CardTitle>
@@ -806,8 +822,24 @@ const SupplierListItem = ({
   onEdit: (supplier: Supplier) => void;
   onDelete: (supplier: Supplier) => void;
 }) => {
+  const navigate = useLocation()[1];
+
+  const handleRowClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Nur navigieren, wenn wir nicht auf einen anklickbaren internen Link oder Button geklickt haben
+    const target = e.target as HTMLElement;
+    const isClickableElement = 
+      target.tagName === 'A' || 
+      target.tagName === 'BUTTON' ||
+      target.closest('a') || 
+      target.closest('button');
+    
+    if (!isClickableElement) {
+      navigate(`/lieferanten/${supplier.id}`);
+    }
+  };
+
   return (
-    <div className="flex items-center p-3 border-b border-gray-100 hover:bg-gray-50">
+    <div className="flex items-center p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer" onClick={handleRowClick}>
       <div className="flex-grow mr-4">
         <div className="flex items-center mb-1">
           <h3 className="font-medium mr-2">{supplier.name}</h3>
