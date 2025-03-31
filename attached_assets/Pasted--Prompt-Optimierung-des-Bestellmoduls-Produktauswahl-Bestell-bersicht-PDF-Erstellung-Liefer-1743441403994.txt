@@ -1,0 +1,66 @@
+
+⸻
+
+Prompt: Optimierung des Bestellmoduls – Produktauswahl, Bestellübersicht, PDF-Erstellung, Lieferantenportal & E-Mail-Versand
+
+1. Fehlerhafte Darstellung bei Produktauswahl nach Lieferantenauswahl
+
+Problem:
+	•	Nach Auswahl eines Lieferanten erscheint keine sichtbare Produktauswahl in der Auswahltabelle.
+	•	Der Nutzer scheint „etwas anklicken zu können“, aber es wird kein sichtbarer Inhalt dargestellt.
+	•	In der Tabelle der Bestellpositionen wird eine Anzahl angezeigt, aber keine Produktbezeichnung – das erschwert die Kontrolle der Bestellung.
+
+Ziel:
+	•	Die Produktauswahl soll nach Auswahl eines Lieferanten korrekt dargestellt werden (sichtbare Produktnamen mit ggf. Zusatzinfos).
+	•	In der Bestellübersicht sollen Produktbezeichnung, Anzahl und ggf. Preise klar ersichtlich sein.
+
+Debug-Ansätze:
+	•	Prüft bitte die Komponenten-Logik, insbesondere die Darstellung der Produktdaten (Spaltenüberschriften, Spaltenwerte).
+	•	Testet, ob das Mapping der Produktergebnisse auf die Tabelle korrekt ist und ob evtl. fehlende Labels oder Feldnamen im JSON-Objekt die Anzeige verhindern.
+	•	Stellt sicher, dass die Produktbezeichnung nicht durch CSS, Platzhalter oder Visibility-Eigenschaften versteckt ist.
+	•	Aktiviert bitte die Möglichkeit, einen Screenshot direkt aus dem Problem heraus aufzunehmen („Screenshot anschalten“), um das Fehlverhalten zu dokumentieren.
+
+⸻
+
+2. Workflow nach Bestellbestätigung: PDF-Generierung und Versand
+
+Anforderungen:
+	•	Nach Bestellbestätigung soll ein automatisch generiertes PDF-Dokument entstehen.
+	•	Eine PDF-Vorschau wird angeboten, bevor man es versendet.
+	•	Das PDF enthält:
+	•	Logo & Absenderdaten
+	•	Empfängerdaten des Lieferanten
+	•	Bestellpositionen (Produkt, Anzahl, Preis, ggf. Hinweise)
+	•	QR-Code mit direktem Link zum Lieferantenportal (siehe unten)
+	•	Klickbarer Link zum Lieferantenportal
+
+Implementierung:
+	•	PDF-Generierung z. B. mit pdfmake, jsPDF oder serverseitig via Node/Firebase-Funktion.
+	•	QR-Code-Generierung mit Bibliothek (z. B. qrcode.js, qrcode.react) – eindeutige URL zum Portal des jeweiligen Lieferanten.
+
+⸻
+
+3. Lieferantenportal – eigene Ansicht für Lieferanten
+
+URL-Struktur:
+/lieferantenportal/{supplier_id}/bestellung/{order_id}
+
+Funktionalitäten:
+	•	Übersicht über die aktuelle Bestellung mit Produktpositionen und Gesamtsumme
+	•	Liefertermin-Eingabe mit Kalender
+	•	Bestätigung der Lieferung (z. B. Checkbox „Lieferung verbindlich bestätigt“)
+	•	Kommentarfeld für Rückfragen, Hinweise etc.
+	•	Upload-Möglichkeit für Dokumente (z. B. Lieferscheine, Bestätigungen)
+	•	Ansicht der Stammdaten inkl. Änderungsmöglichkeit bei bestimmten Feldern (optional)
+
+⸻
+
+4. E-Mail-Versand mit PDF-Anhang und Vorlagentexten
+
+Vorgehen nach PDF-Vorschau:
+	•	Öffnet sich ein kleines E-Mail-Fenster direkt in der App.
+	•	Absender ist die System-Mailadresse (oder Benutzer-Mail, je nach Einstellung).
+	•	Empfänger ist die hinterlegte E-Mail des Lieferanten.
+	•	Textfeld mit editierbarem Standard-Text, der pro Lieferant in den Vorlagen individuell hinterlegt und angepasst werden kann.
+	•	Das zuvor generierte PDF ist automatisch angehängt.
+	•	Versand per Klick auf „Senden“-Button, mit kurzer Bestätigungsmeldung.

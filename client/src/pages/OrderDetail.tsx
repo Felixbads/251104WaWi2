@@ -1,9 +1,13 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { jsPDF } from "jspdf";
+// @ts-ignore
+import QRCode from "qrcode";
+import html2canvas from "html2canvas";
 
 // UI Komponenten
 import { Button } from "@/components/ui/button";
@@ -257,13 +261,26 @@ export default function OrderDetail() {
   const [showReceiveDialog, setShowReceiveDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   
-  // QR Code Dialog
+  // Dialog States
   const [showQrDialog, setShowQrDialog] = useState(false);
+  const [showPdfDialog, setShowPdfDialog] = useState(false);
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  
+  // Refs für PDF-Generierung
+  const pdfContentRef = useRef<HTMLDivElement>(null);
+  const qrCodeRef = useRef<HTMLDivElement>(null);
+  
+  // PDF und QR Code States
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
+  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   
   // Form States
   const [trackingCode, setTrackingCode] = useState("");
   const [sendNote, setSendNote] = useState("");
   const [cancelReason, setCancelReason] = useState("");
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailText, setEmailText] = useState("");
+  const [emailAddress, setEmailAddress] = useState("");
   
   // Lade Bestelldetails
   const { data: order, isLoading, error } = useQuery({
@@ -295,6 +312,8 @@ export default function OrderDetail() {
   
   // Bestellung absenden
   const handleSendOrder = () => {
+    if (!order) return;
+    
     updateOrderMutation.mutate(
       { 
         status: "pending", 
@@ -328,6 +347,8 @@ export default function OrderDetail() {
   
   // Tracking-Code hinzufügen
   const handleAddTracking = () => {
+    if (!order) return;
+    
     updateOrderMutation.mutate(
       { 
         status: "shipped", 
@@ -362,6 +383,8 @@ export default function OrderDetail() {
   
   // Bestellung als geliefert markieren
   const handleMarkAsDelivered = () => {
+    if (!order) return;
+    
     updateOrderMutation.mutate(
       { 
         status: "delivered", 
@@ -389,6 +412,8 @@ export default function OrderDetail() {
   
   // Bestellung abschließen
   const handleCompleteOrder = () => {
+    if (!order) return;
+    
     updateOrderMutation.mutate(
       { 
         status: "completed",
@@ -414,6 +439,8 @@ export default function OrderDetail() {
   
   // Bestellung stornieren
   const handleCancelOrder = () => {
+    if (!order) return;
+    
     updateOrderMutation.mutate(
       { 
         status: "cancelled",
@@ -439,8 +466,141 @@ export default function OrderDetail() {
   };
   
   // QR-Code für Lieferantenportal generieren
-  const handleGenerateQrCode = () => {
-    setShowQrDialog(true);
+  const handleGenerateQrCode = async () => {
+    if (!order) return;
+    
+    try {
+      // Lieferantenportal URL generieren
+      const portalUrl = `${window.location.origin}/lieferantenportal/${order.supplierId}/bestellung/${order.id}`;
+      
+      // QR-Code als DataURL generieren
+      const qrDataUrl = await QRCode.toDataURL(portalUrl, {
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#000',
+          light: '#fff'
+        }
+      });
+      
+      setQrCodeUrl(qrDataUrl);
+      setShowQrDialog(true);
+    } catch (error) {
+      toast({
+        title: "Fehler beim Generieren des QR-Codes",
+        description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // PDF generieren
+  const generatePdf = async () => {
+    if (!order || !pdfContentRef.current) return;
+    
+    try {
+      // Status setzen
+      toast({
+        title: "PDF wird generiert",
+        description: "Bitte warten Sie einen Moment...",
+      });
+      
+      // QR-Code generieren für das PDF
+      const portalUrl = `${window.location.origin}/lieferantenportal/${order.supplierId}/bestellung/${order.id}`;
+      const qrDataUrl = await QRCode.toDataURL(portalUrl, {
+        width: 150,
+        margin: 1,
+      });
+      
+      // HTML in Canvas umwandeln
+      const canvas = await html2canvas(pdfContentRef.current, {
+        scale: 1.2,
+        useCORS: true,
+        logging: false
+      });
+      
+      // PDF erstellen
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      
+      // Berechnungen für die Bildanpassung
+      const imgWidth = 190;
+      const imgHeight = canvas.height * imgWidth / canvas.width;
+      
+      // Bild zum PDF hinzufügen
+      const imgData = canvas.toDataURL('image/png');
+      pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
+      
+      // QR-Code zum PDF hinzufügen
+      pdf.addImage(qrDataUrl, 'PNG', 155, 10, 35, 35);
+      
+      // PDF als Blob speichern
+      const blob = pdf.output('blob');
+      setPdfBlob(blob);
+      
+      // PDF-Vorschau anzeigen
+      setShowPdfDialog(true);
+      
+      // Status aktualisieren
+      toast({
+        title: "PDF erfolgreich generiert",
+        description: "Sie können das PDF jetzt herunterladen oder per E-Mail versenden."
+      });
+    } catch (error) {
+      toast({
+        title: "Fehler beim Generieren des PDFs",
+        description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // PDF herunterladen
+  const handleDownloadPdf = () => {
+    if (!pdfBlob) return;
+    
+    const url = URL.createObjectURL(pdfBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Bestellung_${order?.orderNumber || 'download'}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+  
+  // E-Mail mit PDF versenden
+  const handlePrepareEmail = () => {
+    if (!order) return;
+    
+    // E-Mail-Vorlage vorbereiten
+    setEmailSubject(`Bestellung ${order.orderNumber} vom ${formatDate(order.createdAt)}`);
+    setEmailAddress("lieferant@example.com"); // In der Praxis: order.supplierEmail
+    setEmailText(`Sehr geehrte Damen und Herren,
+
+anbei erhalten Sie unsere Bestellung ${order.orderNumber} vom ${formatDate(order.createdAt)}.
+
+Bitte bestätigen Sie den Erhalt und den voraussichtlichen Liefertermin über unser Lieferantenportal:
+${window.location.origin}/lieferantenportal/${order.supplierId}/bestellung/${order.id}
+
+Sie können den QR-Code im Anhang scannen, um direkt zum Portal zu gelangen.
+
+Bei Fragen stehen wir Ihnen gerne zur Verfügung.
+
+Mit freundlichen Grüßen
+Nationale Parkverwaltung Sächsische Schweiz
+Einkaufsabteilung`);
+    
+    setShowEmailDialog(true);
+  };
+  
+  // E-Mail absenden (Mock)
+  const handleSendEmail = () => {
+    // In der Praxis würde hier ein API-Call zum Versenden der E-Mail folgen
+    toast({
+      title: "E-Mail gesendet",
+      description: `Die E-Mail wurde erfolgreich an ${emailAddress} gesendet.`
+    });
+    
+    setShowEmailDialog(false);
   };
   
   // Ladeansicht
@@ -555,6 +715,90 @@ export default function OrderDetail() {
         </div>
       </div>
       
+      {/* Unsichtbares PDF-Template für die Generierung */}
+      <div className="hidden">
+        <div ref={pdfContentRef} className="p-8 bg-white" style={{ width: '210mm', height: '297mm' }}>
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-xl font-bold">Bestellung #{order.orderNumber}</h1>
+              <p className="text-sm">Erstellt am: {formatDate(order.createdAt)}</p>
+            </div>
+            <div className="text-right">
+              <h2 className="font-bold">Nationale Parkverwaltung Sächsische Schweiz</h2>
+              <p className="text-sm">Nationalpark Zentrum</p>
+              <p className="text-sm">Dresdner Str. 2B, 01814 Bad Schandau</p>
+              <p className="text-sm">info@nationalpark-saechsische-schweiz.de</p>
+            </div>
+          </div>
+          
+          <div className="mt-10">
+            <h2 className="font-bold mb-1">Lieferant:</h2>
+            <p>{order.supplierName}</p>
+            <p>[Lieferantenadresse]</p>
+            <p>Kundennummer: [Kundennummer]</p>
+          </div>
+          
+          <div className="mt-6">
+            <h2 className="font-bold mb-1">Lieferadresse:</h2>
+            <p>{order.warehouseName}</p>
+            <p>Hauptstraße 123, 01307 Dresden</p>
+          </div>
+          
+          <div className="mt-8">
+            <h3 className="font-bold border-b pb-2 mb-2">Bestellpositionen</h3>
+            <table className="w-full">
+              <thead>
+                <tr className="text-left">
+                  <th className="py-2">Pos.</th>
+                  <th className="py-2">Artikel</th>
+                  <th className="py-2">Artikel-Nr.</th>
+                  <th className="py-2 text-right">Menge</th>
+                  <th className="py-2 text-right">Einzelpreis</th>
+                  <th className="py-2 text-right">Gesamt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {order.orderItems.map((item, index) => (
+                  <tr key={item.id} className="border-t">
+                    <td className="py-2">{index + 1}</td>
+                    <td className="py-2">{item.productName}</td>
+                    <td className="py-2">{item.supplierSku || item.sku || "-"}</td>
+                    <td className="py-2 text-right">{item.quantity} {item.unit}</td>
+                    <td className="py-2 text-right">{formatCurrency(item.unitPrice)}</td>
+                    <td className="py-2 text-right">{formatCurrency(item.totalPrice)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t font-bold">
+                  <td colSpan={5} className="py-2 text-right">Gesamtsumme:</td>
+                  <td className="py-2 text-right">{formatCurrency(order.totalAmount)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          
+          {order.notes && (
+            <div className="mt-6">
+              <h3 className="font-bold mb-1">Anmerkungen:</h3>
+              <p>{order.notes}</p>
+            </div>
+          )}
+          
+          <div className="mt-8">
+            <h3 className="font-bold mb-1">Lieferinformationen:</h3>
+            <p>Gewünschter Liefertermin: {formatDate(order.expectedDeliveryDate)}</p>
+            <p>Öffnungszeiten Wareneingang: Mo-Fr 08:00 - 16:00 Uhr</p>
+          </div>
+          
+          <div className="mt-8 pt-4 border-t text-sm">
+            <p>Bitte bestätigen Sie diese Bestellung über unser Lieferantenportal.</p>
+            <p>Sie können den QR-Code scannen oder folgende URL besuchen:</p>
+            <p>{window.location.origin}/lieferantenportal/{order.supplierId}/bestellung/{order.id}</p>
+          </div>
+        </div>
+      </div>
+      
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-6">
@@ -664,13 +908,11 @@ export default function OrderDetail() {
                   <Button
                     variant="outline"
                     size="sm"
-                    asChild
+                    onClick={generatePdf}
                     className="gap-1.5"
                   >
-                    <a href="#" onClick={(e) => e.preventDefault()}>
-                      <Download className="h-4 w-4" />
-                      Bestellformular (PDF)
-                    </a>
+                    <FileText className="h-4 w-4" />
+                    Bestellformular erstellen
                   </Button>
                 </div>
               </CardContent>
@@ -1105,19 +1347,141 @@ export default function OrderDetail() {
             </DialogDescription>
           </DialogHeader>
           <div className="flex items-center justify-center py-4">
-            <div className="bg-white p-4 rounded-md">
-              <QrCode className="h-48 w-48 text-black" />
+            <div className="bg-white p-4 rounded-md" ref={qrCodeRef}>
+              {qrCodeUrl ? (
+                <img src={qrCodeUrl} alt="QR Code" className="w-48 h-48" />
+              ) : (
+                <QrCode className="h-48 w-48 text-black" />
+              )}
             </div>
           </div>
           <DialogFooter className="flex flex-col sm:flex-row gap-2">
-            <Button variant="outline" className="sm:w-auto w-full" asChild>
-              <a href="#" download="qr-code.png" onClick={(e) => e.preventDefault()}>
-                <Download className="h-4 w-4 mr-2" />
-                Herunterladen
-              </a>
-            </Button>
+            {qrCodeUrl && (
+              <Button variant="outline" className="sm:w-auto w-full" asChild>
+                <a href={qrCodeUrl} download={`qr-portal-${order?.orderNumber || 'download'}.png`}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Herunterladen
+                </a>
+              </Button>
+            )}
             <Button className="sm:w-auto w-full" onClick={() => setShowQrDialog(false)}>
               Schließen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* PDF Dialog */}
+      <Dialog open={showPdfDialog} onOpenChange={setShowPdfDialog}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Bestellformular (PDF)</DialogTitle>
+            <DialogDescription>
+              Bestellformular für {order?.supplierName} wurde erfolgreich erstellt.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex justify-center py-4 border rounded-md">
+            {pdfBlob ? (
+              <iframe 
+                src={URL.createObjectURL(pdfBlob)} 
+                className="w-full h-[450px]" 
+                title="PDF Vorschau"
+              />
+            ) : (
+              <div className="flex items-center justify-center h-[450px]">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter className="flex flex-wrap gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleDownloadPdf}
+              disabled={!pdfBlob}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Herunterladen
+            </Button>
+            <Button 
+              onClick={handlePrepareEmail}
+              disabled={!pdfBlob}
+            >
+              <Send className="h-4 w-4 mr-2" />
+              Per E-Mail versenden
+            </Button>
+            <Button 
+              variant="secondary"
+              onClick={() => setShowPdfDialog(false)}
+            >
+              Schließen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* E-Mail Dialog */}
+      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Bestellung per E-Mail versenden</DialogTitle>
+            <DialogDescription>
+              Versenden Sie die Bestellung per E-Mail an den Lieferanten.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-1 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="email-to">Empfänger</Label>
+                <Input 
+                  id="email-to" 
+                  value={emailAddress} 
+                  onChange={(e) => setEmailAddress(e.target.value)}
+                  placeholder="lieferant@example.com"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="email-subject">Betreff</Label>
+                <Input 
+                  id="email-subject" 
+                  value={emailSubject} 
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="email-text">Nachricht</Label>
+                <Textarea 
+                  id="email-text" 
+                  value={emailText} 
+                  onChange={(e) => setEmailText(e.target.value)}
+                  className="min-h-[200px]"
+                />
+              </div>
+              
+              <div className="bg-muted p-3 rounded-md flex items-center gap-3">
+                <FileText className="h-5 w-5 text-muted-foreground" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Bestellung_{order?.orderNumber}.pdf</p>
+                  <p className="text-xs text-muted-foreground">PDF-Datei wird automatisch angehängt</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowEmailDialog(false)}
+            >
+              Abbrechen
+            </Button>
+            <Button onClick={handleSendEmail}>
+              <Send className="h-4 w-4 mr-2" />
+              E-Mail senden
             </Button>
           </DialogFooter>
         </DialogContent>
