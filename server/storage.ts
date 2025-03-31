@@ -115,6 +115,8 @@ export interface IStorage {
   getProductByVendonId(vendonId: string): Promise<Product | undefined>;
   createProduct(product: InsertProduct): Promise<Product>;
   updateProduct(id: number, product: Partial<InsertProduct>): Promise<Product | undefined>;
+  getProductMachines(productId: number): Promise<{machineId: number, machineName: string, currentStock: number, lastRefill: string}[]>;
+  getProductRefills(productId: number, limit?: number): Promise<RefillDetail[]>;
 
   // Refill operations
   getRefills(limit?: number): Promise<Refill[]>;
@@ -745,6 +747,77 @@ export class DatabaseStorage implements IStorage {
       .where(eq(products.id, id))
       .returning();
     return updatedProduct;
+  }
+
+  // Neue Methoden für Produktdetails
+  
+  async getProductMachines(productId: number): Promise<{machineId: number, machineName: string, currentStock: number, lastRefill: string | null}[]> {
+    // Zuerst das Produkt abrufen
+    const product = await this.getProduct(productId);
+    if (!product) return [];
+
+    // Maschinen-Stocks für das Produkt mit vendonId abrufen
+    const machineStocksResult = await db.select({
+      machineId: machineStocks.machineId,
+      machineName: machines.name || sql`''`,
+      currentStock: machineStocks.quantity || sql`0`,
+      productVendonId: machineStocks.productVendonId,
+      updatedAt: machineStocks.updatedAt
+    })
+    .from(machineStocks)
+    .innerJoin(machines, eq(machineStocks.machineId, machines.id))
+    .where(eq(machineStocks.productVendonId, product.vendonId))
+    .orderBy(desc(machineStocks.quantity));
+
+    // Für jede Maschine die letzte Auffüllung finden
+    const result = await Promise.all(
+      machineStocksResult.map(async (stock) => {
+        // Letzte Auffüllung für diese Maschine und dieses Produkt finden
+        const [lastRefill] = await db.select({
+          datetime: refills.datetime
+        })
+        .from(refills)
+        .innerJoin(refillDetails, eq(refillDetails.refillId, refills.id))
+        .where(
+          and(
+            eq(refills.machineId, stock.machineId),
+            eq(refillDetails.productId, product.vendonId)
+          )
+        )
+        .orderBy(desc(refills.datetime))
+        .limit(1);
+
+        return {
+          machineId: stock.machineId,
+          machineName: stock.machineName || "",
+          currentStock: stock.currentStock || 0,
+          lastRefill: lastRefill?.datetime ? lastRefill.datetime.toISOString() : null
+        };
+      })
+    );
+
+    return result;
+  }
+
+  async getProductRefills(productId: number, limit: number = 100): Promise<RefillDetail[]> {
+    // Zuerst das Produkt abrufen
+    const product = await this.getProduct(productId);
+    if (!product) return [];
+
+    // Refill-Details für das Produkt abrufen
+    const result = await db
+      .select({
+        detail: refillDetails,
+        refill: refills
+      })
+      .from(refillDetails)
+      .innerJoin(refills, eq(refillDetails.refillId, refills.id))
+      .where(eq(refillDetails.vendonProductId, product.vendonId))
+      .orderBy(desc(refills.datetime))
+      .limit(limit);
+
+    // Ergebnis formatieren und zurückgeben
+    return result.map(item => item.detail);
   }
 
   // Refill operations

@@ -459,8 +459,107 @@ export default function ProductDetail() {
                         </div>
                       </div>
 
+                      {/* Automaten mit diesem Produkt */}
+                      <div className="col-span-2 mt-6">
+                        <h3 className="text-sm font-medium text-gray-500 mb-3">Automaten mit diesem Produkt</h3>
+                        {isLoadingMachines ? (
+                          <div className="flex justify-center py-10">
+                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                            <span className="ml-2 text-muted-foreground">Lade Automatendaten...</span>
+                          </div>
+                        ) : !machineData || machineData.length === 0 ? (
+                          <div className="bg-gray-50 border border-gray-100 rounded-md p-6 flex flex-col items-center justify-center">
+                            <Store className="h-12 w-12 text-gray-300 mb-3" />
+                            <p className="text-sm text-gray-500 text-center">
+                              Dieses Produkt ist aktuell in keinem Automaten eingefüllt.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="border rounded-md">
+                            <div className="grid grid-cols-12 py-2 px-4 bg-muted font-medium text-sm">
+                              <div className="col-span-5">Automat</div>
+                              <div className="col-span-3 text-center">Aktueller Bestand</div>
+                              <div className="col-span-4 text-right">Letzte Auffüllung</div>
+                            </div>
+                            {machineData.map((machine) => (
+                              <div 
+                                key={machine.machineId} 
+                                className="grid grid-cols-12 py-3 px-4 border-t hover:bg-gray-50 cursor-pointer"
+                                onClick={() => setLocation(`/automaten/${machine.machineId}`)}
+                              >
+                                <div className="col-span-5 font-medium">{machine.machineName}</div>
+                                <div className="col-span-3 text-center">
+                                  <span className={`font-semibold ${machine.currentStock <= 0 ? 'text-red-500' : 'text-green-600'}`}>
+                                    {machine.currentStock}
+                                  </span>
+                                </div>
+                                <div className="col-span-4 text-right text-gray-600 text-sm">
+                                  {machine.lastRefill ? formatDateTime(machine.lastRefill, 'date') : '–'}
+                                </div>
+                              </div>
+                            ))}
+                            <div className="bg-gray-50 py-2 px-4 border-t text-sm">
+                              <p className="text-gray-500">
+                                Aktiv in {activeInMachines} von {machineData.length} Automaten
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Auffüllungen und Entnahmen */}
+                      <div className="col-span-2 mt-6">
+                        <h3 className="text-sm font-medium text-gray-500 mb-3">Auffüllungen und Entnahmen</h3>
+                        {isLoadingRefills ? (
+                          <div className="flex justify-center py-10">
+                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                            <span className="ml-2 text-muted-foreground">Lade Auffüllungsdaten...</span>
+                          </div>
+                        ) : !refillData || refillData.length === 0 ? (
+                          <div className="bg-gray-50 border border-gray-100 rounded-md p-6 flex flex-col items-center justify-center">
+                            <PackageOpen className="h-12 w-12 text-gray-300 mb-3" />
+                            <p className="text-sm text-gray-500 text-center">
+                              Keine Auffüllungen oder Entnahmen für dieses Produkt gefunden.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="border rounded-md">
+                            <div className="grid grid-cols-12 py-2 px-4 bg-muted font-medium text-sm">
+                              <div className="col-span-4">Datum</div>
+                              <div className="col-span-4">Auffüllung</div>
+                              <div className="col-span-4 text-right">Entnahme</div>
+                            </div>
+                            {refillData.slice(0, 10).map((refill) => (
+                              <div 
+                                key={refill.id} 
+                                className="grid grid-cols-12 py-3 px-4 border-t hover:bg-gray-50"
+                              >
+                                <div className="col-span-4 text-sm">
+                                  {refill.datetime ? formatDateTime(refill.datetime, 'date') : formatDateTime(refill.createdAt, 'date')}
+                                </div>
+                                <div className="col-span-4">
+                                  {refill.added > 0 && (
+                                    <span className="font-semibold text-green-600">+{refill.added}</span>
+                                  )}
+                                </div>
+                                <div className="col-span-4 text-right">
+                                  {refill.removed > 0 && (
+                                    <span className="font-semibold text-amber-600">-{refill.removed}</span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                            <div className="bg-gray-50 py-2 px-4 border-t text-sm">
+                              <p className="text-gray-500">
+                                Gesamt: <span className="text-green-600 font-medium">+{totalRefillsAdded}</span> / <span className="text-amber-600 font-medium">-{totalRefillsRemoved}</span>
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
                       {/* Bestandsverlauf (visueller Hinweis) */}
-                      <div className="col-span-2 mt-4">
+                      <div className="col-span-2 mt-6">
                         <h3 className="text-sm font-medium text-gray-500 mb-3">Bestandsverlauf</h3>
                         <div className="bg-gray-50 border border-gray-100 rounded-md p-6 flex flex-col items-center justify-center">
                           <Clipboard className="h-12 w-12 text-gray-300 mb-3" />

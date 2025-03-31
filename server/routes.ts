@@ -532,6 +532,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Automaten für ein Produkt abrufen
+  app.get(`${API_PREFIX}/products/:id/machines`, async (req: Request, res: Response) => {
+    try {
+      const productId = parseInt(req.params.id);
+      
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+      
+      // Produkt abrufen, um zu überprüfen, ob es existiert
+      const product = await storage.getProduct(productId);
+      
+      if (!product) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      
+      // Automaten abrufen, die dieses Produkt enthalten
+      const machines = await storage.getProductMachines(productId);
+      
+      res.json(machines);
+    } catch (error) {
+      console.error(`Error fetching machines for product ID ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch machines for product", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
+  // Auffüllungen für ein Produkt abrufen
+  app.get(`${API_PREFIX}/products/:id/refills`, async (req: Request, res: Response) => {
+    try {
+      const productId = parseInt(req.params.id);
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
+      
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+      
+      // Produkt abrufen, um zu überprüfen, ob es existiert
+      const product = await storage.getProduct(productId);
+      
+      if (!product) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      
+      // Auffüllungen für dieses Produkt abrufen
+      const refills = await storage.getProductRefills(productId, limit);
+      
+      res.json(refills);
+    } catch (error) {
+      console.error(`Error fetching refills for product ID ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch refills for product", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
   // Get machines
   app.get(`${API_PREFIX}/machines`, async (req: Request, res: Response) => {
     try {
