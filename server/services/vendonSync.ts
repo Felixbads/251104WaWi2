@@ -519,6 +519,15 @@ class VendonAPI {
 
 export class VendonSyncService {
   private api: VendonAPI;
+  
+  /**
+   * Ruft alle Produkte aus der Datenbank ab
+   * Diese Methode ist für die Web-API gedacht
+   */
+  async getAllProducts() {
+    return await storage.getProducts(0); // 0 bedeutet kein Limit
+  }
+  
   // Status für inkrementelle historische Synchronisierung
   private historicalSyncState: {
     inProgress: boolean;

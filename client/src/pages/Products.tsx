@@ -42,7 +42,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { getProducts } from "@/lib/api";
+import { getProducts, getAllVendonProducts } from "@/lib/api";
 
 // Import die Produkt-Definition aus der API
 import { Product } from "@/lib/api";
@@ -225,6 +225,16 @@ export default function Products() {
       limit
     }),
   });
+  
+  // Alle Vendon-Produkte abrufen (ohne Paginierung)
+  const { 
+    data: vendonProducts, 
+    isLoading: isLoadingVendonProducts,
+    error: vendonProductsError
+  } = useQuery({
+    queryKey: ['/api/vendon/products'],
+    queryFn: getAllVendonProducts,
+  });
 
   // Category Filter
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
@@ -238,9 +248,27 @@ export default function Products() {
     ? Array.from(new Set(products.data.filter(p => p.supplier).map(p => p.supplier as string)))
     : [];
 
+  // Kombiniere reguläre Produkte mit Vendon-Produkten
+  const allProducts = [...(products?.data || []), ...(vendonProducts || [])];
+  
+  // Entferne Duplikate basierend auf vendonId
+  const uniqueProductsMap = new Map();
+  allProducts.forEach(product => {
+    if (product.vendonId && !uniqueProductsMap.has(product.vendonId)) {
+      uniqueProductsMap.set(product.vendonId, product);
+    } else if (!uniqueProductsMap.has(product.id)) {
+      uniqueProductsMap.set(product.id, product);
+    }
+  });
+  
+  const combinedProducts = Array.from(uniqueProductsMap.values());
+  
+  // Count-Anzeige für alle Produkte
+  const totalProductCount = combinedProducts?.length || 0;
+
   // Filter- und Suchfunktionen
-  const filteredProducts = products?.data 
-    ? products.data.filter((product: Product) => {
+  const filteredProducts = combinedProducts
+    ? combinedProducts.filter((product: Product) => {
         // Sicherstellen, dass product und seine Eigenschaften definiert sind
         if (!product || !product.productName) return false;
         
@@ -557,9 +585,23 @@ export default function Products() {
 
       {/* Results Count */}
       {!isLoading && !error && (
-        <p className="text-sm text-gray-500">
-          {filteredProducts.length} {filteredProducts.length === 1 ? 'Produkt' : 'Produkte'} gefunden
-        </p>
+        <div className="flex justify-between items-center">
+          <p className="text-sm text-gray-500">
+            {filteredProducts.length} {filteredProducts.length === 1 ? 'Produkt' : 'Produkte'} gefunden
+            {vendonProducts && ` (Insgesamt verfügbar: ${vendonProducts.length} Produkte in der Vendon-Datenbank)`}
+          </p>
+          {isLoadingVendonProducts && (
+            <div className="flex items-center text-sm text-gray-500">
+              <div className="animate-spin h-4 w-4 border-t-2 border-b-2 border-primary rounded-full mr-2"></div>
+              Lade Vendon-Produkte...
+            </div>
+          )}
+          {vendonProductsError && (
+            <p className="text-sm text-red-500">
+              Fehler beim Laden der Vendon-Produkte
+            </p>
+          )}
+        </div>
       )}
 
       {/* Products Grid/List View */}

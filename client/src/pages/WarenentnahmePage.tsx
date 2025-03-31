@@ -483,7 +483,8 @@ function RemovedProductsSection({
     queryFn: () => getRemovedProducts({
       machineId: selectedMachine || undefined,
       startDate: dateFilter.startDate,
-      endDate: dateFilter.endDate
+      endDate: dateFilter.endDate,
+      limit: 1000 // Erhöht auf 1000 Produkte statt Standard-Limit
     }),
   });
   

@@ -2,6 +2,12 @@ import axios from 'axios';
 
 const API_BASE_URL = '/api';
 
+// Funktion zum Abrufen aller Vendon-Produkte direkt von der API
+export async function getAllVendonProducts() {
+  const response = await axios.get(`${API_BASE_URL}/vendon/products`);
+  return response.data;
+}
+
 // Hilfsfunktionen
 export function formatDateTime(dateString: string | Date, format: 'date' | 'datetime' | 'time' = 'datetime'): string {
   const date = new Date(dateString);
@@ -315,6 +321,8 @@ export interface ProductsResponse {
   }
 }
 
+// Zweite Deklaration wurde entfernt, die Funktion ist bereits oben definiert
+
 export async function getProducts(params?: {
   limit?: number;
   offset?: number;
@@ -453,40 +461,7 @@ export interface SupplierResponse {
   }
 }
 
-// Lieferanten-Typen
-export interface Supplier {
-  id: number;
-  name: string;
-  contactPerson: string | null;
-  phone: string | null;
-  email: string | null;
-  website: string | null;
-  address: string | null;
-  city: string | null;
-  postalCode: string | null;
-  country: string | null;
-  status: 'active' | 'inactive';
-  notes: string | null;
-  paymentTerms: string | null;
-  deliveryTerms: string | null;
-  minimumOrderValue: number | null;
-  deliveryDays: string | null;
-  taxId: string | null;
-  accountNumber: string | null;
-  bankDetails: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface SupplierResponse {
-  data: Supplier[];
-  meta: {
-    total: number;
-    limit: number;
-    page: number;
-    pages: number;
-  }
-}
+// Lieferanten-Definition bereits oben vorhanden - diese Dopplung entfernt
 
 // Lieferanten-Funktionen
 export async function getSuppliers(params?: {

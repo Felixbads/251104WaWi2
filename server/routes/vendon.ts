@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { vendonSync } from '../services/vendonSync';
+import { storage } from '../storage';
 
 const router = Router();
 
@@ -83,6 +84,41 @@ router.get('/status', async (req, res) => {
     return res.status(500).json({ 
       status: 'error', 
       message: `Status-Abruf fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}` 
+    });
+  }
+});
+
+/**
+ * Route, um alle Produkte von Vendon abzurufen
+ */
+router.get('/products', async (req, res) => {
+  try {
+    const products = await storage.getProducts(0); // 0 = kein Limit
+    return res.json(products);
+  } catch (error) {
+    console.error("Fehler beim Abrufen der Produkte:", error);
+    return res.status(500).json({ 
+      status: 'error', 
+      message: `Produkt-Abruf fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}` 
+    });
+  }
+});
+
+/**
+ * Route, um alle Vendon-Produkte direkt von der API abzurufen
+ * Diese Route ruft die Produkte ohne Begrenzung direkt von der API ab
+ */
+router.get('/vendon/products', async (req, res) => {
+  try {
+    // Produkte direkt von der Vendon API abrufen
+    const api = vendonSync.getApi();
+    const products = await api.getProducts();
+    return res.json(products);
+  } catch (error) {
+    console.error("Fehler beim Abrufen der Vendon-Produkte:", error);
+    return res.status(500).json({ 
+      status: 'error', 
+      message: `Vendon-Produkt-Abruf fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}` 
     });
   }
 });
