@@ -881,7 +881,9 @@ export default function ProductDetail() {
                                 <Select
                                   value={editedProduct.supplierId?.toString() || ""}
                                   onValueChange={(value) => {
-                                    const selectedSupplier = suppliersData?.data.find(s => s.id.toString() === value);
+                                    const selectedSupplier = suppliersData?.data && Array.isArray(suppliersData.data) 
+                                  ? suppliersData.data.find(s => s.id.toString() === value)
+                                  : undefined;
                                     setEditedProduct({
                                       ...editedProduct,
                                       supplierId: value ? parseInt(value) : undefined,
@@ -894,11 +896,13 @@ export default function ProductDetail() {
                                   </SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="">Kein Lieferant</SelectItem>
-                                    {suppliersData?.data.map((supplier) => (
-                                      <SelectItem key={supplier.id} value={supplier.id.toString()}>
-                                        {supplier.name}
-                                      </SelectItem>
-                                    ))}
+                                    {suppliersData?.data && Array.isArray(suppliersData.data) ? 
+                                      suppliersData.data.map((supplier) => (
+                                        <SelectItem key={supplier.id} value={supplier.id.toString()}>
+                                          {supplier.name}
+                                        </SelectItem>
+                                      ))
+                                    : null}
                                   </SelectContent>
                                 </Select>
                                 <Button
