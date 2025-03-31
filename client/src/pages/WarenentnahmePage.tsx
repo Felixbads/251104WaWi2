@@ -3,6 +3,7 @@ import { useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import { getProductDisposals, formatDateTime } from '@/lib/api';
 import { getAllWarehouses } from '@/lib/warehouseApi';
+import { getRemovedProducts, getRemovedProductsSummary } from '@/lib/removedProductsApi';
 import {
   Card,
   CardContent,
@@ -46,6 +47,8 @@ export default function WarenentnahmePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState<string>('current');
   const [selectedWarehouse, setSelectedWarehouse] = useState<string | null>(null);
+  const [dateFilter, setDateFilter] = useState<{startDate?: string; endDate?: string}>({});
+  const [selectedMachine, setSelectedMachine] = useState<string | null>(null);
   
   // Lade Lager-Daten
   const { data: warehouses, isLoading: isLoadingWarehouses } = useQuery({
@@ -214,6 +217,10 @@ export default function WarenentnahmePage() {
             {completedDisposals.length > 0 && (
               <Badge className="ml-2">{completedDisposals.length}</Badge>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="removed">
+            Entnommene
+            <Badge className="ml-2 bg-amber-400 text-white">NEU</Badge>
           </TabsTrigger>
         </TabsList>
         
@@ -386,7 +393,227 @@ export default function WarenentnahmePage() {
             </CardFooter>
           </Card>
         </TabsContent>
+        
+        {/* Entfernte/Entnommene Produkte (Refill Details mit removed > 0) */}
+        <TabsContent value="removed">
+          <Card>
+            <CardHeader>
+              <CardTitle>Entnommene Produkte</CardTitle>
+              <CardDescription>
+                Produkte, die bei der Auffüllung aus Automaten entnommen wurden (aus Refill-Details)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Filter-Optionen für entnommene Produkte */}
+              <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="dateStart">Von Datum</Label>
+                  <Input
+                    id="dateStart"
+                    type="date"
+                    className="mt-1"
+                    value={dateFilter.startDate || ''}
+                    onChange={(e) => setDateFilter(prev => ({ ...prev, startDate: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="dateEnd">Bis Datum</Label>
+                  <Input
+                    id="dateEnd"
+                    type="date"
+                    className="mt-1"
+                    value={dateFilter.endDate || ''}
+                    onChange={(e) => setDateFilter(prev => ({ ...prev, endDate: e.target.value }))}
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button
+                    variant="outline" 
+                    className="mb-1"
+                    onClick={() => setDateFilter({})}
+                  >
+                    Filter zurücksetzen
+                  </Button>
+                </div>
+              </div>
+              
+              {/* Lade Daten zu entnommenen Produkten */}
+              <RemovedProductsSection 
+                dateFilter={dateFilter} 
+                selectedMachine={selectedMachine}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+// Komponente für entnommene Produkte
+function RemovedProductsSection({ 
+  dateFilter, 
+  selectedMachine 
+}: { 
+  dateFilter: {startDate?: string; endDate?: string}, 
+  selectedMachine: string | null 
+}) {
+  // Lade entnommene Produkte
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ['/api/removed-products', dateFilter, selectedMachine],
+    queryFn: () => getRemovedProducts({
+      machineId: selectedMachine || undefined,
+      startDate: dateFilter.startDate,
+      endDate: dateFilter.endDate
+    }),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="py-8">
+        <div className="text-center mb-6">
+          <Skeleton className="h-10 w-40 mx-auto mb-4" />
+          <Skeleton className="h-6 w-60 mx-auto" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Skeleton className="h-60 rounded-lg" />
+          <Skeleton className="h-60 rounded-lg" />
+          <Skeleton className="h-60 rounded-lg" />
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="text-center py-8">
+        <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+        <h2 className="text-xl font-medium mb-2">Fehler beim Laden der entnommenen Produkte</h2>
+        <p className="text-gray-500 mb-4">
+          {error instanceof Error ? error.message : "Ein unbekannter Fehler ist aufgetreten."}
+        </p>
+      </div>
+    );
+  }
+
+  if (!data || !data.products || data.products.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <Info className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+        <p className="text-gray-500 mb-2">Keine entnommenen Produkte gefunden</p>
+        <p className="text-gray-400 text-sm">
+          Für den gewählten Zeitraum wurden keine entnommenen Produkte gefunden.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Statistik-Widgets und Zusammenfassung */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Nach Produkt</CardTitle>
+            <CardDescription>
+              Welche Produkte wurden am häufigsten entnommen
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {data.analytics.byProduct.slice(0, 5).map(item => (
+                <div key={item.name} className="flex justify-between items-center">
+                  <div className="flex-1 truncate mr-4">
+                    <span className="font-medium truncate">{item.name}</span>
+                  </div>
+                  <Badge variant="outline" className="bg-blue-50 text-blue-600">
+                    {item.count}x
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Nach Automat</CardTitle>
+            <CardDescription>
+              Automaten mit den meisten Entnahmen
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {data.analytics.byMachine.slice(0, 5).map(item => (
+                <div key={item.name} className="flex justify-between items-center">
+                  <div className="flex-1 truncate mr-4">
+                    <span className="font-medium truncate">{item.name}</span>
+                  </div>
+                  <Badge variant="outline" className="bg-emerald-50 text-emerald-600">
+                    {item.count}x
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg">Nach Datum</CardTitle>
+            <CardDescription>
+              Zeitliche Verteilung der Entnahmen
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {data.analytics.byDate.slice(0, 5).map(item => (
+                <div key={item.date} className="flex justify-between items-center">
+                  <div className="flex-1 truncate mr-4">
+                    <span className="font-medium truncate">{new Date(item.date).toLocaleDateString('de-DE', {day: '2-digit', month: '2-digit', year: 'numeric'})}</span>
+                  </div>
+                  <Badge variant="outline" className="bg-amber-50 text-amber-600">
+                    {item.count}x
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Detaillierte Auflistung */}
+      <div>
+        <h3 className="text-lg font-medium mb-4">Detaillierte Auflistung</h3>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Datum</TableHead>
+              <TableHead>Automat</TableHead>
+              <TableHead>Produkt</TableHead>
+              <TableHead className="text-right">Menge</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.products.map(product => (
+              <TableRow key={product.id}>
+                <TableCell>{new Date(product.datetime).toLocaleDateString('de-DE', {
+                  day: '2-digit', 
+                  month: '2-digit', 
+                  year: 'numeric', 
+                  hour: '2-digit', 
+                  minute: '2-digit'
+                })}</TableCell>
+                <TableCell>{product.machineName}</TableCell>
+                <TableCell className="font-medium">{product.productName}</TableCell>
+                <TableCell className="text-right">
+                  <Badge>{product.removed} Stk.</Badge>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

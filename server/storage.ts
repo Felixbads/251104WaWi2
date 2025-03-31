@@ -23,6 +23,9 @@ import {
 
 // Interface defining all storage operations
 export interface IStorage {
+  // Raw SQL Query für erweiterte Abfragen
+  query(sql: string, params?: any[]): Promise<any[]>;
+  
   // Database statistics operations
   getDatabaseStats(): Promise<{
     transactions: { count: number; latest: Date | null };
@@ -224,6 +227,11 @@ export interface IStorage {
 
 // Database storage implementation
 export class DatabaseStorage implements IStorage {
+  // Raw SQL Query für erweiterte Abfragen
+  async query(sql: string, params: any[] = []): Promise<any[]> {
+    return await db.execute(sql as any, params);
+  }
+  
   // Get transaction count for sync status
   async getTransactionCount(): Promise<number> {
     const countResult = await db.select({ count: count() }).from(transactions);
