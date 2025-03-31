@@ -121,7 +121,7 @@ const newOrderSchema = z.object({
 const orderItemSchema = z.object({
   productId: z.number({
     required_error: "Bitte wählen Sie ein Produkt aus"
-  }),
+  }).nullable(), // Erlaubt null-Wert
   quantity: z.number({
     required_error: "Bitte geben Sie eine Menge an"
   }).min(1, {
@@ -893,7 +893,7 @@ function NewOrderForm({
         
         {/* Dialog zum Hinzufügen einer Position */}
         <Dialog open={showAddItem} onOpenChange={setShowAddItem}>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Position hinzufügen</DialogTitle>
               <DialogDescription>
@@ -918,11 +918,13 @@ function NewOrderForm({
                             <SelectValue placeholder="Produkt wählen" />
                           </SelectTrigger>
                         </FormControl>
-                        <SelectContent className="max-h-[200px]">
+                        <SelectContent className="max-h-[300px] overflow-y-auto">
                           {products?.data ? products.data.map((product: any) => (
-                            <SelectItem key={product.id} value={product.id.toString()}>
-                              {product.name}
-                              {product.sku ? ` (${product.sku})` : ''}
+                            <SelectItem key={product.id} value={product.id.toString()} className="py-2.5">
+                              <div className="flex flex-col">
+                                <span className="font-medium">{product.name}</span>
+                                {product.sku && <span className="text-xs text-muted-foreground">SKU: {product.sku}</span>}
+                              </div>
                             </SelectItem>
                           )) : null}
                         </SelectContent>

@@ -39,6 +39,7 @@ function ProtectedRoute({ component: Component, ...rest }: any) {
 
 // Importiere fehlende Komponenten
 import Suppliers from "@/pages/Suppliers";
+import SupplierDetail from "@/pages/SupplierDetail";
 import Reporting from "@/pages/Reporting";
 import Orders from "@/pages/Orders";
 import NewOrder from "@/pages/NewOrder";
@@ -63,7 +64,7 @@ function AuthenticatedRouter() {
         <Route path="/produkte" component={Products} />
         <Route path="/produkte/:id" component={ProductDetail} />
         <Route path="/lieferanten" component={Suppliers} />
-        <Route path="/lieferanten/:id" component={() => <div>Lieferantendetails</div>} />
+        <Route path="/lieferanten/:id" component={SupplierDetail} />
         <Route path="/bestellungen" component={Orders} />
         <Route path="/bestellungen/neu" component={NewOrder} />
         <Route path="/lager" component={LagerPage} />
