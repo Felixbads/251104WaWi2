@@ -460,7 +460,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createMachine(machine: InsertMachine): Promise<Machine> {
-    const [newMachine] = await db.insert(machines).values(machine).returning();
+    // Add timestamps to ensure consistent data
+    const [newMachine] = await db.insert(machines).values({
+      ...machine,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning();
     return newMachine;
   }
 
@@ -559,7 +564,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createTransaction(transaction: InsertTransaction): Promise<Transaction> {
-    const [newTransaction] = await db.insert(transactions).values(transaction).returning();
+    // Add timestamps to ensure consistent data
+    const [newTransaction] = await db.insert(transactions).values({
+      ...transaction,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning();
     return newTransaction;
   }
   
@@ -736,7 +746,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createProduct(product: InsertProduct): Promise<Product> {
-    const [newProduct] = await db.insert(products).values(product).returning();
+    // Add timestamps to ensure consistent data
+    const [newProduct] = await db.insert(products).values({
+      ...product,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning();
     return newProduct;
   }
 
@@ -907,12 +922,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createRefill(refill: InsertRefill): Promise<Refill> {
-    const [newRefill] = await db.insert(refills).values(refill).returning();
+    // Add timestamps to ensure consistent data
+    const [newRefill] = await db.insert(refills).values({
+      ...refill,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning();
     return newRefill;
   }
 
   async createRefillDetail(detail: InsertRefillDetail): Promise<RefillDetail> {
-    const [newDetail] = await db.insert(refillDetails).values(detail).returning();
+    // Add timestamps to ensure consistent data
+    const [newDetail] = await db.insert(refillDetails).values({
+      ...detail,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning();
     return newDetail;
   }
 
@@ -946,7 +971,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createEvent(event: InsertEvent): Promise<Event> {
-    const [newEvent] = await db.insert(events).values(event).returning();
+    // Add timestamps to ensure consistent data
+    const [newEvent] = await db.insert(events).values({
+      ...event,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning();
     return newEvent;
   }
 
@@ -970,14 +1000,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSyncLog(log: InsertSyncLog): Promise<SyncLog> {
-    const [newLog] = await db.insert(syncLogs).values(log).returning();
+    // Add timestamps to ensure consistent data if not already set
+    const [newLog] = await db.insert(syncLogs).values({
+      ...log,
+      createdAt: log.createdAt || new Date()
+    }).returning();
     return newLog;
   }
 
   async updateSyncLog(id: number, log: Partial<InsertSyncLog>): Promise<SyncLog | undefined> {
+    // Add updatedAt timestamp for tracking
     const [updatedLog] = await db
       .update(syncLogs)
-      .set(log)
+      .set({
+        ...log,
+        updatedAt: new Date()
+      })
       .where(eq(syncLogs.id, id))
       .returning();
     return updatedLog;
