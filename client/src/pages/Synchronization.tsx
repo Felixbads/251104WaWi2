@@ -45,8 +45,9 @@ export default function Synchronization() {
     refetchInterval: 60000, // Refetch every minute
   });
 
-  // Status für die API-Anfrage und Fortschritt
+  // Status für die API-Anfrage, Antwort und Fortschritt
   const [apiRequest, setApiRequest] = useState<string>("");
+  const [apiResponse, setApiResponse] = useState<string>("");
   const [syncProgress, setSyncProgress] = useState<{
     total: number;
     processed: number;
@@ -191,60 +192,45 @@ Zeitraum: ${formattedStart} - ${formattedEnd}`;
     return Math.min(100, Math.round((found / total) * 100));
   };
   
-  // WebSocket für Live-Updates
+  // WebSocket wird nicht verwendet - setzen wir auf manuelles Polling
   useEffect(() => {
-    // WebSocket Verbindung einrichten
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/sync-progress`;
-    const ws = new WebSocket(wsUrl);
+    // Statt WebSocket nutzen wir Polling für Statusupdates
+    let pollInterval: number | null = null;
     
-    ws.onopen = () => {
-      console.log("WebSocket-Verbindung für Sync-Progress hergestellt");
-    };
-    
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log("Sync-Progress Update erhalten:", data);
-        
-        if (data.type === 'sync_progress' && data.syncType) {
-          // Nur Updates für den aktuell gewählten Sync-Typ berücksichtigen
-          if (data.syncType === syncType) {
-            setSyncProgress({
-              total: data.total || 0,
-              processed: data.processed || 0,
-              status: 'loading'
-            });
-          }
-        } else if (data.type === 'sync_complete') {
-          // Synchronisierung abgeschlossen
-          setSyncProgress(prev => ({
-            ...prev,
-            status: 'success'
-          }));
-          
-          // Daten aktualisieren
-          queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
-          queryClient.invalidateQueries({ queryKey: ['/api/database/stats'] });
-        }
-      } catch (error) {
-        console.error("Fehler beim Verarbeiten der WebSocket-Nachricht:", error);
+    // Funktion zum Abrufen des Fortschritts
+    const pollSyncProgress = () => {
+      // Abfrage nur ausführen, wenn das syncProgress im Status 'loading' ist
+      if (syncProgress.status === 'loading') {
+        // Hier könnten wir einen API-Endpunkt abfragen, der den Fortschritt zurückgibt
+        // Da wir keinen speziellen Endpunkt haben, invalidieren wir einfach die Abfragen
+        queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
       }
     };
     
-    ws.onerror = (error) => {
-      console.error("WebSocket-Fehler:", error);
-    };
+    // Polling starten, aber nur wenn eine Synchronisierung läuft
+    if (syncProgress.status === 'loading') {
+      pollInterval = window.setInterval(pollSyncProgress, 5000); // Alle 5 Sekunden
+    }
     
-    ws.onclose = (event) => {
-      console.log("WebSocket-Verbindung geschlossen:", event.code, event.reason);
-    };
-    
-    // Aufräumen beim Entladen der Komponente
+    // Aufräumen beim Entladen der Komponente oder wenn sich der Status ändert
     return () => {
-      ws.close();
+      if (pollInterval) {
+        window.clearInterval(pollInterval);
+      }
     };
-  }, [syncType, queryClient]);
+  }, [syncProgress.status, queryClient]);
+  
+  // Effekt für die Initialisierung des syncProgress-Status
+  useEffect(() => {
+    // Bei Mutation-Start syncProgress auf 'loading' setzen
+    if (syncMutation.isPending) {
+      setSyncProgress({
+        total: 0,
+        processed: 0,
+        status: 'loading'
+      });
+    }
+  }, [syncMutation.isPending]);
 
   return (
     <div className="space-y-6">
@@ -782,6 +768,19 @@ Zeitraum: ${formattedStart} - ${formattedEnd}`;
                       <CardContent className="p-4">
                         <pre className="text-xs overflow-auto whitespace-pre-wrap">
                           {apiRequest}
+                        </pre>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+                
+                {apiResponse && (
+                  <div className="space-y-2 pt-2">
+                    <Label>API-Antwort</Label>
+                    <Card className="bg-gray-50 dark:bg-gray-900 border rounded-md">
+                      <CardContent className="p-4">
+                        <pre className="text-xs overflow-auto whitespace-pre-wrap max-h-48">
+                          {apiResponse}
                         </pre>
                       </CardContent>
                     </Card>

@@ -21,6 +21,7 @@ import vendonRoutes from "./routes/vendon";
 import productDisposalsRoutes from "./routes/productDisposals";
 import exportImportRoutes from "./routes/exportImport";
 import removedProductsRoutes from "./routes/removedProducts";
+import { WebSocketServer } from 'ws';
 
 // API route prefix
 const API_PREFIX = "/api";
@@ -32,9 +33,25 @@ const dateRangeSchema = z.object({
   batchSize: z.number().min(1).max(1000).optional(),
 });
 
+// WebSocket-Verbindungen speichern
+export const webSocketConnections = new Set<any>();
+
+// WebSocket-Server-Instanz - DEAKTIVIERT wegen Verbindungsproblemen
+export let webSocketServer: WebSocketServer | null = null;
+
+// Funktion zum Senden von Nachrichten an alle verbundenen Clients - DEAKTIVIERT
+export function sendWebSocketMessage(type: string, data: any) {
+  console.log(`WebSocket-Nachricht würde gesendet werden: ${type}`, data);
+  // WebSocket-Funktionalität deaktiviert - stattdessen Polling verwenden
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Create HTTP server
   const httpServer = createServer(app);
+  
+  // WebSocket wurde deaktiviert, um Verbindungsprobleme zu vermeiden
+  // Wir verwenden stattdessen einen normalen Polling-Ansatz für Updates
+  console.log('WebSocket-Server wird nicht initialisiert - Polling-Modus aktiviert');
 
   // API Health Check
   app.get(`${API_PREFIX}/health`, (_req: Request, res: Response) => {

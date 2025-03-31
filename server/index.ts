@@ -3,6 +3,8 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startAutomaticSync } from "./scheduler";
 import fileUpload from "express-fileupload";
+import WebSocket from 'ws';
+import http from 'http';
 
 const app = express();
 app.use(express.json());
