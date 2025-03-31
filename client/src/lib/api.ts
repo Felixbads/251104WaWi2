@@ -154,10 +154,19 @@ export interface Product {
   // Zusätzliche Felder für UI
   requiresAgeVerification?: boolean;
   supplier?: string;
+  supplierId?: number;
   salesCount?: number;  // Anzahl der Verkäufe
   lastSale?: string;    // Letzter Verkauf
   updatedAt?: string;
   createdAt?: string;
+  // Neue Zusatzfelder für erweiterte Produktdetails
+  articleSupplier?: string;  // Artikelnummer des Lieferanten
+  minOrderQuantity?: number; // Mindestbestellmenge
+  packageSize?: string;      // Gebindegröße, z.B. "6x0,5L" oder "24x330ml"
+  shelfLifeDays?: number;    // MHD-Haltbarkeit in Tagen ab Lieferung
+  alcoholPercent?: number;   // Alkoholgehalt in Prozent
+  allergens?: string;        // Allergene als JSON-String
+  nutritionalValues?: string; // Nährwerte als JSON-String
 }
 
 export interface SyncLog {
@@ -368,6 +377,26 @@ export async function getProducts(params?: {
 
 export async function getProduct(id: string): Promise<Product> {
   return apiRequest<Product>('get', `/products/${id}`);
+}
+
+// Neue Funktionen für die erweiterte Produktdetailseite
+export async function getProductSalesTimeSeries(productId: string, period: 'day' | 'week' | 'month' | 'year' = 'month'): Promise<{date: string, count: number, revenue: number}[]> {
+  return apiRequest<{date: string, count: number, revenue: number}[]>('get', `/products/${productId}/sales?period=${period}`);
+}
+
+export async function getProductRefills(productId: string, limit = 20): Promise<RefillDetail[]> {
+  return apiRequest<RefillDetail[]>('get', `/products/${productId}/refills?limit=${limit}`);
+}
+
+export async function getProductMachines(productId: string): Promise<{machineId: string, machineName: string, currentStock: number, lastRefill: string}[]> {
+  return apiRequest<{machineId: string, machineName: string, currentStock: number, lastRefill: string}[]>(
+    'get', 
+    `/products/${productId}/machines`
+  );
+}
+
+export async function updateProduct(id: string, productData: Partial<Product>): Promise<Product> {
+  return apiRequest<Product>('put', `/products/${id}`, productData);
 }
 
 // Synchronisierung
