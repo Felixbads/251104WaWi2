@@ -51,6 +51,7 @@ import {
   FileText,
   Building2,
   Package,
+  PackageCheck,
   CheckCircle2,
   ClipboardCheck,
   Send,
@@ -412,28 +413,38 @@ export default function OrderDetail() {
   };
   
   // Wareneingang verarbeiten
-  const handleProcessReceipt = (receivedItems: any[], deliveryDetails: any) => {
+  const handleProcessReceipt = (updatedOrder: any) => {
     if (!order) return;
     
+    // Extrahiere die Daten aus dem updatedOrder-Objekt
+    const orderItems = updatedOrder.orderItems || [];
+    
     // Berechne die Gesamtstatistik
-    const totalOrdered = receivedItems.reduce((sum, item) => sum + item.quantity, 0);
-    const totalReceived = receivedItems.reduce((sum, item) => sum + (item.receivedQuantity || 0), 0);
-    const hasDamaged = receivedItems.some(item => item.isDamaged);
+    let totalOrdered = 0;
+    let totalReceived = 0;
+    let hasDamaged = false;
+    
+    // Iteriere über alle Elemente für die Statistik
+    for (const item of orderItems) {
+      totalOrdered += item.quantity || 0;
+      totalReceived += item.receivedQuantity || 0;
+      if (item.isDamaged) {
+        hasDamaged = true;
+      }
+    }
+    
     const isComplete = totalReceived >= totalOrdered && !hasDamaged;
     
     // Status basierend auf der Vollständigkeit der Lieferung
     const newStatus = isComplete ? "completed" : "partially_delivered";
     
-    // Update der Bestellung
+    // Update der Bestellung mit den Daten aus dem Dialog
     updateOrderMutation.mutate(
       {
+        ...updatedOrder,
         status: newStatus,
-        orderItems: receivedItems,
-        deliveryNoteNumber: deliveryDetails.deliveryNoteNumber,
-        deliveryComments: deliveryDetails.comments,
-        deliveryPhoto: deliveryDetails.hasDeliveryPhoto,
         statusHistory: [
-          ...order.statusHistory,
+          ...(order.statusHistory || []),
           {
             status: newStatus,
             timestamp: new Date().toISOString(),
@@ -1256,12 +1267,12 @@ Einkaufsabteilung`);
         </DialogContent>
       </Dialog>
       
-      {/* Verbesserter Wareneingangs-Dialog mit detaillierten Optionen */}
+      {/* Wareneingangs-Dialog mit detaillierten Optionen */}
       <ReceiveOrderDialog
         order={order}
         open={showReceiveDialog}
-        onClose={() => setShowReceiveDialog(false)}
-        onSubmit={handleProcessReceipt}
+        onOpenChange={setShowReceiveDialog}
+        onComplete={handleProcessReceipt}
       />
       
       {/* Stornieren Dialog */}

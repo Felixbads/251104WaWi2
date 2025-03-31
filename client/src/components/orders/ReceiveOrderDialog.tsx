@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
+import { useQueryClient } from "@tanstack/react-query";
 
 // UI Komponenten
 import {
@@ -35,30 +36,25 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
-  CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { AlertCircle, Camera, FileUp, PackageCheck, Truck, X } from "lucide-react";
+import { AlertCircle, Camera, FileUp, Loader2, PackageCheck, X } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useToast } from "@/hooks/use-toast";
 
 // Schema für die Wareneingangs-Erfassung
 const receiveOrderSchema = z.object({
   receiptDate: z.date().default(() => new Date()),
-  receiptNumber: z.string().optional(),
+  receiptNumber: z.string().min(1, "Bitte geben Sie eine Wareneingangsnummer ein"),
   notes: z.string().optional(),
   deliveryNoteNumber: z.string().optional(),
   carrierName: z.string().optional(),
   documentsAttached: z.boolean().default(false),
   qualityCheckPassed: z.boolean().default(true),
-  customsChecked: z.boolean().default(false),
   receivedItems: z.array(
     z.object({
       orderItemId: z.number(),
@@ -88,9 +84,11 @@ export default function ReceiveOrderDialog({
   order, 
   onComplete 
 }: ReceiveOrderDialogProps) {
-  // Zustände
+  // Hooks
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasUploaded, setHasUploaded] = useState(false);
-  const [showQualityIssues, setShowQualityIssues] = useState(false);
   
   // Formular
   const form = useForm<ReceiveOrderValues>({
@@ -98,14 +96,30 @@ export default function ReceiveOrderDialog({
     defaultValues: {
       receiptDate: new Date(),
       receiptNumber: `WE-${format(new Date(), 'yyyyMMdd')}-${order?.id || '0000'}`,
-      receivedItems: order?.orderItems?.map((item: any) => ({
-        orderItemId: item.id,
-        receivedQuantity: item.quantity,
-        damageDescription: '',
-        qualityIssues: false
-      })) || []
+      deliveryNoteNumber: "",
+      notes: "",
+      carrierName: "",
+      documentsAttached: false,
+      qualityCheckPassed: true,
+      receivedItems: []
     }
   });
+  
+  // Wenn sich die Bestellung ändert, Formular aktualisieren
+  useEffect(() => {
+    if (order && order.orderItems) {
+      form.reset({
+        ...form.getValues(),
+        receiptNumber: `WE-${format(new Date(), 'yyyyMMdd')}-${order.id || '0000'}`,
+        receivedItems: order.orderItems.map((item: any) => ({
+          orderItemId: item.id,
+          receivedQuantity: item.quantity,
+          damageDescription: '',
+          qualityIssues: false
+        }))
+      });
+    }
+  }, [order, form]);
   
   // Wenn Bestellung null ist oder nicht im Status "ordered"/"partial"
   if (!order || (order.status !== "ordered" && order.status !== "partial")) {
@@ -113,28 +127,66 @@ export default function ReceiveOrderDialog({
   }
   
   // Formular absenden
-  const onSubmit = (data: ReceiveOrderValues) => {
-    console.log("Wareneingang erfasst:", data);
-    
-    // In echter Implementierung: API-Aufruf zur Aktualisierung der Bestellung
-    // ...
-    
-    // Demo: Bestellung aktualisieren und zurückgeben
-    const updatedOrder = {
-      ...order,
-      status: "delivered",
-      actualDeliveryDate: data.receiptDate.toISOString(),
-      // Weitere Aktualisierungen...
-    };
-    
-    onComplete(updatedOrder);
+  const onSubmit = async (data: ReceiveOrderValues) => {
+    try {
+      setIsSubmitting(true);
+      console.log("Wareneingang erfasst:", data);
+      
+      // Prüfen, ob komplett oder teilweise geliefert
+      const complete = isCompleteDelivery(data.receivedItems);
+      const hasQualityIssues = data.receivedItems.some(item => item.qualityIssues);
+      
+      // Neuen Status ermitteln
+      const newStatus = complete && !hasQualityIssues ? "completed" : "partial";
+      
+      // In echter Implementierung: API-Aufruf zur Aktualisierung der Bestellung
+      // const response = await apiRequest({...})
+      
+      // Demo: Bestellung aktualisieren und zurückgeben
+      const updatedOrder = {
+        ...order,
+        status: newStatus,
+        actualDeliveryDate: data.receiptDate.toISOString(),
+        receivedItems: data.receivedItems
+      };
+      
+      // Bestelldaten im Cache aktualisieren
+      queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/orders', order.id] });
+      
+      // Erfolg anzeigen
+      toast({
+        title: complete ? "Wareneingang vollständig erfasst" : "Teillieferung erfasst",
+        description: `Die Bestellung ${order.orderNumber} wurde aktualisiert.`,
+      });
+      
+      // Callback aufrufen
+      onComplete(updatedOrder);
+    } catch (error) {
+      console.error("Fehler beim Erfassen des Wareneingangs:", error);
+      toast({
+        title: "Fehler beim Erfassen des Wareneingangs",
+        description: `Es ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.`,
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+  
+  // Prüfen, ob die Lieferung komplett ist
+  const isCompleteDelivery = (receivedItems: any[]) => {
+    return receivedItems.every((item) => {
+      const orderItem = order.orderItems.find((oi: any) => oi.id === item.orderItemId);
+      return item.receivedQuantity >= orderItem.quantity;
+    });
   };
   
   // Unvollständigen Wareneingang prüfen
   const hasPartialReceipt = form.watch('receivedItems').some(
     (item) => {
       const orderItem = order.orderItems.find((oi: any) => oi.id === item.orderItemId);
-      return item.receivedQuantity > 0 && item.receivedQuantity < orderItem.quantity;
+      return orderItem && item.receivedQuantity > 0 && item.receivedQuantity < orderItem.quantity;
     }
   );
   
@@ -142,6 +194,17 @@ export default function ReceiveOrderDialog({
   const hasMissingItems = form.watch('receivedItems').some(
     (item) => item.receivedQuantity === 0
   );
+  
+  // Datei-Upload Handler
+  const handleFileUpload = () => {
+    // In echter Implementierung: Datei hochladen
+    setHasUploaded(true);
+    toast({
+      title: "Datei hochgeladen",
+      description: "Der Lieferschein wurde erfolgreich hochgeladen."
+    });
+    form.setValue('documentsAttached', true);
+  };
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -152,7 +215,7 @@ export default function ReceiveOrderDialog({
             Wareneingang erfassen
           </DialogTitle>
           <DialogDescription>
-            Bestellung {order.orderNumber} von {order.supplierName} für {order.locationName}
+            Bestellung {order.orderNumber} von {order.supplierName} für {order.locationName || "Hauptlager"}
           </DialogDescription>
         </DialogHeader>
         
@@ -168,7 +231,7 @@ export default function ReceiveOrderDialog({
                     <FormControl>
                       <Input 
                         type="date" 
-                        value={format(field.value, 'yyyy-MM-dd')}
+                        value={format(field.value || new Date(), 'yyyy-MM-dd')}
                         onChange={(e) => {
                           const date = new Date(e.target.value);
                           field.onChange(date);
@@ -236,32 +299,11 @@ export default function ReceiveOrderDialog({
                     <FormControl>
                       <Switch
                         checked={field.value}
-                        onCheckedChange={(checked) => {
-                          field.onChange(checked);
-                          setShowQualityIssues(!checked);
-                        }}
-                      />
-                    </FormControl>
-                    <div className="space-y-0.5">
-                      <FormLabel>Qualitätsprüfung bestanden</FormLabel>
-                    </div>
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="customsChecked"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center space-x-2">
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
                         onCheckedChange={field.onChange}
                       />
                     </FormControl>
                     <div className="space-y-0.5">
-                      <FormLabel>Zollprüfung (wenn erforderlich)</FormLabel>
+                      <FormLabel>Qualitätsprüfung bestanden</FormLabel>
                     </div>
                   </FormItem>
                 )}
@@ -279,7 +321,12 @@ export default function ReceiveOrderDialog({
                   <p className="text-sm text-muted-foreground mt-1 mb-4">
                     PDF, JPG oder PNG Datei
                   </p>
-                  <Button variant="outline" size="sm" type="button">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    type="button"
+                    onClick={handleFileUpload}
+                  >
                     Datei auswählen
                   </Button>
                 </div>
@@ -290,7 +337,12 @@ export default function ReceiveOrderDialog({
                   <p className="text-sm text-muted-foreground mt-1 mb-4">
                     Dokumentieren Sie den Zustand der Lieferung
                   </p>
-                  <Button variant="outline" size="sm" type="button">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    type="button"
+                    onClick={handleFileUpload}
+                  >
                     Kamera öffnen
                   </Button>
                 </div>
@@ -314,10 +366,10 @@ export default function ReceiveOrderDialog({
                   <TableBody>
                     {order.orderItems.map((item: any, index: number) => (
                       <TableRow key={item.id}>
-                        <TableCell>{item.positionNumber}</TableCell>
-                        <TableCell className="font-medium">{item.productName}</TableCell>
+                        <TableCell>{item.position_number || index + 1}</TableCell>
+                        <TableCell className="font-medium">{item.product_name}</TableCell>
                         <TableCell className="text-right">
-                          {item.quantity} {item.unit}
+                          {item.quantity} {item.unit || 'stk'}
                         </TableCell>
                         <TableCell className="text-right">
                           <FormField
@@ -383,7 +435,7 @@ export default function ReceiveOrderDialog({
             </div>
             
             {(hasPartialReceipt || hasMissingItems) && (
-              <Alert variant="warning" className="mt-4">
+              <Alert className="mt-4">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>
                   {hasMissingItems ? "Unvollständige Lieferung" : "Teillieferung"}
@@ -426,7 +478,13 @@ export default function ReceiveOrderDialog({
                 <X className="h-4 w-4 mr-2" />
                 Abbrechen
               </Button>
-              <Button type="submit">
+              <Button 
+                type="submit"
+                disabled={isSubmitting}
+              >
+                {isSubmitting && (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                )}
                 <PackageCheck className="h-4 w-4 mr-2" />
                 Wareneingang abschließen
               </Button>
