@@ -2,6 +2,24 @@ import axios from 'axios';
 
 const API_BASE_URL = '/api';
 
+// Funktion zum Starten einer Synchronisierung
+export async function triggerSync(type: string, options: any = {}) {
+  const response = await axios.post(`${API_BASE_URL}/vendon/sync`, {
+    type,
+    ...options
+  });
+  
+  // Wenn die Antwort eine apiResponse enthält, extrahieren wir diese
+  if (response.data && response.data.apiResponse) {
+    return {
+      ...response.data,
+      apiResponse: response.data.apiResponse
+    };
+  }
+  
+  return response.data;
+}
+
 // Funktion zum Abrufen aller Vendon-Produkte direkt von der API
 export async function getAllVendonProducts() {
   // Ändere die Route von /vendon/products zu /vendon/vendon/products
@@ -393,8 +411,7 @@ export async function startSync(syncType: string, options?: {
   return apiRequest<any>('post', `/sync/${syncType}`, options);
 }
 
-// Alias für startSync für bestehende Komponenten
-export const triggerSync = startSync;
+// Die obere Deklaration von triggerSync wird für neue Komponenten verwendet, diese ist abwärtskompatibel
 
 export async function getSyncLogs(limit = 20): Promise<SyncLog[]> {
   return apiRequest<SyncLog[]>('get', `/sync/logs?limit=${limit}`);

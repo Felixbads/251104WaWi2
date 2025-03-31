@@ -12,24 +12,66 @@ router.post('/sync', async (req, res) => {
   try {
     const { type, startDate, endDate, batchSize, maxDays } = req.body;
     
+    // API-Antwort für Frontend-Anzeige erfassen
+    let apiResponse = null;
+    
     let result;
     switch(type) {
       case 'transactions':
         // Optional: Konvertiere Datumszeichenfolgen in Date-Objekte
         const startDateObj = startDate ? new Date(startDate) : undefined;
         const endDateObj = endDate ? new Date(endDate) : undefined;
-        result = await vendonSync.syncTransactions(startDateObj, endDateObj, batchSize);
+        
+        // API-Antwort erfassen
+        try {
+          const api = vendonSync.getApi();
+          const fromTimestamp = Math.floor(startDateObj?.getTime() / 1000 || Date.now() / 1000 - 86400 * 7);
+          const toTimestamp = Math.floor(endDateObj?.getTime() / 1000 || Date.now() / 1000);
+          
+          console.log("API-Anfrage: GET /stats/vends (für Frontend-Anzeige)");
+          console.log("Parameter:", { from_timestamp: fromTimestamp, to_timestamp: toTimestamp, offset: 0, limit: batchSize });
+          
+          apiResponse = await api.getTransactions(fromTimestamp, toTimestamp, undefined, 0, batchSize);
+          
+          // Bei der eigentlichen Synchronisierung die API-Antwort mitgeben
+          result = await vendonSync.syncTransactions(startDateObj, endDateObj, batchSize, apiResponse);
+        } catch (apiError) {
+          console.error("Fehler beim Abrufen der API-Antwort:", apiError);
+          // Die Synchronisierung trotzdem durchführen, auch wenn die API-Antwort nicht erfasst werden konnte
+          result = await vendonSync.syncTransactions(startDateObj, endDateObj, batchSize);
+        }
         break;
         
       case 'machines':
+        try {
+          // API-Antwort erfassen
+          const api = vendonSync.getApi();
+          apiResponse = await api.getMachines();
+        } catch (apiError) {
+          console.error("Fehler beim Abrufen der Maschinen-API-Antwort:", apiError);
+        }
         result = await vendonSync.syncMachines();
         break;
         
       case 'products':
+        try {
+          // API-Antwort erfassen
+          const api = vendonSync.getApi();
+          apiResponse = await api.getProducts();
+        } catch (apiError) {
+          console.error("Fehler beim Abrufen der Produkt-API-Antwort:", apiError);
+        }
         result = await vendonSync.syncProducts();
         break;
         
       case 'stocks':
+        try {
+          // API-Antwort erfassen
+          const api = vendonSync.getApi();
+          apiResponse = await api.getStockProducts();
+        } catch (apiError) {
+          console.error("Fehler beim Abrufen der Stock-API-Antwort:", apiError);
+        }
         result = await vendonSync.syncStocks();
         break;
         
@@ -37,6 +79,18 @@ router.post('/sync', async (req, res) => {
         // Optional: Konvertiere Datumszeichenfolgen in Date-Objekte
         const startDateObjEvents = startDate ? new Date(startDate) : undefined;
         const endDateObjEvents = endDate ? new Date(endDate) : undefined;
+        
+        try {
+          // API-Antwort erfassen
+          const api = vendonSync.getApi();
+          const fromTimestamp = Math.floor(startDateObjEvents?.getTime() / 1000 || Date.now() / 1000 - 86400 * 7);
+          const toTimestamp = Math.floor(endDateObjEvents?.getTime() / 1000 || Date.now() / 1000);
+          
+          apiResponse = await api.getEvents(fromTimestamp, toTimestamp);
+        } catch (apiError) {
+          console.error("Fehler beim Abrufen der Events-API-Antwort:", apiError);
+        }
+        
         result = await vendonSync.syncEvents(startDateObjEvents, endDateObjEvents, batchSize);
         break;
         
@@ -44,6 +98,18 @@ router.post('/sync', async (req, res) => {
         // Optional: Konvertiere Datumszeichenfolgen in Date-Objekte
         const startDateObjRefills = startDate ? new Date(startDate) : undefined;
         const endDateObjRefills = endDate ? new Date(endDate) : undefined;
+        
+        try {
+          // API-Antwort erfassen
+          const api = vendonSync.getApi();
+          const fromTimestamp = Math.floor(startDateObjRefills?.getTime() / 1000 || Date.now() / 1000 - 86400 * 7);
+          const toTimestamp = Math.floor(endDateObjRefills?.getTime() / 1000 || Date.now() / 1000);
+          
+          apiResponse = await api.getRefills(fromTimestamp, toTimestamp);
+        } catch (apiError) {
+          console.error("Fehler beim Abrufen der Refills-API-Antwort:", apiError);
+        }
+        
         result = await vendonSync.syncRefills(startDateObjRefills, endDateObjRefills, batchSize);
         break;
         
@@ -66,7 +132,13 @@ router.post('/sync', async (req, res) => {
         });
     }
     
-    return res.json(result);
+    // API-Antwort zum Ergebnis hinzufügen
+    const response = {
+      ...result,
+      apiResponse: apiResponse ? JSON.stringify(apiResponse, null, 2) : null
+    };
+    
+    return res.json(response);
     
   } catch (error) {
     console.error("Fehler bei der manuellen Synchronisierung:", error);

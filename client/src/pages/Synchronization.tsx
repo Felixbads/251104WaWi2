@@ -12,7 +12,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CalendarIcon, Database, FileText, Package, AlertCircle, Clock, RefreshCw, Loader2, LayoutDashboard } from "lucide-react";
+import { CalendarIcon, Database, FileText, Package, AlertCircle, Clock, RefreshCw, Loader2, LayoutDashboard, Copy, Info } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { getSyncStatus, triggerSync, formatDateTime, getDatabaseStats, DatabaseStats, SyncStatus } from "@/lib/api";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -119,9 +120,14 @@ Zeitraum: ${formattedStart} - ${formattedEnd}`;
       
       return triggerSync(syncType, options);
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
       queryClient.invalidateQueries({ queryKey: ['/api/sync/logs'] });
+      
+      // Aktualisiere die API-Antwort im State, wenn vorhanden
+      if (data && data.apiResponse) {
+        setApiResponse(data.apiResponse);
+      }
       
       let message = `Die ${getSyncTypeLabel(syncType)}-Synchronisierung wurde erfolgreich gestartet.`;
       if (isHistoricalSync && syncType === 'transactions') {
@@ -774,18 +780,37 @@ Zeitraum: ${formattedStart} - ${formattedEnd}`;
                   </div>
                 )}
                 
-                {apiResponse && (
-                  <div className="space-y-2 pt-2">
-                    <Label>API-Antwort</Label>
-                    <Card className="bg-gray-50 dark:bg-gray-900 border rounded-md">
-                      <CardContent className="p-4">
-                        <pre className="text-xs overflow-auto whitespace-pre-wrap max-h-48">
-                          {apiResponse}
-                        </pre>
-                      </CardContent>
-                    </Card>
+                {/* API-Antwort mit verbesserter Darstellung */}
+                <div className="space-y-2 pt-4">
+                  <div className="flex justify-between items-center">
+                    <Label className="text-base">API-Antwort (RAW-Daten)</Label>
+                    {apiResponse && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(apiResponse);
+                          toast({
+                            title: "In die Zwischenablage kopiert",
+                            description: "Die API-Antwort wurde in die Zwischenablage kopiert.",
+                          });
+                        }}
+                      >
+                        <Copy className="h-4 w-4 mr-1" />
+                        Kopieren
+                      </Button>
+                    )}
                   </div>
-                )}
+                  <Card className="bg-gray-50 dark:bg-gray-900 border rounded-md">
+                    <CardContent className="p-4">
+                      <ScrollArea className="h-80 rounded-md">
+                        <pre className="text-xs overflow-auto whitespace-pre-wrap">
+                          {apiResponse || "Noch keine API-Antwort erhalten. Starten Sie die Synchronisierung, um Daten zu sehen."}
+                        </pre>
+                      </ScrollArea>
+                    </CardContent>
+                  </Card>
+                </div>
 
                 {/* Info text */}
                 <Alert>
