@@ -3,7 +3,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { format } from "date-fns";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { processOrderReceipt } from "@/lib/api";
 
 // UI Komponenten
 import {
@@ -126,33 +127,25 @@ export default function ReceiveOrderDialog({
     return null;
   }
   
-  // Formular absenden
-  const onSubmit = async (data: ReceiveOrderValues) => {
-    try {
-      setIsSubmitting(true);
-      console.log("Wareneingang erfasst:", data);
-      
-      // Prüfen, ob komplett oder teilweise geliefert
-      const complete = isCompleteDelivery(data.receivedItems);
-      const hasQualityIssues = data.receivedItems.some(item => item.qualityIssues);
-      
-      // Neuen Status ermitteln
-      const newStatus = complete && !hasQualityIssues ? "completed" : "partial";
-      
-      // In echter Implementierung: API-Aufruf zur Bestellung aktualisieren
-      // Beispiel: POST /api/orders/${order.id}/receipt mit den Eingabedaten
-      
-      // Demo: Bestellung aktualisieren und zurückgeben
-      const updatedOrder = {
-        ...order,
-        status: newStatus,
-        actualDeliveryDate: data.receiptDate.toISOString(),
+  // API-Mutation für Wareneingang
+  const receiptMutation = useMutation({
+    mutationFn: (data: ReceiveOrderValues) => {
+      return processOrderReceipt(order.id, {
+        receiptDate: data.receiptDate,
+        receiptNumber: data.receiptNumber,
+        deliveryNoteNumber: data.deliveryNoteNumber,
+        qualityCheckPassed: data.qualityCheckPassed,
+        notes: data.notes,
         receivedItems: data.receivedItems
-      };
-      
+      });
+    },
+    onSuccess: (updatedOrder) => {
       // Bestelldaten im Cache aktualisieren
       queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
       queryClient.invalidateQueries({ queryKey: ['/api/orders', order.id] });
+      
+      // Prüfen, ob komplett oder teilweise geliefert
+      const complete = updatedOrder.status === "completed";
       
       // Erfolg anzeigen
       toast({
@@ -162,13 +155,28 @@ export default function ReceiveOrderDialog({
       
       // Callback aufrufen
       onComplete(updatedOrder);
-    } catch (error) {
+    },
+    onError: (error) => {
       console.error("Fehler beim Erfassen des Wareneingangs:", error);
       toast({
         title: "Fehler beim Erfassen des Wareneingangs",
-        description: `Es ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.`,
+        description: "Es ist ein Fehler aufgetreten. Bitte versuchen Sie es erneut.",
         variant: "destructive"
       });
+    }
+  });
+
+  // Formular absenden
+  const onSubmit = async (data: ReceiveOrderValues) => {
+    try {
+      setIsSubmitting(true);
+      console.log("Wareneingang wird erfasst:", data);
+      
+      // API-Aufruf zum Erfassen des Wareneingangs
+      await receiptMutation.mutateAsync(data);
+    } catch (error) {
+      // Fehler wird bereits in der Mutation behandelt
+      console.error("Fehler im Formular-Handler:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -366,8 +374,8 @@ export default function ReceiveOrderDialog({
                   <TableBody>
                     {order.orderItems.map((item: any, index: number) => (
                       <TableRow key={item.id}>
-                        <TableCell>{item.position_number || index + 1}</TableCell>
-                        <TableCell className="font-medium">{item.product_name}</TableCell>
+                        <TableCell>{item.positionNumber || index + 1}</TableCell>
+                        <TableCell className="font-medium">{item.productName}</TableCell>
                         <TableCell className="text-right">
                           {item.quantity} {item.unit || 'stk'}
                         </TableCell>

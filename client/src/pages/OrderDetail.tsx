@@ -425,71 +425,13 @@ export default function OrderDetail() {
   };
   
   // Wareneingang verarbeiten
+  // Wareneingang-Dialog schließen und Daten aktualisieren
   const handleProcessReceipt = (updatedOrder: any) => {
-    if (!order) return;
+    // Dialog schließen
+    setShowReceiveDialog(false);
     
-    // Extrahiere die Daten aus dem updatedOrder-Objekt
-    const orderItems = updatedOrder.orderItems || [];
-    
-    // Berechne die Gesamtstatistik
-    let totalOrdered = 0;
-    let totalReceived = 0;
-    let hasDamaged = false;
-    
-    // Iteriere über alle Elemente für die Statistik
-    for (const item of orderItems) {
-      totalOrdered += item.quantity || 0;
-      totalReceived += item.receivedQuantity || 0;
-      if (item.isDamaged) {
-        hasDamaged = true;
-      }
-    }
-    
-    const isComplete = totalReceived >= totalOrdered && !hasDamaged;
-    
-    // Status basierend auf der Vollständigkeit der Lieferung
-    const newStatus = isComplete ? "completed" : "partial";
-    
-    // Bestehende Statushistorie als Array verarbeiten
-    const currentHistory = Array.isArray(order.statusHistory) 
-      ? order.statusHistory 
-      : (order.statusHistory ? JSON.parse(order.statusHistory as string) : []);
-    
-    // Neuen Status hinzufügen
-    const newStatusEntry = {
-      status: newStatus,
-      timestamp: new Date().toISOString(),
-      note: isComplete 
-        ? "Wareneingang vollständig erfasst"
-        : "Wareneingang teilweise erfasst (unvollständig oder beschädigt)"
-    };
-    
-    // Update der Bestellung mit den Daten aus dem Dialog
-    updateOrderMutation.mutate(
-      {
-        ...updatedOrder,
-        status: newStatus,
-        statusHistory: JSON.stringify([...currentHistory, newStatusEntry])
-      },
-      {
-        onSuccess: () => {
-          setShowReceiveDialog(false);
-          toast({
-            title: isComplete ? "Wareneingang abgeschlossen" : "Wareneingang mit Abweichungen erfasst",
-            description: isComplete 
-              ? "Alle Artikel wurden erfolgreich in den Lagerbestand übernommen."
-              : "Die Abweichungen wurden dokumentiert und der Lagerbestand wurde entsprechend aktualisiert."
-          });
-        },
-        onError: (error) => {
-          toast({
-            title: "Fehler beim Erfassen des Wareneingangs",
-            description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
-            variant: "destructive"
-          });
-        }
-      }
-    );
+    // Cache invalidieren - die Daten werden automatisch neu geladen
+    queryClient.invalidateQueries({ queryKey: [`/api/orders/${id}`] });
   };
   
   // Bestellung abschließen

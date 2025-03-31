@@ -684,6 +684,28 @@ export async function updateOrderStatus(id: number, status: string, note?: strin
   return apiRequest<Order>('put', `/orders/${id}/status`, { status, note });
 }
 
+/**
+ * Verarbeitet den Wareneingang für eine Bestellung
+ * @param id ID der Bestellung
+ * @param receiptData Daten des Wareneingangs
+ * @returns Die aktualisierte Bestellung
+ */
+export async function processOrderReceipt(id: number, receiptData: {
+  receiptDate: Date;
+  receiptNumber: string;
+  deliveryNoteNumber?: string;
+  qualityCheckPassed?: boolean;
+  notes?: string;
+  receivedItems: {
+    orderItemId: number;
+    receivedQuantity: number;
+    qualityIssues?: boolean;
+    damageDescription?: string;
+  }[];
+}): Promise<Order> {
+  return apiRequest<Order>('post', `/orders/${id}/receipt`, receiptData);
+}
+
 export async function addOrderItem(orderId: number, itemData: Omit<OrderItem, 'id' | 'orderId' | 'createdAt' | 'updatedAt'>): Promise<OrderItem> {
   return apiRequest<OrderItem>('post', `/orders/${orderId}/items`, itemData);
 }
