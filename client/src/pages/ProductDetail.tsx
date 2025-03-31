@@ -538,7 +538,7 @@ export default function ProductDetail() {
                             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                             <span className="ml-2 text-muted-foreground">Lade Verkaufsdaten...</span>
                           </div>
-                        ) : salesData && salesData.length > 0 ? (
+                        ) : salesData && Array.isArray(salesData) && salesData.length > 0 ? (
                           <ResponsiveContainer width="100%" height={350}>
                             <BarChart data={salesData}>
                               <CartesianGrid strokeDasharray="3 3" vertical={false} />
