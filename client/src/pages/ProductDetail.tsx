@@ -102,7 +102,7 @@ export default function ProductDetail() {
 
               <CardContent>
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                  <TabsList className="grid grid-cols-2 w-full mb-4">
+                  <TabsList className="grid grid-cols-4 w-full mb-4">
                     <TabsTrigger value="details">
                       <Info className="h-4 w-4 mr-1" />
                       Details
@@ -110,6 +110,14 @@ export default function ProductDetail() {
                     <TabsTrigger value="inventory">
                       <Package className="h-4 w-4 mr-1" />
                       Bestand
+                    </TabsTrigger>
+                    <TabsTrigger value="sales">
+                      <BarChart3 className="h-4 w-4 mr-1" />
+                      Verkäufe
+                    </TabsTrigger>
+                    <TabsTrigger value="supplier">
+                      <Truck className="h-4 w-4 mr-1" />
+                      Lieferant
                     </TabsTrigger>
                   </TabsList>
 
@@ -252,20 +260,6 @@ export default function ProductDetail() {
                         <p className="font-medium">{product.warehouseLocation || '–'}</p>
                       </div>
 
-                      {/* Verkäufe */}
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Verkäufe</h3>
-                        <p className="font-medium">{product.salesCount || '0'}</p>
-                      </div>
-
-                      {/* Letzter Verkauf */}
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Letzter Verkauf</h3>
-                        <p className="font-medium">
-                          {product.lastSale ? formatDateTime(product.lastSale, 'datetime') : '–'}
-                        </p>
-                      </div>
-
                       {/* Kritisch */}
                       <div>
                         <h3 className="text-sm font-medium text-gray-500 mb-1">Status</h3>
@@ -284,6 +278,157 @@ export default function ProductDetail() {
                             </Badge></span>
                           )}
                         </div>
+                      </div>
+
+                      {/* Bestandsverlauf (visueller Hinweis) */}
+                      <div className="col-span-2 mt-4">
+                        <h3 className="text-sm font-medium text-gray-500 mb-3">Bestandsverlauf</h3>
+                        <div className="bg-gray-50 border border-gray-100 rounded-md p-6 flex flex-col items-center justify-center">
+                          <Clipboard className="h-12 w-12 text-gray-300 mb-3" />
+                          <p className="text-sm text-gray-500 text-center">
+                            Detaillierter Bestandsverlauf verfügbar unter
+                          </p>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="mt-3"
+                            onClick={() => setLocation(`/lager?productId=${id}&view=history`)}
+                          >
+                            <Clipboard className="h-4 w-4 mr-2" />
+                            Bestandsverlauf anzeigen
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="sales">
+                    <div className="grid grid-cols-2 gap-y-6 gap-x-10">
+                      {/* Verkäufe Übersicht */}
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Verkäufe gesamt</h3>
+                        <p className="text-lg font-semibold">{product.salesCount || '0'}</p>
+                      </div>
+
+                      {/* Letzter Verkauf */}
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Letzter Verkauf</h3>
+                        <p className="font-medium">
+                          {product.lastSale ? formatDateTime(product.lastSale, 'datetime') : '–'}
+                        </p>
+                      </div>
+
+                      {/* Verkaufsdiagramm (visueller Hinweis) */}
+                      <div className="col-span-2 mt-4">
+                        <h3 className="text-sm font-medium text-gray-500 mb-3">Verkaufsentwicklung</h3>
+                        <div className="bg-gray-50 border border-gray-100 rounded-md p-6 flex flex-col items-center justify-center">
+                          <BarChart3 className="h-12 w-12 text-gray-300 mb-3" />
+                          <p className="text-sm text-gray-500 text-center">
+                            Detaillierte Verkaufsstatistiken und grafische Auswertungen verfügbar unter
+                          </p>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="mt-3"
+                            onClick={() => setLocation(`/auswertungen?productId=${id}&view=sales`)}
+                          >
+                            <BarChart3 className="h-4 w-4 mr-2" />
+                            Verkaufsstatistiken anzeigen
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Transaktionsliste (visueller Hinweis) */}
+                      <div className="col-span-2 mt-4">
+                        <h3 className="text-sm font-medium text-gray-500 mb-3">Verkaufstransaktionen</h3>
+                        <div className="bg-gray-50 border border-gray-100 rounded-md p-6 flex flex-col items-center justify-center">
+                          <ShoppingCart className="h-12 w-12 text-gray-300 mb-3" />
+                          <p className="text-sm text-gray-500 text-center">
+                            Detaillierte Liste aller Verkaufstransaktionen dieses Produkts verfügbar unter
+                          </p>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="mt-3"
+                            onClick={() => setLocation(`/transactions?productId=${id}`)}
+                          >
+                            <ShoppingCart className="h-4 w-4 mr-2" />
+                            Verkaufstransaktionen anzeigen
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="supplier">
+                    <div className="grid grid-cols-2 gap-y-6 gap-x-10">
+                      {/* Lieferant */}
+                      <div className="col-span-2">
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Lieferant</h3>
+                        <p className="text-lg font-semibold">{product.supplier || '–'}</p>
+                      </div>
+
+                      {/* Einkaufskonditionen */}
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Einkaufspreis</h3>
+                        <p className="font-medium">{product.costPrice?.toFixed(2) || '–'} €</p>
+                      </div>
+
+                      {/* Marge */}
+                      {product.costPrice && product.price && (
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-500 mb-1">Marge</h3>
+                          <p className="font-medium">
+                            {((product.price - product.costPrice) / product.price * 100).toFixed(1)}%
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            ({(product.price - product.costPrice).toFixed(2)} € pro Einheit)
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Artikel-/Bestellnummer */}
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Bestellnummer</h3>
+                        <p className="font-medium">{product.articleSupplier || product.article || '–'}</p>
+                      </div>
+
+                      {/* Mindestbestellmenge */}
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Mindestbestellmenge</h3>
+                        <p className="font-medium">{product.minOrderQuantity || '–'}</p>
+                      </div>
+
+                      {/* Aktuelle Bestellungen (visueller Hinweis) */}
+                      <div className="col-span-2 mt-4">
+                        <h3 className="text-sm font-medium text-gray-500 mb-3">Aktuelle Bestellungen</h3>
+                        <div className="bg-gray-50 border border-gray-100 rounded-md p-6 flex flex-col items-center justify-center">
+                          <Truck className="h-12 w-12 text-gray-300 mb-3" />
+                          <p className="text-sm text-gray-500 text-center">
+                            Aktuelle Bestellungen und Bestellhistorie verfügbar unter
+                          </p>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            className="mt-3"
+                            onClick={() => setLocation(`/bestellungen?productId=${id}`)}
+                          >
+                            <Truck className="h-4 w-4 mr-2" />
+                            Bestellungen anzeigen
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Neue Bestellung */}
+                      <div className="col-span-2 mt-2">
+                        <Button 
+                          variant={product?.critical || (typeof product?.inStock === 'number' && product?.inStock <= 0) ? "default" : "outline"}
+                          className={`w-full justify-center ${product?.critical || (typeof product?.inStock === 'number' && product?.inStock <= 0) ? "bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-200 hover:text-amber-900" : ""}`}
+                          onClick={() => setLocation(`/bestellungen/neu?productId=${id}`)}
+                        >
+                          <Truck className="h-4 w-4 mr-2" />
+                          Neue Bestellung anlegen
+                        </Button>
                       </div>
                     </div>
                   </TabsContent>
