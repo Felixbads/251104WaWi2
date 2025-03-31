@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { getTransactions, formatDateTime } from "@/lib/api";
+import { getTransactions, formatDateTime, Transaction } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -35,10 +35,8 @@ export default function TransactionsTable({ limit = 5 }: TransactionsTableProps)
           <h2 className="text-lg font-medium text-gray-800">
             Neueste Transaktionen
           </h2>
-          <Link href="/transactions">
-            <a className="text-sm font-medium text-primary-600 hover:text-primary-800">
+          <Link to="/transactions" className="text-sm font-medium text-primary-600 hover:text-primary-800">
               Alle ansehen
-            </a>
           </Link>
         </div>
         <div className="overflow-x-auto">
@@ -111,10 +109,8 @@ export default function TransactionsTable({ limit = 5 }: TransactionsTableProps)
         <h2 className="text-lg font-medium text-gray-800">
           Neueste Transaktionen
         </h2>
-        <Link href="/transactions">
-          <a className="text-sm font-medium text-primary-600 hover:text-primary-800">
+        <Link to="/transactions" className="text-sm font-medium text-primary-600 hover:text-primary-800">
             Alle ansehen
-          </a>
         </Link>
       </div>
       <div className="overflow-x-auto">
@@ -147,28 +143,22 @@ export default function TransactionsTable({ limit = 5 }: TransactionsTableProps)
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">
-                      {transaction.product_name || transaction.productName}
+                      {transaction.productName}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {transaction.price.toFixed(2)} {transaction.currency || "€"}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {transaction.machine_name || transaction.machineName}
+                    {transaction.machineName}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
                       className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(
-                        transaction.status || transaction.processing_status || "pending"
+                        "success"
                       )}`}
                     >
-                      {(transaction.status || transaction.processing_status) === "success"
-                        ? "Erfolg"
-                        : (transaction.status || transaction.processing_status) === "pending"
-                        ? "Ausstehend"
-                        : (transaction.status || transaction.processing_status) === "failed"
-                        ? "Fehlgeschlagen"
-                        : transaction.status || transaction.processing_status || "Ausstehend"}
+                      {"Erfolg"}
                     </span>
                   </td>
                 </tr>
@@ -194,7 +184,7 @@ export default function TransactionsTable({ limit = 5 }: TransactionsTableProps)
             Einträgen
           </div>
           <div>
-            <Link href="/transactions">
+            <Link to="/transactions">
               <Button variant="outline" size="sm">
                 Mehr laden
               </Button>

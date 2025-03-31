@@ -48,7 +48,7 @@ export default function NotFound({
           Zurück
         </Button>
         <Button asChild>
-          <Link href="/">
+          <Link to="/">
             <Home className="h-4 w-4 mr-2" />
             Zur Startseite
           </Link>

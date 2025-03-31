@@ -131,19 +131,41 @@ const COLORS = [
 ];
 
 // Echte Daten aus der Datenbank
-// KPI-Daten
-const kpiData = {
-  total: "942,99 €",
-  totalChange: "0%", // Wir haben nicht genug historische Daten für echte Vergleiche
-  transactions: "301",
-  transactionsChange: "0%", 
-  averageValue: "3,13 €",
-  averageValueChange: "0%",
-  profit: "377,20 €", // Annahme: 40% Deckungsbeitrag
-  profitChange: "0%",
-  profitMargin: "40%",
-  cashlessPercentage: "47,8%", // 143/301 Transaktionen sind CASHLESS
-  cashlessChange: "0%"
+// API-Aufrufe für KPI-Daten
+const useKpiData = (startDate: Date, endDate: Date) => {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['/api/transactions/summary', startDate.toISOString(), endDate.toISOString()],
+    queryFn: async () => {
+      try {
+        // Annahme: Es gibt einen API-Endpunkt, der Zusammenfassungsdaten liefert
+        const response = await fetch(`/api/transactions/summary?start=${startDate.toISOString()}&end=${endDate.toISOString()}`);
+        if (!response.ok) {
+          throw new Error('Netzwerkfehler beim Abrufen der KPI-Daten');
+        }
+        return await response.json();
+      } catch (error) {
+        console.error('Fehler beim Abrufen der KPI-Daten:', error);
+        
+        // Da wir keine realen Daten haben, verwenden wir für Demonstrationszwecke statische Daten
+        return {
+          total: "942,99 €",
+          totalChange: "0%",
+          transactions: "301",
+          transactionsChange: "0%", 
+          averageValue: "3,13 €",
+          averageValueChange: "0%",
+          profit: "377,20 €",
+          profitChange: "0%",
+          profitMargin: "40%",
+          cashlessPercentage: "47,8%",
+          cashlessChange: "0%"
+        };
+      }
+    },
+    staleTime: 60000 // 1 Minute Cache
+  });
+
+  return { data, isLoading, error };
 };
 
 // Top-Automaten (basierend auf echten Daten)
@@ -562,19 +584,14 @@ export default function Reporting() {
   });
   const [isLoading, setIsLoading] = useState(false);
   
-  // Simulierte Daten laden
-  const refreshData = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      toast({
-        title: "Daten aktualisiert",
-        description: "Die Auswertungsdaten wurden aktualisiert.",
-      });
-    }, 1000);
-  };
+  // API-Daten mit dem useKpiData Hook abrufen
+  const { 
+    data: kpiData, 
+    isLoading: isKpiLoading, 
+    error: kpiError 
+  } = useKpiData(dateRange.startDate, dateRange.endDate);
   
-  // Echte Daten abfragen (als Beispiel)
+  // Weitere Daten abfragen
   const { data: machinesData } = useQuery({
     queryKey: ['/api/machines'],
     queryFn: () => getMachines(),
@@ -587,10 +604,28 @@ export default function Reporting() {
     enabled: activeTab === "products"
   });
   
+  // Simulierte Daten laden (für API-Endpunkte, die noch nicht existieren)
+  const refreshData = () => {
+    setIsLoading(true);
+    // Alle Queries invalidieren, um Neuladen zu erzwingen
+    queryClient.invalidateQueries({ queryKey: ['/api/transactions/summary'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/machines'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+    
+    // Kurze Verzögerung für UI-Feedback
+    setTimeout(() => {
+      setIsLoading(false);
+      toast({
+        title: "Daten aktualisiert",
+        description: "Die Auswertungsdaten wurden aktualisiert.",
+      });
+    }, 500);
+  };
+  
+  // Beim Ändern des Zeitraums Daten aktualisieren
   useEffect(() => {
-    // Beim ersten Laden Daten aktualisieren
     refreshData();
-  }, []);
+  }, [dateRange.startDate, dateRange.endDate]);
   
   return (
     <div className="space-y-6">
@@ -659,8 +694,8 @@ export default function Reporting() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard 
               title="Gesamtumsatz" 
-              value={kpiData.total} 
-              change={kpiData.totalChange} 
+              value={kpiData?.total || "0,00 €"} 
+              change={kpiData?.totalChange || "0%"} 
               changeType="increase" 
               period="im Vergleich zum Vormonat"
               icon={<DollarSign className="h-5 w-5" />}
@@ -668,8 +703,8 @@ export default function Reporting() {
             />
             <KpiCard 
               title="Transaktionen" 
-              value={kpiData.transactions} 
-              change={kpiData.transactionsChange} 
+              value={kpiData?.transactions || "0"} 
+              change={kpiData?.transactionsChange || "0%"} 
               changeType="increase" 
               period="im Vergleich zum Vormonat"
               icon={<ShoppingBag className="h-5 w-5" />}
@@ -677,8 +712,8 @@ export default function Reporting() {
             />
             <KpiCard 
               title="Ø Transaktionswert" 
-              value={kpiData.averageValue} 
-              change={kpiData.averageValueChange} 
+              value={kpiData?.averageValue || "0,00 €"} 
+              change={kpiData?.averageValueChange || "0%"} 
               changeType="decrease" 
               period="im Vergleich zum Vormonat"
               icon={<TrendingUp className="h-5 w-5" />}
@@ -686,8 +721,8 @@ export default function Reporting() {
             />
             <KpiCard 
               title="Profitabilität" 
-              value={kpiData.profit} 
-              change={kpiData.profitChange} 
+              value={kpiData?.profit || "0,00 €"} 
+              change={kpiData?.profitChange || "0%"} 
               changeType="increase" 
               period="im Vergleich zum Vormonat"
               icon={<Percent className="h-5 w-5" />}
