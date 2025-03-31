@@ -28,7 +28,7 @@ router.get('/', async (req, res) => {
         rd.removed, 
         r.datetime,
         r.machine_id as "machineId",
-        m.name as "machineName"
+        m.machine_name as "machineName"
       FROM refill_details rd
       JOIN refills r ON rd.refill_id = r.id
       JOIN machines m ON r.machine_id = m.id
@@ -46,13 +46,13 @@ router.get('/', async (req, res) => {
     
     // Analytik erstellen
     const analytics = {
-      byProduct: [],
-      byMachine: [],
-      byDate: []
+      byProduct: [] as {name: string, count: number}[],
+      byMachine: [] as {name: string, count: number}[],
+      byDate: [] as {date: string, count: number}[]
     };
     
     // Produkten-Zählung
-    const productCounts = {};
+    const productCounts: Record<string, number> = {};
     removedProducts.forEach(product => {
       if (!productCounts[product.productName]) {
         productCounts[product.productName] = 0;
@@ -61,7 +61,7 @@ router.get('/', async (req, res) => {
     });
     
     // Automaten-Zählung
-    const machineCounts = {};
+    const machineCounts: Record<string, number> = {};
     removedProducts.forEach(product => {
       if (!machineCounts[product.machineName]) {
         machineCounts[product.machineName] = 0;
@@ -70,7 +70,7 @@ router.get('/', async (req, res) => {
     });
     
     // Datums-Zählung
-    const dateCounts = {};
+    const dateCounts: Record<string, number> = {};
     removedProducts.forEach(product => {
       const date = new Date(product.datetime).toISOString().split('T')[0];
       if (!dateCounts[date]) {
@@ -126,7 +126,7 @@ router.get('/summary', async (req, res) => {
     if (groupBy === 'machine') {
       query = `
         SELECT 
-          m.name as name,
+          m.machine_name as name,
           SUM(rd.removed) as total_removed
         FROM refill_details rd
         JOIN refills r ON rd.refill_id = r.id
