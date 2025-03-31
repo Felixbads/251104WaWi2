@@ -1,0 +1,61 @@
+Hier ist eine detaillierte Beschreibung des gewünschten Wareneingangsprozesses, so wie er sinnvoll in der App implementiert werden kann – inklusive einer Einschätzung zur Benutzerfreundlichkeit und einem Vorschlag für die Darstellung auf der Startseite:
+
+⸻
+
+Ziel des Prozesses:
+
+Der Wareneingangsprozess dient dazu, gelieferte Bestellungen zu prüfen, zu erfassen und zu bestätigen, um die Lagerbestände automatisch zu aktualisieren und ggf. Abweichungen zu dokumentieren (z. B. bei fehlenden oder beschädigten Artikeln).
+
+⸻
+
+1. Startseite – Übersicht offener Bestellungen
+
+Darstellung:
+Auf der Startseite der App erscheint eine Liste mit allen offenen Bestellungen, bei denen der Wareneingang noch nicht vollständig abgeschlossen ist.
+
+Jede Bestellung in der Liste zeigt:
+	•	Bestellnummer
+	•	Lieferant
+	•	Bestelldatum
+	•	Status (z. B. „Lieferung erwartet“, „Teilweise eingegangen“)
+	•	Button „Details ansehen“ (öffnet Bestellübersicht)
+	•	Button „Wareneingang starten“
+
+⸻
+
+2. Wareneingangsprozess – Schritt für Schritt
+
+Nach Klick auf „Wareneingang starten“ öffnet sich eine strukturierte Eingabemaske:
+
+a. Übersicht der Bestellpositionen
+	•	Liste aller bestellten Produkte mit:
+	•	Produktname
+	•	Bestellte Menge
+	•	Optional: bereits gelieferte Menge (bei Teillieferung)
+	•	Eingabefeld: tatsächlich gelieferte Menge
+	•	Optional: Checkbox „Beschädigt“ + Kommentarfeld
+	•	Optional: Feld für Chargennummer / MHD
+
+b. Zusatzinformationen
+	•	Eingabefeld für Lieferschein-Nummer
+	•	Möglichkeit zum Foto-Upload des Lieferscheins
+	•	Kommentarfeld für interne Bemerkungen
+	•	Lieferdatum (automatisch gesetzt oder wählbar)
+
+c. Abschluss des Prozesses
+	•	Button „Wareneingang abschließen“
+	•	Lagerbestand wird automatisch erhöht (nur um gelieferte Menge)
+	•	Bestellung erhält Status: „Teilweise eingegangen“ oder „Abgeschlossen“
+	•	Eintrag wird aus der Startseiten-Liste entfernt
+	•	Im Hintergrund wird ein Wareneingangsprotokoll gespeichert
+
+⸻
+
+3. Bewertung des Prozesses – Geht das gut?
+
+Vorteile:
+	•	Übersichtliche Startseite mit direktem Einstieg in den Wareneingang spart Zeit.
+	•	Eingabemaske ist intuitiv und auf den realen Ablauf im Lager abgestimmt.
+	•	Fehlerquellen werden minimiert, da Abweichungen dokumentiert und kommentiert werden können.
+	•	Automatisierung der Lagerbestandsanpassung spart manuellen Aufwand.
+	•	Erfassung von beschädigter Ware oder Teilmengen ermöglicht genaue Kontrolle und Nachverfolgung

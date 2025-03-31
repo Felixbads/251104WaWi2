@@ -7,6 +7,7 @@ import { de } from "date-fns/locale";
 import { jsPDF } from "jspdf";
 // @ts-ignore
 import QRCode from "qrcode";
+import ReceiveOrderDialog from "@/components/orders/ReceiveOrderDialog";
 import html2canvas from "html2canvas";
 
 // UI Komponenten
@@ -410,32 +411,61 @@ export default function OrderDetail() {
     );
   };
   
-  // Bestellung abschließen
-  const handleCompleteOrder = () => {
+  // Wareneingang verarbeiten
+  const handleProcessReceipt = (receivedItems: any[], deliveryDetails: any) => {
     if (!order) return;
     
+    // Berechne die Gesamtstatistik
+    const totalOrdered = receivedItems.reduce((sum, item) => sum + item.quantity, 0);
+    const totalReceived = receivedItems.reduce((sum, item) => sum + (item.receivedQuantity || 0), 0);
+    const hasDamaged = receivedItems.some(item => item.isDamaged);
+    const isComplete = totalReceived >= totalOrdered && !hasDamaged;
+    
+    // Status basierend auf der Vollständigkeit der Lieferung
+    const newStatus = isComplete ? "completed" : "partially_delivered";
+    
+    // Update der Bestellung
     updateOrderMutation.mutate(
-      { 
-        status: "completed",
+      {
+        status: newStatus,
+        orderItems: receivedItems,
+        deliveryNoteNumber: deliveryDetails.deliveryNoteNumber,
+        deliveryComments: deliveryDetails.comments,
+        deliveryPhoto: deliveryDetails.hasDeliveryPhoto,
         statusHistory: [
           ...order.statusHistory,
           {
-            status: "completed",
+            status: newStatus,
             timestamp: new Date().toISOString(),
-            note: "Bestellung abgeschlossen"
+            note: isComplete 
+              ? "Wareneingang vollständig erfasst"
+              : "Wareneingang teilweise erfasst (unvollständig oder beschädigt)"
           }
         ]
       },
       {
         onSuccess: () => {
+          setShowReceiveDialog(false);
           toast({
-            title: "Bestellung abgeschlossen",
-            description: "Die Bestellung wurde erfolgreich abgeschlossen."
+            title: isComplete ? "Wareneingang abgeschlossen" : "Wareneingang mit Abweichungen erfasst",
+            description: isComplete 
+              ? "Alle Artikel wurden erfolgreich in den Lagerbestand übernommen."
+              : "Die Abweichungen wurden dokumentiert und der Lagerbestand wurde entsprechend aktualisiert."
+          });
+        },
+        onError: (error) => {
+          toast({
+            title: "Fehler beim Erfassen des Wareneingangs",
+            description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
+            variant: "destructive"
           });
         }
       }
     );
   };
+  
+  // Bestellung abschließen
+  // Die Funktion handleCompleteOrder wurde durch handleProcessReceipt ersetzt
   
   // Bestellung stornieren
   const handleCancelOrder = () => {
@@ -696,9 +726,9 @@ Einkaufsabteilung`);
           )}
           
           {canComplete && (
-            <Button variant="outline" onClick={handleCompleteOrder} className="gap-1.5">
-              <ClipboardCheck className="h-4 w-4" />
-              Abschließen
+            <Button variant="outline" onClick={() => setShowReceiveDialog(true)} className="gap-1.5">
+              <PackageCheck className="h-4 w-4" />
+              Wareneingang erfassen
             </Button>
           )}
           
@@ -1226,74 +1256,13 @@ Einkaufsabteilung`);
         </DialogContent>
       </Dialog>
       
-      {/* Wareneingang Dialog */}
-      <Dialog open={showReceiveDialog} onOpenChange={setShowReceiveDialog}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Wareneingang erfassen</DialogTitle>
-            <DialogDescription>
-              Überprüfen Sie die erhaltenen Waren und erfassen Sie den Wareneingang.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[40%]">Produkt</TableHead>
-                  <TableHead>Bestellt</TableHead>
-                  <TableHead>Erhalten</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {order.orderItems.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">
-                      {item.productName}
-                      {item.sku && <div className="text-xs text-muted-foreground">SKU: {item.sku}</div>}
-                    </TableCell>
-                    <TableCell>
-                      {item.quantity} {item.unit}
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        defaultValue={item.quantity}
-                        className="w-20"
-                        min="0"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="bg-green-100 text-green-800">
-                        OK
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            
-            <div className="space-y-2">
-              <Label htmlFor="receive-note">Anmerkungen zum Wareneingang (optional)</Label>
-              <Textarea
-                id="receive-note"
-                placeholder="Anmerkungen zum Wareneingang..."
-              />
-            </div>
-          </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => setShowReceiveDialog(false)}
-            >
-              Später erledigen
-            </Button>
-            <Button onClick={handleCompleteOrder}>
-              Wareneingang bestätigen
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Verbesserter Wareneingangs-Dialog mit detaillierten Optionen */}
+      <ReceiveOrderDialog
+        order={order}
+        open={showReceiveDialog}
+        onClose={() => setShowReceiveDialog(false)}
+        onSubmit={handleProcessReceipt}
+      />
       
       {/* Stornieren Dialog */}
       <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
