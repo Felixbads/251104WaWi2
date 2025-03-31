@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
-import { apiClient } from '@/lib/api';
+import axios from 'axios';
 
 type ExportImportButtonsProps = {
   type: 'suppliers' | 'products' | 'orders';
@@ -82,7 +82,7 @@ export const ExportImportButtons: React.FC<ExportImportButtonsProps> = ({
       formData.append('file', file);
       
       // Anfrage an den Import-Endpunkt
-      const response = await apiClient.post(`/api/import/${type}`, formData, {
+      const response = await axios.post(`/api/import/${type}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }

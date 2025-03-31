@@ -28,6 +28,7 @@ import {
   FileSpreadsheet,
   Upload
 } from "lucide-react";
+import { ExportImportButtons } from "@/components/ExportImportButtons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1359,15 +1360,11 @@ export default function Suppliers() {
             )}
           </Button>
           
-          <Button 
-            variant="outline" 
-            className="flex items-center gap-2"
-            onClick={() => setExcelImportOpen(true)}
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            <span className="hidden sm:inline">Excel Import</span>
-            <span className="sm:hidden">Import</span>
-          </Button>
+          <ExportImportButtons
+            type="suppliers"
+            label="Lieferanten"
+            onSuccessfulImport={handleRefresh}
+          />
           
           <Tabs defaultValue={viewMode} onValueChange={(value) => setViewMode(value as "grid" | "list")}>
             <TabsList>
