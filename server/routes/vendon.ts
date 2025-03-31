@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { vendonSync } from '../services/vendonSync';
 import { storage } from '../storage';
+import { MachineStock } from '@shared/schema';
 
 const router = Router();
 
@@ -26,6 +27,10 @@ router.post('/sync', async (req, res) => {
         
       case 'products':
         result = await vendonSync.syncProducts();
+        break;
+        
+      case 'stocks':
+        result = await vendonSync.syncStocks();
         break;
         
       case 'events':
@@ -137,6 +142,100 @@ router.post('/update-transactions', async (req, res) => {
     return res.status(500).json({ 
       status: 'error', 
       message: `Aktualisierung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}` 
+    });
+  }
+});
+
+/**
+ * Route, um alle Lagerbestände (Stocks) abzurufen
+ */
+router.get('/stocks', async (req, res) => {
+  try {
+    const stocks = await storage.getStocks(0); // 0 = kein Limit
+    return res.json(stocks);
+  } catch (error) {
+    console.error("Fehler beim Abrufen der Lagerbestände:", error);
+    return res.status(500).json({ 
+      status: 'error', 
+      message: `Lagerbestand-Abruf fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}` 
+    });
+  }
+});
+
+/**
+ * Route, um Maschinen-Lagerbestände abzurufen
+ * Optional: Maschinenfilter mit ?machineId=X
+ */
+router.get('/machine-stocks', async (req, res) => {
+  try {
+    const machineId = req.query.machineId ? parseInt(req.query.machineId as string, 10) : undefined;
+    
+    // Wenn eine MachineID angegeben wurde, hole nur Bestände für diese Maschine
+    if (machineId) {
+      const machineStocks = await storage.getMachineStocks(machineId);
+      return res.json(machineStocks);
+    } else {
+      // Ansonsten hole alle Maschinen-Bestände für jede Maschine
+      const machines = await storage.getMachines(0);
+      let allMachineStocks: MachineStock[] = [];
+      
+      // Hole Bestände für jede Maschine
+      for (const machine of machines) {
+        const machineStocks = await storage.getMachineStocks(machine.id);
+        allMachineStocks = [...allMachineStocks, ...machineStocks];
+      }
+      return res.json(allMachineStocks);
+    }
+  } catch (error) {
+    console.error("Fehler beim Abrufen der Maschinen-Lagerbestände:", error);
+    return res.status(500).json({ 
+      status: 'error', 
+      message: `Maschinen-Lagerbestand-Abruf fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}` 
+    });
+  }
+});
+
+/**
+ * Route, um Vendon Stock-Daten direkt von der API abzurufen
+ */
+router.get('/vendon/stocks', async (req, res) => {
+  try {
+    // Stock-Produkte direkt von der Vendon API abrufen
+    const api = vendonSync.getApi();
+    const stocks = await api.getStockProducts();
+    return res.json(stocks);
+  } catch (error) {
+    console.error("Fehler beim Abrufen der Vendon-Stock-Produkte:", error);
+    return res.status(500).json({ 
+      status: 'error', 
+      message: `Vendon-Stock-Produkt-Abruf fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}` 
+    });
+  }
+});
+
+/**
+ * Route, um Vendon Maschinen-Stock-Daten direkt von der API abzurufen
+ */
+router.get('/vendon/machine-stock/:machineId', async (req, res) => {
+  try {
+    const { machineId } = req.params;
+    
+    if (!machineId) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Keine Maschinen-ID angegeben'
+      });
+    }
+    
+    // Maschinen-Stock direkt von der Vendon API abrufen
+    const api = vendonSync.getApi();
+    const machineStock = await api.getMachineStock(machineId);
+    return res.json(machineStock);
+  } catch (error) {
+    console.error("Fehler beim Abrufen des Vendon-Maschinen-Stocks:", error);
+    return res.status(500).json({ 
+      status: 'error', 
+      message: `Vendon-Maschinen-Stock-Abruf fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}` 
     });
   }
 });

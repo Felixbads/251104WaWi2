@@ -18,7 +18,9 @@ import {
   inventoryCountItems, type InventoryCountItem, type InsertInventoryCountItem,
   machineWarehouseAssignments, type MachineWarehouseAssignment, type InsertMachineWarehouseAssignment,
   productDisposals, type ProductDisposal, type InsertProductDisposal,
-  productDisposalItems, type ProductDisposalItem, type InsertProductDisposalItem
+  productDisposalItems, type ProductDisposalItem, type InsertProductDisposalItem,
+  stocks, type Stock, type InsertStock,
+  machineStocks, type MachineStock, type InsertMachineStock
 } from "@shared/schema";
 
 // Interface defining all storage operations
@@ -34,10 +36,26 @@ export interface IStorage {
     refillDetails: { count: number; latest: Date | null };
     events: { count: number; latest: Date | null };
     products: { count: number; latest: Date | null };
+    stocks: { count: number; latest: Date | null };
+    machineStocks: { count: number; latest: Date | null };
   }>;
   
   // Transaction count method for sync status tracking
   getTransactionCount(): Promise<number>;
+  
+  // Stock operations
+  getStocks(limit?: number): Promise<Stock[]>;
+  getStock(id: number): Promise<Stock | undefined>;
+  getStockByVendonId(vendonId: string): Promise<Stock | undefined>;
+  createStock(stock: InsertStock): Promise<Stock>;
+  updateStock(id: number, stock: Partial<InsertStock>): Promise<Stock | undefined>;
+  
+  // Machine Stock operations
+  getMachineStocks(machineId?: number, limit?: number): Promise<MachineStock[]>;
+  getMachineStock(id: number): Promise<MachineStock | undefined>;
+  getMachineStockByMachineAndProduct(machineId: number, productVendonId: string, selectionNumber: string): Promise<MachineStock | undefined>;
+  createMachineStock(machineStock: InsertMachineStock): Promise<MachineStock>;
+  updateMachineStock(id: number, machineStock: Partial<InsertMachineStock>): Promise<MachineStock | undefined>;
 
   // User operations
   getUser(id: number): Promise<User | undefined>;
@@ -237,6 +255,92 @@ export class DatabaseStorage implements IStorage {
     const countResult = await db.select({ count: count() }).from(transactions);
     return parseInt(countResult[0]?.count?.toString() || '0');
   }
+  
+  // Stock operations
+  async getStocks(limit: number = 100): Promise<Stock[]> {
+    return await db.select().from(stocks).orderBy(stocks.productName).limit(limit);
+  }
+  
+  async getStock(id: number): Promise<Stock | undefined> {
+    const [stock] = await db.select().from(stocks).where(eq(stocks.id, id));
+    return stock;
+  }
+  
+  async getStockByVendonId(vendonId: string): Promise<Stock | undefined> {
+    const [stock] = await db.select().from(stocks).where(eq(stocks.vendonId, vendonId));
+    return stock;
+  }
+  
+  async createStock(stock: InsertStock): Promise<Stock> {
+    const [newStock] = await db.insert(stocks).values({
+      ...stock,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning();
+    return newStock;
+  }
+  
+  async updateStock(id: number, stock: Partial<InsertStock>): Promise<Stock | undefined> {
+    const [updatedStock] = await db
+      .update(stocks)
+      .set({ ...stock, updatedAt: new Date() })
+      .where(eq(stocks.id, id))
+      .returning();
+    return updatedStock;
+  }
+  
+  // Machine Stock operations
+  async getMachineStocks(machineId?: number, limit: number = 100): Promise<MachineStock[]> {
+    if (machineId) {
+      return await db
+        .select()
+        .from(machineStocks)
+        .where(eq(machineStocks.machineId, machineId))
+        .orderBy(machineStocks.selectionNumber)
+        .limit(limit);
+    } else {
+      return await db
+        .select()
+        .from(machineStocks)
+        .orderBy(machineStocks.machineId)
+        .limit(limit);
+    }
+  }
+  
+  async getMachineStock(id: number): Promise<MachineStock | undefined> {
+    const [machineStock] = await db.select().from(machineStocks).where(eq(machineStocks.id, id));
+    return machineStock;
+  }
+  
+  async getMachineStockByMachineAndProduct(machineId: number, productVendonId: string, selectionNumber: string): Promise<MachineStock | undefined> {
+    const [machineStock] = await db.select().from(machineStocks)
+      .where(
+        and(
+          eq(machineStocks.machineId, machineId),
+          eq(machineStocks.productVendonId, productVendonId),
+          eq(machineStocks.selectionNumber, selectionNumber)
+        )
+      );
+    return machineStock;
+  }
+  
+  async createMachineStock(machineStock: InsertMachineStock): Promise<MachineStock> {
+    const [newMachineStock] = await db.insert(machineStocks).values({
+      ...machineStock,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning();
+    return newMachineStock;
+  }
+  
+  async updateMachineStock(id: number, machineStock: Partial<InsertMachineStock>): Promise<MachineStock | undefined> {
+    const [updatedMachineStock] = await db
+      .update(machineStocks)
+      .set({ ...machineStock, updatedAt: new Date() })
+      .where(eq(machineStocks.id, id))
+      .returning();
+    return updatedMachineStock;
+  }
 
   // Database statistics operations
   async getDatabaseStats(): Promise<{
@@ -246,6 +350,8 @@ export class DatabaseStorage implements IStorage {
     refillDetails: { count: number; latest: Date | null };
     events: { count: number; latest: Date | null };
     products: { count: number; latest: Date | null };
+    stocks: { count: number; latest: Date | null };
+    machineStocks: { count: number; latest: Date | null };
   }> {
     // Get transaction count and latest date
     const transCountResult = await db.select({ count: count() }).from(transactions);
@@ -271,6 +377,14 @@ export class DatabaseStorage implements IStorage {
     const productCountResult = await db.select({ count: count() }).from(products);
     const [latestProduct] = await db.select().from(products).orderBy(desc(products.updatedAt)).limit(1);
     
+    // Get stock count and latest update
+    const stockCountResult = await db.select({ count: count() }).from(stocks);
+    const [latestStock] = await db.select().from(stocks).orderBy(desc(stocks.updatedAt)).limit(1);
+    
+    // Get machine stock count and latest update
+    const machineStockCountResult = await db.select({ count: count() }).from(machineStocks);
+    const [latestMachineStock] = await db.select().from(machineStocks).orderBy(desc(machineStocks.updatedAt)).limit(1);
+    
     return {
       transactions: {
         count: parseInt(transCountResult[0]?.count?.toString() || '0'),
@@ -295,6 +409,14 @@ export class DatabaseStorage implements IStorage {
       products: {
         count: parseInt(productCountResult[0]?.count?.toString() || '0'),
         latest: latestProduct?.updatedAt || null
+      },
+      stocks: {
+        count: parseInt(stockCountResult[0]?.count?.toString() || '0'),
+        latest: latestStock?.updatedAt || null
+      },
+      machineStocks: {
+        count: parseInt(machineStockCountResult[0]?.count?.toString() || '0'),
+        latest: latestMachineStock?.updatedAt || null
       }
     };
   }
@@ -1656,4 +1778,96 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+// Stock / Lagerbestand Implementierung
+class DatabaseStorageWithStock extends DatabaseStorage {
+  // Stock Methoden
+  async getStocks(limit?: number): Promise<Stock[]> {
+    const query = db.select().from(stocks);
+    if (limit && limit > 0) {
+      query.limit(limit);
+    }
+    return await query;
+  }
+  
+  async getStockById(id: number): Promise<Stock | null> {
+    const results = await db.select().from(stocks).where(eq(stocks.id, id));
+    return results.length > 0 ? results[0] : null;
+  }
+  
+  async getStockByVendonId(vendonId: string): Promise<Stock | null> {
+    const results = await db.select().from(stocks).where(eq(stocks.vendonId, vendonId));
+    return results.length > 0 ? results[0] : null;
+  }
+  
+  async createStock(stock: InsertStock): Promise<Stock> {
+    const [newStock] = await db.insert(stocks).values({
+      ...stock,
+      createdAt: new Date()
+    }).returning();
+    return newStock;
+  }
+  
+  async updateStock(id: number, updatedStock: Partial<InsertStock>): Promise<Stock> {
+    const [stock] = await db.update(stocks)
+      .set({
+        ...updatedStock,
+        updatedAt: new Date()
+      })
+      .where(eq(stocks.id, id))
+      .returning();
+    return stock;
+  }
+  
+  async deleteStock(id: number): Promise<boolean> {
+    try {
+      await db.delete(stocks).where(eq(stocks.id, id));
+      return true;
+    } catch (error) {
+      console.error(`Fehler beim Löschen des Stocks mit ID ${id}:`, error);
+      return false;
+    }
+  }
+  
+  // Machine Stock Methoden
+  async getMachineStocks(machineId: number): Promise<MachineStock[]> {
+    const results = await db.select().from(machineStocks)
+      .where(eq(machineStocks.machineId, machineId));
+    return results;
+  }
+  
+  async getMachineStockById(id: number): Promise<MachineStock | null> {
+    const results = await db.select().from(machineStocks).where(eq(machineStocks.id, id));
+    return results.length > 0 ? results[0] : null;
+  }
+  
+  async createMachineStock(machineStock: InsertMachineStock): Promise<MachineStock> {
+    const [newMachineStock] = await db.insert(machineStocks).values({
+      ...machineStock,
+      createdAt: new Date()
+    }).returning();
+    return newMachineStock;
+  }
+  
+  async updateMachineStock(id: number, updatedMachineStock: Partial<InsertMachineStock>): Promise<MachineStock> {
+    const [machineStock] = await db.update(machineStocks)
+      .set({
+        ...updatedMachineStock,
+        updatedAt: new Date()
+      })
+      .where(eq(machineStocks.id, id))
+      .returning();
+    return machineStock;
+  }
+  
+  async deleteMachineStock(id: number): Promise<boolean> {
+    try {
+      await db.delete(machineStocks).where(eq(machineStocks.id, id));
+      return true;
+    } catch (error) {
+      console.error(`Fehler beim Löschen des Machine Stocks mit ID ${id}:`, error);
+      return false;
+    }
+  }
+}
+
+export const storage = new DatabaseStorageWithStock();

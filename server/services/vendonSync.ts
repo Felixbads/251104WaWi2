@@ -6,7 +6,12 @@ import {
   InsertEvent,
   InsertProduct,
   InsertRefill,
-  InsertRefillDetail 
+  InsertRefillDetail,
+  Stock,
+  InsertStock,
+  MachineStock,
+  InsertMachineStock,
+  Product
 } from "@shared/schema";
 import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
 
@@ -420,6 +425,25 @@ class VendonAPI {
       return this.makeRequest<any[]>(`/machine/${machineId}/stock`);
     } catch (error) {
       console.error(`Fehler beim Abrufen des Lagerbestands für Maschine ${machineId}:`, error);
+      return [];
+    }
+  }
+  
+  /**
+   * Ruft alle verfügbaren Stock-Produkte von der Vendon API ab
+   * 
+   * Verwendet die Stock API, die in der Dokumentation beschrieben ist
+   * Diese Funktion gibt alle Stock-Produkte ohne Filterung zurück
+   */
+  async getStockProducts() {
+    try {
+      // Richtiger Endpunkt für die Stock API (nach Dokumentation)
+      const result = await this.makeRequest<any[]>('/stock');
+      
+      console.log(`${result.length} Stock-Produkte von der Vendon API abgerufen`);
+      return result;
+    } catch (error) {
+      console.error('Fehler beim Abrufen der Stock-Produkte:', error);
       return [];
     }
   }
@@ -1784,9 +1808,241 @@ export class VendonSyncService {
   
   // Implementierung der fehlenden erforderlichen Methoden
   
+  /**
+   * Synchronisiert Lagerbestand (Stock) aller Automaten und Produkte
+   */
+  async syncStocks(): Promise<{ syncLogId: number; status: string; message: string }> {
+    // Erstelle einen Sync-Log-Eintrag
+    const syncLog: InsertSyncLog = {
+      syncType: 'stocks',
+      startDate: new Date(),
+      syncStatus: 'running',
+    };
+
+    const logEntry = await storage.createSyncLog(syncLog);
+    const syncLogId = logEntry.id;
+
+    try {
+      console.log("Starte Lagerbestand-Synchronisierung...");
+      const startTime = Date.now();
+      
+      // Schritt A: Allgemeine Stock-Produkte abrufen
+      console.log("Hole allgemeine Stock-Produkte...");
+      const stockProducts = await this.api.getStockProducts();
+      
+      // Zähler für Stock-Synchronisation
+      let stockItemsSaved = 0;
+      let stockItemsUpdated = 0;
+      let stockDuplicates = 0;
+      let stockErrors = 0;
+      
+      if (stockProducts && stockProducts.length > 0) {
+        console.log(`${stockProducts.length} Stock-Produkte von der API erhalten.`);
+        
+        // Hole bestehende Stock-Einträge
+        const existingStocks = await storage.getStocks(0); // Kein Limit
+        const existingStocksMap: Record<string, Stock> = {};
+        
+        // Erstelle eine Map für schnelle Suche
+        existingStocks.forEach(stock => {
+          if (stock.vendonId) {
+            existingStocksMap[stock.vendonId] = stock;
+          }
+        });
+        
+        // Verarbeite jeden Stock-Datensatz
+        for (const stockProduct of stockProducts) {
+          try {
+            if (!stockProduct.id) {
+              console.warn("Stock-Produkt ohne ID übersprungen");
+              continue;
+            }
+            
+            const vendonId = stockProduct.id.toString();
+            const existingStock = existingStocksMap[vendonId];
+            
+            // Extrahiere Stock-Daten aus dem API-Objekt
+            const stockData: InsertStock = {
+              vendonId: vendonId,
+              productName: stockProduct.name || "Unbenanntes Stock-Produkt",
+              productCategory: stockProduct.category || null,
+              status: stockProduct.status || "active",
+              price: stockProduct.price || null,
+              vat: stockProduct.vat || null,
+              amountMax: stockProduct.amount_max || null,
+              amountStandard: stockProduct.amount_standard || null,
+              amountCritical: stockProduct.amount_critical || null,
+              refillUnitSize: stockProduct.refill_unit_size || null,
+              depositPrice: stockProduct.deposit_price || null,
+              depositVat: stockProduct.deposit_vat || null,
+              sku: stockProduct.sku || null,
+              barcode: stockProduct.barcode || null,
+              rawData: JSON.stringify(stockProduct)
+            };
+            
+            if (existingStock) {
+              // Aktualisiere nur, wenn sich die Daten geändert haben
+              await storage.updateStock(existingStock.id, stockData);
+              stockItemsUpdated++;
+            } else {
+              // Neuer Stock-Eintrag
+              await storage.createStock(stockData);
+              stockItemsSaved++;
+            }
+          } catch (error) {
+            console.error(`Fehler bei der Verarbeitung des Stock-Produkts ${stockProduct.id || 'unknown'}:`, error);
+            stockErrors++;
+          }
+        }
+      } else {
+        console.warn("Keine Stock-Produkte von der API erhalten");
+      }
+      
+      // Schritt B: Maschinen-spezifische Bestände abrufen
+      console.log("Hole Maschinen für Lagerbestand-Synchronisierung...");
+      const machines = await this.api.getMachines();
+      
+      // Zähler für Machine-Stock-Synchronisation
+      let machineStockItemsSaved = 0;
+      let machineStockItemsUpdated = 0;
+      let machineStockDuplicates = 0;
+      let machineStockErrors = 0;
+      
+      if (machines && machines.length > 0) {
+        console.log(`${machines.length} Maschinen gefunden. Hole Lagerbestände...`);
+        
+        // Für jede Maschine den Lagerbestand abrufen
+        for (const machine of machines) {
+          try {
+            console.log(`Hole Lagerbestand für Maschine ${machine.id} (${machine.name || 'Unbekannt'})`);
+            const machineStock = await this.api.getMachineStock(machine.id.toString());
+            
+            if (machineStock && Array.isArray(machineStock) && machineStock.length > 0) {
+              console.log(`${machineStock.length} Lagerbestandseinträge für Maschine ${machine.id} gefunden`);
+              
+              // Hole bestehende Machine-Stock-Einträge für diese Maschine
+              const machineDbRecord = await storage.getMachineByVendonId(machine.id.toString());
+              
+              if (!machineDbRecord) {
+                console.warn(`Keine Maschineneinträge in der Datenbank für Vendon-ID ${machine.id}, überspringe...`);
+                continue;
+              }
+              
+              const existingMachineStocks = await storage.getMachineStocks(machineDbRecord.id);
+              const existingMachineStocksMap: Record<string, MachineStock> = {};
+              
+              // Erstelle eine Map für schnelle Suche (Key: productVendonId + selectionNumber)
+              existingMachineStocks.forEach(stock => {
+                const key = `${stock.productVendonId}-${stock.selectionNumber}`;
+                existingMachineStocksMap[key] = stock;
+              });
+              
+              // Verarbeite jeden Maschinen-Lagerbestandseintrag
+              for (const stockItem of machineStock) {
+                try {
+                  // Extrahiere Produkt-ID und Auswahlnummer
+                  let productVendonId = "unknown";
+                  if (stockItem.product && stockItem.product.id) {
+                    productVendonId = stockItem.product.id.toString();
+                  }
+                  
+                  const selectionNumber = stockItem.selection?.toString() || "unknown";
+                  const key = `${productVendonId}-${selectionNumber}`;
+                  const existingMachineStock = existingMachineStocksMap[key];
+                  
+                  // Extrahiere Maschinen-Stock-Daten
+                  const machineStockData: InsertMachineStock = {
+                    machineId: machineDbRecord.id,
+                    machineVendonId: machine.id.toString(),
+                    productVendonId: productVendonId,
+                    selectionNumber: selectionNumber,
+                    quantity: stockItem.quantity || 0,
+                    status: stockItem.status || "active",
+                    lastFilled: stockItem.last_filled ? new Date(stockItem.last_filled * 1000) : null,
+                    rawData: JSON.stringify(stockItem),
+                    lastSync: new Date()
+                  };
+                  
+                  if (existingMachineStock) {
+                    // Aktualisiere bestehenden Maschinen-Lagerbestand
+                    await storage.updateMachineStock(existingMachineStock.id, machineStockData);
+                    machineStockItemsUpdated++;
+                  } else {
+                    // Neuer Maschinen-Lagerbestandseintrag
+                    await storage.createMachineStock(machineStockData);
+                    machineStockItemsSaved++;
+                  }
+                } catch (itemError) {
+                  console.error(`Fehler bei der Verarbeitung eines Maschinen-Lagerbestandseintrags:`, itemError);
+                  machineStockErrors++;
+                }
+              }
+            } else {
+              console.warn(`Kein Lagerbestand für Maschine ${machine.id} gefunden oder ungültiges Format`);
+            }
+          } catch (machineError) {
+            console.error(`Fehler beim Abrufen des Lagerbestands für Maschine ${machine.id}:`, machineError);
+            machineStockErrors++;
+          }
+        }
+      } else {
+        console.warn("Keine Maschinen für Lagerbestand-Synchronisierung gefunden");
+      }
+      
+      // Berechne die Dauer der Synchronisierung
+      const durationSeconds = (Date.now() - startTime) / 1000;
+      
+      // Gesamtstatistiken
+      const totalItemsFound = (stockProducts?.length || 0) + (machines?.length || 0);
+      const totalItemsSaved = stockItemsSaved + machineStockItemsSaved;
+      const totalItemsUpdated = stockItemsUpdated + machineStockItemsUpdated;
+      const totalDuplicates = stockDuplicates + machineStockDuplicates;
+      const totalErrors = stockErrors + machineStockErrors;
+      
+      // Aktualisiere den Sync-Log mit den Ergebnissen
+      await storage.updateSyncLog(syncLogId, {
+        endDate: new Date(),
+        itemsFound: totalItemsFound,
+        itemsSaved: totalItemsSaved,
+        itemsUpdated: totalItemsUpdated,
+        duplicates: totalDuplicates,
+        errors: totalErrors,
+        durationSeconds,
+        syncStatus: 'completed'
+      });
+      
+      const message = `Lagerbestand-Synchronisierung abgeschlossen: 
+        Stock-Produkte: ${stockItemsSaved} neue, ${stockItemsUpdated} aktualisiert, ${stockErrors} Fehler
+        Maschinen-Lagerbestände: ${machineStockItemsSaved} neue, ${machineStockItemsUpdated} aktualisiert, ${machineStockErrors} Fehler
+        Dauer: ${durationSeconds.toFixed(2)}s.`;
+      console.log(message);
+      
+      return {
+        syncLogId,
+        status: 'success',
+        message
+      };
+    } catch (error) {
+      console.error("Fehler bei der Lagerbestand-Synchronisierung:", error);
+      
+      // Aktualisiere den Sync-Log mit dem Fehler
+      await storage.updateSyncLog(syncLogId, {
+        endDate: new Date(),
+        syncStatus: 'error',
+        errorMessage: error instanceof Error ? error.message : String(error)
+      });
+      
+      return {
+        syncLogId,
+        status: 'error',
+        message: `Lagerbestand-Synchronisierung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+  }
+  
   // Produkte synchronisieren
   async syncProducts(): Promise<{ syncLogId: number; status: string; message: string }> {
-    // Erstellen des Sync-Log-Eintrags
+    // Erstelle einen Sync-Log-Eintrag
     const syncLog: InsertSyncLog = {
       syncType: 'products',
       startDate: new Date(),
@@ -1821,11 +2077,13 @@ export class VendonSyncService {
       const existingProductMap: Record<string, any> = {};
       
       // Erstelle eine Map für schnelle Suche
-      existingProducts.forEach(product => {
+      // Verwende eine type assertion, da wir wissen, dass es ein Array ist
+      (existingProducts as any[]).forEach(product => {
         existingProductMap[product.vendonId] = product;
       });
       
-      console.log(`${existingProducts.length} bestehende Produkte in der Datenbank gefunden.`);
+      // Type assertion für die Längenprüfung
+      console.log(`${(existingProducts as any[]).length} bestehende Produkte in der Datenbank gefunden.`);
       
       // Verarbeite jeden Produkt-Datensatz einzeln, aber effizienter
       for (const product of products) {
@@ -1861,7 +2119,8 @@ export class VendonSyncService {
             status: product.status || 'active',
             sku: product.sku || product.code || null,
             barcode: product.barcode || product.code || null,
-            category: product.category || product.type || null,
+            // Passe die Kategorie an das Schema an
+            extraData: JSON.stringify(product)
             extraData: JSON.stringify(product)
           };
           
@@ -1932,7 +2191,8 @@ export class VendonSyncService {
       products: await this.syncProducts(),
       transactions: await this.syncTransactions(),
       refills: await this.syncRefills(),
-      events: await this.syncEvents()
+      events: await this.syncEvents(),
+      stocks: await this.syncStocks()
     };
     
     // Prüfe, ob ein Fehler aufgetreten ist
@@ -2049,6 +2309,7 @@ export class VendonSyncService {
     transactions: { status: string; lastSync: number; count: number; latest: number },
     refills: { status: string; lastSync: number; count: number },
     events: { status: string; lastSync: number; count: number },
+    stocks: { status: string; lastSync: number; count: number },
     historicalSync: { 
       inProgress: boolean; 
       currentDate: string; 
@@ -2073,6 +2334,8 @@ export class VendonSyncService {
     const transactions = await storage.getTransactions(1); // Just get the latest transaction
     const refills = await storage.getRefills(0); // 0 means no limit
     const events = await storage.getEvents(0); // 0 means no limit
+    const stocks = await storage.getStocks(0); // 0 means no limit
+    const stocksSyncLog = await storage.getLatestSyncLog('stocks');
     
     // Berechne den aktuellen Fortschritt der historischen Synchronisierung
     const currentDate = this.historicalSyncState.inProgress
@@ -2112,6 +2375,11 @@ export class VendonSyncService {
         status: eventsSyncLog?.syncStatus || 'never',
         lastSync: eventsSyncLog ? eventsSyncLog.endDate?.getTime() || 0 : 0,
         count: Array.isArray(events) ? events.length : 0
+      },
+      stocks: {
+        status: stocksSyncLog?.syncStatus || 'never',
+        lastSync: stocksSyncLog ? stocksSyncLog.endDate?.getTime() || 0 : 0,
+        count: Array.isArray(stocks) ? stocks.length : 0
       },
       historicalSync: {
         inProgress: this.historicalSyncState.inProgress,

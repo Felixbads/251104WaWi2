@@ -369,6 +369,77 @@ export const insertEventSchema = createInsertSchema(events).omit({
 export type InsertEvent = z.infer<typeof insertEventSchema>;
 export type Event = typeof events.$inferSelect;
 
+// Stock table - Tabelle für Lagerbestand und Produkte im Lager
+export const stocks = pgTable("stocks", {
+  id: serial("id").primaryKey(),
+  vendonId: text("vendon_id").notNull(),        // Vendon Stock ID
+  productName: text("product_name").notNull(),  // Produktname
+  sku: text("sku"),                            // Artikelnummer
+  barcode: text("barcode"),                    // Barcode
+  price: real("price"),                         // Preis
+  vat: real("vat"),                             // Mehrwertsteuer
+  status: text("status").default("active"),     // Status
+  units: text("units"),                         // Einheiten
+  warehouseLocation: text("warehouse_location"), // Lagerort
+  description: text("description"),             // Beschreibung
+  productType: text("product_type"),            // Produkttyp
+  // Machine defaults
+  amountMax: integer("amount_max"),             // Maximale Menge
+  amountStandard: integer("amount_standard"),   // Standardmenge
+  amountCritical: integer("amount_critical"),   // Kritische Menge
+  refillUnitSize: integer("refill_unit_size"),  // Größe der Nachfülleinheit
+  minRefill: integer("min_refill"),             // Mindestmenge für Nachfüllung
+  // Speichere alle Rohdaten als JSON
+  rawData: text("raw_data"),                    // Alle Rohdaten der API-Antwort
+  lastSync: timestamp("last_sync"),             // Letzte Synchronisation
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => {
+  return {
+    vendonIdx: unique().on(table.vendonId),     // Eindeutiger Index auf Vendon-ID
+  };
+});
+
+export const insertStockSchema = createInsertSchema(stocks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertStock = z.infer<typeof insertStockSchema>;
+export type Stock = typeof stocks.$inferSelect;
+
+// Machine Stock table - Tabelle für den aktuellen Lagerbestand in den Automaten
+export const machineStocks = pgTable("machine_stocks", {
+  id: serial("id").primaryKey(),
+  machineId: integer("machine_id").references(() => machines.id).notNull(), // Maschinen-ID
+  machineVendonId: text("machine_vendon_id").notNull(),         // Vendon Maschinen-ID
+  productVendonId: text("product_vendon_id"),                   // Vendon Produkt-ID
+  selectionNumber: text("selection_number"),                    // Auswahlnummer in der Maschine
+  quantity: integer("quantity").default(0),                      // Aktuelle Menge
+  status: text("status").default("active"),                      // Status
+  lastFilled: timestamp("last_filled"),                          // Letzte Auffüllung
+  // Speichere alle Rohdaten als JSON
+  rawData: text("raw_data"),                                     // Alle Rohdaten der API-Antwort
+  lastSync: timestamp("last_sync"),                              // Letzte Synchronisation
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => {
+  return {
+    // Eindeutiger Index für Maschine + Produkt + Auswahl
+    uniqueSelection: unique().on(table.machineId, table.productVendonId, table.selectionNumber),
+  };
+});
+
+export const insertMachineStockSchema = createInsertSchema(machineStocks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertMachineStock = z.infer<typeof insertMachineStockSchema>;
+export type MachineStock = typeof machineStocks.$inferSelect;
+
 // Sync log table based on vendon_sync_log
 export const syncLogs = pgTable("sync_logs", {
   id: serial("id").primaryKey(),
@@ -453,6 +524,14 @@ export const eventsRelations = relations(events, ({ one }) => ({
   location: one(locations, {
     fields: [events.locationId],
     references: [locations.id],
+  }),
+}));
+
+// Stock- und MachineStock-Relationen
+export const machineStocksRelations = relations(machineStocks, ({ one }) => ({
+  machine: one(machines, {
+    fields: [machineStocks.machineId],
+    references: [machines.id],
   }),
 }));
 
