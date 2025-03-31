@@ -20,7 +20,9 @@ import {
   productDisposals, type ProductDisposal, type InsertProductDisposal,
   productDisposalItems, type ProductDisposalItem, type InsertProductDisposalItem,
   stocks, type Stock, type InsertStock,
-  machineStocks, type MachineStock, type InsertMachineStock
+  machineStocks, type MachineStock, type InsertMachineStock,
+  orders, type Order, type InsertOrder,
+  orderItems, type OrderItem, type InsertOrderItem
 } from "@shared/schema";
 
 // Interface defining all storage operations
@@ -167,6 +169,31 @@ export interface IStorage {
   createSupplier(supplier: InsertSupplier): Promise<Supplier>;
   updateSupplier(id: number, supplier: Partial<InsertSupplier>): Promise<Supplier | undefined>;
   deleteSupplier(id: number): Promise<boolean>;
+  
+  // Order operations
+  getOrders(): Promise<Order[]>;
+  getOrder(id: number): Promise<Order | undefined>;
+  createOrder(order: Omit<InsertOrder, "id">): Promise<Order>;
+  updateOrder(id: number, order: Partial<InsertOrder>): Promise<Order | undefined>;
+  deleteOrder(id: number): Promise<boolean>;
+  getOpenOrders(limit?: number): Promise<Order[]>;
+  getRecentlyCompletedOrders(limit?: number): Promise<Order[]>;
+  getOrdersBySupplier(supplierId: number): Promise<Order[]>;
+  getOrderStatistics(): Promise<{
+    total: number;
+    open: number;
+    ordered: number;
+    partial: number;
+    completed: number;
+    cancelled: number;
+  }>;
+  
+  // Order Items operations
+  getOrderItems(orderId?: number): Promise<OrderItem[]>;
+  getOrderItem(id: number): Promise<OrderItem | undefined>;
+  createOrderItem(item: Omit<InsertOrderItem, "id">): Promise<OrderItem>;
+  updateOrderItem(id: number, item: Partial<InsertOrderItem>): Promise<OrderItem | undefined>;
+  deleteOrderItem(id: number): Promise<boolean>;
   
   // Warehouse operations
   getWarehouses(): Promise<Warehouse[]>;

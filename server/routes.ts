@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { vendonSync } from "./services/vendonSync";
 import { syncWeatherForecast } from './services/openWeatherService';
+import ordersRouter from './routes/orders';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -1156,6 +1157,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/vendon`, vendonRoutes);
   app.use(`${API_PREFIX}/product-disposals`, productDisposalsRoutes);
   app.use(`${API_PREFIX}/removed-products`, removedProductsRoutes);
+  
+  // Registriere Bestellungs-Routen
+  app.use(`${API_PREFIX}/orders`, ordersRouter);
   
   // Registriere Export/Import-Routen
   app.use(`${API_PREFIX}`, exportImportRoutes);
