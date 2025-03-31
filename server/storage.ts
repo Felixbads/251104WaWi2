@@ -286,6 +286,112 @@ export class DatabaseStorage implements IStorage {
     return parseInt(countResult[0]?.count?.toString() || '0');
   }
   
+  // Order operations
+  async getOrders(): Promise<Order[]> {
+    return await db.select().from(orders).orderBy(desc(orders.orderDate));
+  }
+
+  async getOrder(id: number): Promise<Order | undefined> {
+    const [order] = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
+    return order;
+  }
+
+  async createOrder(data: Omit<InsertOrder, "id">): Promise<Order> {
+    const [newOrder] = await db.insert(orders).values({
+      ...data,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning();
+    return newOrder;
+  }
+
+  async updateOrder(id: number, data: Partial<InsertOrder>): Promise<Order | undefined> {
+    const [updatedOrder] = await db
+      .update(orders)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(orders.id, id))
+      .returning();
+    return updatedOrder;
+  }
+
+  async deleteOrder(id: number): Promise<boolean> {
+    const result = await db.delete(orders).where(eq(orders.id, id)).returning({ id: orders.id });
+    return result.length > 0;
+  }
+  
+  async getOpenOrders(limit: number = 10): Promise<Order[]> {
+    return await db
+      .select()
+      .from(orders)
+      .where(
+        or(
+          eq(orders.status, "open"),
+          eq(orders.status, "ordered"),
+          eq(orders.status, "partial")
+        )
+      )
+      .orderBy(desc(orders.orderDate))
+      .limit(limit);
+  }
+  
+  async getRecentlyCompletedOrders(limit: number = 5): Promise<Order[]> {
+    return await db
+      .select()
+      .from(orders)
+      .where(eq(orders.status, "completed"))
+      .orderBy(desc(orders.actualDeliveryDate))
+      .limit(limit);
+  }
+  
+  async getOrdersBySupplier(supplierId: number): Promise<Order[]> {
+    return await db
+      .select()
+      .from(orders)
+      .where(eq(orders.supplierId, supplierId))
+      .orderBy(desc(orders.orderDate));
+  }
+  
+  // Order Items operations
+  async getOrderItems(orderId?: number): Promise<OrderItem[]> {
+    if (orderId) {
+      return await db
+        .select()
+        .from(orderItems)
+        .where(eq(orderItems.orderId, orderId))
+        .orderBy(orderItems.positionNumber);
+    } else {
+      return await db.select().from(orderItems);
+    }
+  }
+
+  async getOrderItem(id: number): Promise<OrderItem | undefined> {
+    const [item] = await db.select().from(orderItems).where(eq(orderItems.id, id)).limit(1);
+    return item;
+  }
+
+  async createOrderItem(data: Omit<InsertOrderItem, "id">): Promise<OrderItem> {
+    const [newItem] = await db.insert(orderItems).values({
+      ...data,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning();
+    return newItem;
+  }
+
+  async updateOrderItem(id: number, data: Partial<InsertOrderItem>): Promise<OrderItem | undefined> {
+    const [updatedItem] = await db
+      .update(orderItems)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(orderItems.id, id))
+      .returning();
+    return updatedItem;
+  }
+
+  async deleteOrderItem(id: number): Promise<boolean> {
+    const result = await db.delete(orderItems).where(eq(orderItems.id, id)).returning({ id: orderItems.id });
+    return result.length > 0;
+  }
+  
   // Implementierung der getOrderStatistics Methode
   async getOrderStatistics(): Promise<{
     total: number;
