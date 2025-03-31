@@ -436,7 +436,7 @@ export default function OrderDetail() {
     const isComplete = totalReceived >= totalOrdered && !hasDamaged;
     
     // Status basierend auf der Vollständigkeit der Lieferung
-    const newStatus = isComplete ? "completed" : "partially_delivered";
+    const newStatus = isComplete ? "completed" : "partial";
     
     // Update der Bestellung mit den Daten aus dem Dialog
     updateOrderMutation.mutate(

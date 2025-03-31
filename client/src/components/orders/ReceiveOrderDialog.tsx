@@ -139,8 +139,8 @@ export default function ReceiveOrderDialog({
       // Neuen Status ermitteln
       const newStatus = complete && !hasQualityIssues ? "completed" : "partial";
       
-      // In echter Implementierung: API-Aufruf zur Aktualisierung der Bestellung
-      // const response = await apiRequest({...})
+      // In echter Implementierung: API-Aufruf zur Bestellung aktualisieren
+      // Beispiel: POST /api/orders/${order.id}/receipt mit den Eingabedaten
       
       // Demo: Bestellung aktualisieren und zurückgeben
       const updatedOrder = {
