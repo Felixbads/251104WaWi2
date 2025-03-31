@@ -43,6 +43,9 @@ import SupplierDetail from "@/pages/SupplierDetail";
 import Reporting from "@/pages/Reporting";
 import Orders from "@/pages/Orders";
 import NewOrder from "@/pages/NewOrder";
+import OrderDetail from "@/pages/OrderDetail";
+import OrderReceipt from "@/pages/OrderReceipt";
+import SupplierPortal from "@/pages/SupplierPortal";
 import Inventory from "@/pages/Inventory";
 import LagerPage from "@/pages/LagerPage";
 import WarehouseDetail from "@/pages/WarehouseDetail";
@@ -67,6 +70,9 @@ function AuthenticatedRouter() {
         <Route path="/lieferanten/:id" component={SupplierDetail} />
         <Route path="/bestellungen" component={Orders} />
         <Route path="/bestellungen/neu" component={NewOrder} />
+        <Route path="/bestellungen/:id" component={OrderDetail} />
+        <Route path="/bestellungen/:id/wareneingang" component={OrderReceipt} />
+        <Route path="/lieferantenportal" component={SupplierPortal} />
         <Route path="/lager" component={LagerPage} />
         <Route path="/inventory" component={Inventory} />
         <Route path="/lager/:id" component={WarehouseDetail} />

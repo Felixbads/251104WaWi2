@@ -920,11 +920,9 @@ function NewOrderForm({
                         </FormControl>
                         <SelectContent className="max-h-[300px] overflow-y-auto">
                           {products?.data ? products.data.map((product: any) => (
-                            <SelectItem key={product.id} value={product.id.toString()} className="py-2.5">
-                              <div className="flex flex-col">
-                                <span className="font-medium">{product.name}</span>
-                                {product.sku && <span className="text-xs text-muted-foreground">SKU: {product.sku}</span>}
-                              </div>
+                            <SelectItem key={product.id} value={product.id.toString()}>
+                              {product.name}
+                              {product.sku ? ` (${product.sku})` : ''}
                             </SelectItem>
                           )) : null}
                         </SelectContent>
