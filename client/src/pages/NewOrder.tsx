@@ -467,18 +467,6 @@ function NewOrderForm({
     staleTime: 1000 * 60, // 1 Minute
   });
   
-  // Produkte abfragen
-  const { data: products, isLoading: isProductsLoading } = useQuery<{data: any[], meta: any}>({
-    queryKey: ['/api/products'],
-    staleTime: 1000 * 60, // 1 Minute
-  });
-  
-  // Maschinen abfragen
-  const { data: machines, isLoading: isMachinesLoading } = useQuery<{data: any[], meta: any}>({
-    queryKey: ['/api/machines'],
-    staleTime: 1000 * 60, // 1 Minute
-  });
-  
   // Form für Bestelldetails
   const orderForm = useForm<NewOrderValues>({
     resolver: zodResolver(newOrderSchema),
@@ -488,6 +476,21 @@ function NewOrderForm({
       notes: '',
       priority: 'normal'
     }
+  });
+  
+  // State für den ausgewählten Lieferanten
+  const [currentSupplierId, setCurrentSupplierId] = useState<number | undefined>(undefined);
+  
+  // Produkte abfragen mit Lieferantenfilter
+  const { data: products, isLoading: isProductsLoading } = useQuery<{data: any[], meta: any}>({
+    queryKey: ['/api/products', currentSupplierId ? { supplierId: currentSupplierId } : {}],
+    staleTime: 1000 * 60, // 1 Minute
+  });
+  
+  // Maschinen abfragen
+  const { data: machines, isLoading: isMachinesLoading } = useQuery<{data: any[], meta: any}>({
+    queryKey: ['/api/machines'],
+    staleTime: 1000 * 60, // 1 Minute
   });
   
   // Form für Bestellposition
@@ -502,6 +505,20 @@ function NewOrderForm({
     }
   });
   
+  // Beobachtet Änderungen am ausgewählten Lieferanten
+  useEffect(() => {
+    // Den aktuellen Lieferanten-Wert aus dem Formular abrufen
+    const supplierId = orderForm.watch('supplierId');
+    // State aktualisieren, wenn sich der Lieferant ändert
+    setCurrentSupplierId(supplierId);
+    
+    // Produktauswahl zurücksetzen, wenn der Lieferant geändert wird
+    if (itemForm.getValues('productId')) {
+      itemForm.setValue('productId', undefined);
+      setSelectedProduct(null);
+    }
+  }, [orderForm.watch('supplierId')]);
+
   // Wenn ein Produkt ausgewählt wird, Preis und andere Details aktualisieren
   useEffect(() => {
     const productId = itemForm.watch('productId');
