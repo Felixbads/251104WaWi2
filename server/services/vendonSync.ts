@@ -420,11 +420,14 @@ class VendonAPI {
   /**
    * Ruft den aktuellen Lagerbestand eines Automaten ab
    * 
-   * Laut Dokumentation ist der korrekte Endpunkt '/machine/{id}/stock'
+   * Korrekter Endpunkt laut Dokumentation und Screenshot ist '/stock'
+   * Die Maschinendaten werden durch Filter-Parameter eingeschränkt
    */
   async getMachineStock(machineId: string) {
     try {
-      return this.makeRequest<any[]>(`/machine/${machineId}/stock`);
+      // Richtiger Endpunkt mit Filter-Parameter für Maschinen-ID
+      const params = { machine_id: machineId };
+      return this.makeRequest<any[]>('/stock', 'GET', params);
     } catch (error) {
       console.error(`Fehler beim Abrufen des Lagerbestands für Maschine ${machineId}:`, error);
       return [];
