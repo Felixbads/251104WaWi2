@@ -50,7 +50,7 @@ export async function getRemovedProducts(params?: {
   
   const queryString = queryParams.length > 0 ? `?${queryParams.join('&')}` : '';
   
-  return apiRequest<RemovedProductsResponse>('get', `/removed-products${queryString}`);
+  return apiRequest(`/api/removed-products${queryString}`).then(res => res.json());
 }
 
 /**
@@ -72,5 +72,5 @@ export async function getRemovedProductsSummary(
   
   const queryString = queryParams.length > 0 ? `?${queryParams.join('&')}` : '';
   
-  return apiRequest<{name: string; total_removed: number}[]>('get', `/removed-products/summary${queryString}`);
+  return apiRequest(`/api/removed-products/summary${queryString}`).then(res => res.json());
 }
