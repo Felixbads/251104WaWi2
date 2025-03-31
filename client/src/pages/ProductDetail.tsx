@@ -601,7 +601,7 @@ export default function ProductDetail() {
                             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                             <span className="ml-2 text-muted-foreground">Lade Automatendaten...</span>
                           </div>
-                        ) : machineData && machineData.length > 0 ? (
+                        ) : Array.isArray(machineData) && machineData.length > 0 ? (
                           <div className="border rounded-md">
                             <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-gray-50 font-medium text-sm">
                               <div className="col-span-4">Automat</div>
@@ -656,7 +656,7 @@ export default function ProductDetail() {
                             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                             <span className="ml-2 text-muted-foreground">Lade Auffülldaten...</span>
                           </div>
-                        ) : refillData && refillData.length > 0 ? (
+                        ) : Array.isArray(refillData) && refillData.length > 0 ? (
                           <div className="grid grid-cols-2 gap-4">
                             <Card>
                               <CardContent className="pt-6">
@@ -695,7 +695,7 @@ export default function ProductDetail() {
                                   <div className="col-span-2 text-center">-</div>
                                 </div>
                                 <div className="divide-y max-h-64 overflow-y-auto">
-                                  {refillData.slice(0, 10).map((refill) => (
+                                  {Array.isArray(refillData) && refillData.slice(0, 10).map((refill) => (
                                     <div key={refill.id} className="grid grid-cols-12 gap-2 px-4 py-2 text-sm hover:bg-gray-50">
                                       <div className="col-span-4">{formatDateTime(refill.datetime || refill.createdAt, 'date')}</div>
                                       <div className="col-span-4 truncate">{refill.refillId}</div>
@@ -706,14 +706,14 @@ export default function ProductDetail() {
                                 </div>
                               </div>
                               
-                              {refillData.length > 10 && (
+                              {Array.isArray(refillData) && refillData.length > 10 && (
                                 <div className="mt-2 text-center">
                                   <Button 
                                     variant="link" 
                                     size="sm"
                                     onClick={() => setLocation(`/refills?productId=${id}`)}
                                   >
-                                    Alle {refillData.length} Auffüllungen anzeigen
+                                    Alle {Array.isArray(refillData) ? refillData.length : 0} Auffüllungen anzeigen
                                   </Button>
                                 </div>
                               )}
