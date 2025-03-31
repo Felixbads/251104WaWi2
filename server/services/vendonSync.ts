@@ -1865,7 +1865,7 @@ export class VendonSyncService {
             const stockData: InsertStock = {
               vendonId: vendonId,
               productName: stockProduct.name || "Unbenanntes Stock-Produkt",
-              productCategory: stockProduct.category || null,
+              description: stockProduct.category || null,
               status: stockProduct.status || "active",
               price: stockProduct.price || null,
               vat: stockProduct.vat || null,
@@ -2119,8 +2119,7 @@ export class VendonSyncService {
             status: product.status || 'active',
             sku: product.sku || product.code || null,
             barcode: product.barcode || product.code || null,
-            // Passe die Kategorie an das Schema an
-            extraData: JSON.stringify(product)
+            // Felder aus dem extraData-Feld können später extrahiert werden
             extraData: JSON.stringify(product)
           };
           
