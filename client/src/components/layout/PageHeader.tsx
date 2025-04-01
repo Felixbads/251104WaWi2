@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/tooltip";
 
 interface PageHeaderProps {
-  title: string;
+  title?: string; // Titel ist jetzt optional
   showSearch?: boolean;
   showFilter?: boolean;
   showRefresh?: boolean;
@@ -60,9 +60,9 @@ const PageHeader: React.FC<PageHeaderProps> = ({
     <div className="mb-6">
       {/* Haupttitel Zeile */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-        <h1 className="text-2xl font-bold">{title}</h1>
+        {title && <h1 className="text-2xl font-bold">{title}</h1>}
         
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+        <div className={`flex flex-wrap items-center gap-2 w-full ${title ? 'sm:w-auto' : 'sm:w-full'}`}>
           {/* Suchfeld */}
           {showSearch && (
             <div className="relative w-full sm:w-auto flex-grow sm:flex-grow-0 sm:max-w-[220px]">

@@ -665,8 +665,14 @@ export default function Products() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center mb-4">
+        <h1 className="text-2xl font-bold flex items-center">
+          <ShoppingBag className="h-6 w-6 mr-2" />
+          Produkte
+        </h1>
+      </div>
+      
       <PageHeader
-        title="Produkte"
         showSearch={true}
         showFilter={true}
         showAdd={true}
