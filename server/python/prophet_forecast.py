@@ -452,7 +452,10 @@ class ProphetForecaster:
                     return {'success': False, 'message': 'Modell konnte nicht geladen werden'}
             
             # Erstelle Dataframe für den Vorhersagezeitraum
-            date_range = pd.date_range(start=start_date, end=end_date, freq='D')
+            # Ensure start_date and end_date are parsed as datetime
+            start_dt = pd.to_datetime(start_date)
+            end_dt = pd.to_datetime(end_date)
+            date_range = pd.date_range(start=start_dt, end=end_dt, freq='D')
             future_df = pd.DataFrame({'ds': date_range})
             
             # Füge externe Regressoren hinzu, wenn das Modell sie verwendet
@@ -486,6 +489,9 @@ class ProphetForecaster:
                         weather_data = cursor.fetchall()
                         if weather_data:
                             weather_df = pd.DataFrame(weather_data)
+                            # Ensure both dataframes have 'ds' as datetime type before merging
+                            weather_df['ds'] = pd.to_datetime(weather_df['ds'])
+                            future_df['ds'] = pd.to_datetime(future_df['ds'])
                             future_df = pd.merge(future_df, weather_df, on='ds', how='left')
                             
                             # Fehlende Wetterdaten mit dem Durchschnitt ersetzen
@@ -512,6 +518,9 @@ class ProphetForecaster:
                             holiday_df = pd.DataFrame(holiday_data)
                             # Binäre Feiertagsspalte hinzufügen
                             holiday_df['is_holiday'] = 1
+                            # Ensure both dataframes have 'ds' as datetime type before merging
+                            holiday_df['ds'] = pd.to_datetime(holiday_df['ds'])
+                            future_df['ds'] = pd.to_datetime(future_df['ds'])
                             future_df = pd.merge(future_df, holiday_df, on='ds', how='left')
                             future_df['is_holiday'].fillna(0, inplace=True)
             
@@ -547,7 +556,9 @@ class ProphetForecaster:
                     holiday_type = None
                     
                     if 'is_holiday' in future_df.columns:
-                        holiday_row = future_df[future_df['ds'] == row['ds']]
+                        # Ensure that we're comparing datetime objects of the same type
+                        row_ds = pd.to_datetime(row['ds'])
+                        holiday_row = future_df[future_df['ds'] == row_ds]
                         if not holiday_row.empty:
                             is_holiday = bool(holiday_row['is_holiday'].iloc[0])
                             if is_holiday and 'holiday' in holiday_row.columns:
@@ -558,7 +569,9 @@ class ProphetForecaster:
                     # Wetterzusammenfassung
                     weather_summary = None
                     if 'temp' in future_df.columns and 'precipitation' in future_df.columns:
-                        weather_row = future_df[future_df['ds'] == row['ds']]
+                        # Ensure that we're comparing datetime objects of the same type
+                        row_ds = pd.to_datetime(row['ds'])
+                        weather_row = future_df[future_df['ds'] == row_ds]
                         if not weather_row.empty:
                             temp = weather_row['temp'].iloc[0]
                             precip = weather_row['precipitation'].iloc[0]
