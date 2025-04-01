@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import Sidebar from "./Sidebar";
+import MobileHeader from "./MobileHeader";
 import MobileFooter from "./MobileFooter";
-import { ChevronRight } from "lucide-react";
-import { cn } from "@/lib/utils";
+import MobileMenu from "./MobileMenu";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -15,7 +15,7 @@ export default function AppShell({ children }: AppShellProps) {
   
   // Extract page title from current location
   const getPageTitle = () => {
-    // Check if path starts with specific prefixes
+    // Erkennen, ob Pfad mit bestimmten Präfixen beginnt
     if (location.startsWith("/automaten")) {
       if (location === "/automaten") return "Automaten";
       return "Automat Details";
@@ -49,8 +49,6 @@ export default function AppShell({ children }: AppShellProps) {
         return "Prognosen";
       case "/settings":
         return "Einstellungen";
-      case "/grafik":
-        return "Grafik";
       default:
         return "Proviantomat";
     }
@@ -61,49 +59,37 @@ export default function AppShell({ children }: AppShellProps) {
   };
 
   return (
-    <div className="flex min-h-screen bg-background">
-      {/* Sidebar Navigation */}
-      <Sidebar isOpen={showMobileMenu} onClose={() => setShowMobileMenu(false)} />
+    <div className="min-h-screen flex flex-col md:flex-row">
+      {/* Mobile Header */}
+      <MobileHeader
+        pageTitle={getPageTitle()}
+        onMenuToggle={toggleMobileMenu}
+      />
+
+      {/* Mobile Menu Overlay */}
+      <MobileMenu
+        isOpen={showMobileMenu}
+        onClose={toggleMobileMenu}
+      />
+
+      {/* Sidebar Navigation (hidden on mobile) */}
+      <Sidebar />
 
       {/* Main Content Area */}
-      <main className={cn(
-        "flex-1 transition-all duration-300 ease-in-out",
-        "md:ml-[250px]" // Adjust for sidebar width
-      )}>
-        <div className="p-4 md:p-6 max-w-7xl mx-auto">
-          {/* Page Header */}
-          <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-foreground mb-1">{getPageTitle()}</h1>
-              
-              {/* Optional breadcrumb path */}
-              {location !== "/" && (
-                <div className="flex items-center text-sm text-muted-foreground">
-                  <span>Dashboard</span>
-                  <ChevronRight className="h-3 w-3 mx-1" />
-                  <span className="font-medium text-foreground">{getPageTitle()}</span>
-                </div>
-              )}
-            </div>
-            
-            {/* Optional Filter/Date Range Selector */}
-            {location === "/" && (
-              <div className="mt-2 sm:mt-0 bg-muted rounded-full px-4 py-1.5 text-sm font-medium flex items-center">
-                <span>7 Tage</span>
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </div>
-            )}
-          </header>
+      <main className="flex-1 overflow-auto pb-16 md:pb-0">
+        {/* Desktop Header (hidden on mobile) */}
+        <header className="hidden md:flex md:items-center md:justify-between bg-white shadow-sm px-6 py-4">
+          <h1 className="text-2xl font-semibold text-gray-800">{getPageTitle()}</h1>
+        </header>
 
-          {/* Page Content */}
+        {/* Page Content */}
+        <div className="p-4 md:p-6 max-w-7xl mx-auto">
           {children}
         </div>
       </main>
 
-      {/* Mobile Footer Navigation - visible only on small screens */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-background border-t border-border">
-        <MobileFooter />
-      </div>
+      {/* Mobile Bottom Navigation */}
+      <MobileFooter />
     </div>
   );
 }

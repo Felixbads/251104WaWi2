@@ -272,35 +272,25 @@ class HolidayService {
             // Das wird dann in der Datenbank automatisch in ein Date umgewandelt
             const formattedDate = this.formatDate(holiday.date, true);
             
-            try {
-              await db.insert(holidays).values({
-                date: formattedDate, // Als String im Format YYYY-MM-DD
-                name: holiday.name,
-                description: holiday.description,
-                type: holiday.type,
-                is_official: holiday.is_official,
-                country: holiday.country,
-                state: holiday.state,
-                region: holiday.region,
-                year: holiday.year,
-                month: holiday.month,
-                day: holiday.day,
-                weekday: holiday.weekday,
-                weekday_name: holiday.weekday_name,
-                week: holiday.week,
-                metadata: holiday.metadata || null
-              });
-              
-              addedEntries++;
-            } catch (dbError: any) {
-              // Speziell für Duplikat-Fehler - ignorieren und weitermachen
-              if (dbError.code === '23505') {
-                console.log(`Feiertag existiert bereits (ignoriere): ${holiday.name} am ${formattedDate} für ${holiday.state}`);
-              } else {
-                // Andere Datenbank-Fehler werden protokolliert, aber wir brechen nicht ab
-                console.error(`Datenbank-Fehler bei Feiertag ${holiday.name}:`, dbError.message || dbError);
-              }
-            }
+            await db.insert(holidays).values({
+              date: formattedDate, // Als String im Format YYYY-MM-DD
+              name: holiday.name,
+              description: holiday.description,
+              type: holiday.type,
+              is_official: holiday.is_official,
+              country: holiday.country,
+              state: holiday.state,
+              region: holiday.region,
+              year: holiday.year,
+              month: holiday.month,
+              day: holiday.day,
+              weekday: holiday.weekday,
+              weekday_name: holiday.weekday_name,
+              week: holiday.week,
+              metadata: holiday.metadata || null
+            });
+            
+            addedEntries++;
           }
         } catch (error) {
           console.error('Fehler beim Speichern eines Feiertags:', error);

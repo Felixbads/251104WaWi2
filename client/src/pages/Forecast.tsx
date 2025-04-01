@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Calendar, CloudRain, Gift, BarChart2, TrendingUp, LineChart, ArrowUpRight, Sparkles } from "lucide-react";
+import { Loader2, Calendar, CloudRain, Gift, BarChart2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,145 +20,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { 
-  LineChart as RechartsLineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip as RechartsTooltip, 
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  Legend,
-  AreaChart,
-  Area
-} from "recharts";
-
-// Komponente für automatisches Training im Hintergrund
-function AutoTrainingComponent() {
-  const { toast } = useToast();
-  const [lastTrainingCheck, setLastTrainingCheck] = useState<string | null>(null);
-
-  // Automatisches Modelltraining im Hintergrund
-  const autoTrainModelMutation = useMutation({
-    mutationFn: () => {
-      return apiRequest("/api/forecast/auto-train", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    },
-    onSuccess: (data) => {
-      if (data && data.success) {
-        setLastTrainingCheck(new Date().toISOString());
-        queryClient.invalidateQueries({ queryKey: ["/api/forecast/models"] });
-      }
-    },
-  });
-
-  // Prüft alle 24 Stunden, ob ein Training nötig ist
-  useEffect(() => {
-    const checkTrainingStatus = () => {
-      // Prüfe, ob Training in den letzten 24 Stunden erfolgt ist
-      if (!lastTrainingCheck || 
-          new Date().getTime() - new Date(lastTrainingCheck).getTime() > 24 * 60 * 60 * 1000) {
-        autoTrainModelMutation.mutate();
-      }
-    };
-
-    // Initial prüfen
-    checkTrainingStatus();
-    
-    // Regelmäßig prüfen
-    const intervalId = setInterval(checkTrainingStatus, 60 * 60 * 1000); // Stündlich prüfen
-    
-    return () => clearInterval(intervalId);
-  }, [lastTrainingCheck]);
-
-  return (
-    <>
-      {autoTrainModelMutation.isPending && (
-        <div className="fixed bottom-4 right-4 bg-blue-500 text-white p-2 rounded-md shadow-md flex items-center space-x-2 z-50">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span className="text-sm">Modelltraining läuft im Hintergrund...</span>
-        </div>
-      )}
-    </>
-  );
-}
-
-// Komponente zur Visualisierung des Jahresumsatzes
-function YearlySalesChart({ selectedModelId }: { selectedModelId: number | null }) {
-  const [yearlyData, setYearlyData] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-
-  // Fetch yearly sales data
-  useEffect(() => {
-    if (!selectedModelId) return;
-
-    const fetchYearlySales = async () => {
-      setIsLoading(true);
-      try {
-        const currentYear = new Date().getFullYear();
-        // Abrufen der Jahresumsätze für das ausgewählte Modell
-        const response = await apiRequest(`/api/forecast/yearly-sales?modelId=${selectedModelId}&year=${currentYear}`);
-        
-        if (response && response.data) {
-          // Daten für Chart formatieren
-          const formattedData = response.data.map((item: any) => ({
-            month: new Date(item.date).toLocaleDateString('de-DE', { month: 'short' }),
-            umsatz: item.sales,
-            prognose: item.forecast,
-          }));
-          setYearlyData(formattedData);
-        }
-      } catch (error) {
-        console.error("Fehler beim Abrufen der Jahresumsätze:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchYearlySales();
-  }, [selectedModelId]);
-
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center py-8">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  if (yearlyData.length === 0) {
-    return (
-      <div className="text-center py-4 text-muted-foreground">
-        Keine Jahresumsatzdaten verfügbar
-      </div>
-    );
-  }
-
-  return (
-    <div className="w-full h-80">
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart
-          data={yearlyData}
-          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="month" />
-          <YAxis />
-          <RechartsTooltip />
-          <Legend />
-          <Bar dataKey="umsatz" fill="#8884d8" name="Tatsächlicher Umsatz" />
-          <Bar dataKey="prognose" fill="#82ca9d" name="Prognose" />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-  );
-}
 
 export default function Forecast() {
   const { toast } = useToast();
@@ -166,7 +27,6 @@ export default function Forecast() {
   const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
-  const [showYearlySalesChart, setShowYearlySalesChart] = useState(false);
 
   // Fetch forecast models
   const { data: models, isLoading: isLoadingModels } = useQuery({
@@ -390,11 +250,8 @@ export default function Forecast() {
         </div>
       </div>
 
-      {/* Automatisches Modelltraining im Hintergrund */}
-      <AutoTrainingComponent />
-
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid grid-cols-1 md:grid-cols-4 gap-2">
+        <TabsList className="grid grid-cols-1 md:grid-cols-3 gap-2">
           <TabsTrigger value="models" className="flex items-center gap-2">
             <BarChart2 className="h-4 w-4" />
             <span>Prognosemodelle</span>
@@ -406,10 +263,6 @@ export default function Forecast() {
           <TabsTrigger value="forecast" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
             <span>Prognosen erstellen</span>
-          </TabsTrigger>
-          <TabsTrigger value="visualize" className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
-            <span>Visualisierungen</span>
           </TabsTrigger>
         </TabsList>
 
@@ -868,100 +721,6 @@ export default function Forecast() {
                 )}
               </Button>
             </CardFooter>
-          </Card>
-        </TabsContent>
-
-        {/* Visualization Tab */}
-        <TabsContent value="visualize" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <LineChart className="h-5 w-5" />
-                Umsatz-Visualisierungen
-              </CardTitle>
-              <CardDescription>
-                Visualisieren Sie historische und prognostizierte Umsätze
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {/* Modellauswahl */}
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="visualizeModel">Prognosemodell</Label>
-                    <Select 
-                      value={selectedModelId ? selectedModelId.toString() : undefined}
-                      onValueChange={(value) => {
-                        setSelectedModelId(parseInt(value));
-                        setShowYearlySalesChart(true);
-                      }}
-                    >
-                      <SelectTrigger id="visualizeModel">
-                        <SelectValue placeholder="Modell auswählen" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {isLoadingModels ? (
-                          <div className="flex justify-center py-2">
-                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                          </div>
-                        ) : models && models.length > 0 ? (
-                          models
-                            .filter((model: any) => model.status === 'ready')
-                            .map((model: any) => (
-                              <SelectItem key={model.id} value={model.id.toString()}>
-                                {model.name}
-                              </SelectItem>
-                            ))
-                        ) : (
-                          <SelectItem value="keine" disabled>
-                            Keine Modelle verfügbar
-                          </SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Jahresumsatz-Visualisierung */}
-                {selectedModelId && showYearlySalesChart && (
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <h3 className="font-medium">Jahresumsatz-Prognose</h3>
-                      <div className="flex gap-2 items-center text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <div className="w-3 h-3 rounded-full bg-[#8884d8]"></div>
-                          <span>Tatsächlich</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className="w-3 h-3 rounded-full bg-[#82ca9d]"></div>
-                          <span>Prognose</span>
-                        </div>
-                      </div>
-                    </div>
-                    <YearlySalesChart selectedModelId={selectedModelId} />
-                    
-                    <Alert>
-                      <Sparkles className="h-4 w-4" />
-                      <AlertTitle>Verbesserte Prognose</AlertTitle>
-                      <AlertDescription>
-                        Die Prognosen werden automatisch alle 24 Stunden aktualisiert und anhand neuer Daten trainiert.
-                      </AlertDescription>
-                    </Alert>
-                  </div>
-                )}
-
-                {/* Hinweis bei nicht ausgewähltem Modell */}
-                {!selectedModelId && (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <BarChart2 className="h-12 w-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium mb-2">Wählen Sie ein Modell aus</h3>
-                    <p className="text-muted-foreground max-w-md">
-                      Bitte wählen Sie ein Prognosemodell aus der Liste oben, um Visualisierungen anzuzeigen.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
           </Card>
         </TabsContent>
       </Tabs>

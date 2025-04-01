@@ -1367,7 +1367,7 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
                         </SelectItem>
                       ))
                     ) : (
-                      <SelectItem value="keine" disabled>
+                      <SelectItem value="" disabled>
                         Keine Lieferanten verfügbar
                       </SelectItem>
                     )}
@@ -1415,7 +1415,7 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
                           </SelectItem>
                         ))
                     ) : (
-                      <SelectItem value="keine" disabled>
+                      <SelectItem value="" disabled>
                         Keine Modelle verfügbar
                       </SelectItem>
                     )}

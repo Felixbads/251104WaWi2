@@ -1,237 +1,206 @@
 import { useLocation, Link } from "wouter";
-import { X, Menu } from "lucide-react";
 import {
   Home,
   FileText,
   Package,
   ShoppingBag,
   RefreshCw,
+  Clock,
   Settings,
   LogOut,
   BarChart2,
   Truck,
   ShoppingCart,
+  Users,
   Building2,
-  FileBarChart,
-  ClipboardList,
+  TrashIcon,
 } from "lucide-react";
-import { useAuth } from "@/lib";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib";
 
-interface SidebarProps {
-  isOpen?: boolean;
-  onClose?: () => void;
-}
-
-interface NavItemProps {
-  href: string;
-  icon: React.ReactNode;
+// Verwenden wir die wouter Link-Komponente für korrekte Navigation
+const NavItem = ({ href, icon, children, isActive }: { 
+  href: string; 
+  icon: React.ReactNode; 
   children: React.ReactNode;
   isActive: boolean;
-  onClick?: () => void;
-}
-
-const NavItem = ({ href, icon, children, isActive, onClick }: NavItemProps) => {
+}) => {
   return (
     <Link href={href}>
-      <a 
-        onClick={onClick} 
-        className={cn(
-          "flex items-center gap-3 px-3 py-2 mb-1 rounded-md text-sidebar-foreground/90 hover:bg-sidebar-accent transition-colors",
-          isActive && "bg-sidebar-accent font-medium"
-        )}
+      <div
+        className={`flex items-center px-4 py-2 text-sm font-medium cursor-pointer ${
+          isActive
+            ? "text-primary-600 bg-primary-50"
+            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+        }`}
       >
-        <div className="w-5 h-5 shrink-0 flex items-center justify-center">
-          {icon}
-        </div>
-        <span className="text-sm">{children}</span>
-      </a>
+        {icon}
+        {children}
+      </div>
     </Link>
   );
 };
 
-export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
+export default function Sidebar() {
   const [location] = useLocation();
   const { logout, user } = useAuth();
 
   // Helper function to determine if a link is active
   const isActive = (path: string) => {
-    return location === path || (path !== "/" && location.startsWith(path));
-  };
-  
-  // Function to close the menu on mobile devices
-  const handleNavClick = () => {
-    if (onClose) {
-      onClose();
-    }
+    return location.startsWith(path);
   };
 
   return (
-    <>
-      {/* Mobile overlay when sidebar is open */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden" 
-          onClick={onClose}
-        />
-      )}
-      
-      <aside 
-        className={cn(
-          "fixed top-0 left-0 z-50 h-full w-[250px] bg-sidebar-background flex flex-col shadow-lg",
-          "transform transition-transform duration-300 ease-in-out",
-          "md:translate-x-0",
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        )}
-      >
-        {/* Logo and header */}
-        <div className="flex items-center px-4 py-5 border-b border-sidebar-border">
-          <ClipboardList className="h-6 w-6 text-sidebar-foreground" />
-          <span className="ml-3 text-lg font-semibold text-sidebar-foreground">Proviantomat</span>
-          
-          {/* Mobile Close Button */}
-          {isOpen && onClose && (
-            <Button 
-              onClick={onClose}
-              variant="ghost" 
-              className="md:hidden ml-auto text-sidebar-foreground hover:bg-sidebar-accent p-1 h-8 w-8"
-              size="icon"
-            >
-              <X className="h-5 w-5" />
-            </Button>
-          )}
+    <aside className="hidden md:flex md:flex-col md:w-64 bg-white border-r border-gray-200 h-screen sticky top-0">
+      <div className="p-4 flex items-center border-b border-gray-200">
+        <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
+          <ShoppingBag className="h-5 w-5 text-white" />
         </div>
+        <span className="ml-2 font-semibold text-lg">Proviantomat</span>
+      </div>
 
-        {/* Main navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
+      {/* Nav Section: Main */}
+      <div className="py-4 border-b border-gray-200">
+        <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+          Übersicht
+        </h3>
+        <nav>
           <NavItem 
             href="/" 
-            icon={<Home className="h-5 w-5" />}
+            icon={<Home className="h-5 w-5 mr-3" />}
             isActive={isActive("/")}
-            onClick={handleNavClick}
           >
             Dashboard
           </NavItem>
-          
           <NavItem 
             href="/automaten" 
-            icon={<Package className="h-5 w-5" />}
+            icon={<Package className="h-5 w-5 mr-3" />}
             isActive={isActive("/automaten")}
-            onClick={handleNavClick}
           >
             Automaten
           </NavItem>
-          
-          <NavItem 
-            href="/bestellungen" 
-            icon={<ShoppingCart className="h-5 w-5" />}
-            isActive={isActive("/bestellungen")}
-            onClick={handleNavClick}
-          >
-            Bestellungen
-          </NavItem>
-          
-          <NavItem 
-            href="/transactions" 
-            icon={<FileText className="h-5 w-5" />}
-            isActive={isActive("/transactions")}
-            onClick={handleNavClick}
-          >
-            Transaktionen
-          </NavItem>
-          
-          <NavItem 
-            href="/forecast" 
-            icon={<BarChart2 className="h-5 w-5" />}
-            isActive={isActive("/forecast")}
-            onClick={handleNavClick}
-          >
-            Prognosen
-          </NavItem>
-          
           <NavItem 
             href="/produkte" 
-            icon={<ShoppingBag className="h-5 w-5" />}
+            icon={<ShoppingBag className="h-5 w-5 mr-3" />}
             isActive={isActive("/produkte")}
-            onClick={handleNavClick}
           >
             Produkte
           </NavItem>
-          
           <NavItem 
             href="/lieferanten" 
-            icon={<Truck className="h-5 w-5" />}
+            icon={<Truck className="h-5 w-5 mr-3" />}
             isActive={isActive("/lieferanten")}
-            onClick={handleNavClick}
           >
             Lieferanten
           </NavItem>
-          
+          <NavItem 
+            href="/transactions" 
+            icon={<FileText className="h-5 w-5 mr-3" />}
+            isActive={isActive("/transactions")}
+          >
+            Transaktionen
+          </NavItem>
+        </nav>
+      </div>
+
+      {/* Nav Section: Verwaltung */}
+      <div className="py-4 border-b border-gray-200">
+        <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+          Verwaltung
+        </h3>
+        <nav>
+          <NavItem 
+            href="/bestellungen" 
+            icon={<ShoppingCart className="h-5 w-5 mr-3" />}
+            isActive={isActive("/bestellungen")}
+          >
+            Bestellungen
+          </NavItem>
           <NavItem 
             href="/lager" 
-            icon={<Building2 className="h-5 w-5" />}
+            icon={<Building2 className="h-5 w-5 mr-3" />}
             isActive={isActive("/lager")}
-            onClick={handleNavClick}
           >
             Lager
           </NavItem>
-          
+          <NavItem 
+            href="/warenentnahme" 
+            icon={<TrashIcon className="h-5 w-5 mr-3" />}
+            isActive={isActive("/warenentnahme")}
+          >
+            Warenentnahme
+          </NavItem>
+          <NavItem 
+            href="/forecast" 
+            icon={<BarChart2 className="h-5 w-5 mr-3" />}
+            isActive={isActive("/forecast")}
+          >
+            Prognosen
+          </NavItem>
           <NavItem 
             href="/auswertungen" 
-            icon={<FileBarChart className="h-5 w-5" />}
+            icon={<BarChart2 className="h-5 w-5 mr-3" />}
             isActive={isActive("/auswertungen")}
-            onClick={handleNavClick}
           >
-            Bericht
+            Auswertungen
           </NavItem>
         </nav>
+      </div>
 
-        {/* Admin/System section at the bottom */}
-        <div className="mt-auto border-t border-sidebar-border px-3 py-4">
-          <NavItem 
-            href="/settings" 
-            icon={<Settings className="h-5 w-5" />}
-            isActive={isActive("/settings")}
-            onClick={handleNavClick}
-          >
-            Einstellungen
-          </NavItem>
-          
+      {/* Nav Section: System */}
+      <div className="py-4 border-b border-gray-200">
+        <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+          System
+        </h3>
+        <nav>
           <NavItem 
             href="/synchronization" 
-            icon={<RefreshCw className="h-5 w-5" />}
+            icon={<RefreshCw className="h-5 w-5 mr-3" />}
             isActive={isActive("/synchronization")}
-            onClick={handleNavClick}
           >
             Synchronisierung
           </NavItem>
-          
-          {/* Logout Button */}
-          <button 
-            className="flex items-center gap-3 px-3 py-2 w-full text-left rounded-md text-sidebar-foreground/90 hover:bg-sidebar-accent transition-colors"
+          <NavItem 
+            href="/sync-history" 
+            icon={<Clock className="h-5 w-5 mr-3" />}
+            isActive={isActive("/sync-history")}
+          >
+            Sync-Verlauf
+          </NavItem>
+          <NavItem 
+            href="/settings" 
+            icon={<Settings className="h-5 w-5 mr-3" />}
+            isActive={isActive("/settings")}
+          >
+            Einstellungen
+          </NavItem>
+        </nav>
+      </div>
+
+      {/* User Profile Section */}
+      <div className="mt-auto p-4 border-t border-gray-200">
+        <div className="flex items-center">
+          <div className="flex-shrink-0">
+            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <Users className="h-6 w-6 text-primary" />
+            </div>
+          </div>
+          <div className="ml-3">
+            <p className="text-sm font-medium text-gray-700">{user?.username || 'Admin'}</p>
+            <p className="text-xs font-medium text-gray-500">{user?.role || 'Administrator'}</p>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="ml-auto rounded-full"
             onClick={() => {
               logout();
-              if (onClose) onClose();
             }}
           >
-            <div className="w-5 h-5 shrink-0 flex items-center justify-center">
-              <LogOut className="h-5 w-5" />
-            </div>
-            <span className="text-sm">Abmelden</span>
-          </button>
+            <LogOut className="h-5 w-5 text-gray-500" />
+          </Button>
         </div>
-      </aside>
-      
-      {/* Mobile menu toggle button */}
-      <Button 
-        variant="outline" 
-        size="icon" 
-        className="fixed bottom-20 right-4 md:hidden z-30 bg-white shadow-md" 
-        onClick={() => isOpen ? onClose?.() : handleNavClick()}
-      >
-        <Menu className="h-5 w-5" />
-      </Button>
-    </>
+      </div>
+    </aside>
   );
 }

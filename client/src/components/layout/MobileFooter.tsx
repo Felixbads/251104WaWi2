@@ -1,34 +1,23 @@
 import { useLocation, Link } from "wouter";
-import { Home, Package, ShoppingCart, Building2, BarChart2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Home, Package, ShoppingCart, PackageOpen, Trash2 } from "lucide-react";
 
-interface FooterNavItemProps {
-  href: string;
-  icon: React.ReactNode;
+// NavItem Komponente für Mobile Footer
+const NavItem = ({ href, icon, label, isActive }: { 
+  href: string; 
+  icon: React.ReactNode; 
   label: string;
   isActive: boolean;
-}
-
-// NavItem component for mobile footer
-const FooterNavItem = ({ href, icon, label, isActive }: FooterNavItemProps) => {
+}) => {
   return (
     <Link href={href}>
-      <a
-        className={cn(
-          "flex flex-col items-center justify-center py-2 px-1",
-          isActive 
-            ? "text-primary" 
-            : "text-muted-foreground hover:text-foreground"
-        )}
+      <div
+        className={`flex flex-col items-center justify-center cursor-pointer ${
+          isActive ? "text-primary-600" : "text-gray-500"
+        }`}
       >
-        <div className={cn(
-          "relative flex items-center justify-center mb-1", 
-          isActive && "after:content-[''] after:absolute after:-bottom-1 after:w-1.5 after:h-1.5 after:bg-primary after:rounded-full"
-        )}>
-          {icon}
-        </div>
-        <span className="text-xs font-medium">{label}</span>
-      </a>
+        {icon}
+        <span className="text-xs mt-1">{label}</span>
+      </div>
     </Link>
   );
 };
@@ -38,42 +27,43 @@ export default function MobileFooter() {
 
   // Helper function to determine if a link is active
   const isActive = (path: string) => {
-    if (path === "/" && location === "/") return true;
-    return path !== "/" && location.startsWith(path);
+    return location.startsWith(path);
   };
 
   return (
-    <nav className="grid grid-cols-5 h-16 bg-background">
-      <FooterNavItem 
-        href="/" 
-        icon={<Home className="h-5 w-5" />}
-        label="Dashboard"
-        isActive={isActive("/")}
-      />
-      <FooterNavItem 
-        href="/automaten" 
-        icon={<Package className="h-5 w-5" />}
-        label="Automaten"
-        isActive={isActive("/automaten")}
-      />
-      <FooterNavItem 
-        href="/bestellungen" 
-        icon={<ShoppingCart className="h-5 w-5" />}
-        label="Bestellungen"
-        isActive={isActive("/bestellungen")}
-      />
-      <FooterNavItem 
-        href="/lager" 
-        icon={<Building2 className="h-5 w-5" />}
-        label="Lager"
-        isActive={isActive("/lager")}
-      />
-      <FooterNavItem 
-        href="/forecast" 
-        icon={<BarChart2 className="h-5 w-5" />}
-        label="Prognose"
-        isActive={isActive("/forecast")}
-      />
+    <nav className="md:hidden bg-white border-t border-gray-200 fixed bottom-0 left-0 right-0 z-10">
+      <div className="grid grid-cols-5 h-16">
+        <NavItem 
+          href="/" 
+          icon={<Home className="h-6 w-6" />}
+          label="Dashboard"
+          isActive={isActive("/")}
+        />
+        <NavItem 
+          href="/automaten" 
+          icon={<Package className="h-6 w-6" />}
+          label="Automaten"
+          isActive={isActive("/automaten")}
+        />
+        <NavItem 
+          href="/bestellungen" 
+          icon={<ShoppingCart className="h-6 w-6" />}
+          label="Bestellungen"
+          isActive={isActive("/bestellungen")}
+        />
+        <NavItem 
+          href="/lager" 
+          icon={<PackageOpen className="h-6 w-6" />}
+          label="Lager"
+          isActive={isActive("/lager")}
+        />
+        <NavItem 
+          href="/warenentnahme" 
+          icon={<Trash2 className="h-6 w-6" />}
+          label="Entnahme"
+          isActive={isActive("/warenentnahme")}
+        />
+      </div>
     </nav>
   );
 }
