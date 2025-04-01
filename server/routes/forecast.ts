@@ -363,13 +363,38 @@ export function registerForecastRoutes(app: Express): void {
       // 5. Um die Validierung zu umgehen (die trainModelSchema benötigt startDate und endDate),
       // übergeben wir die Daten direkt an die Trainer-Funktion statt über das Schema zu gehen
       try {
-        // 6. Modelltraining asynchron starten (nicht auf Ergebnis warten)
+        // 6. Modelltraining asynchron starten und nach Abschluss Prognosen erstellen
         forecastService.trainForecastModel(
           defaultModel.id,
           formattedStartDate,
           formattedEndDate
-        ).then(result => {
+        ).then(async (result) => {
           console.log(`Automatisches Training abgeschlossen: ${JSON.stringify(result)}`);
+          
+          if (result.success) {
+            try {
+              // Aktuelles Datum und Datum in 14 Tagen für die Prognoseerstellung
+              const now = new Date();
+              const futureDate = new Date(now);
+              futureDate.setDate(now.getDate() + 14);
+              
+              const forecastStartDate = format(now, 'yyyy-MM-dd');
+              const forecastEndDate = format(futureDate, 'yyyy-MM-dd');
+              
+              console.log(`Training erfolgreich - erstelle nun Prognose für die nächsten 14 Tage (${forecastStartDate} bis ${forecastEndDate})`);
+              
+              // Prognosen für die nächsten 14 Tage erstellen
+              const forecastResult = await forecastService.createForecast(
+                defaultModel.id,
+                forecastStartDate,
+                forecastEndDate
+              );
+              
+              console.log(`Prognosen erstellt: ${JSON.stringify(forecastResult)}`);
+            } catch (forecastError) {
+              console.error(`Fehler beim Erstellen der Prognosen nach Training: ${forecastError}`);
+            }
+          }
         }).catch(error => {
           console.error(`Fehler beim automatischen Training: ${error}`);
         });
