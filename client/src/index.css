@@ -2,321 +2,334 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ====== Basisfarben ====== */
 :root {
-  /* Hauptfarben */
-  --proviant-rot: #8B2510;
-  --kachel-umsatz: #E78A2E;     /* Orange */
-  --kachel-transaktionen: #3B95AB; /* Türkis */
-  --kachel-durchschnitt: #6C9A78; /* Grün */
-  --kachel-statistik: #4BA6BC;  /* Türkisblau */
-  
-  /* Textfarben */
-  --text-schwarz: #1C1C1C;
-  --text-grau: #6A6A6A;
-  --text-light: #9E9E9E;
-  
-  /* Strukturfarben */
-  --border-dark: #222;
-  --border-light: #E5E5E5;
-  --background: #FFFFFF;
-  --background-light: #F8F8F8;
-  --card-bg: #F5F5F5;
-  --section-bg: #FAFAFA;
-  --accent-blue: #1773C5;       /* Für Buttons wie "Senden" */
-  
-  /* Schatten */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.05);
+  --primary-red: #c93030; /* Proviantomat-Rot */
+  --light-gray: #f6f6f6;
+  --dark-gray: #333;
+  --white: #fff;
+  --border-radius: 8px;
+  --transition-speed: 0.3s;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-
-  body {
-    font-family: 'Inter', sans-serif;
-    font-size: 16px;
-    color: var(--text-schwarz);
-    background-color: var(--background-light);
-    line-height: 1.5;
-  }
-
-  h1 {
-    font-size: 28px;
-    font-weight: 600;
-  }
-
-  h2 {
-    font-size: 22px;
-    font-weight: 600; 
-  }
-
-  h3 {
-    font-size: 18px;
-    font-weight: 600;
-  }
-
-  .label {
-    font-size: 14px;
-    color: var(--text-grau);
-  }
+/* ====== Reset & Basislayout ====== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-@layer components {
-  /* Layout-Strukturen */
-  .app-container {
-    display: flex;
-    width: 100%;
-    min-height: 100vh;
+html, body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--light-gray);
+  color: var(--dark-gray);
+  line-height: 1.6;
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
+/* ====== Header (Logo, Menü-Trigger) ====== */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem;
+  background-color: var(--white);
+  box-shadow: var(--shadow);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.logo {
+  height: 40px;
+}
+
+.menu-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.6rem;
+  color: var(--primary-red);
+}
+
+/* ====== Sidebar Menü (Desktop & Mobile) ====== */
+.sidebar {
+  width: 250px;
+  background-color: var(--white);
+  padding: 1rem;
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  transform: translateX(-100%);
+  transition: transform var(--transition-speed) ease-in-out;
+  box-shadow: var(--shadow);
+  z-index: 200;
+}
+
+.sidebar.open {
+  transform: translateX(0);
+}
+
+.sidebar-logo {
+  padding: 1rem 0;
+  display: flex;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.sidebar nav a {
+  display: block;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  color: var(--dark-gray);
+  text-decoration: none;
+  border-radius: var(--border-radius);
+  transition: background var(--transition-speed);
+}
+
+.sidebar nav a.active,
+.sidebar nav a:hover,
+.nav-item:hover,
+.nav-item.active {
+  background-color: var(--primary-red);
+  color: var(--white);
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  color: var(--dark-gray);
+  text-decoration: none;
+  border-radius: var(--border-radius);
+  transition: background var(--transition-speed);
+  font-weight: 500;
+}
+
+.nav-item svg {
+  margin-right: 0.75rem;
+}
+
+/* ====== Hauptinhalt ====== */
+.main-content {
+  padding: 1rem;
+  margin-left: 0;
+  transition: margin-left var(--transition-speed);
+}
+
+/* ====== Kacheln / Cards ====== */
+.card,
+.content-card,
+.kpi-card {
+  background-color: var(--white);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.card h2,
+.card-title {
+  margin-bottom: 0.5rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.card-body {
+  padding: 0.5rem 0;
+}
+
+/* ====== Buttons ====== */
+.button,
+.btn,
+.btn-primary,
+.btn-secondary,
+.btn-danger {
+  display: inline-block;
+  padding: 0.6rem 1.2rem;
+  background-color: var(--primary-red);
+  color: var(--white);
+  border: none;
+  border-radius: var(--border-radius);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--transition-speed);
+  font-weight: 500;
+}
+
+.button:hover,
+.btn:hover,
+.btn-primary:hover,
+.btn-danger:hover {
+  background-color: #a92424;
+}
+
+.button.secondary,
+.btn-secondary {
+  background-color: var(--white);
+  color: var(--primary-red);
+  border: 1px solid var(--primary-red);
+}
+
+.button.secondary:hover,
+.btn-secondary:hover {
+  background-color: var(--primary-red);
+  color: var(--white);
+}
+
+.btn svg,
+.button svg {
+  margin-right: 0.5rem;
+}
+
+/* ====== Formulare ====== */
+form {
+  margin-top: 1rem;
+}
+
+form label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+}
+
+form input,
+form select,
+form textarea {
+  width: 100%;
+  padding: 0.5rem;
+  margin-bottom: 1rem;
+  border-radius: var(--border-radius);
+  border: 1px solid #ccc;
+  font-size: 1rem;
+}
+
+form input:focus,
+form textarea:focus {
+  border-color: var(--primary-red);
+  outline: none;
+}
+
+/* ====== Tabellen / Listenansichten ====== */
+.table,
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+.table th,
+.table td,
+.data-table th,
+.data-table td {
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  text-align: left;
+}
+
+.table th,
+.data-table th {
+  background-color: var(--light-gray);
+  font-weight: 600;
+}
+
+/* ====== KPI Grid Layout ====== */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.kpi-card {
+  color: var(--dark-gray);
+}
+
+.kpi-label {
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+  color: #666;
+}
+
+.kpi-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--primary-red);
+}
+
+/* ====== Snackbar / Meldungen ====== */
+.snackbar {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  background: var(--primary-red);
+  color: var(--white);
+  padding: 1rem;
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  z-index: 999;
+}
+
+/* ====== Mobile Menu Toggle ====== */
+.mobile-menu-toggle {
+  display: block;
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  z-index: 300;
+  background-color: var(--primary-red);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* ====== Mobile Footer ====== */
+.md\:hidden {
+  background-color: var(--white);
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* ====== Responsive Breakpoints ====== */
+@media (min-width: 768px) {
+  .sidebar {
+    transform: none;
   }
-  
   .main-content {
-    flex: 1;
-    padding: 20px;
     margin-left: 250px;
   }
-  
-  @media (max-width: 768px) {
-    .main-content {
-      margin-left: 0;
-    }
-  }
-
-  /* Navigation */
-  .sidebar {
-    background-color: var(--proviant-rot);
-    color: white;
-    width: 250px;
-    height: 100vh;
-    position: fixed;
-    left: 0;
-    top: 0;
-    z-index: 10;
-    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .sidebar-logo {
-    padding: 20px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  }
-  
-  .sidebar-nav {
-    padding: 20px 0;
-    flex: 1;
-  }
-  
-  .nav-item {
-    display: flex;
-    align-items: center;
-    padding: 12px 24px;
-    color: white;
-    text-decoration: none;
-    font-weight: 500;
-    transition: background-color 0.2s;
-  }
-  
-  .nav-item:hover,
-  .nav-item.active {
-    background-color: rgba(255, 255, 255, 0.1);
-  }
-  
-  .nav-item svg {
-    margin-right: 12px;
-  }
-  
-  /* Mobile Navigation */
-  @media (max-width: 768px) {
-    .sidebar {
-      transform: translateX(-100%);
-      transition: transform 0.3s ease;
-    }
-    
-    .sidebar.open {
-      transform: translateX(0);
-    }
-    
-    .mobile-menu-toggle {
-      display: block;
-      position: fixed;
-      top: 20px;
-      left: 20px;
-      z-index: 20;
-      background-color: var(--proviant-rot);
-      color: white;
-      border: none;
-      border-radius: 4px;
-      width: 40px;
-      height: 40px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-    }
-  }
-
-  /* KPI-Kacheln */
-  .kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 16px;
-    margin-bottom: 24px;
-  }
-  
-  .kpi-card {
-    border-radius: 8px;
-    padding: 16px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-    color: white;
-    display: flex;
-    flex-direction: column;
-  }
-  
-  .kpi-card.umsatz {
-    background-color: var(--kachel-umsatz);
-  }
-  
-  .kpi-card.transaktionen {
-    background-color: var(--kachel-transaktionen);
-  }
-  
-  .kpi-card.durchschnitt {
-    background-color: var(--kachel-durchschnitt);
-  }
-  
-  .kpi-card.statistik {
-    background-color: var(--kachel-statistik);
-  }
-  
-  .kpi-label {
-    font-size: 14px;
-    font-weight: 500;
-    margin-bottom: 8px;
-  }
-  
-  .kpi-value {
-    font-size: 28px;
-    font-weight: 700;
-    line-height: 1.2;
-  }
-
-  /* Inhaltskarten */
-  .content-card {
-    background-color: white;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    margin-bottom: 24px;
-    overflow: hidden;
-  }
-  
-  .card-header {
-    padding: 16px 20px;
-    border-bottom: 1px solid #f0f0f0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  
-  .card-title {
-    font-size: 18px;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-  }
-  
-  .card-title svg {
-    margin-right: 8px;
-    color: var(--proviant-rot);
-  }
-  
-  .card-body {
-    padding: 20px;
-  }
-
-  /* Tabellen */
-  .data-table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  
-  .data-table th {
-    text-align: left;
-    padding: 12px 16px;
-    border-bottom: 2px solid #f0f0f0;
-    font-weight: 600;
-    color: var(--text-schwarz);
-  }
-  
-  .data-table td {
-    padding: 12px 16px;
-    border-bottom: 1px solid #f0f0f0;
-  }
-  
-  .data-table tr:last-child td {
-    border-bottom: none;
-  }
-
-  /* Buttons */
-  .btn {
-    padding: 8px 16px;
-    border-radius: 6px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background-color 0.2s, opacity 0.2s;
-    border: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-  
-  .btn-primary {
-    background-color: var(--accent-blue);
-    color: white;
-  }
-  
-  .btn-primary:hover {
-    background-color: #0e5ca5;
-  }
-  
-  .btn-secondary {
-    background-color: white;
-    color: var(--text-schwarz);
-    border: 1px solid #e0e0e0;
-  }
-  
-  .btn-secondary:hover {
-    background-color: #f5f5f5;
-  }
-  
-  .btn-danger {
-    background-color: var(--proviant-rot);
-    color: white;
-  }
-  
-  .btn-danger:hover {
-    background-color: #7a1705;
-  }
-  
-  .btn svg {
-    margin-right: 6px;
-  }
-  
-  /* Hilfklassen */
-  .text-center {
-    text-align: center;
-  }
-  
-  .mt-4 {
-    margin-top: 16px;
-  }
-  
-  .mb-4 {
-    margin-bottom: 16px;
+  .mobile-menu-toggle {
+    display: none;
   }
 }
+
+/* ====== Utility-Klassen ====== */
+.mt-1, .mt-4 { margin-top: 1rem; }
+.mb-1, .mb-4 { margin-bottom: 1rem; }
+.text-center { text-align: center; }
+.hidden { display: none; }
