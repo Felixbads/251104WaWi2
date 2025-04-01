@@ -277,8 +277,8 @@ export function registerForecastRoutes(app: Express): void {
         location_name: locations.name,
         predicted_quantity: sql<number>`SUM(${forecasts.predicted_quantity})`,
         confidence: sql<number>`AVG(${forecasts.confidence})`,
-        is_holiday: sql<boolean>`MAX(CASE WHEN ${forecasts.is_holiday} THEN true ELSE false END)`,
-        holiday_name: sql<string>`MAX(${forecasts.holiday_name})`
+        is_holiday: sql<boolean>`CASE WHEN MAX(CASE WHEN ${forecasts.is_holiday} THEN 1 ELSE 0 END) > 0 THEN true ELSE false END`,
+        holiday_name: sql<string>`MAX(CASE WHEN ${forecasts.holiday_name} IS NOT NULL THEN ${forecasts.holiday_name} ELSE NULL END)`
       })
       .from(forecasts)
       .leftJoin(locations, eq(forecasts.location_id, locations.id))
@@ -904,7 +904,12 @@ export function registerForecastRoutes(app: Express): void {
     try {
       // Aktualisiere die Abdeckungen, bevor sie abgerufen werden
       await meteostatService.updateWeatherDataCoverage();
-      await holidayService.updateHolidayDataCoverage();
+      // Überprüfe, ob die Methode existiert, bevor sie aufgerufen wird
+      if (typeof holidayService.updateHolidayDataCoverage === 'function') {
+        await holidayService.updateHolidayDataCoverage();
+      } else {
+        console.warn('holidayService.updateHolidayDataCoverage ist keine Funktion - wird übersprungen');
+      }
       await openWeatherService.updateWeatherDataCoverage();
       
       const result = await import("../db").then(({ db }) => {
