@@ -209,9 +209,9 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col lg:flex-row justify-between gap-4">
+      <div className="flex flex-col lg:flex-row justify-between gap-4 px-2">
         <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <h1 className="text-2xl font-bold mb-1">Dashboard</h1>
           <p className="text-gray-500">
             Übersicht aller Automaten und Transaktionen
             {latestSyncTime && (
