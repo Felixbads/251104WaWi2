@@ -191,26 +191,49 @@ export function registerForecastRoutes(app: Express): void {
   // Prognose erstellen
   app.post(`${API_PREFIX}/forecast/create`, async (req: Request, res: Response) => {
     try {
-      const validatedData = createForecastSchema.parse(req.body);
+      console.log("Erhalte Anfrage zum Erstellen einer Prognose mit Daten:", JSON.stringify(req.body));
       
-      const result = await forecastService.createForecast(
-        validatedData.modelId,
-        validatedData.startDate,
-        validatedData.endDate,
-        validatedData.locationIds,
-        validatedData.machineIds
-      );
-      
-      if (!result.success) {
-        return res.status(400).json({ error: result.message });
+      // Stelle sicher, dass die Daten vorhanden sind
+      if (!req.body.modelId || !req.body.startDate || !req.body.endDate) {
+        console.error("Fehlende Daten beim Erstellen der Prognose:", JSON.stringify(req.body));
+        return res.status(400).json({ 
+          error: "Fehler bei der Validierung der Daten", 
+          details: [
+            { code: "missing_data", message: "Erforderliche Felder fehlen" },
+            req.body.modelId ? null : { code: "invalid_type", expected: "number", received: null, path: ["modelId"], message: "Required" },
+            req.body.startDate ? null : { code: "invalid_type", expected: "string", received: null, path: ["startDate"], message: "Required" },
+            req.body.endDate ? null : { code: "invalid_type", expected: "string", received: null, path: ["endDate"], message: "Required" }
+          ].filter(Boolean)
+        });
       }
       
-      res.status(201).json(result);
+      try {
+        const validatedData = createForecastSchema.parse(req.body);
+        
+        const result = await forecastService.createForecast(
+          validatedData.modelId,
+          validatedData.startDate,
+          validatedData.endDate,
+          validatedData.locationIds,
+          validatedData.machineIds
+        );
+        
+        if (!result.success) {
+          return res.status(400).json({ error: result.message });
+        }
+        
+        res.status(201).json(result);
+      } catch (validationError) {
+        console.error("Validierungsfehler beim Erstellen der Prognose:", validationError);
+        
+        if (validationError instanceof z.ZodError) {
+          return res.status(400).json({ error: "Ungültige Daten", details: validationError.errors });
+        }
+        
+        console.error("Fehler beim Erstellen der Prognose:", validationError);
+        res.status(500).json({ error: "Interner Serverfehler" });
+      }
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: "Ungültige Daten", details: error.errors });
-      }
-      
       console.error("Fehler beim Erstellen der Prognose:", error);
       res.status(500).json({ error: "Interner Serverfehler" });
     }
