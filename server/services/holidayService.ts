@@ -7,6 +7,58 @@ import { eq, gte, lte, and, desc, sql } from 'drizzle-orm';
 // OpenHolidaysAPI für Feiertage und Schulferien
 const API_BASE_URL = 'https://openholidaysapi.org';
 
+// Fallback-Daten für Feiertagsabfragen, wenn API nicht verfügbar ist
+const FALLBACK_HOLIDAYS = [
+  {
+    id: "ostern2025",
+    date: "2025-04-20",
+    name: "Ostersonntag",
+    type: "PUBLIC_HOLIDAY",
+    state: "Sachsen",
+    isSchoolHoliday: false
+  },
+  {
+    id: "ostermontag2025",
+    date: "2025-04-21",
+    name: "Ostermontag",
+    type: "PUBLIC_HOLIDAY",
+    state: "Sachsen",
+    isSchoolHoliday: false
+  },
+  {
+    id: "tagderarbeit2025",
+    date: "2025-05-01",
+    name: "Tag der Arbeit",
+    type: "PUBLIC_HOLIDAY", 
+    state: "Sachsen",
+    isSchoolHoliday: false
+  },
+  {
+    id: "himmelfahrt2025",
+    date: "2025-05-29",
+    name: "Christi Himmelfahrt",
+    type: "PUBLIC_HOLIDAY",
+    state: "Sachsen",
+    isSchoolHoliday: false
+  },
+  {
+    id: "pfingsten2025",
+    date: "2025-06-08",
+    name: "Pfingstsonntag", 
+    type: "PUBLIC_HOLIDAY",
+    state: "Sachsen",
+    isSchoolHoliday: false
+  },
+  {
+    id: "pfingstmontag2025",
+    date: "2025-06-09",
+    name: "Pfingstmontag",
+    type: "PUBLIC_HOLIDAY",
+    state: "Sachsen",
+    isSchoolHoliday: false
+  }
+];
+
 // Bundesländer
 export const STATES = {
   'BW': 'Baden-Württemberg',

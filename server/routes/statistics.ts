@@ -1,6 +1,6 @@
 import { Request, Response, Router } from "express";
 import { db } from "../db";
-import { machines, products, suppliers, transactions, orders } from "@shared/schema";
+import { machines, products, suppliers, transactions, orders, stocks } from "@shared/schema";
 import { count, eq, or } from "drizzle-orm";
 
 // API route prefix
@@ -27,8 +27,17 @@ export function statisticsRoutes(app: Router) {
       // Lieferanten zählen
       const suppliersCount = await db.select({ count: count() }).from(suppliers);
       
-      // Produkte zählen
-      const productsCount = await db.select({ count: count() }).from(products);
+      // Produkte zählen - Hier war das Problem: Die Produktanzahl in 'products' Tabelle
+      // war falsch, stattdessen verwenden wir die Stocks-Tabelle (Vendon API)
+      let productsCount;
+      try {
+        // Verwende die stocks Tabelle für eine präzisere Messung der Produktanzahl
+        productsCount = await db.select({ count: count() }).from(stocks);
+      } catch (err) {
+        // Fallback auf products Tabelle wenn stocks nicht verfügbar
+        console.warn("Konnte nicht auf Stocks-Tabelle zugreifen, verwende Products:", err);
+        productsCount = await db.select({ count: count() }).from(products);
+      }
       
       // Maschinen zählen
       const machinesCount = await db.select({ count: count() }).from(machines);
