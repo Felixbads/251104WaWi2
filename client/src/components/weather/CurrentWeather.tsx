@@ -176,31 +176,68 @@ const CurrentWeatherCard: React.FC<CurrentWeatherCardProps> = ({
               </div>
             </div>
             
-            <div className="grid grid-cols-3 gap-4 mt-4">
-              <div className="flex flex-col items-center text-center">
-                <div className="flex items-center text-muted-foreground mb-1">
-                  <Wind className="h-4 w-4 mr-1" />
-                  <span className="text-xs">Wind</span>
-                </div>
-                <div className="text-sm font-medium">{data?.windSpeed} km/h</div>
-                <div className="text-xs text-muted-foreground">{data?.windDirection}</div>
-              </div>
+            <div className="grid grid-cols-3 gap-2 md:gap-4 mt-4">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex flex-col items-center text-center">
+                      <div className="flex items-center text-muted-foreground mb-1">
+                        <Wind className="h-4 w-4 mr-1" />
+                        <span className="text-xs">Wind</span>
+                      </div>
+                      <div className="text-sm font-medium">{data?.windSpeed} km/h</div>
+                      <div className="text-xs text-muted-foreground truncate max-w-full">{data?.windDirection}</div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" align="center">
+                    <div className="text-center">
+                      <div className="font-semibold">Windgeschwindigkeit</div>
+                      <div>{data?.windSpeed} km/h</div>
+                      <div className="text-xs mt-1">{data?.windDirection}</div>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               
-              <div className="flex flex-col items-center text-center">
-                <div className="flex items-center text-muted-foreground mb-1">
-                  <Droplets className="h-4 w-4 mr-1" />
-                  <span className="text-xs">Luftfeuchtigkeit</span>
-                </div>
-                <div className="text-sm font-medium">{data?.humidity}%</div>
-              </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex flex-col items-center text-center">
+                      <div className="flex items-center text-muted-foreground mb-1">
+                        <Droplets className="h-4 w-4 mr-1" />
+                        <span className="text-xs">Luftfeuchtigkeit</span>
+                      </div>
+                      <div className="text-sm font-medium">{data?.humidity}%</div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" align="center">
+                    <div className="text-center">
+                      <div className="font-semibold">Luftfeuchtigkeit</div>
+                      <div>{data?.humidity}%</div>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               
-              <div className="flex flex-col items-center text-center">
-                <div className="flex items-center text-muted-foreground mb-1">
-                  <Thermometer className="h-4 w-4 mr-1" />
-                  <span className="text-xs">Gefühlt</span>
-                </div>
-                <div className="text-sm font-medium">{Math.round(data?.temperature || 0)}°C</div>
-              </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex flex-col items-center text-center">
+                      <div className="flex items-center text-muted-foreground mb-1">
+                        <Thermometer className="h-4 w-4 mr-1" />
+                        <span className="text-xs">Gefühlt</span>
+                      </div>
+                      <div className="text-sm font-medium">{Math.round(data?.temperature || 0)}°C</div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" align="center">
+                    <div className="text-center">
+                      <div className="font-semibold">Gefühlte Temperatur</div>
+                      <div>{Math.round(data?.temperature || 0)}°C</div>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
           </div>
         )}

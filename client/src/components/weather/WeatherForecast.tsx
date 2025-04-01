@@ -76,14 +76,20 @@ function HolidayBadge({ holiday }: { holiday: { name: string; type: string; stat
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant={badgeVariant} className="text-xs px-1 py-0 h-5">
+          <Badge 
+            variant={badgeVariant} 
+            className="text-xs px-1 py-0 h-5 absolute top-0 right-0 transform translate-x-1/2 -translate-y-1/2"
+          >
             {isPublicHoliday ? 'F' : 'S'}
           </Badge>
         </TooltipTrigger>
-        <TooltipContent>
+        <TooltipContent side="top" align="center" className="max-w-[200px] text-center z-50">
+          <div className="font-semibold mb-1">
+            {isPublicHoliday ? 'Feiertag:' : 'Schulferien:'}
+          </div>
           <p>
             {holiday.name}
-            {holiday.state && ` (${holiday.state})`}
+            {holiday.state && <div className="text-xs mt-1">({holiday.state})</div>}
           </p>
         </TooltipContent>
       </Tooltip>
@@ -172,26 +178,27 @@ const WeatherForecast: React.FC<WeatherForecastProps> = ({
               return (
                 <div 
                   key={day.date} 
-                  className={`flex flex-col items-center p-1 rounded-md ${isWeekend ? 'bg-muted/30' : ''}`}
+                  className={`relative flex flex-col items-center p-2 rounded-md ${isWeekend ? 'bg-muted/30' : ''} hover:bg-muted/20`}
                 >
-                  <div className="text-xs font-medium mb-1 flex items-center gap-1">
-                    {format(date, 'EEE', { locale: de })}
-                    {format(date, '.dd', { locale: de })}
-                    {holiday && <HolidayBadge holiday={holiday} />}
+                  {holiday && <HolidayBadge holiday={holiday} />}
+                  
+                  <div className="text-xs font-medium mb-1.5 flex items-center gap-0.5">
+                    <span className="font-medium">{format(date, 'EEE', { locale: de })}</span>
+                    <span>{format(date, '.dd', { locale: de })}</span>
                   </div>
                   
                   <WeatherIcon 
                     icon={day.icon} 
                     description={day.description} 
-                    className="h-8 w-8 mb-1" 
+                    className="h-8 w-8 mb-1.5" 
                   />
                   
-                  <div className="flex items-center justify-center gap-1 text-xs">
-                    <span className="font-medium">{Math.round(day.temperature.max)}°</span>
+                  <div className="flex items-center justify-center gap-2 text-xs">
+                    <span className="font-semibold">{Math.round(day.temperature.max)}°</span>
                     <span className="text-muted-foreground">{Math.round(day.temperature.min)}°</span>
                   </div>
                   
-                  <div className="text-[10px] text-muted-foreground mt-0.5 text-center">
+                  <div className="text-[10px] text-muted-foreground mt-1 text-center line-clamp-1 w-full overflow-hidden text-ellipsis">
                     {day.description}
                   </div>
                 </div>

@@ -422,37 +422,120 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Zahlungsmethoden */}
+          {/* Zahlungsmethoden nach Standort */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center">
                 <CreditCard className="h-5 w-5 mr-2 text-primary" />
-                Zahlungsmethoden
+                Zahlungsmethoden nach Standort
               </CardTitle>
-              <CardDescription>Verteilung nach Zahlungsart</CardDescription>
+              <CardDescription>Standorte mit niedrigstem Anteil kontaktloser Zahlung</CardDescription>
             </CardHeader>
             <CardContent>
               {Object.keys(paymentMethods).length > 0 ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {Object.entries(paymentMethods).map(([method, stats], index) => (
-                    <div key={index} className="space-y-1">
-                      <div className="flex justify-between text-sm">
-                        <span className="font-medium">
-                          {method === "CASH" ? "Bargeld" : 
-                           method === "CASHLESS" ? "Kartenzahlung" :
-                           method}
-                        </span>
-                        <span className="font-medium">{stats.count} Transaktionen</span>
+                <div className="space-y-6">
+                  {/* Analyse der Zahlungsmethoden nach Maschine/Standort */}
+                  {(() => {
+                    // Berechne die Zahlungsmethoden pro Standort
+                    const machinePaymentStats = transactions?.reduce((acc: Record<string, {
+                      machineName: string,
+                      cash: number,
+                      cashless: number,
+                      total: number,
+                      cashlessPercentage: number
+                    }>, tx) => {
+                      if (!acc[tx.machineId]) {
+                        acc[tx.machineId] = {
+                          machineName: tx.machineName,
+                          cash: 0,
+                          cashless: 0,
+                          total: 0,
+                          cashlessPercentage: 0
+                        };
+                      }
+                      
+                      acc[tx.machineId].total += 1;
+                      
+                      if (tx.paymentMethod === 'CASH') {
+                        acc[tx.machineId].cash += 1;
+                      } else if (tx.paymentMethod === 'CASHLESS') {
+                        acc[tx.machineId].cashless += 1;
+                      }
+                      
+                      return acc;
+                    }, {}) || {};
+                    
+                    // Berechne den Prozentsatz für kontaktlose Zahlung
+                    Object.values(machinePaymentStats).forEach(stats => {
+                      stats.cashlessPercentage = stats.total > 0 
+                        ? (stats.cashless / stats.total) * 100 
+                        : 0;
+                    });
+                    
+                    // Sortiere nach niedrigstem Anteil an kontaktlosen Zahlungen
+                    // und filtere Standorte mit mindestens 5 Transaktionen
+                    const sortedMachines = Object.values(machinePaymentStats)
+                      .filter(stats => stats.total >= 5)
+                      .sort((a, b) => a.cashlessPercentage - b.cashlessPercentage)
+                      .slice(0, 5);
+                    
+                    return sortedMachines.length > 0 ? (
+                      sortedMachines.map((machine, i) => (
+                        <div key={i} className="space-y-1">
+                          <div className="flex justify-between text-sm">
+                            <span className="font-medium truncate max-w-[70%]" title={machine.machineName}>
+                              {machine.machineName}
+                            </span>
+                            <span className="font-medium">
+                              {machine.cashlessPercentage.toFixed(1)}% kontaktlos
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-100 rounded-full h-2.5">
+                            <div 
+                              className="bg-blue-500 h-2.5 rounded-full" 
+                              style={{ width: `${machine.cashlessPercentage}%` }}
+                            ></div>
+                          </div>
+                          <div className="flex justify-between text-xs text-gray-500 mt-1">
+                            <span>{machine.cash} bar / {machine.cashless} kontaktlos</span>
+                            <span>{machine.total} trans. gesamt</span>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-4 text-gray-500">
+                        Nicht genügend Daten für eine Analyse
                       </div>
-                      <Progress 
-                        value={stats.count / totalTransactions * 100} 
-                        className={method === "CASH" ? "bg-blue-100" : "bg-green-100"}
-                      />
-                      <div className="text-right text-sm text-gray-500">
-                        {stats.revenue.toFixed(2)} € ({(stats.revenue / totalRevenue * 100).toFixed(1)}%)
-                      </div>
+                    );
+                  })()}
+                  
+                  {/* Zusammenfassung der Zahlungsmethoden insgesamt */}
+                  <div className="mt-6 pt-4 border-t">
+                    <div className="font-medium mb-3">Gesamtverteilung Zahlungsmethoden</div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {Object.entries(paymentMethods).map(([method, stats], index) => (
+                        <div key={index} className="space-y-1">
+                          <div className="flex justify-between text-sm">
+                            <span className="font-medium">
+                              {method === "CASH" ? "Bargeld" : 
+                               method === "CASHLESS" ? "Kartenzahlung" :
+                               method}
+                            </span>
+                            <span className="font-medium">
+                              {(stats.count / totalTransactions * 100).toFixed(1)}%
+                            </span>
+                          </div>
+                          <Progress 
+                            value={stats.count / totalTransactions * 100} 
+                            className={method === "CASH" ? "bg-blue-100" : "bg-green-100"}
+                          />
+                          <div className="text-right text-sm text-gray-500">
+                            {stats.count} Trans. / {stats.revenue.toFixed(2)} €
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
                 </div>
               ) : (
                 <div className="text-center py-4 text-gray-500">
