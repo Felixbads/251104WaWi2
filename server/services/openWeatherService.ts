@@ -6,18 +6,25 @@
  * Die Daten werden in der Datenbank gespeichert und können für Analysen verwendet werden.
  * 
  * API-Dokumentation: https://openweathermap.org/api/one-call-3
+ * 
+ * Wichtige Änderungen (April 2025):
+ * - Rate Limiting: Maximale API-Anfragen begrenzt auf 1000/Tag
+ * - Historische Daten: Rückwirkend ab 01.01.2023
+ * - Zentrale Abfrage: Nur für Bad Schandau (50.9196, 14.1524)
+ * - Forecast: 8-14 Tage Vorhersage für Prophet-Prognosemodell
  */
 
 import axios from 'axios';
 import { db } from '../db';
 import { eq, sql, and, gt, lt, between, desc, asc } from 'drizzle-orm';
-import { weatherForecasts, InsertWeatherForecast, weatherHistorical, InsertWeatherHistorical, dataCoverage } from '@shared/schema';
-import { format, parseISO, isValid, subDays, addDays, isBefore, isAfter } from 'date-fns';
+import { weatherForecasts, InsertWeatherForecast, weatherHistorical, InsertWeatherHistorical, dataCoverage, syncLogs } from '@shared/schema';
+import { format, parseISO, isValid, subDays, addDays, isBefore, isAfter, differenceInDays, startOfDay } from 'date-fns';
 
 // API-Konfiguration
 const API_KEY = process.env.OPENWEATHER_API_KEY;
 const BASE_URL = 'https://api.openweathermap.org/data/3.0/onecall';
 const CURRENT_WEATHER_URL = 'https://api.openweathermap.org/data/2.5/weather';
+const HISTORICAL_WEATHER_URL = 'https://api.openweathermap.org/data/3.0/onecall/timemachine';
 
 // Default-Koordinaten für Bad Schandau
 const DEFAULT_LAT = 50.9196; // Bad Schandau
@@ -29,8 +36,38 @@ export const WEATHER_TYPE = {
   HISTORICAL: 'weather_historical'
 };
 
+// Rate Limiting Konfiguration
+const MAX_DAILY_REQUESTS = 1000; // Maximale API-Anfragen pro Tag
+let dailyRequestCount = 0;
+let lastRequestCountReset = new Date();
+
 /**
- * Aktuelle Wetterdaten und Vorhersage abrufen
+ * Prüft, ob eine API-Anfrage gesendet werden kann (Rate Limiting)
+ * @returns {boolean} True, wenn Anfrage gesendet werden kann, sonst False
+ */
+function canMakeRequest(): boolean {
+  const now = new Date();
+  
+  // Zurücksetzen des Zählers, wenn ein neuer Tag beginnt
+  if (now.getDate() !== lastRequestCountReset.getDate() || 
+      now.getMonth() !== lastRequestCountReset.getMonth() ||
+      now.getFullYear() !== lastRequestCountReset.getFullYear()) {
+    dailyRequestCount = 0;
+    lastRequestCountReset = now;
+    console.log(`[OpenWeather] API-Anfragenzähler zurückgesetzt am ${format(now, 'yyyy-MM-dd HH:mm:ss')}`);
+  }
+  
+  // Prüfen, ob das Limit erreicht ist
+  if (dailyRequestCount >= MAX_DAILY_REQUESTS) {
+    console.warn(`[OpenWeather] API-Anfragenlimit (${MAX_DAILY_REQUESTS}) erreicht. Weitere Anfragen werden bis morgen blockiert.`);
+    return false;
+  }
+  
+  return true;
+}
+
+/**
+ * Aktuelle Wetterdaten und Vorhersage abrufen mit Rate Limiting
  * 
  * @param lat Breitengrad
  * @param lon Längengrad
@@ -45,11 +82,22 @@ export async function fetchWeatherForecast(
   lang: string = 'de'
 ): Promise<any | null> {
   if (!API_KEY) {
-    console.error('OpenWeather API-Schlüssel fehlt');
+    console.error('[OpenWeather] API-Schlüssel fehlt');
+    return null;
+  }
+
+  // Prüfen, ob eine Anfrage im Rahmen des Rate Limits gesendet werden kann
+  if (!canMakeRequest()) {
+    console.warn('[OpenWeather] Anfrage für Wettervorhersage wegen Rate Limiting abgelehnt');
     return null;
   }
 
   try {
+    console.log(`[OpenWeather] Hole Vorhersagedaten für Bad Schandau (${lat}, ${lon})`);
+    
+    // API-Anfrage senden und Zähler erhöhen
+    dailyRequestCount++;
+    
     const response = await axios.get(`${BASE_URL}`, {
       params: {
         lat,
@@ -63,19 +111,20 @@ export async function fetchWeatherForecast(
 
     // Überprüfen auf API-Fehler
     if (response.status !== 200) {
-      console.error(`OpenWeather API-Fehler: ${response.status} ${response.statusText}`);
+      console.error(`[OpenWeather] API-Fehler: ${response.status} ${response.statusText}`);
       return null;
     }
 
+    console.log(`[OpenWeather] Vorhersagedaten erfolgreich abgerufen. API-Anfragen heute: ${dailyRequestCount}/${MAX_DAILY_REQUESTS}`);
     return response.data;
   } catch (error) {
-    console.error('Fehler beim Abrufen der Wettervorhersage:', error);
+    console.error('[OpenWeather] Fehler beim Abrufen der Wettervorhersage:', error);
     return null;
   }
 }
 
 /**
- * Historische Wetterdaten abrufen
+ * Historische Wetterdaten abrufen mit Rate Limiting
  * 
  * @param date Datum für historische Daten (UNIX-Timestamp oder Datum)
  * @param lat Breitengrad
@@ -92,32 +141,47 @@ export async function fetchHistoricalWeather(
   lang: string = 'de'
 ): Promise<any | null> {
   if (!API_KEY) {
-    console.error('OpenWeather API-Schlüssel fehlt');
+    console.error('[OpenWeather] API-Schlüssel fehlt');
+    return null;
+  }
+
+  // Prüfen, ob eine Anfrage im Rahmen des Rate Limits gesendet werden kann
+  if (!canMakeRequest()) {
+    console.warn('[OpenWeather] Anfrage für historische Wetterdaten wegen Rate Limiting abgelehnt');
     return null;
   }
 
   // Umwandlung des Datums in Unix-Timestamp
   let timestamp: number;
+  let dateString: string;
   
   if (typeof date === 'number') {
     timestamp = date;
+    dateString = new Date(timestamp * 1000).toISOString().split('T')[0];
   } else if (typeof date === 'string') {
     const parsedDate = parseISO(date);
     if (isValid(parsedDate)) {
       timestamp = Math.floor(parsedDate.getTime() / 1000);
+      dateString = date;
     } else {
-      console.error('Ungültiges Datumsformat:', date);
+      console.error('[OpenWeather] Ungültiges Datumsformat:', date);
       return null;
     }
   } else if (date instanceof Date) {
     timestamp = Math.floor(date.getTime() / 1000);
+    dateString = date.toISOString().split('T')[0];
   } else {
-    console.error('Ungültiges Datumsformat:', date);
+    console.error('[OpenWeather] Ungültiges Datumsformat:', date);
     return null;
   }
 
   try {
-    const response = await axios.get(`${BASE_URL}/timemachine`, {
+    console.log(`[OpenWeather] Hole historische Wetterdaten für ${dateString} (${lat}, ${lon})`);
+    
+    // API-Anfrage senden und Zähler erhöhen
+    dailyRequestCount++;
+    
+    const response = await axios.get(`${HISTORICAL_WEATHER_URL}`, {
       params: {
         lat,
         lon,
@@ -130,13 +194,14 @@ export async function fetchHistoricalWeather(
 
     // Überprüfen auf API-Fehler
     if (response.status !== 200) {
-      console.error(`OpenWeather API-Fehler: ${response.status} ${response.statusText}`);
+      console.error(`[OpenWeather] API-Fehler: ${response.status} ${response.statusText}`);
       return null;
     }
 
+    console.log(`[OpenWeather] Historische Wetterdaten für ${dateString} erfolgreich abgerufen. API-Anfragen heute: ${dailyRequestCount}/${MAX_DAILY_REQUESTS}`);
     return response.data;
   } catch (error) {
-    console.error(`Fehler beim Abrufen historischer Wetterdaten für Datum ${date}:`, error);
+    console.error(`[OpenWeather] Fehler beim Abrufen historischer Wetterdaten für Datum ${dateString}:`, error);
     return null;
   }
 }
@@ -1006,4 +1071,171 @@ function gte(field: any, value: any) {
 
 function lte(field: any, value: any) {
   return sql`${field} <= ${value}`;
+}
+
+/**
+ * Batch-Synchronisierung historischer Wetterdaten für einen Zeitraum
+ * Speziell für den Abruf historischer Daten seit 01.01.2023
+ * 
+ * @param startDate Startdatum (default: 01.01.2023)
+ * @param endDate Enddatum (default: heute)
+ * @param batchSize Anzahl der Tage pro Synchronisationslauf
+ * @returns Synchronisationsergebnis
+ */
+export async function syncHistoricalWeatherBatch(
+  startDate: string | Date = '2023-01-01',
+  endDate: string | Date = new Date(),
+  batchSize: number = 10
+): Promise<{ saved: number, duplicates: number, errors: number, status: string, message?: string, isComplete?: boolean }> {
+  try {
+    // Startdatum und Enddatum parsen
+    let startDateTime: Date;
+    let endDateTime: Date;
+    
+    if (typeof startDate === 'string') {
+      startDateTime = parseISO(startDate);
+      if (!isValid(startDateTime)) {
+        throw new Error(`Ungültiges Startdatum: ${startDate}`);
+      }
+    } else {
+      startDateTime = startDate;
+    }
+    
+    if (typeof endDate === 'string') {
+      endDateTime = parseISO(endDate);
+      if (!isValid(endDateTime)) {
+        throw new Error(`Ungültiges Enddatum: ${endDate}`);
+      }
+    } else {
+      endDateTime = endDate;
+    }
+    
+    // Prüfen, ob ein früheres Datum als der 01.01.2023 angegeben wurde
+    const minDate = parseISO('2023-01-01');
+    if (isBefore(startDateTime, minDate)) {
+      console.log(`[OpenWeather] Startdatum wurde auf das Mindestdatum (01.01.2023) gesetzt`);
+      startDateTime = minDate;
+    }
+    
+    // Endatum auf heute begrenzen, falls es in der Zukunft liegt
+    const now = new Date();
+    if (isAfter(endDateTime, now)) {
+      endDateTime = now;
+    }
+    
+    // Lücken finden: Tage, die noch nicht in der Datenbank sind
+    type DateCount = {
+      date: string;
+      count: number;
+    };
+    
+    const existingDates = await db.select({
+      date: weatherHistorical.date,
+      count: sql`count(*)::int`.as('count')
+    })
+    .from(weatherHistorical)
+    .where(
+      and(
+        gte(weatherHistorical.date, format(startDateTime, 'yyyy-MM-dd')),
+        lte(weatherHistorical.date, format(endDateTime, 'yyyy-MM-dd'))
+      )
+    )
+    .groupBy(weatherHistorical.date) as DateCount[];
+    
+    // Lücken identifizieren
+    const datesWithGaps: Date[] = [];
+    let currentDate = startOfDay(startDateTime);
+    
+    while (!isAfter(currentDate, endDateTime)) {
+      const formattedDate = format(currentDate, 'yyyy-MM-dd');
+      const existingDate = existingDates.find(d => d.date === formattedDate);
+      
+      // Wenn keine Daten oder unvollständige Daten für diesen Tag vorhanden sind
+      const count = existingDate ? Number(existingDate.count) : 0;
+      if (!existingDate || count < 24) {
+        datesWithGaps.push(currentDate);
+      }
+      
+      // Zum nächsten Tag gehen
+      currentDate = addDays(currentDate, 1);
+    }
+    
+    // Wenn alle Daten vorhanden sind, sind wir fertig
+    if (datesWithGaps.length === 0) {
+      console.log('[OpenWeather] Alle historischen Wetterdaten für den angegebenen Zeitraum sind bereits vorhanden');
+      return {
+        saved: 0,
+        duplicates: 0,
+        errors: 0,
+        status: 'success',
+        message: 'Keine fehlenden Daten für den angegebenen Zeitraum',
+        isComplete: true
+      };
+    }
+    
+    // Sortieren: älteste Daten zuerst
+    datesWithGaps.sort((a, b) => a.getTime() - b.getTime());
+    
+    console.log(`[OpenWeather] ${datesWithGaps.length} Tage mit fehlenden historischen Wetterdaten gefunden`);
+    console.log(`[OpenWeather] Synchronisiere Batch von maximal ${batchSize} Tagen`);
+    
+    // Batch für diese Synchronisierung auswählen
+    const batchToSync = datesWithGaps.slice(0, batchSize);
+    
+    // Statistik für die Synchronisierung
+    const stats = {
+      totalDays: batchToSync.length,
+      successfulDays: 0,
+      failedDays: 0,
+      totalSaved: 0,
+      totalDuplicates: 0,
+      errors: 0
+    };
+    
+    // Historische Daten für jeden Tag im Batch abrufen
+    for (const date of batchToSync) {
+      try {
+        const result = await syncHistoricalWeather(date);
+        
+        stats.totalSaved += result.saved;
+        stats.totalDuplicates += result.duplicates;
+        
+        if (result.status === 'success' || result.status === 'partial') {
+          stats.successfulDays++;
+        } else {
+          stats.failedDays++;
+          stats.errors += result.errors;
+        }
+        
+        // Kurze Pause, um die API nicht zu überlasten
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        console.error(`[OpenWeather] Fehler beim Abrufen historischer Wetterdaten für ${format(date, 'yyyy-MM-dd')}:`, error);
+        stats.failedDays++;
+        stats.errors++;
+      }
+    }
+    
+    // Abdeckungsinformationen aktualisieren
+    await updateCoverageForType(WEATHER_TYPE.HISTORICAL);
+    
+    return {
+      saved: stats.totalSaved,
+      duplicates: stats.totalDuplicates,
+      errors: stats.errors,
+      status: stats.errors > 0 ? 'partial' : 'success',
+      message: `${stats.successfulDays}/${stats.totalDays} Tage erfolgreich synchronisiert`,
+      isComplete: datesWithGaps.length <= batchSize // True, wenn alle verbleibenden Lücken in diesem Batch bearbeitet wurden
+    };
+  } catch (error) {
+    console.error('[OpenWeather] Fehler bei der Batch-Synchronisierung historischer Wetterdaten:', error);
+    return {
+      saved: 0,
+      duplicates: 0,
+      errors: 1,
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Unbekannter Fehler',
+      isComplete: false
+    };
+  }
 }

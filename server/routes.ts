@@ -116,6 +116,7 @@ import vendonRoutes from "./routes/vendon";
 import productDisposalsRoutes from "./routes/productDisposals";
 import exportImportRoutes from "./routes/exportImport";
 import removedProductsRoutes from "./routes/removedProducts";
+import weatherRoutes from "./routes/weather";
 import { WebSocketServer } from 'ws';
 
 // API route prefix
@@ -1157,6 +1158,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/vendon`, vendonRoutes);
   app.use(`${API_PREFIX}/product-disposals`, productDisposalsRoutes);
   app.use(`${API_PREFIX}/removed-products`, removedProductsRoutes);
+  app.use(`${API_PREFIX}/weather`, weatherRoutes);
   
   // Registriere Bestellungs-Routen
   app.use(`${API_PREFIX}/orders`, ordersRouter);

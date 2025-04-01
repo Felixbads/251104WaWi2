@@ -7,7 +7,7 @@
  */
 
 import { vendonSync } from './services/vendonSync';
-import { syncWeatherForecast } from './services/openWeatherService';
+import { syncWeatherForecast, syncHistoricalWeatherBatch } from './services/openWeatherService';
 import { syncMissingHolidays } from './services/holidayService';
 
 // Speichern der Timeout-IDs zur späteren Verwaltung
@@ -25,7 +25,7 @@ const syncConfig = {
   },
   medium: {
     interval: 60 * 60 * 1000, // 1 Stunde
-    syncTypes: ['machines', 'products', 'events', 'weather_forecast'] // Mittelschnelle Sync-Typen
+    syncTypes: ['machines', 'products', 'events', 'weather_forecast', 'weather_historical_batch'] // Mittelschnelle Sync-Typen
   },
   slow: {
     interval: 24 * 60 * 60 * 1000, // 24 Stunden
@@ -84,6 +84,17 @@ async function performSync(syncType: string): Promise<void> {
       case 'weather_forecast':
         // Synchronisiere Wetterprognosen für Bad Schandau (50.9196, 14.1524)
         result = await syncWeatherForecast(50.9196, 14.1524);
+        break;
+      case 'weather_historical_batch':
+        // Synchronisiere historische Wetterdaten ab 01.01.2023 in Batches
+        // Nutze die neue Batch-Funktion für effiziente Synchronisierung
+        result = await syncHistoricalWeatherBatch('2023-01-01', new Date(), 7);
+        // Wenn alle historischen Daten synchronisiert wurden, entferne aus dem Scheduler
+        if (result && result.isComplete) {
+          console.log("[OpenWeather] Historische Wetterdatensynchronisierung abgeschlossen. Entferne aus dem Scheduler.");
+          delete timers[syncType];
+          return; // Keine weitere Planung
+        }
         break;
       case 'holidays':
         // Synchronisiere fehlende Feiertage für die nächsten 2 Jahre
