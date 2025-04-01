@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format, subDays, addDays, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { apiRequest } from '@/lib/queryClient';
 import { 
   Card, 
   CardContent, 
@@ -69,25 +70,29 @@ const ForecastEvaluation: React.FC = () => {
   // Abrufen der verfügbaren Maschinen
   const { data: machines } = useQuery({
     queryKey: ['/api/machines'],
-    staleTime: 60000 // 1 Minute
+    staleTime: 60000, // 1 Minute
+    queryFn: () => apiRequest("get", "/api/machines")
   });
   
   // Abrufen der verfügbaren Produkte
   const { data: products } = useQuery({
     queryKey: ['/api/products'],
-    staleTime: 60000 // 1 Minute
+    staleTime: 60000, // 1 Minute
+    queryFn: () => apiRequest("get", "/api/products")
   });
   
   // Abrufen der verfügbaren Lieferanten
   const { data: suppliers } = useQuery({
     queryKey: ['/api/suppliers'],
-    staleTime: 60000 // 1 Minute
+    staleTime: 60000, // 1 Minute
+    queryFn: () => apiRequest("get", "/api/suppliers")
   });
   
   // Abrufen der verfügbaren Modelle
   const { data: models } = useQuery({
     queryKey: ['/api/forecast/models'],
-    staleTime: 60000 // 1 Minute
+    staleTime: 60000, // 1 Minute
+    queryFn: () => apiRequest("get", "/api/forecast/models")
   });
   
   // Abrufen der Prognosedaten basierend auf Filtern
@@ -110,7 +115,30 @@ const ForecastEvaluation: React.FC = () => {
       }
     ],
     staleTime: 30000, // 30 Sekunden
-    enabled: false // Nicht automatisch abrufen beim ersten Rendern
+    enabled: false, // Nicht automatisch abrufen beim ersten Rendern
+    queryFn: async ({ queryKey }) => {
+      const [url, params] = queryKey as [string, {
+        startDate: string;
+        endDate: string;
+        modelId?: string;
+        machineId?: string;
+        productId?: string;
+        supplierId?: string;
+        groupBy: string;
+      }];
+      
+      const queryParams = new URLSearchParams();
+      
+      if (params.startDate) queryParams.append('startDate', params.startDate);
+      if (params.endDate) queryParams.append('endDate', params.endDate);
+      if (params.modelId) queryParams.append('modelId', params.modelId);
+      if (params.machineId) queryParams.append('machineId', params.machineId);
+      if (params.productId) queryParams.append('productId', params.productId);
+      if (params.supplierId) queryParams.append('supplierId', params.supplierId);
+      if (params.groupBy) queryParams.append('groupBy', params.groupBy);
+      
+      return apiRequest("get", `${url}?${queryParams.toString()}`);
+    }
   });
   
   // Anwenden der Filter

@@ -8,21 +8,39 @@ async function throwIfResNotOk(res: Response) {
 }
 
 export async function apiRequest(
+  method: string,
   url: string,
   options?: {
-    method?: string;
-    data?: unknown;
+    body?: any;
+    headers?: Record<string, string>;
   }
-): Promise<Response> {
-  const res = await fetch(url, {
-    method: options?.method || 'GET',
-    headers: options?.data ? { "Content-Type": "application/json" } : {},
-    body: options?.data ? JSON.stringify(options.data) : undefined,
+): Promise<any> {
+  // Stelle sicher, dass URL mit /api beginnt
+  const apiUrl = url.startsWith('/api') ? url : `/api${url}`;
+  
+  const headers = {
+    "Content-Type": "application/json",
+    ...(options?.headers || {})
+  };
+  
+  console.log(`API Request: ${method} ${apiUrl}`, options?.body);
+  
+  const res = await fetch(apiUrl, {
+    method: method.toUpperCase(),
+    headers: headers,
+    body: options?.body ? JSON.stringify(options.body) : undefined,
     credentials: "include",
   });
 
   await throwIfResNotOk(res);
-  return res;
+  
+  // Bei leerer Antwort (204 No Content) ein leeres Objekt zurückgeben
+  if (res.status === 204) {
+    return {};
+  }
+  
+  // Ansonsten JSON parsen
+  return await res.json();
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
@@ -31,7 +49,11 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey[0] as string, {
+    // Stelle sicher, dass URL mit /api beginnt
+    const url = queryKey[0] as string;
+    const apiUrl = url.startsWith('/api') ? url : `/api${url}`;
+    
+    const res = await fetch(apiUrl, {
       credentials: "include",
     });
 
@@ -40,6 +62,12 @@ export const getQueryFn: <T>(options: {
     }
 
     await throwIfResNotOk(res);
+    
+    // Bei leerer Antwort (204 No Content) ein leeres Objekt zurückgeben
+    if (res.status === 204) {
+      return {};
+    }
+    
     return await res.json();
   };
 
