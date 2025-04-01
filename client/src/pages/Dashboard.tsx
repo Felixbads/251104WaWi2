@@ -39,7 +39,9 @@ import {
   getForecastModels, 
   getDashboardForecasts,
   DashboardForecast,
-  initializeDefaultForecastModel
+  initializeDefaultForecastModel,
+  getDatabaseStatistics,
+  DatabaseStatistics
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -102,6 +104,13 @@ export default function Dashboard() {
     queryKey: ['/api/forecast/dashboard'],
     queryFn: () => getDashboardForecasts(),
     refetchInterval: 300000 // Alle 5 Minuten aktualisieren
+  });
+  
+  // Datenbankstatistiken
+  const { data: databaseStats, isLoading: isLoadingDatabaseStats } = useQuery({
+    queryKey: ['/api/statistics/database'],
+    queryFn: () => getDatabaseStatistics(),
+    refetchInterval: 60000 // Jede Minute aktualisieren
   });
 
   // Handle settings click
@@ -908,6 +917,74 @@ export default function Dashboard() {
         <TabsContent value="system" className="space-y-4">
           {/* Synchronisationsstatus */}
           <SyncStatusCard onSettingsClick={handleSettingsClick} />
+          
+          {/* Datenbankstatistiken */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center">
+                <BarChart3 className="h-5 w-5 mr-2 text-primary" />
+                Datenbankstatistiken
+              </CardTitle>
+              <CardDescription>
+                Anzahl der Datensätze in den wichtigsten Tabellen
+                {databaseStats && (
+                  <span className="text-xs ml-2">
+                    (Letzte Aktualisierung: {formatDateTime(databaseStats.lastUpdated)})
+                  </span>
+                )}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingDatabaseStats ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full"></div>
+                </div>
+              ) : databaseStats ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                  <div className="flex flex-col items-center border rounded-md p-4 text-center">
+                    <FileText className="h-8 w-8 mb-2 text-blue-500" />
+                    <span className="text-2xl font-bold">{databaseStats.transactions}</span>
+                    <span className="text-sm text-gray-500">Transaktionen</span>
+                  </div>
+                  <div className="flex flex-col items-center border rounded-md p-4 text-center">
+                    <Truck className="h-8 w-8 mb-2 text-amber-500" />
+                    <span className="text-2xl font-bold">{databaseStats.openOrders}</span>
+                    <span className="text-sm text-gray-500">Offene Bestellungen</span>
+                  </div>
+                  <div className="flex flex-col items-center border rounded-md p-4 text-center">
+                    <ShoppingBag className="h-8 w-8 mb-2 text-indigo-500" />
+                    <span className="text-2xl font-bold">{databaseStats.products}</span>
+                    <span className="text-sm text-gray-500">Produkte</span>
+                  </div>
+                  <div className="flex flex-col items-center border rounded-md p-4 text-center">
+                    <DollarSign className="h-8 w-8 mb-2 text-green-500" />
+                    <span className="text-2xl font-bold">{databaseStats.suppliers}</span>
+                    <span className="text-sm text-gray-500">Lieferanten</span>
+                  </div>
+                  <div className="flex flex-col items-center border rounded-md p-4 text-center">
+                    <Package className="h-8 w-8 mb-2 text-purple-500" />
+                    <span className="text-2xl font-bold">{databaseStats.machines}</span>
+                    <span className="text-sm text-gray-500">Automaten</span>
+                  </div>
+                  <div className="flex flex-col items-center border rounded-md p-4 text-center">
+                    <RefreshCw className="h-8 w-8 mb-2 text-teal-500" />
+                    <Button 
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setLocation("/sync")}
+                      className="mt-1"
+                    >
+                      Synchronisation
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4 text-gray-500">
+                  Keine Datenbankstatistiken verfügbar
+                </div>
+              )}
+            </CardContent>
+          </Card>
           
           {/* Recent Sync Activity */}
           <SyncLogTable />

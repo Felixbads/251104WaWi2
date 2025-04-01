@@ -2,6 +2,16 @@ import axios from 'axios';
 
 const API_BASE_URL = '/api';
 
+// Interface für Datenbankstatistiken
+export interface DatabaseStatistics {
+  transactions: number;
+  openOrders: number;
+  suppliers: number;
+  products: number;
+  machines: number;
+  lastUpdated: string;
+}
+
 // Funktion zum Starten einer Synchronisierung
 export async function triggerSync(type: string, options: any = {}) {
   const response = await axios.post(`${API_BASE_URL}/vendon/sync`, {
@@ -305,6 +315,11 @@ export interface DashboardSummary {
 
 export async function getDashboardSummary(): Promise<DashboardSummary> {
   return apiRequest<DashboardSummary>('get', '/transactions/summary');
+}
+
+// Datenbankstatistiken abrufen
+export async function getDatabaseStatistics(): Promise<DatabaseStatistics> {
+  return apiRequest<DatabaseStatistics>('get', '/statistics/database');
 }
 
 export async function getTransactionsByDateRange(

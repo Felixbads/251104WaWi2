@@ -105,6 +105,7 @@ import { startAutomaticSync, stopAutomaticSync, getSchedulerStatus } from "./sch
 import { z } from "zod";
 import { registerForecastRoutes } from "./routes/forecast";
 import { registerInventoryRoutes } from "./routes/inventory";
+import { statisticsRoutes } from "./routes/statistics";
 import { 
   registerUser, 
   loginUser, 
@@ -1162,6 +1163,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   registerForecastRoutes(app);
   registerInventoryRoutes(app);
+  statisticsRoutes(app);
   
   // Registriere Vendon-API-Routen
   app.use(`${API_PREFIX}/vendon`, vendonRoutes);
