@@ -1,5 +1,7 @@
 import { Link, useLocation } from "wouter";
-import { X, Home, FileText, Package, ShoppingBag, RefreshCw, Clock, Settings, BarChart2, Truck, ShoppingCart, Database } from "lucide-react";
+import { X, Home, FileText, Package, ShoppingBag, RefreshCw, Clock, Settings, BarChart2, Truck, ShoppingCart, Building2, Users, LogOut, TrashIcon } from "lucide-react";
+import { useAuth } from "@/lib";
+import { Button } from "@/components/ui/button";
 
 interface MobileMenuProps {
   isOpen: boolean;
@@ -8,6 +10,7 @@ interface MobileMenuProps {
 
 export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
   const [location] = useLocation();
+  const { logout, user } = useAuth();
 
   // Helper function to determine if a link is active
   const isActive = (path: string) => {
@@ -23,24 +26,14 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
 
   return (
     <div className="fixed inset-0 z-20 bg-gray-800 bg-opacity-75 md:hidden">
-      <div className="h-full w-64 bg-white p-4 overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
+      <div className="h-full w-64 bg-white overflow-y-auto">
+        {/* Header */}
+        <div className="p-6 flex items-center justify-between border-b border-gray-200">
           <div className="flex items-center">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-8 w-8 text-primary-600"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-              />
-            </svg>
-            <span className="ml-2 font-semibold text-lg">Vendon Sync</span>
+            <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
+              <ShoppingBag className="h-5 w-5 text-white" />
+            </div>
+            <span className="ml-3 font-semibold text-lg">Proviantomat</span>
           </div>
           <button
             onClick={onClose}
@@ -50,15 +43,15 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
           </button>
         </div>
 
-        {/* Mobile Nav */}
-        <div className="py-4 border-b border-gray-200">
-          <h3 className="px-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+        {/* Mobile Nav - Übersicht */}
+        <div className="py-4 border-b border-gray-200 bg-white">
+          <h3 className="px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
             Übersicht
           </h3>
           <nav>
             <Link href="/" onClick={handleLinkClick}>
               <div
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
                   isActive("/")
                     ? "text-primary-600 bg-primary-50"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -68,21 +61,9 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
                 Dashboard
               </div>
             </Link>
-            <Link href="/transactions" onClick={handleLinkClick}>
-              <div
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
-                  isActive("/transactions")
-                    ? "text-primary-600 bg-primary-50"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-              >
-                <FileText className="h-5 w-5 mr-3" />
-                Transaktionen
-              </div>
-            </Link>
             <Link href="/automaten" onClick={handleLinkClick}>
               <div
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
                   isActive("/automaten")
                     ? "text-primary-600 bg-primary-50"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -94,7 +75,7 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             </Link>
             <Link href="/produkte" onClick={handleLinkClick}>
               <div
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
                   isActive("/produkte")
                     ? "text-primary-600 bg-primary-50"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -106,7 +87,7 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             </Link>
             <Link href="/lieferanten" onClick={handleLinkClick}>
               <div
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
                   isActive("/lieferanten")
                     ? "text-primary-600 bg-primary-50"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -116,9 +97,30 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
                 Lieferanten
               </div>
             </Link>
+            <Link href="/transactions" onClick={handleLinkClick}>
+              <div
+                className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
+                  isActive("/transactions")
+                    ? "text-primary-600 bg-primary-50"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <FileText className="h-5 w-5 mr-3" />
+                Transaktionen
+              </div>
+            </Link>
+          </nav>
+        </div>
+
+        {/* Mobile Nav - Verwaltung */}
+        <div className="py-4 border-b border-gray-200 bg-white">
+          <h3 className="px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+            Verwaltung
+          </h3>
+          <nav>
             <Link href="/bestellungen" onClick={handleLinkClick}>
               <div
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
                   isActive("/bestellungen")
                     ? "text-primary-600 bg-primary-50"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -130,19 +132,43 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             </Link>
             <Link href="/lager" onClick={handleLinkClick}>
               <div
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
                   isActive("/lager")
                     ? "text-primary-600 bg-primary-50"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                 }`}
               >
-                <Database className="h-5 w-5 mr-3" />
+                <Building2 className="h-5 w-5 mr-3" />
                 Lager
+              </div>
+            </Link>
+            <Link href="/warenentnahme" onClick={handleLinkClick}>
+              <div
+                className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
+                  isActive("/warenentnahme")
+                    ? "text-primary-600 bg-primary-50"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <TrashIcon className="h-5 w-5 mr-3" />
+                Warenentnahme
+              </div>
+            </Link>
+            <Link href="/forecast" onClick={handleLinkClick}>
+              <div
+                className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
+                  isActive("/forecast")
+                    ? "text-primary-600 bg-primary-50"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+              >
+                <BarChart2 className="h-5 w-5 mr-3" />
+                Prognosen
               </div>
             </Link>
             <Link href="/auswertungen" onClick={handleLinkClick}>
               <div
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
                   isActive("/auswertungen")
                     ? "text-primary-600 bg-primary-50"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -156,14 +182,14 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
         </div>
 
         {/* Mobile System Nav */}
-        <div className="py-4 border-b border-gray-200">
-          <h3 className="px-2 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+        <div className="py-4 border-b border-gray-200 bg-white">
+          <h3 className="px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
             System
           </h3>
           <nav>
             <Link href="/synchronization" onClick={handleLinkClick}>
               <div
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
                   isActive("/synchronization")
                     ? "text-primary-600 bg-primary-50"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -175,7 +201,7 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             </Link>
             <Link href="/sync-history" onClick={handleLinkClick}>
               <div
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
                   isActive("/sync-history")
                     ? "text-primary-600 bg-primary-50"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -185,21 +211,9 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
                 Sync-Verlauf
               </div>
             </Link>
-            <Link href="/forecast" onClick={handleLinkClick}>
-              <div
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
-                  isActive("/forecast")
-                    ? "text-primary-600 bg-primary-50"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-              >
-                <BarChart2 className="h-5 w-5 mr-3" />
-                Prognosen
-              </div>
-            </Link>
             <Link href="/settings" onClick={handleLinkClick}>
               <div
-                className={`flex items-center px-2 py-2 mb-1 rounded-md text-sm font-medium cursor-pointer ${
+                className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
                   isActive("/settings")
                     ? "text-primary-600 bg-primary-50"
                     : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
@@ -213,19 +227,28 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
         </div>
 
         {/* User Profile in Mobile Menu */}
-        <div className="mt-4 pt-4 border-t border-gray-200">
+        <div className="mt-auto p-6 border-t border-gray-200 bg-white">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <img
-                className="h-10 w-10 rounded-full"
-                src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-                alt="User avatar"
-              />
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <Users className="h-6 w-6 text-primary" />
+              </div>
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium text-gray-700">Max Mustermann</p>
-              <p className="text-xs font-medium text-gray-500">Administrator</p>
+              <p className="text-sm font-medium text-gray-700">{user?.username || 'Admin'}</p>
+              <p className="text-xs font-medium text-gray-500">{user?.role || 'Administrator'}</p>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto rounded-full"
+              onClick={() => {
+                logout();
+                onClose();
+              }}
+            >
+              <LogOut className="h-5 w-5 text-gray-500" />
+            </Button>
           </div>
         </div>
       </div>
