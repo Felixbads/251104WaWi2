@@ -1024,36 +1024,36 @@ export async function trainForecastModel(modelId: number, startDate: string, end
 // Initialisiert das Standardprognosemodell mit sinnvollen Standardwerten
 export async function initializeDefaultForecastModel() {
   try {
-    // Hole verfügbare Modelle
-    const models = await getForecastModels();
+    // Starte die automatische Initialisierung auf dem Server
+    const response = await apiRequest<{
+      success: boolean; 
+      message: string;
+      modelId?: number;
+      modelName?: string;
+      trainingPeriodStart?: string;
+      trainingPeriodEnd?: string;
+    }>('post', '/forecast/auto-train');
     
-    if (!models || !Array.isArray(models) || models.length === 0) {
-      console.error('Keine Prognosemodelle verfügbar');
-      return { success: false, message: 'Keine Prognosemodelle verfügbar' };
+    if (response && response.success) {
+      return { 
+        success: true, 
+        message: 'Prognosemodell-Initialisierung gestartet. Die Prognosen werden in Kürze verfügbar sein.',
+        result: response 
+      };
+    } else {
+      console.error('Fehler bei der automatischen Initialisierung:', response);
+      return { 
+        success: false, 
+        message: 'Die automatische Modell-Initialisierung konnte nicht durchgeführt werden.',
+        details: response
+      };
     }
-    
-    // Finde das Standardmodell oder nimm das erste Modell
-    const defaultModel = models.find((m: any) => m.isDefault) || models[0];
-    
-    // Berechne Start- und Enddatum für das Training (letzte 180 Tage)
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 180);
-    
-    // Formatiere Daten im YYYY-MM-DD Format
-    const formattedStartDate = startDate.toISOString().split('T')[0];
-    const formattedEndDate = endDate.toISOString().split('T')[0];
-    
-    // Starte das Training
-    const result = await trainForecastModel(
-      defaultModel.id,
-      formattedStartDate,
-      formattedEndDate
-    );
-    
-    return { success: true, message: 'Prognosemodell erfolgreich initialisiert', result };
   } catch (error) {
     console.error('Fehler bei der Initialisierung des Prognosemodells:', error);
-    return { success: false, message: 'Fehler bei der Initialisierung des Prognosemodells' };
+    return { 
+      success: false, 
+      message: 'Fehler bei der Initialisierung des Prognosemodells. Bitte verwenden Sie die manuelle Initialisierung.',
+      error: String(error)
+    };
   }
 }

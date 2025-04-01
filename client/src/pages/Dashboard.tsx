@@ -699,7 +699,11 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div className="text-center py-4 space-y-3">
-                  <p className="text-muted-foreground">Keine Prognosedaten verfügbar</p>
+                  <p className="text-muted-foreground">
+                    {(!forecastModels || forecastModels.length === 0) 
+                      ? "Kein Prognosemodell vorhanden. Bitte initialisieren Sie ein Modell." 
+                      : "Keine Prognosedaten verfügbar. Bitte initialisieren Sie die Prognose."}
+                  </p>
                   <div className="flex justify-center gap-2">
                     <Button 
                       variant="outline" 
@@ -714,36 +718,43 @@ export default function Dashboard() {
                           if (result.success) {
                             toast({
                               title: "Prognosemodell initialisiert",
-                              description: "Die Prognosen werden bald verfügbar sein.",
+                              description: "Die Prognosen werden in Kürze verfügbar sein. Die Verarbeitung dauert einige Minuten.",
                             });
                             // Neu laden der Prognosen
                             await queryClient.invalidateQueries({ queryKey: ['/api/forecast/dashboard'] });
                             await queryClient.invalidateQueries({ queryKey: ['/api/forecast/models'] });
+                            
+                            // Nach 10 Sekunden nochmal neu laden
+                            setTimeout(async () => {
+                              await queryClient.invalidateQueries({ queryKey: ['/api/forecast/dashboard'] });
+                              await queryClient.invalidateQueries({ queryKey: ['/api/forecast/models'] });
+                            }, 10000);
+                            
                           } else {
                             toast({
-                              title: "Fehler",
-                              description: result.message || "Konnte Prognosemodell nicht initialisieren.",
-                              variant: "destructive",
+                              title: "Hinweis",
+                              description: result.message || "Die Modell-Initialisierung wurde gestartet, kann aber einige Zeit dauern.",
                             });
                           }
                         } catch (error) {
                           toast({
                             title: "Fehler",
-                            description: "Konnte Prognosemodell nicht initialisieren.",
+                            description: "Fehler bei der Initialisierung des Prognosemodells. Bitte versuchen Sie die manuelle Erstellung.",
                             variant: "destructive",
                           });
+                          console.error("Fehler bei der Prognosemodell-Initialisierung:", error);
                         }
                       }}
                     >
                       <RefreshCw className="h-4 w-4 mr-1" />
-                      Prognose automatisch erstellen
+                      Automatisch erstellen
                     </Button>
                     <Button 
                       variant="outline" 
                       size="sm"
                       onClick={() => setLocation('/forecast')}
                     >
-                      Prognosemodell manuell erstellen
+                      Prognoseseite öffnen
                     </Button>
                   </div>
                 </div>

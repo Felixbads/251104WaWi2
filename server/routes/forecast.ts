@@ -308,6 +308,65 @@ export function registerForecastRoutes(app: Express): void {
       res.status(500).json({ error: "Interner Serverfehler" });
     }
   });
+  
+  // Automatisches Training des Default-Prognosemodells
+  app.post(`${API_PREFIX}/forecast/auto-train`, async (req: Request, res: Response) => {
+    try {
+      console.log("Starte automatische Initialisierung des Prognosemodells");
+      
+      // 1. Verfügbare Modelle abrufen
+      const models = await forecastService.getForecastModels();
+      
+      if (!models || !Array.isArray(models) || models.length === 0) {
+        console.error('Keine Prognosemodelle verfügbar');
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Keine Prognosemodelle verfügbar. Bitte erstellen Sie zunächst ein Modell.' 
+        });
+      }
+      
+      // 2. Default-Modell auswählen oder das erste nehmen
+      const defaultModel = models.find(m => m.is_default) || models[0];
+      
+      // 3. Start- und Enddatum für das Training berechnen (letzte 180 Tage)
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 180);
+      
+      // 4. Daten formatieren
+      const formattedStartDate = format(startDate, 'yyyy-MM-dd');
+      const formattedEndDate = format(endDate, 'yyyy-MM-dd');
+      
+      // 5. Modelltraining asynchron starten (nicht auf Ergebnis warten)
+      forecastService.trainForecastModel(
+        defaultModel.id,
+        formattedStartDate,
+        formattedEndDate
+      ).then(result => {
+        console.log(`Automatisches Training abgeschlossen: ${JSON.stringify(result)}`);
+      }).catch(error => {
+        console.error(`Fehler beim automatischen Training: ${error}`);
+      });
+      
+      // 6. Sofort eine Antwort zurückgeben
+      res.json({
+        success: true,
+        message: 'Prognosemodell-Initialisierung im Hintergrund gestartet',
+        modelId: defaultModel.id,
+        modelName: defaultModel.name,
+        trainingPeriodStart: formattedStartDate,
+        trainingPeriodEnd: formattedEndDate
+      });
+      
+    } catch (error) {
+      console.error("Fehler bei der automatischen Initialisierung des Prognosemodells:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Fehler bei der automatischen Initialisierung des Prognosemodells", 
+        error: String(error)
+      });
+    }
+  });
 
   // Prognose mit tatsächlichen Werten aktualisieren
   app.put(`${API_PREFIX}/forecast/:id/actual`, async (req: Request, res: Response) => {
