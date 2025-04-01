@@ -855,8 +855,38 @@ export async function getCurrentWeather(): Promise<WeatherCurrent> {
 }
 
 // Refills functions
-export async function getRefills(limit = 50): Promise<Refill[]> {
-  return apiRequest<Refill[]>('get', `/refills?limit=${limit}`);
+export interface RefillsResponse {
+  refills: Refill[];
+  meta?: {
+    total: number;
+    page: number;
+    limit: number;
+  }
+}
+
+export async function getRefills(params?: {
+  limit?: number;
+  offset?: number;
+  startDate?: string;
+  endDate?: string;
+  machineId?: string;
+}): Promise<RefillsResponse> {
+  const queryParams = new URLSearchParams();
+  
+  if (params) {
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.offset) queryParams.append('offset', params.offset.toString());
+    if (params.startDate) queryParams.append('startDate', params.startDate);
+    if (params.endDate) queryParams.append('endDate', params.endDate);
+    if (params.machineId) queryParams.append('machineId', params.machineId);
+  } else {
+    queryParams.append('limit', '50');
+  }
+  
+  const queryString = queryParams.toString();
+  const url = `/refills${queryString ? '?' + queryString : ''}`;
+  
+  return apiRequest<RefillsResponse>('get', url);
 }
 
 export async function getRefillsByMachine(
