@@ -337,27 +337,37 @@ export function registerForecastRoutes(app: Express): void {
       const formattedStartDate = format(startDate, 'yyyy-MM-dd');
       const formattedEndDate = format(endDate, 'yyyy-MM-dd');
       
-      // 5. Modelltraining asynchron starten (nicht auf Ergebnis warten)
-      forecastService.trainForecastModel(
-        defaultModel.id,
-        formattedStartDate,
-        formattedEndDate
-      ).then(result => {
-        console.log(`Automatisches Training abgeschlossen: ${JSON.stringify(result)}`);
-      }).catch(error => {
-        console.error(`Fehler beim automatischen Training: ${error}`);
-      });
-      
-      // 6. Sofort eine Antwort zurückgeben
-      res.json({
-        success: true,
-        message: 'Prognosemodell-Initialisierung im Hintergrund gestartet',
-        modelId: defaultModel.id,
-        modelName: defaultModel.name,
-        trainingPeriodStart: formattedStartDate,
-        trainingPeriodEnd: formattedEndDate
-      });
-      
+      // 5. Um die Validierung zu umgehen (die trainModelSchema benötigt startDate und endDate),
+      // übergeben wir die Daten direkt an die Trainer-Funktion statt über das Schema zu gehen
+      try {
+        // 6. Modelltraining asynchron starten (nicht auf Ergebnis warten)
+        forecastService.trainForecastModel(
+          defaultModel.id,
+          formattedStartDate,
+          formattedEndDate
+        ).then(result => {
+          console.log(`Automatisches Training abgeschlossen: ${JSON.stringify(result)}`);
+        }).catch(error => {
+          console.error(`Fehler beim automatischen Training: ${error}`);
+        });
+        
+        // 7. Sofort eine Antwort zurückgeben
+        res.json({
+          success: true,
+          message: 'Prognosemodell-Initialisierung im Hintergrund gestartet',
+          modelId: defaultModel.id,
+          modelName: defaultModel.name,
+          trainingPeriodStart: formattedStartDate,
+          trainingPeriodEnd: formattedEndDate
+        });
+      } catch (trainError) {
+        console.error("Fehler beim Starten des Trainings:", trainError);
+        res.status(500).json({ 
+          success: false, 
+          message: "Fehler beim Starten des Trainings", 
+          error: String(trainError)
+        });
+      }
     } catch (error) {
       console.error("Fehler bei der automatischen Initialisierung des Prognosemodells:", error);
       res.status(500).json({ 
@@ -923,8 +933,8 @@ export function registerForecastRoutes(app: Express): void {
    * Prophet-spezifische Routen
    */
 
-  // Automatisches Training starten
-  app.post(`${API_PREFIX}/forecast/auto-train`, async (_req: Request, res: Response) => {
+  // Batch-Automatisches Training aller Modelle (separate Route)
+  app.post(`${API_PREFIX}/forecast/batch-auto-train`, async (_req: Request, res: Response) => {
     try {
       console.log("Starte automatisches Training aller aktiven Modelle");
       
