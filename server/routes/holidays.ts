@@ -1,5 +1,5 @@
 import express, { Request, Response } from 'express';
-import { holidayService } from '../services/holidayService';
+import { holidayService, syncMissingHolidays } from '../services/holidayService';
 import { z } from 'zod';
 
 const router = express.Router();
@@ -171,7 +171,9 @@ router.get('/sync', async (req: Request, res: Response) => {
     const year = req.query.year ? parseInt(req.query.year as string) : new Date().getFullYear();
     const state = req.query.state as string || 'SN';
     
+    console.log(`Synchronisiere Feiertage für Jahr ${year} und Bundesland ${state} (GET-Methode)`);
     const count = await holidayService.syncHolidaysForYear(year, [state]);
+    console.log(`Synchronisierung abgeschlossen. ${count} Einträge hinzugefügt.`);
     
     return res.json({
       success: true,
@@ -186,6 +188,61 @@ router.get('/sync', async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       error: 'Fehler beim Synchronisieren der Feiertage',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// POST /api/holidays/sync-year - Feiertage für ein Jahr synchronisieren
+router.post('/sync-year', async (req: Request, res: Response) => {
+  try {
+    const { year = new Date().getFullYear(), states = ['SN'] } = req.body;
+    
+    console.log(`Synchronisiere Feiertage für Jahr ${year} und Bundesländer ${states.join(', ')} (POST-Methode)`);
+    const count = await holidayService.syncHolidaysForYear(year, states);
+    console.log(`Synchronisierung abgeschlossen. ${count} Einträge hinzugefügt.`);
+    
+    return res.json({
+      success: true,
+      data: {
+        year,
+        states,
+        addedEntries: count
+      }
+    });
+  } catch (error) {
+    console.error('Error syncing holidays:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Fehler beim Synchronisieren der Feiertage',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// POST /api/holidays/sync-range - Feiertage für einen Zeitraum synchronisieren
+router.post('/sync-range', async (req: Request, res: Response) => {
+  try {
+    const { 
+      startYear = new Date().getFullYear(), 
+      endYear = new Date().getFullYear() + 1,
+      states = ['SN'],
+      includeSchoolHolidays = true
+    } = req.body;
+    
+    console.log(`Synchronisiere Feiertage für Zeitraum ${startYear}-${endYear} und Bundesländer ${states.join(', ')}`);
+    const result = await syncMissingHolidays(startYear, endYear, states, includeSchoolHolidays);
+    console.log(`Synchronisierung abgeschlossen. ${result.addedEntries} Einträge hinzugefügt.`);
+    
+    return res.json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error syncing holidays range:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Fehler beim Synchronisieren der Feiertage für den Zeitraum',
       details: error instanceof Error ? error.message : String(error)
     });
   }

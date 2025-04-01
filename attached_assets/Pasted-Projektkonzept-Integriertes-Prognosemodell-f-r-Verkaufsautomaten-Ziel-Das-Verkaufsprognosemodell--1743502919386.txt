@@ -1,0 +1,123 @@
+Projektkonzept: Integriertes Prognosemodell für Verkaufsautomaten
+
+Ziel:
+Das Verkaufsprognosemodell soll vollständig in die bestehende Anwendung eingebunden werden – zur Analyse, zur automatisierten Bestellunterstützung und zur operativen Planung im Dashboard.
+
+⸻
+
+0. Vorabprüfung durch Replit (Pflichtschritt)
+
+Ziel:
+Sicherstellen, dass bestehende Funktionen und Datenstrukturen nicht beeinträchtigt werden.
+
+Anforderung:
+	•	Bevor mit der Entwicklung des Prognosemoduls begonnen wird, muss geprüft werden:
+	•	Welche Komponenten, Datenbanken, APIs und Module bereits vorhanden sind
+	•	Ob es bereits ein Menüpunkt „Prognosemodell“ gibt und wie dieser aktuell aufgebaut ist
+	•	Welche Tabellen, Datenmodelle und Schnittstellen für Verkaufsdaten, Lager, Bestände und Produkte verfügbar sind
+	•	Welche Filter-, Auswertungs- oder Dashboard-Komponenten bereits bestehen
+	•	Ziel ist es, auf Bestehendem aufzubauen, ohne bestehende Funktionalitäten zu überschreiben oder zu beschädigen.
+	•	Ergebnis der Prüfung: kurzes internes Replit-Dokument (oder Kommentar im Ticket), wie der Status Quo ist und wie die neue Prognose-Logik darin integriert werden kann.
+
+⸻
+
+1. Unterseite „Prognosemodell“ im Menü
+
+Ziel:
+Detaillierte Analyse der erwarteten Verkaufszahlen pro Produkt, Automat und Zeitraum.
+
+Funktionalitäten:
+	•	Filter:
+	•	Zeitraum (vordefiniert oder benutzerdefiniert)
+	•	Standort(e)
+	•	Automat(en)
+	•	Produkt(e) bzw. Produktkategorien
+	•	Darstellung:
+	•	Grafisch: Interaktive Diagramme (z. B. Linien- oder Balkendiagramm)
+	•	Tabellarisch: Tagesbasierte Verkaufsprognosen mit:
+	•	Erwartetem Absatz
+	•	Unsicherheitsbereich
+	•	Trendrichtung
+	•	Export: CSV/Excel
+
+⸻
+
+2. Integration in den Bestellprozess
+
+Ziel:
+Automatische Erstellung von Bestellvorschlägen auf Basis der Prognosen.
+
+Ablauf:
+	1.	Auswahl des Lieferanten
+	2.	Auswahl des Lagers (→ betroffene Automaten sind damit klar definiert)
+	3.	System zieht:
+	•	Verkaufsprognosen für alle Automaten des Lagers
+	•	Aktuellen Warenbestand je Produkt
+	•	Mindestbestände
+	4.	Berechnung der Bestellmengen:
+	•	Prognose – aktueller Bestand + Sicherheitszuschlag
+	•	Nur wenn Resultat > 0 → Bestellvorschlag
+	5.	Darstellung:
+	•	Tabelle mit Produkten, Mengen, Einkaufspreisen, Lagerinfos
+	•	Möglichkeit zur manuellen Anpassung
+	6.	Button „Bestellung auslösen“ → Standard-Workflow zur Bestellung
+
+⸻
+
+3. Dashboard-Integration
+
+Ziel:
+Schneller Überblick über zu erwartendes Verkaufsvolumen zur besseren Planung der Nachfülllogistik.
+
+Funktionalitäten:
+	•	Kachel: „Prognose – Nächste 14 Tage“
+	•	Inhalte:
+	•	Tägliches Gesamtverkaufsvolumen
+	•	Hervorhebung verkaufsstarker Tage (z. B. durch Farbcode)
+	•	Liste betroffener Automaten mit erwarteten Topsellern
+	•	Hinweis auf evtl. nötige Zwischenbefüllung
+
+⸻
+
+4. Trainingssteuerung und Datenaktualisierung
+
+Anforderungen:
+	•	Manuelles Anstoßen des Trainings:
+	•	Button im Backend zur manuellen Neuberechnung des Modells (z. B. nach strukturellen Änderungen oder neuen historischen Daten).
+	•	Automatisches regelmäßiges Training:
+	•	Automatischer Trigger für Re-Training, z. B.:
+	•	täglich
+	•	alle 3 Tage
+	•	wöchentlich
+	•	Empfehlung: tägliches oder 3-tägiges Re-Training zur kontinuierlichen Optimierung.
+	•	Laufender Datenimport:
+	•	Neue Transaktionen fließen automatisch in die Datenbasis ein.
+	•	Das Modell erweitert bei jedem Training seinen Trainingszeitraum bis zum aktuellsten verfügbaren Tag.
+	•	Neue historische Daten:
+	•	Wenn zurückliegende Verkaufsdaten (z. B. von früheren Jahren oder neu synchronisierten Quellen) ergänzt werden, sollen diese beim nächsten Training berücksichtigt werden.
+
+⸻
+
+Datenquellen & Modellinput
+	•	Historische Verkaufsdaten mit Minuten-/Sekundengenauigkeit
+	•	Wetterdaten (tagesbasiert)
+	•	Feiertage, Ferien, Wochenenden
+	•	Öffnungszeiten / temporäre Schließungen der Automaten
+	•	Lagerbestand und Mindestbestände
+	•	Standortinformationen, Produkttypen, Lieferantenstruktur
+
+⸻
+
+Technisches Setup
+	•	Modell: Prophet (alternativ: LSTM oder anderes Zeitreihenmodell)
+	•	Backend: Python (z. B. FastAPI, Flask)
+	•	Frontend: React (Visualisierung mit Chart.js oder Recharts)
+	•	Regelmäßiges Training via Cronjob oder Scheduled Task
+	•	Ergebnisse werden als JSON/API bereitgestellt
+	•	Caching der Prognosen für schnelle Anzeige
+	•	Trennung von Modelltraining und Vorhersage (kein Re-Training bei jedem Aufruf)
+
+⸻
+
+Ziel:
+Die Prognose wird zum integralen Bestandteil der Anwendung – für Analyse, Bestellung und Logistikplanung. Sie ist dynamisch, nutzt aktuelle Daten, lernt mit jeder neuen Transaktion dazu und kann sowohl manuell als auch automatisiert verbessert werden – ohne bestehende Funktionalitäten zu beeinträchtigen.

@@ -4,8 +4,8 @@ import { holidays } from '@shared/schema';
 import { format, addDays, parse, parseISO } from 'date-fns';
 import { eq, gte, lte, and, desc, sql } from 'drizzle-orm';
 
-// Deutsche Feiertage und Ferienzeiten API
-const API_BASE_URL = 'https://feiertage-api.de/api';
+// OpenHolidaysAPI für Feiertage und Schulferien
+const API_BASE_URL = 'https://openholidaysapi.org';
 
 // Bundesländer
 export const STATES = {
@@ -27,22 +27,25 @@ export const STATES = {
   'TH': 'Thüringen'
 };
 
-interface PublicHolidayResponse {
-  name: string;
-  date: string;
-  states: string[];
-  translationKey: string;
-}
-
-interface SchoolHolidayResponse {
-  id: number;
-  start: string;
-  end: string;
-  year: number;
-  stateCode: string;
-  state: string;
-  name: string;
-  slug: string;
+// Interface für OpenHolidaysAPI
+interface OpenHolidayResponse {
+  id: string;
+  startDate: string;
+  endDate: string;
+  type: {
+    id: string;
+    name: string;
+  };
+  comment?: string;
+  name: {
+    language: string;
+    text: string;
+  }[];
+  quality: string;
+  subdivisions?: {
+    code: string;
+    shortName: string;
+  }[];
 }
 
 /**
@@ -56,41 +59,82 @@ class HolidayService {
    */
   async fetchPublicHolidays(year: number): Promise<any[]> {
     try {
-      // Format der API: /api/?jahr=2024&nur_land=SN
-      const response = await axios.get(`${API_BASE_URL}/?jahr=${year}`);
-      // Die Antwort ist ein Objekt, das nach Bundesländern strukturiert ist
-      const responseData = response.data;
+      const startDate = `${year}-01-01`;
+      const endDate = `${year}-12-31`;
+      
+      // OpenHolidaysAPI für Feiertage (PublicHolidays)
+      const url = `${API_BASE_URL}/PublicHolidays`;
+      const params = {
+        countryIsoCode: 'DE',
+        validFrom: startDate,
+        validTo: endDate,
+      };
+      
+      console.log(`Rufe Feiertage von OpenHolidaysAPI ab für ${year}, URL: ${url}`);
+      const response = await axios.get(url, { params });
+      const holidays: OpenHolidayResponse[] = response.data;
+      
+      console.log(`Anzahl der abgerufenen Feiertage: ${holidays.length}`);
       
       const formattedHolidays: any[] = [];
-
-      // Für jedes Bundesland im Objekt
-      Object.keys(responseData).forEach(state => {
-        const stateData = responseData[state];
-        
-        // Für jeden Feiertag im Bundesland
-        Object.keys(stateData).forEach(holidayName => {
-          const holiday = stateData[holidayName];
-          const holidayDate = new Date(holiday.datum);
-          
-          formattedHolidays.push({
-            date: holidayDate,
-            name: holidayName,
-            description: holiday.hinweis || `Gesetzlicher Feiertag in ${STATES[state as keyof typeof STATES] || state}`,
-            type: 'PUBLIC_HOLIDAY',
-            is_official: true,
-            country: 'DE',
-            state: state,
-            region: null,
-            year: holidayDate.getFullYear(),
-            month: holidayDate.getMonth() + 1,
-            day: holidayDate.getDate(),
-            weekday: holidayDate.getDay(),
-            weekday_name: this.getWeekdayName(holidayDate.getDay()),
-            week: this.getWeekNumber(holidayDate),
-          });
-        });
-      });
       
+      for (const holiday of holidays) {
+        // Deutsche Übersetzung finden - OpenHolidaysAPI verwendet "DE" statt "de" für die Sprachcodes
+        const nameDe = holiday.name.find(n => n.language === 'DE')?.text || 
+                       holiday.name[0].text;
+        
+        // Startdatum des Feiertags
+        const holidayDate = new Date(holiday.startDate);
+        
+        // Kategorisiere nach Bundesländern, falls vorhanden
+        if (holiday.subdivisions && holiday.subdivisions.length > 0) {
+          for (const subdivision of holiday.subdivisions) {
+            // Bundesland-Code extrahieren (z.B. DE-SN => SN)
+            const stateCode = subdivision.code.split('-')[1];
+            
+            formattedHolidays.push({
+              date: holidayDate,
+              name: nameDe,
+              description: holiday.comment || `Gesetzlicher Feiertag in ${STATES[stateCode as keyof typeof STATES] || stateCode}`,
+              type: 'PUBLIC_HOLIDAY',
+              is_official: true,
+              country: 'DE',
+              state: stateCode,
+              region: null,
+              year: holidayDate.getFullYear(),
+              month: holidayDate.getMonth() + 1,
+              day: holidayDate.getDate(),
+              weekday: holidayDate.getDay(),
+              weekday_name: this.getWeekdayName(holidayDate.getDay()),
+              week: this.getWeekNumber(holidayDate),
+              metadata: JSON.stringify(holiday),
+            });
+          }
+        } else {
+          // Nationaler Feiertag (alle Bundesländer) - wir erstellen einen Eintrag pro Bundesland
+          for (const stateKey of Object.keys(STATES)) {
+            formattedHolidays.push({
+              date: holidayDate,
+              name: nameDe,
+              description: holiday.comment || 'Gesetzlicher Feiertag in ganz Deutschland',
+              type: 'PUBLIC_HOLIDAY',
+              is_official: true,
+              country: 'DE',
+              state: stateKey,
+              region: null,
+              year: holidayDate.getFullYear(),
+              month: holidayDate.getMonth() + 1,
+              day: holidayDate.getDate(),
+              weekday: holidayDate.getDay(),
+              weekday_name: this.getWeekdayName(holidayDate.getDay()),
+              week: this.getWeekNumber(holidayDate),
+              metadata: JSON.stringify(holiday),
+            });
+          }
+        }
+      }
+      
+      console.log(`Verarbeitete Feiertage: ${formattedHolidays.length}`);
       return formattedHolidays;
     } catch (error) {
       console.error('Fehler beim Abrufen der öffentlichen Feiertage:', error);
@@ -106,22 +150,71 @@ class HolidayService {
    */
   async fetchSchoolHolidays(stateCode: string, year: number): Promise<any[]> {
     try {
-      // Die feiertage-api.de hat keine separate API für Schulferien
-      // Daher geben wir ein leeres Array zurück und nutzen nur die öffentlichen Feiertage
-      console.log(`Keine Schulferien-API verfügbar für ${stateCode} im Jahr ${year}`);
-      return [];
+      const startDate = `${year}-01-01`;
+      const endDate = `${year}-12-31`;
       
-      // Für den Fall, dass später eine separate API für Schulferien existiert
-      /*
-      const response = await axios.get(`${API_BASE_URL}/ferien/?jahr=${year}&nur_land=${stateCode}`);
-      const schoolHolidays = response.data;
+      // OpenHolidaysAPI für Schulferien
+      const url = `${API_BASE_URL}/SchoolHolidays`;
+      const params = {
+        countryIsoCode: 'DE',
+        subdivisionCode: `DE-${stateCode}`, // Format: DE-SN, DE-BY, etc.
+        validFrom: startDate,
+        validTo: endDate,
+      };
+      
+      console.log(`Rufe Schulferien von OpenHolidaysAPI ab für ${stateCode} (${year}), URL: ${url}`);
+      const response = await axios.get(url, { params });
+      const holidays: OpenHolidayResponse[] = response.data;
+      
+      console.log(`Anzahl der abgerufenen Schulferien für ${stateCode}: ${holidays.length}`);
       
       const formattedHolidays: any[] = [];
       
-      // Hier würde die Umwandlung der API-Daten in unser Format erfolgen
+      for (const holiday of holidays) {
+        // Deutsche Übersetzung finden - OpenHolidaysAPI verwendet "DE" statt "de" für die Sprachcodes
+        const nameDe = holiday.name.find(n => n.language === 'DE')?.text || 
+                       holiday.name[0].text;
+        
+        // Start- und Enddatum für Schulferien
+        const startDate = new Date(holiday.startDate);
+        const endDate = new Date(holiday.endDate);
+        
+        // Für jeden Tag innerhalb der Ferienzeit einen Eintrag erstellen
+        let currentDate = new Date(startDate);
+        while (currentDate <= endDate) {
+          const holidayDate = new Date(currentDate);
+          
+          formattedHolidays.push({
+            date: holidayDate,
+            name: nameDe,
+            description: `Schulferien (${nameDe}) in ${STATES[stateCode as keyof typeof STATES] || stateCode}`,
+            type: 'SCHOOL_HOLIDAY',
+            is_official: false,
+            country: 'DE',
+            state: stateCode,
+            region: null,
+            year: holidayDate.getFullYear(),
+            month: holidayDate.getMonth() + 1,
+            day: holidayDate.getDate(),
+            weekday: holidayDate.getDay(),
+            weekday_name: this.getWeekdayName(holidayDate.getDay()),
+            week: this.getWeekNumber(holidayDate),
+            metadata: JSON.stringify({
+              ...holiday,
+              holidayRange: {
+                start: format(startDate, 'yyyy-MM-dd'),
+                end: format(endDate, 'yyyy-MM-dd')
+              }
+            }),
+          });
+          
+          // Zum nächsten Tag
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+      }
       
+      console.log(`Verarbeitete Schulferien-Tage für ${stateCode}: ${formattedHolidays.length}`);
       return formattedHolidays;
-      */
     } catch (error) {
       console.error(`Fehler beim Abrufen der Schulferien für ${stateCode}:`, error);
       return [];
@@ -161,16 +254,13 @@ class HolidayService {
       // Feiertage in der Datenbank speichern
       for (const holiday of allHolidays) {
         try {
-          // Formatierte Daten für Vergleich nutzen
-          const holidayDate = holiday.date instanceof Date ? 
-            format(holiday.date, 'yyyy-MM-dd') : 
-            (typeof holiday.date === 'string' ? holiday.date : '');
+          // Formatiere Datum für Vergleich
+          const holidayDate = this.formatDate(holiday.date, true);
           
           // Prüfen, ob der Feiertag bereits existiert
           const existingHoliday = existingHolidays.find(h => {
-            const existingDate = h.date instanceof Date ? 
-              format(h.date, 'yyyy-MM-dd') : 
-              (typeof h.date === 'string' ? h.date : '');
+            // Konvertiere h.date in ein vergleichbares Format
+            const existingDate = this.formatDate(h.date, true);
             
             return existingDate === holidayDate && 
               h.type === holiday.type &&
@@ -178,9 +268,12 @@ class HolidayService {
           });
           
           if (!existingHoliday) {
-            // Feiertag hinzufügen
+            // Feiertag hinzufügen - wichtig: formatDate mit forDisplay=true, um ein String-Format zu erhalten
+            // Das wird dann in der Datenbank automatisch in ein Date umgewandelt
+            const formattedDate = this.formatDate(holiday.date, true);
+            
             await db.insert(holidays).values({
-              date: this.formatDate(holiday.date), // Konvertiere das Datum in einen String
+              date: formattedDate, // Als String im Format YYYY-MM-DD
               name: holiday.name,
               description: holiday.description,
               type: holiday.type,
@@ -194,6 +287,7 @@ class HolidayService {
               weekday: holiday.weekday,
               weekday_name: holiday.weekday_name,
               week: holiday.week,
+              metadata: holiday.metadata || null
             });
             
             addedEntries++;
@@ -240,9 +334,24 @@ class HolidayService {
         // Berechnung, ob es sich um einen Schulfeiertag handelt
         const isSchoolHoliday = holiday.type === 'SCHOOL_HOLIDAY';
 
+        // Extrametadata aus dem JSON-String, falls vorhanden
+        let extraData = {};
+        if (holiday.metadata) {
+          try {
+            extraData = JSON.parse(holiday.metadata);
+          } catch (e) {
+            // Ignoriere Fehler beim Parsen
+          }
+        }
+
+        // Bundesland-Langname, falls Bundesland-Kürzel vorhanden
+        const stateName = holiday.state ? 
+          (STATES[holiday.state as keyof typeof STATES] || holiday.state) : 
+          'Alle Bundesländer';
+
         return {
           id: holiday.id,
-          date: this.formatDate(holiday.date),
+          date: this.formatDate(holiday.date, true),
           name: holiday.name,
           description: holiday.description,
           type: holiday.type,
@@ -251,11 +360,16 @@ class HolidayService {
           isOfficial: holiday.is_official,
           country: holiday.country,
           state: holiday.state,
+          stateName: stateName,
           states: holiday.state?.split(', ') || [],
           region: holiday.region,
           year: holiday.year,
           month: holiday.month,
-          day: holiday.day
+          day: holiday.day,
+          weekday: holiday.weekday,
+          weekdayName: holiday.weekday_name,
+          week: holiday.week,
+          extraData
         };
       });
     } catch (error) {
@@ -283,11 +397,27 @@ class HolidayService {
       
       // Konvertiere die Ergebnisse in ein geeignetes Format für die API (analog zu getHolidaysInRange)
       return results.map(holiday => {
+        // Berechnung, ob es sich um einen Schulfeiertag handelt
         const isSchoolHoliday = holiday.type === 'SCHOOL_HOLIDAY';
-        
+
+        // Extrametadata aus dem JSON-String, falls vorhanden
+        let extraData = {};
+        if (holiday.metadata) {
+          try {
+            extraData = JSON.parse(holiday.metadata);
+          } catch (e) {
+            // Ignoriere Fehler beim Parsen
+          }
+        }
+
+        // Bundesland-Langname, falls Bundesland-Kürzel vorhanden
+        const stateName = holiday.state ? 
+          (STATES[holiday.state as keyof typeof STATES] || holiday.state) : 
+          'Alle Bundesländer';
+
         return {
           id: holiday.id,
-          date: this.formatDate(holiday.date),
+          date: this.formatDate(holiday.date, true),
           name: holiday.name,
           description: holiday.description,
           type: holiday.type,
@@ -296,11 +426,16 @@ class HolidayService {
           isOfficial: holiday.is_official,
           country: holiday.country,
           state: holiday.state,
+          stateName: stateName,
           states: holiday.state?.split(', ') || [],
           region: holiday.region,
           year: holiday.year,
           month: holiday.month,
-          day: holiday.day
+          day: holiday.day,
+          weekday: holiday.weekday,
+          weekdayName: holiday.weekday_name,
+          week: holiday.week,
+          extraData
         };
       });
     } catch (error) {

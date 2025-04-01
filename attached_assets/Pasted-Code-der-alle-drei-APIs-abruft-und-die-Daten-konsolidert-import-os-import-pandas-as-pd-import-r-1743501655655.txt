@@ -1,0 +1,144 @@
+Code der alle drei APIs abruft und die Daten konsolidert
+
+import os
+import pandas as pd
+import requests
+from datetime import datetime, timedelta
+
+# Basis-Konfiguration
+BASE_URL_VENDON = "https://cloud.vendon.net/rest/v1.7.0"
+BASE_URL_WEATHER = "https://meteostat.p.rapidapi.com"
+BASE_URL_HOLIDAY = "https://openholidaysapi.org"
+
+VENDON_API_KEY = "e5o9SSU4n2XQp9XmShtbIOK1rStoQvoB"
+HOLIDAY_API_KEY = "your_holiday_api_key"
+WEATHER_API_KEY = "a00f5cc7e6mshc7686b3b2a5c6e8p179e6cjsn27bace69f047"
+
+data_dir = "test_data"
+os.makedirs(data_dir, exist_ok=True)
+
+vendon_file = os.path.join(data_dir, "vendon_august_2024.csv")
+weather_file = os.path.join(data_dir, "weather_august_2024.csv")
+holiday_file = os.path.join(data_dir, "holidays_august_2024.csv")
+combined_file = os.path.join(data_dir, "combined_august_2024.csv")
+
+# Funktion: Vendon-Daten abrufen
+def fetch_vendon_data():
+    print("Abrufen der Vendon-Daten...")
+    headers = {"Authorization": f"Token {VENDON_API_KEY}"}
+    params = {
+        "from_timestamp": int(datetime.strptime("2024-08-01", "%Y-%m-%d").timestamp()),
+        "to_timestamp": int(datetime.strptime("2024-08-31", "%Y-%m-%d").timestamp()),
+    }
+    response = requests.get(f"{BASE_URL_VENDON}/stats/vends", headers=headers, params=params)
+    if response.status_code == 200:
+        vendon_data = pd.DataFrame(response.json().get("result", []))
+        vendon_data["transaction_dt"] = pd.to_datetime(vendon_data["transaction_dt"], unit="s")
+        vendon_data.to_csv(vendon_file, index=False)
+        return vendon_data
+    else:
+        print(f"Fehler beim Abrufen der Vendon-Daten: {response.status_code}")
+        print(response.text)
+        return pd.DataFrame()
+
+# Funktion: Wetterdaten abrufen
+def fetch_weather_data():
+    print("Abrufen der Wetterdaten...")
+    headers = {
+        "x-rapidapi-host": "meteostat.p.rapidapi.com",
+        "x-rapidapi-key": WEATHER_API_KEY
+    }
+    params = {
+        "station": "10591",  # Beispiel: Wetterstation-ID
+        "start": "2024-08-01",
+        "end": "2024-08-31",
+        "tz": "Europe/Berlin",
+    }
+    response = requests.get(f"{BASE_URL_WEATHER}/stations/hourly", headers=headers, params=params)
+    if response.status_code == 200:
+        weather_data = pd.DataFrame(response.json().get("data", []))
+        weather_data["time"] = pd.to_datetime(weather_data["time"])
+        weather_data.to_csv(weather_file, index=False)
+        return weather_data
+    else:
+        print(f"Fehler beim Abrufen der Wetterdaten: {response.status_code}")
+        print(response.text)
+        return pd.DataFrame()
+
+# Funktion: Feiertage und Ferien abrufen
+def fetch_holidays():
+    print("Abrufen der Feiertage und Schulferien...")
+    subdivisions = [
+        "DE-BW", "DE-BY", "DE-BE", "DE-BB", "DE-HB", "DE-HH", "DE-HE", "DE-MV",
+        "DE-NI", "DE-NW", "DE-RP", "DE-SL", "DE-SN", "DE-ST", "DE-SH", "DE-TH"
+    ]
+    all_holidays = []
+    for subdivision in subdivisions:
+        url = f"{BASE_URL_HOLIDAY}/SchoolHolidays"
+        params = {
+            "countryIsoCode": "DE",
+            "subdivisionCode": subdivision,
+            "validFrom": "2024-08-01",
+            "validTo": "2024-08-31",
+        }
+        response = requests.get(url, headers={"Authorization": f"Bearer {HOLIDAY_API_KEY}"}, params=params)
+        if response.status_code == 200:
+            holidays = pd.DataFrame(response.json())
+            holidays["subdivision"] = subdivision
+            all_holidays.append(holidays)
+        else:
+            print(f"Fehler beim Abrufen der Schulferien für {subdivision}: {response.status_code}")
+
+    holiday_data = pd.concat(all_holidays, ignore_index=True)
+    holiday_data.to_csv(holiday_file, index=False)
+    return holiday_data
+
+# Funktion: Daten kombinieren
+def combine_data():
+    print("Kombinieren der Daten...")
+    vendon_data = pd.read_csv(vendon_file)
+    weather_data = pd.read_csv(weather_file)
+    holiday_data = pd.read_csv(holiday_file)
+
+    vendon_data["transaction_dt"] = pd.to_datetime(vendon_data["transaction_dt"])
+    weather_data["time"] = pd.to_datetime(weather_data["time"])
+    holiday_data["startDate"] = pd.to_datetime(holiday_data["startDate"])
+    holiday_data["endDate"] = pd.to_datetime(holiday_data["endDate"])
+
+    vendon_data["transaction_date_only"] = vendon_data["transaction_dt"].dt.date
+
+    # Merge Wetterdaten
+    combined = pd.merge_asof(
+        vendon_data.sort_values("transaction_dt"),
+        weather_data.sort_values("time"),
+        left_on="transaction_dt",
+        right_on="time",
+        direction="backward",
+    )
+
+    # Ferienprüfung pro Bundesland
+    def is_in_vacation(row, subdivision):
+        for _, holiday in holiday_data[holiday_data["subdivision"] == subdivision].iterrows():
+            # Konvertiere Timestamp zu datetime.date für den Vergleich
+            start_date = holiday["startDate"].date() if isinstance(holiday["startDate"], pd.Timestamp) else holiday["startDate"]
+            end_date = holiday["endDate"].date() if isinstance(holiday["endDate"], pd.Timestamp) else holiday["endDate"]
+            if start_date <= row["transaction_date_only"] <= end_date:
+                return "Ja"
+        return "Nein"
+
+    # Ferienstatus für alle Bundesländer hinzufügen
+    subdivisions = holiday_data["subdivision"].unique()
+    for subdivision in subdivisions:
+        combined[f"In_Ferien_{subdivision}"] = combined.apply(lambda row: is_in_vacation(row, subdivision), axis=1)
+
+    combined.to_csv(combined_file, index=False)
+    print(f"Kombinierte Daten gespeichert in: {combined_file}")
+
+if __name__ == "__main__":
+    fetch_vendon_data()
+    fetch_weather_data()
+    fetch_holidays()
+    combine_data()
+
+
+
