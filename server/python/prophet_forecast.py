@@ -594,17 +594,6 @@ class ProphetForecaster:
                                 ) VALUES (
                                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
                                 )
-                                ON CONFLICT (model_id, forecast_date, COALESCE(location_id, -1), COALESCE(machine_id, -1))
-                                DO UPDATE SET
-                                    predicted_quantity = EXCLUDED.predicted_quantity,
-                                    confidence = EXCLUDED.confidence,
-                                    lower_bound = EXCLUDED.lower_bound,
-                                    upper_bound = EXCLUDED.upper_bound,
-                                    is_holiday = EXCLUDED.is_holiday,
-                                    holiday_name = EXCLUDED.holiday_name,
-                                    holiday_type = EXCLUDED.holiday_type,
-                                    weather_summary = EXCLUDED.weather_summary,
-                                    updated_at = NOW()
                                 RETURNING id
                             """, (
                                 model_id, date_str, location_id, machine_id,
