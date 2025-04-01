@@ -241,53 +241,57 @@ export default function Dashboard() {
       {/* Top-Level Metriken */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Automaten-Status */}
-        <MetricCard
-          title="Aktive Automaten"
-          value={`${activeMachines} / ${totalMachines}`}
-          icon={<Package />}
-          iconBgColor="bg-violet-100"
-          iconColor="text-violet-600"
-        />
+        <div className="kpi green">
+          <div className="flex items-center mb-2">
+            <Package className="h-5 w-5 mr-2" />
+            <span className="text-base">Aktive Automaten</span>
+          </div>
+          <div className="text-2xl font-bold">{activeMachines} / {totalMachines}</div>
+        </div>
 
-        {/* Tagesumsatz - behalten wir bei */}
-        <MetricCard
-          title="Tagesumsatz"
-          value={`${dailyRevenue.toFixed(2)} €`}
-          icon={<Calendar />}
-          iconBgColor="bg-blue-100"
-          iconColor="text-blue-600"
-          trend={{
-            value: `${Math.abs(revenueTrend).toFixed(1)}%`,
-            label: "vs. gestern",
-            isPositive: revenueTrend >= 0,
-          }}
-        />
+        {/* Tagesumsatz */}
+        <div className="kpi orange">
+          <div className="flex items-center mb-2">
+            <Calendar className="h-5 w-5 mr-2" />
+            <span className="text-base">Tagesumsatz</span>
+          </div>
+          <div className="text-2xl font-bold">{dailyRevenue.toFixed(2)} €</div>
+          <div className="text-sm mt-1 flex items-center">
+            <span className={revenueTrend >= 0 ? "text-[var(--weiss)]" : "text-[var(--hintergrund)]"}>
+              {Math.abs(revenueTrend).toFixed(1)}% {revenueTrend >= 0 ? "↑" : "↓"} vs. gestern
+            </span>
+          </div>
+        </div>
 
         {/* Offene Fehler */}
-        <MetricCard
-          title="Offene Fehler"
-          value={openErrors}
-          icon={<AlertCircle />}
-          iconBgColor="bg-red-100"
-          iconColor="text-red-600"
-          action={{
-            label: "Fehler ansehen",
-            onClick: handleViewErrorsClick,
-          }}
-        />
+        <div className="kpi red">
+          <div className="flex items-center mb-2">
+            <AlertCircle className="h-5 w-5 mr-2" />
+            <span className="text-base">Offene Fehler</span>
+          </div>
+          <div className="text-2xl font-bold">{openErrors}</div>
+          <button 
+            className="text-sm mt-1 underline"
+            onClick={handleViewErrorsClick}
+          >
+            Fehler ansehen
+          </button>
+        </div>
         
         {/* Offene Bestellungen */}
-        <MetricCard
-          title="Offene Bestellungen"
-          value={openOrders?.length || 0}
-          icon={<Truck />}
-          iconBgColor="bg-amber-100"
-          iconColor="text-amber-600"
-          action={{
-            label: "Bestellungen",
-            onClick: () => setLocation("/bestellungen"),
-          }}
-        />
+        <div className="kpi beige">
+          <div className="flex items-center mb-2">
+            <Truck className="h-5 w-5 mr-2" />
+            <span className="text-base">Offene Bestellungen</span>
+          </div>
+          <div className="text-2xl font-bold">{openOrders?.length || 0}</div>
+          <button 
+            className="text-sm mt-1 underline text-[var(--text-schwarz)]"
+            onClick={() => setLocation("/bestellungen")}
+          >
+            Bestellungen
+          </button>
+        </div>
       </div>
 
       {/* Tabs für verschiedene Ansichten */}
@@ -373,85 +377,85 @@ export default function Dashboard() {
           </div>
           
           {/* Anstehende Lieferungen */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center">
-                <Truck className="h-5 w-5 mr-2 text-primary" />
-                Anstehende Lieferungen
-              </CardTitle>
-              <CardDescription>Offene Bestellungen mit erwartetem Liefertermin</CardDescription>
-            </CardHeader>
-            <CardContent>
+          <div className="bg-white rounded-xl p-6 shadow-sm">
+            <div className="flex items-center mb-4">
+              <Truck className="h-6 w-6 mr-3 text-[var(--proviant-rot)]" />
+              <div>
+                <h2 className="text-[var(--text-schwarz)]">Anstehende Lieferungen</h2>
+                <p className="text-[var(--text-grau)] text-sm">Offene Bestellungen mit erwartetem Liefertermin</p>
+              </div>
+            </div>
+            
+            <div className="mt-4">
               {openOrders && openOrders.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-5">
                   {openOrders.map((order) => (
-                    <div key={order.id} className="border rounded-md p-4 space-y-2 hover:bg-gray-50">
+                    <div key={order.id} className="border border-[var(--kachel-beige)] rounded-lg p-4 space-y-3 hover:bg-[var(--hintergrund)]">
                       <div className="flex justify-between items-start">
                         <div>
-                          <div className="font-medium">{order.orderNumber}</div>
-                          <div className="text-sm text-gray-500">{order.supplierName}</div>
+                          <div className="font-semibold text-[var(--text-schwarz)]">{order.orderNumber}</div>
+                          <div className="text-sm text-[var(--text-grau)]">{order.supplierName}</div>
                         </div>
-                        <Badge className={
-                          order.status === "open" ? "bg-gray-100 text-gray-800" :
-                          order.status === "ordered" ? "bg-blue-100 text-blue-800" :
-                          order.status === "partial" ? "bg-amber-100 text-amber-800" :
-                          order.status === "delivered" ? "bg-green-100 text-green-800" :
-                          "bg-gray-100 text-gray-800"
-                        }>
+                        <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          order.status === "open" ? "bg-[var(--kachel-beige)] text-[var(--text-schwarz)]" :
+                          order.status === "ordered" ? "bg-[var(--kachel-rot)] text-[var(--weiss)]" :
+                          order.status === "partial" ? "bg-[var(--kachel-orange)] text-[var(--weiss)]" :
+                          order.status === "delivered" ? "bg-[var(--kachel-gruen)] text-[var(--weiss)]" :
+                          "bg-[var(--kachel-beige)] text-[var(--text-schwarz)]"
+                        }`}>
                           {order.status === "open" ? "Offen" :
                            order.status === "ordered" ? "Bestellt" :
                            order.status === "partial" ? "Teilgeliefert" :
                            order.status === "delivered" ? "Geliefert" :
                            order.status}
-                        </Badge>
+                        </div>
                       </div>
                       
-                      <div className="text-sm">
+                      <div className="text-sm text-[var(--text-grau)]">
                         <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <Clock className="h-4 w-4" />
                           <span>
                             Erwartete Lieferung: {order.expectedDeliveryDate ? 
                               formatDateTime(order.expectedDeliveryDate, 'date') : 'Nicht angegeben'}
                           </span>
                         </div>
                         <div className="flex items-center gap-2 mt-1">
-                          <Package className="h-4 w-4 text-muted-foreground" />
+                          <Package className="h-4 w-4" />
                           <span>Positionen: {order.itemCount || 0}</span>
                         </div>
                       </div>
                       
                       <div className="flex justify-end pt-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="gap-1"
+                        <button 
+                          className="button text-sm flex items-center gap-1"
                           onClick={() => setLocation(`/bestellungen/${order.id}/wareneingang`)}
                         >
                           <ArrowUpRight className="h-4 w-4" />
                           Warenannahme starten
-                        </Button>
+                        </button>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-4 text-gray-500">
+                <div className="text-center py-6 text-[var(--text-grau)]">
                   Keine anstehenden Lieferungen
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Zahlungsmethoden nach Standort */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center">
-                <CreditCard className="h-5 w-5 mr-2 text-primary" />
-                Zahlungsmethoden nach Standort
-              </CardTitle>
-              <CardDescription>Standorte mit niedrigstem Anteil kontaktloser Zahlung</CardDescription>
-            </CardHeader>
-            <CardContent>
+          <div className="bg-white rounded-xl p-6 shadow-sm">
+            <div className="flex items-center mb-4">
+              <CreditCard className="h-6 w-6 mr-3 text-[var(--proviant-rot)]" />
+              <div>
+                <h2 className="text-[var(--text-schwarz)]">Zahlungsmethoden nach Standort</h2>
+                <p className="text-[var(--text-grau)] text-sm">Standorte mit niedrigstem Anteil kontaktloser Zahlung</p>
+              </div>
+            </div>
+            
+            <div className="mt-4">
               {Object.keys(paymentMethods).length > 0 ? (
                 <div className="space-y-6">
                   {/* Analyse der Zahlungsmethoden nach Maschine/Standort */}
@@ -501,55 +505,57 @@ export default function Dashboard() {
                     
                     return sortedMachines.length > 0 ? (
                       sortedMachines.map((machine, i) => (
-                        <div key={i} className="space-y-1">
-                          <div className="flex justify-between text-sm">
-                            <span className="font-medium truncate max-w-[70%]" title={machine.machineName}>
+                        <div key={i} className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium truncate max-w-[70%] text-[var(--text-schwarz)]" title={machine.machineName}>
                               {machine.machineName}
                             </span>
-                            <span className="font-medium">
+                            <span className="font-semibold text-sm text-[var(--kachel-orange)]">
                               {machine.cashlessPercentage.toFixed(1)}% kontaktlos
                             </span>
                           </div>
-                          <div className="w-full bg-gray-100 rounded-full h-2.5">
+                          <div className="w-full bg-[var(--hintergrund)] rounded-full h-2.5">
                             <div 
-                              className="bg-blue-500 h-2.5 rounded-full" 
+                              className="bg-[var(--kachel-orange)] h-2.5 rounded-full" 
                               style={{ width: `${machine.cashlessPercentage}%` }}
                             ></div>
                           </div>
-                          <div className="flex justify-between text-xs text-gray-500 mt-1">
+                          <div className="flex justify-between text-xs text-[var(--text-grau)] mt-1">
                             <span>{machine.cash} bar / {machine.cashless} kontaktlos</span>
                             <span>{machine.total} trans. gesamt</span>
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div className="text-center py-4 text-gray-500">
+                      <div className="text-center py-4 text-[var(--text-grau)]">
                         Nicht genügend Daten für eine Analyse
                       </div>
                     );
                   })()}
                   
                   {/* Zusammenfassung der Zahlungsmethoden insgesamt */}
-                  <div className="mt-6 pt-4 border-t">
-                    <div className="font-medium mb-3">Gesamtverteilung Zahlungsmethoden</div>
+                  <div className="mt-6 pt-4 border-t border-[var(--kachel-beige)]">
+                    <div className="font-semibold mb-3 text-[var(--text-schwarz)]">Gesamtverteilung Zahlungsmethoden</div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                       {Object.entries(paymentMethods).map(([method, stats], index) => (
-                        <div key={index} className="space-y-1">
-                          <div className="flex justify-between text-sm">
-                            <span className="font-medium">
+                        <div key={index} className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium text-[var(--text-schwarz)]">
                               {method === "CASH" ? "Bargeld" : 
                                method === "CASHLESS" ? "Kartenzahlung" :
                                method}
                             </span>
-                            <span className="font-medium">
+                            <span className="font-semibold text-sm text-[var(--kachel-rot)]">
                               {(stats.count / totalTransactions * 100).toFixed(1)}%
                             </span>
                           </div>
-                          <Progress 
-                            value={stats.count / totalTransactions * 100} 
-                            className={method === "CASH" ? "bg-blue-100" : "bg-green-100"}
-                          />
-                          <div className="text-right text-sm text-gray-500">
+                          <div className="w-full bg-[var(--hintergrund)] rounded-full h-2.5">
+                            <div 
+                              className={`h-2.5 rounded-full ${method === "CASH" ? "bg-[var(--kachel-rot)]" : "bg-[var(--kachel-gruen)]"}`}
+                              style={{ width: `${stats.count / totalTransactions * 100}%` }}
+                            ></div>
+                          </div>
+                          <div className="text-right text-xs text-[var(--text-grau)]">
                             {stats.count} Trans. / {stats.revenue.toFixed(2)} €
                           </div>
                         </div>
@@ -558,91 +564,84 @@ export default function Dashboard() {
                   </div>
                 </div>
               ) : (
-                <div className="text-center py-4 text-gray-500">
+                <div className="text-center py-6 text-[var(--text-grau)]">
                   Keine Daten verfügbar
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
           
           {/* Verkaufsprognosen */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center">
-                <BarChart3 className="h-5 w-5 mr-2 text-primary" />
-                Verkaufsprognosen
-              </CardTitle>
-              <CardDescription>Status der Prognosemodelle und aktuelle Vorhersagen</CardDescription>
-            </CardHeader>
-            <CardContent>
+          <div className="bg-white rounded-xl p-6 shadow-sm">
+            <div className="flex items-center mb-4">
+              <BarChart3 className="h-6 w-6 mr-3 text-[var(--proviant-rot)]" />
+              <div>
+                <h2 className="text-[var(--text-schwarz)]">Verkaufsprognosen</h2>
+                <p className="text-[var(--text-grau)] text-sm">Status der Prognosemodelle und aktuelle Vorhersagen</p>
+              </div>
+            </div>
+            <div className="mt-4">
               {isLoadingForecastModels ? (
                 <div className="flex justify-center py-4">
-                  <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full"></div>
+                  <div className="animate-spin h-5 w-5 border-2 border-[var(--proviant-rot)] border-t-transparent rounded-full"></div>
                 </div>
               ) : forecastModels && Array.isArray(forecastModels) && forecastModels.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-5">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {forecastModels
                       .filter((model: any) => model.status === 'ready')
                       .slice(0, 2)
                       .map((model: any, index: number) => (
-                        <div key={index} className="border rounded-md p-3 space-y-2">
+                        <div key={index} className="border-[var(--kachel-beige)] border bg-[var(--weiss)] rounded-lg p-4 space-y-3">
                           <div className="flex justify-between items-center">
-                            <h4 className="font-medium">{model.name}</h4>
-                            <Badge className="bg-green-100 text-green-800">
+                            <h4 className="font-semibold text-[var(--text-schwarz)]">{model.name}</h4>
+                            <div className="px-3 py-1 rounded-full bg-[var(--kachel-gruen)] text-[var(--weiss)] text-xs font-semibold">
                               {(model.accuracy * 100).toFixed(1)}% Genauigkeit
-                            </Badge>
+                            </div>
                           </div>
-                          <div className="text-sm text-muted-foreground">
+                          <div className="text-sm text-[var(--text-grau)]">
                             Letzte Aktualisierung: {formatDateTime(model.updatedAt)}
                           </div>
-                          <div className="flex gap-2 mt-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="text-xs" 
+                          <div className="flex gap-3 mt-3">
+                            <button 
+                              className="button secondary text-sm"
                               onClick={() => setLocation(`/forecast?modelId=${model.id}`)}
                             >
                               Details anzeigen
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="text-xs" 
+                            </button>
+                            <button 
+                              className="button text-sm"
                               onClick={() => setLocation(`/bestellungen/neu?mode=forecast&modelId=${model.id}`)}
                             >
                               Bestellung erstellen
-                            </Button>
+                            </button>
                           </div>
                         </div>
                       ))}
                   </div>
-                  <div className="flex justify-end">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="gap-1"
+                  <div className="flex justify-end mt-3">
+                    <button 
+                      className="flex items-center text-[var(--proviant-rot)] font-medium text-sm gap-1 hover:underline"
                       onClick={() => setLocation('/forecast')}
                     >
                       <ArrowUpRight className="h-4 w-4" />
                       Alle Prognosemodelle anzeigen
-                    </Button>
+                    </button>
                   </div>
                 </div>
               ) : (
                 <div className="text-center py-4 space-y-3">
-                  <p className="text-muted-foreground">Keine aktiven Prognosemodelle</p>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
+                  <p className="text-[var(--text-grau)]">Keine aktiven Prognosemodelle</p>
+                  <button 
+                    className="button mt-3"
                     onClick={() => setLocation('/forecast')}
                   >
                     Prognosemodell erstellen
-                  </Button>
+                  </button>
                 </div>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           {/* Letzte Transaktionen */}
           <TransactionsTable />

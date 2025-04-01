@@ -1,0 +1,188 @@
+Natürlich! Hier ist deine einheitliche Gestaltungsanleitung für das Proviantomat-Dashboard als Design- und CSS-Styleguide, den du direkt in Replit oder jedes andere Webprojekt übernehmen kannst. Dabei orientiere ich mich an deinem Wunsch nach einem klaren, modernen UI mit festen Regeln für Farben, Typografie, Layout, Komponenten und Verhalten auf Tablet/Desktop.
+
+⸻
+
+Proviantomat – Design & CSS Styleguide
+
+⸻
+
+1. Farben (CI-konform)
+
+:root {
+  --proviant-rot: #8B2510;
+  --kachel-rot: #C1442D;
+  --kachel-orange: #D97E2E;
+  --kachel-beige: #E3C9A8;
+  --kachel-gruen: #6C9A78;
+  --text-schwarz: #1C1C1C;
+  --text-grau: #6A6A6A;
+  --hintergrund: #FAFAFA;
+  --weiss: #FFFFFF;
+}
+
+
+
+⸻
+
+2. Typografie
+
+body {
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  color: var(--text-schwarz);
+  background-color: var(--hintergrund);
+  line-height: 1.6;
+}
+
+h1 {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+h2 {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.label {
+  font-size: 14px;
+  color: var(--text-grau);
+}
+
+
+
+⸻
+
+3. Layout & Seitenraster
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+Sidebar (Desktop fest, Tablet ausklappbar)
+
+.sidebar {
+  background-color: var(--proviant-rot);
+  color: var(--weiss);
+  width: 250px;
+  padding: 24px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100%;
+}
+
+@media (max-width: 991px) {
+  .sidebar {
+    position: absolute;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+}
+
+
+
+⸻
+
+4. KPI-Kacheln
+
+.kpi {
+  padding: 20px;
+  border-radius: 12px;
+  color: var(--weiss);
+  font-weight: bold;
+  font-size: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: start;
+  min-height: 100px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.kpi.red { background-color: var(--kachel-rot); }
+.kpi.orange { background-color: var(--kachel-orange); }
+.kpi.beige { background-color: var(--kachel-beige); color: var(--text-schwarz); }
+.kpi.green { background-color: var(--kachel-gruen); }
+
+
+
+⸻
+
+5. Buttons
+
+.button {
+  padding: 12px 20px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  background-color: var(--proviant-rot);
+  color: var(--weiss);
+  cursor: pointer;
+}
+
+.button.secondary {
+  background-color: transparent;
+  border: 1px solid var(--proviant-rot);
+  color: var(--proviant-rot);
+}
+
+
+
+⸻
+
+6. Tabellen
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background-color: var(--weiss);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.table th {
+  background-color: var(--proviant-rot);
+  color: var(--weiss);
+  text-align: left;
+  padding: 12px;
+}
+
+.table td {
+  padding: 12px;
+  border-bottom: 1px solid #eee;
+}
+
+
+
+⸻
+
+7. Diagramme
+
+Für Diagramme empfehlen sich z. B. Chart.js oder ApexCharts, mit folgendem Stil:
+
+colors: ['#8B2510', '#C1442D', '#D97E2E', '#E3C9A8', '#6C9A78']
+
+	•	Hintergrund: #FAFAFA
+	•	Schrift: Inter, #1C1C1C
+	•	Linien weich abgerundet, Legenden in Grau #6A6A6A
+
+⸻
+
+8. Logos & Icons
+	•	Logo-Position: oben links neben Titel (max. Höhe: 36px)
+	•	Icons: Weiß auf farbigen Flächen (SVGs oder Icon Fonts)
+	•	Farbflächen: Rot, Orange, Beige, Grün
+
+⸻
+
+Wenn du möchtest, erstelle ich dir auch direkt ein Replit-Template mit HTML/CSS/JS-Struktur und Demo-Dashboard zum Start. Sag einfach Bescheid!
