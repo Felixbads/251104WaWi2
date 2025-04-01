@@ -33,12 +33,13 @@ const NavItem = ({ href, icon, children, isActive, onClick }: {
   isActive: boolean;
   onClick?: () => void;
 }) => {
+  // Wouter Link-Komponente akzeptiert kein 'a'-Element als direktes Kind
   return (
     <Link href={href}>
-      <a onClick={onClick} className="nav-item">
+      <div onClick={onClick} className="nav-item">
         {icon}
         <span>{children}</span>
-      </a>
+      </div>
     </Link>
   );
 };

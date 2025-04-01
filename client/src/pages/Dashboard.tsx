@@ -270,13 +270,15 @@ export default function Dashboard() {
       </div>
 
       {/* Tabs für verschiedene Ansichten */}
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Übersicht</TabsTrigger>
-          <TabsTrigger value="sales">Verkäufe</TabsTrigger>
-          <TabsTrigger value="machines">Automaten</TabsTrigger>
-          <TabsTrigger value="system">System</TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="overview" className="mt-6">
+        <div className="border-b border-[var(--border-light)]">
+          <TabsList className="bg-transparent">
+            <TabsTrigger value="overview" className="data-[state=active]:bg-white data-[state=active]:text-[var(--proviant-rot)] data-[state=active]:border-b-2 data-[state=active]:border-[var(--proviant-rot)] data-[state=active]:shadow-none rounded-none px-4 py-2">Übersicht</TabsTrigger>
+            <TabsTrigger value="sales" className="data-[state=active]:bg-white data-[state=active]:text-[var(--proviant-rot)] data-[state=active]:border-b-2 data-[state=active]:border-[var(--proviant-rot)] data-[state=active]:shadow-none rounded-none px-4 py-2">Verkäufe</TabsTrigger>
+            <TabsTrigger value="machines" className="data-[state=active]:bg-white data-[state=active]:text-[var(--proviant-rot)] data-[state=active]:border-b-2 data-[state=active]:border-[var(--proviant-rot)] data-[state=active]:shadow-none rounded-none px-4 py-2">Automaten</TabsTrigger>
+            <TabsTrigger value="system" className="data-[state=active]:bg-white data-[state=active]:text-[var(--proviant-rot)] data-[state=active]:border-b-2 data-[state=active]:border-[var(--proviant-rot)] data-[state=active]:shadow-none rounded-none px-4 py-2">System</TabsTrigger>
+          </TabsList>
+        </div>
         
         {/* Übersichts-Tab */}
         <TabsContent value="overview" className="space-y-4">
@@ -352,11 +354,13 @@ export default function Dashboard() {
           </div>
           
           {/* Anstehende Lieferungen */}
-          <div className="bg-white rounded-xl p-6 shadow-sm">
+          <div className="bg-[var(--section-bg)] rounded-xl p-6 shadow-sm border border-[var(--border-light)]">
             <div className="flex items-center mb-4">
-              <Truck className="h-6 w-6 mr-3 text-[var(--proviant-rot)]" />
+              <div className="bg-[var(--proviant-rot)] p-2 rounded-lg mr-3">
+                <Truck className="h-5 w-5 text-white" />
+              </div>
               <div>
-                <h2 className="text-[var(--text-schwarz)]">Anstehende Lieferungen</h2>
+                <h2 className="text-lg font-semibold text-[var(--text-schwarz)]">Anstehende Lieferungen</h2>
                 <p className="text-[var(--text-grau)] text-sm">Offene Bestellungen mit erwartetem Liefertermin</p>
               </div>
             </div>
@@ -421,11 +425,13 @@ export default function Dashboard() {
           </div>
 
           {/* Zahlungsmethoden nach Standort */}
-          <div className="bg-white rounded-xl p-6 shadow-sm">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-[var(--border-light)]">
             <div className="flex items-center mb-4">
-              <CreditCard className="h-6 w-6 mr-3 text-[var(--proviant-rot)]" />
+              <div className="bg-[var(--kachel-transaktionen)] p-2 rounded-lg mr-3">
+                <CreditCard className="h-5 w-5 text-white" />
+              </div>
               <div>
-                <h2 className="text-[var(--text-schwarz)]">Zahlungsmethoden nach Standort</h2>
+                <h2 className="text-lg font-semibold text-[var(--text-schwarz)]">Zahlungsmethoden nach Standort</h2>
                 <p className="text-[var(--text-grau)] text-sm">Standorte mit niedrigstem Anteil kontaktloser Zahlung</p>
               </div>
             </div>
@@ -547,11 +553,13 @@ export default function Dashboard() {
           </div>
           
           {/* Verkaufsprognosen */}
-          <div className="bg-white rounded-xl p-6 shadow-sm">
+          <div className="bg-[var(--section-bg)] rounded-xl p-6 shadow-sm border border-[var(--border-light)]">
             <div className="flex items-center mb-4">
-              <BarChart3 className="h-6 w-6 mr-3 text-[var(--proviant-rot)]" />
+              <div className="bg-[var(--kachel-durchschnitt)] p-2 rounded-lg mr-3">
+                <BarChart3 className="h-5 w-5 text-white" />
+              </div>
               <div>
-                <h2 className="text-[var(--text-schwarz)]">Verkaufsprognosen</h2>
+                <h2 className="text-lg font-semibold text-[var(--text-schwarz)]">Verkaufsprognosen</h2>
                 <p className="text-[var(--text-grau)] text-sm">Status der Prognosemodelle und aktuelle Vorhersagen</p>
               </div>
             </div>

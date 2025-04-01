@@ -5,7 +5,7 @@
 :root {
   /* Hauptfarben */
   --proviant-rot: #8B2510;
-  --kachel-umsatz: #D97E2E;     /* Orange */
+  --kachel-umsatz: #E78A2E;     /* Orange */
   --kachel-transaktionen: #3B95AB; /* Türkis */
   --kachel-durchschnitt: #6C9A78; /* Grün */
   --kachel-statistik: #4BA6BC;  /* Türkisblau */
@@ -13,12 +13,21 @@
   /* Textfarben */
   --text-schwarz: #1C1C1C;
   --text-grau: #6A6A6A;
+  --text-light: #9E9E9E;
   
   /* Strukturfarben */
   --border-dark: #222;
+  --border-light: #E5E5E5;
   --background: #FFFFFF;
-  --card-bg: #FAFAFA;
+  --background-light: #F8F8F8;
+  --card-bg: #F5F5F5;
+  --section-bg: #FAFAFA;
   --accent-blue: #1773C5;       /* Für Buttons wie "Senden" */
+  
+  /* Schatten */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.05);
 }
 
 @layer base {
@@ -30,7 +39,7 @@
     font-family: 'Inter', sans-serif;
     font-size: 16px;
     color: var(--text-schwarz);
-    background-color: var(--background);
+    background-color: var(--background-light);
     line-height: 1.5;
   }
 

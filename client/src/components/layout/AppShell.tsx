@@ -76,20 +76,23 @@ export default function AppShell({ children }: AppShellProps) {
 
       {/* Main Content Area */}
       <div className="main-content">
-        {/* Page Header */}
-        <header className="flex items-center justify-between pb-6">
-          <h1 className="text-2xl font-semibold">{getPageTitle()}</h1>
-          
-          {/* Optional Filter/Date Range Selector kann hier eingefügt werden */}
-          {location === "/" && (
-            <div className="bg-[var(--card-bg)] rounded-full px-4 py-1 text-sm">
-              7 Tage
-            </div>
-          )}
-        </header>
+        <div className="px-4 md:px-6 py-4 max-w-7xl">
+          {/* Page Header */}
+          <header className="flex items-center justify-between pb-4 mb-4 border-b border-gray-100">
+            <h1 className="text-2xl font-semibold">{getPageTitle()}</h1>
+            
+            {/* Optional Filter/Date Range Selector */}
+            {location === "/" && (
+              <div className="bg-[var(--card-bg)] rounded-full px-4 py-1 text-sm font-medium flex items-center">
+                <span>Letzte 7 Tage</span>
+                <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </div>
+            )}
+          </header>
 
-        {/* Page Content */}
-        {children}
+          {/* Page Content */}
+          {children}
+        </div>
       </div>
 
       {/* Mobile Footer Navigation - auf kleinen Geräten sichtbar */}
