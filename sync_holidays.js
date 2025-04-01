@@ -38,8 +38,13 @@ async function fetchHolidays(year) {
 }
 
 async function main() {
-  const year = 2024;
-  await fetchHolidays(year);
+  const currentYear = new Date().getFullYear(); // Aktuelles Jahr (2025)
+  await fetchHolidays(currentYear); // Aktuelle Feiertage holen
+  
+  // Auch Feiertage für das nächste Jahr abrufen, falls wir Ende des Jahres sind
+  if (new Date().getMonth() >= 10) { // November oder Dezember
+    await fetchHolidays(currentYear + 1);
+  }
 }
 
 main();

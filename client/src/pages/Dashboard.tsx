@@ -277,6 +277,11 @@ export default function Dashboard() {
         transactions={transactions || []} 
         isLoading={isLoadingTransactions}
         className="mb-4"
+        onTimeRangeChange={(range) => {
+          // This will be called when the time range changes in the filter
+          console.log('Time range changed:', range);
+          // We apply the filter directly to the transactions in the component
+        }}
       />
         
       {/* Top-Level Metriken */}
@@ -284,7 +289,7 @@ export default function Dashboard() {
         {/* Automaten-Status */}
         <MetricCard
           title="Aktive Automaten"
-          value={`${activeMachines} / ${totalMachines}`}
+          value={`${totalMachines - activeMachines} / ${totalMachines}`}
           icon={<Package />}
           iconBgColor="bg-violet-100"
           iconColor="text-violet-600"
@@ -304,18 +309,7 @@ export default function Dashboard() {
           }}
         />
 
-        {/* Offene Fehler */}
-        <MetricCard
-          title="Offene Fehler"
-          value={openErrors}
-          icon={<AlertCircle />}
-          iconBgColor="bg-red-100"
-          iconColor="text-red-600"
-          action={{
-            label: "Fehler ansehen",
-            onClick: handleViewErrorsClick,
-          }}
-        />
+
         
         {/* Offene Bestellungen */}
         <MetricCard

@@ -177,30 +177,34 @@ const MetricsTimeRangeCard: React.FC<MetricsTimeRangeCardProps> = ({
   };
   
   return (
-    <Card className={className}>
-      <CardHeader className="pb-2">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
-          <CardTitle className="text-lg">Dashboard Metriken</CardTitle>
+    <div className={className}>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 mb-3">
+        <h3 className="text-lg font-semibold">Dashboard Metriken</h3>
+        <div className="flex items-center gap-2">
           <TimeRangeFilter 
             onChange={handleTimeRangeChange} 
             selectedRange={'value' in selectedTimeRange ? selectedTimeRange.value : 'custom'}
             compact
           />
+          <div className="text-xs text-muted-foreground hidden md:block">
+            Zeitraum: {getTimeRangeDisplay()}
+          </div>
         </div>
-        <div className="text-xs text-muted-foreground">
-          Zeitraum: {getTimeRangeDisplay()}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {metrics.map((metric, index) => (
-            <div key={index} className="bg-muted/20 p-4 rounded-lg">
+      </div>
+      <div className="text-xs text-muted-foreground mb-3 md:hidden">
+        Zeitraum: {getTimeRangeDisplay()}
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {metrics.map((metric, index) => (
+          <Card key={index}>
+            <CardContent className="p-4">
               <div className="flex items-start justify-between">
                 <div>
                   <div className="text-sm text-muted-foreground">{metric.title}</div>
                   <div className="text-2xl font-bold mt-1">{metric.value}</div>
                 </div>
-                <div className="text-2xl">{metric.icon}</div>
+                <div className="text-2xl bg-muted/30 p-2 rounded-full">{metric.icon}</div>
               </div>
               
               {metric.trend && (
@@ -217,11 +221,11 @@ const MetricsTimeRangeCard: React.FC<MetricsTimeRangeCardProps> = ({
                   </div>
                 </div>
               )}
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
   );
 };
 
