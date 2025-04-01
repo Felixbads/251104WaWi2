@@ -1,45 +1,52 @@
 import { useLocation, Link } from "wouter";
-import { X } from "lucide-react";
+import { X, Menu } from "lucide-react";
 import {
   Home,
   FileText,
   Package,
   ShoppingBag,
   RefreshCw,
-  Clock,
   Settings,
   LogOut,
   BarChart2,
   Truck,
   ShoppingCart,
-  Users,
   Building2,
-  TrashIcon,
   FileBarChart,
   ClipboardList,
 } from "lucide-react";
 import { useAuth } from "@/lib";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
 }
 
-// Verwenden wir die wouter Link-Komponente für Navigation
-const NavItem = ({ href, icon, children, isActive, onClick }: { 
-  href: string; 
-  icon: React.ReactNode; 
+interface NavItemProps {
+  href: string;
+  icon: React.ReactNode;
   children: React.ReactNode;
   isActive: boolean;
   onClick?: () => void;
-}) => {
-  // Wouter Link-Komponente akzeptiert kein 'a'-Element als direktes Kind
+}
+
+const NavItem = ({ href, icon, children, isActive, onClick }: NavItemProps) => {
   return (
     <Link href={href}>
-      <div onClick={onClick} className="nav-item">
-        {icon}
-        <span>{children}</span>
-      </div>
+      <a 
+        onClick={onClick} 
+        className={cn(
+          "flex items-center gap-3 px-3 py-2 mb-1 rounded-md text-sidebar-foreground/90 hover:bg-sidebar-accent transition-colors",
+          isActive && "bg-sidebar-accent font-medium"
+        )}
+      >
+        <div className="w-5 h-5 shrink-0 flex items-center justify-center">
+          {icon}
+        </div>
+        <span className="text-sm">{children}</span>
+      </a>
     </Link>
   );
 };
@@ -53,7 +60,7 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
     return location === path || (path !== "/" && location.startsWith(path));
   };
   
-  // Optionale Funktion zum Schließen des Menüs auf Mobilgeräten
+  // Function to close the menu on mobile devices
   const handleNavClick = () => {
     if (onClose) {
       onClose();
@@ -61,139 +68,170 @@ export default function Sidebar({ isOpen = false, onClose }: SidebarProps) {
   };
 
   return (
-    <aside className={`sidebar ${isOpen ? 'open' : ''}`}>
-      {/* Logo und Kopfbereich */}
-      <div className="sidebar-logo">
-        <ClipboardList className="h-6 w-6 text-white" />
-        <span className="ml-3 text-xl font-semibold">Proviantomat</span>
-        
-        {/* Mobile Close Button */}
-        {isOpen && onClose && (
-          <button 
-            onClick={onClose}
-            className="md:hidden ml-auto text-white hover:bg-white/10 p-1 rounded-full"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        )}
-      </div>
-
-      {/* Hauptnavigation */}
-      <nav className="sidebar-nav">
-        <NavItem 
-          href="/" 
-          icon={<Home className="h-5 w-5" />}
-          isActive={isActive("/")}
-          onClick={handleNavClick}
-        >
-          Dashboard
-        </NavItem>
-        
-        <NavItem 
-          href="/automaten" 
-          icon={<Package className="h-5 w-5" />}
-          isActive={isActive("/automaten")}
-          onClick={handleNavClick}
-        >
-          Automaten
-        </NavItem>
-        
-        <NavItem 
-          href="/bestellungen" 
-          icon={<ShoppingCart className="h-5 w-5" />}
-          isActive={isActive("/bestellungen")}
-          onClick={handleNavClick}
-        >
-          Bestellungen
-        </NavItem>
-        
-        <NavItem 
-          href="/transactions" 
-          icon={<FileText className="h-5 w-5" />}
-          isActive={isActive("/transactions")}
-          onClick={handleNavClick}
-        >
-          Transaktionen
-        </NavItem>
-        
-        <NavItem 
-          href="/forecast" 
-          icon={<BarChart2 className="h-5 w-5" />}
-          isActive={isActive("/forecast")}
-          onClick={handleNavClick}
-        >
-          Prognosen
-        </NavItem>
-        
-        <NavItem 
-          href="/produkte" 
-          icon={<ShoppingBag className="h-5 w-5" />}
-          isActive={isActive("/produkte")}
-          onClick={handleNavClick}
-        >
-          Produkte
-        </NavItem>
-        
-        <NavItem 
-          href="/lieferanten" 
-          icon={<Truck className="h-5 w-5" />}
-          isActive={isActive("/lieferanten")}
-          onClick={handleNavClick}
-        >
-          Lieferanten
-        </NavItem>
-        
-        <NavItem 
-          href="/lager" 
-          icon={<Building2 className="h-5 w-5" />}
-          isActive={isActive("/lager")}
-          onClick={handleNavClick}
-        >
-          Lager
-        </NavItem>
-        
-        <NavItem 
-          href="/auswertungen" 
-          icon={<FileBarChart className="h-5 w-5" />}
-          isActive={isActive("/auswertungen")}
-          onClick={handleNavClick}
-        >
-          Bericht
-        </NavItem>
-      </nav>
-
-      {/* Admin/System-Bereich - am unteren Rand */}
-      <div className="mt-auto border-t border-white/10 py-4">
-        <NavItem 
-          href="/settings" 
-          icon={<Settings className="h-5 w-5" />}
-          isActive={isActive("/settings")}
-          onClick={handleNavClick}
-        >
-          Einstellungen
-        </NavItem>
-        
-        <NavItem 
-          href="/synchronization" 
-          icon={<RefreshCw className="h-5 w-5" />}
-          isActive={isActive("/synchronization")}
-          onClick={handleNavClick}
-        >
-          Synchronisierung
-        </NavItem>
-        
-        {/* Logout Button */}
+    <>
+      {/* Mobile overlay when sidebar is open */}
+      {isOpen && (
         <div 
-          className="nav-item cursor-pointer" 
-          onClick={() => {
-            logout();
-            if (onClose) onClose();
-          }}
-        >
-          <LogOut className="h-5 w-5" />
-          <span>Abmelden</span>
+          className="fixed inset-0 bg-black/50 z-40 md:hidden" 
+          onClick={onClose}
+        />
+      )}
+      
+      <aside 
+        className={cn(
+          "fixed top-0 left-0 z-50 h-full w-[250px] bg-sidebar-background flex flex-col shadow-lg",
+          "transform transition-transform duration-300 ease-in-out",
+          "md:translate-x-0",
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        {/* Logo and header */}
+        <div className="flex items-center px-4 py-5 border-b border-sidebar-border">
+          <ClipboardList className="h-6 w-6 text-sidebar-foreground" />
+          <span className="ml-3 text-lg font-semibold text-sidebar-foreground">Proviantomat</span>
+          
+          {/* Mobile Close Button */}
+          {isOpen && onClose && (
+            <Button 
+              onClick={onClose}
+              variant="ghost" 
+              className="md:hidden ml-auto text-sidebar-foreground hover:bg-sidebar-accent p-1 h-8 w-8"
+              size="icon"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          )}
         </div>
-      </div>
-    </aside>
+
+        {/* Main navigation */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4">
+          <NavItem 
+            href="/" 
+            icon={<Home className="h-5 w-5" />}
+            isActive={isActive("/")}
+            onClick={handleNavClick}
+          >
+            Dashboard
+          </NavItem>
+          
+          <NavItem 
+            href="/automaten" 
+            icon={<Package className="h-5 w-5" />}
+            isActive={isActive("/automaten")}
+            onClick={handleNavClick}
+          >
+            Automaten
+          </NavItem>
+          
+          <NavItem 
+            href="/bestellungen" 
+            icon={<ShoppingCart className="h-5 w-5" />}
+            isActive={isActive("/bestellungen")}
+            onClick={handleNavClick}
+          >
+            Bestellungen
+          </NavItem>
+          
+          <NavItem 
+            href="/transactions" 
+            icon={<FileText className="h-5 w-5" />}
+            isActive={isActive("/transactions")}
+            onClick={handleNavClick}
+          >
+            Transaktionen
+          </NavItem>
+          
+          <NavItem 
+            href="/forecast" 
+            icon={<BarChart2 className="h-5 w-5" />}
+            isActive={isActive("/forecast")}
+            onClick={handleNavClick}
+          >
+            Prognosen
+          </NavItem>
+          
+          <NavItem 
+            href="/produkte" 
+            icon={<ShoppingBag className="h-5 w-5" />}
+            isActive={isActive("/produkte")}
+            onClick={handleNavClick}
+          >
+            Produkte
+          </NavItem>
+          
+          <NavItem 
+            href="/lieferanten" 
+            icon={<Truck className="h-5 w-5" />}
+            isActive={isActive("/lieferanten")}
+            onClick={handleNavClick}
+          >
+            Lieferanten
+          </NavItem>
+          
+          <NavItem 
+            href="/lager" 
+            icon={<Building2 className="h-5 w-5" />}
+            isActive={isActive("/lager")}
+            onClick={handleNavClick}
+          >
+            Lager
+          </NavItem>
+          
+          <NavItem 
+            href="/auswertungen" 
+            icon={<FileBarChart className="h-5 w-5" />}
+            isActive={isActive("/auswertungen")}
+            onClick={handleNavClick}
+          >
+            Bericht
+          </NavItem>
+        </nav>
+
+        {/* Admin/System section at the bottom */}
+        <div className="mt-auto border-t border-sidebar-border px-3 py-4">
+          <NavItem 
+            href="/settings" 
+            icon={<Settings className="h-5 w-5" />}
+            isActive={isActive("/settings")}
+            onClick={handleNavClick}
+          >
+            Einstellungen
+          </NavItem>
+          
+          <NavItem 
+            href="/synchronization" 
+            icon={<RefreshCw className="h-5 w-5" />}
+            isActive={isActive("/synchronization")}
+            onClick={handleNavClick}
+          >
+            Synchronisierung
+          </NavItem>
+          
+          {/* Logout Button */}
+          <button 
+            className="flex items-center gap-3 px-3 py-2 w-full text-left rounded-md text-sidebar-foreground/90 hover:bg-sidebar-accent transition-colors"
+            onClick={() => {
+              logout();
+              if (onClose) onClose();
+            }}
+          >
+            <div className="w-5 h-5 shrink-0 flex items-center justify-center">
+              <LogOut className="h-5 w-5" />
+            </div>
+            <span className="text-sm">Abmelden</span>
+          </button>
+        </div>
+      </aside>
+      
+      {/* Mobile menu toggle button */}
+      <Button 
+        variant="outline" 
+        size="icon" 
+        className="fixed bottom-20 right-4 md:hidden z-30 bg-white shadow-md" 
+        onClick={() => isOpen ? onClose?.() : handleNavClick()}
+      >
+        <Menu className="h-5 w-5" />
+      </Button>
+    </>
   );
 }

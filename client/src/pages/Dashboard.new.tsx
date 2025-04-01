@@ -125,25 +125,6 @@ export default function Dashboard() {
       revenue: stats.revenue
     }));
 
-  // Get latest sync time
-  const getLatestSyncTime = () => {
-    if (!syncStatus) return null;
-    
-    const timestamps = [
-      syncStatus.machines?.lastSync,
-      syncStatus.products?.lastSync,
-      syncStatus.transactions?.lastSync,
-      syncStatus.refills?.lastSync,
-      syncStatus.events?.lastSync
-    ].filter(Boolean);
-    
-    if (timestamps.length === 0) return null;
-    
-    return new Date(Math.max(...timestamps));
-  };
-  
-  const latestSyncTime = getLatestSyncTime();
-
   return (
     <div className="space-y-6">
       {/* Dashboard KPI Cards */}
@@ -309,7 +290,7 @@ export default function Dashboard() {
         />
         <StatCard
           title="Letzte Synchronisation"
-          value={latestSyncTime ? formatDateTime(latestSyncTime) : "Nie"}
+          value={syncStatus?.lastSync ? formatDateTime(new Date(syncStatus.lastSync)) : "Nie"}
           variant="muted"
         />
       </div>
