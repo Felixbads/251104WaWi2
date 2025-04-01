@@ -1,6 +1,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getWeatherForecast, ForecastDay } from '@/lib/api/weather';
+import { getHolidaysInRange } from '@/lib/api/holidays';
 import {
   Card,
   CardContent,
@@ -14,8 +15,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { CalendarDays, Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow, Info, Snowflake, Sun, SunDim } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -126,59 +128,58 @@ const WeatherForecast: React.FC<WeatherForecastProps> = ({
     description?: string;
   }
 
-  // Beispielhafte Feiertage (in einer realen Implementierung würden diese von der API abgerufen)
-  const holidays: Record<string, Holiday> = {
-    '2025-04-01': { 
-      name: 'Osterferien', 
-      type: 'SCHOOL_HOLIDAY', 
-      state: 'Sachsen',
-      description: 'Ferien vom 31.03. - 11.04.2025'
-    },
-    '2025-04-02': { 
-      name: 'Osterferien', 
-      type: 'SCHOOL_HOLIDAY', 
-      state: 'Sachsen',
-      description: 'Ferien vom 31.03. - 11.04.2025'
-    },
-    '2025-04-03': { 
-      name: 'Osterferien', 
-      type: 'SCHOOL_HOLIDAY', 
-      state: 'Sachsen',
-      description: 'Ferien vom 31.03. - 11.04.2025' 
-    },
-    '2025-04-04': { 
-      name: 'Karfreitag', 
-      type: 'PUBLIC_HOLIDAY',
-      state: 'Alle Bundesländer',
-      description: 'Gesetzlicher Feiertag in allen Bundesländern' 
-    },
-    '2025-04-06': { 
-      name: 'Ostersonntag', 
-      type: 'PUBLIC_HOLIDAY',
-      state: 'Brandenburg',
-      description: 'Gesetzlicher Feiertag in Brandenburg' 
-    },
-    '2025-04-07': { 
-      name: 'Ostermontag', 
-      type: 'PUBLIC_HOLIDAY',
-      state: 'Alle Bundesländer',
-      description: 'Gesetzlicher Feiertag in allen Bundesländern' 
-    }
-  };
+  // Feiertage von der API abrufen mit useQuery
+  const today = new Date();
+  const endDate = addDays(today, days + 7); // Ein paar Tage mehr für die Liste unten
+  
+  const { data: holidaysData, isLoading: holidaysLoading, error: holidaysError } = useQuery({
+    queryKey: ['holidays', format(today, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd')],
+    queryFn: () => getHolidaysInRange(
+      format(today, 'yyyy-MM-dd'),
+      format(endDate, 'yyyy-MM-dd')
+    ),
+    staleTime: 24 * 60 * 60 * 1000, // 24 Stunden
+  });
+  
+  // Feiertage in das gewünschte Format konvertieren
+  const holidays: Record<string, Holiday> = React.useMemo(() => {
+    if (!holidaysData?.data) return {};
+    
+    return holidaysData.data.reduce((acc: Record<string, Holiday>, holiday: any) => {
+      const formattedDate = format(parseISO(holiday.date), 'yyyy-MM-dd');
+      acc[formattedDate] = {
+        name: holiday.name,
+        type: holiday.type || (holiday.isSchoolHoliday ? 'SCHOOL_HOLIDAY' : 'PUBLIC_HOLIDAY'),
+        state: holiday.state || holiday.states?.join(', ') || 'Sachsen',
+        description: holiday.description || (
+          holiday.isSchoolHoliday 
+            ? `Schulferien in ${holiday.state || 'Sachsen'}`
+            : holiday.states?.length > 0 
+              ? `Gesetzlicher Feiertag in ${holiday.states.length > 3 ? 'mehreren Bundesländern' : holiday.states.join(', ')}`
+              : undefined
+        )
+      };
+      return acc;
+    }, {});
+  }, [holidaysData?.data]);
 
-  if (error) {
+  // Anzeige von Fehlern (Wetter oder Feiertage)
+  if (error || holidaysError) {
     return (
       <Card className={`${className}`}>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-red-600 flex items-center">
             <Info className="h-4 w-4 mr-2" />
-            Fehler beim Laden der Wetterdaten
+            {error ? "Fehler beim Laden der Wetterdaten" : "Fehler beim Laden der Feiertagsdaten"}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-xs text-muted-foreground">
-            Bitte versuchen Sie es später erneut.
-          </p>
+          <Alert variant="destructive" className="mb-2">
+            <AlertTitle>Daten konnten nicht geladen werden</AlertTitle>
+            <AlertDescription className="text-xs">
+              Bitte versuchen Sie es später erneut oder wenden Sie sich an den Support.
+            </AlertDescription>
+          </Alert>
         </CardContent>
       </Card>
     );
@@ -270,40 +271,59 @@ const WeatherForecast: React.FC<WeatherForecastProps> = ({
         {/* Detaillierte Anzeige von Feiertagen und Ferien */}
         <div className="mt-4 border-t pt-3">
           <h4 className="text-sm font-medium mb-2">Aktuelle Feiertage & Ferien:</h4>
-          <div className="space-y-2">
-            {Object.entries(holidays)
-              .filter(([date]) => {
-                const today = new Date();
-                const holidayDate = new Date(date);
-                // Nur Einträge für den aktuellen Monat und die nächsten 30 Tage anzeigen
-                return holidayDate >= today && 
-                       holidayDate <= new Date(today.getFullYear(), today.getMonth() + 1, today.getDate());
-              })
-              .map(([date, holiday]) => {
-                const isPublicHoliday = holiday.type === 'PUBLIC_HOLIDAY';
-                return (
-                  <div key={date} className="flex items-start gap-2">
-                    <Badge 
-                      variant={isPublicHoliday ? "destructive" : "secondary"}
-                      className="mt-0.5"
-                    >
-                      {isPublicHoliday ? 'F' : 'S'}
-                    </Badge>
-                    <div>
-                      <div className="text-xs font-medium">
-                        {format(parseISO(date), 'dd.MM.yyyy')} - {holiday.name}
-                      </div>
-                      {holiday.state && (
-                        <div className="text-[10px] text-muted-foreground">{holiday.state}</div>
-                      )}
-                      {holiday.description && (
-                        <div className="text-[10px] text-muted-foreground">{holiday.description}</div>
-                      )}
-                    </div>
+          
+          {holidaysLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <Skeleton className="h-5 w-5 rounded-full" />
+                  <div className="flex-1">
+                    <Skeleton className="h-4 w-32 mb-1" />
+                    <Skeleton className="h-3 w-24" />
                   </div>
-                );
-              })}
-          </div>
+                </div>
+              ))}
+            </div>
+          ) : Object.keys(holidays).length === 0 ? (
+            <div className="text-sm text-muted-foreground italic">
+              Keine Feiertage oder Ferien im gewählten Zeitraum
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {Object.entries(holidays)
+                .filter(([date]) => {
+                  const today = new Date();
+                  const holidayDate = new Date(date);
+                  // Nur Einträge für den aktuellen Monat und die nächsten 30 Tage anzeigen
+                  return holidayDate >= today && 
+                        holidayDate <= new Date(today.getFullYear(), today.getMonth() + 1, today.getDate());
+                })
+                .map(([date, holiday]) => {
+                  const isPublicHoliday = holiday.type === 'PUBLIC_HOLIDAY';
+                  return (
+                    <div key={date} className="flex items-start gap-2">
+                      <Badge 
+                        variant={isPublicHoliday ? "destructive" : "secondary"}
+                        className="mt-0.5"
+                      >
+                        {isPublicHoliday ? 'F' : 'S'}
+                      </Badge>
+                      <div>
+                        <div className="text-xs font-medium">
+                          {format(parseISO(date), 'dd.MM.yyyy')} - {holiday.name}
+                        </div>
+                        {holiday.state && (
+                          <div className="text-[10px] text-muted-foreground">{holiday.state}</div>
+                        )}
+                        {holiday.description && (
+                          <div className="text-[10px] text-muted-foreground">{holiday.description}</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

@@ -3,7 +3,9 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { vendonSync } from "./services/vendonSync";
 import { syncWeatherForecast } from './services/openWeatherService';
+import { holidayService } from './services/holidayService';
 import ordersRouter from './routes/orders';
+import holidaysRouter from './routes/holidays';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -98,7 +100,7 @@ function groupTransactionsByPeriod(transactions, period) {
   
   return result;
 }
-import { syncMissingHolidays } from './services/holidayService';
+
 import { startAutomaticSync, stopAutomaticSync, getSchedulerStatus } from "./scheduler";
 import { z } from "zod";
 import { registerForecastRoutes } from "./routes/forecast";
@@ -117,6 +119,7 @@ import productDisposalsRoutes from "./routes/productDisposals";
 import exportImportRoutes from "./routes/exportImport";
 import removedProductsRoutes from "./routes/removedProducts";
 import weatherRoutes from "./routes/weather";
+import holidaysRoutes from "./routes/holidays";
 import { WebSocketServer } from 'ws';
 
 // API route prefix
@@ -221,7 +224,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const includeSchoolHolidays = req.body.includeSchoolHolidays !== false;
           
           console.log(`Starte Feiertags-Synchronisation für Jahre ${startYear}-${endYear}${stateParam ? ` und Bundesland ${stateParam}` : ''}`);
-          result = await syncMissingHolidays(startYear, endYear, stateParam, includeSchoolHolidays);
+          const states = stateParam ? [stateParam] : ['SN'];
+          let totalEntries = 0;
+          for (let year = startYear; year <= endYear; year++) {
+            const entries = await holidayService.syncHolidaysForYear(year, states);
+            totalEntries += entries;
+          }
+          result = { success: true, addedEntries: totalEntries };
           break;
         case "all":
           result = await vendonSync.syncAll();
@@ -1159,6 +1168,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/product-disposals`, productDisposalsRoutes);
   app.use(`${API_PREFIX}/removed-products`, removedProductsRoutes);
   app.use(`${API_PREFIX}/weather`, weatherRoutes);
+  app.use(`${API_PREFIX}/holidays`, holidaysRoutes);
   
   // Registriere Bestellungs-Routen
   app.use(`${API_PREFIX}/orders`, ordersRouter);
