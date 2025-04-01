@@ -15,6 +15,7 @@ import {
   Clock,
   ArrowUpRight
 } from "lucide-react";
+import PageHeader from "@/components/layout/PageHeader";
 import WeatherWidget from "@/components/weather/WeatherWidget";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -258,29 +259,35 @@ export default function Dashboard() {
     syncStatus.events?.status === "running"
   );
 
+  // Aktualisieren der Daten
+  const handleRefresh = React.useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['/api/transactions'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/machines'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/events'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/statistics/database'] });
+    
+    toast({
+      title: "Daten werden aktualisiert",
+      description: "Die Dashboard-Daten werden neu geladen."
+    });
+  }, [queryClient, toast]);
+  
   return (
     <div className="space-y-6">
-      <div className="flex flex-col lg:flex-row justify-between gap-4 px-2">
-        <div>
-          <h1 className="text-2xl font-bold mb-1">Dashboard</h1>
-          <p className="text-gray-500">
-            Übersicht aller Automaten und Transaktionen
-            {latestSyncTime && (
-              <span className="text-xs ml-2">
-                (Letzte Aktualisierung: {formatDateTime(latestSyncTime)})
-              </span>
-            )}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 text-sm">
-          {isSyncRunning && (
-            <div className="flex items-center text-amber-600 bg-amber-50 px-3 py-1 rounded-md">
+      <PageHeader 
+        title="Dashboard"
+        showRefresh={true}
+        onRefresh={handleRefresh}
+        additionalButtons={
+          isSyncRunning && (
+            <div className="flex items-center text-amber-600 bg-amber-50 px-3 py-1 rounded-md h-9">
               <div className="animate-spin h-3 w-3 mr-2 border-2 border-amber-600 border-t-transparent rounded-full"></div>
-              <span>Synchronisierung läuft...</span>
+              <span className="text-xs">Synchronisierung läuft...</span>
             </div>
-          )}
-        </div>
-      </div>
+          )
+        }
+      />
         
       {/* Top-Level Metriken - 3 Kacheln nach neuen Anforderungen */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

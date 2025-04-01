@@ -28,6 +28,7 @@ import {
   Percent,
   RefreshCw
 } from "lucide-react";
+import PageHeader from "@/components/layout/PageHeader";
 import { ExportImportButtons } from "@/components/ExportImportButtons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -184,6 +185,7 @@ function FilterDialog({ isOpen, onOpenChange, onApplyFilters, categories, initia
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">Alle Lieferanten</SelectItem>
+                {/* Hier werden normalerweise die Lieferanten geladen */}
                 {Array.isArray(initialFilters.suppliers) && 
                  initialFilters.suppliers.map((supplier) => (
                   <SelectItem key={supplier} value={supplier}>
@@ -431,18 +433,18 @@ export default function Products() {
         
         return matchesSearch && 
               matchesCategory && 
-              matchesSupplier &&
-              matchesSelectedCategories &&
+              matchesSupplier && 
+              matchesSelectedCategories && 
               hasStock && 
               hasLowStock && 
-              priceInRange && 
+              priceInRange &&
               matchesAgeVerification;
-      })
-      .sort((a, b) => {
-        // Sortierung anwenden
+      }).sort((a: Product, b: Product) => {
         let comparison = 0;
         
+        // Sortierung basierend auf dem ausgewählten Kriterium
         switch (filters.sortBy) {
+          default:
           case "name":
             comparison = a.productName.localeCompare(b.productName);
             break;
@@ -504,36 +506,34 @@ export default function Products() {
               <p className="text-sm text-gray-500">Bestand</p>
               <p className="font-medium">{typeof product.inStock === 'number' ? product.inStock : '–'}</p>
             </div>
-            <div>
-              <p className="text-sm text-gray-500">Verkäufe</p>
-              <p className="font-medium">{product.salesCount || '0'}</p>
-            </div>
           </div>
-          {product.supplier && (
-            <div className="mt-2">
-              <p className="text-sm text-gray-500">Lieferant</p>
-              <p className="text-sm font-medium truncate">{product.supplier}</p>
-            </div>
-          )}
-          {product.category && (
-            <div className="mt-2">
-              <Badge variant="secondary" className="mt-1">
+          
+          {/* Kategorie oder andere Attribute */}
+          <div className="flex flex-wrap gap-1 mb-4">
+            {product.category && (
+              <Badge variant="secondary" className="text-xs">
                 {product.category}
               </Badge>
+            )}
+          </div>
+          
+          {/* Verkaufsstatistik, wenn verfügbar */}
+          {product.salesCount !== undefined && (
+            <div className="text-right mb-2">
+              <p className="text-xs text-gray-500">Verkäufe</p>
+              <p className="font-medium">{product.salesCount}</p>
             </div>
           )}
-        </CardContent>
-        <CardFooter className="pt-2">
+          
           <Button 
             variant="outline" 
-            size="sm" 
-            className="w-full"
+            size="sm"
             onClick={() => setLocation(`/produkte/${product.id}`)}
           >
             <ExternalLink className="h-4 w-4 mr-2" />
             Details
           </Button>
-        </CardFooter>
+        </CardContent>
       </Card>
     );
   };
@@ -545,62 +545,70 @@ export default function Products() {
     const isAlcohol = tags.includes('alcohol') || product.requiresAgeVerification;
     
     // Bestandsstatus berechnen
-    let stockStatus = "normal";
-    if (typeof product.inStock === 'number' && product.amountCritical) {
+    let stockStatus = "Unbekannt";
+    let stockStatusClass = "text-gray-500";
+    
+    if (typeof product.inStock === 'number') {
       if (product.inStock <= 0) {
-        stockStatus = "out";
-      } else if (product.inStock <= product.amountCritical) {
-        stockStatus = "low";
+        stockStatus = "Nicht auf Lager";
+        stockStatusClass = "text-red-500";
+      } else if (product.amountCritical && product.inStock <= product.amountCritical) {
+        stockStatus = "Kritisch";
+        stockStatusClass = "text-amber-500";
+      } else {
+        stockStatus = "Auf Lager";
+        stockStatusClass = "text-green-500";
       }
     }
     
     return (
-      <div className="flex items-center p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors">
-        <div className="flex-grow mr-4">
-          <div className="flex items-center mb-1">
-            <h3 className="font-medium truncate mr-2">{product.productName}</h3>
+      <div className="flex items-center p-4 hover:bg-gray-50">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center">
+            <h3 className="text-base font-medium truncate mr-2">{product.productName}</h3>
             {isAlcohol && (
-              <Badge variant="outline" className="ml-2 bg-amber-100 text-amber-800 border-amber-300">
+              <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300">
                 18+
               </Badge>
             )}
-            {product.category && (
-              <Badge variant="secondary" className="ml-2">
-                {product.category}
-              </Badge>
-            )}
           </div>
-          <p className="text-sm text-gray-600">
+          <div className="flex flex-wrap gap-4 mt-1 text-sm">
             {product.sku && (
-              <span className="text-xs text-gray-500 flex items-center">
+              <span className="text-gray-500 flex items-center">
                 <Tag className="h-3 w-3 mr-1" />
                 {product.sku}
               </span>
             )}
-          </p>
+            {product.category && (
+              <span className="text-gray-500">
+                Kategorie: {product.category}
+              </span>
+            )}
+            {product.supplier && (
+              <span className="text-gray-500">
+                Lieferant: {product.supplier}
+              </span>
+            )}
+          </div>
         </div>
         
-        <div className="flex items-center gap-6 text-sm">
-          <div className="text-center">
-            <p className="text-gray-500">Preis</p>
+        <div className="flex items-center gap-6 ml-4">
+          <div className="text-right">
+            <p className="text-xs text-gray-500">Preis</p>
             <p className="font-medium">{product.price?.toFixed(2) || '–'} €</p>
           </div>
-          <div className="text-center">
-            <p className="text-gray-500">Bestand</p>
-            <p className={`font-medium ${
-              stockStatus === "out" ? "text-red-600" : 
-              stockStatus === "low" ? "text-amber-600" : ""
-            }`}>
+          <div className="text-right min-w-[80px]">
+            <p className="text-xs text-gray-500">Bestand</p>
+            <p className={`font-medium ${stockStatusClass}`}>
               {typeof product.inStock === 'number' ? product.inStock : '–'}
             </p>
           </div>
           {product.salesCount !== undefined && (
-            <div className="text-center">
-              <p className="text-gray-500">Verkäufe</p>
+            <div className="text-right min-w-[80px]">
+              <p className="text-xs text-gray-500">Verkäufe</p>
               <p className="font-medium">{product.salesCount}</p>
             </div>
           )}
-          
           <Button 
             variant="outline" 
             size="sm"
@@ -614,98 +622,95 @@ export default function Products() {
     );
   };
 
+  // Aktive Filter generieren
+  const activeFilters = [];
+  
+  if (filters.onlyInStock) activeFilters.push("Nur auf Lager");
+  if (filters.onlyLowStock) activeFilters.push("Kritischer Bestand");
+  if (filters.suppliers.length > 0) activeFilters.push(`Lieferant: ${filters.suppliers.join(', ')}`);
+  if (filters.categories.length > 0) activeFilters.push(`Kategorien: ${filters.categories.join(', ')}`);
+  if (filters.requiresAgeVerification === true) activeFilters.push("Nur 18+ Produkte");
+  if (filters.requiresAgeVerification === false) activeFilters.push("Keine 18+ Produkte");
+  if (filters.priceRange[0] > 0 || filters.priceRange[1] < 100) {
+    activeFilters.push(`Preis: ${filters.priceRange[0]}€ - ${filters.priceRange[1]}€`);
+  }
+  if (filters.sortBy !== "name" || filters.sortDirection !== "asc") {
+    const sortText = `Sortierung: ${
+      filters.sortBy === "name" ? "Name" : 
+      filters.sortBy === "price" ? "Preis" : 
+      filters.sortBy === "stock" ? "Bestand" : "Verkäufe"
+    } (${filters.sortDirection === "asc" ? "aufsteigend" : "absteigend"})`;
+    activeFilters.push(sortText);
+  }
+  
+  // Filter löschen
+  const clearFilter = (filter: string) => {
+    // Hier können Logik hinzugefügt werden, um spezifische Filter zu entfernen
+    if (filter.startsWith("Nur auf Lager")) {
+      setFilters({...filters, onlyInStock: false});
+    } else if (filter.startsWith("Kritischer Bestand")) {
+      setFilters({...filters, onlyLowStock: false});
+    } else if (filter.startsWith("Lieferant:")) {
+      setFilters({...filters, suppliers: []});
+    } else if (filter.startsWith("Kategorien:")) {
+      setFilters({...filters, categories: []});
+    } else if (filter.startsWith("Nur 18+ Produkte") || filter.startsWith("Keine 18+ Produkte")) {
+      setFilters({...filters, requiresAgeVerification: null});
+    } else if (filter.startsWith("Preis:")) {
+      setFilters({...filters, priceRange: [0, 100]});
+    } else if (filter.startsWith("Sortierung:")) {
+      setFilters({...filters, sortBy: "name", sortDirection: "asc"});
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center">
-            <ShoppingBag className="h-6 w-6 mr-2" />
-            Produkte
-          </h1>
-          <p className="text-gray-500 mt-1">
-            Verwalten Sie das Produktsortiment aller Automaten
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            onClick={() => setLocation("/produkte/inventory")}
-          >
-            <FileText className="h-4 w-4 mr-2" />
-            Inventurbericht
-          </Button>
-          <ExportImportButtons type="products" />
-          <Button onClick={() => setLocation("/produkte/new")}>
-            <Plus className="h-4 w-4 mr-2" />
-            Neues Produkt
-          </Button>
-        </div>
-      </div>
-
-      <Separator />
-
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative flex-grow">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          <Input
-            placeholder="Produkte suchen nach Name oder Artikelnummer..."
-            className="pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            onClick={() => setIsFilterDialogOpen(true)}
-            className="gap-1 relative"
-          >
-            <Filter className="h-4 w-4 mr-1" />
-            Filter
-            {/* Filter-Indikator, wenn aktive Filter vorhanden sind */}
-            {(filters.onlyInStock || 
-              filters.onlyLowStock || 
-              filters.priceRange[0] > 0 || 
-              filters.priceRange[1] < 100 || 
-              filters.suppliers.length > 0 ||
-              filters.categories.length > 0 ||
-              filters.requiresAgeVerification !== null ||
-              filters.sortBy !== "name" ||
-              filters.sortDirection !== "asc") && (
-              <span className="absolute -top-1 -right-1 rounded-full bg-primary w-2 h-2" />
-            )}
-          </Button>
-          
-          {/* Filter Dialog */}
-          <FilterDialog 
-            isOpen={isFilterDialogOpen} 
-            onOpenChange={setIsFilterDialogOpen}
-            onApplyFilters={setFilters}
-            categories={categories}
-            initialFilters={filters}
-          />
-          <div className="border rounded-md p-1 flex">
-            <Button
-              variant={viewMode === "grid" ? "secondary" : "ghost"}
+      <PageHeader
+        title="Produkte"
+        showSearch={true}
+        showFilter={true}
+        showAdd={true}
+        onSearch={setSearchTerm}
+        onFilter={() => setIsFilterDialogOpen(true)}
+        onAdd={() => setLocation("/produkte/new")}
+        searchPlaceholder="Nach Produkten suchen..."
+        activeFilters={activeFilters}
+        onClearFilter={clearFilter}
+        additionalButtons={
+          <>
+            <Button 
+              variant="outline" 
               size="icon"
-              onClick={() => setViewMode("grid")}
-              className="h-8 w-8 rounded-sm"
+              className="h-9 w-9"
+              onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
             >
-              <Grid className="h-4 w-4" />
+              {viewMode === "grid" ? (
+                <List className="h-4 w-4" />
+              ) : (
+                <Grid className="h-4 w-4" />
+              )}
             </Button>
-            <Button
-              variant={viewMode === "list" ? "secondary" : "ghost"}
-              size="icon"
-              onClick={() => setViewMode("list")}
-              className="h-8 w-8 rounded-sm"
+            <Button 
+              variant="outline" 
+              className="h-9 flex items-center"
+              onClick={() => setLocation("/produkte/inventory")}
             >
-              <List className="h-4 w-4" />
+              <FileText className="h-4 w-4 mr-1.5" />
+              Inventurbericht
             </Button>
-          </div>
-        </div>
-      </div>
+            <ExportImportButtons type="products" />
+          </>
+        }
+      />
+      
+      {/* Filter Dialog */}
+      <FilterDialog 
+        isOpen={isFilterDialogOpen} 
+        onOpenChange={setIsFilterDialogOpen}
+        onApplyFilters={setFilters}
+        categories={categories}
+        initialFilters={filters}
+      />
 
       {/* Tabs for Category Filtering */}
       <Tabs defaultValue="all" className="w-full">
