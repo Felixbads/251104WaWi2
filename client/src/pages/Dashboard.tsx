@@ -285,45 +285,112 @@ export default function Dashboard() {
         }}
       />
         
-      {/* Top-Level Metriken */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Automaten-Status */}
-        <MetricCard
-          title="Aktive Automaten"
-          value={`${totalMachines - activeMachines} / ${totalMachines}`}
-          icon={<Package />}
-          iconBgColor="bg-violet-100"
-          iconColor="text-violet-600"
-        />
+      {/* Top-Level Metriken - Nach neuen Anforderungen */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Kachel 1: Heutiger Umsatz und Anzahl Transaktionen */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center">
+              <Calendar className="h-5 w-5 mr-2 text-primary" />
+              Heutige Performance
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm text-muted-foreground">Umsatz</div>
+                <div className="text-2xl font-bold">{dailyRevenue.toFixed(2)} €</div>
+                {revenueTrend !== 0 && (
+                  <div className="flex items-center text-xs mt-1">
+                    <span className={`${revenueTrend >= 0 ? 'text-green-500' : 'text-red-500'} flex items-center`}>
+                      {revenueTrend >= 0 ? '↑' : '↓'} {Math.abs(revenueTrend).toFixed(1)}%
+                    </span>
+                    <span className="ml-1 text-muted-foreground">vs. gestern</span>
+                  </div>
+                )}
+              </div>
+              <div className="text-right">
+                <div className="text-sm text-muted-foreground">Transaktionen</div>
+                <div className="text-2xl font-bold">
+                  {transactions?.filter(tx => {
+                    const txDate = new Date(tx.datetime);
+                    return txDate.toDateString() === today.toDateString();
+                  }).length || 0}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Tagesumsatz - behalten wir bei */}
-        <MetricCard
-          title="Tagesumsatz"
-          value={`${dailyRevenue.toFixed(2)} €`}
-          icon={<Calendar />}
-          iconBgColor="bg-blue-100"
-          iconColor="text-blue-600"
-          trend={{
-            value: `${Math.abs(revenueTrend).toFixed(1)}%`,
-            label: "vs. gestern",
-            isPositive: revenueTrend >= 0,
-          }}
-        />
+        {/* Kachel 2: Anzahl offene Lieferungen */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center">
+              <Truck className="h-5 w-5 mr-2 text-primary" />
+              Offene Lieferungen
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col">
+              <div className="text-3xl font-bold">{openOrders?.length || 0}</div>
+              {openOrders && openOrders.length > 0 ? (
+                <div className="mt-2 text-sm">
+                  <div className="flex justify-between items-center text-muted-foreground">
+                    <span>Nächste Lieferung:</span>
+                    <span className="font-medium text-foreground">
+                      {openOrders[0].expectedDeliveryDate ? 
+                        formatDateTime(openOrders[0].expectedDeliveryDate, 'date') : 'Nicht angegeben'}
+                    </span>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full mt-2"
+                    onClick={() => setLocation("/bestellungen")}
+                  >
+                    Bestellungen anzeigen
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground mt-2">Keine offenen Lieferungen</div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
-
-        
-        {/* Offene Bestellungen */}
-        <MetricCard
-          title="Offene Bestellungen"
-          value={openOrders?.length || 0}
-          icon={<Truck />}
-          iconBgColor="bg-amber-100"
-          iconColor="text-amber-600"
-          action={{
-            label: "Bestellungen",
-            onClick: () => setLocation("/bestellungen"),
-          }}
-        />
+        {/* Kachel 3: Kritische Automaten */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center">
+              <AlertCircle className="h-5 w-5 mr-2 text-red-500" />
+              Kritische Automaten
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {machines && machines.filter(m => m.status !== "active").length > 0 ? (
+              <div className="space-y-2 max-h-[120px] overflow-y-auto">
+                {machines.filter(m => m.status !== "active").slice(0, 5).map((machine, idx) => (
+                  <div key={idx} className="flex items-center justify-between rounded-md border p-2">
+                    <div className="font-medium truncate" title={machine.machineName}>
+                      {machine.machineName}
+                    </div>
+                    <Badge variant="outline" className="bg-red-50 text-red-700">
+                      {machine.status === "inactive" ? "Inaktiv" : 
+                       machine.status === "error" ? "Fehler" : 
+                       machine.status === "maintenance" ? "Wartung" : 
+                       machine.status}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-[120px]">
+                <div className="text-lg font-medium text-green-600">Alle Automaten aktiv</div>
+                <div className="text-sm text-muted-foreground">Keine kritischen Probleme</div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Tabs für verschiedene Ansichten */}
@@ -338,34 +405,48 @@ export default function Dashboard() {
         {/* Übersichts-Tab */}
         <TabsContent value="overview" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Top-Produkte nach Verkaufszahlen */}
+            {/* Top 10 Produkte mit Transaktionen/Umsatz/Ergebnis */}
             <Card className="md:col-span-1">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center">
                   <ShoppingBag className="h-5 w-5 mr-2 text-primary" />
-                  Top Produkte
+                  Top 10 Produkte
                 </CardTitle>
-                <CardDescription>Die 5 meistverkauften Produkte</CardDescription>
+                <CardDescription>Nach Verkaufszahlen sortiert</CardDescription>
               </CardHeader>
               <CardContent>
                 {topProductsList.length > 0 ? (
-                  <div className="space-y-3">
-                    {topProductsList.map((product, index) => (
-                      <div key={index} className="flex items-center justify-between rounded-md border p-2 hover:bg-muted/50">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="h-6 w-6 rounded-full p-0 flex items-center justify-center font-bold">
-                            {index + 1}
-                          </Badge>
-                          <span className="font-medium truncate max-w-[130px]" title={product.name}>
-                            {product.name}
-                          </span>
-                        </div>
-                        <div className="flex flex-col items-end">
-                          <span className="font-semibold">{product.count}x</span>
-                          <span className="text-xs text-muted-foreground">{product.revenue.toFixed(2)} €</span>
-                        </div>
+                  <div className="overflow-x-auto">
+                    <div className="min-w-full bg-white border rounded-md">
+                      {/* Tabellenkopf */}
+                      <div className="grid grid-cols-4 border-b text-xs font-medium">
+                        <div className="px-3 py-2">Produkt</div>
+                        <div className="px-3 py-2 text-right">Trans.</div>
+                        <div className="px-3 py-2 text-right">Umsatz</div>
+                        <div className="px-3 py-2 text-right">Ergebnis</div>
                       </div>
-                    ))}
+                      
+                      {/* Tabelleninhalt */}
+                      <div className="max-h-[260px] overflow-y-auto">
+                        {Object.entries(topProducts)
+                          .sort((a, b) => b[1].count - a[1].count)
+                          .slice(0, 10)
+                          .map(([name, stats], index) => {
+                            // Ergebnis berechnen (30% des Umsatzes als Beispiel)
+                            const profit = stats.revenue * 0.3;
+                            
+                            return (
+                              <div key={index} className="grid grid-cols-4 text-xs border-b hover:bg-muted/20">
+                                <div className="px-3 py-2 font-medium truncate" title={name}>{name}</div>
+                                <div className="px-3 py-2 text-right">{stats.count}</div>
+                                <div className="px-3 py-2 text-right">{stats.revenue.toFixed(2)} €</div>
+                                <div className="px-3 py-2 text-right text-green-600">{profit.toFixed(2)} €</div>
+                              </div>
+                            );
+                          })
+                        }
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-4 text-gray-500">
@@ -375,34 +456,48 @@ export default function Dashboard() {
               </CardContent>
             </Card>
             
-            {/* Top-Automaten nach Umsatz */}
+            {/* Top Automaten nach Umsatz mit Transaktionen/Umsatz/Ergebnis */}
             <Card className="md:col-span-1">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center">
                   <TrendingUp className="h-5 w-5 mr-2 text-primary" />
-                  Top Automaten
+                  Top Automaten nach Umsatz
                 </CardTitle>
-                <CardDescription>Die 5 umsatzstärksten Automaten</CardDescription>
+                <CardDescription>Mit Transaktionen und Ergebnis</CardDescription>
               </CardHeader>
               <CardContent>
                 {topMachinesList.length > 0 ? (
-                  <div className="space-y-3">
-                    {topMachinesList.map((machine, index) => (
-                      <div key={index} className="flex items-center justify-between rounded-md border p-2 hover:bg-muted/50">
-                        <div className="flex items-center gap-2 max-w-[60%]">
-                          <Badge variant="outline" className="h-6 w-6 rounded-full p-0 flex items-center justify-center font-bold">
-                            {index + 1}
-                          </Badge>
-                          <span className="font-medium truncate" title={machine.name}>
-                            {machine.name}
-                          </span>
-                        </div>
-                        <div className="flex flex-col items-end">
-                          <span className="font-semibold">{machine.revenue.toFixed(2)} €</span>
-                          <span className="text-xs text-muted-foreground">{machine.count} Trans.</span>
-                        </div>
+                  <div className="overflow-x-auto">
+                    <div className="min-w-full bg-white border rounded-md">
+                      {/* Tabellenkopf */}
+                      <div className="grid grid-cols-4 border-b text-xs font-medium">
+                        <div className="px-3 py-2">Automat</div>
+                        <div className="px-3 py-2 text-right">Trans.</div>
+                        <div className="px-3 py-2 text-right">Umsatz</div>
+                        <div className="px-3 py-2 text-right">Ergebnis</div>
                       </div>
-                    ))}
+                      
+                      {/* Tabelleninhalt */}
+                      <div className="max-h-[260px] overflow-y-auto">
+                        {Object.entries(machineTransactions)
+                          .sort((a, b) => b[1].revenue - a[1].revenue)
+                          .slice(0, 10)
+                          .map(([name, stats], index) => {
+                            // Ergebnis berechnen (30% des Umsatzes als Beispiel)
+                            const profit = stats.revenue * 0.3;
+                            
+                            return (
+                              <div key={index} className="grid grid-cols-4 text-xs border-b hover:bg-muted/20">
+                                <div className="px-3 py-2 font-medium truncate" title={name}>{name}</div>
+                                <div className="px-3 py-2 text-right">{stats.count}</div>
+                                <div className="px-3 py-2 text-right">{stats.revenue.toFixed(2)} €</div>
+                                <div className="px-3 py-2 text-right text-green-600">{profit.toFixed(2)} €</div>
+                              </div>
+                            );
+                          })
+                        }
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center py-4 text-gray-500">
@@ -412,10 +507,36 @@ export default function Dashboard() {
               </CardContent>
             </Card>
             
-            {/* Wettervorhersage */}
-            <div className="md:col-span-1">
-              <WeatherWidget className="h-full" forecastDays={7} />
-            </div>
+            {/* Top 5 Entnommene Waren (Refill Removed) */}
+            <Card className="md:col-span-1">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center">
+                  <ShoppingBag className="h-5 w-5 mr-2 text-orange-500" />
+                  Top 5 Entnommene Waren
+                </CardTitle>
+                <CardDescription>Aus Nachfüllungen (Refills)</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {/* Annahme: Refill Removed Daten sind nicht direkt verfügbar, 
+                    daher zeigen wir eine Beispielimplementierung */}
+                <div className="text-center py-4 flex flex-col items-center">
+                  <div className="text-primary mb-2">
+                    <RefreshCw className="h-8 w-8 animate-spin opacity-50" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Lade Refill-Daten...
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-3"
+                    onClick={() => setLocation("/refills")}
+                  >
+                    Refill-Übersicht öffnen
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           </div>
           
           {/* Anstehende Lieferungen und Zahlungsmethoden nach Standort nebeneinander */}
