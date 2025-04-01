@@ -4,6 +4,7 @@ import Sidebar from "./Sidebar";
 import MobileHeader from "./MobileHeader";
 import MobileFooter from "./MobileFooter";
 import MobileMenu from "./MobileMenu";
+import { Menu } from "lucide-react";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -49,6 +50,8 @@ export default function AppShell({ children }: AppShellProps) {
         return "Prognosen";
       case "/settings":
         return "Einstellungen";
+      case "/grafik":
+        return "Grafik";
       default:
         return "Proviantomat";
     }
@@ -59,37 +62,40 @@ export default function AppShell({ children }: AppShellProps) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row">
-      {/* Mobile Header */}
-      <MobileHeader
-        pageTitle={getPageTitle()}
-        onMenuToggle={toggleMobileMenu}
-      />
+    <div className="app-container">
+      {/* Mobile Menu Toggle */}
+      <button
+        className="mobile-menu-toggle md:hidden"
+        onClick={toggleMobileMenu}
+      >
+        <Menu className="h-5 w-5" />
+      </button>
 
-      {/* Mobile Menu Overlay */}
-      <MobileMenu
-        isOpen={showMobileMenu}
-        onClose={toggleMobileMenu}
-      />
-
-      {/* Sidebar Navigation (hidden on mobile) */}
-      <Sidebar />
+      {/* Sidebar Navigation */}
+      <Sidebar isOpen={showMobileMenu} onClose={toggleMobileMenu as any} />
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-auto pb-16 md:pb-0">
-        {/* Desktop Header (hidden on mobile) */}
-        <header className="hidden md:flex md:items-center md:justify-between bg-white shadow-sm px-6 py-4">
-          <h1 className="text-2xl font-semibold text-gray-800">{getPageTitle()}</h1>
+      <div className="main-content">
+        {/* Page Header */}
+        <header className="flex items-center justify-between pb-6">
+          <h1 className="text-2xl font-semibold">{getPageTitle()}</h1>
+          
+          {/* Optional Filter/Date Range Selector kann hier eingefügt werden */}
+          {location === "/" && (
+            <div className="bg-[var(--card-bg)] rounded-full px-4 py-1 text-sm">
+              7 Tage
+            </div>
+          )}
         </header>
 
         {/* Page Content */}
-        <div className="p-4 md:p-6 max-w-7xl mx-auto">
-          {children}
-        </div>
-      </main>
+        {children}
+      </div>
 
-      {/* Mobile Bottom Navigation */}
-      <MobileFooter />
+      {/* Mobile Footer Navigation - auf kleinen Geräten sichtbar */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200">
+        <MobileFooter />
+      </div>
     </div>
   );
 }

@@ -239,58 +239,33 @@ export default function Dashboard() {
       />
         
       {/* Top-Level Metriken */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Automaten-Status */}
-        <div className="kpi green">
-          <div className="flex items-center mb-2">
-            <Package className="h-5 w-5 mr-2" />
-            <span className="text-base">Aktive Automaten</span>
-          </div>
-          <div className="text-2xl font-bold">{activeMachines} / {totalMachines}</div>
+      <div className="kpi-grid">
+        {/* Umsatz KPI */}
+        <div className="kpi-card umsatz">
+          <div className="kpi-label">Umsatz</div>
+          <div className="kpi-value">{totalRevenue.toFixed(0)} €</div>
         </div>
 
-        {/* Tagesumsatz */}
-        <div className="kpi orange">
-          <div className="flex items-center mb-2">
-            <Calendar className="h-5 w-5 mr-2" />
-            <span className="text-base">Tagesumsatz</span>
-          </div>
-          <div className="text-2xl font-bold">{dailyRevenue.toFixed(2)} €</div>
-          <div className="text-sm mt-1 flex items-center">
-            <span className={revenueTrend >= 0 ? "text-[var(--weiss)]" : "text-[var(--hintergrund)]"}>
-              {Math.abs(revenueTrend).toFixed(1)}% {revenueTrend >= 0 ? "↑" : "↓"} vs. gestern
-            </span>
+        {/* Transaktionen KPI */}
+        <div className="kpi-card transaktionen">
+          <div className="kpi-label">Transaktionen</div>
+          <div className="kpi-value">{totalTransactions}</div>
+        </div>
+
+        {/* Durchschnitt KPI */}
+        <div className="kpi-card durchschnitt">
+          <div className="kpi-label">Durchschnitt</div>
+          <div className="kpi-value">
+            {totalTransactions > 0 
+              ? (totalRevenue / totalTransactions).toFixed(2)
+              : "0.00"} €
           </div>
         </div>
 
-        {/* Offene Fehler */}
-        <div className="kpi red">
-          <div className="flex items-center mb-2">
-            <AlertCircle className="h-5 w-5 mr-2" />
-            <span className="text-base">Offene Fehler</span>
-          </div>
-          <div className="text-2xl font-bold">{openErrors}</div>
-          <button 
-            className="text-sm mt-1 underline"
-            onClick={handleViewErrorsClick}
-          >
-            Fehler ansehen
-          </button>
-        </div>
-        
-        {/* Offene Bestellungen */}
-        <div className="kpi beige">
-          <div className="flex items-center mb-2">
-            <Truck className="h-5 w-5 mr-2" />
-            <span className="text-base">Offene Bestellungen</span>
-          </div>
-          <div className="text-2xl font-bold">{openOrders?.length || 0}</div>
-          <button 
-            className="text-sm mt-1 underline text-[var(--text-schwarz)]"
-            onClick={() => setLocation("/bestellungen")}
-          >
-            Bestellungen
-          </button>
+        {/* Automaten KPI */}
+        <div className="kpi-card statistik">
+          <div className="kpi-label">Aktive Automaten</div>
+          <div className="kpi-value">{activeMachines} / {totalMachines}</div>
         </div>
       </div>
 

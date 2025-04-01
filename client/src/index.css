@@ -3,15 +3,22 @@
 @tailwind utilities;
 
 :root {
+  /* Hauptfarben */
   --proviant-rot: #8B2510;
-  --kachel-rot: #C1442D;
-  --kachel-orange: #D97E2E;
-  --kachel-beige: #E3C9A8;
-  --kachel-gruen: #6C9A78;
+  --kachel-umsatz: #D97E2E;     /* Orange */
+  --kachel-transaktionen: #3B95AB; /* Türkis */
+  --kachel-durchschnitt: #6C9A78; /* Grün */
+  --kachel-statistik: #4BA6BC;  /* Türkisblau */
+  
+  /* Textfarben */
   --text-schwarz: #1C1C1C;
   --text-grau: #6A6A6A;
-  --hintergrund: #FAFAFA;
-  --weiss: #FFFFFF;
+  
+  /* Strukturfarben */
+  --border-dark: #222;
+  --background: #FFFFFF;
+  --card-bg: #FAFAFA;
+  --accent-blue: #1773C5;       /* Für Buttons wie "Senden" */
 }
 
 @layer base {
@@ -23,17 +30,22 @@
     font-family: 'Inter', sans-serif;
     font-size: 16px;
     color: var(--text-schwarz);
-    background-color: var(--hintergrund);
-    line-height: 1.6;
+    background-color: var(--background);
+    line-height: 1.5;
   }
 
   h1 {
     font-size: 28px;
-    font-weight: 700;
+    font-weight: 600;
   }
 
   h2 {
     font-size: 22px;
+    font-weight: 600; 
+  }
+
+  h3 {
+    font-size: 18px;
     font-weight: 600;
   }
 
@@ -44,90 +56,258 @@
 }
 
 @layer components {
-  .container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 24px;
+  /* Layout-Strukturen */
+  .app-container {
     display: flex;
-    flex-direction: column;
-    gap: 24px;
+    width: 100%;
+    min-height: 100vh;
+  }
+  
+  .main-content {
+    flex: 1;
+    padding: 20px;
+    margin-left: 250px;
+  }
+  
+  @media (max-width: 768px) {
+    .main-content {
+      margin-left: 0;
+    }
   }
 
+  /* Navigation */
   .sidebar {
     background-color: var(--proviant-rot);
-    color: var(--weiss);
+    color: white;
     width: 250px;
-    padding: 24px;
+    height: 100vh;
     position: fixed;
-    top: 0;
     left: 0;
-    height: 100%;
+    top: 0;
+    z-index: 10;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
   }
-
-  @media (max-width: 991px) {
+  
+  .sidebar-logo {
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .sidebar-nav {
+    padding: 20px 0;
+    flex: 1;
+  }
+  
+  .nav-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 24px;
+    color: white;
+    text-decoration: none;
+    font-weight: 500;
+    transition: background-color 0.2s;
+  }
+  
+  .nav-item:hover,
+  .nav-item.active {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  .nav-item svg {
+    margin-right: 12px;
+  }
+  
+  /* Mobile Navigation */
+  @media (max-width: 768px) {
     .sidebar {
-      position: absolute;
       transform: translateX(-100%);
       transition: transform 0.3s ease;
     }
-
+    
     .sidebar.open {
       transform: translateX(0);
     }
+    
+    .mobile-menu-toggle {
+      display: block;
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      z-index: 20;
+      background-color: var(--proviant-rot);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
   }
 
-  .kpi {
-    padding: 20px;
-    border-radius: 12px;
-    color: var(--weiss);
-    font-weight: bold;
-    font-size: 20px;
+  /* KPI-Kacheln */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  
+  .kpi-card {
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    color: white;
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    align-items: start;
-    min-height: 100px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .kpi-card.umsatz {
+    background-color: var(--kachel-umsatz);
+  }
+  
+  .kpi-card.transaktionen {
+    background-color: var(--kachel-transaktionen);
+  }
+  
+  .kpi-card.durchschnitt {
+    background-color: var(--kachel-durchschnitt);
+  }
+  
+  .kpi-card.statistik {
+    background-color: var(--kachel-statistik);
+  }
+  
+  .kpi-label {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+  
+  .kpi-value {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
   }
 
-  .kpi.red { background-color: var(--kachel-rot); }
-  .kpi.orange { background-color: var(--kachel-orange); }
-  .kpi.beige { background-color: var(--kachel-beige); color: var(--text-schwarz); }
-  .kpi.green { background-color: var(--kachel-gruen); }
-
-  .button {
-    padding: 12px 20px;
-    border-radius: 8px;
-    border: none;
-    font-weight: 600;
-    background-color: var(--proviant-rot);
-    color: var(--weiss);
-    cursor: pointer;
-  }
-
-  .button.secondary {
-    background-color: transparent;
-    border: 1px solid var(--proviant-rot);
-    color: var(--proviant-rot);
-  }
-
-  .table {
-    width: 100%;
-    border-collapse: collapse;
-    background-color: var(--weiss);
-    border-radius: 8px;
+  /* Inhaltskarten */
+  .content-card {
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    margin-bottom: 24px;
     overflow: hidden;
   }
-
-  .table th {
-    background-color: var(--proviant-rot);
-    color: var(--weiss);
-    text-align: left;
-    padding: 12px;
+  
+  .card-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .card-title {
+    font-size: 18px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+  }
+  
+  .card-title svg {
+    margin-right: 8px;
+    color: var(--proviant-rot);
+  }
+  
+  .card-body {
+    padding: 20px;
   }
 
-  .table td {
-    padding: 12px;
-    border-bottom: 1px solid #eee;
+  /* Tabellen */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  .data-table th {
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 2px solid #f0f0f0;
+    font-weight: 600;
+    color: var(--text-schwarz);
+  }
+  
+  .data-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  
+  .data-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  /* Buttons */
+  .btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s, opacity 0.2s;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .btn-primary {
+    background-color: var(--accent-blue);
+    color: white;
+  }
+  
+  .btn-primary:hover {
+    background-color: #0e5ca5;
+  }
+  
+  .btn-secondary {
+    background-color: white;
+    color: var(--text-schwarz);
+    border: 1px solid #e0e0e0;
+  }
+  
+  .btn-secondary:hover {
+    background-color: #f5f5f5;
+  }
+  
+  .btn-danger {
+    background-color: var(--proviant-rot);
+    color: white;
+  }
+  
+  .btn-danger:hover {
+    background-color: #7a1705;
+  }
+  
+  .btn svg {
+    margin-right: 6px;
+  }
+  
+  /* Hilfklassen */
+  .text-center {
+    text-align: center;
+  }
+  
+  .mt-4 {
+    margin-top: 16px;
+  }
+  
+  .mb-4 {
+    margin-bottom: 16px;
   }
 }
