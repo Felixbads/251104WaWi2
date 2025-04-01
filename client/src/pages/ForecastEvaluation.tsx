@@ -109,7 +109,8 @@ const ForecastEvaluation: React.FC = () => {
         groupBy: activeTab
       }
     ],
-    staleTime: 30000 // 30 Sekunden
+    staleTime: 30000, // 30 Sekunden
+    enabled: false // Nicht automatisch abrufen beim ersten Rendern
   });
   
   // Anwenden der Filter
@@ -123,6 +124,7 @@ const ForecastEvaluation: React.FC = () => {
   
   // Format der Daten für die Diagramme anpassen je nach aktivem Tab
   const getChartData = () => {
+    // Vor der ersten Filteranwendung oder bei Fehlern leeres Array zurückgeben
     if (!forecastData || !forecastData.data) return [];
     
     switch (activeTab) {
@@ -778,6 +780,19 @@ const ForecastEvaluation: React.FC = () => {
           <div className="bg-red-50 text-red-500 p-4 rounded-md mt-4">
             <h3 className="font-bold">Fehler beim Laden der Daten</h3>
             <p>Bitte versuche es später erneut oder wähle andere Filter.</p>
+          </div>
+        ) : forecastData === undefined ? (
+          <div className="bg-blue-50 text-blue-600 p-6 rounded-md mt-4 flex flex-col items-center justify-center gap-4">
+            <p className="font-semibold text-center text-lg">Bitte wähle deine Filter aus und klicke auf "Filter anwenden"</p>
+            <p className="text-center">Wähle einen Zeitraum und optional weitere Filter, um die Prognoseauswertung zu starten.</p>
+            <Button 
+              onClick={applyFilters} 
+              size="lg"
+              className="mt-2"
+            >
+              <FilterIcon className="mr-2 h-4 w-4" />
+              Filter jetzt anwenden
+            </Button>
           </div>
         ) : (
           <>
