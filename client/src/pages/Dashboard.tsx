@@ -29,6 +29,7 @@ import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   getTransactions, 
   getMachines, 
@@ -348,16 +349,21 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 {topProductsList.length > 0 ? (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {topProductsList.map((product, index) => (
-                      <div key={index} className="space-y-1">
-                        <div className="flex justify-between text-sm">
-                          <span className="font-medium truncate" title={product.name}>
+                      <div key={index} className="flex items-center justify-between rounded-md border p-2 hover:bg-muted/50">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="h-6 w-6 rounded-full p-0 flex items-center justify-center font-bold">
+                            {index + 1}
+                          </Badge>
+                          <span className="font-medium truncate max-w-[130px]" title={product.name}>
                             {product.name}
                           </span>
-                          <span className="font-medium">{product.count}x</span>
                         </div>
-                        <Progress value={product.count / topProductsList[0].count * 100} />
+                        <div className="flex flex-col items-end">
+                          <span className="font-semibold">{product.count}x</span>
+                          <span className="text-xs text-muted-foreground">{product.revenue.toFixed(2)} €</span>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -380,16 +386,21 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 {topMachinesList.length > 0 ? (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {topMachinesList.map((machine, index) => (
-                      <div key={index} className="space-y-1">
-                        <div className="flex justify-between text-sm">
+                      <div key={index} className="flex items-center justify-between rounded-md border p-2 hover:bg-muted/50">
+                        <div className="flex items-center gap-2 max-w-[60%]">
+                          <Badge variant="outline" className="h-6 w-6 rounded-full p-0 flex items-center justify-center font-bold">
+                            {index + 1}
+                          </Badge>
                           <span className="font-medium truncate" title={machine.name}>
                             {machine.name}
                           </span>
-                          <span className="font-medium">{machine.revenue.toFixed(2)} €</span>
                         </div>
-                        <Progress value={machine.revenue / topMachinesList[0].revenue * 100} />
+                        <div className="flex flex-col items-end">
+                          <span className="font-semibold">{machine.revenue.toFixed(2)} €</span>
+                          <span className="text-xs text-muted-foreground">{machine.count} Trans.</span>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -407,188 +418,214 @@ export default function Dashboard() {
             </div>
           </div>
           
-          {/* Anstehende Lieferungen */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex items-center">
-                <Truck className="h-5 w-5 mr-2 text-primary" />
-                Anstehende Lieferungen
-              </CardTitle>
-              <CardDescription>Offene Bestellungen mit erwartetem Liefertermin</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {openOrders && openOrders.length > 0 ? (
-                <div className="space-y-4">
-                  {openOrders.map((order) => (
-                    <div key={order.id} className="border rounded-md p-4 space-y-2 hover:bg-gray-50">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="font-medium">{order.orderNumber}</div>
-                          <div className="text-sm text-gray-500">{order.supplierName}</div>
+          {/* Anstehende Lieferungen und Zahlungsmethoden nach Standort nebeneinander */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Anstehende Lieferungen */}
+            <Card className="h-full">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center">
+                  <Truck className="h-5 w-5 mr-2 text-primary" />
+                  Anstehende Lieferungen
+                </CardTitle>
+                <CardDescription>Offene Bestellungen mit erwartetem Liefertermin</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {openOrders && openOrders.length > 0 ? (
+                  <div className="space-y-4">
+                    {openOrders.map((order) => (
+                      <div key={order.id} className="border rounded-md p-3 space-y-2 hover:bg-gray-50">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="font-medium">{order.orderNumber}</div>
+                            <div className="text-sm text-gray-500">{order.supplierName}</div>
+                          </div>
+                          <Badge className={
+                            order.status === "open" ? "bg-gray-100 text-gray-800" :
+                            order.status === "ordered" ? "bg-blue-100 text-blue-800" :
+                            order.status === "partial" ? "bg-amber-100 text-amber-800" :
+                            order.status === "delivered" ? "bg-green-100 text-green-800" :
+                            "bg-gray-100 text-gray-800"
+                          }>
+                            {order.status === "open" ? "Offen" :
+                             order.status === "ordered" ? "Bestellt" :
+                             order.status === "partial" ? "Teilgeliefert" :
+                             order.status === "delivered" ? "Geliefert" :
+                             order.status}
+                          </Badge>
                         </div>
-                        <Badge className={
-                          order.status === "open" ? "bg-gray-100 text-gray-800" :
-                          order.status === "ordered" ? "bg-blue-100 text-blue-800" :
-                          order.status === "partial" ? "bg-amber-100 text-amber-800" :
-                          order.status === "delivered" ? "bg-green-100 text-green-800" :
-                          "bg-gray-100 text-gray-800"
-                        }>
-                          {order.status === "open" ? "Offen" :
-                           order.status === "ordered" ? "Bestellt" :
-                           order.status === "partial" ? "Teilgeliefert" :
-                           order.status === "delivered" ? "Geliefert" :
-                           order.status}
-                        </Badge>
-                      </div>
-                      
-                      <div className="text-sm">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4 text-muted-foreground" />
-                          <span>
-                            Erwartete Lieferung: {order.expectedDeliveryDate ? 
-                              formatDateTime(order.expectedDeliveryDate, 'date') : 'Nicht angegeben'}
-                          </span>
+                        
+                        <div className="text-sm">
+                          <div className="flex items-center gap-2">
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <span>
+                              Erwartete Lieferung: {order.expectedDeliveryDate ? 
+                                formatDateTime(order.expectedDeliveryDate, 'date') : 'Nicht angegeben'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Package className="h-4 w-4 text-muted-foreground" />
+                            <span>Positionen: {order.itemCount || 0}</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Package className="h-4 w-4 text-muted-foreground" />
-                          <span>Positionen: {order.itemCount || 0}</span>
+                        
+                        <div className="flex justify-end pt-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="gap-1"
+                            onClick={() => setLocation(`/bestellungen/${order.id}/wareneingang`)}
+                          >
+                            <ArrowUpRight className="h-4 w-4" />
+                            Warenannahme starten
+                          </Button>
                         </div>
                       </div>
-                      
-                      <div className="flex justify-end pt-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="gap-1"
-                          onClick={() => setLocation(`/bestellungen/${order.id}/wareneingang`)}
-                        >
-                          <ArrowUpRight className="h-4 w-4" />
-                          Warenannahme starten
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-4 text-gray-500">
-                  Keine anstehenden Lieferungen
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-gray-500">
+                    Keine anstehenden Lieferungen
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-          {/* Zahlungsmethoden nach Standort */}
+            {/* Zahlungsmethoden nach Standort */}
+            <Card className="h-full">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex items-center">
+                  <CreditCard className="h-5 w-5 mr-2 text-primary" />
+                  Zahlungsmethoden nach Standort
+                </CardTitle>
+                <CardDescription>Standorte mit niedrigstem Anteil kontaktloser Zahlung</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {Object.keys(paymentMethods).length > 0 ? (
+                  <div className="space-y-6">
+                    {/* Analyse der Zahlungsmethoden nach Maschine/Standort */}
+                    {(() => {
+                      // Berechne die Zahlungsmethoden pro Standort
+                      const machinePaymentStats = transactions?.reduce((acc: Record<string, {
+                        machineName: string,
+                        cash: number,
+                        cashless: number,
+                        total: number,
+                        cashlessPercentage: number
+                      }>, tx) => {
+                        if (!acc[tx.machineId]) {
+                          acc[tx.machineId] = {
+                            machineName: tx.machineName,
+                            cash: 0,
+                            cashless: 0,
+                            total: 0,
+                            cashlessPercentage: 0
+                          };
+                        }
+                        
+                        acc[tx.machineId].total += 1;
+                        
+                        if (tx.paymentMethod === 'CASH') {
+                          acc[tx.machineId].cash += 1;
+                        } else if (tx.paymentMethod === 'CASHLESS') {
+                          acc[tx.machineId].cashless += 1;
+                        }
+                        
+                        return acc;
+                      }, {}) || {};
+                      
+                      // Berechne den Prozentsatz für kontaktlose Zahlung
+                      Object.values(machinePaymentStats).forEach(stats => {
+                        stats.cashlessPercentage = stats.total > 0 
+                          ? (stats.cashless / stats.total) * 100 
+                          : 0;
+                      });
+                      
+                      // Sortiere nach niedrigstem Anteil an kontaktlosen Zahlungen
+                      // und filtere Standorte mit mindestens 5 Transaktionen
+                      const sortedMachines = Object.values(machinePaymentStats)
+                        .filter(stats => stats.total >= 5)
+                        .sort((a, b) => a.cashlessPercentage - b.cashlessPercentage)
+                        .slice(0, 5);
+                      
+                      return sortedMachines.length > 0 ? (
+                        sortedMachines.map((machine, i) => (
+                          <div key={i} className="space-y-1">
+                            <div className="flex justify-between text-sm">
+                              <span className="font-medium truncate max-w-[70%]" title={machine.machineName}>
+                                {machine.machineName}
+                              </span>
+                              <span className="font-medium">
+                                {machine.cashlessPercentage.toFixed(1)}% kontaktlos
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-100 rounded-full h-2.5">
+                              <div 
+                                className="bg-blue-500 h-2.5 rounded-full" 
+                                style={{ width: `${machine.cashlessPercentage}%` }}
+                              ></div>
+                            </div>
+                            <div className="flex justify-between text-xs text-gray-500 mt-1">
+                              <span>{machine.cash} bar / {machine.cashless} kontaktlos</span>
+                              <span>{machine.total} trans. gesamt</span>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-4 text-gray-500">
+                          Nicht genügend Daten für eine Analyse
+                        </div>
+                      );
+                    })()}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-gray-500">
+                    Keine Daten verfügbar
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          
+          {/* Top Automaten nach Kennzahlen */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-lg flex items-center">
-                <CreditCard className="h-5 w-5 mr-2 text-primary" />
-                Zahlungsmethoden nach Standort
+                <Package className="h-5 w-5 mr-2 text-primary" />
+                Top Automaten nach Kennzahlen
               </CardTitle>
-              <CardDescription>Standorte mit niedrigstem Anteil kontaktloser Zahlung</CardDescription>
+              <CardDescription>Detaillierte Leistungskennzahlen der umsatzstärksten Automaten</CardDescription>
             </CardHeader>
             <CardContent>
-              {Object.keys(paymentMethods).length > 0 ? (
-                <div className="space-y-6">
-                  {/* Analyse der Zahlungsmethoden nach Maschine/Standort */}
-                  {(() => {
-                    // Berechne die Zahlungsmethoden pro Standort
-                    const machinePaymentStats = transactions?.reduce((acc: Record<string, {
-                      machineName: string,
-                      cash: number,
-                      cashless: number,
-                      total: number,
-                      cashlessPercentage: number
-                    }>, tx) => {
-                      if (!acc[tx.machineId]) {
-                        acc[tx.machineId] = {
-                          machineName: tx.machineName,
-                          cash: 0,
-                          cashless: 0,
-                          total: 0,
-                          cashlessPercentage: 0
-                        };
-                      }
-                      
-                      acc[tx.machineId].total += 1;
-                      
-                      if (tx.paymentMethod === 'CASH') {
-                        acc[tx.machineId].cash += 1;
-                      } else if (tx.paymentMethod === 'CASHLESS') {
-                        acc[tx.machineId].cashless += 1;
-                      }
-                      
-                      return acc;
-                    }, {}) || {};
+              {topMachinesList.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <div className="min-w-full bg-white border rounded-md">
+                    {/* Tabellenkopf */}
+                    <div className="grid grid-cols-5 border-b text-sm font-medium">
+                      <div className="px-4 py-2">Automat</div>
+                      <div className="px-4 py-2 text-right">Umsatz</div>
+                      <div className="px-4 py-2 text-right">Transaktionen</div>
+                      <div className="px-4 py-2 text-right">Durchschnitt</div>
+                      <div className="px-4 py-2 text-right">Ergebnis</div>
+                    </div>
                     
-                    // Berechne den Prozentsatz für kontaktlose Zahlung
-                    Object.values(machinePaymentStats).forEach(stats => {
-                      stats.cashlessPercentage = stats.total > 0 
-                        ? (stats.cashless / stats.total) * 100 
-                        : 0;
-                    });
-                    
-                    // Sortiere nach niedrigstem Anteil an kontaktlosen Zahlungen
-                    // und filtere Standorte mit mindestens 5 Transaktionen
-                    const sortedMachines = Object.values(machinePaymentStats)
-                      .filter(stats => stats.total >= 5)
-                      .sort((a, b) => a.cashlessPercentage - b.cashlessPercentage)
-                      .slice(0, 5);
-                    
-                    return sortedMachines.length > 0 ? (
-                      sortedMachines.map((machine, i) => (
-                        <div key={i} className="space-y-1">
-                          <div className="flex justify-between text-sm">
-                            <span className="font-medium truncate max-w-[70%]" title={machine.machineName}>
-                              {machine.machineName}
-                            </span>
-                            <span className="font-medium">
-                              {machine.cashlessPercentage.toFixed(1)}% kontaktlos
-                            </span>
+                    {/* Tabelleninhalt */}
+                    <div>
+                      {topMachinesList.map((machine, index) => {
+                        // Berechne Durchschnitt pro Transaktion
+                        const avgTransaction = machine.count > 0 ? machine.revenue / machine.count : 0;
+                        // Hypothetisches Ergebnis (z.B. 30% des Umsatzes als Gewinn)
+                        const profit = machine.revenue * 0.3;
+                        
+                        return (
+                          <div key={index} className="grid grid-cols-5 text-sm border-b hover:bg-muted/20">
+                            <div className="px-4 py-2 font-medium">{machine.name}</div>
+                            <div className="px-4 py-2 text-right">{machine.revenue.toFixed(2)} €</div>
+                            <div className="px-4 py-2 text-right">{machine.count}</div>
+                            <div className="px-4 py-2 text-right">{avgTransaction.toFixed(2)} €</div>
+                            <div className="px-4 py-2 text-right text-green-600">{profit.toFixed(2)} €</div>
                           </div>
-                          <div className="w-full bg-gray-100 rounded-full h-2.5">
-                            <div 
-                              className="bg-blue-500 h-2.5 rounded-full" 
-                              style={{ width: `${machine.cashlessPercentage}%` }}
-                            ></div>
-                          </div>
-                          <div className="flex justify-between text-xs text-gray-500 mt-1">
-                            <span>{machine.cash} bar / {machine.cashless} kontaktlos</span>
-                            <span>{machine.total} trans. gesamt</span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center py-4 text-gray-500">
-                        Nicht genügend Daten für eine Analyse
-                      </div>
-                    );
-                  })()}
-                  
-                  {/* Zusammenfassung der Zahlungsmethoden insgesamt */}
-                  <div className="mt-6 pt-4 border-t">
-                    <div className="font-medium mb-3">Gesamtverteilung Zahlungsmethoden</div>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      {Object.entries(paymentMethods).map(([method, stats], index) => (
-                        <div key={index} className="space-y-1">
-                          <div className="flex justify-between text-sm">
-                            <span className="font-medium">
-                              {method === "CASH" ? "Bargeld" : 
-                               method === "CASHLESS" ? "Kartenzahlung" :
-                               method}
-                            </span>
-                            <span className="font-medium">
-                              {(stats.count / totalTransactions * 100).toFixed(1)}%
-                            </span>
-                          </div>
-                          <Progress 
-                            value={stats.count / totalTransactions * 100} 
-                            className={method === "CASH" ? "bg-blue-100" : "bg-green-100"}
-                          />
-                          <div className="text-right text-sm text-gray-500">
-                            {stats.count} Trans. / {stats.revenue.toFixed(2)} €
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -599,7 +636,7 @@ export default function Dashboard() {
               )}
             </CardContent>
           </Card>
-          
+
           {/* Verkaufsprognosen */}
           <Card>
             <CardHeader className="pb-2">
