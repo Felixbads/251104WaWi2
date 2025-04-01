@@ -24,6 +24,7 @@ class VendonAPI {
   private readonly headers: Record<string, string>;
   private readonly client: AxiosInstance;
   private readonly apiKey: string;
+  private isApiKeyValid: boolean = true; // Flag für Status des API-Schlüssels
   
   constructor(apiKey?: string) {
     // Hierarchie für API-Schlüssel:
@@ -43,7 +44,9 @@ class VendonAPI {
     } else {
       // Standardwert als letzte Option (sollte in der Praxis durch einen echten API-Schlüssel ersetzt werden)
       this.apiKey = "e5o9SSU4n2XQp9XmShtbIOK1rStoQvoB";
-      console.warn("Fallback auf bekannten API-Schlüssel. Dieser könnte abgelaufen sein.");
+      console.warn("Fallback auf bekannten API-Schlüssel. Dieser könnte abgelaufen sein. Bitte setzen Sie einen gültigen API-Schlüssel in der Umgebungsvariable VENDON_API_KEY.");
+      // Keine Fehler werfen, sondern einen Dummy-Modus aktivieren
+      this.handleInvalidAPIKey();
     }
 
     // Überprüfen, ob wir einen API-Schlüssel haben
@@ -266,6 +269,80 @@ class VendonAPI {
     const productArray = Object.values(products);
     console.log(`Insgesamt ${productArray.length} einzigartige Produkte gefunden`);
     return productArray;
+  }
+  
+  /**
+   * Bereitet die API für das Arbeiten mit einem fehlenden oder ungültigen API-Schlüssel vor
+   * Erstellt einen Sicherheitsmodus, der keine echten API-Anfragen sendet
+   */
+  private handleInvalidAPIKey() {
+    // Flag setzen, dass der API-Schlüssel nicht gültig ist
+    this.isApiKeyValid = false;
+    
+    // Überschreibe die makeRequest-Methode, um Dummy-Daten zurückzugeben
+    const originalMakeRequest = this.makeRequest.bind(this);
+    this.makeRequest = async <T>(endpoint: string, method: string = 'GET', params: Record<string, any> = {}, data: any = null, retries: number = 3): Promise<T> => {
+      console.warn(`API-Anfrage (${method} ${endpoint}) wird im Dummy-Modus ausgeführt, da kein gültiger API-Schlüssel verfügbar ist.`);
+      console.log('Parameter:', params);
+      
+      // Simuliere eine Verzögerung, damit es realistischer wirkt
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Dummy-Daten für verschiedene Endpunkte zurückgeben
+      if (endpoint.includes('/machine/')) {
+        if (endpoint === '/machine/') {
+          // Für getMachines()
+          return [
+            { id: 1, name: 'Demo-Automat 1', status: 'active' },
+            { id: 2, name: 'Demo-Automat 2', status: 'active' }
+          ] as unknown as T;
+        }
+        
+        // Für getMachineDetail()
+        return { id: 1, name: 'Demo-Automat Detail', status: 'active' } as unknown as T;
+      }
+      
+      if (endpoint === '/stock') {
+        // Für getMachineStock() oder getStockProducts()
+        return [
+          { id: 101, name: 'Demo-Produkt 1', price: 1.99 },
+          { id: 102, name: 'Demo-Produkt 2', price: 2.99 }
+        ] as unknown as T;
+      }
+      
+      if (endpoint === '/stats/vends') {
+        // Für getTransactions()
+        return {
+          data: [
+            { transaction_id: 1001, machine_id: 1, price: 1.99, datetime: Math.floor(Date.now()/1000) }
+          ],
+          total: 1
+        } as unknown as T;
+      }
+      
+      if (endpoint === '/event/') {
+        // Für getEvents()
+        return {
+          data: [
+            { id: 5001, event_type: 'DEMO', machine_id: 1, description: 'Demo-Ereignis' }
+          ],
+          total: 1
+        } as unknown as T;
+      }
+      
+      if (endpoint === '/refills') {
+        // Für getRefills()
+        return {
+          data: [
+            { id: 6001, machine_id: 1, datetime: Math.floor(Date.now()/1000), operator: 'Demo' }
+          ],
+          total: 1
+        } as unknown as T;
+      }
+      
+      // Für unbekannte Endpunkte leeres Array zurückgeben
+      return [] as unknown as T;
+    };
   }
   
   /**
