@@ -9,6 +9,10 @@ import * as meteostatService from "../services/meteostatService";
 import * as holidayService from "../services/holidayService";
 import * as openWeatherService from "../services/openWeatherService";
 import { z } from "zod";
+import { format } from "date-fns";
+import { db } from "../db";
+import { forecasts, locations } from "@shared/schema";
+import { eq, and, between, sql } from "drizzle-orm";
 
 // API-Prefix
 const API_PREFIX = "/api";
@@ -240,6 +244,67 @@ export function registerForecastRoutes(app: Express): void {
       }
       
       console.error("Fehler beim Abrufen der Prognosen:", error);
+      res.status(500).json({ error: "Interner Serverfehler" });
+    }
+  });
+  
+  // Aktuelle Prognosen für das Dashboard abrufen (14 Tage)
+  app.get(`${API_PREFIX}/forecast/dashboard`, async (req: Request, res: Response) => {
+    try {
+      // Aktuelles Datum und Datum in 14 Tagen
+      const today = new Date();
+      const twoWeeksFromNow = new Date(today);
+      twoWeeksFromNow.setDate(today.getDate() + 14);
+      
+      // Formatiere Daten für DB-Abfrage
+      const startDate = format(today, 'yyyy-MM-dd');
+      const endDate = format(twoWeeksFromNow, 'yyyy-MM-dd');
+      
+      // Hole das erste aktive Modell, wenn keins angegeben ist
+      const activeModels = await forecastService.getForecastModels('ready');
+      
+      if (!activeModels || activeModels.length === 0) {
+        return res.json([]);
+      }
+      
+      // Nehme das neueste aktive Modell (nach ID sortiert)
+      const latestModelId = activeModels[0].id;
+      
+      // Hole die Prognosen für den angegebenen Zeitraum
+      const forecastData = await db.select({
+        forecast_date: forecasts.forecast_date,
+        location_id: forecasts.location_id,
+        location_name: locations.name,
+        predicted_quantity: sql<number>`SUM(${forecasts.predicted_quantity})`,
+        confidence: sql<number>`AVG(${forecasts.confidence})`,
+        is_holiday: sql<boolean>`MAX(CASE WHEN ${forecasts.is_holiday} THEN true ELSE false END)`,
+        holiday_name: sql<string>`MAX(${forecasts.holiday_name})`
+      })
+      .from(forecasts)
+      .leftJoin(locations, eq(forecasts.location_id, locations.id))
+      .where(
+        and(
+          eq(forecasts.model_id, latestModelId),
+          between(forecasts.forecast_date, startDate, endDate)
+        )
+      )
+      .groupBy(forecasts.forecast_date, forecasts.location_id, locations.name)
+      .orderBy(forecasts.forecast_date, locations.name);
+      
+      // Formatiere die Ergebnisse für die Frontend-Anzeige
+      const dashboardForecasts = forecastData.map(row => ({
+        date: row.forecast_date,
+        locationId: row.location_id,
+        locationName: row.location_name || 'Alle Standorte',
+        predictedQuantity: parseFloat(row.predicted_quantity.toFixed(2)),
+        confidence: row.confidence ? parseFloat((row.confidence * 100).toFixed(1)) : null,
+        isHoliday: row.is_holiday,
+        holidayName: row.holiday_name
+      }));
+      
+      res.json(dashboardForecasts);
+    } catch (error) {
+      console.error("Fehler beim Abrufen der Dashboard-Prognosen:", error);
       res.status(500).json({ error: "Interner Serverfehler" });
     }
   });

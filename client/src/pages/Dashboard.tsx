@@ -28,9 +28,31 @@ import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getTransactions, getMachines, getEvents, getSyncStatus, getOpenOrders, formatDateTime, getForecastModels } from "@/lib/api";
+import { 
+  getTransactions, 
+  getMachines, 
+  getEvents, 
+  getSyncStatus, 
+  getOpenOrders, 
+  formatDateTime, 
+  getForecastModels, 
+  getDashboardForecasts,
+  DashboardForecast
+} from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  BarChart, 
+  Bar, 
+  Cell
+} from "recharts";
 
 export default function Dashboard() {
   const { toast } = useToast();
@@ -68,7 +90,14 @@ export default function Dashboard() {
   // Prognosemodelle für das Dashboard
   const { data: forecastModels, isLoading: isLoadingForecastModels } = useQuery({
     queryKey: ['/api/forecast/models'],
-    queryFn: () => fetch('/api/forecast/models').then(res => res.json()),
+    queryFn: () => getForecastModels(),
+    refetchInterval: 300000 // Alle 5 Minuten aktualisieren
+  });
+  
+  // Dashboard-Prognosen für die nächsten 14 Tage
+  const { data: dashboardForecasts, isLoading: isLoadingDashboardForecasts } = useQuery({
+    queryKey: ['/api/forecast/dashboard'],
+    queryFn: () => getDashboardForecasts(),
     refetchInterval: 300000 // Alle 5 Minuten aktualisieren
   });
 
@@ -572,66 +601,98 @@ export default function Dashboard() {
                 <BarChart3 className="h-5 w-5 mr-2 text-primary" />
                 Verkaufsprognosen
               </CardTitle>
-              <CardDescription>Status der Prognosemodelle und aktuelle Vorhersagen</CardDescription>
+              <CardDescription>Voraussichtliche Verkäufe für die nächsten 14 Tage</CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoadingForecastModels ? (
+              {isLoadingDashboardForecasts ? (
                 <div className="flex justify-center py-4">
                   <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full"></div>
                 </div>
-              ) : forecastModels && Array.isArray(forecastModels) && forecastModels.length > 0 ? (
+              ) : dashboardForecasts && dashboardForecasts.length > 0 ? (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {forecastModels
-                      .filter((model: any) => model.status === 'ready')
-                      .slice(0, 2)
-                      .map((model: any, index: number) => (
-                        <div key={index} className="border rounded-md p-3 space-y-2">
-                          <div className="flex justify-between items-center">
-                            <h4 className="font-medium">{model.name}</h4>
-                            <Badge className="bg-green-100 text-green-800">
-                              {(model.accuracy * 100).toFixed(1)}% Genauigkeit
-                            </Badge>
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            Letzte Aktualisierung: {formatDateTime(model.updatedAt)}
-                          </div>
-                          <div className="flex gap-2 mt-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="text-xs" 
-                              onClick={() => setLocation(`/forecast?modelId=${model.id}`)}
-                            >
-                              Details anzeigen
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="text-xs" 
-                              onClick={() => setLocation(`/bestellungen/neu?mode=forecast&modelId=${model.id}`)}
-                            >
-                              Bestellung erstellen
-                            </Button>
-                          </div>
-                        </div>
+                  {/* Prognose-Visualisierung */}
+                  <div 
+                    className="border rounded-md overflow-hidden p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => setLocation('/forecast')}
+                  >
+                    <div className="h-48">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={dashboardForecasts.slice(0, 14)} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                          <XAxis 
+                            dataKey="date" 
+                            tickFormatter={(date) => new Date(date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
+                            tick={{ fontSize: 11 }}
+                            interval={1}
+                          />
+                          <YAxis hide />
+                          <Tooltip
+                            formatter={(value: number) => [Math.round(value) + ' Verkäufe', 'Prognose']}
+                            labelFormatter={(date) => new Date(date).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}
+                          />
+                          <Bar dataKey="predictedQuantity" fill="#6366f1" radius={[2, 2, 0, 0]}>
+                            {dashboardForecasts.map((entry, index) => (
+                              <Cell 
+                                key={`cell-${index}`} 
+                                fill={entry.isHoliday ? '#f97316' : '#6366f1'} 
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="mt-3 flex gap-3 flex-wrap">
+                      <div className="flex items-center text-sm">
+                        <div className="w-3 h-3 rounded-full bg-indigo-500 mr-1.5"></div>
+                        <span>Reguläre Tage</span>
+                      </div>
+                      <div className="flex items-center text-sm">
+                        <div className="w-3 h-3 rounded-full bg-orange-500 mr-1.5"></div>
+                        <span>Feiertage</span>
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      {dashboardForecasts.filter(f => f.isHoliday).slice(0, 3).map((holiday, idx) => (
+                        <Badge key={idx} variant="outline" className="mr-2 mb-2 bg-orange-50">
+                          {new Date(holiday.date).toLocaleDateString('de-DE', {day: '2-digit', month: '2-digit'})}: {holiday.holidayName}
+                        </Badge>
                       ))}
+                    </div>
                   </div>
-                  <div className="flex justify-end">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="gap-1"
-                      onClick={() => setLocation('/forecast')}
-                    >
-                      <ArrowUpRight className="h-4 w-4" />
-                      Alle Prognosemodelle anzeigen
-                    </Button>
-                  </div>
+                  
+                  {/* Prognosemodell-Details */}
+                  {forecastModels && Array.isArray(forecastModels) && forecastModels.length > 0 && (
+                    <div className="border-t pt-3 mt-3">
+                      <div className="flex justify-between items-center mb-2">
+                        <h4 className="text-sm font-medium">Aktives Modell</h4>
+                        <Badge className="bg-green-100 text-green-800">
+                          {(forecastModels[0].accuracy * 100).toFixed(1)}% Genauigkeit
+                        </Badge>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="text-xs" 
+                          onClick={() => setLocation(`/forecast?modelId=${forecastModels[0].id}`)}
+                        >
+                          Details anzeigen
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="text-xs" 
+                          onClick={() => setLocation(`/bestellungen/neu?mode=forecast&modelId=${forecastModels[0].id}`)}
+                        >
+                          Bestellung erstellen
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-4 space-y-3">
-                  <p className="text-muted-foreground">Keine aktiven Prognosemodelle</p>
+                  <p className="text-muted-foreground">Keine Prognosedaten verfügbar</p>
                   <Button 
                     variant="outline" 
                     size="sm"

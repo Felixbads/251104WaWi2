@@ -995,3 +995,17 @@ export async function getProductDemandForecast(params: {
 export async function getForecastModels() {
   return apiRequest('get', '/forecast/models');
 }
+
+export interface DashboardForecast {
+  date: string;
+  locationId?: number;
+  locationName?: string;
+  predictedQuantity: number;
+  confidence?: number | null;
+  isHoliday?: boolean;
+  holidayName?: string;
+}
+
+export async function getDashboardForecasts(): Promise<DashboardForecast[]> {
+  return apiRequest<DashboardForecast[]>('get', '/forecast/dashboard');
+}

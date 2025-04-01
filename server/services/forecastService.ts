@@ -4,6 +4,9 @@
  * Dieser Service stellt Funktionen bereit, um Prognosemodelle zu erstellen, zu trainieren
  * und Vorhersagen basierend auf Transaktionsdaten, Wetterdaten und Feiertagen zu erstellen.
  * Er integriert sowohl ein einfaches internes Modell als auch das Prophet-basierte ML-Modell.
+ * 
+ * Update: Enthält jetzt auch vereinfachte Dashboard-Funktionen für die automatische
+ * Anzeige von Prognosen auf der Startseite.
  */
 
 import { db } from '../db';
