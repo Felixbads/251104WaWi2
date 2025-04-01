@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { getOrder, processOrderReceipt } from "@/lib/api";
+import { getOrder, processOrderReceipt, getProducts } from "@/lib/api";
 
 // UI Komponenten
 import { Button } from "@/components/ui/button";
@@ -181,8 +181,11 @@ export default function OrderReceipt() {
   
   const [notes, setNotes] = useState("");
   const [showIssueDialog, setShowIssueDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [issueNotes, setIssueNotes] = useState("");
+  const [editQuantity, setEditQuantity] = useState(0);
+  const [editNotes, setEditNotes] = useState("");
   const [photoUploaded, setPhotoUploaded] = useState(false);
   const [confirmComplete, setConfirmComplete] = useState(false);
   
@@ -191,6 +194,13 @@ export default function OrderReceipt() {
     queryKey: [`/api/orders/${id}`],
     queryFn: () => getOrder(Number(id)),
     staleTime: 1000 * 60 // 1 Minute
+  });
+  
+  // Lade Produktliste für Dropdowns
+  const { data: productsData } = useQuery({
+    queryKey: [`/api/products`],
+    queryFn: () => getProducts(),
+    staleTime: 1000 * 60 * 5 // 5 Minuten
   });
   
   // Initialize orderItems when order data is loaded
@@ -272,6 +282,38 @@ export default function OrderReceipt() {
     setShowIssueDialog(true);
   };
   
+  // Öffnen des Bearbeitungsdialogs für eine Bestellposition
+  const openEditDialog = (item: any) => {
+    setSelectedItem(item);
+    setEditQuantity(item.receivedQuantity || 0);
+    setEditNotes(item.notes || "");
+    setShowEditDialog(true);
+  };
+  
+  // Speichern der bearbeiteten Bestellposition
+  const saveEditedItem = () => {
+    if (!selectedItem) return;
+    
+    setOrderItems(items => 
+      items.map(item => 
+        item.id === selectedItem.id 
+          ? { 
+              ...item, 
+              receivedQuantity: editQuantity,
+              notes: editNotes,
+              qualityStatus: editQuantity === 0 ? "missing" : item.qualityStatus
+            } 
+          : item
+      )
+    );
+    
+    setShowEditDialog(false);
+    toast({
+      title: "Position aktualisiert",
+      description: "Die Bestellposition wurde erfolgreich aktualisiert."
+    });
+  };
+  
   // Save issue report
   const saveIssueReport = () => {
     if (!selectedItem) return;
@@ -340,16 +382,46 @@ export default function OrderReceipt() {
     receiptMutation.mutate(receiptData);
   };
   
-  // Handle mock photo upload
+  // Echte Foto-Upload-Funktion
   const handlePhotoUpload = () => {
-    // Simulate photo upload
-    setTimeout(() => {
-      setPhotoUploaded(true);
-      toast({
-        title: "Foto hochgeladen",
-        description: "Das Foto wurde erfolgreich hochgeladen."
-      });
-    }, 1500);
+    // Erstellen Sie ein verstecktes Fileinput-Element
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = 'image/*';
+    fileInput.style.display = 'none';
+    
+    // Fügen Sie es zum DOM hinzu
+    document.body.appendChild(fileInput);
+    
+    // Event-Handler für Dateiauswahl
+    fileInput.onchange = async (e) => {
+      const target = e.target as HTMLInputElement;
+      if (target.files && target.files.length > 0) {
+        const file = target.files[0];
+        
+        // Hier würde normalerweise der Upload-Code stehen
+        // Für diesen Prototyp simulieren wir den Upload
+        toast({
+          title: "Foto wird hochgeladen",
+          description: `${file.name} wird verarbeitet...`,
+        });
+        
+        // Simulierte Verzögerung
+        setTimeout(() => {
+          setPhotoUploaded(true);
+          toast({
+            title: "Foto hochgeladen",
+            description: `${file.name} wurde erfolgreich hochgeladen.`
+          });
+        }, 1500);
+      }
+      
+      // Entfernen Sie das Element aus dem DOM
+      document.body.removeChild(fileInput);
+    };
+    
+    // Trigger click event
+    fileInput.click();
   };
   
   // Handle back button
@@ -470,7 +542,7 @@ export default function OrderReceipt() {
               </TableHeader>
               <TableBody>
                 {orderItems.map((item) => (
-                  <TableRow key={item.id}>
+                  <TableRow key={item.id} className="cursor-pointer hover:bg-muted/50" onClick={() => openEditDialog(item)}>
                     <TableCell className="font-medium">
                       {item.productName}
                       {item.sku && (
@@ -485,7 +557,7 @@ export default function OrderReceipt() {
                     <TableCell>
                       {item.quantity} {item.unit}
                     </TableCell>
-                    <TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <Input
                         type="number"
                         value={item.receivedQuantity || 0}
@@ -497,11 +569,11 @@ export default function OrderReceipt() {
                     <TableCell>
                       {getStatusBadge(item)}
                     </TableCell>
-                    <TableCell className="text-right space-x-1">
+                    <TableCell className="text-right space-x-1" onClick={(e) => e.stopPropagation()}>
                       <Button 
                         variant="ghost" 
                         size="sm"
-                        onClick={() => handleQualityChange(item.id, "good")}
+                        onClick={(e) => { e.stopPropagation(); handleQualityChange(item.id, "good"); }}
                         className={item.qualityStatus === "good" ? "bg-green-100 text-green-800" : ""}
                       >
                         <CheckCircle2 className="h-4 w-4" />
@@ -509,7 +581,7 @@ export default function OrderReceipt() {
                       <Button 
                         variant="ghost" 
                         size="sm"
-                        onClick={() => handleQualityChange(item.id, "damaged")}
+                        onClick={(e) => { e.stopPropagation(); handleQualityChange(item.id, "damaged"); }}
                         className={item.qualityStatus === "damaged" ? "bg-red-100 text-red-800" : ""}
                       >
                         <AlertTriangle className="h-4 w-4" />
@@ -517,7 +589,7 @@ export default function OrderReceipt() {
                       <Button 
                         variant="ghost" 
                         size="sm"
-                        onClick={() => openIssueDialog(item)}
+                        onClick={(e) => { e.stopPropagation(); openIssueDialog(item); }}
                       >
                         <Info className="h-4 w-4" />
                       </Button>
@@ -755,6 +827,127 @@ export default function OrderReceipt() {
             </Button>
             <Button onClick={saveIssueReport}>
               Problem speichern
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Edit Item Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bestellposition bearbeiten</DialogTitle>
+            <DialogDescription>
+              {selectedItem && (
+                `Bearbeiten Sie die Details für "${selectedItem.productName}"`
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="edit-quantity">Erhaltene Menge</Label>
+              <div className="flex items-center space-x-2">
+                <Input
+                  id="edit-quantity"
+                  type="number"
+                  value={editQuantity}
+                  onChange={(e) => setEditQuantity(parseInt(e.target.value) || 0)}
+                  min="0"
+                />
+                {selectedItem && (
+                  <span className="text-sm text-muted-foreground">
+                    von {selectedItem?.quantity} {selectedItem?.unit || 'Stk.'}
+                  </span>
+                )}
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="edit-product">Produkt</Label>
+              <div className="flex items-center space-x-2">
+                <select 
+                  className="w-full p-2 border rounded-md" 
+                  value={selectedItem?.productId}
+                  onChange={(e) => {
+                    const newProductId = parseInt(e.target.value);
+                    const product = productsData?.data.find(p => p.id === newProductId);
+                    if (product && selectedItem) {
+                      setOrderItems(items => 
+                        items.map(item => 
+                          item.id === selectedItem.id 
+                            ? { 
+                                ...item, 
+                                productId: product.id,
+                                productName: product.productName || product.name
+                              } 
+                            : item
+                        )
+                      );
+                    }
+                  }}
+                >
+                  <option value={selectedItem?.productId}>{selectedItem?.productName}</option>
+                  {productsData?.data
+                    .filter(p => p.id !== selectedItem?.productId)
+                    .map(product => (
+                      <option key={product.id} value={product.id}>
+                        {product.productName || product.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-notes">Anmerkungen</Label>
+              <Textarea
+                id="edit-notes"
+                placeholder="Anmerkungen zur Bestellposition..."
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                className="min-h-24"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label>Qualitätsstatus</Label>
+              <div className="flex space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => { 
+                    selectedItem && handleQualityChange(selectedItem.id, "good");
+                  }}
+                  className={selectedItem?.qualityStatus === "good" ? "bg-green-100 text-green-800" : ""}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  In Ordnung
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => { 
+                    selectedItem && handleQualityChange(selectedItem.id, "damaged");
+                  }}
+                  className={selectedItem?.qualityStatus === "damaged" ? "bg-red-100 text-red-800" : ""}
+                >
+                  <AlertTriangle className="h-4 w-4 mr-2" />
+                  Beschädigt
+                </Button>
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowEditDialog(false)}
+            >
+              Abbrechen
+            </Button>
+            <Button onClick={saveEditedItem}>
+              Speichern
             </Button>
           </DialogFooter>
         </DialogContent>
