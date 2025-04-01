@@ -4,6 +4,7 @@
 
 import { Express, Request, Response } from "express";
 import * as forecastService from "../services/forecastService";
+import * as prophetService from "../services/prophetService";
 import * as meteostatService from "../services/meteostatService";
 import * as holidayService from "../services/holidayService";
 import * as openWeatherService from "../services/openWeatherService";
@@ -791,6 +792,41 @@ export function registerForecastRoutes(app: Express): void {
       
       console.error("Fehler beim Abrufen der Feiertage:", error);
       res.status(500).json({ error: "Interner Serverfehler" });
+    }
+  });
+
+  /**
+   * Prophet-spezifische Routen
+   */
+
+  // Automatisches Training starten
+  app.post(`${API_PREFIX}/forecast/auto-train`, async (_req: Request, res: Response) => {
+    try {
+      console.log("Starte automatisches Training aller aktiven Modelle");
+      
+      // Initialisiere Prophet-Verzeichnis
+      prophetService.initProphetDirectory();
+      
+      // Führe Auto-Training aus
+      const result = await prophetService.runAutoTraining();
+      
+      if (!result.success) {
+        return res.status(500).json({
+          error: result.message || 'Fehler beim automatischen Training',
+          details: result
+        });
+      }
+      
+      res.status(200).json({
+        success: true,
+        message: 'Automatisches Training abgeschlossen',
+        details: result
+      });
+    } catch (error) {
+      console.error("Fehler beim automatischen Training:", error);
+      res.status(500).json({
+        error: `Fehler beim automatischen Training: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`
+      });
     }
   });
 

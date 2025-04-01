@@ -1123,8 +1123,188 @@ function CopyOrderForm({ warehouseId, onBack }: { warehouseId: number, onBack: (
 
 // Schritt 3C: Prognosebasierte Bestellung
 function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBack: () => void }) {
-  // Implementierung für "Prognosebasierte Bestellung" Schritt
-  // ...
+  const { toast } = useToast();
+  const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
+  const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
+  const [forecastPeriod, setForecastPeriod] = useState("7"); // Standard: 7 Tage
+  const [deliveryDate, setDeliveryDate] = useState<Date | null>(new Date(Date.now() + 86400000 * 2)); // Standard: in 2 Tagen
+  const [showForecastDetails, setShowForecastDetails] = useState(false);
+  const [isForecastGenerated, setIsForecastGenerated] = useState(false);
+  const [selectedProducts, setSelectedProducts] = useState<any[]>([]);
+  const [notes, setNotes] = useState("");
+
+  // Holen Sie Lieferanten
+  const { data: suppliers, isLoading: isSuppliersLoading } = useQuery({
+    queryKey: ["/api/suppliers"],
+    retry: 1
+  });
+  
+  // Holen Sie Prognosemodelle
+  const { data: models, isLoading: isModelsLoading } = useQuery({
+    queryKey: ["/api/forecast/models"],
+    retry: 1
+  });
+  
+  // Holen Sie Produkte für das Lager
+  const { data: products, isLoading: isProductsLoading } = useQuery({
+    queryKey: ["/api/products", { warehouseId }],
+    queryFn: () => apiRequest(`/api/products?warehouseId=${warehouseId}`),
+    retry: 1
+  });
+  
+  // Holen Sie Maschinen für das Lager
+  const { data: machines, isLoading: isMachinesLoading } = useQuery({
+    queryKey: ["/api/machines", { warehouseId }],
+    queryFn: () => apiRequest(`/api/machines?locationId=${warehouseId}`),
+    retry: 1
+  });
+  
+  // Laden Sie Prognosen basierend auf Modell und Zeitraum
+  const { data: forecasts, isLoading: isLoadingForecasts, refetch: refetchForecasts } = useQuery({
+    queryKey: ["/api/forecast/demand", selectedModelId, forecastPeriod],
+    queryFn: async () => {
+      if (!selectedModelId) return [];
+      
+      const today = new Date();
+      const endDate = new Date();
+      endDate.setDate(today.getDate() + parseInt(forecastPeriod));
+      
+      return apiRequest(`/api/forecast/demand?modelId=${selectedModelId}&startDate=${today.toISOString().split("T")[0]}&endDate=${endDate.toISOString().split("T")[0]}`);
+    },
+    enabled: !!selectedModelId && !!forecastPeriod,
+    retry: 1
+  });
+  
+  // Bestellung erstellen Mutation
+  const createOrderMutation = useMutation({
+    mutationFn: (data: any) => {
+      return apiRequest("/api/orders", {
+        method: "POST",
+        body: JSON.stringify(data),
+        headers: {
+          "Content-Type": "application/json",
+        }
+      });
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Bestellung erstellt",
+        description: `Bestellung #${data.id} wurde erfolgreich erstellt.`,
+      });
+      
+      // Zurück zur Übersicht oder Details anzeigen
+      window.location.href = `/orders/${data.id}`;
+    },
+    onError: (error) => {
+      toast({
+        title: "Fehler",
+        description: `Fehler beim Erstellen der Bestellung: ${error}`,
+        variant: "destructive",
+      });
+    }
+  });
+  
+  // Prognose generieren
+  const handleGenerateForecast = async () => {
+    if (!selectedModelId) {
+      toast({
+        title: "Kein Modell ausgewählt",
+        description: "Bitte wählen Sie ein Prognosemodell aus.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    await refetchForecasts();
+    setIsForecastGenerated(true);
+    
+    if (forecasts && forecasts.length > 0) {
+      // Sortieren Sie Produkte nach Prognose (höchster Bedarf zuerst)
+      const productMap = new Map();
+      
+      forecasts.forEach((forecast: any) => {
+        const productId = forecast.product_id;
+        if (!productId) return;
+        
+        // Wenn das Produkt bereits in der Map ist, addieren Sie die Prognosen
+        if (productMap.has(productId)) {
+          const existing = productMap.get(productId);
+          existing.quantity += Math.ceil(forecast.predicted_quantity);
+        } else {
+          // Finden Sie das Produktobjekt
+          const product = products?.find((p: any) => p.id === productId);
+          if (product) {
+            productMap.set(productId, {
+              product,
+              quantity: Math.ceil(forecast.predicted_quantity)
+            });
+          }
+        }
+      });
+      
+      // Konvertieren Sie die Map in ein Array und wenden Sie Filter an
+      const suggestedProducts = Array.from(productMap.values())
+        .filter(item => item.quantity > 0) // Nur Produkte mit positivem Bedarf
+        .sort((a, b) => b.quantity - a.quantity); // Absteigend nach Menge sortieren
+      
+      // Setzen Sie die ausgewählten Produkte
+      setSelectedProducts(suggestedProducts.map(item => ({
+        productId: item.product.id,
+        quantity: item.quantity,
+        notes: "",
+        machineId: null
+      })));
+      
+      setShowForecastDetails(true);
+    } else {
+      toast({
+        title: "Keine Prognosen verfügbar",
+        description: "Für den ausgewählten Zeitraum und das ausgewählte Modell sind keine Prognosen verfügbar.",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  // Bestellung erstellen
+  const handleCreateOrder = () => {
+    if (!selectedSupplierId || !deliveryDate || selectedProducts.length === 0) {
+      toast({
+        title: "Unvollständige Daten",
+        description: "Bitte wählen Sie einen Lieferanten aus und stellen Sie sicher, dass mindestens ein Produkt hinzugefügt wurde.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    createOrderMutation.mutate({
+      supplierId: selectedSupplierId,
+      warehouseId,
+      expectedDeliveryDate: deliveryDate,
+      notes: notes,
+      priority: "normal",
+      items: selectedProducts.map(item => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        notes: item.notes || "",
+        machineId: item.machineId
+      })),
+      orderMode: "forecast",
+      forecastModel: selectedModelId,
+      forecastPeriod: parseInt(forecastPeriod)
+    });
+  };
+  
+  // Produkt aus der Bestellung entfernen
+  const removeProduct = (index: number) => {
+    setSelectedProducts(prev => prev.filter((_, i) => i !== index));
+  };
+  
+  // Produktmenge aktualisieren
+  const updateProductQuantity = (index: number, quantity: number) => {
+    setSelectedProducts(prev => prev.map((item, i) => 
+      i === index ? { ...item, quantity } : item
+    ));
+  };
   
   return (
     <Card className="w-full max-w-3xl mx-auto">
@@ -1135,15 +1315,244 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <p className="text-muted-foreground mb-4">
-          Diese Funktion ist noch in Entwicklung.
-        </p>
+        <div className="space-y-6">
+          {/* Schritt 1: Grundlegende Bestellungsdaten */}
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="supplier">Lieferant</Label>
+                <Select
+                  value={selectedSupplierId?.toString() || ""}
+                  onValueChange={(value) => setSelectedSupplierId(parseInt(value))}
+                >
+                  <SelectTrigger id="supplier">
+                    <SelectValue placeholder="Lieferant auswählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {isSuppliersLoading ? (
+                      <div className="flex justify-center p-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      </div>
+                    ) : suppliers?.length > 0 ? (
+                      suppliers.map((supplier: any) => (
+                        <SelectItem key={supplier.id} value={supplier.id.toString()}>
+                          {supplier.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="" disabled>
+                        Keine Lieferanten verfügbar
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label htmlFor="deliveryDate">Lieferdatum</Label>
+                <div className="relative">
+                  <DatePicker
+                    selected={deliveryDate}
+                    onChange={setDeliveryDate}
+                    locale={de}
+                    dateFormat="dd.MM.yyyy"
+                    placeholderText="Lieferdatum auswählen"
+                    className="w-full rounded-md border border-input p-2"
+                    minDate={new Date()}
+                  />
+                </div>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="forecastModel">Prognosemodell</Label>
+                <Select
+                  value={selectedModelId?.toString() || ""}
+                  onValueChange={(value) => setSelectedModelId(parseInt(value))}
+                >
+                  <SelectTrigger id="forecastModel">
+                    <SelectValue placeholder="Modell auswählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {isModelsLoading ? (
+                      <div className="flex justify-center p-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      </div>
+                    ) : models?.length > 0 ? (
+                      models
+                        .filter((model: any) => model.status === 'ready')
+                        .map((model: any) => (
+                          <SelectItem key={model.id} value={model.id.toString()}>
+                            {model.name} ({(model.accuracy * 100).toFixed(1)}% Genauigkeit)
+                          </SelectItem>
+                        ))
+                    ) : (
+                      <SelectItem value="" disabled>
+                        Keine Modelle verfügbar
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label htmlFor="forecastPeriod">Prognosezeitraum</Label>
+                <Select
+                  value={forecastPeriod}
+                  onValueChange={setForecastPeriod}
+                >
+                  <SelectTrigger id="forecastPeriod">
+                    <SelectValue placeholder="Zeitraum auswählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="3">3 Tage</SelectItem>
+                    <SelectItem value="7">7 Tage</SelectItem>
+                    <SelectItem value="14">14 Tage</SelectItem>
+                    <SelectItem value="30">30 Tage</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <Button 
+              type="button" 
+              variant="secondary" 
+              onClick={handleGenerateForecast}
+              disabled={!selectedModelId || isLoadingForecasts}
+              className="w-full"
+            >
+              {isLoadingForecasts ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Prognose wird generiert...
+                </>
+              ) : (
+                'Prognosebasierte Bestellung generieren'
+              )}
+            </Button>
+          </div>
+          
+          {/* Schritt 2: Prognostizierte Produkte */}
+          {isForecastGenerated && (
+            <div className="space-y-4 border-t pt-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-lg font-medium">Vorgeschlagene Produkte</h3>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowForecastDetails(!showForecastDetails)}
+                >
+                  {showForecastDetails ? 'Details ausblenden' : 'Details anzeigen'}
+                </Button>
+              </div>
+              
+              {selectedProducts.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Keine Produkte basierend auf der Prognose vorgeschlagen.
+                </div>
+              ) : (
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Produkt</TableHead>
+                        <TableHead className="w-[100px] text-right">Menge</TableHead>
+                        <TableHead className="w-[80px] text-center">Aktion</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {selectedProducts.map((item, index) => {
+                        const product = products?.find((p: any) => p.id === item.productId);
+                        
+                        return (
+                          <TableRow key={index}>
+                            <TableCell>
+                              <div className="font-medium">{product?.name}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {product?.sku || product?.categoryName || ''}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Input
+                                type="number"
+                                value={item.quantity}
+                                onChange={(e) => updateProductQuantity(index, parseInt(e.target.value))}
+                                min={1}
+                                className="w-20 text-right"
+                              />
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeProduct(index)}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                  
+                  {showForecastDetails && forecasts && forecasts.length > 0 && (
+                    <div className="bg-muted/50 p-3 rounded-md space-y-2">
+                      <h4 className="font-medium">Prognosedetails</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Die Vorhersage basiert auf historischen Verkaufsdaten, Wetterbedingungen und Feiertagen.
+                      </p>
+                      <div className="text-sm">
+                        <div><span className="font-medium">Zeitraum:</span> {forecastPeriod} Tage</div>
+                        <div>
+                          <span className="font-medium">Genauigkeit:</span>{' '}
+                          {models?.find((m: any) => m.id === selectedModelId)?.accuracy 
+                            ? `${(models.find((m: any) => m.id === selectedModelId).accuracy * 100).toFixed(1)}%` 
+                            : 'Unbekannt'}
+                        </div>
+                        <div><span className="font-medium">Produkte:</span> {selectedProducts.length}</div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Anmerkungen zur Bestellung (optional)</Label>
+                    <Textarea
+                      id="notes"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Anmerkungen oder besondere Hinweise zur Bestellung..."
+                      className="resize-y min-h-[80px]"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </CardContent>
-      <CardFooter>
+      <CardFooter className="flex justify-between">
         <Button variant="outline" onClick={onBack}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Zurück
         </Button>
+        
+        {isForecastGenerated && selectedProducts.length > 0 && (
+          <Button 
+            onClick={handleCreateOrder}
+            disabled={createOrderMutation.isPending || !selectedSupplierId || selectedProducts.length === 0}
+          >
+            {createOrderMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Wird erstellt...
+              </>
+            ) : (
+              'Bestellung erstellen'
+            )}
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );
