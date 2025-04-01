@@ -617,7 +617,7 @@ export default function Dashboard() {
                   >
                     <div className="h-48">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={dashboardForecasts.slice(0, 14)} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
+                        <BarChart data={Array.isArray(dashboardForecasts) ? dashboardForecasts.slice(0, 14) : []} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
                           <XAxis 
                             dataKey="date" 
@@ -631,7 +631,7 @@ export default function Dashboard() {
                             labelFormatter={(date) => new Date(date).toLocaleDateString('de-DE', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}
                           />
                           <Bar dataKey="predictedQuantity" fill="#6366f1" radius={[2, 2, 0, 0]}>
-                            {dashboardForecasts.map((entry, index) => (
+                            {Array.isArray(dashboardForecasts) && dashboardForecasts.map((entry, index) => (
                               <Cell 
                                 key={`cell-${index}`} 
                                 fill={entry.isHoliday ? '#f97316' : '#6366f1'} 
@@ -652,11 +652,15 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="mt-3">
-                      {dashboardForecasts.filter(f => f.isHoliday).slice(0, 3).map((holiday, idx) => (
-                        <Badge key={idx} variant="outline" className="mr-2 mb-2 bg-orange-50">
-                          {new Date(holiday.date).toLocaleDateString('de-DE', {day: '2-digit', month: '2-digit'})}: {holiday.holidayName}
-                        </Badge>
-                      ))}
+                      {Array.isArray(dashboardForecasts) && dashboardForecasts
+                        .filter(f => f.isHoliday)
+                        .slice(0, 3)
+                        .map((holiday, idx) => (
+                          <Badge key={idx} variant="outline" className="mr-2 mb-2 bg-orange-50">
+                            {new Date(holiday.date).toLocaleDateString('de-DE', {day: '2-digit', month: '2-digit'})}: {holiday.holidayName}
+                          </Badge>
+                        ))
+                      }
                     </div>
                   </div>
                   
