@@ -83,6 +83,7 @@ import {
   PackageOpen,
   Building2,
   ChevronRight,
+  ChevronDown,
   Calendar,
   Plus,
   Trash2,
@@ -93,8 +94,15 @@ import {
   Filter,
   AlertCircle,
   Check,
-  X
-  // Hinweis: RefreshCcw wurde entfernt und durch Text-Icon ersetzt
+  X,
+  ShoppingCart,
+  ShoppingBag,
+  Mountain,
+  Coffee,
+  Utensils,
+  MapPin,
+  Info,
+  Clock
 } from "lucide-react";
 
 // Schema für Lagerwahl
@@ -1132,6 +1140,7 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
   const [isForecastGenerated, setIsForecastGenerated] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<any[]>([]);
   const [notes, setNotes] = useState("");
+  const [isProcessingForecast, setIsProcessingForecast] = useState(false);
 
   // Holen Sie Lieferanten
   const { data: suppliers, isLoading: isSuppliersLoading } = useQuery({
@@ -1180,20 +1189,22 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
     mutationFn: (data: any) => {
       return apiRequest("/api/orders", {
         method: "POST",
-        body: JSON.stringify(data),
-        headers: {
-          "Content-Type": "application/json",
-        }
+        data: data
       });
     },
-    onSuccess: (data) => {
+    onSuccess: (response) => {
+      const data = response as any;
       toast({
         title: "Bestellung erstellt",
-        description: `Bestellung #${data.id} wurde erfolgreich erstellt.`,
+        description: `Bestellung #${data?.id || 'Neue'} wurde erfolgreich erstellt.`,
       });
       
       // Zurück zur Übersicht oder Details anzeigen
-      window.location.href = `/orders/${data.id}`;
+      if (data?.id) {
+        window.location.href = `/orders/${data.id}`;
+      } else {
+        window.location.href = '/bestellungen';
+      }
     },
     onError: (error) => {
       toast({
@@ -1215,53 +1226,69 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
       return;
     }
     
-    await refetchForecasts();
-    setIsForecastGenerated(true);
+    setIsProcessingForecast(true);
     
-    if (forecasts && forecasts.length > 0) {
-      // Sortieren Sie Produkte nach Prognose (höchster Bedarf zuerst)
-      const productMap = new Map();
+    try {
+      const result = await refetchForecasts();
+      setIsForecastGenerated(true);
       
-      forecasts.forEach((forecast: any) => {
-        const productId = forecast.product_id;
-        if (!productId) return;
+      const forecastData = result.data;
+      
+      if (forecastData && Array.isArray(forecastData) && forecastData.length > 0) {
+        // Sortieren Sie Produkte nach Prognose (höchster Bedarf zuerst)
+        const productMap = new Map();
         
-        // Wenn das Produkt bereits in der Map ist, addieren Sie die Prognosen
-        if (productMap.has(productId)) {
-          const existing = productMap.get(productId);
-          existing.quantity += Math.ceil(forecast.predicted_quantity);
-        } else {
-          // Finden Sie das Produktobjekt
-          const product = products?.find((p: any) => p.id === productId);
-          if (product) {
-            productMap.set(productId, {
-              product,
-              quantity: Math.ceil(forecast.predicted_quantity)
-            });
+        forecastData.forEach((forecast: any) => {
+          const productId = forecast.product_id;
+          if (!productId) return;
+          
+          // Wenn das Produkt bereits in der Map ist, addieren Sie die Prognosen
+          if (productMap.has(productId)) {
+            const existing = productMap.get(productId);
+            existing.quantity += Math.ceil(forecast.predicted_quantity);
+          } else {
+            // Finden Sie das Produktobjekt
+            const productList = Array.isArray(products) ? products : (products?.data || []);
+            const product = productList.find((p: any) => p.id === productId);
+            if (product) {
+              productMap.set(productId, {
+                product,
+                quantity: Math.ceil(forecast.predicted_quantity)
+              });
+            }
           }
-        }
-      });
-      
-      // Konvertieren Sie die Map in ein Array und wenden Sie Filter an
-      const suggestedProducts = Array.from(productMap.values())
-        .filter(item => item.quantity > 0) // Nur Produkte mit positivem Bedarf
-        .sort((a, b) => b.quantity - a.quantity); // Absteigend nach Menge sortieren
-      
-      // Setzen Sie die ausgewählten Produkte
-      setSelectedProducts(suggestedProducts.map(item => ({
-        productId: item.product.id,
-        quantity: item.quantity,
-        notes: "",
-        machineId: null
-      })));
-      
-      setShowForecastDetails(true);
-    } else {
+        });
+        
+        // Konvertieren Sie die Map in ein Array und wenden Sie Filter an
+        const suggestedProducts = Array.from(productMap.values())
+          .filter(item => item.quantity > 0) // Nur Produkte mit positivem Bedarf
+          .sort((a, b) => b.quantity - a.quantity); // Absteigend nach Menge sortieren
+        
+        // Setzen Sie die ausgewählten Produkte
+        setSelectedProducts(suggestedProducts.map(item => ({
+          productId: item.product.id,
+          quantity: item.quantity,
+          notes: "",
+          machineId: null
+        })));
+        
+        setShowForecastDetails(true);
+      } else {
+        toast({
+          title: "Keine Prognosen verfügbar",
+          description: "Für den ausgewählten Zeitraum und das ausgewählte Modell sind keine Prognosen verfügbar.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
       toast({
-        title: "Keine Prognosen verfügbar",
-        description: "Für den ausgewählten Zeitraum und das ausgewählte Modell sind keine Prognosen verfügbar.",
+        title: "Fehler bei der Prognosegenerierung",
+        description: "Es gab ein Problem beim Abrufen der Prognosedaten. Bitte versuchen Sie es später noch einmal.",
         variant: "destructive",
       });
+      console.error("Fehler bei der Prognosegenerierung:", error);
+    } finally {
+      setIsProcessingForecast(false);
     }
   };
   
