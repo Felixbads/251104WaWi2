@@ -3,10 +3,34 @@ import { useLocation } from "wouter";
 import MobileHeader from "./MobileHeader";
 import MobileFooter from "./MobileFooter";
 import MobileMenu from "./MobileMenu";
-import { LogOut, Users, Home, Package, ShoppingBag, Truck, FileText, ShoppingCart, Building2, TrashIcon, BarChart2, RefreshCw, Clock, Settings } from "lucide-react";
+import { LogOut, Users, Home, Package, ShoppingBag, Truck, FileText, ShoppingCart, Building2, TrashIcon, BarChart2, RefreshCw, Clock, Settings, LineChart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { useAuth } from "@/lib";
+
+// Zentrale Menüdefinition für konsistente Navigation in der gesamten App
+export const menuItems = {
+  overview: [
+    { title: 'Dashboard', icon: <Home className="h-5 w-5 mr-3" />, path: '/' },
+    { title: 'Automaten', icon: <Package className="h-5 w-5 mr-3" />, path: '/automaten' },
+    { title: 'Produkte', icon: <ShoppingBag className="h-5 w-5 mr-3" />, path: '/produkte' },
+    { title: 'Lieferanten', icon: <Truck className="h-5 w-5 mr-3" />, path: '/lieferanten' },
+    { title: 'Transaktionen', icon: <FileText className="h-5 w-5 mr-3" />, path: '/transactions' },
+  ],
+  management: [
+    { title: 'Bestellungen', icon: <ShoppingCart className="h-5 w-5 mr-3" />, path: '/bestellungen' },
+    { title: 'Lager', icon: <Building2 className="h-5 w-5 mr-3" />, path: '/lager' },
+    { title: 'Warenentnahme', icon: <TrashIcon className="h-5 w-5 mr-3" />, path: '/warenentnahme' },
+    { title: 'Prognosen', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/forecast' },
+    { title: 'Prognoseanalyse', icon: <LineChart className="h-5 w-5 mr-3" />, path: '/forecast-evaluation' },
+    { title: 'Auswertungen', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/auswertungen' },
+  ],
+  system: [
+    { title: 'Synchronisierung', icon: <RefreshCw className="h-5 w-5 mr-3" />, path: '/synchronization' },
+    { title: 'Sync-Verlauf', icon: <Clock className="h-5 w-5 mr-3" />, path: '/sync-history' },
+    { title: 'Einstellungen', icon: <Settings className="h-5 w-5 mr-3" />, path: '/settings' },
+  ]
+};
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -24,8 +48,8 @@ const NavItem = ({ href, icon, children, isActive }: {
       <div
         className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
           isActive
-            ? "text-primary-600 bg-primary-50"
-            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+            ? "text-white bg-red-700"
+            : "text-white hover:bg-red-800"
         }`}
       >
         {icon}
@@ -105,154 +129,93 @@ export default function AppShell({ children }: AppShellProps) {
       />
 
       {/* Desktop Sidebar (hidden on mobile) */}
-      <aside className="hidden md:flex md:flex-col md:w-64 bg-white border-r border-gray-200 h-screen sticky top-0 shadow-md z-10">
-        <div className="p-6 flex items-center border-b border-gray-200 bg-white">
-          <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
-            <ShoppingBag className="h-5 w-5 text-white" />
+      <aside className="hidden md:flex md:flex-col md:w-64 bg-red-600 h-screen sticky top-0 shadow-md z-10">
+        <div className="p-6 flex items-center border-b border-red-700">
+          <div className="h-8 w-8 bg-white rounded-md flex items-center justify-center">
+            <ShoppingBag className="h-5 w-5 text-red-600" />
           </div>
-          <span className="ml-3 font-semibold text-lg">Proviantomat</span>
+          <span className="ml-3 font-semibold text-lg text-white">Proviantomat</span>
         </div>
 
-        <div className="flex flex-col h-full overflow-y-auto bg-white">
-          {/* Nav Section: Main */}
-          <div className="py-4 border-b border-gray-200 bg-white">
-            <h3 className="px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+        <div className="flex flex-col h-full overflow-y-auto bg-red-600">
+          {/* Nav Section: Übersicht */}
+          <div className="py-4 border-b border-red-700">
+            <h3 className="px-6 text-xs font-semibold text-white uppercase tracking-wider mb-2">
               Übersicht
             </h3>
             <nav>
-              <NavItem 
-                href="/" 
-                icon={<Home className="h-5 w-5 mr-3" />}
-                isActive={isActive("/")}
-              >
-                Dashboard
-              </NavItem>
-              <NavItem 
-                href="/automaten" 
-                icon={<Package className="h-5 w-5 mr-3" />}
-                isActive={isActive("/automaten")}
-              >
-                Automaten
-              </NavItem>
-              <NavItem 
-                href="/produkte" 
-                icon={<ShoppingBag className="h-5 w-5 mr-3" />}
-                isActive={isActive("/produkte")}
-              >
-                Produkte
-              </NavItem>
-              <NavItem 
-                href="/lieferanten" 
-                icon={<Truck className="h-5 w-5 mr-3" />}
-                isActive={isActive("/lieferanten")}
-              >
-                Lieferanten
-              </NavItem>
-              <NavItem 
-                href="/transactions" 
-                icon={<FileText className="h-5 w-5 mr-3" />}
-                isActive={isActive("/transactions")}
-              >
-                Transaktionen
-              </NavItem>
+              {menuItems.overview.map((item, index) => (
+                <NavItem
+                  key={index}
+                  href={item.path}
+                  icon={item.icon}
+                  isActive={isActive(item.path)}
+                >
+                  {item.title}
+                </NavItem>
+              ))}
             </nav>
           </div>
 
           {/* Nav Section: Verwaltung */}
-          <div className="py-4 border-b border-gray-200 bg-white">
-            <h3 className="px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+          <div className="py-4 border-b border-red-700">
+            <h3 className="px-6 text-xs font-semibold text-white uppercase tracking-wider mb-2">
               Verwaltung
             </h3>
             <nav>
-              <NavItem 
-                href="/bestellungen" 
-                icon={<ShoppingCart className="h-5 w-5 mr-3" />}
-                isActive={isActive("/bestellungen")}
-              >
-                Bestellungen
-              </NavItem>
-              <NavItem 
-                href="/lager" 
-                icon={<Building2 className="h-5 w-5 mr-3" />}
-                isActive={isActive("/lager")}
-              >
-                Lager
-              </NavItem>
-              <NavItem 
-                href="/warenentnahme" 
-                icon={<TrashIcon className="h-5 w-5 mr-3" />}
-                isActive={isActive("/warenentnahme")}
-              >
-                Warenentnahme
-              </NavItem>
-              <NavItem 
-                href="/forecast" 
-                icon={<BarChart2 className="h-5 w-5 mr-3" />}
-                isActive={isActive("/forecast")}
-              >
-                Prognosen
-              </NavItem>
-              <NavItem 
-                href="/auswertungen" 
-                icon={<BarChart2 className="h-5 w-5 mr-3" />}
-                isActive={isActive("/auswertungen")}
-              >
-                Auswertungen
-              </NavItem>
+              {menuItems.management.map((item, index) => (
+                <NavItem
+                  key={index}
+                  href={item.path}
+                  icon={item.icon}
+                  isActive={isActive(item.path)}
+                >
+                  {item.title}
+                </NavItem>
+              ))}
             </nav>
           </div>
 
           {/* Nav Section: System */}
-          <div className="py-4 border-b border-gray-200 bg-white">
-            <h3 className="px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+          <div className="py-4 border-b border-red-700">
+            <h3 className="px-6 text-xs font-semibold text-white uppercase tracking-wider mb-2">
               System
             </h3>
             <nav>
-              <NavItem 
-                href="/synchronization" 
-                icon={<RefreshCw className="h-5 w-5 mr-3" />}
-                isActive={isActive("/synchronization")}
-              >
-                Synchronisierung
-              </NavItem>
-              <NavItem 
-                href="/sync-history" 
-                icon={<Clock className="h-5 w-5 mr-3" />}
-                isActive={isActive("/sync-history")}
-              >
-                Sync-Verlauf
-              </NavItem>
-              <NavItem 
-                href="/settings" 
-                icon={<Settings className="h-5 w-5 mr-3" />}
-                isActive={isActive("/settings")}
-              >
-                Einstellungen
-              </NavItem>
+              {menuItems.system.map((item, index) => (
+                <NavItem
+                  key={index}
+                  href={item.path}
+                  icon={item.icon}
+                  isActive={isActive(item.path)}
+                >
+                  {item.title}
+                </NavItem>
+              ))}
             </nav>
           </div>
 
           {/* User Profile Section */}
-          <div className="mt-auto p-6 border-t border-gray-200 bg-white">
+          <div className="mt-auto p-6 border-t border-red-700">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Users className="h-6 w-6 text-primary" />
+                <div className="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center">
+                  <Users className="h-6 w-6 text-white" />
                 </div>
               </div>
               <div className="ml-3">
-                <p className="text-sm font-medium text-gray-700">{user?.username || 'Admin'}</p>
-                <p className="text-xs font-medium text-gray-500">{user?.role || 'Administrator'}</p>
+                <p className="text-sm font-medium text-white">{user?.username || 'Admin'}</p>
+                <p className="text-xs font-medium text-white/70">{user?.role || 'Administrator'}</p>
               </div>
               <Button
                 variant="ghost"
                 size="icon"
-                className="ml-auto rounded-full"
+                className="ml-auto rounded-full text-white hover:bg-red-700"
                 onClick={() => {
                   logout();
                 }}
               >
-                <LogOut className="h-5 w-5 text-gray-500" />
+                <LogOut className="h-5 w-5" />
               </Button>
             </div>
           </div>
