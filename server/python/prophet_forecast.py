@@ -303,8 +303,17 @@ class ProphetForecaster:
                 weekly_seasonality=True,
                 yearly_seasonality=True,
                 seasonality_mode='multiplicative',
+                # Wichtig: Für Verkaufszahlen müssen wir eine untere Grenze setzen
+                # Verkaufszahlen können niemals negativ sein
+                growth='logistic',
                 # Bei Bedarf kann man weitere Parameter aus configuration übernehmen
             )
+            
+            # Setze die untere Grenze auf 0 (keine negativen Verkäufe möglich)
+            training_df['floor'] = 0
+            # Setze eine realistische Obergrenze basierend auf historischen Daten
+            # oder einem sinnvollen Default-Wert
+            training_df['cap'] = training_df['y'].max() * 2  # 2x des maximalen historischen Werts
             
             # Feiertage hinzufügen, wenn vorhanden
             if holidays_df is not None and not holidays_df.empty:
@@ -541,10 +550,11 @@ class ProphetForecaster:
                 for _, row in forecast.iterrows():
                     date_str = row['ds'].strftime('%Y-%m-%d')
                     
-                    # Extrahiere Prognose und Konfidenzintervalle
-                    predicted_quantity = round(float(row['yhat']), 2)
-                    lower_bound = round(float(row['yhat_lower']), 2)
-                    upper_bound = round(float(row['yhat_upper']), 2)
+                    # Extrahiere Prognose und Konfidenzintervalle und stelle sicher, dass sie positiv sind
+                    # Negative Prognosewerte ergeben für Transaktionszahlen keinen Sinn
+                    predicted_quantity = max(0, round(float(row['yhat']), 2))
+                    lower_bound = max(0, round(float(row['yhat_lower']), 2))
+                    upper_bound = max(0, round(float(row['yhat_upper']), 2))
                     
                     # Berechne Konfidenzwert (0-1)
                     confidence = 1 - ((upper_bound - lower_bound) / (2 * predicted_quantity)) if predicted_quantity > 0 else 0.5
