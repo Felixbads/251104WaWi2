@@ -51,8 +51,8 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="hidden md:flex md:flex-col md:w-64 bg-white border-r border-gray-200 h-screen sticky top-0">
-      <div className="p-4 flex items-center border-b border-gray-200">
+    <aside className="hidden md:flex md:flex-col md:w-64 bg-white border-r border-gray-200 h-screen sticky top-0 shadow-md z-10">
+      <div className="p-4 flex items-center border-b border-gray-200 bg-white">
         <div className="h-8 w-8 bg-primary rounded-md flex items-center justify-center">
           <ShoppingBag className="h-5 w-5 text-white" />
         </div>
@@ -60,7 +60,7 @@ export default function Sidebar() {
       </div>
 
       {/* Nav Section: Main */}
-      <div className="py-4 border-b border-gray-200">
+      <div className="py-4 border-b border-gray-200 bg-white">
         <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
           Übersicht
         </h3>
@@ -104,7 +104,7 @@ export default function Sidebar() {
       </div>
 
       {/* Nav Section: Verwaltung */}
-      <div className="py-4 border-b border-gray-200">
+      <div className="py-4 border-b border-gray-200 bg-white">
         <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
           Verwaltung
         </h3>
@@ -148,7 +148,7 @@ export default function Sidebar() {
       </div>
 
       {/* Nav Section: System */}
-      <div className="py-4 border-b border-gray-200">
+      <div className="py-4 border-b border-gray-200 bg-white">
         <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
           System
         </h3>
@@ -178,7 +178,7 @@ export default function Sidebar() {
       </div>
 
       {/* User Profile Section */}
-      <div className="mt-auto p-4 border-t border-gray-200">
+      <div className="mt-auto p-4 border-t border-gray-200 bg-white">
         <div className="flex items-center">
           <div className="flex-shrink-0">
             <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
