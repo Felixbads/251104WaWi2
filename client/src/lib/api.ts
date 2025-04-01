@@ -322,6 +322,70 @@ export async function getDatabaseStatistics(): Promise<DatabaseStatistics> {
   return apiRequest<DatabaseStatistics>('get', '/statistics/database');
 }
 
+// Wetter-API-Nutzung abrufen
+export interface WeatherApiUsage {
+  count: number;
+  limit: number;
+  remaining: number;
+  resetDate: string;
+  percentage: number;
+}
+
+export async function getWeatherApiUsage(): Promise<WeatherApiUsage> {
+  return apiRequest<WeatherApiUsage>('get', '/weather/api-usage');
+}
+
+// Wetterdaten synchronisieren
+export async function syncWeatherData(
+  syncType: 'forecast' | 'historical' | 'historical_from_2023' | 'missing',
+  options: any = {}
+): Promise<any> {
+  let endpoint = '';
+  
+  switch (syncType) {
+    case 'forecast':
+      endpoint = '/weather/forecast/sync';
+      break;
+    case 'historical':
+      endpoint = '/weather/historical/sync';
+      break;
+    case 'historical_from_2023':
+      endpoint = '/weather/historical/sync-from-2023';
+      break;
+    case 'missing':
+      endpoint = '/weather/historical/sync-missing';
+      break;
+    default:
+      throw new Error('Ungültiger Synchronisationstyp');
+  }
+  
+  return apiRequest<any>('post', endpoint, options);
+}
+
+// Feiertage synchronisieren
+export async function syncHolidays(
+  syncType: 'holidays' | 'school' | 'all',
+  options: any = {}
+): Promise<any> {
+  let endpoint = '';
+  
+  switch (syncType) {
+    case 'holidays':
+      endpoint = '/holidays/sync';
+      break;
+    case 'school':
+      endpoint = '/holidays/sync-school';
+      break;
+    case 'all':
+      endpoint = '/holidays/sync-all';
+      break;
+    default:
+      throw new Error('Ungültiger Feiertagstyp');
+  }
+  
+  return apiRequest<any>('post', endpoint, options);
+}
+
 export async function getTransactionsByDateRange(
   startDate: string,
   endDate: string,

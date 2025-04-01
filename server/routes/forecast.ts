@@ -505,6 +505,20 @@ export function registerForecastRoutes(app: Express): void {
   /**
    * Wetterdaten-Routen
    */
+   
+  // OpenWeather API-Nutzungsstatistiken abrufen
+  app.get(`${API_PREFIX}/weather/api-usage`, async (req: Request, res: Response) => {
+    try {
+      const usage = openWeatherService.getApiUsageStats();
+      res.status(200).json(usage);
+    } catch (error) {
+      console.error('Fehler beim Abrufen der API-Nutzungsstatistiken:', error);
+      res.status(500).json({
+        status: 'error',
+        message: `Fehler beim Abrufen der API-Nutzungsstatistiken: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`
+      });
+    }
+  });
 
   // Wetterdaten synchronisieren (Meteostat)
   app.post(`${API_PREFIX}/weather/sync`, async (req: Request, res: Response) => {

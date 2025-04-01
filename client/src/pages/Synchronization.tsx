@@ -12,14 +12,21 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { CalendarIcon, Database, FileText, Package, AlertCircle, Clock, RefreshCw, Loader2, LayoutDashboard, Copy, Info } from "lucide-react";
+import { CalendarIcon, Database, FileText, Package, AlertCircle, Clock, RefreshCw, Loader2, 
+         LayoutDashboard, Copy } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { getSyncStatus, triggerSync, formatDateTime, getDatabaseStats, DatabaseStats, SyncStatus } from "@/lib/api";
+import { getSyncStatus, triggerSync, formatDateTime, getDatabaseStats, DatabaseStats, SyncStatus,
+         WeatherApiUsage, syncWeatherData, syncHolidays } from "@/lib/api";
+import WeatherSyncTab from "@/components/sync/WeatherSyncTab";
+import HolidaySyncTab from "@/components/sync/HolidaySyncTab";
+import WeatherApiUsageCard from "@/components/sync/WeatherApiUsage";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 // Direkt API-Typen verwenden
 // import { SyncStatus } from "@/lib/types";
+
+// Diese Typen werden jetzt direkt aus der API importiert
 
 export default function Synchronization() {
   const { toast } = useToast();
@@ -33,6 +40,12 @@ export default function Synchronization() {
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isHistoricalSync, setIsHistoricalSync] = useState<boolean>(false);
   const [datePreset, setDatePreset] = useState<string>("last7days");
+  const [weatherSync, setWeatherSync] = useState<'forecast' | 'historical' | 'historical_from_2023' | 'missing'>('forecast');
+  
+  // Zusätzliche states für Wetter- und Feiertagssynchronisierung
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedState, setSelectedState] = useState<string>("SN"); // Default: Sachsen
+  const [includeSchoolHolidays, setIncludeSchoolHolidays] = useState<boolean>(true);
 
   // Fetch sync status
   const { data: syncStatus, isLoading: isLoadingSyncStatus, error: syncError } = useQuery<SyncStatus>({
@@ -43,6 +56,12 @@ export default function Synchronization() {
   // Fetch database statistics
   const { data: dbStats, isLoading: isLoadingDbStats, error: dbError } = useQuery<DatabaseStats>({
     queryKey: ['/api/database/stats'],
+    refetchInterval: 60000, // Refetch every minute
+  });
+  
+  // Fetch weather API usage
+  const { data: weatherApiUsage, isLoading: isLoadingWeatherApiUsage } = useQuery<WeatherApiUsage>({
+    queryKey: ['/api/weather/api-usage'],
     refetchInterval: 60000, // Refetch every minute
   });
 
@@ -59,7 +78,76 @@ export default function Synchronization() {
     status: 'idle'
   });
   
-  // Sync mutation
+  // Weather sync mutation
+  const weatherSyncMutation = useMutation({
+    mutationFn: () => {
+      const options: any = {};
+      
+      // Je nach ausgewähltem Wettersync-Typ
+      if (weatherSync === 'historical') {
+        if (!startDate) {
+          throw new Error('Bitte wählen Sie ein Datum für die historische Wetterdatensynchronisierung');
+        }
+        options.date = format(startDate, 'yyyy-MM-dd');
+      } else if (weatherSync === 'missing') {
+        options.startDate = format(new Date(2023, 0, 1), 'yyyy-MM-dd'); // 01.01.2023
+        options.endDate = format(new Date(), 'yyyy-MM-dd'); // Heute
+        options.maxDays = 20; // Begrenzung für API-Limit
+      } else if (weatherSync === 'historical_from_2023') {
+        options.batchSize = 20; // Maximale Anzahl an Tagen pro Batch
+      }
+      
+      return syncWeatherData(weatherSync, options);
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/weather/api-usage'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/database/stats'] });
+      
+      toast({
+        title: "Wetterdaten-Synchronisierung gestartet",
+        description: `Die ${getWeatherSyncTypeLabel(weatherSync)}-Synchronisierung wurde erfolgreich gestartet.`,
+        variant: "success",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Wetterdaten-Synchronisierungsfehler",
+        description: error instanceof Error ? error.message : "Ein unbekannter Fehler ist aufgetreten.",
+        variant: "destructive",
+      });
+    },
+  });
+  
+  // Holiday sync mutation
+  const holidaySyncMutation = useMutation({
+    mutationFn: () => {
+      const options: any = {
+        year: selectedYear,
+        state: selectedState,
+        includeSchoolHolidays: includeSchoolHolidays
+      };
+      
+      return syncHolidays('all', options);
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/database/stats'] });
+      
+      toast({
+        title: "Feiertagssynchronisierung abgeschlossen",
+        description: `Die Feiertagssynchronisierung für ${selectedYear} wurde erfolgreich durchgeführt.`,
+        variant: "success",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Feiertagssynchronisierungsfehler",
+        description: error instanceof Error ? error.message : "Ein unbekannter Fehler ist aufgetreten.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Vendon sync mutation
   const syncMutation = useMutation({
     mutationFn: () => {
       const options: any = {};
@@ -172,6 +260,17 @@ Zeitraum: ${formattedStart} - ${formattedEnd}`;
       default: return type;
     }
   };
+  
+  // Function to get label for weather sync type
+  const getWeatherSyncTypeLabel = (type: string): string => {
+    switch (type) {
+      case 'forecast': return 'Wettervorhersage';
+      case 'historical': return 'Historische Wetterdaten';
+      case 'historical_from_2023': return 'Historische Wetterdaten seit 2023';
+      case 'missing': return 'Fehlende Wetterdaten';
+      default: return type;
+    }
+  };
 
   // Function to get icon for sync type
   const getSyncTypeIcon = (type: string) => {
@@ -249,9 +348,11 @@ Zeitraum: ${formattedStart} - ${formattedEnd}`;
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="status" className="space-y-4">
-            <TabsList className="grid grid-cols-2">
+            <TabsList className="grid grid-cols-4">
               <TabsTrigger value="status">Status</TabsTrigger>
               <TabsTrigger value="config">Konfiguration</TabsTrigger>
+              <TabsTrigger value="weather">Wetter</TabsTrigger>
+              <TabsTrigger value="holidays">Feiertage</TabsTrigger>
             </TabsList>
 
             {/* Status Tab */}
@@ -619,6 +720,32 @@ Zeitraum: ${formattedStart} - ${formattedEnd}`;
                   </Card>
                 </>
               )}
+            </TabsContent>
+
+            {/* Weather Tab */}
+            <TabsContent value="weather">
+              <WeatherSyncTab
+                weatherSync={weatherSync}
+                setWeatherSync={setWeatherSync}
+                weatherApiUsage={weatherApiUsage}
+                isLoading={isLoadingWeatherApiUsage}
+                onSync={() => weatherSyncMutation.mutate()}
+                isPending={weatherSyncMutation.isPending}
+              />
+            </TabsContent>
+
+            {/* Holidays Tab */}
+            <TabsContent value="holidays">
+              <HolidaySyncTab
+                selectedYear={selectedYear}
+                setSelectedYear={setSelectedYear}
+                selectedState={selectedState}
+                setSelectedState={setSelectedState}
+                includeSchoolHolidays={includeSchoolHolidays}
+                setIncludeSchoolHolidays={setIncludeSchoolHolidays}
+                onSync={() => holidaySyncMutation.mutate()}
+                isPending={holidaySyncMutation.isPending}
+              />
             </TabsContent>
 
             {/* Configuration Tab */}

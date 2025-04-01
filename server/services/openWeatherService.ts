@@ -37,9 +37,30 @@ export const WEATHER_TYPE = {
 };
 
 // Rate Limiting Konfiguration
-const MAX_DAILY_REQUESTS = 1000; // Maximale API-Anfragen pro Tag
+const MAX_DAILY_REQUESTS = 900; // Maximale API-Anfragen pro Tag (von 1000 verfügbaren, 100 als Reserve)
 let dailyRequestCount = 0;
 let lastRequestCountReset = new Date();
+
+/**
+ * Gibt aktuelle API-Nutzungsstatistiken zurück
+ * @returns Aktuelle API-Nutzungsstatistiken
+ */
+export function getApiUsageStats(): { 
+  count: number, 
+  limit: number, 
+  remaining: number, 
+  resetDate: string,
+  percentage: number
+} {
+  const resetDate = lastRequestCountReset.toISOString();
+  return {
+    count: dailyRequestCount,
+    limit: MAX_DAILY_REQUESTS,
+    remaining: Math.max(0, MAX_DAILY_REQUESTS - dailyRequestCount),
+    resetDate,
+    percentage: Math.min(100, Math.round((dailyRequestCount / MAX_DAILY_REQUESTS) * 100))
+  };
+}
 
 /**
  * Prüft, ob eine API-Anfrage gesendet werden kann (Rate Limiting)
