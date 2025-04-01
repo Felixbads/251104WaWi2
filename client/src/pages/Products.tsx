@@ -51,6 +51,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getProducts, getAllVendonProducts } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
@@ -665,42 +666,117 @@ export default function Products() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        showSearch={true}
-        showFilter={true}
-        showAdd={true}
-        onSearch={setSearchTerm}
-        onFilter={() => setIsFilterDialogOpen(true)}
-        onAdd={() => setLocation("/produkte/new")}
-        searchPlaceholder="Nach Produkten suchen..."
-        activeFilters={activeFilters}
-        onClearFilter={clearFilter}
-        additionalButtons={
-          <>
-            <Button 
-              variant="outline" 
-              size="icon"
-              className="h-9 w-9"
-              onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
-            >
-              {viewMode === "grid" ? (
-                <List className="h-4 w-4" />
-              ) : (
-                <Grid className="h-4 w-4" />
-              )}
-            </Button>
-            <Button 
-              variant="outline" 
-              className="h-9 flex items-center"
-              onClick={() => setLocation("/produkte/inventory")}
-            >
-              <FileText className="h-4 w-4 mr-1.5" />
-              Inventurbericht
-            </Button>
+      {/* Einheitliche Filter- und Aktionsleiste */}
+      <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
+        {/* Linke Seite: Suchfeld */}
+        <div className="flex-grow flex flex-col sm:flex-row gap-2">
+          {/* Suchfeld */}
+          <div className="relative flex-grow">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              value={searchTerm}
+              placeholder="Nach Produkten suchen..."
+              className="pl-8 h-9 w-full"
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        </div>
+        
+        {/* Rechte Seite: Aktionen */}
+        <div className="flex flex-wrap items-center gap-2">
+          <TooltipProvider>
+            {/* Filter Button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 relative"
+                  onClick={() => setIsFilterDialogOpen(true)}
+                >
+                  <Filter className="h-4 w-4" />
+                  {activeFilters.length > 0 && (
+                    <Badge 
+                      variant="secondary" 
+                      className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center"
+                    >
+                      {activeFilters.length}
+                    </Badge>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Filter</TooltipContent>
+            </Tooltip>
+            
+            {/* Ansichts-Schalter */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline" 
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
+                >
+                  {viewMode === "grid" ? (
+                    <List className="h-4 w-4" />
+                  ) : (
+                    <Grid className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{viewMode === "grid" ? "Listenansicht" : "Kachelansicht"}</TooltipContent>
+            </Tooltip>
+            
+            {/* Inventurbericht Button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className="h-9 flex items-center"
+                  onClick={() => setLocation("/produkte/inventory")}
+                >
+                  <FileText className="h-4 w-4 mr-1.5" />
+                  Inventurbericht
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Inventurbericht erstellen</TooltipContent>
+            </Tooltip>
+            
+            {/* Export/Import */}
             <ExportImportButtons type="products" />
-          </>
-        }
-      />
+            
+            {/* Neues Produkt Button */}
+            <Button
+              className="h-9"
+              onClick={() => setLocation("/produkte/new")}
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Neues Produkt
+            </Button>
+          </TooltipProvider>
+        </div>
+      </div>
+      
+      {/* Aktive Filter anzeigen */}
+      {activeFilters.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {activeFilters.map((filter, index) => (
+            <div 
+              key={index} 
+              className="text-xs py-1 px-2 bg-gray-100 rounded-md flex items-center gap-1.5"
+            >
+              {filter}
+              <button 
+                onClick={() => clearFilter(filter)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       
       {/* Filter Dialog */}
       <FilterDialog 

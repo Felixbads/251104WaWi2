@@ -3,22 +3,23 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { 
   Package, 
-  Search, 
-  Filter, 
-  Grid, 
-  List, 
-  ExternalLink, 
   AlertTriangle, 
   CheckCircle,
-  RefreshCw,
   Clock,
   Euro,
   ShoppingCart,
   CreditCard,
-  Search as SearchIcon,
   Tag,
   MapPin,
-  Map
+  Map,
+  ExternalLink,
+  RefreshCw,
+  Search,
+  Filter,
+  Grid,
+  List,
+  Plus,
+  SlidersHorizontal
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -383,29 +384,25 @@ export default function Automaten() {
 
   return (
     <div className="space-y-6">
-      {/* Button zur Aktualisierung */}
-      <div className="flex justify-end">
-        <Button onClick={handleRefresh} variant="outline" className="flex items-center gap-2">
-          <RefreshCw className="h-4 w-4" />
-          Aktualisieren
-        </Button>
-      </div>
-
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative flex-grow">
-          <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-          <Input
-            placeholder="Automaten suchen..."
-            className="pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-        
-        <div className="flex flex-col sm:flex-row gap-2">
+      {/* Einheitliche Filter- und Aktionsleiste */}
+      <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
+        {/* Linke Seite: Suchfeld und Filter-Dropdowns */}
+        <div className="flex-grow flex flex-col sm:flex-row gap-2">
+          {/* Suchfeld */}
+          <div className="relative flex-grow">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              value={searchTerm}
+              placeholder="Automaten suchen..."
+              className="pl-8 h-9 w-full"
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          
+          {/* Filter-Dropdowns */}
           <Select value={locationFilter} onValueChange={setLocationFilter}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="h-9 min-w-[140px] w-auto">
               <SelectValue placeholder="Standort" />
             </SelectTrigger>
             <SelectContent>
@@ -417,7 +414,7 @@ export default function Automaten() {
           </Select>
           
           <Select value={machineTypeFilter} onValueChange={setMachineTypeFilter}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="h-9 min-w-[140px] w-auto">
               <SelectValue placeholder="Maschinentyp" />
             </SelectTrigger>
             <SelectContent>
@@ -427,33 +424,71 @@ export default function Automaten() {
               ))}
             </SelectContent>
           </Select>
-          
-          <div className="border rounded-md p-1 flex">
-            <Button
-              variant={viewMode === "grid" ? "secondary" : "ghost"}
-              size="icon"
-              onClick={() => setViewMode("grid")}
-              className="h-8 w-8 rounded-sm"
-            >
-              <Grid className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={viewMode === "list" ? "secondary" : "ghost"}
-              size="icon"
-              onClick={() => setViewMode("list")}
-              className="h-8 w-8 rounded-sm"
-            >
-              <List className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={viewMode === "map" ? "secondary" : "ghost"}
-              size="icon"
-              onClick={() => setViewMode("map")}
-              className="h-8 w-8 rounded-sm"
-            >
-              <Map className="h-4 w-4" />
-            </Button>
-          </div>
+        </div>
+        
+        {/* Rechte Seite: Aktionen */}
+        <div className="flex flex-wrap items-center gap-2">
+          <TooltipProvider>
+            {/* Ansichts-Schalter */}
+            <div className="border rounded-md p-0.5 flex">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={viewMode === "grid" ? "secondary" : "ghost"}
+                    size="icon"
+                    onClick={() => setViewMode("grid")}
+                    className="h-8 w-8 rounded-sm"
+                  >
+                    <Grid className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Kachelansicht</TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={viewMode === "list" ? "secondary" : "ghost"}
+                    size="icon"
+                    onClick={() => setViewMode("list")}
+                    className="h-8 w-8 rounded-sm"
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Listenansicht</TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={viewMode === "map" ? "secondary" : "ghost"}
+                    size="icon"
+                    onClick={() => setViewMode("map")}
+                    className="h-8 w-8 rounded-sm"
+                  >
+                    <Map className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Kartenansicht</TooltipContent>
+              </Tooltip>
+            </div>
+            
+            {/* Aktualisieren Button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={handleRefresh}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Aktualisieren</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
 
