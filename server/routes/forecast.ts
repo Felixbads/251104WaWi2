@@ -879,6 +879,7 @@ export function registerForecastRoutes(app: Express): void {
   const syncAllHolidaysSchema = z.object({
     year: z.number().int().positive(),
     state: z.string().optional(),
+    allStates: z.boolean().default(false), // Option für alle Bundesländer
     includeSchoolHolidays: z.boolean().default(true)
   });
 
@@ -929,12 +930,32 @@ export function registerForecastRoutes(app: Express): void {
     try {
       const validatedData = syncAllHolidaysSchema.parse(req.body);
       
+      // Liste aller deutschen Bundesländer
+      const ALL_GERMAN_STATES = [
+        'SN', 'BB', 'BE', 'BW', 'BY', 'HB', 'HE', 'HH', 
+        'MV', 'NI', 'NW', 'RP', 'SH', 'SL', 'ST', 'TH'
+      ];
+      
+      // Wenn alle Bundesländer synchronisiert werden sollen, verwenden wir die vollständige Liste
+      const statesToSync = validatedData.allStates ? ALL_GERMAN_STATES : 
+                          (validatedData.state ? [validatedData.state] : ['SN']); // Default-Bundesland SN
+      
+      console.log(`Synchronisiere alle Feiertage für Jahr ${validatedData.year} und ${validatedData.allStates ? 'alle Bundesländer' : `Bundesland ${validatedData.state || 'SN'}`}`);
+      
       const result = await holidayService.syncAllHolidays(
         validatedData.year,
-        validatedData.state ? [validatedData.state] : undefined
+        statesToSync
       );
       
-      res.json(result);
+      res.json({
+        success: true,
+        data: {
+          year: validatedData.year,
+          states: statesToSync,
+          allStates: validatedData.allStates,
+          ...result
+        }
+      });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ error: "Ungültige Daten", details: error.errors });

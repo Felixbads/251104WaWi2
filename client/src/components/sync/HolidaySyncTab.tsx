@@ -8,36 +8,64 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, Loader2 } from 'lucide-react';
+import { Calendar, Loader2, CheckCircle2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 
 interface HolidaySyncTabProps {
   // Optional props if needed
 }
 
+// Liste aller deutschen Bundesländer
+const ALL_STATES = [
+  { code: "SN", name: "Sachsen" },
+  { code: "BB", name: "Brandenburg" },
+  { code: "BE", name: "Berlin" },
+  { code: "BW", name: "Baden-Württemberg" },
+  { code: "BY", name: "Bayern" },
+  { code: "HB", name: "Bremen" },
+  { code: "HE", name: "Hessen" },
+  { code: "HH", name: "Hamburg" },
+  { code: "MV", name: "Mecklenburg-Vorpommern" },
+  { code: "NI", name: "Niedersachsen" },
+  { code: "NW", name: "Nordrhein-Westfalen" },
+  { code: "RP", name: "Rheinland-Pfalz" },
+  { code: "SH", name: "Schleswig-Holstein" },
+  { code: "SL", name: "Saarland" },
+  { code: "ST", name: "Sachsen-Anhalt" },
+  { code: "TH", name: "Thüringen" }
+];
+
 export const HolidaySyncTab: React.FC<HolidaySyncTabProps> = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [selectedState, setSelectedState] = useState<string>("SN"); // Default: Sachsen
   const [includeSchoolHolidays, setIncludeSchoolHolidays] = useState<boolean>(true);
+  const [syncAllStates, setSyncAllStates] = useState<boolean>(true);
 
   // Holiday sync mutation
   const holidaySyncMutation = useMutation({
     mutationFn: () => {
       const options: any = {
         year: selectedYear,
-        state: selectedState,
         includeSchoolHolidays: includeSchoolHolidays
       };
+      
+      if (syncAllStates) {
+        // Wenn alle Bundesländer synchronisiert werden sollen
+        options.allStates = true;
+      }
       
       return syncHolidays('all', options);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/database/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/data-coverage'] });
       
       toast({
         title: "Feiertagssynchronisierung abgeschlossen",
-        description: `Die Feiertagssynchronisierung für ${selectedYear} wurde erfolgreich durchgeführt.`,
+        description: syncAllStates 
+          ? `Die Feiertagssynchronisierung für ${selectedYear} wurde für alle Bundesländer erfolgreich durchgeführt.`
+          : `Die Feiertagssynchronisierung für ${selectedYear} wurde erfolgreich durchgeführt.`,
         variant: "success",
       });
     },
@@ -54,7 +82,15 @@ export const HolidaySyncTab: React.FC<HolidaySyncTabProps> = () => {
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Feiertage-Synchronisierung</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            Feiertage-Synchronisierung
+            {syncAllStates && (
+              <Badge variant="secondary" className="ml-2">
+                <CheckCircle2 className="mr-1 h-3 w-3" />
+                Alle Bundesländer
+              </Badge>
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -69,7 +105,7 @@ export const HolidaySyncTab: React.FC<HolidaySyncTabProps> = () => {
                     <SelectValue placeholder="Jahr auswählen" />
                   </SelectTrigger>
                   <SelectContent>
-                    {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() + i - 1).map(year => (
+                    {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() + i - 3).map(year => (
                       <SelectItem key={year} value={year.toString()}>
                         {year}
                       </SelectItem>
@@ -77,36 +113,20 @@ export const HolidaySyncTab: React.FC<HolidaySyncTabProps> = () => {
                   </SelectContent>
                 </Select>
               </div>
-              
-              <div className="flex flex-col space-y-1 flex-1">
-                <Label htmlFor="holiday-state">Bundesland</Label>
-                <Select 
-                  value={selectedState} 
-                  onValueChange={setSelectedState}
-                >
-                  <SelectTrigger id="holiday-state">
-                    <SelectValue placeholder="Bundesland auswählen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="SN">Sachsen</SelectItem>
-                    <SelectItem value="BB">Brandenburg</SelectItem>
-                    <SelectItem value="BE">Berlin</SelectItem>
-                    <SelectItem value="BW">Baden-Württemberg</SelectItem>
-                    <SelectItem value="BY">Bayern</SelectItem>
-                    <SelectItem value="HB">Bremen</SelectItem>
-                    <SelectItem value="HE">Hessen</SelectItem>
-                    <SelectItem value="HH">Hamburg</SelectItem>
-                    <SelectItem value="MV">Mecklenburg-Vorpommern</SelectItem>
-                    <SelectItem value="NI">Niedersachsen</SelectItem>
-                    <SelectItem value="NW">Nordrhein-Westfalen</SelectItem>
-                    <SelectItem value="RP">Rheinland-Pfalz</SelectItem>
-                    <SelectItem value="SH">Schleswig-Holstein</SelectItem>
-                    <SelectItem value="SL">Saarland</SelectItem>
-                    <SelectItem value="ST">Sachsen-Anhalt</SelectItem>
-                    <SelectItem value="TH">Thüringen</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            </div>
+            
+            {/* Alle Bundesländer Option */}
+            <div className="flex items-center space-x-2">
+              <Checkbox 
+                id="all-states" 
+                checked={syncAllStates}
+                onCheckedChange={(checked) => {
+                  setSyncAllStates(checked === true);
+                }}
+              />
+              <Label htmlFor="all-states" className="font-medium">
+                Alle Bundesländer synchronisieren
+              </Label>
             </div>
             
             {/* Schulferien Option */}
@@ -128,7 +148,7 @@ export const HolidaySyncTab: React.FC<HolidaySyncTabProps> = () => {
               <AlertTitle>Hinweis</AlertTitle>
               <AlertDescription>
                 Feiertage und Schulferien für Deutschland werden von OpenHolidaysAPI abgerufen. 
-                Für das ausgewählte Jahr und Bundesland werden alle gesetzlichen Feiertage und 
+                Für das ausgewählte Jahr und alle Bundesländer werden alle gesetzlichen Feiertage und 
                 optional Schulferien synchronisiert.
               </AlertDescription>
             </Alert>
