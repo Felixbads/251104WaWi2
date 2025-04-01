@@ -54,6 +54,7 @@ class ProphetForecaster:
         self.db_conn = None
         self.model = None
         self.model_info = {}
+        self.regressor_names = []  # Liste der Regressornamen
         
     def get_db_connection(self):
         """Stellt eine Verbindung zur Datenbank her oder verwendet eine bestehende"""
@@ -229,8 +230,10 @@ class ProphetForecaster:
             prophet_df['is_holiday'] = df['is_holiday']
             regressors.append('is_holiday')
         
-        # Bereite zusätzliche Features vor (für Debugging-Zwecke speichern)
-        self.regressors = regressors
+        # Speichere die Liste der Regressornamen für spätere Verwendung
+        # Wichtig: Wir verwenden eine separate Eigenschaft, da ProphetForecaster keine 'regressors' Eigenschaft hat
+        # Prophet verwendet stattdessen 'extra_regressors' als OrderedDict
+        self.regressor_names = regressors
         
         return prophet_df
 
@@ -309,7 +312,7 @@ class ProphetForecaster:
                 logger.info(f"Feiertage hinzugefügt: {len(holidays_df)} Feiertage")
             
             # Regressor-Spalten hinzufügen
-            for regressor in self.regressors:
+            for regressor in self.regressor_names:
                 model.add_regressor(regressor)
                 logger.info(f"Regressor hinzugefügt: {regressor}")
             
@@ -454,10 +457,20 @@ class ProphetForecaster:
             
             # Füge externe Regressoren hinzu, wenn das Modell sie verwendet
             conn = self.get_db_connection()
-            if self.regressors:
+            # Prüfe, ob wir Regressor-Informationen aus dem Modell extrahieren können
+            regressor_names = []
+            if hasattr(self.model, 'extra_regressors') and self.model.extra_regressors:
+                regressor_names = list(self.model.extra_regressors.keys())
+                logger.info(f"Regressoren aus geladenen Modell extrahiert: {regressor_names}")
+            # Fallback: Verwende die gespeicherten Regressornamen
+            elif hasattr(self, 'regressor_names') and self.regressor_names:
+                regressor_names = self.regressor_names
+                logger.info(f"Verwende gespeicherte Regressoren: {regressor_names}")
+                
+            if regressor_names:
                 with conn.cursor(cursor_factory=RealDictCursor) as cursor:
                     # Wetterdaten hinzufügen, wenn vorhanden
-                    if 'temp' in self.regressors or 'precipitation' in self.regressors:
+                    if 'temp' in regressor_names or 'precipitation' in regressor_names:
                         cursor.execute("""
                             SELECT 
                                 date as ds,
@@ -477,11 +490,11 @@ class ProphetForecaster:
                             
                             # Fehlende Wetterdaten mit dem Durchschnitt ersetzen
                             for col in ['temp', 'humidity', 'precipitation']:
-                                if col in future_df.columns and col in self.regressors:
+                                if col in future_df.columns and col in regressor_names:
                                     future_df[col].fillna(future_df[col].mean(), inplace=True)
                     
                     # Feiertagsdaten hinzufügen, wenn vorhanden
-                    if 'is_holiday' in self.regressors:
+                    if 'is_holiday' in regressor_names:
                         cursor.execute("""
                             SELECT 
                                 date as ds,
