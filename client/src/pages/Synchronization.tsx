@@ -13,7 +13,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarIcon, Database, FileText, Package, AlertCircle, Clock, RefreshCw, Loader2, 
-         LayoutDashboard, Copy } from "lucide-react";
+         LayoutDashboard, Copy, CheckCircle2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getSyncStatus, triggerSync, formatDateTime, getDatabaseStats, DatabaseStats, SyncStatus,
          WeatherApiUsage, syncWeatherData, syncHolidays } from "@/lib/api";
