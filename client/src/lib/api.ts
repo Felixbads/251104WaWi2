@@ -990,3 +990,8 @@ export async function getProductDemandForecast(params: {
   
   return apiRequest<ProductDemandForecast[]>('get', `/forecast/demand?${queryParams.toString()}`);
 }
+
+// Prognosemodelle abrufen
+export async function getForecastModels() {
+  return apiRequest('get', '/forecast/models');
+}

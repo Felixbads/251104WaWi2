@@ -28,7 +28,7 @@ import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getTransactions, getMachines, getEvents, getSyncStatus, getOpenOrders, formatDateTime } from "@/lib/api";
+import { getTransactions, getMachines, getEvents, getSyncStatus, getOpenOrders, formatDateTime, getForecastModels } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -63,6 +63,13 @@ export default function Dashboard() {
     queryKey: ['/api/orders/dashboard/open'],
     queryFn: () => getOpenOrders(),
     refetchInterval: 60000 // Jede Minute aktualisieren
+  });
+  
+  // Prognosemodelle für das Dashboard
+  const { data: forecastModels, isLoading: isLoadingForecastModels } = useQuery({
+    queryKey: ['/api/forecast/models'],
+    queryFn: () => fetch('/api/forecast/models').then(res => res.json()),
+    refetchInterval: 300000 // Alle 5 Minuten aktualisieren
   });
 
   // Handle settings click
@@ -558,6 +565,85 @@ export default function Dashboard() {
             </CardContent>
           </Card>
           
+          {/* Verkaufsprognosen */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg flex items-center">
+                <BarChart3 className="h-5 w-5 mr-2 text-primary" />
+                Verkaufsprognosen
+              </CardTitle>
+              <CardDescription>Status der Prognosemodelle und aktuelle Vorhersagen</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoadingForecastModels ? (
+                <div className="flex justify-center py-4">
+                  <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full"></div>
+                </div>
+              ) : forecastModels && Array.isArray(forecastModels) && forecastModels.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {forecastModels
+                      .filter((model: any) => model.status === 'ready')
+                      .slice(0, 2)
+                      .map((model: any, index: number) => (
+                        <div key={index} className="border rounded-md p-3 space-y-2">
+                          <div className="flex justify-between items-center">
+                            <h4 className="font-medium">{model.name}</h4>
+                            <Badge className="bg-green-100 text-green-800">
+                              {(model.accuracy * 100).toFixed(1)}% Genauigkeit
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-muted-foreground">
+                            Letzte Aktualisierung: {formatDateTime(model.updatedAt)}
+                          </div>
+                          <div className="flex gap-2 mt-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="text-xs" 
+                              onClick={() => setLocation(`/forecast?modelId=${model.id}`)}
+                            >
+                              Details anzeigen
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="text-xs" 
+                              onClick={() => setLocation(`/bestellungen/neu?mode=forecast&modelId=${model.id}`)}
+                            >
+                              Bestellung erstellen
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                  <div className="flex justify-end">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="gap-1"
+                      onClick={() => setLocation('/forecast')}
+                    >
+                      <ArrowUpRight className="h-4 w-4" />
+                      Alle Prognosemodelle anzeigen
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4 space-y-3">
+                  <p className="text-muted-foreground">Keine aktiven Prognosemodelle</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setLocation('/forecast')}
+                  >
+                    Prognosemodell erstellen
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Letzte Transaktionen */}
           <TransactionsTable />
         </TabsContent>

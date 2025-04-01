@@ -94,6 +94,22 @@ export default function Sidebar() {
             Lieferanten
           </NavItem>
           <NavItem 
+            href="/transactions" 
+            icon={<FileText className="h-5 w-5 mr-3" />}
+            isActive={isActive("/transactions")}
+          >
+            Transaktionen
+          </NavItem>
+        </nav>
+      </div>
+
+      {/* Nav Section: Verwaltung */}
+      <div className="py-4 border-b border-gray-200">
+        <h3 className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+          Verwaltung
+        </h3>
+        <nav>
+          <NavItem 
             href="/bestellungen" 
             icon={<ShoppingCart className="h-5 w-5 mr-3" />}
             isActive={isActive("/bestellungen")}
@@ -115,11 +131,11 @@ export default function Sidebar() {
             Warenentnahme
           </NavItem>
           <NavItem 
-            href="/transactions" 
-            icon={<FileText className="h-5 w-5 mr-3" />}
-            isActive={isActive("/transactions")}
+            href="/forecast" 
+            icon={<BarChart2 className="h-5 w-5 mr-3" />}
+            isActive={isActive("/forecast")}
           >
-            Transaktionen
+            Prognosen
           </NavItem>
           <NavItem 
             href="/auswertungen" 
@@ -150,13 +166,6 @@ export default function Sidebar() {
             isActive={isActive("/sync-history")}
           >
             Sync-Verlauf
-          </NavItem>
-          <NavItem 
-            href="/forecast" 
-            icon={<BarChart2 className="h-5 w-5 mr-3" />}
-            isActive={isActive("/forecast")}
-          >
-            Prognosen
           </NavItem>
           <NavItem 
             href="/settings" 
