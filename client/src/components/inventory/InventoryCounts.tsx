@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +8,8 @@ import { CircleAlert, ClipboardCheck, PlayCircle, CheckCircle2, XCircle } from '
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
 
 // Hilfs-Komponente für Status-Badge
 const StatusBadge = ({ status }: { status: string }) => {
@@ -41,9 +43,17 @@ const StatusBadge = ({ status }: { status: string }) => {
   }
 };
 
+// Hilfsfunktion für API-Aufrufe
+const createInventoryCount = async (data: any) => {
+  const response = await apiRequest('post', '/api/inventory-counts', data);
+  return response;
+};
+
 export default function InventoryCounts() {
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // Abfrage der Lager
   const { data: warehouses, isLoading: warehousesLoading } = useQuery({
@@ -131,7 +141,48 @@ export default function InventoryCounts() {
           </div>
         </div>
         
-        <Button onClick={() => window.location.hash = 'new-count'}>
+        <Button onClick={() => {
+          // Dialog zum Starten einer neuen Inventur öffnen
+          toast({
+            title: "Neue Inventur wird gestartet",
+            description: "Die neue Inventur wird initialisiert...",
+          });
+          
+          // Hier API-Aufruf zum Erstellen eines neuen Inventurprozesses
+          const selectedWarehouseId = selectedWarehouse !== 'all' ? parseInt(selectedWarehouse) : warehouses?.[0]?.id;
+          
+          if (!selectedWarehouseId) {
+            toast({
+              title: "Fehler",
+              description: "Bitte wählen Sie ein Lager für die Inventur aus",
+              variant: "destructive"
+            });
+            return;
+          }
+          
+          // Neue Inventur direkt erstellen ohne Dialog
+          createInventoryCount({
+            warehouseId: selectedWarehouseId,
+            status: "pending",
+            description: `Lager-Inventur ${new Date().toLocaleDateString('de-DE')}`,
+            scheduledDate: new Date()
+          })
+          .then(() => {
+            toast({
+              title: "Inventur erstellt",
+              description: "Die neue Inventur wurde erfolgreich erstellt und kann jetzt bearbeitet werden."
+            });
+            // Daten neu laden
+            queryClient.invalidateQueries({ queryKey: ['/api/inventory-counts'] });
+          })
+          .catch(error => {
+            toast({
+              title: "Fehler beim Erstellen der Inventur",
+              description: error.message || "Es ist ein Fehler aufgetreten",
+              variant: "destructive"
+            });
+          });
+        }}>
           <ClipboardCheck className="mr-2 h-4 w-4" />
           Neue Inventur
         </Button>
@@ -147,7 +198,46 @@ export default function InventoryCounts() {
               ? "Es wurden keine Inventuren gefunden, die den Filterkriterien entsprechen."
               : "Es wurden noch keine Inventuren durchgeführt."}
           </p>
-          <Button onClick={() => window.location.hash = 'new-count'}>
+          <Button onClick={() => {
+            // Den Code aus dem oberen Button hier wiederverwenden
+            const selectedWarehouseId = selectedWarehouse !== 'all' ? parseInt(selectedWarehouse) : warehouses?.[0]?.id;
+            
+            if (!selectedWarehouseId) {
+              toast({
+                title: "Fehler",
+                description: "Kein Lager verfügbar. Bitte legen Sie zuerst ein Lager an.",
+                variant: "destructive"
+              });
+              return;
+            }
+            
+            toast({
+              title: "Neue Inventur wird gestartet",
+              description: "Die neue Inventur wird initialisiert...",
+            });
+            
+            createInventoryCount({
+              warehouseId: selectedWarehouseId,
+              status: "pending",
+              description: `Lager-Inventur ${new Date().toLocaleDateString('de-DE')}`,
+              scheduledDate: new Date()
+            })
+            .then(() => {
+              toast({
+                title: "Inventur erstellt",
+                description: "Die neue Inventur wurde erfolgreich erstellt und kann jetzt bearbeitet werden."
+              });
+              // Daten neu laden
+              queryClient.invalidateQueries({ queryKey: ['/api/inventory-counts'] });
+            })
+            .catch(error => {
+              toast({
+                title: "Fehler beim Erstellen der Inventur",
+                description: error.message || "Es ist ein Fehler aufgetreten",
+                variant: "destructive"
+              });
+            });
+          }}>
             Erste Inventur starten
           </Button>
         </div>

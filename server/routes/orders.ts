@@ -801,7 +801,68 @@ router.post("/:id/receipt", async (req: Request, res: Response) => {
     // Bestellung aktualisieren
     const updatedOrder = await storage.updateOrder(orderId, updateData);
 
-    // TODO: Lagerbestand aktualisieren
+    // Lagerbestand aktualisieren für jede Position mit Wareneingang
+    if (receivedItems && Array.isArray(receivedItems)) {
+      for (const receivedItem of receivedItems) {
+        if (receivedItem.receivedQuantity <= 0) continue;
+        
+        // Finde die entsprechende Bestellposition für Produkt-ID und Lager-ID
+        const orderItem = allOrderItems.find(item => item.id === receivedItem.orderItemId);
+        if (!orderItem || !orderItem.productId) continue;
+        
+        // Standardmäßig das Lager vom Bestellkopf verwenden
+        const warehouseId = order[0].warehouseId;
+        if (!warehouseId) {
+          console.warn(`Kein Lager für Bestellung ${orderId} gefunden, Bestand wird nicht aktualisiert`);
+          continue;
+        }
+        
+        try {
+          // Prüfen, ob bereits ein Eintrag für dieses Produkt im Lager existiert
+          const inventoryItem = await storage.getInventoryItemByProductAndWarehouse(
+            orderItem.productId, 
+            warehouseId
+          );
+          
+          if (inventoryItem) {
+            // Lagerbestand erhöhen
+            await storage.updateInventoryItem(inventoryItem.id, {
+              quantity: inventoryItem.quantity + receivedItem.receivedQuantity
+            });
+            
+            console.log(`Lagerbestand für Produkt ${orderItem.productId} im Lager ${warehouseId} 
+              von ${inventoryItem.quantity} auf ${inventoryItem.quantity + receivedItem.receivedQuantity} erhöht`);
+          } else {
+            // Neuen Lagerbestand anlegen
+            await storage.createInventoryItem({
+              productId: orderItem.productId,
+              warehouseId: warehouseId,
+              quantity: receivedItem.receivedQuantity,
+              minQuantity: 0,
+              lastCountDate: new Date()
+            });
+            
+            console.log(`Neuer Lagerbestand für Produkt ${orderItem.productId} im Lager ${warehouseId} 
+              mit Menge ${receivedItem.receivedQuantity} angelegt`);
+          }
+          
+          // Warenbewegung erfassen
+          await storage.createInventoryMovement({
+            destinationWarehouseId: warehouseId,
+            productId: orderItem.productId,
+            quantity: receivedItem.receivedQuantity,
+            movementType: "IN",
+            referenceType: "ORDER",
+            referenceId: orderId.toString(),
+            status: "completed",
+            notes: `Wareneingang aus Bestellung #${order[0].orderNumber}`
+          });
+        } catch (error) {
+          console.error(`Fehler bei der Lagerbestandsaktualisierung für Produkt ${orderItem.productId}:`, error);
+          // Wir werfen den Fehler nicht weiter, damit die Bestellung trotzdem als empfangen markiert wird
+        }
+      }
+    }
 
     res.json({
       success: true,
