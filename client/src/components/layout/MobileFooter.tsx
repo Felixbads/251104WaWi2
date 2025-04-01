@@ -1,3 +1,4 @@
+import React from "react";
 import { useLocation, Link } from "wouter";
 import { Home, Package, ShoppingCart, PackageOpen, Trash2 } from "lucide-react";
 import { menuItems } from "./AppShell";

@@ -24,11 +24,13 @@ export const menuItems = {
     { title: 'Prognosen', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/forecast' },
     { title: 'Prognoseanalyse', icon: <LineChart className="h-5 w-5 mr-3" />, path: '/forecast-evaluation' },
     { title: 'Auswertungen', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/auswertungen' },
+    { title: 'Lieferanten-Portal', icon: <Truck className="h-5 w-5 mr-3" />, path: '/lieferantenportal' },
   ],
   system: [
     { title: 'Synchronisierung', icon: <RefreshCw className="h-5 w-5 mr-3" />, path: '/synchronization' },
     { title: 'Sync-Verlauf', icon: <Clock className="h-5 w-5 mr-3" />, path: '/sync-history' },
     { title: 'Einstellungen', icon: <Settings className="h-5 w-5 mr-3" />, path: '/settings' },
+    { title: 'Benutzer', icon: <Users className="h-5 w-5 mr-3" />, path: '/benutzer' },
   ]
 };
 
