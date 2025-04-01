@@ -25,8 +25,15 @@ export default function Forecast() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("models");
   const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
-  const [startDate, setStartDate] = useState<Date | null>(null);
-  const [endDate, setEndDate] = useState<Date | null>(null);
+  
+  // Initialisiere die Datumsfelder mit sinnvollen Standardwerten
+  const defaultStartDate = new Date();
+  defaultStartDate.setMonth(defaultStartDate.getMonth() - 3); // 3 Monate zurück
+  
+  const defaultEndDate = new Date(); // Heute
+  
+  const [startDate, setStartDate] = useState<Date | null>(defaultStartDate);
+  const [endDate, setEndDate] = useState<Date | null>(defaultEndDate);
 
   // Fetch forecast models
   const { data: models, isLoading: isLoadingModels } = useQuery({
