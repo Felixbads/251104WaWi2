@@ -18,6 +18,7 @@ import Forecast from "@/pages/Forecast";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import AppShell from "@/components/layout/AppShell";
+import Layout from "@/components/layout/Layout";
 import { AuthProvider, useAuth } from "@/lib";
 
 // Geschützte Route Komponente
@@ -56,7 +57,7 @@ import WarenentnahmeNew from "@/pages/WarenentnahmeNew";
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
   return (
-    <AppShell>
+    <Layout>
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/transactions" component={Transactions} />
@@ -84,12 +85,12 @@ function AuthenticatedRouter() {
         <Route path="/sync-history" component={SyncHistory} />
         <Route path="/forecast" component={Forecast} />
         <Route path="/settings" component={Settings} />
-        <Route path="/:rest*" component={(props) => {
-          const { rest } = props.params;
+        <Route path="/:rest*" component={(props: any) => {
+          const rest = props.params?.rest;
           return <NotFound title="Seite nicht gefunden" message={`Der Pfad /${Array.isArray(rest) ? rest.join('/') : rest || ''} existiert nicht.`} />;
         }} />
       </Switch>
-    </AppShell>
+    </Layout>
   );
 }
 

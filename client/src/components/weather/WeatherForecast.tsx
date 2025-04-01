@@ -72,23 +72,7 @@ function HolidayBadge({ holiday }: { holiday: { name: string; type: string; stat
   const isPublicHoliday = holiday.type === 'PUBLIC_HOLIDAY';
   const badgeVariant = isPublicHoliday ? 'destructive' : 'secondary';
   
-  // Icon je nach Ferientyp
-  const getHolidayIcon = () => {
-    if (isPublicHoliday) {
-      if (holiday.name.includes('Ostern')) return '🐰';
-      if (holiday.name.includes('Weihnacht')) return '🎄';
-      if (holiday.name.includes('Neujahr')) return '🎆';
-      if (holiday.name.includes('Tag der')) return '🇩🇪';
-      return '🎉';
-    } else {
-      if (holiday.name.includes('Sommer')) return '☀️';
-      if (holiday.name.includes('Winter') || holiday.name.includes('Ski')) return '❄️';
-      if (holiday.name.includes('Herbst')) return '🍂';
-      if (holiday.name.includes('Oster')) return '🌷';
-      return '📚';
-    }
-  };
-  
+  // Klarere Badge-Anzeige
   return (
     <TooltipProvider>
       <Tooltip>
@@ -97,7 +81,7 @@ function HolidayBadge({ holiday }: { holiday: { name: string; type: string; stat
             variant={badgeVariant} 
             className="text-xs px-1 py-0 h-5 absolute top-0 right-0 transform translate-x-1/2 -translate-y-1/2"
           >
-            {getHolidayIcon()}
+            {isPublicHoliday ? 'F' : 'S'}
           </Badge>
         </TooltipTrigger>
         <TooltipContent side="top" align="center" className="max-w-[250px] text-center z-50 px-3 py-2">
@@ -134,8 +118,16 @@ const WeatherForecast: React.FC<WeatherForecastProps> = ({
     staleTime: 1800000, // Nach 30 Minuten als veraltet markieren
   });
 
+  // Typdefinition für Holiday-Objekte
+  interface Holiday {
+    name: string;
+    type: string;
+    state?: string;
+    description?: string;
+  }
+
   // Beispielhafte Feiertage (in einer realen Implementierung würden diese von der API abgerufen)
-  const holidays = {
+  const holidays: Record<string, Holiday> = {
     '2025-04-01': { 
       name: 'Osterferien', 
       type: 'SCHOOL_HOLIDAY', 
@@ -157,16 +149,19 @@ const WeatherForecast: React.FC<WeatherForecastProps> = ({
     '2025-04-04': { 
       name: 'Karfreitag', 
       type: 'PUBLIC_HOLIDAY',
+      state: 'Alle Bundesländer',
       description: 'Gesetzlicher Feiertag in allen Bundesländern' 
     },
     '2025-04-06': { 
       name: 'Ostersonntag', 
       type: 'PUBLIC_HOLIDAY',
+      state: 'Brandenburg',
       description: 'Gesetzlicher Feiertag in Brandenburg' 
     },
     '2025-04-07': { 
       name: 'Ostermontag', 
       type: 'PUBLIC_HOLIDAY',
+      state: 'Alle Bundesländer',
       description: 'Gesetzlicher Feiertag in allen Bundesländern' 
     }
   };
@@ -269,6 +264,45 @@ const WeatherForecast: React.FC<WeatherForecastProps> = ({
           <div className="flex items-center gap-1">
             <Badge variant="secondary" className="text-xs px-1 py-0 h-5">S</Badge> 
             <span>Schulferien</span>
+          </div>
+        </div>
+        
+        {/* Detaillierte Anzeige von Feiertagen und Ferien */}
+        <div className="mt-4 border-t pt-3">
+          <h4 className="text-sm font-medium mb-2">Aktuelle Feiertage & Ferien:</h4>
+          <div className="space-y-2">
+            {Object.entries(holidays)
+              .filter(([date]) => {
+                const today = new Date();
+                const holidayDate = new Date(date);
+                // Nur Einträge für den aktuellen Monat und die nächsten 30 Tage anzeigen
+                return holidayDate >= today && 
+                       holidayDate <= new Date(today.getFullYear(), today.getMonth() + 1, today.getDate());
+              })
+              .map(([date, holiday]) => {
+                const isPublicHoliday = holiday.type === 'PUBLIC_HOLIDAY';
+                return (
+                  <div key={date} className="flex items-start gap-2">
+                    <Badge 
+                      variant={isPublicHoliday ? "destructive" : "secondary"}
+                      className="mt-0.5"
+                    >
+                      {isPublicHoliday ? 'F' : 'S'}
+                    </Badge>
+                    <div>
+                      <div className="text-xs font-medium">
+                        {format(parseISO(date), 'dd.MM.yyyy')} - {holiday.name}
+                      </div>
+                      {holiday.state && (
+                        <div className="text-[10px] text-muted-foreground">{holiday.state}</div>
+                      )}
+                      {holiday.description && (
+                        <div className="text-[10px] text-muted-foreground">{holiday.description}</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         </div>
       </CardContent>
