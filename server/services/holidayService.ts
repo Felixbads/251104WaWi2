@@ -523,6 +523,241 @@ class HolidayService {
     
     return dateObject;
   }
+  
+  /**
+   * Synchronisiert Feiertage für ein bestimmtes Jahr und Ländercode
+   */
+  async syncHolidays(data: { year: number, states?: string[] }): Promise<any> {
+    try {
+      const { year, states = ['SN'] } = data;
+      const addedEntries = await this.syncHolidaysForYear(year, states);
+      return { 
+        success: true, 
+        message: `${addedEntries} Feiertage wurden synchronisiert für ${year}`,
+        count: addedEntries 
+      };
+    } catch (error) {
+      console.error('Fehler bei der Synchronisierung der Feiertage:', error);
+      return { success: false, message: 'Fehler bei der Synchronisierung der Feiertage' };
+    }
+  }
+
+  /**
+   * Synchronisiert Schulferien für ein bestimmtes Jahr und Ländercode
+   */
+  async syncSchoolHolidays(data: { year: number, states?: string[] }): Promise<any> {
+    try {
+      const { year, states = ['SN'] } = data;
+      let totalEntries = 0;
+      
+      for (const state of states) {
+        const stateHolidays = await this.fetchSchoolHolidays(state, year);
+        
+        for (const holiday of stateHolidays) {
+          try {
+            const formattedDate = this.formatDate(holiday.date, true);
+            
+            await db.insert(holidays).values({
+              date: formattedDate,
+              name: holiday.name,
+              description: holiday.description,
+              type: holiday.type,
+              is_official: holiday.is_official,
+              country: holiday.country,
+              state: holiday.state,
+              region: holiday.region,
+              year: holiday.year,
+              month: holiday.month,
+              day: holiday.day,
+              weekday: holiday.weekday,
+              weekday_name: holiday.weekday_name,
+              week: holiday.week,
+              metadata: holiday.metadata || null
+            });
+            
+            totalEntries++;
+          } catch (error) {
+            // Ignoriere Fehler bei duplizierten Einträgen
+            continue;
+          }
+        }
+      }
+      
+      return { 
+        success: true, 
+        message: `${totalEntries} Schulferien wurden synchronisiert für ${year}`,
+        count: totalEntries 
+      };
+    } catch (error) {
+      console.error('Fehler bei der Synchronisierung der Schulferien:', error);
+      return { success: false, message: 'Fehler bei der Synchronisierung der Schulferien' };
+    }
+  }
+
+  /**
+   * Synchronisiert alle Feiertage und Schulferien für einen Zeitraum
+   */
+  async syncAllHolidays(data: { years: number[], states?: string[] }): Promise<any> {
+    try {
+      const { years, states = ['SN'] } = data;
+      const results = [];
+      
+      for (const year of years) {
+        // Synchronisiere öffentliche Feiertage
+        const publicResult = await this.syncHolidays({ year, states });
+        
+        // Synchronisiere Schulferien
+        const schoolResult = await this.syncSchoolHolidays({ year, states });
+        
+        results.push({
+          year,
+          publicHolidays: publicResult.count,
+          schoolHolidays: schoolResult.count
+        });
+      }
+      
+      return { 
+        success: true, 
+        message: `Feiertage und Schulferien wurden für ${years.length} Jahre synchronisiert`,
+        results
+      };
+    } catch (error) {
+      console.error('Fehler bei der Synchronisierung aller Feiertage:', error);
+      return { success: false, message: 'Fehler bei der Synchronisierung aller Feiertage' };
+    }
+  }
+
+  /**
+   * Ermittelt fehlende Jahre in der Feiertagsdatenbank im Vergleich zum aktuellen Jahr
+   */
+  async getMissingHolidayYears(yearsToCheck: number = 3): Promise<number[]> {
+    try {
+      const currentYear = new Date().getFullYear();
+      const startYear = currentYear - yearsToCheck;
+      const endYear = currentYear + 1; // Auch das nächste Jahr einbeziehen
+      
+      const years = [];
+      for (let year = startYear; year <= endYear; year++) {
+        years.push(year);
+      }
+      
+      const missingYears = [];
+      
+      for (const year of years) {
+        // Prüfe, ob Einträge für dieses Jahr existieren
+        const count = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(holidays)
+          .where(eq(holidays.year, year));
+        
+        if (count[0].count < 10) { // Wenn weniger als 10 Einträge, betrachten wir das Jahr als fehlend
+          missingYears.push(year);
+        }
+      }
+      
+      return missingYears;
+    } catch (error) {
+      console.error('Fehler beim Ermitteln fehlender Jahre:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Ruft Feiertage für einen Datumsbereich ab
+   */
+  async getHolidaysByDateRange(startDate: string, endDate: string, includeSchoolHolidays: boolean = true): Promise<any[]> {
+    try {
+      // Konvertiere Strings in Date-Objekte
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      
+      // Abfrage in der Datenbank mit Date-Objekten
+      return this.getHolidaysInRange(start, end);
+    } catch (error) {
+      console.error('Fehler beim Abrufen der Feiertage im Datumsbereich:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Aktualisiert die Datenabdeckung für Feiertage
+   */
+  async updateHolidayDataCoverage(): Promise<any> {
+    try {
+      // Abrufen des Bereichs der vorhandenen Feiertage
+      const range = await db
+        .select({
+          minDate: sql<string>`min(date)`,
+          maxDate: sql<string>`max(date)`,
+          count: sql<number>`count(*)`
+        })
+        .from(holidays);
+      
+      if (range.length === 0 || !range[0].minDate || !range[0].maxDate) {
+        return {
+          coverage: 0,
+          firstDate: null,
+          lastDate: null,
+          count: 0
+        };
+      }
+      
+      // Berechnung der Datenabdeckung
+      const firstDate = new Date(range[0].minDate);
+      const lastDate = new Date(range[0].maxDate);
+      const count = range[0].count;
+      
+      // Berechne den Zeitraum in Tagen
+      const daysDiff = Math.ceil((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Grobe Schätzung der Abdeckung basierend auf der Anzahl der Feiertage im Verhältnis zum Zeitraum
+      // (Annahme: durchschnittlich ca. 20-25 Feiertage pro Jahr, inkl. Schulferien und bundesländerspezifische)
+      const yearsSpan = daysDiff / 365;
+      const estimatedExpectedHolidays = Math.ceil(yearsSpan * 25);
+      const coverage = Math.min(100, Math.ceil((count / estimatedExpectedHolidays) * 100));
+      
+      return {
+        coverage,
+        firstDate: format(firstDate, 'yyyy-MM-dd'),
+        lastDate: format(lastDate, 'yyyy-MM-dd'),
+        count
+      };
+    } catch (error) {
+      console.error('Fehler beim Aktualisieren der Feiertagsdatenabdeckung:', error);
+      return {
+        coverage: 0,
+        firstDate: null,
+        lastDate: null,
+        count: 0
+      };
+    }
+  }
+
+  // Helfer-Methode zum Formatieren von Datumsangaben
+  private formatDate(date: Date | string, forDisplay: boolean = false): string {
+    try {
+      const dateObj = typeof date === 'string' ? new Date(date) : date;
+      return format(dateObj, forDisplay ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm:ss');
+    } catch (error) {
+      console.error('Fehler beim Formatieren des Datums:', error);
+      return '';
+    }
+  }
+
+  // Helfer-Methode zum Ermitteln der Kalenderwoche
+  private getWeekNumber(date: Date): number {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+    const yearStart = new Date(d.getFullYear(), 0, 1);
+    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  }
+
+  // Helfer-Methode zum Ermitteln des Wochentags
+  private getWeekdayName(weekday: number): string {
+    const weekdays = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+    return weekdays[weekday];
+  }
 }
 
 export const holidayService = new HolidayService();

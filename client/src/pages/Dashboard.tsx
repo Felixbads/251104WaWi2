@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { 
   FileText, 
   Package, 
@@ -13,7 +13,8 @@ import {
   Truck,
   ArrowUpRight,
   Clock,
-  Cloud
+  Cloud,
+  RefreshCw
 } from "lucide-react";
 import SyncStatusCard from "@/components/dashboard/SyncStatusCard";
 import MetricCard from "@/components/dashboard/MetricCard";
@@ -37,7 +38,8 @@ import {
   formatDateTime, 
   getForecastModels, 
   getDashboardForecasts,
-  DashboardForecast
+  DashboardForecast,
+  initializeDefaultForecastModel
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,6 +59,7 @@ import {
 export default function Dashboard() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
 
   // Fetch data for metrics
   const { data: transactions, isLoading: isLoadingTransactions } = useQuery({
@@ -608,7 +611,7 @@ export default function Dashboard() {
                 <div className="flex justify-center py-4">
                   <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full"></div>
                 </div>
-              ) : dashboardForecasts && dashboardForecasts.length > 0 ? (
+              ) : dashboardForecasts && Array.isArray(dashboardForecasts) && dashboardForecasts.length > 0 ? (
                 <div className="space-y-4">
                   {/* Prognose-Visualisierung */}
                   <div 
@@ -697,13 +700,52 @@ export default function Dashboard() {
               ) : (
                 <div className="text-center py-4 space-y-3">
                   <p className="text-muted-foreground">Keine Prognosedaten verfügbar</p>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setLocation('/forecast')}
-                  >
-                    Prognosemodell erstellen
-                  </Button>
+                  <div className="flex justify-center gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          toast({
+                            title: "Initialisiere Prognosemodell...",
+                            description: "Das kann einige Minuten dauern.",
+                          });
+                          const result = await initializeDefaultForecastModel();
+                          if (result.success) {
+                            toast({
+                              title: "Prognosemodell initialisiert",
+                              description: "Die Prognosen werden bald verfügbar sein.",
+                            });
+                            // Neu laden der Prognosen
+                            await queryClient.invalidateQueries({ queryKey: ['/api/forecast/dashboard'] });
+                            await queryClient.invalidateQueries({ queryKey: ['/api/forecast/models'] });
+                          } else {
+                            toast({
+                              title: "Fehler",
+                              description: result.message || "Konnte Prognosemodell nicht initialisieren.",
+                              variant: "destructive",
+                            });
+                          }
+                        } catch (error) {
+                          toast({
+                            title: "Fehler",
+                            description: "Konnte Prognosemodell nicht initialisieren.",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      Prognose automatisch erstellen
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setLocation('/forecast')}
+                    >
+                      Prognosemodell manuell erstellen
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>
