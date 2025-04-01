@@ -132,10 +132,34 @@ router.post('/sync', async (req, res) => {
         });
     }
     
-    // API-Antwort zum Ergebnis hinzufügen
+    // Bereite eine Zusammenfassung der Synchronisierung vor
+    let syncSummary = '';
+    if (result && typeof result === 'object') {
+      // Zeige die Anzahl der gefundenen und gespeicherten Einträge
+      const itemsFound = result.itemsFound || result.transactions_found || 0;
+      const itemsSaved = result.itemsSaved || result.transactions_saved || 0;
+      const itemsUpdated = result.itemsUpdated || result.transactions_updated || 0;
+      const duplicates = result.duplicates || 0;
+      const errors = result.errors || 0;
+      
+      syncSummary = `\n\n=== SYNCHRONISIERUNGSZUSAMMENFASSUNG ===
+Gefundene Einträge: ${itemsFound}
+Neu gespeicherte Einträge: ${itemsSaved}
+Aktualisierte Einträge: ${itemsUpdated}
+Duplikate übersprungen: ${duplicates}
+Fehler aufgetreten: ${errors}
+`;
+    }
+    
+    // API-Antwort mit Zusammenfassung zum Ergebnis hinzufügen
+    let formattedApiResponse = apiResponse ? JSON.stringify(apiResponse, null, 2) : null;
+    if (formattedApiResponse) {
+      formattedApiResponse += syncSummary;
+    }
+    
     const response = {
       ...result,
-      apiResponse: apiResponse ? JSON.stringify(apiResponse, null, 2) : null
+      apiResponse: formattedApiResponse
     };
     
     return res.json(response);

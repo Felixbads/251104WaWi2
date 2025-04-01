@@ -976,6 +976,48 @@ Zeitraum: ${formattedStart} - ${formattedEnd}`;
                   </div>
                   <Card className="bg-gray-50 dark:bg-gray-900 border rounded-md">
                     <CardContent className="p-4">
+                      {/* Zusammenfassung der Synchronisierung - Nur anzeigen, wenn syncProgress.status success ist */}
+                      {syncProgress.status === 'success' && (
+                        <div className="mb-4 border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950 p-3 rounded-md">
+                          <h4 className="text-sm font-semibold text-green-700 dark:text-green-300 mb-2 flex items-center">
+                            <CheckCircle2 className="h-4 w-4 mr-1" /> 
+                            Synchronisierungszusammenfassung
+                          </h4>
+                          <div className="grid grid-cols-2 gap-y-1 gap-x-4 text-xs">
+                            {syncMutation.data?.stats?.itemsFound !== undefined && (
+                              <>
+                                <div className="font-medium text-green-700 dark:text-green-400">Gefundene Einträge:</div>
+                                <div className="text-green-700 dark:text-green-400">{syncMutation.data.stats.itemsFound}</div>
+                              </>
+                            )}
+                            {syncMutation.data?.stats?.itemsSaved !== undefined && (
+                              <>
+                                <div className="font-medium text-green-700 dark:text-green-400">Neu gespeicherte Einträge:</div>
+                                <div className="text-green-700 dark:text-green-400">{syncMutation.data.stats.itemsSaved}</div>
+                              </>
+                            )}
+                            {syncMutation.data?.stats?.itemsUpdated !== undefined && (
+                              <>
+                                <div className="font-medium text-green-700 dark:text-green-400">Aktualisierte Einträge:</div>
+                                <div className="text-green-700 dark:text-green-400">{syncMutation.data.stats.itemsUpdated}</div>
+                              </>
+                            )}
+                            {syncMutation.data?.stats?.duplicates !== undefined && (
+                              <>
+                                <div className="font-medium text-green-700 dark:text-green-400">Duplikate übersprungen:</div>
+                                <div className="text-green-700 dark:text-green-400">{syncMutation.data.stats.duplicates}</div>
+                              </>
+                            )}
+                            {syncMutation.data?.stats?.errors !== undefined && (
+                              <>
+                                <div className="font-medium text-green-700 dark:text-green-400">Fehler aufgetreten:</div>
+                                <div className="text-green-700 dark:text-green-400">{syncMutation.data.stats.errors}</div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
                       <ScrollArea className="h-80 rounded-md">
                         <pre className="text-xs overflow-auto whitespace-pre-wrap">
                           {apiResponse || "Noch keine API-Antwort erhalten. Starten Sie die Synchronisierung, um Daten zu sehen."}
