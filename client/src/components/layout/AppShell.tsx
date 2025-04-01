@@ -78,7 +78,7 @@ export default function AppShell({ children }: AppShellProps) {
       {/* Main Content Area */}
       <main className="flex-1 overflow-auto pb-16 md:pb-0">
         {/* Desktop Header (hidden on mobile) */}
-        <header className="hidden md:flex md:items-center md:justify-between bg-white shadow-sm px-6 py-4">
+        <header className="hidden md:flex md:items-center bg-white shadow-sm px-6 py-4">
           <h1 className="text-2xl font-semibold text-gray-800">{getPageTitle()}</h1>
         </header>
 
