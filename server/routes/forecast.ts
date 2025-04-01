@@ -52,7 +52,9 @@ const getForecastsSchema = z.object({
   endDate: z.string().min(1, "Enddatum ist erforderlich"),
   modelId: z.number().int().positive().optional(),
   locationId: z.number().int().positive().optional(),
-  machineId: z.number().int().positive().optional()
+  machineId: z.number().int().positive().optional(),
+  productId: z.number().int().positive().optional(),
+  supplierId: z.number().int().positive().optional()
 });
 
 // Schema für das Synchronisieren von Wetterdaten
@@ -247,7 +249,9 @@ export function registerForecastRoutes(app: Express): void {
         endDate: req.query.endDate as string,
         modelId: req.query.modelId ? parseInt(req.query.modelId as string, 10) : undefined,
         locationId: req.query.locationId ? parseInt(req.query.locationId as string, 10) : undefined,
-        machineId: req.query.machineId ? parseInt(req.query.machineId as string, 10) : undefined
+        machineId: req.query.machineId ? parseInt(req.query.machineId as string, 10) : undefined,
+        productId: req.query.productId ? parseInt(req.query.productId as string, 10) : undefined,
+        supplierId: req.query.supplierId ? parseInt(req.query.supplierId as string, 10) : undefined
       };
       
       const validatedData = getForecastsSchema.parse(queryParams);
@@ -257,7 +261,9 @@ export function registerForecastRoutes(app: Express): void {
         validatedData.endDate,
         validatedData.modelId,
         validatedData.locationId,
-        validatedData.machineId
+        validatedData.machineId,
+        validatedData.productId,
+        validatedData.supplierId
       );
       
       res.json(forecasts);
@@ -267,6 +273,50 @@ export function registerForecastRoutes(app: Express): void {
       }
       
       console.error("Fehler beim Abrufen der Prognosen:", error);
+      res.status(500).json({ error: "Interner Serverfehler" });
+    }
+  });
+  
+  // Erweiterte Prognoseauswertung mit detaillierten Filtermöglichkeiten
+  app.get(`${API_PREFIX}/forecast/evaluation`, async (req: Request, res: Response) => {
+    try {
+      const queryParams = {
+        startDate: req.query.startDate as string,
+        endDate: req.query.endDate as string,
+        modelId: req.query.modelId ? parseInt(req.query.modelId as string, 10) : undefined,
+        machineId: req.query.machineId ? parseInt(req.query.machineId as string, 10) : undefined,
+        productId: req.query.productId ? parseInt(req.query.productId as string, 10) : undefined,
+        supplierId: req.query.supplierId ? parseInt(req.query.supplierId as string, 10) : undefined,
+        groupBy: req.query.groupBy as string || 'date'
+      };
+      
+      // Validiere Parameter
+      if (!queryParams.startDate || !queryParams.endDate) {
+        return res.status(400).json({ error: "Start- und Enddatum sind erforderlich" });
+      }
+      
+      // Hole aktives Modell, wenn keins angegeben
+      if (!queryParams.modelId) {
+        const activeModels = await forecastService.getForecastModels('ready');
+        if (activeModels && activeModels.length > 0) {
+          queryParams.modelId = activeModels[0].id;
+        }
+      }
+      
+      // Rufe erweiterte Prognoseauswertung ab
+      const evaluation = await forecastService.getForecastEvaluation(
+        queryParams.startDate,
+        queryParams.endDate,
+        queryParams.modelId,
+        queryParams.machineId,
+        queryParams.productId,
+        queryParams.supplierId,
+        queryParams.groupBy
+      );
+      
+      res.json(evaluation);
+    } catch (error) {
+      console.error("Fehler bei der Prognoseauswertung:", error);
       res.status(500).json({ error: "Interner Serverfehler" });
     }
   });

@@ -718,7 +718,9 @@ export async function getForecasts(
   endDate: string | Date,
   modelId?: number,
   locationId?: number,
-  machineId?: number
+  machineId?: number,
+  productId?: number,
+  supplierId?: number
 ): Promise<any[]> {
   try {
     const formattedStartDate = typeof startDate === 'string' ? startDate : format(startDate, 'yyyy-MM-dd');
@@ -739,12 +741,227 @@ export async function getForecasts(
       whereConditions.push(eq(forecastsTable.machine_id, machineId));
     }
     
+    if (productId !== undefined) {
+      whereConditions.push(eq(forecastsTable.product_id, productId));
+    }
+    
+    // Für Lieferanten müssen wir eine Verknüpfung zu Produkten herstellen
+    if (supplierId !== undefined) {
+      // Hier müssten wir einen Join mit der Produkttabelle machen, 
+      // aber für jetzt können wir einen Subquery verwenden
+      const subquery = db.select({ id: forecasts.id })
+        .from(forecasts)
+        .leftJoin('products', eq(forecasts.product_id, sql.raw('products.id')))
+        .where(eq(sql.raw('products.supplier_id'), supplierId));
+      
+      whereConditions.push(sql`${forecasts.id} IN (${subquery})`);
+    }
+    
     return await db.select().from(forecastsTable)
       .where(and(...whereConditions))
       .orderBy(asc(forecastsTable.forecast_date));
   } catch (error) {
     console.error("Fehler beim Abrufen der Prognosen:", error);
     return [];
+  }
+}
+
+/**
+ * Liefert detaillierte Prognoseauswertungen mit Filtermöglichkeiten
+ * 
+ * @param startDate Startdatum
+ * @param endDate Enddatum
+ * @param modelId Optional: ID des zu verwendenden Modells
+ * @param machineId Optional: Filter für eine bestimmte Maschine
+ * @param productId Optional: Filter für ein bestimmtes Produkt
+ * @param supplierId Optional: Filter für einen bestimmten Lieferanten
+ * @param groupBy Optional: Gruppierung der Daten (date, machine, product, supplier)
+ * @returns Aufbereitete Prognosedaten mit Aggregationen
+ */
+export async function getForecastEvaluation(
+  startDate: string | Date,
+  endDate: string | Date,
+  modelId?: number,
+  machineId?: number,
+  productId?: number,
+  supplierId?: number,
+  groupBy: string = 'date'
+): Promise<any> {
+  try {
+    const formattedStartDate = typeof startDate === 'string' ? startDate : format(startDate, 'yyyy-MM-dd');
+    const formattedEndDate = typeof endDate === 'string' ? endDate : format(endDate, 'yyyy-MM-dd');
+    
+    // Hole zunächst die neueste Modell-ID, wenn keine angegeben wurde
+    if (!modelId) {
+      const latestModel = await db.select().from(forecastModels)
+        .where(eq(forecastModels.status, 'ready'))
+        .orderBy(desc(forecastModels.id))
+        .limit(1);
+      
+      if (latestModel.length > 0) {
+        modelId = latestModel[0].id;
+      } else {
+        console.error("Kein aktives Prognosemodell gefunden");
+        return { success: false, message: "Kein aktives Prognosemodell gefunden" };
+      }
+    }
+    
+    // Grundlegende Abfrage bauen
+    let whereConditions: any[] = [
+      between(forecasts.forecast_date, formattedStartDate, formattedEndDate),
+      eq(forecasts.model_id, modelId)
+    ];
+    
+    if (machineId !== undefined) {
+      whereConditions.push(eq(forecasts.machine_id, machineId));
+    }
+    
+    if (productId !== undefined) {
+      whereConditions.push(eq(forecasts.product_id, productId));
+    }
+    
+    // Je nach Gruppierung unterschiedliche Abfragen ausführen
+    let groupedData;
+    
+    switch (groupBy) {
+      case 'machine':
+        // Gruppiere nach Maschine
+        groupedData = await db.select({
+          machine_id: forecasts.machine_id,
+          machine_name: machines.name,
+          total_quantity: sql<number>`SUM(${forecasts.predicted_quantity})`,
+          avg_confidence: sql<number>`AVG(${forecasts.confidence})`,
+          days_count: sql<number>`COUNT(DISTINCT ${forecasts.forecast_date})`
+        })
+        .from(forecasts)
+        .leftJoin(machines, eq(forecasts.machine_id, machines.id))
+        .where(and(...whereConditions))
+        .groupBy(forecasts.machine_id, machines.name)
+        .orderBy(desc(sql<number>`SUM(${forecasts.predicted_quantity})`));
+        
+        return {
+          success: true,
+          groupBy: 'machine',
+          startDate: formattedStartDate,
+          endDate: formattedEndDate,
+          modelId,
+          data: groupedData.map(item => ({
+            machineId: item.machine_id,
+            machineName: item.machine_name || 'Unbekannt',
+            totalQuantity: Number(item.total_quantity?.toFixed(2) || 0),
+            avgConfidence: Number((item.avg_confidence * 100)?.toFixed(1) || 0),
+            daysCount: item.days_count
+          }))
+        };
+        
+      case 'product':
+        // Gruppiere nach Produkt
+        groupedData = await db.select({
+          product_id: forecasts.product_id,
+          product_name: sql.raw('products.name'),
+          supplier_id: sql.raw('products.supplier_id'),
+          supplier_name: sql.raw('suppliers.name'),
+          total_quantity: sql<number>`SUM(${forecasts.predicted_quantity})`,
+          avg_confidence: sql<number>`AVG(${forecasts.confidence})`,
+          days_count: sql<number>`COUNT(DISTINCT ${forecasts.forecast_date})`
+        })
+        .from(forecasts)
+        .leftJoin('products', eq(forecasts.product_id, sql.raw('products.id')))
+        .leftJoin('suppliers', eq(sql.raw('products.supplier_id'), sql.raw('suppliers.id')))
+        .where(and(...whereConditions))
+        .groupBy(forecasts.product_id, sql.raw('products.name'), sql.raw('products.supplier_id'), sql.raw('suppliers.name'))
+        .orderBy(desc(sql<number>`SUM(${forecasts.predicted_quantity})`));
+        
+        return {
+          success: true,
+          groupBy: 'product',
+          startDate: formattedStartDate,
+          endDate: formattedEndDate,
+          modelId,
+          data: groupedData.map(item => ({
+            productId: item.product_id,
+            productName: item.product_name || 'Unbekannt',
+            supplierId: item.supplier_id,
+            supplierName: item.supplier_name || 'Unbekannt',
+            totalQuantity: Number(item.total_quantity?.toFixed(2) || 0),
+            avgConfidence: Number((item.avg_confidence * 100)?.toFixed(1) || 0),
+            daysCount: item.days_count
+          }))
+        };
+        
+      case 'supplier':
+        // Gruppiere nach Lieferant
+        groupedData = await db.select({
+          supplier_id: sql.raw('suppliers.id'),
+          supplier_name: sql.raw('suppliers.name'),
+          total_quantity: sql<number>`SUM(${forecasts.predicted_quantity})`,
+          avg_confidence: sql<number>`AVG(${forecasts.confidence})`,
+          days_count: sql<number>`COUNT(DISTINCT ${forecasts.forecast_date})`,
+          products_count: sql<number>`COUNT(DISTINCT ${forecasts.product_id})`
+        })
+        .from(forecasts)
+        .leftJoin('products', eq(forecasts.product_id, sql.raw('products.id')))
+        .leftJoin('suppliers', eq(sql.raw('products.supplier_id'), sql.raw('suppliers.id')))
+        .where(and(...whereConditions))
+        .groupBy(sql.raw('suppliers.id'), sql.raw('suppliers.name'))
+        .orderBy(desc(sql<number>`SUM(${forecasts.predicted_quantity})`));
+        
+        return {
+          success: true,
+          groupBy: 'supplier',
+          startDate: formattedStartDate,
+          endDate: formattedEndDate,
+          modelId,
+          data: groupedData.map(item => ({
+            supplierId: item.supplier_id,
+            supplierName: item.supplier_name || 'Unbekannt',
+            totalQuantity: Number(item.total_quantity?.toFixed(2) || 0),
+            avgConfidence: Number((item.avg_confidence * 100)?.toFixed(1) || 0),
+            daysCount: item.days_count,
+            productsCount: item.products_count
+          }))
+        };
+        
+      case 'date':
+      default:
+        // Standardgruppierung nach Datum
+        groupedData = await db.select({
+          forecast_date: forecasts.forecast_date,
+          total_quantity: sql<number>`SUM(${forecasts.predicted_quantity})`,
+          avg_confidence: sql<number>`AVG(${forecasts.confidence})`,
+          machines_count: sql<number>`COUNT(DISTINCT ${forecasts.machine_id})`,
+          products_count: sql<number>`COUNT(DISTINCT ${forecasts.product_id})`,
+          is_holiday: sql<boolean>`BOOL_OR(${forecasts.is_holiday})`,
+          holiday_name: sql<string>`MAX(CASE WHEN ${forecasts.holiday_name} IS NOT NULL THEN ${forecasts.holiday_name} ELSE NULL END)`
+        })
+        .from(forecasts)
+        .where(and(...whereConditions))
+        .groupBy(forecasts.forecast_date)
+        .orderBy(asc(forecasts.forecast_date));
+        
+        return {
+          success: true,
+          groupBy: 'date',
+          startDate: formattedStartDate,
+          endDate: formattedEndDate,
+          modelId,
+          data: groupedData.map(item => ({
+            date: item.forecast_date,
+            totalQuantity: Number(item.total_quantity?.toFixed(2) || 0),
+            avgConfidence: Number((item.avg_confidence * 100)?.toFixed(1) || 0),
+            machinesCount: item.machines_count,
+            productsCount: item.products_count,
+            isHoliday: item.is_holiday,
+            holidayName: item.holiday_name
+          }))
+        };
+    }
+  } catch (error) {
+    console.error("Fehler bei der Prognoseauswertung:", error);
+    return { 
+      success: false, 
+      message: `Fehler bei der Prognoseauswertung: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`
+    };
   }
 }
 

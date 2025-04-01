@@ -15,6 +15,7 @@ import Synchronization from "@/pages/Synchronization";
 import SyncHistory from "@/pages/SyncHistory";
 import Settings from "@/pages/Settings";
 import Forecast from "@/pages/Forecast";
+import ForecastEvaluation from "@/pages/ForecastEvaluation";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import AppShell from "@/components/layout/AppShell";
@@ -84,6 +85,7 @@ function AuthenticatedRouter() {
         <Route path="/synchronization" component={Synchronization} />
         <Route path="/sync-history" component={SyncHistory} />
         <Route path="/forecast" component={Forecast} />
+        <Route path="/forecast-evaluation" component={ForecastEvaluation} />
         <Route path="/settings" component={Settings} />
         <Route path="/:rest*" component={(props: any) => {
           const rest = props.params?.rest;

@@ -95,6 +95,7 @@ class AutoTrainer:
     def get_training_period(self, model_info):
         """
         Bestimmt einen geeigneten Trainingszeitraum für ein Modell
+        Verwendet das früheste verfügbare Transaktionsdatum als Startdatum
         
         Args:
             model_info: Dict mit Modellinformationen
@@ -105,22 +106,31 @@ class AutoTrainer:
         # Ende des Trainingszeitraums ist gestern
         end_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
         
-        # Standard: 90 Tage zurück
-        days_back = 90
-        
-        # Wenn das Modell bereits trainiert wurde, nehmen wir den letzten Trainingszeitraum als Basis
-        if model_info.get('training_period_start') and model_info.get('training_period_end'):
-            # Berechne die Anzahl der Tage im letzten Trainingszeitraum
-            start_date = datetime.strptime(str(model_info['training_period_start']), '%Y-%m-%d')
-            prev_end_date = datetime.strptime(str(model_info['training_period_end']), '%Y-%m-%d')
-            
-            days_back = (prev_end_date - start_date).days
-            
-            # Nutze mindestens 90 Tage
-            days_back = max(days_back, 90)
-        
-        # Start des Trainingszeitraums
-        start_date = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
+        # Hole das früheste verfügbare Transaktionsdatum aus der Datenbank
+        conn = self.get_db_connection()
+        if conn is None:
+            logger.error("Keine Datenbankverbindung verfügbar")
+            # Standardwert: 180 Tage zurück
+            start_date = (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d')
+        else:
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        SELECT MIN(DATE(datetime)) as earliest_date 
+                        FROM transactions
+                    """)
+                    result = cursor.fetchone()
+                    if result and result[0]:
+                        earliest_date = result[0]
+                        start_date = earliest_date.strftime('%Y-%m-%d') if hasattr(earliest_date, 'strftime') else str(earliest_date)
+                        logger.info(f"Frühestes Transaktionsdatum gefunden: {start_date}")
+                    else:
+                        # Kein Datum gefunden, verwende 180 Tage als Standard
+                        logger.warning("Kein frühestes Transaktionsdatum gefunden, verwende Standard")
+                        start_date = (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d')
+            except Exception as e:
+                logger.error(f"Fehler beim Abrufen des frühesten Transaktionsdatums: {e}")
+                start_date = (datetime.now() - timedelta(days=180)).strftime('%Y-%m-%d')
         
         logger.info(f"Trainingszeitraum für Modell {model_info['id']}: {start_date} bis {end_date}")
         return start_date, end_date

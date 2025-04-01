@@ -9,6 +9,7 @@ import {
   Settings,
   LogOut,
   BarChart2,
+  LineChart,
   Truck,
   ShoppingCart,
   Users,
@@ -134,9 +135,16 @@ export default function Sidebar() {
             <NavItem 
               href="/forecast" 
               icon={<BarChart2 className="h-5 w-5 mr-3" />}
-              isActive={isActive("/forecast")}
+              isActive={isActive("/forecast") && !isActive("/forecast-evaluation")}
             >
               Prognosen
+            </NavItem>
+            <NavItem 
+              href="/forecast-evaluation" 
+              icon={<LineChart className="h-5 w-5 mr-3" />}
+              isActive={isActive("/forecast-evaluation")}
+            >
+              Prognoseanalyse
             </NavItem>
             <NavItem 
               href="/auswertungen" 
