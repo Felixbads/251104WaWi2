@@ -812,7 +812,30 @@ class HolidayService {
   }
 }
 
-export const holidayService = new HolidayService();
+// Erstelle eine Instanz der Holiday-Service-Klasse
+const holidayServiceInstance = new HolidayService();
+
+// Exportiere die Holiday-Service-Instanz und füge zusätzliche Methoden hinzu
+export const holidayService = {
+  // Füge die Methoden der Klasse hinzu
+  getHolidaysByDateRange: (startDate: string, endDate: string, type?: string, state?: string, limit?: number) => 
+    holidayServiceInstance.getHolidaysByDateRange(startDate, endDate, type, state, limit),
+  getMissingHolidayYears: (startYear: number, endYear: number, state?: string) => 
+    holidayServiceInstance.getMissingHolidayYears(startYear, endYear, state),
+  syncHolidays: (data: { year: number, states?: string[] }) => 
+    holidayServiceInstance.syncHolidays(data),
+  syncSchoolHolidays: (data: { year: number, states?: string[] }) => 
+    holidayServiceInstance.syncSchoolHolidays(data),
+  syncAllHolidays: (data: { years: number[], states?: string[] }) => 
+    holidayServiceInstance.syncAllHolidays(data),
+  syncHolidaysForYear: (year: number, states: string[] = ['SN']) => 
+    holidayServiceInstance.syncHolidaysForYear(year, states),
+  // Dummy-Methode für die Datenabdeckungs-Updates, bis sie implementiert wird
+  updateHolidayDataCoverage: async () => {
+    console.log("Holiday data coverage update wird implementiert...");
+    return { success: true };
+  }
+};
 
 /**
  * Synchronisiert Feiertage für einen Zeitraum, falls sie fehlen

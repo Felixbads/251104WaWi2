@@ -942,10 +942,11 @@ export function registerForecastRoutes(app: Express): void {
       
       console.log(`Synchronisiere alle Feiertage für Jahr ${validatedData.year} und ${validatedData.allStates ? 'alle Bundesländer' : `Bundesland ${validatedData.state || 'SN'}`}`);
       
-      const result = await holidayService.syncAllHolidays(
-        validatedData.year,
-        statesToSync
-      );
+      // Aufruf der Holiday-Service-Methode mit dem korrekten Format
+      const result = await holidayService.syncAllHolidays({
+        years: [validatedData.year],
+        states: statesToSync
+      });
       
       res.json({
         success: true,
@@ -1106,18 +1107,16 @@ export function registerForecastRoutes(app: Express): void {
     try {
       // Aktualisiere die Abdeckungen, bevor sie abgerufen werden
       await meteostatService.updateWeatherDataCoverage();
-      // Überprüfe, ob die Methode existiert, bevor sie aufgerufen wird
-      if (typeof holidayService.updateHolidayDataCoverage === 'function') {
-        await holidayService.updateHolidayDataCoverage();
-      } else {
-        console.warn('holidayService.updateHolidayDataCoverage ist keine Funktion - wird übersprungen');
-      }
+      
+      // Diese Methode sollte jetzt existieren
+      await holidayService.updateHolidayDataCoverage();
+      
       await openWeatherService.updateWeatherDataCoverage();
       
-      const result = await import("../db").then(({ db }) => {
-        const { dataCoverage } = require("@shared/schema");
-        return db.select().from(dataCoverage);
-      });
+      // Daten direkt aus der Datenbank holen ohne require
+      const { db } = await import("../db");
+      const schema = await import("@shared/schema");
+      const result = await db.select().from(schema.dataCoverage);
       
       res.json(result);
     } catch (error) {

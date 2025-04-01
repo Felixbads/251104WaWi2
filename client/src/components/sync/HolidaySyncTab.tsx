@@ -47,14 +47,11 @@ export const HolidaySyncTab: React.FC<HolidaySyncTabProps> = () => {
     mutationFn: () => {
       const options: any = {
         year: selectedYear,
-        includeSchoolHolidays: includeSchoolHolidays
+        includeSchoolHolidays: includeSchoolHolidays,
+        allStates: syncAllStates
       };
       
-      if (syncAllStates) {
-        // Wenn alle Bundesländer synchronisiert werden sollen
-        options.allStates = true;
-      }
-      
+      // 'all' synchronisiert sowohl öffentliche Feiertage als auch Schulferien
       return syncHolidays('all', options);
     },
     onSuccess: () => {
