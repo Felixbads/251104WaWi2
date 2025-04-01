@@ -383,24 +383,13 @@ export default function Automaten() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center">
-            <Package className="h-6 w-6 mr-2" />
-            Automaten
-          </h1>
-          <p className="text-gray-500 mt-1">
-            Verwalten und überwachen Sie alle Automaten im Netzwerk
-          </p>
-        </div>
+      {/* Button zur Aktualisierung */}
+      <div className="flex justify-end">
         <Button onClick={handleRefresh} variant="outline" className="flex items-center gap-2">
           <RefreshCw className="h-4 w-4" />
           Aktualisieren
         </Button>
       </div>
-
-      <Separator />
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col md:flex-row gap-4">

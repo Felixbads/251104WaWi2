@@ -1340,30 +1340,17 @@ export default function Suppliers() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center">
-            <Truck className="h-6 w-6 mr-2" />
-            Lieferanten
-          </h1>
-          <p className="text-gray-500 mt-1">
-            Verwalten und überwachen Sie alle Lieferanten im System
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={handleCreateSupplier} className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Neuer Lieferant
-          </Button>
-          <Button onClick={handleRefresh} variant="outline" className="flex items-center gap-2">
-            <RefreshCw className="h-4 w-4" />
-            Aktualisieren
-          </Button>
-        </div>
+      {/* Aktionsbuttons */}
+      <div className="flex justify-end flex-wrap gap-2">
+        <Button onClick={handleCreateSupplier} className="flex items-center gap-2">
+          <Plus className="h-4 w-4" />
+          Neuer Lieferant
+        </Button>
+        <Button onClick={handleRefresh} variant="outline" className="flex items-center gap-2">
+          <RefreshCw className="h-4 w-4" />
+          Aktualisieren
+        </Button>
       </div>
-
-      <Separator />
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col md:flex-row gap-4">

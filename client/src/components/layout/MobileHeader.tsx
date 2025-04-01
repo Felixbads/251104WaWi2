@@ -7,8 +7,9 @@ interface MobileHeaderProps {
 
 export default function MobileHeader({ pageTitle, onMenuToggle }: MobileHeaderProps) {
   return (
-    <header className="bg-white shadow-sm px-4 py-2 flex justify-between items-center md:hidden">
-      <div className="flex items-center space-x-3">
+    <header className="bg-white shadow-sm px-4 py-2 flex flex-col md:hidden">
+      {/* Erste Zeile: Menü und Logo */}
+      <div className="flex items-center space-x-3 mb-2">
         <button
           onClick={onMenuToggle}
           className="p-2 rounded-md text-gray-500 hover:bg-gray-100"
@@ -22,7 +23,11 @@ export default function MobileHeader({ pageTitle, onMenuToggle }: MobileHeaderPr
           <span className="ml-2 font-semibold text-lg">Proviantomat</span>
         </div>
       </div>
-      {/* Rechtes Menü entfernt */}
+      
+      {/* Zweite Zeile: Seitentitel */}
+      <div className="pb-1">
+        <h1 className="text-xl font-semibold text-gray-800">{pageTitle}</h1>
+      </div>
     </header>
   );
 }

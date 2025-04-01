@@ -275,13 +275,6 @@ export default function Dashboard() {
   
   return (
     <div className="space-y-6">
-      <div className="flex items-center mb-4">
-        <h1 className="text-2xl font-bold flex items-center">
-          <BarChart3 className="h-6 w-6 mr-2" />
-          Dashboard
-        </h1>
-      </div>
-      
       <PageHeader 
         showRefresh={true}
         onRefresh={handleRefresh}
