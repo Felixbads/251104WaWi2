@@ -1,0 +1,22 @@
+Perfekt – danke für die Zusatzinfos! Hier ist dein überarbeiteter Prompt, ergänzt um die Details zur API-Nutzung, die zentrale Wetterabfrage für Bad Schandau und den sparsamen Umgang mit Abrufen. Der Stil bleibt dabei ganz deiner Linie treu:
+
+⸻
+
+Analysiere bitte, wann und wie du Wetterdaten abrufst. Die Wetterdaten, die abgerufen und im System gespeichert werden, dienen ausschließlich dazu, eine Datenbasis für das Prognosemodell Prophet von Meta zu liefern. Dieses Modell soll in der Lage sein, aus den historischen Transaktionsdaten aller Automaten, den Urlaubsdaten (Holiday) und den historischen Wetterdaten Abhängigkeiten zu erkennen, die es ermöglichen, zukünftigen Umsatz zu prognostizieren.
+
+Der zukünftige Umsatz wird auf Grundlage des Prophet-Modells bewertet, welches zusätzlich auch Prognose-Wetterdaten heranzieht und berücksichtigt, ob sich im prognostizierten Zeitraum (z. B. 14 Tage im Voraus) Wochenenden, Urlaubszeiten oder Feiertage befinden.
+
+Wichtig: Du arbeitest dabei mit einer bereits implementierten Wetterdatenquelle und darfst die API nur maximal 1000-mal pro Tag anfragen. Rufe daher die Wetterdaten effizient und sparsam ab. Die Wetterdaten sollen einmal täglich zentral für die Stadt Bad Schandau (PLZ 01814) abgerufen werden – diese gelten dann einheitlich für alle Automaten im System.
+
+Du unterscheidest dabei zwei Typen von Wetterdaten, die strukturell gleich aufgebaut sind:
+	1.	Historische Wetterdaten – rückwirkend ab dem 01.01.2023 abrufen und speichern.
+	2.	Prognostizierte Wetterdaten – für die nächsten 8 bis 14 Tage abrufen und so speichern, dass Prophet sie als zusätzliche Regressoren verarbeiten kann.
+
+Beide Wetterdaten-Typen sollen im gleichen Format (idealerweise tagesbasierte Felder wie Temperatur min/max, Wetterzustand, Niederschlag, Wind etc.) gespeichert werden.
+
+Damit ich sehe, dass das funktioniert:
+	•	Stelle die historischen Wetterdaten an passender Stelle im System dar – etwa in der Verkaufsanalyse.
+	•	Zeige die Wetterprognose im Dashboard attraktiv an, sodass meine Mitarbeiter und ich auf einen Blick erkennen können, ob in den nächsten Tagen gutes oder schlechtes Wetter zu erwarten ist.
+	•	Ergänze im gleichen Bereich eine Anzeige, ob in den kommenden Tagen Feiertage oder Schulferien liegen – beziehe dafür verlässliche Datenquellen ein, die bundeslandspezifisch abrufbar sind.
+
+Achte darauf, dass alle Daten (Wetter, Ferien, Feiertage) zeitlich korrekt zur Verkaufszeit und den jeweiligen Prognosezeiträumen zugeordnet werden. Ziel ist es, Prophet so mit externen Regressoren zu versorgen, dass fundierte Umsatzprognosen möglich sind.

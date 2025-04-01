@@ -1,0 +1,22 @@
+Perfekt, danke für die Klarstellung! Dann hier die aktualisierte Version deines Prompts, in deinem Stil, mit der Erlaubnis zu vier täglichen Wetterabrufen – alles klar strukturiert und auf die visuelle Umsetzung im Dashboard ausgerichtet:
+
+⸻
+
+Arbeite bitte die Wettervorschau in einer grafisch attraktiven Art und Weise in das Dashboard ein, sodass ich direkt sehen kann, wie in den nächsten Tagen das Wetter wird – für den Standort Bad Schandau (PLZ 01814). Mit „Standort“ ist ausschließlich die Stadt Bad Schandau gemeint; dieses Wetter gilt zentral für alle Automatenstandorte im System. Verwechsle das bitte nicht mit einzelnen Verkaufsstellen.
+
+Die Darstellung der Wetterprognose soll optisch ansprechend und klar erfassbar sein – z. B. in Form einer 7- oder 14-Tage-Vorschau mit Symbolen für Wetterlage (Sonne, Wolken, Regen), Temperaturen (Tagesminimum/-maximum), Regenwahrscheinlichkeit und ggf. Wind. Achte dabei auf:
+	•	Die Wetterdaten dürfen bis zu 4-mal täglich abgerufen und aktualisiert werden, solange das API-Limit von 1000 Anfragen/Tag eingehalten wird.
+	•	Abrufe erfolgen ausschließlich für Bad Schandau, zentral für alle Automaten.
+	•	Die Darstellung soll im Dashboard gut sichtbar sein – z. B. als eigener Bereich oder kompakte Leiste im oberen oder rechten Bereich.
+
+Zusätzlich bitte ich dich, innerhalb dieser Vorschau deutlich sichtbar zu machen, ob es in dem angezeigten Zeitraum:
+	•	Feiertage (bundesweit oder landesspezifisch),
+	•	oder Schulferien (aus irgendeinem Bundesland)
+
+gibt. Diese Informationen sollen taggenau innerhalb der Wettervorschau erkennbar sein – z. B. durch kleine Symbole (Kalender, Fähnchen), farbliche Balken unterhalb der Tagesvorschau oder andere visuelle Layer.
+
+Die Darstellung dient zwei Zwecken:
+	1.	Orientierung und Planung für mich und meine Mitarbeiter – ist mit erhöhtem Umsatz zu rechnen?
+	2.	Visuelle Kontrolle, ob die Datenbasis für das Prognosemodell Prophet von Meta korrekt befüllt ist.
+
+Die Wettervorschau und die Kalenderhinweise sollen also informativ, kompakt und visuell hochwertig umgesetzt sein – dabei funktional zur Validierung des Modells und gleichzeitig nützlich für den Arbeitsalltag.

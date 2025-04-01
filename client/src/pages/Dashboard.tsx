@@ -12,13 +12,15 @@ import {
   Percent,
   Truck,
   ArrowUpRight,
-  Clock
+  Clock,
+  Cloud
 } from "lucide-react";
 import SyncStatusCard from "@/components/dashboard/SyncStatusCard";
 import MetricCard from "@/components/dashboard/MetricCard";
 import TransactionsTable from "@/components/tables/TransactionsTable";
 import SyncLogTable from "@/components/tables/SyncLogTable";
 import SystemAlerts from "@/components/notifications/SystemAlerts";
+import WeatherWidget from "@/components/weather/WeatherWidget";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -279,9 +281,9 @@ export default function Dashboard() {
         
         {/* Übersichts-Tab */}
         <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Top-Produkte nach Verkaufszahlen */}
-            <Card>
+            <Card className="md:col-span-1">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center">
                   <ShoppingBag className="h-5 w-5 mr-2 text-primary" />
@@ -313,7 +315,7 @@ export default function Dashboard() {
             </Card>
             
             {/* Top-Automaten nach Umsatz */}
-            <Card>
+            <Card className="md:col-span-1">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center">
                   <TrendingUp className="h-5 w-5 mr-2 text-primary" />
@@ -343,6 +345,11 @@ export default function Dashboard() {
                 )}
               </CardContent>
             </Card>
+            
+            {/* Wettervorhersage */}
+            <div className="md:col-span-1">
+              <WeatherWidget className="h-full" forecastDays={7} />
+            </div>
           </div>
           
           {/* Anstehende Lieferungen */}
