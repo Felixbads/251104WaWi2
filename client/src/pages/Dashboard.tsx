@@ -971,7 +971,7 @@ export default function Dashboard() {
                     <Button 
                       variant="outline"
                       size="sm"
-                      onClick={() => setLocation("/sync")}
+                      onClick={() => setLocation("/synchronization")}
                       className="mt-1"
                     >
                       Synchronisation
