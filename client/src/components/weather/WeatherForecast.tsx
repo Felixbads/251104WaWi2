@@ -67,10 +67,27 @@ function WeatherIcon({ icon, description, className = 'h-8 w-8' }: { icon: strin
   );
 }
 
-// Holiday-Badge-Komponente
-function HolidayBadge({ holiday }: { holiday: { name: string; type: string; state?: string } }) {
+// Erweiterte Holiday-Badge-Komponente
+function HolidayBadge({ holiday }: { holiday: { name: string; type: string; state?: string; description?: string } }) {
   const isPublicHoliday = holiday.type === 'PUBLIC_HOLIDAY';
   const badgeVariant = isPublicHoliday ? 'destructive' : 'secondary';
+  
+  // Icon je nach Ferientyp
+  const getHolidayIcon = () => {
+    if (isPublicHoliday) {
+      if (holiday.name.includes('Ostern')) return '🐰';
+      if (holiday.name.includes('Weihnacht')) return '🎄';
+      if (holiday.name.includes('Neujahr')) return '🎆';
+      if (holiday.name.includes('Tag der')) return '🇩🇪';
+      return '🎉';
+    } else {
+      if (holiday.name.includes('Sommer')) return '☀️';
+      if (holiday.name.includes('Winter') || holiday.name.includes('Ski')) return '❄️';
+      if (holiday.name.includes('Herbst')) return '🍂';
+      if (holiday.name.includes('Oster')) return '🌷';
+      return '📚';
+    }
+  };
   
   return (
     <TooltipProvider>
@@ -80,17 +97,24 @@ function HolidayBadge({ holiday }: { holiday: { name: string; type: string; stat
             variant={badgeVariant} 
             className="text-xs px-1 py-0 h-5 absolute top-0 right-0 transform translate-x-1/2 -translate-y-1/2"
           >
-            {isPublicHoliday ? 'F' : 'S'}
+            {getHolidayIcon()}
           </Badge>
         </TooltipTrigger>
-        <TooltipContent side="top" align="center" className="max-w-[200px] text-center z-50">
+        <TooltipContent side="top" align="center" className="max-w-[250px] text-center z-50 px-3 py-2">
           <div className="font-semibold mb-1">
             {isPublicHoliday ? 'Feiertag:' : 'Schulferien:'}
           </div>
-          <p>
+          <div className="font-medium mb-1">
             {holiday.name}
-            {holiday.state && <div className="text-xs mt-1">({holiday.state})</div>}
-          </p>
+          </div>
+          {holiday.description && (
+            <div className="text-xs mb-1">{holiday.description}</div>
+          )}
+          {holiday.state && (
+            <div className="text-xs mt-1 px-2 py-0.5 bg-muted inline-block rounded-full">
+              {holiday.state}
+            </div>
+          )}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -112,9 +136,39 @@ const WeatherForecast: React.FC<WeatherForecastProps> = ({
 
   // Beispielhafte Feiertage (in einer realen Implementierung würden diese von der API abgerufen)
   const holidays = {
-    '2025-04-06': { name: 'Ostern', type: 'PUBLIC_HOLIDAY' },
-    '2025-04-07': { name: 'Ostermontag', type: 'PUBLIC_HOLIDAY' },
-    '2025-04-03': { name: 'Schulferien Sachsen', type: 'SCHOOL_HOLIDAY', state: 'Sachsen' }
+    '2025-04-01': { 
+      name: 'Osterferien', 
+      type: 'SCHOOL_HOLIDAY', 
+      state: 'Sachsen',
+      description: 'Ferien vom 31.03. - 11.04.2025'
+    },
+    '2025-04-02': { 
+      name: 'Osterferien', 
+      type: 'SCHOOL_HOLIDAY', 
+      state: 'Sachsen',
+      description: 'Ferien vom 31.03. - 11.04.2025'
+    },
+    '2025-04-03': { 
+      name: 'Osterferien', 
+      type: 'SCHOOL_HOLIDAY', 
+      state: 'Sachsen',
+      description: 'Ferien vom 31.03. - 11.04.2025' 
+    },
+    '2025-04-04': { 
+      name: 'Karfreitag', 
+      type: 'PUBLIC_HOLIDAY',
+      description: 'Gesetzlicher Feiertag in allen Bundesländern' 
+    },
+    '2025-04-06': { 
+      name: 'Ostersonntag', 
+      type: 'PUBLIC_HOLIDAY',
+      description: 'Gesetzlicher Feiertag in Brandenburg' 
+    },
+    '2025-04-07': { 
+      name: 'Ostermontag', 
+      type: 'PUBLIC_HOLIDAY',
+      description: 'Gesetzlicher Feiertag in allen Bundesländern' 
+    }
   };
 
   if (error) {

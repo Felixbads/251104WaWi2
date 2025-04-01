@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import SyncStatusCard from "@/components/dashboard/SyncStatusCard";
 import MetricCard from "@/components/dashboard/MetricCard";
+import MetricsTimeRangeCard from "@/components/dashboard/MetricsTimeRangeCard";
+import TimeRangeFilter from "@/components/dashboard/TimeRangeFilter";
 import TransactionsTable from "@/components/tables/TransactionsTable";
 import SyncLogTable from "@/components/tables/SyncLogTable";
 import SystemAlerts from "@/components/notifications/SystemAlerts";
@@ -222,18 +224,25 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Metriken mit Zeitraumfilter */}
+      <MetricsTimeRangeCard 
+        transactions={transactions || []} 
+        isLoading={isLoadingTransactions}
+        className="mb-4"
+      />
+        
       {/* Top-Level Metriken */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Gesamtumsatz */}
+        {/* Automaten-Status */}
         <MetricCard
-          title="Gesamtumsatz"
-          value={`${totalRevenue.toFixed(2)} €`}
-          icon={<DollarSign />}
-          iconBgColor="bg-green-100"
-          iconColor="text-green-600"
+          title="Aktive Automaten"
+          value={`${activeMachines} / ${totalMachines}`}
+          icon={<Package />}
+          iconBgColor="bg-violet-100"
+          iconColor="text-violet-600"
         />
 
-        {/* Tagesumsatz */}
+        {/* Tagesumsatz - behalten wir bei */}
         <MetricCard
           title="Tagesumsatz"
           value={`${dailyRevenue.toFixed(2)} €`}
@@ -247,15 +256,6 @@ export default function Dashboard() {
           }}
         />
 
-        {/* Automaten-Status */}
-        <MetricCard
-          title="Aktive Automaten"
-          value={`${activeMachines} / ${totalMachines}`}
-          icon={<Package />}
-          iconBgColor="bg-violet-100"
-          iconColor="text-violet-600"
-        />
-
         {/* Offene Fehler */}
         <MetricCard
           title="Offene Fehler"
@@ -266,6 +266,19 @@ export default function Dashboard() {
           action={{
             label: "Fehler ansehen",
             onClick: handleViewErrorsClick,
+          }}
+        />
+        
+        {/* Offene Bestellungen */}
+        <MetricCard
+          title="Offene Bestellungen"
+          value={openOrders?.length || 0}
+          icon={<Truck />}
+          iconBgColor="bg-amber-100"
+          iconColor="text-amber-600"
+          action={{
+            label: "Bestellungen",
+            onClick: () => setLocation("/bestellungen"),
           }}
         />
       </div>
