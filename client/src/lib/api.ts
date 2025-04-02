@@ -525,6 +525,10 @@ export async function getSyncLogs(limit = 20): Promise<SyncLog[]> {
   return apiRequest<SyncLog[]>('get', `/sync/logs?limit=${limit}`);
 }
 
+export async function getSyncLogsByType(syncType: string, limit = 20): Promise<SyncLog[]> {
+  return apiRequest<SyncLog[]>('get', `/sync/logs?type=${syncType}&limit=${limit}`);
+}
+
 // Events/Ereignisse
 export async function getEvents(limit = 50, offset = 0): Promise<Event[]> {
   return apiRequest<Event[]>('get', `/events?limit=${limit}&offset=${offset}`);

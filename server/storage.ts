@@ -139,7 +139,9 @@ export interface IStorage {
 
   // Sync log operations
   getSyncLogs(limit?: number): Promise<SyncLog[]>;
-  getSyncLog(id: number): Promise<SyncLog | undefined>;
+  getSyncLogsByType(syncType: string, limit?: number): Promise<SyncLog[]>;
+  getSyncLogById(id: number): Promise<SyncLog | undefined>;
+  getSyncLog(id: number): Promise<SyncLog | undefined>; // Legacy method, use getSyncLogById instead
   createSyncLog(log: InsertSyncLog): Promise<SyncLog>;
   updateSyncLog(id: number, log: Partial<InsertSyncLog>): Promise<SyncLog | undefined>;
   getLatestSyncLog(syncType: string): Promise<SyncLog | undefined>;
@@ -1180,10 +1182,24 @@ export class DatabaseStorage implements IStorage {
   async getSyncLogs(limit: number = 100): Promise<SyncLog[]> {
     return await db.select().from(syncLogs).orderBy(desc(syncLogs.createdAt)).limit(limit);
   }
+  
+  async getSyncLogsByType(syncType: string, limit: number = 100): Promise<SyncLog[]> {
+    return await db
+      .select()
+      .from(syncLogs)
+      .where(eq(syncLogs.syncType, syncType))
+      .orderBy(desc(syncLogs.createdAt))
+      .limit(limit);
+  }
 
-  async getSyncLog(id: number): Promise<SyncLog | undefined> {
+  async getSyncLogById(id: number): Promise<SyncLog | undefined> {
     const [log] = await db.select().from(syncLogs).where(eq(syncLogs.id, id));
     return log;
+  }
+
+  async getSyncLog(id: number): Promise<SyncLog | undefined> {
+    // Legacy method, using getSyncLogById internally
+    return this.getSyncLogById(id);
   }
 
   async createSyncLog(log: InsertSyncLog): Promise<SyncLog> {

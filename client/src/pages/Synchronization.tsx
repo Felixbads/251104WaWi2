@@ -19,6 +19,7 @@ import { getSyncStatus, triggerSync, formatDateTime, getDatabaseStats, DatabaseS
          WeatherApiUsage, syncWeatherData, syncHolidays } from "@/lib/api";
 import WeatherSyncTab from "@/components/sync/WeatherSyncTab";
 import HolidaySyncTab from "@/components/sync/HolidaySyncTab";
+import TransactionSyncTab from "@/components/sync/TransactionSyncTab";
 import WeatherApiUsageCard from "@/components/sync/WeatherApiUsage";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -348,8 +349,9 @@ Zeitraum: ${formattedStart} - ${formattedEnd}`;
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="status" className="space-y-4">
-            <TabsList className="grid grid-cols-4">
+            <TabsList className="grid grid-cols-5">
               <TabsTrigger value="status">Status</TabsTrigger>
+              <TabsTrigger value="transactions">Transaktionen</TabsTrigger>
               <TabsTrigger value="config">Konfiguration</TabsTrigger>
               <TabsTrigger value="weather">Wetter</TabsTrigger>
               <TabsTrigger value="holidays">Feiertage</TabsTrigger>
@@ -749,6 +751,11 @@ Zeitraum: ${formattedStart} - ${formattedEnd}`;
             </TabsContent>
 
             {/* Configuration Tab */}
+            {/* Transactions Tab */}
+            <TabsContent value="transactions">
+              <TransactionSyncTab />
+            </TabsContent>
+            
             <TabsContent value="config">
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -254,12 +254,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/sync/logs`, async (req: Request, res: Response) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
-      const logs = await storage.getSyncLogs(limit);
+      const syncType = req.query.type as string;
+      
+      // If syncType is provided, filter logs by type
+      const logs = syncType 
+        ? await storage.getSyncLogsByType(syncType, limit)
+        : await storage.getSyncLogs(limit);
+        
       res.json(logs);
     } catch (error) {
       console.error("Error fetching sync logs:", error);
       res.status(500).json({ 
         error: "Failed to fetch sync logs", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Get specific sync log by ID
+  app.get(`${API_PREFIX}/sync/logs/:id`, async (req: Request, res: Response) => {
+    try {
+      const logId = parseInt(req.params.id);
+      if (isNaN(logId)) {
+        return res.status(400).json({ error: "Invalid log ID" });
+      }
+      
+      const log = await storage.getSyncLogById(logId);
+      if (!log) {
+        return res.status(404).json({ error: "Sync log not found" });
+      }
+      
+      res.json(log);
+    } catch (error) {
+      console.error("Error fetching sync log:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch sync log", 
         details: error instanceof Error ? error.message : String(error) 
       });
     }
