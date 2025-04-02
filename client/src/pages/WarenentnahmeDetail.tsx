@@ -9,6 +9,9 @@ import {
   PackageOpen,
   Trash2,
   X,
+  RefreshCw,
+  Download,
+  FileText
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -26,6 +29,8 @@ import {
   ProductDisposalItem
 } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
+import PageHeader from '@/components/layout/PageHeader';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 export default function WarenentnahmeDetail() {
   const { id } = useParams();
@@ -80,17 +85,46 @@ export default function WarenentnahmeDetail() {
     updateStatusMutation.mutate({ id: disposal.id, status: 'cancelled' });
   };
 
+  // Function to handle refresh
+  const handleRefresh = () => {
+    refetchDisposal();
+  };
+  
+  // Function to export data
+  const handleExport = () => {
+    toast({
+      title: "Info",
+      description: "Export-Funktion wird implementiert."
+    });
+  };
+  
+  // Function to generate report
+  const handleGenerateReport = () => {
+    toast({
+      title: "Info",
+      description: "Bericht-Funktion wird implementiert."
+    });
+  };
+
   // Lade-/Fehlerzustand
   if (isLoadingDisposal) {
     return (
-      <div className="container mx-auto p-4 max-w-5xl">
-        <div className="flex items-center mb-6">
-          <Button variant="ghost" size="sm" className="gap-1" onClick={() => setLocation('/warenentnahme')}>
-            <ArrowLeft className="h-4 w-4" />
-            Zurück
-          </Button>
-          <h1 className="text-xl font-semibold ml-2">Warenentnahme wird geladen...</h1>
+      <div className="container space-y-6">
+        <PageHeader
+          showRefresh={true}
+          additionalButtons={
+            <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => setLocation('/warenentnahme')}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          }
+          onRefresh={handleRefresh}
+        />
+        
+        <div className="mb-4">
+          <Skeleton className="h-8 w-3/4" />
+          <Skeleton className="h-4 w-1/2 mt-2" />
         </div>
+        
         <Card>
           <CardHeader>
             <Skeleton className="h-8 w-3/4" />
@@ -110,14 +144,15 @@ export default function WarenentnahmeDetail() {
 
   if (isErrorDisposal) {
     return (
-      <div className="container mx-auto p-4 max-w-5xl">
-        <div className="flex items-center mb-6">
-          <Button variant="ghost" size="sm" className="gap-1" onClick={() => setLocation('/warenentnahme')}>
-            <ArrowLeft className="h-4 w-4" />
-            Zurück
-          </Button>
-          <h1 className="text-xl font-semibold ml-2">Fehler beim Laden</h1>
-        </div>
+      <div className="container space-y-6">
+        <PageHeader
+          additionalButtons={
+            <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => setLocation('/warenentnahme')}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          }
+        />
+        
         <Card>
           <CardContent className="p-8">
             <div className="text-center">
@@ -138,14 +173,15 @@ export default function WarenentnahmeDetail() {
 
   if (!disposal) {
     return (
-      <div className="container mx-auto p-4 max-w-5xl">
-        <div className="flex items-center mb-6">
-          <Button variant="ghost" size="sm" className="gap-1" onClick={() => setLocation('/warenentnahme')}>
-            <ArrowLeft className="h-4 w-4" />
-            Zurück
-          </Button>
-          <h1 className="text-xl font-semibold ml-2">Warenentnahme nicht gefunden</h1>
-        </div>
+      <div className="container space-y-6">
+        <PageHeader
+          additionalButtons={
+            <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => setLocation('/warenentnahme')}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          }
+        />
+        
         <Card>
           <CardContent className="p-8">
             <div className="text-center">
@@ -182,13 +218,52 @@ export default function WarenentnahmeDetail() {
   const totalQuantity = disposal.items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
-    <div className="container mx-auto p-4 max-w-5xl">
-      <div className="flex items-center mb-6">
-        <Button variant="ghost" size="sm" className="gap-1" onClick={() => setLocation('/warenentnahme')}>
-          <ArrowLeft className="h-4 w-4" />
-          Zurück
-        </Button>
-        <h1 className="text-xl font-semibold ml-2">Warenentnahme Details</h1>
+    <div className="container space-y-6">
+      <PageHeader
+        showRefresh={true}
+        showDownload={true}
+        additionalButtons={
+          <TooltipProvider>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" className="h-9 w-9" onClick={() => setLocation('/warenentnahme')}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" onClick={handleGenerateReport}>
+                <FileText className="h-4 w-4 mr-2" />
+                Bericht
+              </Button>
+              {disposal.status === 'pending' && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={handleCancelDisposal}
+                    disabled={updateStatusMutation.isPending}
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Stornieren
+                  </Button>
+                  <Button 
+                    onClick={handleCompleteDisposal}
+                    disabled={updateStatusMutation.isPending}
+                  >
+                    <Check className="h-4 w-4 mr-2" />
+                    Abschließen
+                  </Button>
+                </>
+              )}
+            </div>
+          </TooltipProvider>
+        }
+        onRefresh={handleRefresh}
+        onDownload={handleExport}
+      />
+      
+      <div>
+        <h1 className="text-2xl font-bold">Warenentnahme #{disposal.id}</h1>
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <span>{getStatusBadge(disposal.status)}</span>
+          <span className="text-sm">vom {formatDateTime(disposal.createdAt)}</span>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

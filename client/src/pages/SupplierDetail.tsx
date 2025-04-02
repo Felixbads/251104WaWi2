@@ -8,11 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   ArrowLeft, Phone, Mail, Globe, MapPin, Building, Truck, 
-  Calendar, Clock, Edit, Package, FileText, BarChart, AlertTriangle
+  Calendar, Clock, Edit, Package, FileText, BarChart, AlertTriangle,
+  RefreshCw, Download
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import PageHeader from "@/components/layout/PageHeader";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 interface Supplier {
   id: number;
@@ -80,15 +83,20 @@ export default function SupplierDetail() {
   
   if (isLoading) {
     return (
-      <div className="container py-6 space-y-8">
-        <div className="flex items-center gap-2 mb-4">
-          <Button variant="outline" size="icon" onClick={handleBack}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-4 w-32 mt-1" />
-          </div>
+      <div className="container space-y-6">
+        <PageHeader
+          showRefresh={true}
+          showDownload={true}
+          additionalButtons={
+            <Button variant="outline" size="icon" className="h-9 w-9" onClick={handleBack}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          }
+        />
+        
+        <div className="mb-6">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-32 mt-1" />
         </div>
         
         <Card>
@@ -109,11 +117,14 @@ export default function SupplierDetail() {
   
   if (error || !supplier) {
     return (
-      <div className="container py-6">
-        <Button variant="outline" className="mb-4" onClick={handleBack}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Zurück
-        </Button>
+      <div className="container space-y-6">
+        <PageHeader
+          additionalButtons={
+            <Button variant="outline" size="icon" className="h-9 w-9" onClick={handleBack}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          }
+        />
         
         <Card className="border-red-200 bg-red-50">
           <CardHeader>
@@ -152,32 +163,52 @@ export default function SupplierDetail() {
     }
   };
   
+  // Refreshing function für die Daten
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
+  // Export function 
+  const handleExport = () => {
+    toast({
+      title: "Info",
+      description: "Export-Funktion wird implementiert."
+    });
+  };
+
   return (
-    <div className="container py-6 space-y-8">
-      {/* Header mit Zurück-Button und Titel */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={handleBack}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold">{supplier.name}</h1>
-            <p className="text-muted-foreground">
-              Lieferantendetails {getStatusBadge(supplier.status)}
-            </p>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-2 mt-2 sm:mt-0">
-          <Button variant="outline" onClick={handleEdit}>
-            <Edit className="h-4 w-4 mr-2" />
-            Bearbeiten
-          </Button>
-          <Button onClick={handleCreateOrder}>
-            <FileText className="h-4 w-4 mr-2" />
-            Neue Bestellung
-          </Button>
-        </div>
+    <div className="container space-y-6">
+      {/* Standardisierter PageHeader */}
+      <PageHeader
+        showRefresh={true}
+        showDownload={true}
+        additionalButtons={
+          <TooltipProvider>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="icon" className="h-9 w-9" onClick={handleBack}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" onClick={handleEdit}>
+                <Edit className="h-4 w-4 mr-2" />
+                Bearbeiten
+              </Button>
+              <Button onClick={handleCreateOrder}>
+                <FileText className="h-4 w-4 mr-2" />
+                Neue Bestellung
+              </Button>
+            </div>
+          </TooltipProvider>
+        }
+        onRefresh={handleRefresh}
+        onDownload={handleExport}
+      />
+      
+      {/* Lieferanten Header */}
+      <div>
+        <h1 className="text-2xl font-bold">{supplier.name}</h1>
+        <p className="text-muted-foreground">
+          Lieferantendetails {getStatusBadge(supplier.status)}
+        </p>
       </div>
       
       <Tabs defaultValue="info">

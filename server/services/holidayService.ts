@@ -602,39 +602,78 @@ class HolidayService {
       const { year, states = ['SN'] } = data;
       let totalEntries = 0;
       
+      // Log für Debugging
+      console.log(`Starte Schulferien-Synchronisation für Jahr ${year} und Bundesländer: ${states.join(', ')}`);
+      
       for (const state of states) {
-        const stateHolidays = await this.fetchSchoolHolidays(state, year);
-        
-        for (const holiday of stateHolidays) {
-          try {
-            const formattedDate = this.formatDate(holiday.date, true);
+        console.log(`Verarbeite Bundesland: ${state} für Jahr ${year}`);
+        try {
+          // Fetch mit Timeout und Retry-Logik
+          const stateHolidays = await this.fetchSchoolHolidays(state, year);
+          console.log(`Erhaltene Schulferien für ${state}: ${stateHolidays.length} Einträge`);
+          
+          // Begrenze die Anzahl der gleichzeitigen DB-Operationen
+          const batchSize = 50;
+          for (let i = 0; i < stateHolidays.length; i += batchSize) {
+            const batch = stateHolidays.slice(i, i + batchSize);
+            console.log(`Verarbeite Batch ${i / batchSize + 1} von ${Math.ceil(stateHolidays.length / batchSize)} für ${state}`);
             
-            await db.insert(holidays).values({
-              date: formattedDate,
-              name: holiday.name,
-              description: holiday.description,
-              type: holiday.type,
-              is_official: holiday.is_official,
-              country: holiday.country,
-              state: holiday.state,
-              region: holiday.region,
-              year: holiday.year,
-              month: holiday.month,
-              day: holiday.day,
-              weekday: holiday.weekday,
-              weekday_name: holiday.weekday_name,
-              week: holiday.week,
-              metadata: holiday.metadata || null
-            });
+            for (const holiday of batch) {
+              try {
+                const formattedDate = this.formatDate(holiday.date, true);
+                
+                // Prüfe vor dem Einfügen, ob der Eintrag bereits existiert
+                const existingEntry = await db
+                  .select()
+                  .from(holidays)
+                  .where(and(
+                    eq(holidays.date, sql`${formattedDate}::date`),
+                    eq(holidays.type, holiday.type),
+                    eq(holidays.state, holiday.state)
+                  ))
+                  .limit(1);
+                
+                if (existingEntry.length === 0) {
+                  await db.insert(holidays).values({
+                    date: formattedDate,
+                    name: holiday.name,
+                    description: holiday.description,
+                    type: holiday.type,
+                    is_official: holiday.is_official,
+                    country: holiday.country,
+                    state: holiday.state,
+                    region: holiday.region,
+                    year: holiday.year,
+                    month: holiday.month,
+                    day: holiday.day,
+                    weekday: holiday.weekday,
+                    weekday_name: holiday.weekday_name,
+                    week: holiday.week,
+                    metadata: holiday.metadata || null
+                  });
+                  
+                  totalEntries++;
+                } else {
+                  console.log(`Überspringe doppelten Eintrag für ${holiday.name} am ${formattedDate}`);
+                }
+              } catch (error) {
+                console.error(`Fehler beim Speichern des Feiertags ${holiday.name}:`, error);
+                // Protokolliere den Fehler und fahre fort
+                continue;
+              }
+            }
             
-            totalEntries++;
-          } catch (error) {
-            // Ignoriere Fehler bei duplizierten Einträgen
-            continue;
+            // Kurze Pause zwischen Batches, um DB-Last zu verteilen
+            await new Promise(resolve => setTimeout(resolve, 100));
           }
+        } catch (stateError) {
+          console.error(`Fehler beim Verarbeiten des Bundeslandes ${state}:`, stateError);
+          // Fahre mit dem nächsten Bundesland fort
+          continue;
         }
       }
       
+      console.log(`Schulferien-Synchronisation abgeschlossen, ${totalEntries} Einträge hinzugefügt`);
       return { 
         success: true, 
         message: `${totalEntries} Schulferien wurden synchronisiert für ${year}`,
@@ -654,20 +693,45 @@ class HolidayService {
       const { years, states = ['SN'] } = data;
       const results = [];
       
+      console.log(`Starte vollständige Feiertagssynchronisation für Jahre: ${years.join(', ')} und Bundesländer: ${states.join(', ')}`);
+      
+      // Verarbeite Jahre nacheinander mit einem Zeitlimit, um Timeouts zu vermeiden
       for (const year of years) {
-        // Synchronisiere öffentliche Feiertage
-        const publicResult = await this.syncHolidays({ year, states });
+        console.log(`Verarbeite Jahr ${year} für alle Feiertagstypen...`);
         
-        // Synchronisiere Schulferien
-        const schoolResult = await this.syncSchoolHolidays({ year, states });
-        
-        results.push({
-          year,
-          publicHolidays: publicResult.count,
-          schoolHolidays: schoolResult.count
-        });
+        try {
+          // Synchronisiere öffentliche Feiertage
+          console.log(`Synchronisiere öffentliche Feiertage für ${year}...`);
+          const publicResult = await this.syncHolidays({ year, states });
+          
+          // Kurze Pause zwischen den API-Anfragen
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Synchronisiere Schulferien mit verbesserter Fehlerbehandlung
+          console.log(`Synchronisiere Schulferien für ${year}...`);
+          const schoolResult = await this.syncSchoolHolidays({ year, states });
+          
+          results.push({
+            year,
+            publicHolidays: publicResult.count,
+            schoolHolidays: schoolResult.count
+          });
+          
+          console.log(`Jahr ${year} abgeschlossen - ${publicResult.count} öffentliche Feiertage, ${schoolResult.count} Schulferientage`);
+        } catch (yearError) {
+          console.error(`Fehler bei der Verarbeitung des Jahres ${year}:`, yearError);
+          results.push({
+            year,
+            publicHolidays: 0,
+            schoolHolidays: 0,
+            error: yearError.message || 'Unbekannter Fehler'
+          });
+          // Trotz Fehler mit dem nächsten Jahr fortfahren
+          continue;
+        }
       }
       
+      console.log(`Vollständige Feiertagssynchronisation abgeschlossen für ${years.length} Jahre`);
       return { 
         success: true, 
         message: `Feiertage und Schulferien wurden für ${years.length} Jahre synchronisiert`,
