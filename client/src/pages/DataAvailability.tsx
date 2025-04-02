@@ -293,20 +293,20 @@ function DataTimelineChart() {
   
   const CustomTimelineBar = ({ x, y, width, height, payload, index }: CustomTimelineBarProps) => {
     const dataPoint = payload;
-    const barHeight = 20;
+    const barHeight = 15;
 
-    // Konstanten für die Positionierung
-    const firstBarY = 10;    // Erste Balkenreihe
-    const secondBarY = 40;   // Zweite Balkenreihe
-    const thirdBarY = 70;    // Dritte Balkenreihe
-    const timelineY = 120;   // Zeitachse
+    // Konstanten für die Positionierung - mit mehr Abstand zwischen den Balken
+    const firstBarY = 20;    // Erste Balkenreihe - Transaktionen
+    const secondBarY = 45;   // Zweite Balkenreihe - Wetterdaten
+    const thirdBarY = 70;    // Dritte Balkenreihe - Feiertage
+    const timelineY = 100;   // Zeitachse (unter den Datenelementen)
     
     // Fester Abstand zwischen Balken für bessere Lesbarkeit
-    const barSpacing = 5;
+    const barSpacing = 2;
     
     return (
       <g>
-        {/* Hintergrund-Linie für die Zeitachse (ganz unten) */}
+        {/* Zeitachse als Hintergrundlinie (ganz unten) */}
         {index === 0 && (
           <line 
             x1={0} 
@@ -326,7 +326,7 @@ function DataTimelineChart() {
           height={barHeight} 
           fill={dataPoint.hasTransactionData ? "#3b82f6" : "transparent"} 
           stroke={dataPoint.hasTransactionData ? "none" : "#ef4444"}
-          strokeWidth={1}
+          strokeWidth={dataPoint.hasTransactionData ? 0 : 1}
           rx={1}
           ry={1}
         />
@@ -339,7 +339,7 @@ function DataTimelineChart() {
           height={barHeight} 
           fill={dataPoint.hasWeatherData ? "#22c55e" : "transparent"} 
           stroke={dataPoint.hasWeatherData ? "none" : "#ef4444"}
-          strokeWidth={1}
+          strokeWidth={dataPoint.hasWeatherData ? 0 : 1}
           rx={1}
           ry={1}
         />
@@ -352,7 +352,7 @@ function DataTimelineChart() {
           height={barHeight} 
           fill={dataPoint.hasHolidayData ? "#f59e0b" : "transparent"} 
           stroke={dataPoint.hasHolidayData ? "none" : "#ef4444"}
-          strokeWidth={1}
+          strokeWidth={dataPoint.hasHolidayData ? 0 : 1}
           rx={1}
           ry={1}
         />
@@ -449,8 +449,8 @@ function DataTimelineChart() {
               tickLine={false}
               width={120}
             >
-              <Label value="Transaktionen" position="insideLeft" offset={10} style={{ textAnchor: 'middle', fontSize: 12 }} />
-              <Label value="Wetterdaten" position="insideLeft" offset={40} style={{ textAnchor: 'middle', fontSize: 12 }} />
+              <Label value="Transaktionen" position="insideLeft" offset={20} style={{ textAnchor: 'middle', fontSize: 12 }} />
+              <Label value="Wetterdaten" position="insideLeft" offset={45} style={{ textAnchor: 'middle', fontSize: 12 }} />
               <Label value="Feiertage" position="insideLeft" offset={70} style={{ textAnchor: 'middle', fontSize: 12 }} />
             </YAxis>
             <Tooltip content={<CustomTimelineTooltip />} />

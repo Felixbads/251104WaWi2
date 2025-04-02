@@ -47,7 +47,7 @@ export default function Login() {
         console.log("Weiterleitung nach Login zu:", redirectPath);
         setLocation(redirectPath);
       } else {
-        setLocation('/');
+        setLocation('/dashboard');
       }
     }
   }, [isAuthenticated, setLocation]);
