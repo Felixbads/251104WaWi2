@@ -111,6 +111,13 @@ export default function TransactionSyncTab() {
   useEffect(() => {
     if (activeLog) {
       console.log("Aktives Log Update erhalten:", activeLog);
+      console.log("Fortschritt:", {
+        gefunden: activeLog.itemsFound || 0,
+        gespeichert: activeLog.itemsSaved || 0, 
+        doppelte: activeLog.duplicates || 0,
+        fehler: activeLog.errors || 0,
+        status: activeLog.syncStatus
+      });
       
       // Berechne Laufzeit manuell, wenn der Server die Daten nicht aktualisiert
       const currentStartTime = activeLog.startDate ? new Date(activeLog.startDate) : syncProgress.startTime || new Date();
@@ -151,7 +158,7 @@ export default function TransactionSyncTab() {
         if (activeLog.syncStatus === 'completed') {
           toast({
             title: "Synchronisierung abgeschlossen",
-            description: `${activeLog.itemsSaved || 0} Transaktionen gespeichert, ${activeLog.duplicates || 0} Duplikate übersprungen.`,
+            description: `${activeLog.itemsSaved || 0} Transaktionen gespeichert von insgesamt ${activeLog.itemsFound || 0} gefundenen. ${activeLog.duplicates || 0} Duplikate übersprungen.`,
             variant: "default"
           });
           
@@ -202,14 +209,28 @@ export default function TransactionSyncTab() {
         // Vollständige Antwort zur Diagnose ausgeben
         console.log(`Vollständige Antwort vom Server:`, JSON.stringify(response, null, 2));
         
-        // Mit status 'success' fortfahren, auch wenn syncLogId fehlt
+        // Mit status 'success' fortfahren
         if (response) {
           // Wenn eine syncLogId vorhanden ist, aktiviere das Polling
           if (response.syncLogId) {
             setActiveSyncLogId(response.syncLogId);
+            
+            // Beim Polling aufs neue Datumsformat achten - jetzt haben wir die geschätzte Gesamtzahl
+            toast({
+              title: "Synchronisierung gestartet",
+              description: `Starte Synchronisierung von etwa ${response.preview?.estimatedTotal || response.stats?.itemsFound || 0} Transaktionen im Hintergrund.`,
+              variant: "default"
+            });
+            
           } else {
             console.warn("Keine syncLogId in der Antwort gefunden. Polling wird übersprungen.");
             // Setzen wir trotzdem einen Timeout, um die UI nach 3 Sekunden zu aktualisieren
+            toast({
+              title: "Synchronisierung gestartet",
+              description: `Die Synchronisierung läuft im Hintergrund. Status ist in der Synchronisierungshistorie sichtbar.`,
+              variant: "default"
+            });
+            
             setTimeout(() => {
               queryClient.invalidateQueries({ queryKey: ['/api/sync/logs', 'transactions'] });
               queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
@@ -217,8 +238,11 @@ export default function TransactionSyncTab() {
           }
           
           // Sofortige UI-Aktualisierung mit den anfänglichen Daten
+          // Nutze die geschätzte Gesamtzahl, falls vorhanden
+          const estimatedTotal = response.preview?.estimatedTotal || response.stats?.itemsFound || 0;
+          
           setSyncProgress({
-            total: response.stats?.itemsFound || 0,
+            total: estimatedTotal,
             processed: response.stats?.itemsSaved || 0,
             duplicates: response.stats?.duplicates || 0,
             errors: response.stats?.errors || 0,

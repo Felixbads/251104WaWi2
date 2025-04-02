@@ -33,39 +33,114 @@ router.post('/sync', async (req, res) => {
       try {
         // Vorschaudaten für Frontend-Anzeige abrufen
         console.log(`Rufe Transaktionsvorschau von Vendon API ab...`);
+        
+        // Zuerst den gesamten Datenbestand abschätzen, indem wir mit Limit 1 anfragen
+        // und die Paginierungsinformationen extrahieren
+        const testResponse = await api.getTransactions(fromTimestamp, toTimestamp, undefined, 0, 1);
+        let totalEstimate = 0;
+        
+        // Extrahiere die Gesamtzahl aus der Paginierungsinformation
+        if (testResponse && testResponse.paging && testResponse.paging.total) {
+          totalEstimate = parseInt(testResponse.paging.total);
+        } else if (Array.isArray(testResponse.result) && testResponse.result.length > 0) {
+          // Wenn keine Paginierungsinformation, mindestens 100 schätzen
+          totalEstimate = 100;
+        }
+        
+        console.log(`Geschätzte Gesamtzahl an Transaktionen im gewählten Zeitraum: ${totalEstimate}`);
+        
+        // Nur ein Beispiel für die Frontend-Vorschau laden
         apiResponse = await api.getTransactions(fromTimestamp, toTimestamp, undefined, 0, parseInt(batchSize) || 100);
         const transactionsData = apiResponse?.data || apiResponse?.result || [];
         const count = Array.isArray(transactionsData) ? transactionsData.length : 0;
-        console.log(`${count} Transaktionen für Vorschau gefunden`);
+        console.log(`${count} Beispiel-Transaktionen für Vorschau geladen`);
         
         // Im Hintergrund die eigentliche Synchronisierung starten (non-blocking)
         // Diese läuft unabhängig vom Antwortzyklus dieser API-Anfrage
-        console.log(`Starte Hintergrundsynchronisierung...`);
-        const maxTransactions = parseInt(req.body.maxTransactions || "1000");
+        console.log(`Starte Hintergrundsynchronisierung für ca. ${totalEstimate} Transaktionen...`);
+        const maxTransactions = parseInt(req.body.maxTransactions || "10000");
+        
+        // Erstelle einen Sync-Log-Eintrag für das Tracking
+        const syncLogData = {
+          syncType: 'transactions',
+          startDate: startDateObj,
+          endDate: endDateObj,
+          syncStatus: 'running',
+          itemsFound: totalEstimate, // Geschätzte Anzahl
+          notes: `Hintergrundsynchronisierung für Zeitraum ${startDateObj.toISOString()} bis ${endDateObj.toISOString()}`
+        };
+        
+        // Erzeuge den Log-Eintrag und halte die ID fest
+        let syncLogId = null;
+        try {
+          const logEntry = await storage.createSyncLog(syncLogData);
+          if (logEntry && logEntry.id) {
+            syncLogId = logEntry.id;
+            console.log(`Sync-Log-Eintrag erstellt mit ID: ${syncLogId}`);
+          }
+        } catch (logError) {
+          console.error(`Fehler beim Erstellen des Sync-Log-Eintrags: ${logError}`);
+        }
+        
+        // Starte die tatsächliche Synchronisierung im Hintergrund
         setTimeout(async () => {
           try {
-            await vendonSync.syncTransactions(
+            const result = await vendonSync.syncTransactions(
               startDateObj, 
               endDateObj, 
               parseInt(batchSize) || 100,
               maxTransactions
             );
-            console.log(`Hintergrundsynchronisierung für Transaktionen abgeschlossen.`);
+            console.log(`Hintergrundsynchronisierung für Transaktionen abgeschlossen. Ergebnis:`, result);
+            
+            // Log-Eintrag aktualisieren, wenn vorhanden
+            if (syncLogId) {
+              try {
+                await storage.updateSyncLog(syncLogId, {
+                  syncStatus: 'completed',
+                  endDate: new Date(),
+                  // Übernehme die tatsächlichen Werte aus dem Ergebnis
+                  itemsSaved: result.itemsSaved || result.transactions_saved || 0,
+                  itemsUpdated: result.itemsUpdated || result.transactions_updated || 0,
+                  duplicates: result.duplicates || 0,
+                  errors: result.errors || 0
+                });
+                console.log(`Sync-Log ${syncLogId} mit Erfolg aktualisiert`);
+              } catch (updateError) {
+                console.error(`Fehler beim Aktualisieren des Sync-Logs: ${updateError}`);
+              }
+            }
           } catch (error) {
             console.error(`Fehler bei der Hintergrundsynchronisierung: ${error}`);
+            
+            // Bei Fehler auch den Log-Eintrag aktualisieren
+            if (syncLogId) {
+              try {
+                await storage.updateSyncLog(syncLogId, {
+                  syncStatus: 'error',
+                  endDate: new Date(),
+                  errorMessage: error instanceof Error ? error.message : String(error)
+                });
+                console.log(`Sync-Log ${syncLogId} mit Fehler aktualisiert`);
+              } catch (updateError) {
+                console.error(`Fehler beim Aktualisieren des Sync-Logs: ${updateError}`);
+              }
+            }
           }
         }, 100);
         
-        // Sofort mit der Vorschau antworten
+        // Sofort mit der geschätzten Gesamtzahl antworten und syncLogId hinzufügen
         return res.json({
           status: 'success',
           message: 'Synchronisierung im Hintergrund gestartet',
+          syncLogId: syncLogId, // Wichtig für Polling
           preview: {
-            count,
+            count: count, // Beispiel-Transaktionen
+            estimatedTotal: totalEstimate, // Geschätzte Gesamtzahl
             timeRange: `${startDateObj.toISOString()} bis ${endDateObj.toISOString()}`
           },
           stats: {
-            itemsFound: count,
+            itemsFound: totalEstimate, // Geschätzte Gesamtzahl
             itemsSaved: 0, // Wird im Hintergrund verarbeitet
             itemsUpdated: 0,
             duplicates: 0,
