@@ -80,37 +80,45 @@ export default function TransactionSyncTab() {
           startDate,
           endDate,
           batchSize: parseInt(batchSize),
-          maxDays: parseInt(maxTransactions) / parseInt(batchSize)
+          maxTransactions: parseInt(maxTransactions) // Direkt übergeben, statt maxDays zu berechnen
         };
         
+        console.log('Sending sync request with options:', options);
+        
+        // Direkten API-Aufruf zum Backend mit vollständigen Optionen
         const response = await startSync('transactions', options);
         
-        console.log('Sync response:', response);
+        console.log('Sync response received:', response);
         
-        // Setze Status direkt aus der Antwort
+        // Bei erfolgreicher Antwort
         if (response) {
-          // Aktualisiere den Status mit der tatsächlichen Antwort vom Server
+          // API-Antwort auswerten und Status aktualisieren
+          const itemsFound = response.syncLog?.itemsFound || response.stats?.itemsFound || 0;
+          const itemsSaved = response.syncLog?.itemsSaved || response.stats?.itemsSaved || 0;
+          const duplicates = response.syncLog?.duplicates || response.stats?.duplicates || 0;
+          const errors = response.syncLog?.errors || response.stats?.errors || 0;
+          
+          console.log('Processing stats:', { itemsFound, itemsSaved, duplicates, errors });
+          
+          // Update Fortschritt mit den tatsächlichen Werten
           setSyncProgress(prev => ({
             ...prev,
             status: 'success',
             endTime: new Date(),
-            // Verwende direkt die Daten aus dem syncLog oder den stats
-            total: response.syncLog?.itemsFound || response.stats?.itemsFound || 0,
-            processed: response.syncLog?.itemsSaved || response.stats?.itemsSaved || 0,
-            duplicates: response.syncLog?.duplicates || response.stats?.duplicates || 0,
-            errors: response.syncLog?.errors || response.stats?.errors || 0
+            total: itemsFound,
+            processed: itemsSaved,
+            duplicates: duplicates,
+            errors: errors
           }));
 
-          // Sofort aktualisiere die Liste der Synchronisationslogs
+          // Aktualisiere die Abfragen für die UI
           queryClient.invalidateQueries({ queryKey: ['/api/sync/logs', 'transactions'] });
-          
-          // Aktualisiere den Sync-Status
           queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
           
           return response;
         }
         
-        // Wenn keine Antwort vom Server, setze Status auf Fehler
+        // Wenn leere Antwort (sollte nicht vorkommen, aber als Fallback)
         setSyncProgress(prev => ({
           ...prev,
           status: 'error',
@@ -119,17 +127,20 @@ export default function TransactionSyncTab() {
         
         toast({
           title: "Synchronisationsfehler",
-          description: "Es wurde keine Antwort vom Server erhalten.",
+          description: "Es wurde keine gültige Antwort vom Server erhalten.",
           variant: "destructive"
         });
         
         return null;
       } catch (error) {
+        console.error('Error during sync:', error);
+        
         setSyncProgress(prev => ({
           ...prev,
           status: 'error',
           endTime: new Date()
         }));
+        
         throw error;
       }
     },
@@ -137,19 +148,24 @@ export default function TransactionSyncTab() {
       queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
       queryClient.invalidateQueries({ queryKey: ['/api/sync/logs', 'transactions'] });
       
-      // Überprüfe ob Transaktionen gefunden wurden
-      if (response?.syncLog?.itemsFound > 0 || response?.stats?.itemsFound > 0) {
-        toast({
-          title: "Transaktions-Synchronisierung abgeschlossen",
-          description: `${response?.syncLog?.itemsFound || response?.stats?.itemsFound || 0} Transaktionen gefunden, ${response?.syncLog?.itemsSaved || response?.stats?.itemsSaved || 0} gespeichert.`,
-          variant: "success",
-        });
-      } else {
-        toast({
-          title: "Transaktions-Synchronisierung abgeschlossen",
-          description: "Keine neuen Transaktionen gefunden für den ausgewählten Zeitraum.",
-          variant: "default",
-        });
+      // Erfolgreiche Synchronisierung
+      if (response) {
+        const itemsFound = response.syncLog?.itemsFound || response.stats?.itemsFound || 0;
+        const itemsSaved = response.syncLog?.itemsSaved || response.stats?.itemsSaved || 0;
+        
+        if (itemsFound > 0) {
+          toast({
+            title: "Transaktions-Synchronisierung abgeschlossen",
+            description: `${itemsFound} Transaktionen gefunden, ${itemsSaved} neu gespeichert.`,
+            variant: "success",
+          });
+        } else {
+          toast({
+            title: "Transaktions-Synchronisierung abgeschlossen",
+            description: "Keine neuen Transaktionen im ausgewählten Zeitraum gefunden oder alle bereits synchronisiert.",
+            variant: "default",
+          });
+        }
       }
     },
     onError: (error) => {

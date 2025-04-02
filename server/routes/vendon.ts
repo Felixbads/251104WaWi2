@@ -34,7 +34,12 @@ router.post('/sync', async (req, res) => {
           apiResponse = await api.getTransactions(fromTimestamp, toTimestamp, undefined, 0, batchSize);
           
           // Bei der eigentlichen Synchronisierung die API-Antwort mitgeben
-          result = await vendonSync.syncTransactions(startDateObj, endDateObj, batchSize, apiResponse);
+          // Übergebe die API-Antwort an die syncTransactions Funktion als preloadedData
+          // maxTransactions als separater Parameter übergeben
+          const maxTransactions = parseInt(req.body.maxTransactions || "1000");
+          console.log("Verwende maxTransactions:", maxTransactions);
+          
+          result = await vendonSync.syncTransactions(startDateObj, endDateObj, batchSize, maxTransactions, apiResponse);
         } catch (apiError) {
           console.error("Fehler beim Abrufen der API-Antwort:", apiError);
           // Die Synchronisierung trotzdem durchführen, auch wenn die API-Antwort nicht erfasst werden konnte

@@ -1033,7 +1033,8 @@ export class VendonSyncService {
     startDate?: Date,
     endDate?: Date,
     batchSize: number = 100,
-    maxTransactions: number = 1000
+    maxTransactions: number = 1000,
+    preloadedData?: any // Optional vorgeladene API-Antwort
   ): Promise<{ syncLogId: number; status: string; message: string }> {
     // Standardwerte für Start- und Enddatum, wenn nicht angegeben
     const effectiveStartDate = startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 Tage zurück
@@ -1063,8 +1064,108 @@ export class VendonSyncService {
       let duplicates = 0;
       let errors = 0;
       
+      // Wenn vorgeladene Daten existieren, diese zuerst verarbeiten
+      let transactions = [];
+      if (preloadedData && preloadedData.result && Array.isArray(preloadedData.result)) {
+        console.log(`Verarbeite ${preloadedData.result.length} vorgeladene Transaktionen`);
+        transactions = preloadedData.result;
+        totalItems += transactions.length;
+        
+        // Gleich die erste Seite verarbeiten
+        for (const transaction of transactions) {
+          try {
+            // Prüfe, ob die Transaktion eine ID hat (entweder id oder transaction_id)
+            const transactionId = transaction.id || transaction.transaction_id;
+            if (!transactionId) {
+              console.error("Transaktion ohne ID übersprungen:", transaction);
+              errors++;
+              continue;
+            }
+            
+            // Konvertiere transaction_id zu vendonId als String
+            const vendonId = transactionId.toString();
+            
+            // Prüfe, ob die Transaktion bereits existiert
+            const existingTransaction = await storage.getTransactionByVendonId(vendonId);
+            
+            if (existingTransaction) {
+              // Überspringe Duplikate
+              duplicates++;
+              continue;
+            }
+            
+            // Prüfe, ob die Maschine existiert
+            let machineId: number;
+            if (transaction.machine_id) {
+              const machineVendonId = transaction.machine_id.toString();
+              let machineData = await storage.getMachineByVendonId(machineVendonId);
+              
+              if (!machineData) {
+                // Erstelle einen minimalen Maschinendatensatz, wenn er nicht existiert
+                const newMachine: InsertMachine = {
+                  vendonId: machineVendonId,
+                  machineName: transaction.machine_name || `Maschine ${machineVendonId}`,
+                  lastSync: new Date()
+                };
+                machineData = await storage.createMachine(newMachine);
+              }
+              
+              machineId = machineData.id;
+            } else {
+              console.warn(`Transaktion ${transactionId} hat keine Maschinen-ID. Verwende Standardwert.`);
+              machineId = 1; // Standardwert, wenn keine Maschinen-ID vorhanden ist
+            }
+            
+            // Hole oder erstelle das Produkt
+            let productName = transaction.name || "Unbekanntes Produkt";
+            
+            // Erstelle das vereinfachte Transaktionsobjekt mit nur den nötigsten Feldern
+            const newTransaction: InsertTransaction = {
+              vendonId: vendonId,
+              machineId: machineId,
+              machineName: transaction.machine_name || "Unbekannte Maschine",
+              datetime: new Date(transaction.datetime * 1000), // Unix-Timestamp in JS Date konvertieren
+              price: transaction.price || 0,
+              quantity: transaction.quantity || 1,
+              productName: productName,
+              paymentMethod: transaction.payment_method || "UNKNOWN",
+              // Setze zusätzliche Felder, die vorhanden sein könnten
+              stockId: transaction.stock_id ? transaction.stock_id.toString() : null,
+              status: "completed",
+              currency: transaction.currency || "EUR",
+              source: transaction.source || "vendon",
+              // Speichere die Rohdaten für spätere Verarbeitung
+              extraData: JSON.stringify(transaction)
+            };
+            
+            // Speichere neue Transaktion
+            await storage.createTransaction(newTransaction);
+            itemsSaved++;
+            
+          } catch (transactionError) {
+            console.error(`Fehler bei der Verarbeitung von vorgeladener Transaktion:`, transactionError);
+            errors++;
+          }
+        }
+        
+        // Aktualisiere den Log nach der Verarbeitung der vorgeladenen Daten
+        await storage.updateSyncLog(syncLogId, {
+          itemsFound: totalItems,
+          itemsSaved,
+          itemsUpdated,
+          duplicates,
+          errors
+        });
+      }
+      
       // Solange es weitere Transaktionen gibt und wir das Maximum nicht erreicht haben
       while (hasMoreTransactions && totalItems < maxTransactions) {
+        // Überspringe die erste API-Anfrage, wenn bereits vorgeladene Daten verarbeitet wurden
+        if (page === 1 && transactions.length > 0) {
+          page++;
+          continue;
+        }
+        
         console.log(`Hole Transaktionen, Seite ${page} mit Batchgröße ${batchSize}`);
         
         // Berechne den verbleibenden Limit für diese Anfrage
@@ -1079,7 +1180,7 @@ export class VendonSyncService {
           remainingLimit // Limit
         );
         
-        const transactions = result.data;
+        transactions = result.data;
         
         if (!transactions || transactions.length === 0) {
           // Keine weiteren Transaktionen
