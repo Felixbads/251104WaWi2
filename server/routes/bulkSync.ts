@@ -1,4 +1,6 @@
 import express from 'express';
+import fs from 'node:fs';
+import path from 'node:path';
 import { BulkTransactionExporter } from '../services/bulkTransactionExport';
 import { storage } from '../storage';
 import { vendonSync } from '../services/vendonSync';
@@ -72,8 +74,6 @@ router.post('/export', async (req, res) => {
 router.get('/export/status', (req, res) => {
   try {
     // Überprüfe, ob das Export-Verzeichnis existiert und welche Dateien darin sind
-    const fs = require('fs');
-    const path = require('path');
     const exportDir = path.join(process.cwd(), 'exports');
     
     if (!fs.existsSync(exportDir)) {
@@ -128,7 +128,6 @@ router.post('/import', async (req, res) => {
     }
     
     // Prüfe, ob die Datei existiert
-    const fs = require('fs');
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ 
         status: 'error', 
