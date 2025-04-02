@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Tab, Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -8,11 +8,6 @@ import { Server, BarChart4, Clock, Database, RefreshCcw, Download } from 'lucide
 import axios from 'axios';
 
 import TransactionSyncTab from '@/components/sync/TransactionSyncTab';
-import MachinesSyncTab from '@/components/sync/MachinesSyncTab';
-import ProductsSyncTab from '@/components/sync/ProductsSyncTab';
-import RefillsSyncTab from '@/components/sync/RefillsSyncTab';
-import SyncSettings from '@/components/sync/SyncSettings';
-import SyncLogs from '@/components/sync/SyncLogs';
 import BulkSyncTab from '@/components/sync/BulkSyncTab';
 
 export default function SyncPage() {
@@ -189,13 +184,9 @@ export default function SyncPage() {
 
       {/* Tabs für die verschiedenen Synchronisationen */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-2 md:grid-cols-6 mb-4">
+        <TabsList className="grid grid-cols-2 mb-4">
           <TabsTrigger value="transactions">Transaktionen</TabsTrigger>
           <TabsTrigger value="bulk">Bulk-Sync</TabsTrigger>
-          <TabsTrigger value="machines">Automaten</TabsTrigger>
-          <TabsTrigger value="products">Produkte</TabsTrigger>
-          <TabsTrigger value="refills">Auffüllungen</TabsTrigger>
-          <TabsTrigger value="logs">Logs</TabsTrigger>
         </TabsList>
 
         <TabsContent value="transactions" className="space-y-4">
@@ -204,22 +195,6 @@ export default function SyncPage() {
 
         <TabsContent value="bulk" className="space-y-4">
           <BulkSyncTab />
-        </TabsContent>
-
-        <TabsContent value="machines" className="space-y-4">
-          <MachinesSyncTab />
-        </TabsContent>
-
-        <TabsContent value="products" className="space-y-4">
-          <ProductsSyncTab />
-        </TabsContent>
-
-        <TabsContent value="refills" className="space-y-4">
-          <RefillsSyncTab />
-        </TabsContent>
-
-        <TabsContent value="logs" className="space-y-4">
-          <SyncLogs />
         </TabsContent>
       </Tabs>
     </div>

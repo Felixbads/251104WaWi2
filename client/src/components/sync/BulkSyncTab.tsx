@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { DatePickerWithRange } from '@/components/ui/date-range-picker';
+// import { DatePickerWithRange } from '@/components/ui/date-range-picker';
 import { Switch } from '@/components/ui/switch';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
@@ -163,10 +163,32 @@ const BulkSyncTab: React.FC<BulkSyncProps> = () => {
             <div className="grid gap-4">
               <div>
                 <Label htmlFor="date-range">Zeitraum</Label>
-                <DatePickerWithRange 
-                  value={dateRange} 
-                  onChange={setDateRange}
-                />
+                <div className="flex space-x-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="start-date">Von</Label>
+                    <Input
+                      id="start-date"
+                      type="date"
+                      value={dateRange.from.toISOString().split('T')[0]}
+                      onChange={(e) => setDateRange({
+                        ...dateRange,
+                        from: new Date(e.target.value)
+                      })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="end-date">Bis</Label>
+                    <Input
+                      id="end-date"
+                      type="date"
+                      value={dateRange.to.toISOString().split('T')[0]}
+                      onChange={(e) => setDateRange({
+                        ...dateRange,
+                        to: new Date(e.target.value)
+                      })}
+                    />
+                  </div>
+                </div>
               </div>
               
               <div>
@@ -216,7 +238,7 @@ const BulkSyncTab: React.FC<BulkSyncProps> = () => {
             )}
             
             {exportMutation.isSuccess && (
-              <Alert variant="success" className="bg-green-50 border-green-200 text-green-800">
+              <Alert variant="default" className="bg-green-50 border-green-200 text-green-800">
                 <CheckCircle className="h-4 w-4 text-green-500" />
                 <AlertTitle>Export gestartet</AlertTitle>
                 <AlertDescription>
@@ -369,7 +391,7 @@ const BulkSyncTab: React.FC<BulkSyncProps> = () => {
             )}
             
             {importMutation.isSuccess && (
-              <Alert variant="success" className="bg-green-50 border-green-200 text-green-800">
+              <Alert variant="default" className="bg-green-50 border-green-200 text-green-800">
                 <CheckCircle className="h-4 w-4 text-green-500" />
                 <AlertTitle>Import gestartet</AlertTitle>
                 <AlertDescription>
