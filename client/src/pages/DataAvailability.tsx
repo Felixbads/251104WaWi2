@@ -175,7 +175,10 @@ function DataTimelineChart() {
 
   // Erstellt tägliche Datenpunkte für den aktuellen Zoom-Bereich
   const generateTimelineData = (): DailyDataPoint[] => {
-    const { start, end } = getZoomRange();
+    // Immer den vollständigen Datumsbereich verwenden (2022-01-01 bis heute)
+    // für die Datenvorbereitung, unabhängig vom Zoom-Level
+    const fullRangeStart = new Date(2022, 0, 1);
+    const fullRangeEnd = new Date();
     
     // Transactions-Daten
     const transactionCoverage = dataCoverage?.find(d => d.data_type === "transaction");
@@ -192,10 +195,11 @@ function DataTimelineChart() {
     const holidayStartDate = holidayCoverage?.earliest_date ? new Date(holidayCoverage.earliest_date) : null;
     const holidayEndDate = holidayCoverage?.latest_date ? new Date(holidayCoverage.latest_date) : null;
     
-    // Alle Tage im Bereich
-    const days = eachDayOfInterval({ start, end });
+    // Alle Tage im gesamten Bereich (2022-01-01 bis heute)
+    const days = eachDayOfInterval({ start: fullRangeStart, end: fullRangeEnd });
     
-    return days.map(day => {
+    // Erstelle das vollständige Datensatz, dann filtern wir später für die Anzeige
+    const allData = days.map(day => {
       // Transaktionsdaten vorhanden?
       const hasTransactionData = !!(transactionStartDate && transactionEndDate && 
                                 day >= transactionStartDate && day <= transactionEndDate);
@@ -218,9 +222,14 @@ function DataTimelineChart() {
         hasTransactionData,
         hasWeatherData,
         hasHolidayData,
-        holidayName: holiday?.name
+        holidayName: holiday?.name,
+        dummy: "" // Für Y-Achse
       };
     });
+    
+    // Für die Anzeige nur den aktuellen Zoom-Bereich zurückgeben
+    const { start, end } = getZoomRange();
+    return allData.filter(data => data.date >= start && data.date <= end);
   };
   
   // Daten generieren
@@ -285,18 +294,25 @@ function DataTimelineChart() {
   const CustomTimelineBar = ({ x, y, width, height, payload, index }: CustomTimelineBarProps) => {
     const dataPoint = payload;
     const barHeight = 20;
+
+    // Konstanten für die Positionierung
+    const firstBarY = 10;    // Erste Balkenreihe
+    const secondBarY = 40;   // Zweite Balkenreihe
+    const thirdBarY = 70;    // Dritte Balkenreihe
+    const timelineY = 120;   // Zeitachse
     
-    // X-Position und Breite bleiben gleich wie vom Chart vorgegeben
-    // Aber wir positionieren die Bars manuell übereinander
+    // Fester Abstand zwischen Balken für bessere Lesbarkeit
+    const barSpacing = 5;
+    
     return (
       <g>
         {/* Hintergrund-Linie für die Zeitachse (ganz unten) */}
         {index === 0 && (
           <line 
             x1={0} 
-            y1={y + 100} 
+            y1={timelineY} 
             x2="100%" 
-            y2={y + 100} 
+            y2={timelineY} 
             stroke="#e5e7eb" 
             strokeWidth={2} 
           />
@@ -304,45 +320,48 @@ function DataTimelineChart() {
         
         {/* Transaktions-Balken */}
         <rect 
-          x={x} 
-          y={y} 
-          width={width} 
+          x={x + barSpacing/2} 
+          y={firstBarY} 
+          width={Math.max(1, width - barSpacing)} 
           height={barHeight} 
           fill={dataPoint.hasTransactionData ? "#3b82f6" : "transparent"} 
           stroke={dataPoint.hasTransactionData ? "none" : "#ef4444"}
           strokeWidth={1}
-          strokeDasharray={dataPoint.hasTransactionData ? "0" : "0"}
+          rx={1}
+          ry={1}
         />
         
         {/* Wetterdaten-Balken */}
         <rect 
-          x={x} 
-          y={y + 30} 
-          width={width} 
+          x={x + barSpacing/2} 
+          y={secondBarY} 
+          width={Math.max(1, width - barSpacing)} 
           height={barHeight} 
           fill={dataPoint.hasWeatherData ? "#22c55e" : "transparent"} 
           stroke={dataPoint.hasWeatherData ? "none" : "#ef4444"}
           strokeWidth={1}
-          strokeDasharray={dataPoint.hasWeatherData ? "0" : "0"}
+          rx={1}
+          ry={1}
         />
         
         {/* Feiertags-Balken */}
         <rect 
-          x={x} 
-          y={y + 60} 
-          width={width} 
+          x={x + barSpacing/2} 
+          y={thirdBarY} 
+          width={Math.max(1, width - barSpacing)} 
           height={barHeight} 
           fill={dataPoint.hasHolidayData ? "#f59e0b" : "transparent"} 
           stroke={dataPoint.hasHolidayData ? "none" : "#ef4444"}
           strokeWidth={1}
-          strokeDasharray={dataPoint.hasHolidayData ? "0" : "0"}
+          rx={1}
+          ry={1}
         />
         
-        {/* Feiertags-Markierung */}
+        {/* Feiertags-Markierung - Nur anzeigen, wenn tatsächlich ein Feiertag ist */}
         {dataPoint.holidayName && (
           <circle 
             cx={x + width/2} 
-            cy={y + 70} 
+            cy={thirdBarY + barHeight/2} 
             r={4} 
             fill="#f59e0b" 
           />
@@ -352,9 +371,9 @@ function DataTimelineChart() {
         {(index % 30 === 0 || dataPoint.date.getDate() === 1) && (
           <line 
             x1={x + width/2} 
-            y1={y + 85} 
+            y1={thirdBarY + barHeight + 5} 
             x2={x + width/2} 
-            y2={y + 100} 
+            y2={timelineY} 
             stroke="#6b7280" 
             strokeWidth={1} 
           />
@@ -431,8 +450,8 @@ function DataTimelineChart() {
               width={120}
             >
               <Label value="Transaktionen" position="insideLeft" offset={10} style={{ textAnchor: 'middle', fontSize: 12 }} />
-              <Label value="Wetterdaten" position="insideLeft" offset={55} style={{ textAnchor: 'middle', fontSize: 12 }} />
-              <Label value="Feiertage" position="insideLeft" offset={100} style={{ textAnchor: 'middle', fontSize: 12 }} />
+              <Label value="Wetterdaten" position="insideLeft" offset={40} style={{ textAnchor: 'middle', fontSize: 12 }} />
+              <Label value="Feiertage" position="insideLeft" offset={70} style={{ textAnchor: 'middle', fontSize: 12 }} />
             </YAxis>
             <Tooltip content={<CustomTimelineTooltip />} />
             <Bar 
