@@ -1105,13 +1105,16 @@ export function registerForecastRoutes(app: Express): void {
   // Datenabdeckung abrufen
   app.get(`${API_PREFIX}/data-coverage`, async (_req: Request, res: Response) => {
     try {
+      // Importiere die benötigten Services
+      const { transactionService } = await import("../services/transactionService");
+      
       // Aktualisiere die Abdeckungen, bevor sie abgerufen werden
       await meteostatService.updateWeatherDataCoverage();
-      
-      // Diese Methode sollte jetzt existieren
       await holidayService.updateHolidayDataCoverage();
-      
       await openWeatherService.updateWeatherDataCoverage();
+      
+      // Aktualisiere auch die Transaktionsdatenabdeckung
+      await transactionService.updateTransactionDataCoverage();
       
       // Daten direkt aus der Datenbank holen ohne require
       const { db } = await import("../db");
@@ -1121,6 +1124,33 @@ export function registerForecastRoutes(app: Express): void {
       res.json(result);
     } catch (error) {
       console.error("Fehler beim Abrufen der Datenabdeckung:", error);
+      res.status(500).json({ error: "Interner Serverfehler" });
+    }
+  });
+  
+  // Monatliche Transaktionsdaten für die Visualisierung abrufen
+  app.get(`${API_PREFIX}/data-coverage/monthly-transactions`, async (req: Request, res: Response) => {
+    try {
+      const { transactionService } = await import("../services/transactionService");
+      
+      // Start- und Enddatum aus den Query-Parametern extrahieren (optional)
+      let startDate: Date | undefined;
+      let endDate: Date | undefined;
+      
+      if (req.query.startDate && typeof req.query.startDate === 'string') {
+        startDate = new Date(req.query.startDate);
+      }
+      
+      if (req.query.endDate && typeof req.query.endDate === 'string') {
+        endDate = new Date(req.query.endDate);
+      }
+      
+      // Monatliche Transaktionsdaten abrufen
+      const monthlyData = await transactionService.getMonthlyTransactionData(startDate, endDate);
+      
+      res.json(monthlyData);
+    } catch (error) {
+      console.error("Fehler beim Abrufen der monatlichen Transaktionsdaten:", error);
       res.status(500).json({ error: "Interner Serverfehler" });
     }
   });

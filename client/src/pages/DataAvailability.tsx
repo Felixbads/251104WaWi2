@@ -68,9 +68,7 @@ export default function DataAvailability() {
   const [activeView, setActiveView] = useState<"monthly" | "daily">("monthly");
   const [highlightedMonth, setHighlightedMonth] = useState<Date | undefined>(undefined);
 
-  // Keine Hilfs-API-Funktion nötig, wir nutzen axios direkt in useQuery
-
-  // Daten abrufen
+  // Abfragen der Datenabdeckung für alle Datentypen
   const { data: dataCoverage, isLoading: isLoadingCoverage } = useQuery({
     queryKey: ["/api/data-coverage"],
     queryFn: async () => {
@@ -84,39 +82,55 @@ export default function DataAvailability() {
     },
   });
 
+  // Abfragen der monatlichen Transaktionsdaten für die Visualisierung
+  const { data: monthlyTransactions, isLoading: isLoadingMonthlyData } = useQuery({
+    queryKey: ["/api/data-coverage/monthly-transactions", startDate, endDate],
+    queryFn: async () => {
+      try {
+        const response = await axios.get("/api/data-coverage/monthly-transactions", {
+          params: {
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString()
+          }
+        });
+        return response.data;
+      } catch (error: any) {
+        console.error("API Error beim Abrufen der monatlichen Transaktionsdaten:", error);
+        throw new Error(error.response?.data?.error || error.message);
+      }
+    },
+  });
+
   // Für die monatliche Ansicht: erzeuge ein Array mit allen Monaten im Bereich
   const monthsInRange = eachMonthOfInterval({
     start: startDate,
     end: endDate,
   });
 
-  // Funktion zum Generieren von Dummy-Daten für die Visualisierung
-  // In einem echten Szenario würden diese Daten von der API kommen
+  // Funktion zum Generieren der Visualisierungsdaten
   const generateMonthlyData = (): MonthlyDataPoint[] => {
     // Erstelle für jeden Monat einen Datenpunkt
     return monthsInRange.map(month => {
       // Extrahiere Werte aus den dataCoverage-Daten
-      const transactionCoverage = dataCoverage?.find((d: DataCoverageType) => d.data_type === "transaction");
       const weatherCoverage = dataCoverage?.find((d: DataCoverageType) => d.data_type === "weather");
-
-      // Prüfe, ob dieser Monat innerhalb des verfügbaren Datumsbereichs liegt
-      const isInTransactionRange = transactionCoverage?.earliest_date && transactionCoverage?.latest_date 
-        ? (month >= new Date(transactionCoverage.earliest_date) && month <= new Date(transactionCoverage.latest_date))
-        : false;
-        
+      
+      // Prüfe, ob dieser Monat innerhalb des verfügbaren Wetterdaten-Bereichs liegt
       const isInWeatherRange = weatherCoverage?.earliest_date && weatherCoverage?.latest_date 
         ? (month >= new Date(weatherCoverage.earliest_date) && month <= new Date(weatherCoverage.latest_date))
         : false;
-
-      // Berechne eine Pseudo-Dichte basierend auf der Position innerhalb des Datumsbereichs
-      // In einer realen Implementierung würden tatsächliche Daten abgefragt
-      const transactionCount = isInTransactionRange 
-        ? Math.floor(Math.random() * 500) + 100 // Zufällige Zahl für Demo-Zwecke
-        : 0;
       
-      const weatherDataPercentage = isInWeatherRange
-        ? Math.min(100, Math.floor(Math.random() * 40) + 60) // Zufällige Prozentzahl für Demo-Zwecke
-        : 0;
+      // Durchschnittliche Wetterdatenabdeckung für diesen Monat
+      // Feste Abdeckung, könnte künftig durch präzisere tägliche Daten ersetzt werden
+      const weatherDataPercentage = isInWeatherRange ? 100 : 0;
+      
+      // Finde die Transaktionsdaten für diesen Monat aus den API-Daten
+      const monthStr = format(month, 'yyyy-MM');
+      const transactionData = monthlyTransactions?.find(
+        (item: any) => item.month === monthStr
+      );
+      
+      // Transaktionsanzahl aus den API-Daten oder 0 wenn nicht vorhanden
+      const transactionCount = transactionData?.transactionCount || 0;
 
       return {
         month: format(month, "MMM yyyy", { locale: de }),
@@ -128,7 +142,7 @@ export default function DataAvailability() {
   };
 
   // Generiere Daten basierend auf den verfügbaren Informationen
-  const monthlyData = generateMonthlyData();
+  const monthlyData = !isLoadingMonthlyData && monthlyTransactions ? generateMonthlyData() : [];
 
   // Handler für den Export der Daten
   const handleExport = (format: "csv" | "excel") => {
