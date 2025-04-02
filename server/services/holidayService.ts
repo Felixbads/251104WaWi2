@@ -157,8 +157,8 @@ class HolidayService {
               month: holidayDate.getMonth() + 1,
               day: holidayDate.getDate(),
               weekday: holidayDate.getDay(),
-              weekday_name: this.getWeekdayName(holidayDate.getDay()),
-              week: this.getWeekNumber(holidayDate),
+              weekday_name: this.getWeekdayNamePublic(holidayDate.getDay()),
+              week: this.getWeekNumberPublic(holidayDate),
               metadata: JSON.stringify(holiday),
             });
           }
@@ -178,8 +178,8 @@ class HolidayService {
               month: holidayDate.getMonth() + 1,
               day: holidayDate.getDate(),
               weekday: holidayDate.getDay(),
-              weekday_name: this.getWeekdayName(holidayDate.getDay()),
-              week: this.getWeekNumber(holidayDate),
+              weekday_name: this.getWeekdayNamePublic(holidayDate.getDay()),
+              week: this.getWeekNumberPublic(holidayDate),
               metadata: JSON.stringify(holiday),
             });
           }
@@ -249,8 +249,8 @@ class HolidayService {
             month: holidayDate.getMonth() + 1,
             day: holidayDate.getDate(),
             weekday: holidayDate.getDay(),
-            weekday_name: this.getWeekdayName(holidayDate.getDay()),
-            week: this.getWeekNumber(holidayDate),
+            weekday_name: this.getWeekdayNamePublic(holidayDate.getDay()),
+            week: this.getWeekNumberPublic(holidayDate),
             metadata: JSON.stringify({
               ...holiday,
               holidayRange: {
@@ -523,7 +523,7 @@ class HolidayService {
    * @param weekday Nummer des Wochentags (0 = Sonntag, 1 = Montag, ...)
    * @returns Name des Wochentags
    */
-  getWeekdayName(weekday: number): string {
+  getWeekdayNamePublic(weekday: number): string {
     const weekdays = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
     return weekdays[weekday];
   }
@@ -533,7 +533,7 @@ class HolidayService {
    * @param date Datum
    * @returns Kalenderwoche
    */
-  getWeekNumber(date: Date): number {
+  getWeekNumberPublic(date: Date): number {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
     d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
     const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
@@ -547,7 +547,7 @@ class HolidayService {
    * @param forDisplay Wenn true, wird ein String zurückgegeben, sonst ein Date-Objekt
    * @returns Formatiertes Datum als String oder Date-Objekt
    */
-  formatDate(date: any, forDisplay: boolean = false): any {
+  formatDatePublic(date: any, forDisplay: boolean = false): any {
     // Erzeugt ein Date-Objekt aus dem Eingabewert
     let dateObject: Date | null = null;
     
@@ -718,7 +718,7 @@ class HolidayService {
           });
           
           console.log(`Jahr ${year} abgeschlossen - ${publicResult.count} öffentliche Feiertage, ${schoolResult.count} Schulferientage`);
-        } catch (yearError) {
+        } catch (yearError: any) {
           console.error(`Fehler bei der Verarbeitung des Jahres ${year}:`, yearError);
           results.push({
             year,
@@ -850,7 +850,7 @@ class HolidayService {
   }
 
   // Helfer-Methode zum Formatieren von Datumsangaben
-  private formatDate(date: Date | string, forDisplay: boolean = false): string {
+  formatDate(date: Date | string, forDisplay: boolean = false): string {
     try {
       const dateObj = typeof date === 'string' ? new Date(date) : date;
       return format(dateObj, forDisplay ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm:ss');
@@ -858,21 +858,6 @@ class HolidayService {
       console.error('Fehler beim Formatieren des Datums:', error);
       return '';
     }
-  }
-
-  // Helfer-Methode zum Ermitteln der Kalenderwoche
-  private getWeekNumber(date: Date): number {
-    const d = new Date(date);
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() + 4 - (d.getDay() || 7));
-    const yearStart = new Date(d.getFullYear(), 0, 1);
-    return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-  }
-
-  // Helfer-Methode zum Ermitteln des Wochentags
-  private getWeekdayName(weekday: number): string {
-    const weekdays = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
-    return weekdays[weekday];
   }
 }
 
@@ -882,10 +867,10 @@ const holidayServiceInstance = new HolidayService();
 // Exportiere die Holiday-Service-Instanz und füge zusätzliche Methoden hinzu
 export const holidayService = {
   // Füge die Methoden der Klasse hinzu
-  getHolidaysByDateRange: (startDate: string, endDate: string, type?: string, state?: string, limit?: number) => 
-    holidayServiceInstance.getHolidaysByDateRange(startDate, endDate, type, state, limit),
-  getMissingHolidayYears: (startYear: number, endYear: number, state?: string) => 
-    holidayServiceInstance.getMissingHolidayYears(startYear, endYear, state),
+  getHolidaysByDateRange: (startDate: string, endDate: string, includeSchoolHolidays: boolean = true) => 
+    holidayServiceInstance.getHolidaysByDateRange(startDate, endDate, includeSchoolHolidays),
+  getMissingHolidayYears: (yearsToCheck: number = 3) => 
+    holidayServiceInstance.getMissingHolidayYears(yearsToCheck),
   syncHolidays: (data: { year: number, states?: string[] }) => 
     holidayServiceInstance.syncHolidays(data),
   syncSchoolHolidays: (data: { year: number, states?: string[] }) => 
@@ -894,11 +879,9 @@ export const holidayService = {
     holidayServiceInstance.syncAllHolidays(data),
   syncHolidaysForYear: (year: number, states: string[] = ['SN']) => 
     holidayServiceInstance.syncHolidaysForYear(year, states),
-  // Dummy-Methode für die Datenabdeckungs-Updates, bis sie implementiert wird
-  updateHolidayDataCoverage: async () => {
-    console.log("Holiday data coverage update wird implementiert...");
-    return { success: true };
-  }
+  // Tatsächliche Implementierung der Datenabdeckungs-Updates
+  updateHolidayDataCoverage: () => 
+    holidayServiceInstance.updateHolidayDataCoverage()
 };
 
 /**
