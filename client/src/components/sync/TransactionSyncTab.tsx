@@ -86,13 +86,31 @@ export default function TransactionSyncTab() {
         
         const response = await startSync('transactions', options);
         
+        console.log('Sync response:', response);
+        
+        // Wenn die Antwort syncLog enthält, benutze dies für initiale Werte
+        if (response && response.syncLog) {
+          setSyncProgress(prev => ({
+            ...prev,
+            total: response.syncLog.itemsFound || response.stats?.itemsFound || 0,
+            processed: response.syncLog.itemsSaved || response.stats?.itemsSaved || 0,
+            duplicates: response.syncLog.duplicates || response.stats?.duplicates || 0,
+            errors: response.syncLog.errors || response.stats?.errors || 0
+          }));
+        }
+        
+        // Speichere die syncLogId für späteres Polling
+        const syncLogId = response?.syncLogId || response?.syncLog?.id;
+        
         // Start polling for updates
         const intervalId = setInterval(async () => {
           try {
+            // Holen des aktuellen Sync-Status
             const statusResponse = await fetch('/api/sync/status');
             if (!statusResponse.ok) throw new Error('Failed to fetch sync status');
             const status = await statusResponse.json();
             
+            // Prüfe, ob die Transaktion abgeschlossen ist
             if (status.transactions && status.transactions.status !== 'running') {
               clearInterval(intervalId);
               setSyncProgress(prev => ({
@@ -102,10 +120,12 @@ export default function TransactionSyncTab() {
               }));
             }
             
-            if (response && response.syncLog) {
-              const logResponse = await fetch(`/api/sync/logs/${response.syncLog.id}`);
+            // Hole den aktuellen Sync-Log, wenn syncLogId verfügbar ist
+            if (syncLogId) {
+              const logResponse = await fetch(`/api/sync/logs/${syncLogId}`);
               if (logResponse.ok) {
                 const logData = await logResponse.json();
+                console.log('Sync log update:', logData);
                 setSyncProgress(prev => ({
                   ...prev,
                   total: logData.itemsFound || prev.total,
@@ -113,6 +133,23 @@ export default function TransactionSyncTab() {
                   duplicates: logData.duplicates || prev.duplicates,
                   errors: logData.errors || prev.errors
                 }));
+              }
+            } else {
+              // Wenn keine syncLogId verfügbar ist, hole die neuesten Logs
+              const logsResponse = await fetch('/api/sync/logs/transactions?limit=1');
+              if (logsResponse.ok) {
+                const logs = await logsResponse.json();
+                if (logs && logs.length > 0) {
+                  const latestLog = logs[0];
+                  console.log('Latest sync log:', latestLog);
+                  setSyncProgress(prev => ({
+                    ...prev,
+                    total: latestLog.itemsFound || prev.total,
+                    processed: latestLog.itemsSaved || prev.processed, 
+                    duplicates: latestLog.duplicates || prev.duplicates,
+                    errors: latestLog.errors || prev.errors
+                  }));
+                }
               }
             }
           } catch (e) {

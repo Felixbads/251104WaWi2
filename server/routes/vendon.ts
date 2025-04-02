@@ -157,9 +157,27 @@ Fehler aufgetreten: ${errors}
       formattedApiResponse += syncSummary;
     }
     
+    // Hole den vollständigen SyncLog aus der Datenbank
+    let syncLog = null;
+    if (result && result.syncLogId) {
+      try {
+        syncLog = await storage.getSyncLogById(result.syncLogId);
+      } catch (error) {
+        console.error("Fehler beim Abrufen des SyncLogs:", error);
+      }
+    }
+    
     const response = {
       ...result,
-      apiResponse: formattedApiResponse
+      apiResponse: formattedApiResponse,
+      syncLog, // Füge das vollständige SyncLog zur Antwort hinzu
+      stats: { // Separate übersichtliche Statistiken
+        itemsFound: result.itemsFound || result.transactions_found || 0,
+        itemsSaved: result.itemsSaved || result.transactions_saved || 0,
+        itemsUpdated: result.itemsUpdated || result.transactions_updated || 0,
+        duplicates: result.duplicates || 0,
+        errors: result.errors || 0,
+      }
     };
     
     return res.json(response);
