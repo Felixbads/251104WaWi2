@@ -17,6 +17,7 @@ import SyncPage from "@/pages/SyncPage";
 import Settings from "@/pages/Settings";
 import Forecast from "@/pages/Forecast";
 import ForecastEvaluation from "@/pages/ForecastEvaluation";
+import DataAvailability from "@/pages/DataAvailability"; // Neue Datenverfügbarkeits-Komponente
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import AppShell from "@/components/layout/AppShell";
@@ -83,6 +84,7 @@ function AuthenticatedRouter() {
         <Route path="/warenentnahme/new" component={WarenentnahmeNew} />
         <Route path="/warenentnahme/:id" component={WarenentnahmeDetail} />
         <Route path="/auswertungen" component={Reporting} />
+        <Route path="/datenverfuegbarkeit" component={DataAvailability} />
         <Route path="/synchronization" component={Synchronization} />
         <Route path="/sync-history" component={SyncHistory} />
         <Route path="/sync" component={SyncPage} />

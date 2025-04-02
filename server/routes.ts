@@ -159,6 +159,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/health`, (_req: Request, res: Response) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
+  
+  // Data coverage endpoint for visualizations
+  app.get(`${API_PREFIX}/data-coverage`, async (_req: Request, res: Response) => {
+    try {
+      // Collect data coverage information
+      const transactionStats = await storage.getTransactionStatistics();
+      const weatherStats = await storage.getWeatherStatistics();
+      
+      // Format the response
+      const coverage = [
+        {
+          data_type: "transaction",
+          earliest_date: transactionStats?.earliest_date || null,
+          latest_date: transactionStats?.latest_date || null,
+          data_points: transactionStats?.count || 0,
+          data_quality: transactionStats?.quality || null,
+          coverage_percentage: transactionStats?.coverage_percentage || 0
+        },
+        {
+          data_type: "weather",
+          earliest_date: weatherStats?.earliest_date || null,
+          latest_date: weatherStats?.latest_date || null,
+          data_points: weatherStats?.count || 0,
+          data_quality: weatherStats?.quality || null,
+          coverage_percentage: weatherStats?.coverage_percentage || 0
+        }
+      ];
+      
+      res.json(coverage);
+    } catch (error) {
+      console.error("Error fetching data coverage:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch data coverage information", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
 
   // Get sync status
   app.get(`${API_PREFIX}/sync/status`, async (_req: Request, res: Response) => {

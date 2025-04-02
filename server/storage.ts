@@ -45,6 +45,23 @@ export interface IStorage {
   // Transaction count method for sync status tracking
   getTransactionCount(): Promise<number>;
   
+  // Data coverage statistics methods
+  getTransactionStatistics(): Promise<{
+    earliest_date: string | null;
+    latest_date: string | null;
+    count: number;
+    quality: number | null;
+    coverage_percentage: number;
+  }>;
+  
+  getWeatherStatistics(): Promise<{
+    earliest_date: string | null;
+    latest_date: string | null;
+    count: number;
+    quality: number | null;
+    coverage_percentage: number;
+  }>;
+  
   // Stock operations
   getStocks(limit?: number): Promise<Stock[]>;
   getStock(id: number): Promise<Stock | undefined>;
@@ -286,6 +303,179 @@ export class DatabaseStorage implements IStorage {
   async getTransactionCount(): Promise<number> {
     const countResult = await db.select({ count: count() }).from(transactions);
     return parseInt(countResult[0]?.count?.toString() || '0');
+  }
+  
+  // Data coverage statistics methods
+  async getTransactionStatistics(): Promise<{
+    earliest_date: string | null;
+    latest_date: string | null;
+    count: number;
+    quality: number | null;
+    coverage_percentage: number;
+  }> {
+    try {
+      // Get earliest and latest transaction dates
+      const [earliest] = await db
+        .select({ date: transactions.datetime })
+        .from(transactions)
+        .orderBy(asc(transactions.datetime))
+        .limit(1);
+        
+      const [latest] = await db
+        .select({ date: transactions.datetime })
+        .from(transactions)
+        .orderBy(desc(transactions.datetime))
+        .limit(1);
+        
+      // Get total transaction count
+      const [countResult] = await db
+        .select({ count: count() })
+        .from(transactions);
+      
+      const transactionCount = parseInt(countResult?.count?.toString() || '0');
+      
+      // Calculate coverage percentage
+      let coveragePercentage = 0;
+      
+      if (earliest?.date && latest?.date) {
+        const startDate = new Date(earliest.date);
+        const endDate = new Date(latest.date);
+        const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        // Get unique days with transactions
+        const uniqueDaysResult = await db.execute(
+          `SELECT COUNT(DISTINCT DATE(datetime)) as unique_days FROM transactions`
+        );
+        
+        const uniqueDays = parseInt(uniqueDaysResult[0]?.unique_days || '0');
+        
+        // Calculate coverage as percentage of days with data
+        coveragePercentage = totalDays > 0 ? Math.round((uniqueDays / totalDays) * 100) : 0;
+      }
+      
+      return {
+        earliest_date: earliest?.date ? new Date(earliest.date).toISOString() : null,
+        latest_date: latest?.date ? new Date(latest.date).toISOString() : null,
+        count: transactionCount,
+        quality: null, // Placeholder for future implementation
+        coverage_percentage: coveragePercentage
+      };
+    } catch (error) {
+      console.error("Error getting transaction statistics:", error);
+      return {
+        earliest_date: null,
+        latest_date: null,
+        count: 0,
+        quality: null,
+        coverage_percentage: 0
+      };
+    }
+  }
+  
+  async getWeatherStatistics(): Promise<{
+    earliest_date: string | null;
+    latest_date: string | null;
+    count: number;
+    quality: number | null;
+    coverage_percentage: number;
+  }> {
+    try {
+      // This is a placeholder implementation since we don't have direct access
+      // to weather data tables. In a real implementation, this would query the
+      // appropriate weather data tables.
+      
+      // For now, we'll return a mock response with sample data
+      // In a real implementation, this should be replaced with actual database queries
+      
+      // Try to get weather data from database
+      let earliestDate = null;
+      let latestDate = null;
+      let count = 0;
+      let coveragePercentage = 0;
+      
+      try {
+        // Attempt to query weather_data table if it exists
+        const weatherStats = await db.execute(
+          `SELECT 
+            MIN(date) as earliest, 
+            MAX(date) as latest, 
+            COUNT(*) as count 
+          FROM weather_data`
+        );
+        
+        if (weatherStats && weatherStats.length > 0) {
+          earliestDate = weatherStats[0]?.earliest || null;
+          latestDate = weatherStats[0]?.latest || null;
+          count = parseInt(weatherStats[0]?.count || '0');
+          
+          if (earliestDate && latestDate) {
+            const startDate = new Date(earliestDate);
+            const endDate = new Date(latestDate);
+            const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+            
+            // Get unique days with weather data
+            const uniqueDaysResult = await db.execute(
+              `SELECT COUNT(DISTINCT date) as unique_days FROM weather_data`
+            );
+            
+            const uniqueDays = parseInt(uniqueDaysResult[0]?.unique_days || '0');
+            
+            // Calculate coverage as percentage of days with data
+            coveragePercentage = totalDays > 0 ? Math.round((uniqueDays / totalDays) * 100) : 0;
+          }
+        }
+      } catch (error) {
+        // Weather data table might not exist or have a different structure
+        console.warn("Could not query weather data table:", error);
+        
+        // Fallback to use forecast data if available
+        try {
+          const forecastStats = await db.execute(
+            `SELECT 
+              MIN(date) as earliest, 
+              MAX(date) as latest, 
+              COUNT(*) as count 
+            FROM weather_forecasts`
+          );
+          
+          if (forecastStats && forecastStats.length > 0) {
+            earliestDate = forecastStats[0]?.earliest || null;
+            latestDate = forecastStats[0]?.latest || null;
+            count = parseInt(forecastStats[0]?.count || '0');
+            
+            // Simplified coverage calculation (assumes daily forecasts)
+            if (earliestDate && latestDate) {
+              const startDate = new Date(earliestDate);
+              const endDate = new Date(latestDate);
+              const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+              
+              // Calculate coverage based on total days in the range
+              coveragePercentage = count > 0 && totalDays > 0 ? Math.min(100, Math.round((count / totalDays) * 100)) : 0;
+            }
+          }
+        } catch (error) {
+          // Weather forecast table might not exist either
+          console.warn("Could not query weather forecast table:", error);
+        }
+      }
+      
+      return {
+        earliest_date: earliestDate,
+        latest_date: latestDate,
+        count: count,
+        quality: null, // Placeholder for future implementation
+        coverage_percentage: coveragePercentage
+      };
+    } catch (error) {
+      console.error("Error getting weather statistics:", error);
+      return {
+        earliest_date: null,
+        latest_date: null,
+        count: 0,
+        quality: null,
+        coverage_percentage: 0
+      };
+    }
   }
   
   // Order operations
