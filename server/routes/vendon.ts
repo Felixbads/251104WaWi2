@@ -11,7 +11,8 @@ const router = Router();
  */
 router.post('/sync', async (req, res) => {
   try {
-    const { type, startDate, endDate, batchSize, maxTransactions } = req.body;
+    const { type, startDate, endDate, batchSize, maxTransactions, forceUpdate = false } = req.body;
+    console.log(`Manuelle Synchronisierungsanfrage mit Force Update: ${forceUpdate}`);
     console.log(`Manuelle Synchronisierungsanfrage erhalten für Typ: ${type}`);
     console.log(`Parameter: startDate=${startDate}, endDate=${endDate}, batchSize=${batchSize}, maxTransactions=${maxTransactions}`);
 
@@ -159,7 +160,8 @@ router.post('/sync', async (req, res) => {
                 startDateObj, 
                 endDateObj, 
                 parseInt(batchSize as string) || 100,
-                parseInt(maxTransactions as string) || 10000
+                parseInt(maxTransactions as string) || 10000,
+                forceUpdate
               );
               break;
               

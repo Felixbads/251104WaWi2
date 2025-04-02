@@ -34,6 +34,7 @@ export default function TransactionSyncTab() {
   const [endDate, setEndDate] = useState<Date | undefined>(new Date());
   const [batchSize, setBatchSize] = useState<string>("100");
   const [maxTransactions, setMaxTransactions] = useState<string>("2000");
+  const [forceUpdate, setForceUpdate] = useState<boolean>(false);
   
   // Fetch current sync status
   const { data: syncStatus, isLoading: isLoadingSyncStatus } = useQuery<SyncStatus>({
@@ -196,7 +197,8 @@ export default function TransactionSyncTab() {
           startDate,
           endDate,
           batchSize: parseInt(batchSize),
-          maxTransactions: parseInt(maxTransactions)
+          maxTransactions: parseInt(maxTransactions),
+          forceUpdate
         };
         
         console.log('Sending sync request with options:', options);
@@ -401,6 +403,32 @@ export default function TransactionSyncTab() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="flex items-center space-x-2 mb-4">
+            <Label 
+              htmlFor="forceUpdate" 
+              className="flex items-center cursor-pointer space-x-2"
+            >
+              <input
+                type="checkbox"
+                id="forceUpdate"
+                checked={forceUpdate}
+                onChange={() => setForceUpdate(!forceUpdate)}
+                className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+              />
+              <span>Force Update (auch Duplikate aktualisieren)</span>
+            </Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" className="h-6 w-6 p-0">
+                  <Info className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-2 text-xs">
+                Wenn aktiviert, werden Transaktionen aktualisiert, auch wenn sie bereits in der Datenbank existieren. Nützlich, um bestehende Daten zu aktualisieren oder bei 0 gespeicherten Transaktionen.
+              </PopoverContent>
+            </Popover>
+          </div>
+          
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="startDate">Startdatum</Label>
@@ -635,7 +663,7 @@ export default function TransactionSyncTab() {
         <Info className="h-4 w-4" />
         <AlertTitle>Hinweis zur Transaktions-Synchronisierung</AlertTitle>
         <AlertDescription>
-          <p className="text-sm mt-1">Die Synchronisierung von Transaktionen kann je nach Zeitraum und Datenmenge einige Zeit in Anspruch nehmen. Es werden nur Transaktionen aus dem ausgewählten Zeitraum synchronisiert, die noch nicht in der Datenbank vorhanden sind.</p>
+          <p className="text-sm mt-1">Die Synchronisierung von Transaktionen kann je nach Zeitraum und Datenmenge einige Zeit in Anspruch nehmen. Standardmäßig werden nur neue Transaktionen gespeichert. Mit der "Force Update"-Option können Sie auch bereits existierende Transaktionen aktualisieren.</p>
         </AlertDescription>
       </Alert>
     </div>

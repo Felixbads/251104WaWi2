@@ -1033,7 +1033,8 @@ export class VendonSyncService {
     startDate?: Date,
     endDate?: Date,
     batchSize: number = 100,
-    maxTransactions: number = 1000
+    maxTransactions: number = 1000,
+    forceUpdate: boolean = false
   ): Promise<{ syncLogId: number; status: string; message: string }> {
     // Standardwerte für Start- und Enddatum, wenn nicht angegeben
     const effectiveStartDate = startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 Tage zurück
@@ -1342,10 +1343,15 @@ export class VendonSyncService {
                   const existingDate = existingTransaction.datetime.getTime();
                   const newDate = newTransaction.datetime.getTime();
                   
-                  if (existingDate === newDate) {
-                    // Überspringe nur echte Duplikate (gleiche ID UND gleiches Datum)
+                  if (existingDate === newDate && !forceUpdate) {
+                    // Überspringe nur echte Duplikate (gleiche ID UND gleiches Datum), wenn nicht forceUpdate
                     console.log(`Echtes Duplikat gefunden: ${newTransaction.vendonId} mit Datum ${new Date(existingDate).toISOString()}`);
                     duplicates++;
+                  } else if (forceUpdate) {
+                    // Bei forceUpdate aktualisieren wir die bestehende Transaktion
+                    console.log(`Force Update aktiviert - Aktualisiere Transaktion: ${newTransaction.vendonId}`);
+                    await storage.updateTransaction(existingTransaction.id, newTransaction);
+                    itemsUpdated++;
                   } else {
                     // Wenn das Datum unterschiedlich ist, trotz gleicher ID, könnten es verschiedene Transaktionen sein
                     console.log(`Warnung: Transaktion mit ID ${newTransaction.vendonId} könnte ein Duplikat sein, hat aber ein anderes Datum. Alte: ${new Date(existingDate).toISOString()}, Neue: ${new Date(newDate).toISOString()}`);
