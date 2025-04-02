@@ -140,7 +140,10 @@ router.post('/sync', async (req, res) => {
       }
       
       // Starte die tatsächliche Synchronisierung im Hintergrund
-      setTimeout(async () => {
+      // WICHTIG: Problemursache - Wir verwenden einen direkten asynchronen Aufruf ohne setTimeout,
+      // da es scheint, dass der setTimeout-Callback das Problem verursacht und verhindert, dass die 
+      // Speicherung korrekt durchgeführt wird.
+      (async () => {
         try {
           let syncResult: any = { 
             itemsSaved: 0, 
@@ -222,7 +225,7 @@ router.post('/sync', async (req, res) => {
             }
           }
         }
-      }, 100);
+      })();
       
       // Sofortige Antwort mit Vorschau-Daten und syncLogId
       return res.json({
