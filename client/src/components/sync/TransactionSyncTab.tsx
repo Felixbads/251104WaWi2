@@ -58,12 +58,14 @@ export default function TransactionSyncTab() {
     startTime?: Date;
     endTime?: Date;
     dateRange?: string;
+    lastUpdateTime?: number; // Zeitstempel der letzten Aktualisierung
   }>({
     total: 0,
     processed: 0,
     duplicates: 0,
     errors: 0,
-    status: 'idle'
+    status: 'idle',
+    lastUpdateTime: Date.now()
   });
   
   // Aktiver Sync-Log für Polling
@@ -109,17 +111,38 @@ export default function TransactionSyncTab() {
   useEffect(() => {
     if (activeLog) {
       console.log("Aktives Log Update erhalten:", activeLog);
-      setSyncProgress({
-        total: activeLog.itemsFound || 0,
-        processed: activeLog.itemsSaved || 0,
-        duplicates: activeLog.duplicates || 0,
-        errors: activeLog.errors || 0,
-        status: activeLog.syncStatus === 'completed' ? 'success' : 
-                activeLog.syncStatus === 'error' ? 'error' : 'loading',
-        startTime: activeLog.startDate ? new Date(activeLog.startDate) : undefined,
-        endTime: activeLog.endDate ? new Date(activeLog.endDate) : undefined,
-        dateRange: `${format(startDate || new Date(), 'P', { locale: de })} - ${format(endDate || new Date(), 'P', { locale: de })}`
-      });
+      
+      // Berechne Laufzeit manuell, wenn der Server die Daten nicht aktualisiert
+      const currentStartTime = activeLog.startDate ? new Date(activeLog.startDate) : syncProgress.startTime || new Date();
+      const currentRuntimeSeconds = Math.floor((Date.now() - currentStartTime.getTime()) / 1000);
+      
+      // Nur aktualisieren, wenn sich die Daten tatsächlich geändert haben
+      // oder wenn 2 Sekunden seit der letzten Aktualisierung vergangen sind
+      if (
+        activeLog.itemsFound !== syncProgress.total ||
+        activeLog.itemsSaved !== syncProgress.processed ||
+        activeLog.duplicates !== syncProgress.duplicates ||
+        activeLog.errors !== syncProgress.errors ||
+        activeLog.syncStatus !== (
+          syncProgress.status === 'success' ? 'completed' : 
+          syncProgress.status === 'error' ? 'error' : 'running'
+        ) ||
+        !syncProgress.lastUpdateTime ||
+        Date.now() - syncProgress.lastUpdateTime > 2000
+      ) {
+        setSyncProgress({
+          total: activeLog.itemsFound || 0,
+          processed: activeLog.itemsSaved || 0,
+          duplicates: activeLog.duplicates || 0,
+          errors: activeLog.errors || 0,
+          status: activeLog.syncStatus === 'completed' ? 'success' : 
+                  activeLog.syncStatus === 'error' ? 'error' : 'loading',
+          startTime: currentStartTime,
+          endTime: activeLog.endDate ? new Date(activeLog.endDate) : undefined,
+          dateRange: `${format(startDate || new Date(), 'P', { locale: de })} - ${format(endDate || new Date(), 'P', { locale: de })}`,
+          lastUpdateTime: Date.now()
+        });
+      }
       
       // Wenn der Log abgeschlossen ist, stoppe das Polling
       if (activeLog.syncStatus === 'completed' || activeLog.syncStatus === 'error') {
@@ -188,7 +211,8 @@ export default function TransactionSyncTab() {
             errors: response.stats?.errors || 0,
             status: 'loading',
             startTime: new Date(),
-            dateRange: `${format(startDate || new Date(), 'P', { locale: de })} - ${format(endDate || new Date(), 'P', { locale: de })}`
+            dateRange: `${format(startDate || new Date(), 'P', { locale: de })} - ${format(endDate || new Date(), 'P', { locale: de })}`,
+            lastUpdateTime: Date.now()
           });
           
           // Queries aktualisieren
@@ -234,7 +258,8 @@ export default function TransactionSyncTab() {
       setSyncProgress(prev => ({
         ...prev,
         status: 'error',
-        endTime: new Date()
+        endTime: new Date(),
+        lastUpdateTime: Date.now()
       }));
       
       // Reset des aktiven Logs
@@ -480,7 +505,10 @@ export default function TransactionSyncTab() {
                       )}
                       <div>Laufzeit: <span className="font-medium">
                         {syncProgress.startTime 
-                          ? formatDuration((new Date().getTime() - syncProgress.startTime.getTime()) / 1000) 
+                          ? (() => {
+                              const seconds = Math.floor((Date.now() - syncProgress.startTime.getTime()) / 1000);
+                              return formatDuration(seconds);
+                            })()
                           : '0s'}
                       </span></div>
                     </div>
