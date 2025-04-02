@@ -516,7 +516,11 @@ export async function startSync(syncType: string, options?: {
   batchSize?: number,
   maxDays?: number
 }): Promise<any> {
-  return apiRequest<any>('post', `/sync/${syncType}`, options);
+  // Sende die Anfrage an den korrekten Endpunkt /vendon/sync und übergebe den syncType als Teil des Payloads
+  return apiRequest<any>('post', `/vendon/sync`, { 
+    type: syncType, 
+    ...options 
+  });
 }
 
 // Die obere Deklaration von triggerSync wird für neue Komponenten verwendet, diese ist abwärtskompatibel
