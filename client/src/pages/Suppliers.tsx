@@ -1340,88 +1340,134 @@ export default function Suppliers() {
 
   return (
     <div className="space-y-6">
-      {/* Aktionsbuttons */}
-      <div className="flex justify-end flex-wrap gap-2">
-        <Button onClick={handleCreateSupplier} className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          Neuer Lieferant
-        </Button>
-        <Button onClick={handleRefresh} variant="outline" className="flex items-center gap-2">
-          <RefreshCw className="h-4 w-4" />
-          Aktualisieren
-        </Button>
-      </div>
-
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative flex-grow">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-          <Input
-            placeholder="Lieferanten suchen..."
-            className="pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+      {/* Einheitliche Filter- und Aktionsleiste */}
+      <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
+        {/* Linke Seite: Suchfeld */}
+        <div className="flex-grow flex flex-col sm:flex-row gap-2">
+          {/* Suchfeld */}
+          <div className="relative flex-grow">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              value={searchTerm}
+              placeholder="Nach Lieferanten suchen..."
+              className="pl-8 h-9 w-full"
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
         </div>
         
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            className="flex items-center gap-2"
-            onClick={() => setFilterDialogOpen(true)}
-          >
-            <Filter className="h-4 w-4" />
-            Filter
-            {(currentFilters.status || currentFilters.sortBy !== 'name' || currentFilters.sortOrder !== 'asc') && (
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
-                {Object.values(currentFilters).filter(v => v !== null && v !== 'name' && v !== 'asc').length}
-              </Badge>
-            )}
-          </Button>
-          
-          <ExportImportButtons
-            type="suppliers"
-            label="Lieferanten"
-            onSuccessfulImport={handleRefresh}
-          />
-          
-          <Tabs defaultValue={viewMode} onValueChange={(value) => setViewMode(value as "grid" | "list")}>
-            <TabsList>
-              <TabsTrigger value="grid" className="flex items-center gap-1">
-                <Grid className="h-4 w-4" />
-                <span className="hidden sm:inline">Kacheln</span>
-              </TabsTrigger>
-              <TabsTrigger value="list" className="flex items-center gap-1">
-                <List className="h-4 w-4" />
-                <span className="hidden sm:inline">Liste</span>
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+        {/* Rechte Seite: Aktionen */}
+        <div className="flex flex-wrap items-center gap-2">
+          <TooltipProvider>
+            {/* Filter Button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9 relative"
+                  onClick={() => setFilterDialogOpen(true)}
+                >
+                  <Filter className="h-4 w-4" />
+                  {(currentFilters.status || currentFilters.sortBy !== 'name' || currentFilters.sortOrder !== 'asc') && (
+                    <Badge 
+                      variant="secondary" 
+                      className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center"
+                    >
+                      {Object.values(currentFilters).filter(v => v !== null && v !== 'name' && v !== 'asc').length}
+                    </Badge>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Filter</TooltipContent>
+            </Tooltip>
+            
+            {/* Ansichts-Schalter */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline" 
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
+                >
+                  {viewMode === "grid" ? (
+                    <List className="h-4 w-4" />
+                  ) : (
+                    <Grid className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{viewMode === "grid" ? "Listenansicht" : "Kachelansicht"}</TooltipContent>
+            </Tooltip>
+            
+            {/* Export/Import */}
+            <ExportImportButtons
+              type="suppliers"
+              label="Lieferanten"
+              onSuccessfulImport={handleRefresh}
+            />
+            
+            {/* Aktualisieren Button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={handleRefresh}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Aktualisieren</TooltipContent>
+            </Tooltip>
+            
+            {/* Neuer Lieferant Button */}
+            <Button
+              className="h-9"
+              onClick={handleCreateSupplier}
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Neuer Lieferant
+            </Button>
+          </TooltipProvider>
         </div>
       </div>
-
+      
       {/* Aktive Filter anzeigen */}
       {(currentFilters.status || currentFilters.sortBy !== 'name' || currentFilters.sortOrder !== 'asc') && (
-        <div className="flex flex-wrap gap-2 items-center text-sm">
-          <span className="text-gray-500">Aktive Filter:</span>
-          
+        <div className="flex flex-wrap gap-1.5 mb-4">
           {currentFilters.status && (
-            <Badge variant="outline" className="flex items-center gap-1">
+            <Badge 
+              variant="outline" 
+              className="flex items-center gap-1"
+            >
               Status: {currentFilters.status === 'active' ? 'Aktiv' : 'Inaktiv'}
-              <button onClick={() => setCurrentFilters({...currentFilters, status: null})}>
+              <button 
+                onClick={() => setCurrentFilters({...currentFilters, status: null})}
+                className="text-gray-500 hover:text-gray-700"
+              >
                 <X className="h-3 w-3" />
               </button>
             </Badge>
           )}
           
           {(currentFilters.sortBy !== 'name' || currentFilters.sortOrder !== 'asc') && (
-            <Badge variant="outline" className="flex items-center gap-1">
+            <Badge 
+              variant="outline" 
+              className="flex items-center gap-1"
+            >
               Sortierung: {
                 currentFilters.sortBy === 'name' ? 'Name' : 
                 currentFilters.sortBy === 'city' ? 'Stadt' : 
                 'Letzte Aktualisierung'
               } ({currentFilters.sortOrder === 'asc' ? 'aufsteigend' : 'absteigend'})
-              <button onClick={() => setCurrentFilters({...currentFilters, sortBy: 'name', sortOrder: 'asc'})}>
+              <button 
+                onClick={() => setCurrentFilters({...currentFilters, sortBy: 'name', sortOrder: 'asc'})}
+                className="text-gray-500 hover:text-gray-700"
+              >
                 <X className="h-3 w-3" />
               </button>
             </Badge>

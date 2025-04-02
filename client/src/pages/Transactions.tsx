@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -8,11 +8,25 @@ import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CalendarIcon, Search, RefreshCcw, FileDown } from "lucide-react";
+import { 
+  CalendarIcon, 
+  Search, 
+  RefreshCw, 
+  FileDown, 
+  AlertTriangle,
+  X
+} from "lucide-react";
 import { getTransactions, getTransactionsByDateRange, formatDateTime } from "@/lib/api";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export default function Transactions() {
   const { toast } = useToast();
@@ -23,6 +37,7 @@ export default function Transactions() {
   const [searchQuery, setSearchQuery] = useState("");
   const [limit, setLimit] = useState(25);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<string[]>([]);
 
   // Query to get transactions with date range
   const { data: transactions, isLoading, error, refetch } = useQuery({
@@ -55,8 +70,20 @@ export default function Transactions() {
 
   // Handle date filter apply
   const handleApplyFilter = () => {
+    if (!startDate || !endDate) return;
+    
     refetch();
     setIsCalendarOpen(false);
+    
+    // Update active filters
+    const dateRangeFilter = `Zeitraum: ${format(startDate, "dd.MM.yyyy", { locale: de })} - ${format(endDate, "dd.MM.yyyy", { locale: de })}`;
+    if (!activeFilters.some(filter => filter.startsWith("Zeitraum:"))) {
+      setActiveFilters([...activeFilters, dateRangeFilter]);
+    } else {
+      setActiveFilters(activeFilters.map(filter => 
+        filter.startsWith("Zeitraum:") ? dateRangeFilter : filter
+      ));
+    }
   };
 
   // Handle export
@@ -67,235 +94,319 @@ export default function Transactions() {
     });
     // In a real implementation, this would trigger a download
   };
+  
+  // Clear specific filter
+  const clearFilter = (filter: string) => {
+    if (filter.startsWith("Zeitraum:")) {
+      // Reset to default date range (last 7 days)
+      setStartDate(new Date(new Date().setDate(new Date().getDate() - 7)));
+      setEndDate(new Date());
+      refetch();
+    } else if (filter.startsWith("Einträge:")) {
+      setLimit(25);
+    }
+    
+    setActiveFilters(activeFilters.filter(f => f !== filter));
+  };
+  
+  // Handle limit change
+  const handleLimitChange = (value: string) => {
+    const newLimit = Number(value);
+    setLimit(newLimit);
+    
+    // Update active filters
+    const limitFilter = `Einträge: ${newLimit}`;
+    if (!activeFilters.some(filter => filter.startsWith("Einträge:"))) {
+      setActiveFilters([...activeFilters, limitFilter]);
+    } else {
+      setActiveFilters(activeFilters.map(filter => 
+        filter.startsWith("Einträge:") ? limitFilter : filter
+      ));
+    }
+  };
 
   // Filter transactions based on search query
   const filteredTransactions = transactions?.filter(transaction => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
-      transaction.productName?.toLowerCase().includes(query) ||
-      transaction.machineName?.toLowerCase().includes(query) ||
-      transaction.status?.toLowerCase().includes(query) ||
-      String(transaction.price).includes(query)
+      (transaction.productName?.toLowerCase().includes(query) || false) ||
+      (transaction.machineName?.toLowerCase().includes(query) || false) ||
+      (transaction.status?.toLowerCase().includes(query) || false) ||
+      (transaction.id?.toString().includes(query) || false) ||
+      (transaction.paymentMethod?.toLowerCase().includes(query) || false) ||
+      (String(transaction.price).includes(query))
     );
   });
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle>Transaktionen</CardTitle>
-          <CardDescription>
-            Alle Transaktionen aus dem Vendon-System
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col md:flex-row justify-between gap-4 mb-6">
-            <div className="flex flex-col sm:flex-row gap-4">
-              {/* Date Range Selector */}
-              <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="justify-start">
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {startDate && endDate ? (
-                      `${format(startDate, "dd.MM.yyyy", { locale: de })} - ${format(endDate, "dd.MM.yyyy", { locale: de })}`
-                    ) : (
-                      "Datum auswählen"
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <div className="flex flex-col sm:flex-row gap-4 p-3">
-                    <div className="space-y-2">
-                      <Label htmlFor="startDate">Startdatum</Label>
-                      <Calendar
-                        mode="single"
-                        selected={startDate}
-                        onSelect={setStartDate}
-                        initialFocus
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="endDate">Enddatum</Label>
-                      <Calendar
-                        mode="single"
-                        selected={endDate}
-                        onSelect={setEndDate}
-                        initialFocus
-                      />
-                    </div>
-                  </div>
-                  <div className="border-t border-gray-200 p-3 flex justify-end">
-                    <Button onClick={handleApplyFilter}>Anwenden</Button>
-                  </div>
-                </PopoverContent>
-              </Popover>
-
-              {/* Search Field */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-                <Input
-                  className="pl-10"
-                  placeholder="Suchen..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              {/* Refresh Button */}
-              <Button variant="outline" onClick={() => refetch()}>
-                <RefreshCcw className="h-4 w-4 mr-2" />
-                Aktualisieren
-              </Button>
-
-              {/* Export Button */}
-              <Button variant="outline" onClick={handleExport}>
-                <FileDown className="h-4 w-4 mr-2" />
-                Exportieren
-              </Button>
-
-              {/* Limit Selector */}
-              <Select value={String(limit)} onValueChange={(value) => setLimit(parseInt(value))}>
-                <SelectTrigger className="w-[100px]">
-                  <SelectValue placeholder="Anzahl" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="25">25</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                  <SelectItem value="100">100</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+      {/* Einheitliche Filter- und Aktionsleiste */}
+      <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
+        {/* Linke Seite: Suchfeld */}
+        <div className="flex-grow flex flex-col sm:flex-row gap-2">
+          {/* Suchfeld */}
+          <div className="relative flex-grow">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              value={searchQuery}
+              placeholder="Nach Transaktionen suchen..."
+              className="pl-8 h-9 w-full"
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
-
-          {/* Transactions Table */}
-          <div className="border rounded-md overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      ID
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Datum
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Produkt
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Preis
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Maschine
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Zahlungsart
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {isLoading ? (
-                    Array.from({ length: 5 }).map((_, index) => (
-                      <tr key={index}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Skeleton className="h-5 w-10" />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Skeleton className="h-5 w-32" />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Skeleton className="h-5 w-24" />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Skeleton className="h-5 w-16" />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Skeleton className="h-5 w-32" />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Skeleton className="h-5 w-20" />
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Skeleton className="h-5 w-20" />
-                        </td>
-                      </tr>
-                    ))
-                  ) : error ? (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-4 text-center text-sm text-gray-500">
-                        Fehler beim Laden der Transaktionen: {error instanceof Error ? error.message : "Unbekannter Fehler"}
-                      </td>
-                    </tr>
-                  ) : filteredTransactions && filteredTransactions.length > 0 ? (
-                    filteredTransactions.map((transaction) => (
-                      <tr key={transaction.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {transaction.id}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {formatDateTime(transaction.datetime)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {transaction.productName || '-'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {transaction.price?.toFixed(2)} {transaction.currency || "€"}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {transaction.machineName || '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {transaction.paymentMethod || '-'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(transaction.status || "")}`}
-                          >
-                            {transaction.status === "success"
-                              ? "Erfolg"
-                              : transaction.status === "pending"
-                              ? "Ausstehend"
-                              : transaction.status === "failed"
-                              ? "Fehlgeschlagen"
-                              : transaction.status || "Unbekannt"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
+          
+          {/* Date Range Selector */}
+          <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="h-9 justify-start whitespace-nowrap">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                <span className="hidden sm:inline">
+                  {startDate && endDate ? (
+                    `${format(startDate, "dd.MM.yyyy", { locale: de })} - ${format(endDate, "dd.MM.yyyy", { locale: de })}`
                   ) : (
-                    <tr>
-                      <td colSpan={7} className="px-6 py-4 text-center text-sm text-gray-500">
-                        Keine Transaktionen gefunden
+                    "Datum auswählen"
+                  )}
+                </span>
+                <span className="sm:hidden">Datum</span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <div className="flex flex-col sm:flex-row gap-4 p-3">
+                <div className="space-y-2">
+                  <Label htmlFor="startDate">Startdatum</Label>
+                  <Calendar
+                    mode="single"
+                    selected={startDate}
+                    onSelect={setStartDate}
+                    initialFocus
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="endDate">Enddatum</Label>
+                  <Calendar
+                    mode="single"
+                    selected={endDate}
+                    onSelect={setEndDate}
+                    initialFocus
+                  />
+                </div>
+              </div>
+              <div className="border-t border-gray-200 p-3 flex justify-end">
+                <Button onClick={handleApplyFilter}>Anwenden</Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Limit Selector */}
+          <Select
+            value={String(limit)}
+            onValueChange={handleLimitChange}
+          >
+            <SelectTrigger className="w-[100px] h-9">
+              <SelectValue placeholder="Anzahl" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10 Einträge</SelectItem>
+              <SelectItem value="25">25 Einträge</SelectItem>
+              <SelectItem value="50">50 Einträge</SelectItem>
+              <SelectItem value="100">100 Einträge</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        {/* Rechte Seite: Aktionen */}
+        <div className="flex flex-wrap items-center gap-2">
+          <TooltipProvider>
+            {/* Refresh Button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-9 w-9"
+                  onClick={() => refetch()}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Aktualisieren</TooltipContent>
+            </Tooltip>
+            
+            {/* Export Button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-9 flex items-center"
+                  onClick={handleExport}
+                >
+                  <FileDown className="h-4 w-4 mr-1.5" />
+                  Export
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Als CSV exportieren</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+      </div>
+      
+      {/* Aktive Filter anzeigen */}
+      {activeFilters.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {activeFilters.map((filter, index) => (
+            <Badge 
+              key={index} 
+              variant="outline" 
+              className="flex items-center gap-1"
+            >
+              {filter}
+              <button 
+                onClick={() => clearFilter(filter)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <Card className="bg-red-50 border-red-200 mb-4">
+          <CardContent className="pt-6">
+            <div className="flex items-center text-red-600">
+              <AlertTriangle className="h-5 w-5 mr-2" />
+              <p>Fehler beim Laden der Transaktionen: {error instanceof Error ? error.message : String(error)}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Results Count */}
+      {!isLoading && !error && (
+        <div className="flex justify-between items-center mb-4">
+          <p className="text-sm text-gray-500">
+            {filteredTransactions?.length || 0} {filteredTransactions?.length === 1 ? 'Transaktion' : 'Transaktionen'} gefunden
+          </p>
+        </div>
+      )}
+
+      {/* Transactions Table */}
+      <Card>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b bg-muted/50">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    ID
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Datum
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Produkt
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Preis
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Maschine
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Zahlungsart
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading ? (
+                  Array.from({ length: 5 }).map((_, index) => (
+                    <tr key={index} className="border-b">
+                      <td className="px-4 py-3"><Skeleton className="h-5 w-10" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-5 w-32" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-5 w-24" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-5 w-16" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-5 w-32" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
+                      <td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
+                    </tr>
+                  ))
+                ) : filteredTransactions && filteredTransactions.length > 0 ? (
+                  filteredTransactions.map((transaction) => (
+                    <tr key={transaction.id} className="border-b hover:bg-muted/20">
+                      <td className="px-4 py-3 text-sm text-gray-500">
+                        {transaction.id}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500">
+                        {formatDateTime(transaction.datetime)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-sm font-medium text-gray-900">
+                          {transaction.productName || '-'}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500">
+                        {transaction.price?.toFixed(2)} {transaction.currency || "€"}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500">
+                        {transaction.machineName || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500">
+                        {transaction.paymentMethod || '-'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusBadgeClass(transaction.status || "")}`}
+                        >
+                          {transaction.status === "success"
+                            ? "Erfolg"
+                            : transaction.status === "pending"
+                            ? "Ausstehend"
+                            : transaction.status === "failed"
+                            ? "Fehlgeschlagen"
+                            : transaction.status || "Unbekannt"}
+                        </span>
                       </td>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <div className="bg-gray-50 px-4 py-3 border-t border-gray-200">
+                  ))
+                ) : (
+                  <tr className="border-b">
+                    <td colSpan={7} className="px-4 py-6 text-center text-sm text-gray-500">
+                      {error ? `Fehler beim Laden der Daten: ${error}` : "Keine Transaktionen gefunden"}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          
+          {!isLoading && !error && filteredTransactions && filteredTransactions.length > 0 && (
+            <div className="bg-muted/20 px-4 py-3 border-t">
               <div className="flex justify-between items-center">
                 <div className="text-sm text-gray-700">
-                  Zeige <span className="font-medium">{filteredTransactions?.length || 0}</span>{" "}
+                  Zeige <span className="font-medium">{filteredTransactions.length}</span>{" "}
                   von <span className="font-medium">{transactions?.length || 0}</span>{" "}
                   Einträgen
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" disabled={limit >= 100} onClick={() => setLimit(prev => Math.min(prev + 25, 100))}>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    disabled={limit >= 100} 
+                    onClick={() => handleLimitChange(String(Math.min(limit + 25, 100)))}
+                  >
                     Mehr laden
                   </Button>
                 </div>
               </div>
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>
