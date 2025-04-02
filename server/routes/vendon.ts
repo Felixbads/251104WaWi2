@@ -34,17 +34,53 @@ router.post('/sync', async (req, res) => {
         // Vorschaudaten für Frontend-Anzeige abrufen
         console.log(`Rufe Transaktionsvorschau von Vendon API ab...`);
         
-        // Zuerst den gesamten Datenbestand abschätzen, indem wir mit Limit 1 anfragen
-        // und die Paginierungsinformationen extrahieren
+        // Zuerst den gesamten Datenbestand abschätzen
+        console.log(`Versuche Gesamtzahl der Transaktionen im Zeitraum ${startDateObj.toISOString()} bis ${endDateObj.toISOString()} abzuschätzen...`);
+        
+        // Bei der alten Vendon API erhalten wir keine direkte Information über die Gesamtzahl
+        // Wir müssen schätzen basierend auf dem Zeitraum und bisherigen Daten
+        
+        // Zuerst versuchen wir, den ersten Datensatz zu bekommen um zu prüfen, ob überhaupt Daten existieren
         const testResponse = await api.getTransactions(fromTimestamp, toTimestamp, undefined, 0, 1);
+        console.log("Test-Antwort erhalten:", JSON.stringify(testResponse, null, 2).substring(0, 500) + "...");
+        
         let totalEstimate = 0;
         
-        // Extrahiere die Gesamtzahl aus der Paginierungsinformation
+        // Verschiedene Möglichkeiten zur Schätzung der Gesamtzahl
         if (testResponse && testResponse.paging && testResponse.paging.total) {
+          // Ideal: API gibt die Gesamtzahl zurück
           totalEstimate = parseInt(testResponse.paging.total);
-        } else if (Array.isArray(testResponse.result) && testResponse.result.length > 0) {
-          // Wenn keine Paginierungsinformation, mindestens 100 schätzen
-          totalEstimate = 100;
+          console.log(`Gesamtzahl aus API-Paginierung: ${totalEstimate}`);
+        } else if (testResponse && testResponse.total) {
+          // Alternatives Format: Manche API-Versionen haben ein direktes total-Feld
+          totalEstimate = parseInt(testResponse.total);
+          console.log(`Gesamtzahl aus API-Total-Feld: ${totalEstimate}`);
+        } else {
+          // Wenn wir keine direkte Information haben, holen wir eine größere Stichprobe
+          // und extrapolieren basierend auf dem Zeitraum
+          const sampleResponse = await api.getTransactions(fromTimestamp, toTimestamp, undefined, 0, parseInt(batchSize) || 100);
+          const transactionsData = sampleResponse?.data || sampleResponse?.result || [];
+          const sampleCount = Array.isArray(transactionsData) ? transactionsData.length : 0;
+          
+          console.log(`Stichprobe von ${sampleCount} Transaktionen erhalten`);
+          
+          if (sampleCount > 0) {
+            // Wenn Daten vorhanden sind, gehen wir davon aus, dass es mindestens so viele sind wie in der Stichprobe
+            // und wahrscheinlich mehr
+            totalEstimate = Math.max(sampleCount, parseInt(batchSize) || 100);
+            
+            // Für langfristige Zeiträume eine höhere Schätzung verwenden
+            const days = Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24));
+            if (days > 7) {
+              // Für längere Zeiträume multiplizieren wir mit einem Faktor
+              totalEstimate = Math.min(10000, totalEstimate * Math.ceil(days / 7));
+            }
+            
+            console.log(`Geschätzte Gesamtzahl basierend auf Stichprobe und Zeitraum (${days} Tage): ${totalEstimate}`);
+          } else {
+            console.log("Keine Transaktionen in der Stichprobe gefunden.");
+            totalEstimate = 0;
+          }
         }
         
         console.log(`Geschätzte Gesamtzahl an Transaktionen im gewählten Zeitraum: ${totalEstimate}`);
@@ -54,6 +90,21 @@ router.post('/sync', async (req, res) => {
         const transactionsData = apiResponse?.data || apiResponse?.result || [];
         const count = Array.isArray(transactionsData) ? transactionsData.length : 0;
         console.log(`${count} Beispiel-Transaktionen für Vorschau geladen`);
+        
+        // Wenn bisher noch keine Transaktionen gefunden wurden, aber wir haben Daten 
+        // in unserer Vorschau-Anfrage, dann aktualisieren wir die Schätzung
+        if (totalEstimate === 0 && count > 0) {
+          totalEstimate = count;
+          console.log(`Aktualisierte Schätzung basierend auf der Vorschau: ${totalEstimate}`);
+          
+          // Für langfristige Zeiträume eine höhere Schätzung verwenden
+          const days = Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24));
+          if (days > 7) {
+            // Für längere Zeiträume multiplizieren wir mit einem Faktor
+            totalEstimate = Math.min(10000, totalEstimate * Math.ceil(days / 7));
+            console.log(`Erhöhte Schätzung für Zeitraum von ${days} Tagen: ${totalEstimate}`);
+          }
+        }
         
         // Im Hintergrund die eigentliche Synchronisierung starten (non-blocking)
         // Diese läuft unabhängig vom Antwortzyklus dieser API-Anfrage
