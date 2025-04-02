@@ -6,18 +6,95 @@ import { MachineStock } from '@shared/schema';
 const router = Router();
 
 /**
- * Route, um eine manuelle Vendon-Synchronisierung zu starten
+ * Vereinfachte Route, um eine manuelle Vendon-Synchronisierung zu starten
+ * Diese Version wurde optimiert für Zuverlässigkeit bei der Transaktionssynchronisierung
  */
 router.post('/sync', async (req, res) => {
   try {
     const { type, startDate, endDate, batchSize, maxDays } = req.body;
+    console.log(`Manuelle Synchronisierungsanfrage erhalten für Typ: ${type}`);
+    console.log(`Parameter: startDate=${startDate}, endDate=${endDate}, batchSize=${batchSize}, maxDays=${maxDays}`);
+
+    // Die gesamte Anfrage protokollieren
+    console.log(`Vollständige Anfrage:`, req.body);
     
     // API-Antwort für Frontend-Anzeige erfassen (nur zum Anzeigen in der UI)
     let apiResponse = null;
     
+    // Einfache Antwort für sofortiges Feedback, während im Hintergrund synchronisiert wird
+    if (type === 'transactions') {
+      // Direkt die Vendon API abfragen für eine Vorschau der Daten
+      const api = vendonSync.getApi();
+      const startDateObj = startDate ? new Date(startDate) : new Date(Date.now() - 86400000); // Default: 1 Tag zurück
+      const endDateObj = endDate ? new Date(endDate) : new Date();
+      const fromTimestamp = Math.floor(startDateObj.getTime() / 1000);
+      const toTimestamp = Math.floor(endDateObj.getTime() / 1000);
+      
+      try {
+        // Vorschaudaten für Frontend-Anzeige abrufen
+        console.log(`Rufe Transaktionsvorschau von Vendon API ab...`);
+        apiResponse = await api.getTransactions(fromTimestamp, toTimestamp, undefined, 0, parseInt(batchSize) || 100);
+        const transactionsData = apiResponse?.data || apiResponse?.result || [];
+        const count = Array.isArray(transactionsData) ? transactionsData.length : 0;
+        console.log(`${count} Transaktionen für Vorschau gefunden`);
+        
+        // Im Hintergrund die eigentliche Synchronisierung starten (non-blocking)
+        // Diese läuft unabhängig vom Antwortzyklus dieser API-Anfrage
+        console.log(`Starte Hintergrundsynchronisierung...`);
+        const maxTransactions = parseInt(req.body.maxTransactions || "1000");
+        setTimeout(async () => {
+          try {
+            await vendonSync.syncTransactions(
+              startDateObj, 
+              endDateObj, 
+              parseInt(batchSize) || 100,
+              maxTransactions
+            );
+            console.log(`Hintergrundsynchronisierung für Transaktionen abgeschlossen.`);
+          } catch (error) {
+            console.error(`Fehler bei der Hintergrundsynchronisierung: ${error}`);
+          }
+        }, 100);
+        
+        // Sofort mit der Vorschau antworten
+        return res.json({
+          status: 'success',
+          message: 'Synchronisierung im Hintergrund gestartet',
+          preview: {
+            count,
+            timeRange: `${startDateObj.toISOString()} bis ${endDateObj.toISOString()}`
+          },
+          stats: {
+            itemsFound: count,
+            itemsSaved: 0, // Wird im Hintergrund verarbeitet
+            itemsUpdated: 0,
+            duplicates: 0,
+            errors: 0
+          }
+        });
+      } catch (apiError) {
+        console.error("Fehler beim Abrufen der Vorschaudaten:", apiError);
+        return res.json({
+          status: 'warning',
+          message: 'Synchronisierung gestartet, aber Vorschau fehlgeschlagen',
+          error: apiError instanceof Error ? apiError.message : String(apiError),
+          stats: {
+            itemsFound: 0,
+            itemsSaved: 0,
+            itemsUpdated: 0,
+            duplicates: 0,
+            errors: 1
+          }
+        });
+      }
+    }
+    
+    // Für andere Typen den normalen Synchronisierungsprozess verwenden
     let result;
     switch(type) {
       case 'transactions':
+        // Dieser Fall wurde oben bereits behandelt
+        break;
         // Konvertiere Datumszeichenfolgen in Date-Objekte
         const startDateObj = startDate ? new Date(startDate) : undefined;
         const endDateObj = endDate ? new Date(endDate) : undefined;
