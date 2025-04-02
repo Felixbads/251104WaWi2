@@ -238,8 +238,8 @@ const BulkSyncTab: React.FC<BulkSyncProps> = () => {
             )}
             
             {exportMutation.isSuccess && (
-              <Alert variant="default" className="bg-green-50 border-green-200 text-green-800">
-                <CheckCircle className="h-4 w-4 text-green-500" />
+              <Alert variant="success">
+                <CheckCircle className="h-4 w-4" />
                 <AlertTitle>Export gestartet</AlertTitle>
                 <AlertDescription>
                   Der Export wurde im Hintergrund gestartet. Die Datei wird unten angezeigt, sobald der Export abgeschlossen ist.
@@ -391,8 +391,8 @@ const BulkSyncTab: React.FC<BulkSyncProps> = () => {
             )}
             
             {importMutation.isSuccess && (
-              <Alert variant="default" className="bg-green-50 border-green-200 text-green-800">
-                <CheckCircle className="h-4 w-4 text-green-500" />
+              <Alert variant="success">
+                <CheckCircle className="h-4 w-4" />
                 <AlertTitle>Import gestartet</AlertTitle>
                 <AlertDescription>
                   Der Import wurde im Hintergrund gestartet. Sie können den Fortschritt in den Logs verfolgen.
