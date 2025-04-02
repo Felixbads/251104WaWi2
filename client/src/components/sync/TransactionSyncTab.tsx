@@ -533,6 +533,36 @@ export default function TransactionSyncTab() {
                 </SelectContent>
               </Select>
             </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="forceUpdate" className="flex items-center space-x-2">
+                <span>Force Update</span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" className="h-4 w-4 p-0 ml-1">
+                      <Info className="h-3 w-3" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-2 text-xs">
+                    Aktualisiert bereits existierende Transaktionen. 
+                    Aktivieren Sie diese Option, wenn Sie Transaktionen aktualisieren möchten, die bereits in der Datenbank vorhanden sind.
+                  </PopoverContent>
+                </Popover>
+              </Label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="forceUpdate"
+                  checked={forceUpdate}
+                  onChange={(e) => setForceUpdate(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 rounded"
+                />
+                <label htmlFor="forceUpdate" className="text-sm text-gray-700 dark:text-gray-300">
+                  {forceUpdate ? "Aktiviert" : "Deaktiviert"} 
+                  {forceUpdate && <span className="text-xs ml-2 text-amber-600">(Existierende Transaktionen werden überschrieben)</span>}
+                </label>
+              </div>
+            </div>
           </div>
           
           {/* Current Sync Progress */}

@@ -514,7 +514,9 @@ export async function startSync(syncType: string, options?: {
   startDate?: Date,
   endDate?: Date,
   batchSize?: number,
-  maxDays?: number
+  maxDays?: number,
+  maxTransactions?: number,
+  forceUpdate?: boolean
 }): Promise<any> {
   try {
     console.log(`Sende Synchronisierungsanfrage für '${syncType}' mit Optionen:`, options);

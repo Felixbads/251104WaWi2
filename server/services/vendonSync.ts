@@ -1033,9 +1033,11 @@ export class VendonSyncService {
     startDate?: Date,
     endDate?: Date,
     batchSize: number = 100,
-    maxTransactions: number = 1000,
+    maxTransactions: number = 5000, // Erhöht von 1000 auf 5000 für bessere Abdeckung
     forceUpdate: boolean = false
   ): Promise<{ syncLogId: number; status: string; message: string }> {
+    // Debug-Ausgabe für forceUpdate-Parameter
+    console.log(`syncTransactions aufgerufen mit forceUpdate=${forceUpdate}`);
     // Standardwerte für Start- und Enddatum, wenn nicht angegeben
     const effectiveStartDate = startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 Tage zurück
     const effectiveEndDate = endDate || new Date();
@@ -1350,8 +1352,14 @@ export class VendonSyncService {
                   } else if (forceUpdate) {
                     // Bei forceUpdate aktualisieren wir die bestehende Transaktion
                     console.log(`Force Update aktiviert - Aktualisiere Transaktion: ${newTransaction.vendonId}`);
-                    await storage.updateTransaction(existingTransaction.id, newTransaction);
-                    itemsUpdated++;
+                    try {
+                      await storage.updateTransaction(existingTransaction.id, newTransaction);
+                      console.log(`Transaktion ${newTransaction.vendonId} erfolgreich aktualisiert.`);
+                      itemsUpdated++;
+                    } catch (error) {
+                      console.error(`Fehler beim Aktualisieren der Transaktion ${newTransaction.vendonId}:`, error);
+                      errors++;
+                    }
                   } else {
                     // Wenn das Datum unterschiedlich ist, trotz gleicher ID, könnten es verschiedene Transaktionen sein
                     console.log(`Warnung: Transaktion mit ID ${newTransaction.vendonId} könnte ein Duplikat sein, hat aber ein anderes Datum. Alte: ${new Date(existingDate).toISOString()}, Neue: ${new Date(newDate).toISOString()}`);
@@ -1387,7 +1395,12 @@ export class VendonSyncService {
         }
         
         // Prüfe, ob wir alle Transaktionen erhalten haben
-        hasMoreTransactions = transactions.length === batchSize && totalItems < maxTransactions;
+        // Wenn die aktuelle Batch-Größe erreicht wurde und wir das maximale Limit nicht erreicht haben,
+        // dann gibt es wahrscheinlich noch mehr Transaktionen
+        hasMoreTransactions = transactions.length >= remainingLimit && totalItems < maxTransactions;
+        
+        console.log(`Prüfe, ob weitere Transaktionen existieren: ${hasMoreTransactions}`);
+        console.log(`Aktuelle Anzahl: ${transactions.length}, Limit: ${remainingLimit}, Gesamt: ${totalItems}/${maxTransactions}`);
         page++;
         
         // Aktualisiere den Sync-Log mit dem bisherigen Fortschritt
