@@ -43,7 +43,7 @@ export default function TransactionSyncTab() {
   
   // Get recent sync logs for transactions
   const { data: syncLogs } = useQuery({
-    queryKey: ['/api/sync/logs/transactions'],
+    queryKey: ['/api/sync/logs', 'transactions'],
     queryFn: () => getSyncLogsByType('transactions', 5),
     refetchInterval: 10000,
   });
@@ -136,7 +136,7 @@ export default function TransactionSyncTab() {
               }
             } else {
               // Wenn keine syncLogId verfügbar ist, hole die neuesten Logs
-              const logsResponse = await fetch('/api/sync/logs/transactions?limit=1');
+              const logsResponse = await fetch('/api/sync/logs?type=transactions&limit=1');
               if (logsResponse.ok) {
                 const logs = await logsResponse.json();
                 if (logs && logs.length > 0) {
@@ -172,7 +172,7 @@ export default function TransactionSyncTab() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/sync/logs'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/sync/logs', 'transactions'] });
       
       toast({
         title: "Transaktions-Synchronisierung gestartet",
