@@ -41,11 +41,17 @@ router.post('/sync', async (req, res) => {
           console.log(`Frontend erhält ${transactionsCount} Transaktionen als Vorschau`);
           
           // Verarbeite die tatsächliche Synchronisierung direkt, nicht asynchron
-          // Hier ist der Hauptunterschied: Wir verwenden den gleichen direkten Aufruf wie im Scheduler
-          // OHNE die API-Antwort zu übergeben - lass vendonSync selbst die API abfragen
           
           const maxTransactions = parseInt(req.body.maxTransactions || "10000");
           console.log("Verwende maxTransactions:", maxTransactions);
+          
+          // Wichtig: Hier den korrekten API-Aufruf durchführen mit expliziten Parametern
+          console.log("Starte manuelle Synchronisierung mit Parametern:", {
+            startDate: startDateObj,
+            endDate: endDateObj,
+            batchSize,
+            maxTransactions
+          });
           
           // Führe die Synchronisierung direkt durch
           result = await vendonSync.syncTransactions(startDateObj, endDateObj, batchSize, maxTransactions);

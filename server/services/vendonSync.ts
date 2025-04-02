@@ -1066,6 +1066,10 @@ export class VendonSyncService {
       // Direkt von der API holen, kein Preprocessing
       let transactions = [];
       
+      // Debug-Ausgabe
+      console.log(`Verwende Zeitraum: ${effectiveStartDate.toISOString()} bis ${effectiveEndDate.toISOString()}`);
+      console.log(`Timestamps: ${Math.floor(effectiveStartDate.getTime() / 1000)} bis ${Math.floor(effectiveEndDate.getTime() / 1000)}`);
+      
       // Solange es weitere Transaktionen gibt und wir das Maximum nicht erreicht haben
       while (hasMoreTransactions && totalItems < maxTransactions) {
         
@@ -1075,6 +1079,18 @@ export class VendonSyncService {
         const remainingLimit = Math.min(batchSize, maxTransactions - totalItems);
         
         // Hole Transaktionen von der API
+        const fromTimestamp = Math.floor(effectiveStartDate.getTime() / 1000);
+        const toTimestamp = Math.floor(effectiveEndDate.getTime() / 1000);
+        
+        // Detaillierte Log-Ausgabe für die API-Anfrage
+        console.log("API-Anfrage: GET /stats/vends (Versuch 1/3)");
+        console.log("Parameter:", {
+          from_timestamp: fromTimestamp,
+          to_timestamp: toTimestamp,
+          offset: (page - 1) * batchSize,
+          limit: remainingLimit
+        });
+        
         const result = await this.api.getTransactions(
           effectiveStartDate,
           effectiveEndDate,
