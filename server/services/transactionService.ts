@@ -160,35 +160,47 @@ export class TransactionService {
     const defaultStartDate = startDate || sub(new Date(), { years: 2 }); // 2 Jahre zurück
     const defaultEndDate = endDate || new Date(); // Heute
     
+    console.log(`Abfrage monatlicher Transaktionsdaten von ${format(defaultStartDate, 'yyyy-MM-dd')} bis ${format(defaultEndDate, 'yyyy-MM-dd')}`);
+    
+    // Optimierte Abfrage für alle Monate in einem einzigen SQL-Statement
+    // Gruppiere die Transaktionen nach Jahr und Monat und zähle sie
+    const monthlyTransactions = await db
+      .select({
+        year: sql<number>`EXTRACT(YEAR FROM datetime)::integer`,
+        month: sql<number>`EXTRACT(MONTH FROM datetime)::integer`,
+        count: sql<number>`COUNT(*)`
+      })
+      .from(transactions)
+      .where(
+        sql`datetime >= ${defaultStartDate.toISOString()} AND datetime <= ${defaultEndDate.toISOString()}`
+      )
+      .groupBy(sql`EXTRACT(YEAR FROM datetime)`, sql`EXTRACT(MONTH FROM datetime)`)
+      .orderBy(sql`EXTRACT(YEAR FROM datetime)`, sql`EXTRACT(MONTH FROM datetime)`);
+    
+    console.log(`Gefundene Monatsdaten: ${monthlyTransactions.length} Monate mit Transaktionen`);
+    
     // Alle Monate im Datumsbereich
     const months = eachMonthOfInterval({
       start: defaultStartDate,
       end: defaultEndDate
     });
     
-    const result = [];
-    
-    // Abfragen der Transaktionsdaten für jeden Monat
-    for (const month of months) {
-      const startOfMonth = new Date(month.getFullYear(), month.getMonth(), 1);
-      const nextMonth = new Date(month.getFullYear(), month.getMonth() + 1, 1);
-      const endOfMonth = new Date(nextMonth.getTime() - 1); // Letzter Tag des Monats
+    // Erzeuge für jeden Monat im Bereich einen Eintrag
+    const result = months.map(month => {
+      const year = month.getFullYear();
+      const monthNum = month.getMonth() + 1; // JavaScript Monate sind 0-basiert
       
-      const [countResult] = await db
-        .select({
-          count: sql<number>`count(*)`
-        })
-        .from(transactions)
-        .where(
-          sql`datetime >= ${startOfMonth.toISOString()} AND datetime <= ${endOfMonth.toISOString()}`
-        );
+      // Suche nach Daten für diesen Monat
+      const monthData = monthlyTransactions.find(
+        data => data.year === year && data.month === monthNum
+      );
       
-      result.push({
+      return {
         month: format(month, 'yyyy-MM'),
         monthDate: month,
-        transactionCount: countResult?.count || 0
-      });
-    }
+        transactionCount: monthData?.count || 0
+      };
+    });
     
     return result;
   }
