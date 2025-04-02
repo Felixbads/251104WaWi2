@@ -1331,32 +1331,44 @@ export class VendonSyncService {
             // Prüfe, ob die Transaktion bereits existiert
             // Stellen Sie sicher, dass vendonId nicht undefined ist
             if (newTransaction.vendonId) {
-              const existingTransaction = await storage.getTransactionByVendonId(newTransaction.vendonId);
-              
-              if (existingTransaction) {
-                // Bei manueller Synchronisierung werden manchmal Transaktionen fälschlicherweise als Duplikate erkannt
-                // Zusätzliche Überprüfung des Datums, um sicherzustellen, dass es tatsächlich die gleiche Transaktion ist
-                const existingDate = existingTransaction.datetime.getTime();
-                const newDate = newTransaction.datetime.getTime();
+              try {
+                console.log(`Prüfe, ob Transaktion ${newTransaction.vendonId} bereits existiert...`);
+                const existingTransaction = await storage.getTransactionByVendonId(newTransaction.vendonId);
                 
-                if (existingDate === newDate) {
-                  // Überspringe nur echte Duplikate (gleiche ID UND gleiches Datum)
-                  duplicates++;
+                if (existingTransaction) {
+                  console.log(`Transaktion ${newTransaction.vendonId} existiert bereits.`);
+                  // Bei manueller Synchronisierung werden manchmal Transaktionen fälschlicherweise als Duplikate erkannt
+                  // Zusätzliche Überprüfung des Datums, um sicherzustellen, dass es tatsächlich die gleiche Transaktion ist
+                  const existingDate = existingTransaction.datetime.getTime();
+                  const newDate = newTransaction.datetime.getTime();
+                  
+                  if (existingDate === newDate) {
+                    // Überspringe nur echte Duplikate (gleiche ID UND gleiches Datum)
+                    console.log(`Echtes Duplikat gefunden: ${newTransaction.vendonId} mit Datum ${new Date(existingDate).toISOString()}`);
+                    duplicates++;
+                  } else {
+                    // Wenn das Datum unterschiedlich ist, trotz gleicher ID, könnten es verschiedene Transaktionen sein
+                    console.log(`Warnung: Transaktion mit ID ${newTransaction.vendonId} könnte ein Duplikat sein, hat aber ein anderes Datum. Alte: ${new Date(existingDate).toISOString()}, Neue: ${new Date(newDate).toISOString()}`);
+                    // Speichern mit modifizierter vendonId, um Duplikat zu vermeiden
+                    const modifiedTransaction = {
+                      ...newTransaction,
+                      vendonId: `${newTransaction.vendonId}_${newDate}`
+                    };
+                    console.log(`Speichere Transaktion mit modifizierter ID: ${modifiedTransaction.vendonId}`);
+                    await storage.createTransaction(modifiedTransaction);
+                    console.log(`Transaktion mit modifizierter ID ${modifiedTransaction.vendonId} gespeichert.`);
+                    itemsSaved++;
+                  }
                 } else {
-                  // Wenn das Datum unterschiedlich ist, trotz gleicher ID, könnten es verschiedene Transaktionen sein
-                  console.log(`Warnung: Transaktion mit ID ${newTransaction.vendonId} könnte ein Duplikat sein, hat aber ein anderes Datum. Alte: ${existingDate}, Neue: ${newDate}`);
-                  // Speichern mit modifizierter vendonId, um Duplikat zu vermeiden
-                  const modifiedTransaction = {
-                    ...newTransaction,
-                    vendonId: `${newTransaction.vendonId}_${newDate}`
-                  };
-                  await storage.createTransaction(modifiedTransaction);
+                  // Speichere neue Transaktion
+                  console.log(`Neue Transaktion ${newTransaction.vendonId} wird gespeichert...`);
+                  const savedTransaction = await storage.createTransaction(newTransaction);
+                  console.log(`Transaktion ${savedTransaction.vendonId} (ID: ${savedTransaction.id}) erfolgreich gespeichert.`);
                   itemsSaved++;
                 }
-              } else {
-                // Speichere neue Transaktion
-                await storage.createTransaction(newTransaction);
-                itemsSaved++;
+              } catch (transError) {
+                console.error(`Kritischer Fehler beim Speichern von Transaktion ${newTransaction.vendonId}:`, transError);
+                errors++;
               }
             } else {
               console.error("Transaktion konnte nicht gespeichert werden, weil die vendonId fehlt");
