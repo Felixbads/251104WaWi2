@@ -27,7 +27,8 @@ import {
   ReferenceLine,
   Label,
   TooltipProps,
-  Rectangle
+  Rectangle,
+  ComposedChart
 } from "recharts";
 import { 
   Calendar as CalendarIcon, 
@@ -270,23 +271,83 @@ function DataTimelineChart() {
     return null;
   };
   
-  // Angepasster Scatter-Punkt
-  const CustomScatterPoint = ({ cx, cy, payload }: any) => {
+  // Benutzerdefinierter Renderer für die Zeitleisten-Balken
+  const CustomTimelineBar = ({ x, y, width, height, payload, index }: any) => {
     const dataPoint = payload as DailyDataPoint;
+    const barHeight = 20;
     
+    // X-Position und Breite bleiben gleich wie vom Chart vorgegeben
+    // Aber wir positionieren die Bars manuell übereinander
     return (
       <g>
-        {!dataPoint.hasTransactionData && (
-          <rect x={cx - 3} y={cy - 15} width={6} height={6} fill="red" />
+        {/* Hintergrund-Linie für die Zeitachse (ganz unten) */}
+        {index === 0 && (
+          <line 
+            x1={0} 
+            y1={y + 100} 
+            x2="100%" 
+            y2={y + 100} 
+            stroke="#e5e7eb" 
+            strokeWidth={2} 
+          />
         )}
-        {!dataPoint.hasWeatherData && (
-          <rect x={cx - 3} y={cy} width={6} height={6} fill="red" />
-        )}
-        {!dataPoint.hasHolidayData && (
-          <rect x={cx - 3} y={cy + 15} width={6} height={6} fill="red" />
-        )}
+        
+        {/* Transaktions-Balken */}
+        <rect 
+          x={x} 
+          y={y} 
+          width={width} 
+          height={barHeight} 
+          fill={dataPoint.hasTransactionData ? "#3b82f6" : "transparent"} 
+          stroke={dataPoint.hasTransactionData ? "none" : "#ef4444"}
+          strokeWidth={1}
+          strokeDasharray={dataPoint.hasTransactionData ? "0" : "0"}
+        />
+        
+        {/* Wetterdaten-Balken */}
+        <rect 
+          x={x} 
+          y={y + 30} 
+          width={width} 
+          height={barHeight} 
+          fill={dataPoint.hasWeatherData ? "#22c55e" : "transparent"} 
+          stroke={dataPoint.hasWeatherData ? "none" : "#ef4444"}
+          strokeWidth={1}
+          strokeDasharray={dataPoint.hasWeatherData ? "0" : "0"}
+        />
+        
+        {/* Feiertags-Balken */}
+        <rect 
+          x={x} 
+          y={y + 60} 
+          width={width} 
+          height={barHeight} 
+          fill={dataPoint.hasHolidayData ? "#f59e0b" : "transparent"} 
+          stroke={dataPoint.hasHolidayData ? "none" : "#ef4444"}
+          strokeWidth={1}
+          strokeDasharray={dataPoint.hasHolidayData ? "0" : "0"}
+        />
+        
+        {/* Feiertags-Markierung */}
         {dataPoint.holidayName && (
-          <circle cx={cx} cy={cy} r={3} fill="#f59e0b" />
+          <circle 
+            cx={x + width/2} 
+            cy={y + 70} 
+            r={4} 
+            fill="#f59e0b" 
+          />
+        )}
+        
+        {/* Zeitstrahl-Markierung für wichtige Daten */}
+        {(index % 30 === 0 || dataPoint.date.getDate() === 1) && (
+          <line 
+            x1={x + width/2} 
+            y1={y + 85} 
+            x2={x + width/2} 
+            y2={y + 100} 
+            stroke="#6b7280" 
+            strokeWidth={1} 
+          />
         )}
       </g>
     );
@@ -323,11 +384,11 @@ function DataTimelineChart() {
       
       <div className="h-[400px]">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart
+          <ComposedChart
             data={timelineData}
             margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
           >
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
             <XAxis 
               dataKey="formattedDate"
               type="category"
@@ -364,42 +425,15 @@ function DataTimelineChart() {
               <Label value="Feiertage" position="insideLeft" offset={100} style={{ textAnchor: 'middle', fontSize: 12 }} />
             </YAxis>
             <Tooltip content={<CustomTimelineTooltip />} />
-            <Line
-              type="monotone"
-              dataKey="hasTransactionData"
-              stroke="#3b82f6"
-              name="Transaktionsdaten"
-              dot={(props) => <CustomScatterPoint {...props} />}
-              activeDot={false}
+            <Bar 
+              dataKey="hasTransactionData" 
+              fill="#3b82f6" 
+              name="Transaktionsdaten" 
+              barSize={15}
+              shape={(props) => <CustomTimelineBar {...props} />}
               isAnimationActive={false}
-              strokeWidth={2}
-              yAxisId={0}
             />
-            <Line
-              type="monotone"
-              dataKey="hasWeatherData"
-              stroke="#22c55e"
-              name="Wetterdaten"
-              dot={false}
-              activeDot={false}
-              isAnimationActive={false}
-              strokeWidth={2}
-              yAxisId={0}
-              strokeDasharray="5 5"
-            />
-            <Line
-              type="monotone"
-              dataKey="hasHolidayData"
-              stroke="#f59e0b"
-              name="Feiertage"
-              dot={false}
-              activeDot={false}
-              isAnimationActive={false}
-              strokeWidth={2}
-              yAxisId={0}
-              strokeDasharray="3 3"
-            />
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
       
