@@ -126,9 +126,7 @@ function App() {
 function MainRouter() {
   const { isAuthenticated, user } = useAuth();
   console.log("Auth status:", { isAuthenticated, user });
-  // Immer die authentifizierten Routen anzeigen, unabhängig vom Auth-Status (für Demozwecke)
-  return <AuthenticatedRouter />;
-  // Original: return isAuthenticated ? <AuthenticatedRouter /> : <PublicRouter />;
+  return isAuthenticated ? <AuthenticatedRouter /> : <PublicRouter />;
 }
 
 export default App;

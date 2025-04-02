@@ -1131,21 +1131,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Authenticate Middleware
   const authenticate = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // HINWEIS: Authentifizierungsprüfung temporär deaktiviert für Testzwecke
-      // Simuliere einen authentifizierten Benutzer
-      // @ts-ignore - Füge einen simulierten Benutzer hinzu
-      req.user = {
-        id: 1,
-        username: "Admin",
-        email: "admin@example.com",
-        isAdmin: true,
-        createdAt: new Date().toISOString()
-      };
-      next();
-      return;
-      
-      // Original-Authentifizierungscode (temporär auskommentiert)
-      /*
       const authHeader = req.headers.authorization;
       
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -1162,7 +1147,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // @ts-ignore - Füge Benutzer zum Anfrageobjekt hinzu
       req.user = user;
       next();
-      */
     } catch (error) {
       console.error("Authentication error:", error);
       res.status(401).json({ error: "Authentication failed" });
