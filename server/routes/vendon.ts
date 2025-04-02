@@ -59,6 +59,39 @@ router.post('/sync', async (req, res) => {
           // Wir erhalten jetzt ein direktes Ergebnis mit allen Informationen
           console.log("Synchronisierung abgeschlossen mit Ergebnis:", result);
           
+          // Stelle sicher, dass die API-Antwort die notwendigen Felder enthält
+          if (!result) {
+            result = {
+              status: 'success', 
+              message: 'Synchronisierung abgeschlossen, aber keine Details verfügbar',
+              stats: {
+                itemsFound: 0,
+                itemsSaved: 0,
+                itemsUpdated: 0,
+                duplicates: 0,
+                errors: 0
+              }
+            };
+          } else if (typeof result === 'object') {
+            // Stelle sicher, dass wir die Statistiken haben
+            if (!result.stats) {
+              result.stats = {
+                itemsFound: result.itemsFound || result.transactions_found || 0,
+                itemsSaved: result.itemsSaved || result.transactions_saved || 0,
+                itemsUpdated: result.itemsUpdated || result.transactions_updated || 0,
+                duplicates: result.duplicates || 0,
+                errors: result.errors || 0
+              };
+            }
+            // Stelle sicher, dass wir status und message haben
+            if (!result.status) {
+              result.status = 'success';
+            }
+            if (!result.message) {
+              result.message = 'Synchronisierung abgeschlossen';
+            }
+          }
+          
         } catch (error) {
           console.error("Fehler bei der manuellen Synchronisierung:", error);
           return res.status(500).json({ 
@@ -273,16 +306,21 @@ Fehler aufgetreten: ${errors}
       }
     }
     
+    // Vollständige Ausgabe der Server-Antwort für Debugging
+    console.log("Antwort wird vorbereitet. result ist:", result);
+    
     const response = {
+      status: 'success',
+      message: 'Synchronisierung gestartet',
       ...result,
       apiResponse: formattedApiResponse,
       syncLog, // Füge das vollständige SyncLog zur Antwort hinzu
       stats: { // Separate übersichtliche Statistiken
-        itemsFound: result.itemsFound || result.transactions_found || 0,
-        itemsSaved: result.itemsSaved || result.transactions_saved || 0,
-        itemsUpdated: result.itemsUpdated || result.transactions_updated || 0,
-        duplicates: result.duplicates || 0,
-        errors: result.errors || 0,
+        itemsFound: result?.itemsFound || result?.transactions_found || 0,
+        itemsSaved: result?.itemsSaved || result?.transactions_saved || 0,
+        itemsUpdated: result?.itemsUpdated || result?.transactions_updated || 0,
+        duplicates: result?.duplicates || 0,
+        errors: result?.errors || 0,
       }
     };
     

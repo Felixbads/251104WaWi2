@@ -199,9 +199,22 @@ export default function TransactionSyncTab() {
         
         console.log('Sync response received:', response);
         
-        if (response && response.syncLogId) {
-          // Aktiviere das Polling für diesen Sync-Log
-          setActiveSyncLogId(response.syncLogId);
+        // Vollständige Antwort zur Diagnose ausgeben
+        console.log(`Vollständige Antwort vom Server:`, JSON.stringify(response, null, 2));
+        
+        // Mit status 'success' fortfahren, auch wenn syncLogId fehlt
+        if (response) {
+          // Wenn eine syncLogId vorhanden ist, aktiviere das Polling
+          if (response.syncLogId) {
+            setActiveSyncLogId(response.syncLogId);
+          } else {
+            console.warn("Keine syncLogId in der Antwort gefunden. Polling wird übersprungen.");
+            // Setzen wir trotzdem einen Timeout, um die UI nach 3 Sekunden zu aktualisieren
+            setTimeout(() => {
+              queryClient.invalidateQueries({ queryKey: ['/api/sync/logs', 'transactions'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
+            }, 3000);
+          }
           
           // Sofortige UI-Aktualisierung mit den anfänglichen Daten
           setSyncProgress({
