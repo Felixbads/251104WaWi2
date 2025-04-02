@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import { format } from 'date-fns';
+import { format, parse, parseISO, isValid } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Download, Upload, RefreshCw, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { Calendar as CalendarIcon, Download, Upload, RefreshCw, AlertCircle, CheckCircle, Clock, FileText } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -238,7 +238,7 @@ const BulkSyncTab: React.FC<BulkSyncProps> = () => {
             )}
             
             {exportMutation.isSuccess && (
-              <Alert variant="success">
+              <Alert className="bg-green-50 text-green-800 border-green-200">
                 <CheckCircle className="h-4 w-4" />
                 <AlertTitle>Export gestartet</AlertTitle>
                 <AlertDescription>
@@ -324,26 +324,77 @@ const BulkSyncTab: React.FC<BulkSyncProps> = () => {
           <CardContent className="space-y-4">
             <div className="space-y-4">
               <div>
-                <Label htmlFor="file-selection">Ausgewählte Datei</Label>
-                <div className="flex gap-2 mt-1">
-                  <Input
-                    id="file-selection"
-                    value={selectedFilePath}
-                    onChange={(e) => setSelectedFilePath(e.target.value)}
-                    placeholder="Pfad zur JSON-Export-Datei"
-                    disabled
-                    className="flex-1"
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={() => setActiveTab('export')}
-                  >
-                    Wählen
-                  </Button>
-                </div>
-                {!selectedFilePath && (
+                <Label htmlFor="file-selection">Verfügbare Export-Dateien</Label>
+                {exportFilesQuery.isLoading ? (
+                  <div className="py-4 text-center">
+                    <Clock className="h-6 w-6 mx-auto mb-2 text-muted-foreground animate-pulse" />
+                    <p className="text-sm text-muted-foreground">Lade Export-Dateien...</p>
+                  </div>
+                ) : exportFilesQuery.isError ? (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Fehler</AlertTitle>
+                    <AlertDescription>
+                      Fehler beim Laden der Export-Dateien
+                    </AlertDescription>
+                  </Alert>
+                ) : exportFilesQuery.data?.files?.length === 0 ? (
+                  <div className="py-4 text-center border rounded-md">
+                    <p className="text-sm text-muted-foreground">Keine Export-Dateien vorhanden</p>
+                    <p className="text-xs text-muted-foreground mt-1">Wechseln Sie zum Export-Tab, um Daten zu exportieren</p>
+                  </div>
+                ) : (
+                  <ScrollArea className="h-40 border rounded-md">
+                    <div className="p-2 space-y-2">
+                      {exportFilesQuery.data?.files?.map((file: ExportFile, index: number) => (
+                        <div 
+                          key={index}
+                          className={cn(
+                            "p-3 rounded-md cursor-pointer hover:bg-muted transition-colors",
+                            selectedFilePath === file.path ? "bg-muted border-primary" : "border"
+                          )}
+                          onClick={() => setSelectedFilePath(file.path)}
+                        >
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <p className="font-medium text-sm truncate" title={file.name}>
+                                {file.name}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {getDateRangeFromFilename(file.name)}
+                              </p>
+                            </div>
+                            <p className="text-xs font-mono bg-muted px-2 py-1 rounded">
+                              {formatFileSize(file.size)}
+                            </p>
+                          </div>
+                          <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                            <span>Erstellt: {formatDate(file.created)}</span>
+                            <span>Geändert: {formatDate(file.modified)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+                
+                {selectedFilePath && (
+                  <div className="mt-2">
+                    <Label htmlFor="selected-file">Ausgewählte Datei</Label>
+                    <Input
+                      id="selected-file"
+                      value={selectedFilePath}
+                      onChange={(e) => setSelectedFilePath(e.target.value)}
+                      placeholder="Pfad zur JSON-Export-Datei"
+                      disabled
+                      className="mt-1"
+                    />
+                  </div>
+                )}
+                
+                {!selectedFilePath && exportFilesQuery.data?.files?.length > 0 && (
                   <p className="text-xs text-amber-600 mt-1">
-                    Bitte wählen Sie zuerst eine Export-Datei im Export-Tab aus
+                    Bitte wählen Sie eine Export-Datei aus der Liste aus
                   </p>
                 )}
               </div>
@@ -391,7 +442,7 @@ const BulkSyncTab: React.FC<BulkSyncProps> = () => {
             )}
             
             {importMutation.isSuccess && (
-              <Alert variant="success">
+              <Alert className="bg-green-50 text-green-800 border-green-200">
                 <CheckCircle className="h-4 w-4" />
                 <AlertTitle>Import gestartet</AlertTitle>
                 <AlertDescription>
