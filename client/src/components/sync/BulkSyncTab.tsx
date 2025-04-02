@@ -1,343 +1,418 @@
-import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { format, subDays, subMonths } from 'date-fns';
-import { de } from 'date-fns/locale';
-import { motion } from 'framer-motion';
-import { Calendar as CalendarIcon, Loader2, FileText, Info, AlertCircle, Download, Database } from 'lucide-react';
-
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { useToast } from '@/hooks/use-toast';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+import React, { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
+import { format } from 'date-fns';
+import { de } from 'date-fns/locale';
+import { Calendar as CalendarIcon, Download, Upload, RefreshCw, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 
-export default function BulkSyncTab() {
-  const { toast } = useToast();
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { DatePickerWithRange } from '@/components/ui/date-range-picker';
+import { Switch } from '@/components/ui/switch';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
+
+interface BulkSyncProps {}
+
+interface ExportFile {
+  name: string;
+  path: string;
+  size: number;
+  created: string;
+  modified: string;
+}
+
+const BulkSyncTab: React.FC<BulkSyncProps> = () => {
+  const queryClient = useQueryClient();
   
-  // State für Datum und Batch-Größe
-  const [startDate, setStartDate] = useState<Date | undefined>(subMonths(new Date(), 1));
-  const [endDate, setEndDate] = useState<Date | undefined>(new Date());
-  const [batchSize, setBatchSize] = useState<string>("100");
-  const [forceUpdate, setForceUpdate] = useState<boolean>(false);
-  
-  // Status des Export/Import-Prozesses
-  const [exportStatus, setExportStatus] = useState<'idle' | 'exporting' | 'exported' | 'error'>('idle');
-  const [importStatus, setImportStatus] = useState<'idle' | 'importing' | 'imported' | 'error'>('idle');
-  
-  // API für Bulk-Export
-  const exportMutation = useMutation({
-    mutationFn: async () => {
-      setExportStatus('exporting');
-      try {
-        const response = await axios.post('/api/bulk/export', {
-          startDate,
-          endDate,
-          batchSize: parseInt(batchSize)
-        });
-        return response.data;
-      } catch (error) {
-        setExportStatus('error');
-        throw error;
-      }
-    },
-    onSuccess: () => {
-      setExportStatus('exported');
-      toast({
-        title: 'Export gestartet',
-        description: 'Der Export wurde im Hintergrund gestartet. Sie können den Fortschritt in den Logs verfolgen.',
-        variant: 'default'
-      });
-      
-      // Nach 2 Sekunden den Dateistatus aktualisieren
-      setTimeout(() => {
-        exportFilesQuery.refetch();
-      }, 2000);
-    },
-    onError: (error) => {
-      setExportStatus('error');
-      toast({
-        title: 'Export fehlgeschlagen',
-        description: `Fehler beim Starten des Exports: ${error.message}`,
-        variant: 'destructive'
-      });
-    }
+  // State für Datum und Export-Optionen
+  const [dateRange, setDateRange] = useState<{
+    from: Date;
+    to: Date;
+  }>({
+    from: new Date(new Date().setMonth(new Date().getMonth() - 3)),
+    to: new Date()
   });
   
-  // Query für exportierte Dateien
+  const [batchSize, setBatchSize] = useState<number>(100);
+  const [forceUpdate, setForceUpdate] = useState<boolean>(false);
+  const [activeTab, setActiveTab] = useState<string>('export');
+  const [selectedFilePath, setSelectedFilePath] = useState<string>('');
+  
+  // Query für Export-Dateien
   const exportFilesQuery = useQuery({
     queryKey: ['/api/bulk/export/status'],
     queryFn: async () => {
       const response = await axios.get('/api/bulk/export/status');
       return response.data;
     },
-    refetchInterval: exportStatus === 'exporting' ? 5000 : false
+    refetchInterval: 10000 // Alle 10 Sekunden aktualisieren während des Exports
   });
   
-  // API für Bulk-Import
-  const importMutation = useMutation({
-    mutationFn: async (filePath: string) => {
-      setImportStatus('importing');
-      try {
-        const response = await axios.post('/api/bulk/import', {
-          filePath,
-          forceUpdate
-        });
-        return response.data;
-      } catch (error) {
-        setImportStatus('error');
-        throw error;
+  // Export-Mutation
+  const exportMutation = useMutation({
+    mutationFn: async () => {
+      if (!dateRange.from || !dateRange.to) {
+        throw new Error('Bitte wählen Sie einen gültigen Datumsbereich');
       }
+      
+      const response = await axios.post('/api/bulk/export', {
+        startDate: dateRange.from.toISOString(),
+        endDate: dateRange.to.toISOString(),
+        batchSize
+      });
+      
+      return response.data;
     },
     onSuccess: () => {
-      setImportStatus('imported');
-      toast({
-        title: 'Import gestartet',
-        description: 'Der Import wurde im Hintergrund gestartet. Sie können den Fortschritt in den Logs verfolgen.',
-        variant: 'default'
-      });
-    },
-    onError: (error) => {
-      setImportStatus('error');
-      toast({
-        title: 'Import fehlgeschlagen',
-        description: `Fehler beim Starten des Imports: ${error.message}`,
-        variant: 'destructive'
-      });
+      // Aktualisiere die Liste der Export-Dateien
+      queryClient.invalidateQueries({ queryKey: ['/api/bulk/export/status'] });
     }
   });
   
-  // Handler für Export-Button
-  const handleExport = () => {
-    if (!startDate || !endDate) {
-      toast({
-        title: 'Eingabe fehlt',
-        description: 'Bitte geben Sie ein Start- und Enddatum an.',
-        variant: 'destructive'
+  // Import-Mutation
+  const importMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedFilePath) {
+        throw new Error('Bitte wählen Sie eine Datei zum Importieren');
+      }
+      
+      const response = await axios.post('/api/bulk/import', {
+        filePath: selectedFilePath,
+        forceUpdate
       });
-      return;
+      
+      return response.data;
+    },
+    onSuccess: () => {
+      // Aktualisiere die Transaktiondaten
+      queryClient.invalidateQueries({ queryKey: ['/api/transactions'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/database/stats'] });
     }
-    
-    exportMutation.mutate();
+  });
+  
+  // Wenn Dateien geladen sind, wähle automatisch die neueste aus
+  useEffect(() => {
+    if (exportFilesQuery.data?.files && exportFilesQuery.data.files.length > 0) {
+      setSelectedFilePath(exportFilesQuery.data.files[0].path);
+    }
+  }, [exportFilesQuery.data]);
+  
+  // Formatiere Dateigröße benutzerfreundlich
+  const formatFileSize = (sizeInBytes: number): string => {
+    if (sizeInBytes < 1024) {
+      return `${sizeInBytes} B`;
+    } else if (sizeInBytes < 1024 * 1024) {
+      return `${(sizeInBytes / 1024).toFixed(2)} KB`;
+    } else {
+      return `${(sizeInBytes / (1024 * 1024)).toFixed(2)} MB`;
+    }
   };
   
-  // Handler für Import-Button
-  const handleImport = (filePath: string) => {
-    importMutation.mutate(filePath);
+  // Formatiere Datum benutzerfreundlich
+  const formatDate = (dateString: string): string => {
+    try {
+      const date = new Date(dateString);
+      return format(date, 'PPpp', { locale: de });
+    } catch (error) {
+      return dateString;
+    }
+  };
+  
+  // Extrahiere Datumsbereich aus Dateinamen
+  const getDateRangeFromFilename = (filename: string): string => {
+    try {
+      const match = filename.match(/transactions_(.+?)_(.+?)\.json/);
+      if (match) {
+        const startDate = match[1].replace(/-/g, ':').replace(/_/g, 'T');
+        const endDate = match[2].replace(/-/g, ':').replace(/_/g, 'T');
+        
+        return `${new Date(startDate).toLocaleDateString('de-DE')} bis ${new Date(endDate).toLocaleDateString('de-DE')}`;
+      }
+    } catch (error) {
+      // Bei Fehler einfach den Original-Dateinamen zurückgeben
+    }
+    
+    return filename;
   };
   
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Bulk-Transaktions-Synchronisierung</CardTitle>
-          <CardDescription>
-            Exportieren und importieren Sie Transaktionen im Bulk-Modus für große Zeiträume
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="startDate">Startdatum</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal"
-                    id="startDate"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {startDate ? (
-                      format(startDate, 'P', { locale: de })
-                    ) : (
-                      <span>Startdatum wählen</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <CalendarComponent
-                    mode="single"
-                    selected={startDate}
-                    onSelect={setStartDate}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+    <Card>
+      <CardHeader>
+        <CardTitle>Bulk-Synchronisation</CardTitle>
+        <CardDescription>
+          Zweistufige Synchronisation von Transaktionen: Erst Export, dann Import.
+          Dieser Ansatz löst Probleme mit der Paginierung bei der Vendon-API.
+        </CardDescription>
+      </CardHeader>
+      
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="export">1. Export</TabsTrigger>
+          <TabsTrigger value="import">2. Import</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="export" className="space-y-4">
+          <CardContent className="space-y-4">
+            <div className="grid gap-4">
+              <div>
+                <Label htmlFor="date-range">Zeitraum</Label>
+                <DatePickerWithRange 
+                  value={dateRange} 
+                  onChange={setDateRange}
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="batch-size">Batch-Größe</Label>
+                <Input
+                  id="batch-size"
+                  type="number"
+                  value={batchSize}
+                  onChange={(e) => setBatchSize(Number(e.target.value))}
+                  min={10}
+                  max={500}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Anzahl der Transaktionen pro API-Anfrage. Empfohlen: 100-200
+                </p>
+              </div>
             </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="endDate">Enddatum</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal"
-                    id="endDate"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {endDate ? (
-                      format(endDate, 'P', { locale: de })
-                    ) : (
-                      <span>Enddatum wählen</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <CalendarComponent
-                    mode="single"
-                    selected={endDate}
-                    onSelect={setEndDate}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="batchSize">Batch-Größe</Label>
-              <Select 
-                value={batchSize} 
-                onValueChange={setBatchSize}
-              >
-                <SelectTrigger id="batchSize">
-                  <SelectValue placeholder="Batch-Größe auswählen" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="50">50 Transaktionen</SelectItem>
-                  <SelectItem value="100">100 Transaktionen</SelectItem>
-                  <SelectItem value="200">200 Transaktionen</SelectItem>
-                  <SelectItem value="500">500 Transaktionen</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="forceUpdate" className="flex items-center space-x-2">
-              <span>Force Update</span>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="ghost" className="h-4 w-4 p-0 ml-1">
-                    <Info className="h-3 w-3" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-80 p-2 text-xs">
-                  Aktivieren Sie diese Option, um bestehende Transaktionen beim Import zu aktualisieren. Ansonsten werden nur neue Transaktionen importiert.
-                </PopoverContent>
-              </Popover>
-            </Label>
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="forceUpdate"
-                checked={forceUpdate}
-                onChange={(e) => setForceUpdate(e.target.checked)}
-                className="w-4 h-4 text-blue-600 rounded"
-              />
-              <label htmlFor="forceUpdate" className="text-sm text-gray-700 dark:text-gray-300">
-                {forceUpdate ? "Aktiviert (bestehende Datensätze werden überschrieben)" : "Deaktiviert (nur neue Datensätze werden hinzugefügt)"}
-              </label>
-            </div>
-          </div>
-          
-          <div className="pt-4">
             <Button 
-              onClick={handleExport}
-              disabled={exportMutation.isPending || !startDate || !endDate}
-              className="flex items-center"
+              className="w-full" 
+              onClick={() => exportMutation.mutate()}
+              disabled={exportMutation.isPending || !dateRange.from || !dateRange.to}
             >
               {exportMutation.isPending ? (
                 <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Export wird gestartet...
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Export läuft...
                 </>
               ) : (
                 <>
-                  <Download className="mr-2 h-5 w-5" />
+                  <Download className="mr-2 h-4 w-4" />
                   Transaktionen exportieren
                 </>
               )}
             </Button>
-          </div>
-        </CardContent>
-      </Card>
-      
-      {/* Exportierte Dateien */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Exportierte Dateien</CardTitle>
-          <CardDescription>
-            Liste der exportierten Transaktionsdateien, die für den Import verfügbar sind
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {exportFilesQuery.isLoading ? (
-            <div className="flex items-center justify-center p-4">
-              <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-              <span className="ml-2 text-gray-500">Lade Dateien...</span>
-            </div>
-          ) : exportFilesQuery.error ? (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Fehler</AlertTitle>
-              <AlertDescription>
-                Die Dateien konnten nicht geladen werden. Bitte versuchen Sie es später erneut.
-              </AlertDescription>
-            </Alert>
-          ) : exportFilesQuery.data?.files?.length === 0 ? (
-            <div className="text-center p-4 text-gray-500">
-              <FileText className="h-12 w-12 mx-auto mb-2 text-gray-400" />
-              <p>Keine exportierten Dateien vorhanden</p>
-              <p className="text-sm mt-1">Starten Sie einen Export, um Dateien zu erstellen</p>
-            </div>
-          ) : (
+            
+            {exportMutation.isError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Fehler</AlertTitle>
+                <AlertDescription>
+                  {exportMutation.error instanceof Error 
+                    ? exportMutation.error.message 
+                    : 'Ein Fehler ist aufgetreten'}
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            {exportMutation.isSuccess && (
+              <Alert variant="success" className="bg-green-50 border-green-200 text-green-800">
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                <AlertTitle>Export gestartet</AlertTitle>
+                <AlertDescription>
+                  Der Export wurde im Hintergrund gestartet. Die Datei wird unten angezeigt, sobald der Export abgeschlossen ist.
+                </AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+          
+          <Separator />
+          
+          <CardContent>
             <div className="space-y-4">
-              {exportFilesQuery.data?.files?.map((file: any) => (
-                <div 
-                  key={file.name} 
-                  className="border rounded-lg p-4 flex flex-col md:flex-row md:items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              <div className="flex justify-between items-center">
+                <h3 className="font-medium">Verfügbare Export-Dateien</h3>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => exportFilesQuery.refetch()}
                 >
-                  <div className="flex-1 mb-3 md:mb-0">
-                    <h4 className="font-medium">{file.name}</h4>
-                    <div className="text-sm text-gray-500 mt-1">
-                      <p>Größe: {(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                      <p>Erstellt: {new Date(file.created).toLocaleString('de-DE')}</p>
-                    </div>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Aktualisieren
+                </Button>
+              </div>
+              
+              {exportFilesQuery.isLoading ? (
+                <div className="py-8 text-center">
+                  <Clock className="h-6 w-6 mx-auto mb-2 text-muted-foreground animate-pulse" />
+                  <p className="text-sm text-muted-foreground">Lade Export-Dateien...</p>
+                </div>
+              ) : exportFilesQuery.isError ? (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Fehler</AlertTitle>
+                  <AlertDescription>
+                    Fehler beim Laden der Export-Dateien
+                  </AlertDescription>
+                </Alert>
+              ) : exportFilesQuery.data?.files?.length === 0 ? (
+                <div className="py-8 text-center border rounded-md">
+                  <p className="text-sm text-muted-foreground">Keine Export-Dateien vorhanden</p>
+                  <p className="text-xs text-muted-foreground mt-1">Führen Sie einen Export durch, um Dateien zu erstellen</p>
+                </div>
+              ) : (
+                <ScrollArea className="h-60 border rounded-md">
+                  <div className="p-2 space-y-2">
+                    {exportFilesQuery.data?.files?.map((file: ExportFile, index: number) => (
+                      <div 
+                        key={index}
+                        className={cn(
+                          "p-3 rounded-md cursor-pointer hover:bg-muted transition-colors",
+                          selectedFilePath === file.path ? "bg-muted border-primary" : "border"
+                        )}
+                        onClick={() => setSelectedFilePath(file.path)}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-medium text-sm truncate" title={file.name}>
+                              {file.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {getDateRangeFromFilename(file.name)}
+                            </p>
+                          </div>
+                          <p className="text-xs font-mono bg-muted px-2 py-1 rounded">
+                            {formatFileSize(file.size)}
+                          </p>
+                        </div>
+                        <div className="flex justify-between text-xs text-muted-foreground mt-2">
+                          <span>Erstellt: {formatDate(file.created)}</span>
+                          <span>Geändert: {formatDate(file.modified)}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
+                </ScrollArea>
+              )}
+            </div>
+          </CardContent>
+        </TabsContent>
+        
+        <TabsContent value="import" className="space-y-4">
+          <CardContent className="space-y-4">
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="file-selection">Ausgewählte Datei</Label>
+                <div className="flex gap-2 mt-1">
+                  <Input
+                    id="file-selection"
+                    value={selectedFilePath}
+                    onChange={(e) => setSelectedFilePath(e.target.value)}
+                    placeholder="Pfad zur JSON-Export-Datei"
+                    disabled
+                    className="flex-1"
+                  />
                   <Button
-                    onClick={() => handleImport(file.path)}
-                    disabled={importMutation.isPending}
                     variant="outline"
-                    className="w-full md:w-auto"
+                    onClick={() => setActiveTab('export')}
                   >
-                    {importMutation.isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Database className="mr-2 h-4 w-4" />
-                    )}
-                    In Datenbank importieren
+                    Wählen
                   </Button>
                 </div>
-              ))}
+                {!selectedFilePath && (
+                  <p className="text-xs text-amber-600 mt-1">
+                    Bitte wählen Sie zuerst eine Export-Datei im Export-Tab aus
+                  </p>
+                )}
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="force-update"
+                  checked={forceUpdate}
+                  onCheckedChange={setForceUpdate}
+                />
+                <Label htmlFor="force-update">
+                  Force Update (bereits existierende Transaktionen aktualisieren)
+                </Label>
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+            
+            <Button 
+              className="w-full" 
+              onClick={() => importMutation.mutate()}
+              disabled={importMutation.isPending || !selectedFilePath}
+            >
+              {importMutation.isPending ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Import läuft...
+                </>
+              ) : (
+                <>
+                  <Upload className="mr-2 h-4 w-4" />
+                  Transaktionen importieren
+                </>
+              )}
+            </Button>
+            
+            {importMutation.isError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Fehler</AlertTitle>
+                <AlertDescription>
+                  {importMutation.error instanceof Error 
+                    ? importMutation.error.message 
+                    : 'Ein Fehler ist aufgetreten'}
+                </AlertDescription>
+              </Alert>
+            )}
+            
+            {importMutation.isSuccess && (
+              <Alert variant="success" className="bg-green-50 border-green-200 text-green-800">
+                <CheckCircle className="h-4 w-4 text-green-500" />
+                <AlertTitle>Import gestartet</AlertTitle>
+                <AlertDescription>
+                  Der Import wurde im Hintergrund gestartet. Sie können den Fortschritt in den Logs verfolgen.
+                </AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+          
+          <Separator />
+          
+          <CardContent>
+            <div className="space-y-4">
+              <h3 className="font-medium">Import-Hinweise</h3>
+              <div className="p-4 border rounded-md bg-blue-50 text-blue-800">
+                <ul className="list-disc list-inside space-y-2 text-sm">
+                  <li>
+                    Der Import-Prozess läuft asynchron im Hintergrund und kann je nach Datenmenge einige Zeit in Anspruch nehmen.
+                  </li>
+                  <li>
+                    Mit der Option "Force Update" werden bereits existierende Transaktionen aktualisiert, ansonsten werden sie übersprungen.
+                  </li>
+                  <li>
+                    Sie können den Fortschritt des Imports im Logs-Tab verfolgen.
+                  </li>
+                  <li>
+                    Nach Abschluss des Imports sollten Sie auf dem Dashboard die aktualisierten Transaktionszahlen sehen.
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </TabsContent>
+      </Tabs>
       
-      <Alert className="bg-gray-50 dark:bg-gray-800 mt-4">
-        <Info className="h-4 w-4" />
-        <AlertTitle>Hinweis zur Bulk-Synchronisierung</AlertTitle>
-        <AlertDescription>
-          <p className="text-sm mt-1">
-            Der Bulk-Export-Prozess lädt alle Transaktionen aus dem gewählten Zeitraum und speichert sie in einer JSON-Datei. Diese Datei können Sie dann in die Datenbank importieren. 
-            Dies ist besonders nützlich für große Zeiträume, bei denen die normale Synchronisierung zeitlich scheitern würde.
-          </p>
-        </AlertDescription>
-      </Alert>
-    </div>
+      <CardFooter className="flex flex-col items-start">
+        <p className="text-xs text-muted-foreground">
+          Die Bulk-Synchronisation ist eine zweistufige Lösung für die Begrenzung der Paginierung in der Vendon-API.
+          Zuerst werden alle Transaktionen in eine JSON-Datei exportiert, und dann aus dieser Datei in die Datenbank importiert.
+        </p>
+      </CardFooter>
+    </Card>
   );
-}
+};
+
+export default BulkSyncTab;

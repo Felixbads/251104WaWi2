@@ -8,16 +8,25 @@ interface VendonApi {
   getTransactions: (startDate: Date, endDate: Date, machineId?: string, offset?: number, limit?: number) => Promise<any>;
 }
 
+// Definiere Interface für den Speicherzugriff
+interface DatabaseStorage {
+  getMachineByVendonId: (vendonId: string) => Promise<any>;
+  createMachine: (machine: InsertMachine) => Promise<any>;
+  getTransactionByVendonId: (vendonId: string) => Promise<any>;
+  createTransaction: (transaction: InsertTransaction) => Promise<any>;
+  updateTransaction: (id: number, transaction: Partial<InsertTransaction>) => Promise<any>;
+}
+
 /**
  * Service für den Bulk-Export und Import von Transaktionen
  * Diese Klasse dient als Workaround für die Paginierungsprobleme bei der Vendon-API
  */
 export class BulkTransactionExporter {
   private api: VendonApi;
-  private storage: Storage;
+  private storage: DatabaseStorage;
   private exportDir: string;
 
-  constructor(api: VendonApi, storage: Storage) {
+  constructor(api: VendonApi, storage: DatabaseStorage) {
     this.api = api;
     this.storage = storage;
     
