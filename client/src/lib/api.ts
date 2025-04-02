@@ -533,6 +533,15 @@ export async function getSyncLogsByType(syncType: string, limit = 20): Promise<S
   return apiRequest<SyncLog[]>('get', `/sync/logs?type=${syncType}&limit=${limit}`);
 }
 
+export async function getSyncLogById(id: number): Promise<SyncLog | null> {
+  try {
+    return await apiRequest<SyncLog | null>('get', `/sync/logs/${id}`);
+  } catch (error) {
+    console.error(`Error fetching sync log with ID ${id}:`, error);
+    return null;
+  }
+}
+
 // Events/Ereignisse
 export async function getEvents(limit = 50, offset = 0): Promise<Event[]> {
   return apiRequest<Event[]>('get', `/events?limit=${limit}&offset=${offset}`);

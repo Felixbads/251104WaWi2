@@ -1067,95 +1067,105 @@ export class VendonSyncService {
       // Wenn vorgeladene Daten existieren, diese zuerst verarbeiten
       let transactions = [];
       if (preloadedData && preloadedData.result && Array.isArray(preloadedData.result)) {
-        console.log(`Verarbeite ${preloadedData.result.length} vorgeladene Transaktionen`);
-        transactions = preloadedData.result;
-        totalItems += transactions.length;
-        
-        // Gleich die erste Seite verarbeiten
-        for (const transaction of transactions) {
+        const preloadedTransactions = preloadedData.result;
+        console.log(`Verarbeite ${preloadedTransactions.length} vorgeladene Transaktionen direkt`);
+        totalItems += preloadedTransactions.length;
+
+        // Einfaches Schema zur Verarbeitung der Transaktionen
+        for (const transaction of preloadedTransactions) {
           try {
-            // Prüfe, ob die Transaktion eine ID hat (entweder id oder transaction_id)
-            const transactionId = transaction.id || transaction.transaction_id;
+            // Sicherstellen, dass eine TransaktionsID vorhanden ist
+            const transactionId = transaction.transaction_id;
             if (!transactionId) {
               console.error("Transaktion ohne ID übersprungen:", transaction);
               errors++;
               continue;
             }
             
-            // Konvertiere transaction_id zu vendonId als String
+            // Transaktions-ID in String-Format konvertieren
             const vendonId = transactionId.toString();
             
-            // Prüfe, ob die Transaktion bereits existiert
+            // Verhindern von Duplikaten
             const existingTransaction = await storage.getTransactionByVendonId(vendonId);
-            
             if (existingTransaction) {
-              // Überspringe Duplikate
               duplicates++;
               continue;
             }
             
-            // Prüfe, ob die Maschine existiert
-            let machineId: number;
+            // Maschine verarbeiten
+            let machineId = 1; // Fallback
             if (transaction.machine_id) {
               const machineVendonId = transaction.machine_id.toString();
               let machineData = await storage.getMachineByVendonId(machineVendonId);
               
               if (!machineData) {
-                // Erstelle einen minimalen Maschinendatensatz, wenn er nicht existiert
+                // Einfach eine neue Maschine erstellen
                 const newMachine: InsertMachine = {
                   vendonId: machineVendonId,
                   machineName: transaction.machine_name || `Maschine ${machineVendonId}`,
                   lastSync: new Date()
                 };
-                machineData = await storage.createMachine(newMachine);
+                
+                try {
+                  machineData = await storage.createMachine(newMachine);
+                  machineId = machineData.id;
+                } catch (machineError) {
+                  console.error(`Fehler beim Erstellen der Maschine für ID ${machineVendonId}:`, machineError);
+                  // Weiter mit Standard-ID
+                }
+              } else {
+                machineId = machineData.id;
               }
-              
-              machineId = machineData.id;
-            } else {
-              console.warn(`Transaktion ${transactionId} hat keine Maschinen-ID. Verwende Standardwert.`);
-              machineId = 1; // Standardwert, wenn keine Maschinen-ID vorhanden ist
             }
             
-            // Hole oder erstelle das Produkt
-            let productName = transaction.name || "Unbekanntes Produkt";
+            // Produktnamen verwenden wenn vorhanden
+            const productName = transaction.name || "Unbekanntes Produkt";
             
-            // Erstelle das vereinfachte Transaktionsobjekt mit nur den nötigsten Feldern
-            const newTransaction: InsertTransaction = {
+            // Zeitstempel verarbeiten
+            const datetime = new Date(transaction.datetime * 1000);
+            
+            // Minimales Transaktionsobjekt erstellen - nur die wichtigsten Felder
+            const simplifiedTransaction: InsertTransaction = {
               vendonId: vendonId,
               machineId: machineId,
-              machineName: transaction.machine_name || "Unbekannte Maschine",
-              datetime: new Date(transaction.datetime * 1000), // Unix-Timestamp in JS Date konvertieren
+              machineName: transaction.machine_name || "Unbekannt",
+              datetime: datetime,
+              productName: productName,
               price: transaction.price || 0,
               quantity: transaction.quantity || 1,
-              productName: productName,
               paymentMethod: transaction.payment_method || "UNKNOWN",
-              // Setze zusätzliche Felder, die vorhanden sein könnten
-              stockId: transaction.stock_id ? transaction.stock_id.toString() : null,
-              status: "completed",
               currency: transaction.currency || "EUR",
-              source: transaction.source || "vendon",
-              // Speichere die Rohdaten für spätere Verarbeitung
+              status: "completed",
+              source: "vendon_api",
               extraData: JSON.stringify(transaction)
             };
             
-            // Speichere neue Transaktion
-            await storage.createTransaction(newTransaction);
-            itemsSaved++;
+            // In die Datenbank speichern
+            try {
+              await storage.createTransaction(simplifiedTransaction);
+              itemsSaved++;
+              console.log(`Transaktion gespeichert: ID ${vendonId}, Produkt: ${productName}`);
+            } catch (saveError) {
+              console.error(`Fehler beim Speichern der Transaktion ${vendonId}:`, saveError);
+              errors++;
+            }
             
-          } catch (transactionError) {
-            console.error(`Fehler bei der Verarbeitung von vorgeladener Transaktion:`, transactionError);
+          } catch (processError) {
+            console.error("Fehler bei der Verarbeitung einer Transaktion:", processError);
             errors++;
           }
         }
         
-        // Aktualisiere den Log nach der Verarbeitung der vorgeladenen Daten
+        // Status aktualisieren nach der Verarbeitung
         await storage.updateSyncLog(syncLogId, {
           itemsFound: totalItems,
           itemsSaved,
-          itemsUpdated,
           duplicates,
           errors
         });
+        
+        // Vorgeladene Daten wurden verarbeitet, an die nächste Seite weitergehen
+        transactions = preloadedTransactions;
       }
       
       // Solange es weitere Transaktionen gibt und wir das Maximum nicht erreicht haben

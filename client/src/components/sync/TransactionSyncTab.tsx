@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, subDays } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -23,6 +23,7 @@ import {
   getSyncLogsByType,
   SyncStatus
 } from '@/lib/api';
+import axios from 'axios';
 
 export default function TransactionSyncTab() {
   const { toast } = useToast();
@@ -65,9 +66,68 @@ export default function TransactionSyncTab() {
     status: 'idle'
   });
   
+  // Aktiver Sync-Log für Polling
+  const [activeSyncLogId, setActiveSyncLogId] = useState<number | null>(null);
+  
+  // Aktiver Sync-Log wenn vorhanden
+  const { data: activeLog, refetch: refetchActiveLog } = useQuery({
+    queryKey: ['/api/sync/logs', activeSyncLogId],
+    queryFn: async () => {
+      if (!activeSyncLogId) return null;
+      try {
+        const response = await axios.get(`/api/sync/logs/${activeSyncLogId}`);
+        return response.data;
+      } catch (error) {
+        console.error("Fehler beim Abrufen des aktiven Sync-Logs:", error);
+        return null;
+      }
+    },
+    enabled: !!activeSyncLogId,
+    refetchInterval: activeSyncLogId ? 2000 : false // Polling nur wenn aktiv
+  });
+  
+  // Aktualisiere UI-Status basierend auf dem aktiven Log
+  useEffect(() => {
+    if (activeLog) {
+      setSyncProgress({
+        total: activeLog.itemsFound || 0,
+        processed: activeLog.itemsSaved || 0,
+        duplicates: activeLog.duplicates || 0,
+        errors: activeLog.errors || 0,
+        status: activeLog.syncStatus === 'completed' ? 'success' : 
+                activeLog.syncStatus === 'error' ? 'error' : 'loading',
+        startTime: activeLog.startDate ? new Date(activeLog.startDate) : undefined,
+        endTime: activeLog.endDate ? new Date(activeLog.endDate) : undefined,
+        dateRange: `${format(startDate || new Date(), 'P', { locale: de })} - ${format(endDate || new Date(), 'P', { locale: de })}`
+      });
+      
+      // Wenn der Log abgeschlossen ist, stoppe das Polling
+      if (activeLog.syncStatus === 'completed' || activeLog.syncStatus === 'error') {
+        // Erfolgsmeldung oder Fehlermeldung
+        if (activeLog.syncStatus === 'completed') {
+          toast({
+            title: "Synchronisierung abgeschlossen",
+            description: `${activeLog.itemsSaved || 0} Transaktionen gespeichert, ${activeLog.duplicates || 0} Duplikate übersprungen.`,
+            variant: "default"
+          });
+        } else {
+          toast({
+            title: "Synchronisierungsfehler",
+            description: activeLog.errorMessage || "Unbekannter Fehler bei der Synchronisierung",
+            variant: "destructive"
+          });
+        }
+        
+        // Reset des aktiven Logs - stoppe das Polling
+        setActiveSyncLogId(null);
+      }
+    }
+  }, [activeLog, startDate, endDate, toast]);
+  
   // Mutation for triggering synchronization
   const syncMutation = useMutation({
     mutationFn: async () => {
+      // UI-Status auf "Loading" setzen
       setSyncProgress({
         ...syncProgress,
         status: 'loading',
@@ -80,56 +140,50 @@ export default function TransactionSyncTab() {
           startDate,
           endDate,
           batchSize: parseInt(batchSize),
-          maxTransactions: parseInt(maxTransactions) // Direkt übergeben, statt maxDays zu berechnen
+          maxTransactions: parseInt(maxTransactions)
         };
         
         console.log('Sending sync request with options:', options);
         
-        // Direkten API-Aufruf zum Backend mit vollständigen Optionen
+        // Synchronisierung starten (nutzt jetzt den verbesserten Endpunkt mit Hintergrundverarbeitung)
         const response = await startSync('transactions', options);
         
         console.log('Sync response received:', response);
         
-        // Bei erfolgreicher Antwort
-        if (response) {
-          // API-Antwort auswerten und Status aktualisieren
-          const itemsFound = response.syncLog?.itemsFound || response.stats?.itemsFound || 0;
-          const itemsSaved = response.syncLog?.itemsSaved || response.stats?.itemsSaved || 0;
-          const duplicates = response.syncLog?.duplicates || response.stats?.duplicates || 0;
-          const errors = response.syncLog?.errors || response.stats?.errors || 0;
+        if (response && response.syncLogId) {
+          // Aktiviere das Polling für diesen Sync-Log
+          setActiveSyncLogId(response.syncLogId);
           
-          console.log('Processing stats:', { itemsFound, itemsSaved, duplicates, errors });
+          // Sofortige UI-Aktualisierung mit den anfänglichen Daten
+          setSyncProgress({
+            total: response.stats?.itemsFound || 0,
+            processed: response.stats?.itemsSaved || 0,
+            duplicates: response.stats?.duplicates || 0,
+            errors: response.stats?.errors || 0,
+            status: 'loading',
+            startTime: new Date(),
+            dateRange: `${format(startDate || new Date(), 'P', { locale: de })} - ${format(endDate || new Date(), 'P', { locale: de })}`
+          });
           
-          // Update Fortschritt mit den tatsächlichen Werten
-          setSyncProgress(prev => ({
-            ...prev,
-            status: 'success',
-            endTime: new Date(),
-            total: itemsFound,
-            processed: itemsSaved,
-            duplicates: duplicates,
-            errors: errors
-          }));
-
-          // Aktualisiere die Abfragen für die UI
+          // Queries aktualisieren
           queryClient.invalidateQueries({ queryKey: ['/api/sync/logs', 'transactions'] });
           queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
           
           return response;
         }
         
-        // Wenn leere Antwort (sollte nicht vorkommen, aber als Fallback)
+        // Fallback für unerwartete Antwortformate
+        toast({
+          title: "Unerwartete Serverantwort",
+          description: "Der Server hat keine gültige Sync-ID zurückgegeben. Bitte versuchen Sie es später erneut.",
+          variant: "destructive"
+        });
+        
         setSyncProgress(prev => ({
           ...prev,
           status: 'error',
           endTime: new Date()
         }));
-        
-        toast({
-          title: "Synchronisationsfehler",
-          description: "Es wurde keine gültige Antwort vom Server erhalten.",
-          variant: "destructive"
-        });
         
         return null;
       } catch (error) {
@@ -144,37 +198,22 @@ export default function TransactionSyncTab() {
         throw error;
       }
     },
-    onSuccess: (response) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/sync/logs', 'transactions'] });
-      
-      // Erfolgreiche Synchronisierung
-      if (response) {
-        const itemsFound = response.syncLog?.itemsFound || response.stats?.itemsFound || 0;
-        const itemsSaved = response.syncLog?.itemsSaved || response.stats?.itemsSaved || 0;
-        
-        if (itemsFound > 0) {
-          toast({
-            title: "Transaktions-Synchronisierung abgeschlossen",
-            description: `${itemsFound} Transaktionen gefunden, ${itemsSaved} neu gespeichert.`,
-            variant: "success",
-          });
-        } else {
-          toast({
-            title: "Transaktions-Synchronisierung abgeschlossen",
-            description: "Keine neuen Transaktionen im ausgewählten Zeitraum gefunden oder alle bereits synchronisiert.",
-            variant: "default",
-          });
-        }
-      }
-    },
     onError: (error) => {
       toast({
         title: "Synchronisierungsfehler",
-        description: error instanceof Error ? error.message : "Ein unbekannter Fehler ist aufgetreten.",
-        variant: "destructive",
+        description: error instanceof Error ? error.message : "Unbekannter Fehler bei der Synchronisierung.",
+        variant: "destructive"
       });
-    },
+      
+      setSyncProgress(prev => ({
+        ...prev,
+        status: 'error',
+        endTime: new Date()
+      }));
+      
+      // Reset des aktiven Logs
+      setActiveSyncLogId(null);
+    }
   });
   
   // Function to render the historical sync status

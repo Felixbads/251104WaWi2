@@ -33,13 +33,45 @@ router.post('/sync', async (req, res) => {
           
           apiResponse = await api.getTransactions(fromTimestamp, toTimestamp, undefined, 0, batchSize);
           
-          // Bei der eigentlichen Synchronisierung die API-Antwort mitgeben
-          // Übergebe die API-Antwort an die syncTransactions Funktion als preloadedData
-          // maxTransactions als separater Parameter übergeben
+          // Starte die Synchronisierung im Hintergrund
+          // Der Response wird sofort zurückgegeben, während die Synchronisierung weiterläuft
           const maxTransactions = parseInt(req.body.maxTransactions || "1000");
           console.log("Verwende maxTransactions:", maxTransactions);
           
-          result = await vendonSync.syncTransactions(startDateObj, endDateObj, batchSize, maxTransactions, apiResponse);
+          // Sync-Log erstellen
+          const syncLog = await storage.createSyncLog({
+            syncType: 'transactions',
+            startDate: startDateObj,
+            endDate: endDateObj,
+            syncStatus: 'running',
+          });
+          
+          // Starte die Verarbeitung im Hintergrund
+          vendonSync.syncTransactions(startDateObj, endDateObj, batchSize, maxTransactions, apiResponse)
+            .then(syncResult => {
+              console.log("Synchronisierung erfolgreich abgeschlossen:", syncResult);
+            })
+            .catch(error => {
+              console.error("Fehler bei der Synchronisierung:", error);
+              storage.updateSyncLog(syncLog.id, {
+                syncStatus: 'error',
+                errorMessage: error.message || 'Unbekannter Fehler'
+              });
+            });
+          
+          // Sofort Antwort zurückgeben
+          result = {
+            syncLogId: syncLog.id,
+            status: 'running',
+            message: `Synchronisierung von ${apiResponse?.result?.length || 0} gefundenen Transaktionen läuft im Hintergrund`,
+            stats: {
+              itemsFound: apiResponse?.result?.length || 0,
+              itemsSaved: 0,
+              itemsUpdated: 0,
+              duplicates: 0,
+              errors: 0
+            }
+          };
         } catch (apiError) {
           console.error("Fehler beim Abrufen der API-Antwort:", apiError);
           // Die Synchronisierung trotzdem durchführen, auch wenn die API-Antwort nicht erfasst werden konnte
