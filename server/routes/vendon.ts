@@ -12,18 +12,20 @@ router.post('/sync', async (req, res) => {
   try {
     const { type, startDate, endDate, batchSize, maxDays } = req.body;
     
-    // API-Antwort für Frontend-Anzeige erfassen
+    // API-Antwort für Frontend-Anzeige erfassen (nur zum Anzeigen in der UI)
     let apiResponse = null;
     
     let result;
     switch(type) {
       case 'transactions':
-        // Optional: Konvertiere Datumszeichenfolgen in Date-Objekte
+        // Konvertiere Datumszeichenfolgen in Date-Objekte
         const startDateObj = startDate ? new Date(startDate) : undefined;
         const endDateObj = endDate ? new Date(endDate) : undefined;
         
-        // API-Antwort erfassen
+        console.log(`Manueller Sync für Transaktionen im Zeitraum ${startDateObj?.toISOString() || 'unbekannt'} bis ${endDateObj?.toISOString() || 'unbekannt'}`);
+        
         try {
+          // Nur für die Anzeige in der UI die aktuelle API-Antwort abrufen
           const api = vendonSync.getApi();
           const fromTimestamp = Math.floor(startDateObj?.getTime() / 1000 || Date.now() / 1000 - 86400 * 7);
           const toTimestamp = Math.floor(endDateObj?.getTime() / 1000 || Date.now() / 1000);
@@ -31,141 +33,196 @@ router.post('/sync', async (req, res) => {
           console.log("API-Anfrage: GET /stats/vends (für Frontend-Anzeige)");
           console.log("Parameter:", { from_timestamp: fromTimestamp, to_timestamp: toTimestamp, offset: 0, limit: batchSize });
           
+          // Diese API-Antwort ist nur für die Frontend-Anzeige
           apiResponse = await api.getTransactions(fromTimestamp, toTimestamp, undefined, 0, batchSize);
           
-          // Starte die Synchronisierung im Hintergrund
-          // Der Response wird sofort zurückgegeben, während die Synchronisierung weiterläuft
-          const maxTransactions = parseInt(req.body.maxTransactions || "1000");
-          console.log("Verwende maxTransactions:", maxTransactions);
-          
-          // Sync-Log erstellen
-          const syncLog = await storage.createSyncLog({
-            syncType: 'transactions',
-            startDate: startDateObj,
-            endDate: endDateObj,
-            syncStatus: 'running',
-          });
-          
-          // Starte die Verarbeitung im Hintergrund
-          // Stelle sicher, dass die Transaktionen korrekt an syncTransactions übergeben werden
-          console.log("API-Antwort-Format für Transaktionen:", apiResponse ? Object.keys(apiResponse) : "keine Antwort");
-          vendonSync.syncTransactions(startDateObj, endDateObj, batchSize, maxTransactions, apiResponse)
-            .then(syncResult => {
-              console.log("Synchronisierung erfolgreich abgeschlossen:", syncResult);
-            })
-            .catch(error => {
-              console.error("Fehler bei der Synchronisierung:", error);
-              storage.updateSyncLog(syncLog.id, {
-                syncStatus: 'error',
-                errorMessage: error.message || 'Unbekannter Fehler'
-              });
-            });
-          
-          // Sofort Antwort zurückgeben
-          // Die Transaktionsdaten können entweder in apiResponse.result oder apiResponse.data sein
           const transactionsData = apiResponse?.result || apiResponse?.data || [];
           const transactionsCount = Array.isArray(transactionsData) ? transactionsData.length : 0;
+          console.log(`Frontend erhält ${transactionsCount} Transaktionen als Vorschau`);
           
-          result = {
-            syncLogId: syncLog.id,
-            status: 'running',
-            message: `Synchronisierung von ${transactionsCount} gefundenen Transaktionen läuft im Hintergrund`,
-            stats: {
-              itemsFound: transactionsCount,
-              itemsSaved: 0,
-              itemsUpdated: 0,
-              duplicates: 0,
-              errors: 0
-            }
-          };
-        } catch (apiError) {
-          console.error("Fehler beim Abrufen der API-Antwort:", apiError);
-          // Die Synchronisierung trotzdem durchführen, auch wenn die API-Antwort nicht erfasst werden konnte
-          result = await vendonSync.syncTransactions(startDateObj, endDateObj, batchSize);
+          // Verarbeite die tatsächliche Synchronisierung direkt, nicht asynchron
+          // Hier ist der Hauptunterschied: Wir verwenden den gleichen direkten Aufruf wie im Scheduler
+          // OHNE die API-Antwort zu übergeben - lass vendonSync selbst die API abfragen
+          
+          const maxTransactions = parseInt(req.body.maxTransactions || "10000");
+          console.log("Verwende maxTransactions:", maxTransactions);
+          
+          // Führe die Synchronisierung direkt durch
+          result = await vendonSync.syncTransactions(startDateObj, endDateObj, batchSize, maxTransactions);
+          
+          // Wir erhalten jetzt ein direktes Ergebnis mit allen Informationen
+          console.log("Synchronisierung abgeschlossen mit Ergebnis:", result);
+          
+        } catch (error) {
+          console.error("Fehler bei der manuellen Synchronisierung:", error);
+          return res.status(500).json({ 
+            status: 'error', 
+            message: `Synchronisierung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`,
+            error: error instanceof Error ? error.stack : String(error)
+          });
         }
         break;
         
       case 'machines':
         try {
-          // API-Antwort erfassen
+          // Für die UI-Anzeige die API-Antwort erfassen
           const api = vendonSync.getApi();
           apiResponse = await api.getMachines();
-        } catch (apiError) {
-          console.error("Fehler beim Abrufen der Maschinen-API-Antwort:", apiError);
+          
+          // Führe die eigentliche Synchronisierung durch
+          console.log("Manueller Sync für Maschinen gestartet");
+          result = await vendonSync.syncMachines();
+          console.log("Maschinen-Synchronisierung abgeschlossen mit Ergebnis:", result);
+        } catch (error) {
+          console.error("Fehler bei der Maschinen-Synchronisierung:", error);
+          return res.status(500).json({ 
+            status: 'error', 
+            message: `Maschinen-Synchronisierung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`,
+            error: error instanceof Error ? error.stack : String(error)
+          });
         }
-        result = await vendonSync.syncMachines();
         break;
         
       case 'products':
         try {
-          // API-Antwort erfassen
+          // Für die UI-Anzeige die API-Antwort erfassen
           const api = vendonSync.getApi();
           apiResponse = await api.getProducts();
-        } catch (apiError) {
-          console.error("Fehler beim Abrufen der Produkt-API-Antwort:", apiError);
+          
+          // Führe die eigentliche Synchronisierung durch
+          console.log("Manueller Sync für Produkte gestartet");
+          result = await vendonSync.syncProducts();
+          console.log("Produkt-Synchronisierung abgeschlossen mit Ergebnis:", result);
+        } catch (error) {
+          console.error("Fehler bei der Produkt-Synchronisierung:", error);
+          return res.status(500).json({ 
+            status: 'error', 
+            message: `Produkt-Synchronisierung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`,
+            error: error instanceof Error ? error.stack : String(error)
+          });
         }
-        result = await vendonSync.syncProducts();
         break;
         
       case 'stocks':
         try {
-          // API-Antwort erfassen
+          // Für die UI-Anzeige die API-Antwort erfassen
           const api = vendonSync.getApi();
           apiResponse = await api.getStockProducts();
-        } catch (apiError) {
-          console.error("Fehler beim Abrufen der Stock-API-Antwort:", apiError);
+          
+          // Führe die eigentliche Synchronisierung durch
+          console.log("Manueller Sync für Lagerbestände gestartet");
+          result = await vendonSync.syncStocks();
+          console.log("Lagerbestand-Synchronisierung abgeschlossen mit Ergebnis:", result);
+        } catch (error) {
+          console.error("Fehler bei der Lagerbestand-Synchronisierung:", error);
+          return res.status(500).json({ 
+            status: 'error', 
+            message: `Lagerbestand-Synchronisierung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`,
+            error: error instanceof Error ? error.stack : String(error)
+          });
         }
-        result = await vendonSync.syncStocks();
         break;
         
       case 'events':
-        // Optional: Konvertiere Datumszeichenfolgen in Date-Objekte
-        const startDateObjEvents = startDate ? new Date(startDate) : undefined;
-        const endDateObjEvents = endDate ? new Date(endDate) : undefined;
-        
         try {
-          // API-Antwort erfassen
+          // Konvertiere Datumszeichenfolgen in Date-Objekte
+          const startDateObjEvents = startDate ? new Date(startDate) : undefined;
+          const endDateObjEvents = endDate ? new Date(endDate) : undefined;
+          
+          console.log(`Manueller Sync für Events im Zeitraum ${startDateObjEvents?.toISOString() || 'unbekannt'} bis ${endDateObjEvents?.toISOString() || 'unbekannt'}`);
+          
+          // Für die UI-Anzeige die API-Antwort erfassen
           const api = vendonSync.getApi();
           const fromTimestamp = Math.floor(startDateObjEvents?.getTime() / 1000 || Date.now() / 1000 - 86400 * 7);
           const toTimestamp = Math.floor(endDateObjEvents?.getTime() / 1000 || Date.now() / 1000);
-          
           apiResponse = await api.getEvents(fromTimestamp, toTimestamp);
-        } catch (apiError) {
-          console.error("Fehler beim Abrufen der Events-API-Antwort:", apiError);
+          
+          // Führe die eigentliche Synchronisierung durch
+          result = await vendonSync.syncEvents(startDateObjEvents, endDateObjEvents, batchSize);
+          console.log("Event-Synchronisierung abgeschlossen mit Ergebnis:", result);
+        } catch (error) {
+          console.error("Fehler bei der Event-Synchronisierung:", error);
+          return res.status(500).json({ 
+            status: 'error', 
+            message: `Event-Synchronisierung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`,
+            error: error instanceof Error ? error.stack : String(error)
+          });
         }
-        
-        result = await vendonSync.syncEvents(startDateObjEvents, endDateObjEvents, batchSize);
         break;
         
       case 'refills':
-        // Optional: Konvertiere Datumszeichenfolgen in Date-Objekte
-        const startDateObjRefills = startDate ? new Date(startDate) : undefined;
-        const endDateObjRefills = endDate ? new Date(endDate) : undefined;
-        
         try {
-          // API-Antwort erfassen
+          // Konvertiere Datumszeichenfolgen in Date-Objekte
+          const startDateObjRefills = startDate ? new Date(startDate) : undefined;
+          const endDateObjRefills = endDate ? new Date(endDate) : undefined;
+          
+          console.log(`Manueller Sync für Refills im Zeitraum ${startDateObjRefills?.toISOString() || 'unbekannt'} bis ${endDateObjRefills?.toISOString() || 'unbekannt'}`);
+          
+          // Für die UI-Anzeige die API-Antwort erfassen
           const api = vendonSync.getApi();
           const fromTimestamp = Math.floor(startDateObjRefills?.getTime() / 1000 || Date.now() / 1000 - 86400 * 7);
           const toTimestamp = Math.floor(endDateObjRefills?.getTime() / 1000 || Date.now() / 1000);
-          
           apiResponse = await api.getRefills(fromTimestamp, toTimestamp);
-        } catch (apiError) {
-          console.error("Fehler beim Abrufen der Refills-API-Antwort:", apiError);
+          
+          // Führe die eigentliche Synchronisierung durch
+          result = await vendonSync.syncRefills(startDateObjRefills, endDateObjRefills, batchSize);
+          console.log("Refill-Synchronisierung abgeschlossen mit Ergebnis:", result);
+        } catch (error) {
+          console.error("Fehler bei der Refill-Synchronisierung:", error);
+          return res.status(500).json({ 
+            status: 'error', 
+            message: `Refill-Synchronisierung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`,
+            error: error instanceof Error ? error.stack : String(error)
+          });
         }
-        
-        result = await vendonSync.syncRefills(startDateObjRefills, endDateObjRefills, batchSize);
         break;
         
       case 'all':
-        result = await vendonSync.syncAll();
+        try {
+          // Führe die eigentliche Synchronisierung durch
+          console.log("Manueller Sync für ALLE Daten gestartet");
+          result = await vendonSync.syncAll();
+          console.log("Komplette Synchronisierung abgeschlossen mit Ergebnis:", result);
+        } catch (error) {
+          console.error("Fehler bei der kompletten Synchronisierung:", error);
+          return res.status(500).json({ 
+            status: 'error', 
+            message: `Komplette Synchronisierung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`,
+            error: error instanceof Error ? error.stack : String(error)
+          });
+        }
         break;
         
       case 'historical_transactions':
-        result = await vendonSync.syncHistoricalTransactions(batchSize, maxDays);
+        try {
+          // Führe die eigentliche Synchronisierung durch
+          console.log("Manueller Sync für historische Transaktionen gestartet");
+          result = await vendonSync.syncHistoricalTransactions(batchSize, maxDays);
+          console.log("Historische Transaktionen-Synchronisierung abgeschlossen mit Ergebnis:", result);
+        } catch (error) {
+          console.error("Fehler bei der historischen Transaktionen-Synchronisierung:", error);
+          return res.status(500).json({ 
+            status: 'error', 
+            message: `Historische Transaktionen-Synchronisierung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`,
+            error: error instanceof Error ? error.stack : String(error)
+          });
+        }
         break;
 
       case 'historical_batch':
-        result = await vendonSync.syncHistoricalBatch();
+        try {
+          // Führe die eigentliche Synchronisierung durch
+          console.log("Manueller Sync für historischen Batch gestartet");
+          result = await vendonSync.syncHistoricalBatch();
+          console.log("Historischer Batch abgeschlossen mit Ergebnis:", result);
+        } catch (error) {
+          console.error("Fehler beim historischen Batch:", error);
+          return res.status(500).json({ 
+            status: 'error', 
+            message: `Historischer Batch fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`,
+            error: error instanceof Error ? error.stack : String(error)
+          });
+        }
         break;
         
       default:
