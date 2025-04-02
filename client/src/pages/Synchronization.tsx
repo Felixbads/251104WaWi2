@@ -20,6 +20,7 @@ import { getSyncStatus, triggerSync, formatDateTime, getDatabaseStats, DatabaseS
 import WeatherSyncTab from "@/components/sync/WeatherSyncTab";
 import HolidaySyncTab from "@/components/sync/HolidaySyncTab";
 import TransactionSyncTab from "@/components/sync/TransactionSyncTab";
+import BulkSyncTab from "@/components/sync/BulkSyncTab";
 import WeatherApiUsageCard from "@/components/sync/WeatherApiUsage";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -349,9 +350,10 @@ Zeitraum: ${formattedStart} - ${formattedEnd}`;
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="status" className="space-y-4">
-            <TabsList className="grid grid-cols-5">
+            <TabsList className="grid grid-cols-6">
               <TabsTrigger value="status">Status</TabsTrigger>
               <TabsTrigger value="transactions">Transaktionen</TabsTrigger>
+              <TabsTrigger value="bulk">Bulk-Sync</TabsTrigger>
               <TabsTrigger value="config">Konfiguration</TabsTrigger>
               <TabsTrigger value="weather">Wetter</TabsTrigger>
               <TabsTrigger value="holidays">Feiertage</TabsTrigger>

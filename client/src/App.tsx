@@ -13,6 +13,7 @@ import Products from "@/pages/Products";
 import ProductDetail from "@/pages/ProductDetail"; // Detail-Ansicht eines Produkts
 import Synchronization from "@/pages/Synchronization";
 import SyncHistory from "@/pages/SyncHistory";
+import SyncPage from "@/pages/SyncPage";
 import Settings from "@/pages/Settings";
 import Forecast from "@/pages/Forecast";
 import ForecastEvaluation from "@/pages/ForecastEvaluation";
@@ -84,6 +85,7 @@ function AuthenticatedRouter() {
         <Route path="/auswertungen" component={Reporting} />
         <Route path="/synchronization" component={Synchronization} />
         <Route path="/sync-history" component={SyncHistory} />
+        <Route path="/sync" component={SyncPage} />
         <Route path="/forecast" component={Forecast} />
         <Route path="/forecast-evaluation" component={ForecastEvaluation} />
         <Route path="/settings" component={Settings} />
