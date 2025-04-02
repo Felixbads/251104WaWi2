@@ -234,12 +234,14 @@ export default function Forecast() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Prognosen & Daten</h1>
-          <p className="text-muted-foreground">
-            Verwalten Sie Prognosemodelle und synchronisieren Sie externe Daten
-          </p>
+      {/* Einheitliche Filter- und Aktionsleiste */}
+      <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
+        {/* Linke Seite: Keine Suche erforderlich */}
+        <div className="flex-grow">
+        </div>
+        
+        {/* Rechte Seite: Aktionsbuttons (könnten in Zukunft hinzugefügt werden) */}
+        <div className="flex flex-wrap items-center gap-2">
         </div>
       </div>
 

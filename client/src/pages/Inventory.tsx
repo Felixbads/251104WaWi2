@@ -17,12 +17,17 @@ export default function Inventory() {
   const [activeTab, setActiveTab] = useState('warehouses');
   
   return (
-    <div className="container py-4 max-w-[1400px]">
-      {/* Seitentitel */}
-      <PageTitle 
-        title="Lager" 
-        description="Verwalten Sie Ihre Lagerbestände und Warenbewegungen."
-      />
+    <div className="space-y-6">
+      {/* Einheitliche Filter- und Aktionsleiste */}
+      <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
+        {/* Linke Seite: Keine Suche erforderlich */}
+        <div className="flex-grow">
+        </div>
+        
+        {/* Rechte Seite: Aktionsbuttons (könnten in Zukunft hinzugefügt werden) */}
+        <div className="flex flex-wrap items-center gap-2">
+        </div>
+      </div>
       
       {/* Informations-Alert zur Systemfunktion */}
       <Alert className="mb-6">

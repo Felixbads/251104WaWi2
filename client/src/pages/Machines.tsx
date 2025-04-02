@@ -179,37 +179,30 @@ export default function Machines() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center">
-            <Package className="h-6 w-6 mr-2" />
-            Maschinen
-          </h1>
-          <p className="text-gray-500 mt-1">
-            Verwalten und überwachen Sie alle Automaten im Netzwerk
-          </p>
+      {/* Einheitliche Filter- und Aktionsleiste */}
+      <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
+        {/* Linke Seite: Suchfeld */}
+        <div className="flex-grow flex flex-col sm:flex-row gap-2">
+          {/* Suchfeld */}
+          <div className="relative flex-grow">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              value={searchTerm}
+              placeholder="Nach Maschinen suchen..."
+              className="pl-8 h-9 w-full"
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
         </div>
-        <Button onClick={() => setLocation("/machines/new")}>
-          <Plus className="h-4 w-4 mr-2" />
-          Neue Maschine
-        </Button>
-      </div>
+        
+        {/* Rechte Seite: Aktionsbuttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={() => setLocation("/machines/new")}>
+            <Plus className="h-4 w-4 mr-2" />
+            Neue Maschine
+          </Button>
 
-      <Separator />
-
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative flex-grow">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          <Input
-            placeholder="Maschinen suchen..."
-            className="pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-        <div className="flex gap-2">
           <Button 
             variant="outline" 
             onClick={() => {/* Filter dialog implementieren */}}
@@ -218,6 +211,7 @@ export default function Machines() {
             <Filter className="h-4 w-4" />
             Filter
           </Button>
+          
           <div className="border rounded-md p-1 flex">
             <Button
               variant={viewMode === "grid" ? "secondary" : "ghost"}
