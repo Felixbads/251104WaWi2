@@ -57,8 +57,6 @@ interface DailyDataPoint {
   formattedDate: string;
   hasTransactionData: boolean;
   hasWeatherData: boolean;
-  hasHolidayData: boolean;
-  holidayName?: string;
 }
 
 interface DataCoverageType {
@@ -151,27 +149,6 @@ function DataTimelineChart() {
     };
   };
   
-  // Abrufen von Feiertagen für den Zeitraum
-  const { data: holidaysData } = useQuery({
-    queryKey: ["/api/holidays", startDate, endDate],
-    queryFn: async () => {
-      try {
-        const token = localStorage.getItem("auth_token");
-        const response = await axios.get("/api/holidays", {
-          params: {
-            startDate: startDate.toISOString(),
-            endDate: endDate.toISOString()
-          },
-          headers: token ? { 'Authorization': `Bearer ${token}` } : undefined
-        });
-        return response.data;
-      } catch (error: any) {
-        console.error("API Error beim Abrufen der Feiertage:", error);
-        throw new Error(error.response?.data?.error || error.message);
-      }
-    },
-  });
-
   // Erstellt tägliche Datenpunkte für den aktuellen Zoom-Bereich
   const generateTimelineData = (): DailyDataPoint[] => {
     const { start, end } = getZoomRange();
@@ -186,11 +163,6 @@ function DataTimelineChart() {
     const weatherStartDate = weatherCoverage?.earliest_date ? new Date(weatherCoverage.earliest_date) : null;
     const weatherEndDate = weatherCoverage?.latest_date ? new Date(weatherCoverage.latest_date) : null;
     
-    // Feiertagsdaten
-    const holidayCoverage = dataCoverage?.find(d => d.data_type === "holiday");
-    const holidayStartDate = holidayCoverage?.earliest_date ? new Date(holidayCoverage.earliest_date) : null;
-    const holidayEndDate = holidayCoverage?.latest_date ? new Date(holidayCoverage.latest_date) : null;
-    
     // Alle Tage im Bereich
     const days = eachDayOfInterval({ start, end });
     
@@ -203,21 +175,11 @@ function DataTimelineChart() {
       const hasWeatherData = !!(weatherStartDate && weatherEndDate && 
                            day >= weatherStartDate && day <= weatherEndDate);
       
-      // Feiertagsdaten vorhanden?
-      const hasHolidayData = !!(holidayStartDate && holidayEndDate && 
-                          day >= holidayStartDate && day <= holidayEndDate);
-      
-      // Prüfen, ob der Tag ein Feiertag ist
-      const formattedDate = format(day, "yyyy-MM-dd");
-      const holiday = holidaysData?.find((h: any) => h.date === formattedDate);
-      
       return {
         date: day,
         formattedDate: format(day, "dd.MM.yyyy"),
         hasTransactionData,
-        hasWeatherData,
-        hasHolidayData,
-        holidayName: holiday?.name
+        hasWeatherData
       };
     });
   };
@@ -245,11 +207,6 @@ function DataTimelineChart() {
       return (
         <div className="bg-background border border-border p-3 rounded-md shadow-md">
           <p className="font-medium">{day.formattedDate}</p>
-          {day.holidayName && (
-            <p className="text-sm text-amber-600 font-medium mt-1">
-              Feiertag: {day.holidayName}
-            </p>
-          )}
           <div className="mt-1">
             <p className="text-sm flex items-center">
               <span className={`inline-block w-3 h-3 mr-2 rounded-full ${day.hasTransactionData ? 'bg-blue-500' : 'bg-red-500'}`}></span>
@@ -258,10 +215,6 @@ function DataTimelineChart() {
             <p className="text-sm flex items-center">
               <span className={`inline-block w-3 h-3 mr-2 rounded-full ${day.hasWeatherData ? 'bg-green-500' : 'bg-red-500'}`}></span>
               Wetterdaten: {day.hasWeatherData ? 'Verfügbar' : 'Keine Daten'}
-            </p>
-            <p className="text-sm flex items-center">
-              <span className={`inline-block w-3 h-3 mr-2 rounded-full ${day.hasHolidayData ? 'bg-amber-500' : 'bg-red-500'}`}></span>
-              Feiertagsdaten: {day.hasHolidayData ? 'Verfügbar' : 'Keine Daten'}
             </p>
           </div>
         </div>
@@ -277,16 +230,10 @@ function DataTimelineChart() {
     return (
       <g>
         {!dataPoint.hasTransactionData && (
-          <rect x={cx - 3} y={cy - 15} width={6} height={6} fill="red" />
+          <rect x={cx - 3} y={cy - 10} width={6} height={6} fill="red" />
         )}
         {!dataPoint.hasWeatherData && (
-          <rect x={cx - 3} y={cy} width={6} height={6} fill="red" />
-        )}
-        {!dataPoint.hasHolidayData && (
-          <rect x={cx - 3} y={cy + 15} width={6} height={6} fill="red" />
-        )}
-        {dataPoint.holidayName && (
-          <circle cx={cx} cy={cy} r={3} fill="#f59e0b" />
+          <rect x={cx - 3} y={cy + 4} width={6} height={6} fill="red" />
         )}
       </g>
     );
@@ -361,7 +308,6 @@ function DataTimelineChart() {
             >
               <Label value="Transaktionen" position="insideLeft" offset={10} style={{ textAnchor: 'middle', fontSize: 12 }} />
               <Label value="Wetterdaten" position="insideLeft" offset={55} style={{ textAnchor: 'middle', fontSize: 12 }} />
-              <Label value="Feiertage" position="insideLeft" offset={100} style={{ textAnchor: 'middle', fontSize: 12 }} />
             </YAxis>
             <Tooltip content={<CustomTimelineTooltip />} />
             <Line
@@ -387,24 +333,12 @@ function DataTimelineChart() {
               yAxisId={0}
               strokeDasharray="5 5"
             />
-            <Line
-              type="monotone"
-              dataKey="hasHolidayData"
-              stroke="#f59e0b"
-              name="Feiertage"
-              dot={false}
-              activeDot={false}
-              isAnimationActive={false}
-              strokeWidth={2}
-              yAxisId={0}
-              strokeDasharray="3 3"
-            />
           </LineChart>
         </ResponsiveContainer>
       </div>
       
       <div className="flex justify-between items-center text-sm text-muted-foreground pt-2">
-        <div className="flex items-center flex-wrap gap-2">
+        <div className="flex items-center space-x-4">
           <div className="flex items-center">
             <span className="inline-block w-3 h-3 bg-blue-500 mr-2 rounded-full"></span>
             <span>Transaktionsdaten</span>
@@ -412,10 +346,6 @@ function DataTimelineChart() {
           <div className="flex items-center">
             <span className="inline-block w-3 h-3 bg-green-500 mr-2 rounded-full"></span>
             <span>Wetterdaten</span>
-          </div>
-          <div className="flex items-center">
-            <span className="inline-block w-3 h-3 bg-amber-500 mr-2 rounded-full"></span>
-            <span>Feiertage</span>
           </div>
           <div className="flex items-center">
             <span className="inline-block w-3 h-3 bg-red-500 mr-2 rounded-full"></span>
