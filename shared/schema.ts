@@ -46,12 +46,19 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   email: text("email").unique(),
   role: text("role").default("user"),
+  name: text("name"),
+  approved: boolean("approved").default(false), // Standardmäßig nicht freigeschaltet
+  approvedBy: integer("approved_by").references(() => users.id),
+  approvedAt: timestamp("approved_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
+  approved: true,
+  approvedBy: true,
+  approvedAt: true,
   createdAt: true,
   updatedAt: true,
 });

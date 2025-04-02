@@ -23,6 +23,7 @@ import Register from "@/pages/Register";
 import AppShell from "@/components/layout/AppShell";
 import Layout from "@/components/layout/Layout";
 import { AuthProvider, useAuth } from "@/lib";
+import AdminRoute from "@/components/auth/AdminRoute";
 
 // Geschützte Route Komponente
 function ProtectedRoute({ component: Component, ...rest }: any) {
@@ -58,6 +59,7 @@ import WarehouseDetail from "@/pages/WarehouseDetail";
 import WarenentnahmePage from "@/pages/WarenentnahmePage";
 import WarenentnahmeDetail from "@/pages/WarenentnahmeDetail";
 import WarenentnahmeNew from "@/pages/WarenentnahmeNew";
+import UserManagement from "@/pages/UserManagement";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -93,6 +95,7 @@ function AuthenticatedRouter() {
         <Route path="/forecast" component={Forecast} />
         <Route path="/forecast-evaluation" component={ForecastEvaluation} />
         <Route path="/settings" component={Settings} />
+        <Route path="/benutzer" component={props => <AdminRoute component={UserManagement} {...props} />} />
         <Route path="/:rest*" component={(props: any) => {
           const rest = props.params?.rest;
           return <NotFound title="Seite nicht gefunden" message={`Der Pfad /${Array.isArray(rest) ? rest.join('/') : rest || ''} existiert nicht.`} />;

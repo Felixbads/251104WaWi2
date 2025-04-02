@@ -36,15 +36,26 @@ export async function registerUser(userData: z.infer<typeof registerSchema>) {
   // Benutzer in Datenbank speichern (ohne confirmPassword)
   const { confirmPassword, ...userDataToInsert } = userData;
   try {
+    // Automatische Freischaltung für Admins
+    const isAdmin = userDataToInsert.role === 'admin';
+    
     const newUser = await db.insert(users).values({
       ...userDataToInsert,
       password: hashedPassword,
+      approved: isAdmin, // Admins werden automatisch freigegeben
+      approvedAt: isAdmin ? new Date() : undefined,
     }).returning();
     
     // Sensitiven Daten entfernen bevor Rückgabe
     if (newUser && newUser[0]) {
       const { password, ...userWithoutPassword } = newUser[0];
-      return { success: true, user: userWithoutPassword };
+      return { 
+        success: true, 
+        user: userWithoutPassword,
+        message: isAdmin 
+          ? "Admin-Konto wurde erfolgreich erstellt." 
+          : "Dein Konto wurde erfolgreich erstellt. Bitte warte auf die Freigabe durch einen Administrator."
+      };
     }
     
     return { success: false, error: "Fehler beim Erstellen des Benutzers" };
@@ -54,6 +65,83 @@ export async function registerUser(userData: z.infer<typeof registerSchema>) {
     }
     console.error("Registrierungsfehler:", error);
     return { success: false, error: "Fehler beim Erstellen des Benutzers" };
+  }
+}
+
+/**
+ * Gibt eine Liste aller Benutzer zurück (nur für Admins zugänglich)
+ */
+export async function getAllUsers() {
+  try {
+    const allUsers = await db.select({
+      id: users.id,
+      username: users.username,
+      email: users.email,
+      role: users.role,
+      name: users.name,
+      approved: users.approved,
+      approvedAt: users.approvedAt,
+      approvedBy: users.approvedBy,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt,
+    }).from(users).orderBy(users.createdAt);
+    
+    return allUsers;
+  } catch (error) {
+    console.error("Fehler beim Abrufen der Benutzerliste:", error);
+    throw error;
+  }
+}
+
+/**
+ * Genehmigt einen Benutzer (nur für Admins zugänglich)
+ */
+export async function approveUser(userId: number, approvedById: number) {
+  try {
+    const [updatedUser] = await db.update(users)
+      .set({
+        approved: true,
+        approvedBy: approvedById,
+        approvedAt: new Date(),
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    
+    if (!updatedUser) {
+      return { success: false, error: "Benutzer konnte nicht gefunden werden" };
+    }
+    
+    const { password, ...userWithoutPassword } = updatedUser;
+    return { success: true, user: userWithoutPassword };
+  } catch (error) {
+    console.error("Fehler beim Genehmigen des Benutzers:", error);
+    return { success: false, error: "Benutzer konnte nicht genehmigt werden" };
+  }
+}
+
+/**
+ * Ändert die Rolle eines Benutzers (nur für Admins zugänglich)
+ */
+export async function changeUserRole(userId: number, newRole: string) {
+  try {
+    const [updatedUser] = await db.update(users)
+      .set({
+        role: newRole,
+        updatedAt: new Date()
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    
+    if (!updatedUser) {
+      return { success: false, error: "Benutzer konnte nicht gefunden werden" };
+    }
+    
+    const { password, ...userWithoutPassword } = updatedUser;
+    return { success: true, user: userWithoutPassword };
+  } catch (error) {
+    console.error("Fehler beim Ändern der Benutzerrolle:", error);
+    return { success: false, error: "Benutzerrolle konnte nicht geändert werden" };
   }
 }
 
@@ -83,6 +171,7 @@ export async function loginUser(credentials: z.infer<typeof loginSchema>) {
           username: "Admin",
           email: "admin@example.com",
           role: "admin",
+          approved: true,
         },
         expiresAt,
       };
@@ -101,6 +190,11 @@ export async function loginUser(credentials: z.infer<typeof loginSchema>) {
     const isMatch = await bcrypt.compare(credentials.password, user.password);
     if (!isMatch) {
       return { success: false, error: "Ungültige Anmeldedaten" };
+    }
+    
+    // Prüfen, ob der Benutzer freigegeben ist (außer für Admins)
+    if (user.role !== "admin" && !user.approved) {
+      return { success: false, error: "Dein Account wurde noch nicht freigegeben. Bitte warte auf die Freigabe durch einen Administrator." };
     }
     
     // Token erstellen
@@ -151,6 +245,7 @@ export async function validateToken(token: string) {
       username: "Admin",
       email: "admin@example.com",
       role: "admin",
+      approved: true,
       password: "-", // Nicht verwendet, nur für Typsicherheit
       createdAt: new Date(),
       updatedAt: new Date(),

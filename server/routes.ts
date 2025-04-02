@@ -1,4 +1,10 @@
-import type { Express, Request, Response, NextFunction } from "express";
+import type { Express, Request as ExpressRequest, Response, NextFunction } from "express";
+import { User } from '../shared/schema';
+
+// Erweitern der Request-Schnittstelle zur Unterstützung des user-Objekts
+interface Request extends ExpressRequest {
+  user?: User;
+}
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { vendonSync } from "./services/vendonSync";
@@ -112,7 +118,10 @@ import {
   validateToken, 
   invalidateToken, 
   loginSchema, 
-  registerSchema 
+  registerSchema,
+  getAllUsers,
+  approveUser,
+  changeUserRole
 } from "./auth";
 import { insertSupplierSchema } from "@shared/schema";
 import vendonRoutes from "./routes/vendon";
@@ -1166,6 +1175,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // User Management Routes (Admin Only)
+  // Middleware to check if user is admin
+  const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const authHeader = req.headers.authorization;
+      
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: "Unauthorized: No token provided" });
+      }
+      
+      const token = authHeader.split(' ')[1];
+      const user = await validateToken(token);
+      
+      if (!user) {
+        return res.status(401).json({ error: "Unauthorized: Invalid token" });
+      }
+      
+      if (user.role !== 'admin') {
+        return res.status(403).json({ error: "Forbidden: Admin access required" });
+      }
+      
+      req.user = user;
+      next();
+    } catch (error) {
+      console.error("Error in admin middleware:", error);
+      res.status(500).json({ error: "Server error" });
+    }
+  };
+  
+  // Get all users (admin only)
+  app.get(`${API_PREFIX}/admin/users`, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const users = await getAllUsers();
+      res.json(users);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch users", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Approve a user (admin only)
+  app.post(`${API_PREFIX}/admin/users/:id/approve`, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      
+      if (isNaN(userId)) {
+        return res.status(400).json({ error: "Invalid user ID" });
+      }
+      
+      // req.user wurde im requireAdmin-Middleware gesetzt
+      const result = await approveUser(userId, req.user!.id);
+      
+      if (!result.success) {
+        return res.status(404).json({ error: result.error });
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error(`Error approving user ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to approve user", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // Change user role (admin only)
+  app.post(`${API_PREFIX}/admin/users/:id/role`, requireAdmin, async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const { role } = req.body;
+      
+      if (isNaN(userId)) {
+        return res.status(400).json({ error: "Invalid user ID" });
+      }
+      
+      if (!role || (role !== 'user' && role !== 'admin')) {
+        return res.status(400).json({ error: "Invalid role. Must be 'user' or 'admin'" });
+      }
+      
+      const result = await changeUserRole(userId, role);
+      
+      if (!result.success) {
+        return res.status(404).json({ error: result.error });
+      }
+      
+      res.json(result);
+    } catch (error) {
+      console.error(`Error changing role for user ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to change user role", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
   // Authenticate Middleware
   const authenticate = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -1180,6 +1288,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!user) {
         return res.status(401).json({ error: "Invalid or expired token" });
+      }
+      
+      // Überprüfen, ob der Benutzer freigegeben ist (außer für Admins)
+      if (user.role !== 'admin' && !user.approved) {
+        return res.status(403).json({ 
+          error: "Konto noch nicht freigegeben",
+          message: "Dein Konto wurde noch nicht freigegeben. Bitte warte auf die Freigabe durch einen Administrator."
+        });
       }
       
       // @ts-ignore - Füge Benutzer zum Anfrageobjekt hinzu
@@ -1202,7 +1318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Passwort und andere sensible Daten entfernen
-      const { passwordHash, ...userWithoutPassword } = user;
+      const { password, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);
     } catch (error) {
       console.error("Error fetching user profile:", error);

@@ -177,6 +177,13 @@ export default function Sidebar() {
               Sync-Verlauf
             </NavItem>
             <NavItem 
+              href="/benutzer" 
+              icon={<Users className="h-5 w-5 mr-3" />}
+              isActive={isActive("/benutzer")}
+            >
+              Benutzerverwaltung
+            </NavItem>
+            <NavItem 
               href="/settings" 
               icon={<Settings className="h-5 w-5 mr-3" />}
               isActive={isActive("/settings")}
