@@ -70,25 +70,45 @@ export default function TransactionSyncTab() {
   const [activeSyncLogId, setActiveSyncLogId] = useState<number | null>(null);
   
   // Aktiver Sync-Log wenn vorhanden
-  const { data: activeLog, refetch: refetchActiveLog } = useQuery({
+  const { data: activeLog, refetch: refetchActiveLog } = useQuery<any>({
     queryKey: ['/api/sync/logs', activeSyncLogId],
-    queryFn: async () => {
+    queryFn: async (): Promise<any> => {
       if (!activeSyncLogId) return null;
       try {
         const response = await axios.get(`/api/sync/logs/${activeSyncLogId}`);
         return response.data;
       } catch (error) {
         console.error("Fehler beim Abrufen des aktiven Sync-Logs:", error);
-        return null;
+        // Bei Netzwerkfehlern nicht den Polling-Prozess beenden, 
+        // sondern die letzte bekannte Daten zurückgeben
+        return activeLog || null;
       }
     },
     enabled: !!activeSyncLogId,
-    refetchInterval: activeSyncLogId ? 2000 : false // Polling nur wenn aktiv
+    refetchInterval: activeSyncLogId ? 2000 : false, // Polling nur wenn aktiv
+    retryDelay: (attemptIndex) => Math.min(1000 * (2 ** attemptIndex), 30000), // Exponentielles Backoff
+    retry: 5 // Mehrere Wiederholungsversuche
   });
+  
+  // Bei Fehlern automatisch erneut versuchen
+  useEffect(() => {
+    let retryTimer: NodeJS.Timeout | null = null;
+    
+    if (activeSyncLogId) {
+      retryTimer = setTimeout(() => {
+        refetchActiveLog();
+      }, 5000);
+    }
+    
+    return () => {
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [activeSyncLogId, refetchActiveLog]);
   
   // Aktualisiere UI-Status basierend auf dem aktiven Log
   useEffect(() => {
     if (activeLog) {
+      console.log("Aktives Log Update erhalten:", activeLog);
       setSyncProgress({
         total: activeLog.itemsFound || 0,
         processed: activeLog.itemsSaved || 0,
@@ -103,6 +123,7 @@ export default function TransactionSyncTab() {
       
       // Wenn der Log abgeschlossen ist, stoppe das Polling
       if (activeLog.syncStatus === 'completed' || activeLog.syncStatus === 'error') {
+        console.log("Synchronisierung abgeschlossen/fehlgeschlagen:", activeLog.syncStatus);
         // Erfolgsmeldung oder Fehlermeldung
         if (activeLog.syncStatus === 'completed') {
           toast({
@@ -110,6 +131,11 @@ export default function TransactionSyncTab() {
             description: `${activeLog.itemsSaved || 0} Transaktionen gespeichert, ${activeLog.duplicates || 0} Duplikate übersprungen.`,
             variant: "default"
           });
+          
+          // Tabellen aktualisieren
+          queryClient.invalidateQueries({ queryKey: ['/api/sync/logs', 'transactions'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/transactions'] });
         } else {
           toast({
             title: "Synchronisierungsfehler",
@@ -122,7 +148,7 @@ export default function TransactionSyncTab() {
         setActiveSyncLogId(null);
       }
     }
-  }, [activeLog, startDate, endDate, toast]);
+  }, [activeLog, startDate, endDate, toast, queryClient]);
   
   // Mutation for triggering synchronization
   const syncMutation = useMutation({
