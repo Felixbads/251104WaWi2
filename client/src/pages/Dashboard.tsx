@@ -275,18 +275,31 @@ export default function Dashboard() {
   
   return (
     <div className="space-y-6">
-      <PageHeader 
-        showRefresh={true}
-        onRefresh={handleRefresh}
-        additionalButtons={
-          isSyncRunning && (
+      {/* Einheitliche Filter- und Aktionsleiste */}
+      <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
+        {/* Linke Seite: Nichts oder Datum */}
+        <div className="flex-grow flex items-center">
+          {isSyncRunning && (
             <div className="flex items-center text-amber-600 bg-amber-50 px-3 py-1 rounded-md h-9">
               <div className="animate-spin h-3 w-3 mr-2 border-2 border-amber-600 border-t-transparent rounded-full"></div>
               <span className="text-xs">Synchronisierung läuft...</span>
             </div>
-          )
-        }
-      />
+          )}
+        </div>
+        
+        {/* Rechte Seite: Aktionen */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="h-9"
+            onClick={handleRefresh}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Aktualisieren
+          </Button>
+        </div>
+      </div>
         
       {/* Top-Level Metriken - 3 Kacheln nach neuen Anforderungen */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -36,7 +36,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   Legend,
   ResponsiveContainer,
   PieChart,
@@ -50,6 +50,7 @@ import {
   FilterIcon,
   RefreshCw
 } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from '@/hooks/use-toast';
 
 // Farben für die Diagramme
@@ -202,7 +203,7 @@ const ForecastEvaluation: React.FC = () => {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" />
                   <YAxis />
-                  <Tooltip 
+                  <RechartsTooltip 
                     formatter={(value) => [`${value} Stück`, 'Menge']}
                     labelFormatter={(label) => {
                       const item = data.find(d => d.date === label);
@@ -602,24 +603,31 @@ const ForecastEvaluation: React.FC = () => {
 
   // Hauptkomponente
   return (
-    <div className="container mx-auto py-4 space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-bold">Prognoseauswertung</h1>
-          <p className="text-gray-500 mt-1">
-            Detaillierte Analyse und Visualisierung von Prognosen
-          </p>
+    <div className="space-y-6">
+      {/* Einheitliche Filter- und Aktionsleiste */}
+      <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
+        {/* Linke Seite: Nichts (keine Suche erforderlich) */}
+        <div className="flex-grow">
         </div>
         
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            onClick={() => refetch()}
-            className="flex items-center gap-2"
-          >
-            <RefreshCw className="h-4 w-4" />
-            Aktualisieren
-          </Button>
+        {/* Rechte Seite: Aktionsbuttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  onClick={() => refetch()}
+                  size="sm"
+                  className="h-9"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Aktualisieren
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Daten neu laden</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </div>
       

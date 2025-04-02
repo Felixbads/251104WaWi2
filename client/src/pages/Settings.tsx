@@ -130,14 +130,39 @@ export default function Settings() {
 
   return (
     <div className="space-y-6">
+      {/* Einheitliche Filter- und Aktionsleiste */}
+      <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
+        {/* Linke Seite: Nichts oder Titel */}
+        <div className="flex-grow flex items-center">
+          <h1 className="text-xl font-semibold">Einstellungen</h1>
+        </div>
+        
+        {/* Rechte Seite: Aktionen */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button 
+            variant="default" 
+            size="sm" 
+            className="h-9"
+            onClick={handleSaveSettings}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Speichert...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-2" />
+                Änderungen speichern
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+
       <Card>
-        <CardHeader>
-          <CardTitle>Einstellungen</CardTitle>
-          <CardDescription>
-            Konfigurieren Sie die Anwendungseinstellungen für die Vendon-Synchronisierung
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <Tabs defaultValue="api" className="space-y-4">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="api" className="flex items-center">
