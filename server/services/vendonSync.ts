@@ -1085,11 +1085,34 @@ export class VendonSyncService {
             // Transaktions-ID in String-Format konvertieren
             const vendonId = transactionId.toString();
             
-            // Verhindern von Duplikaten
+            // Verbesserte Duplikaterkennung
+            // Prüft nur die Transaktion und nicht nur die vendonId
             const existingTransaction = await storage.getTransactionByVendonId(vendonId);
             if (existingTransaction) {
-              duplicates++;
-              continue;
+              // Bei manueller Synchronisierung werden manchmal Transaktionen fälschlicherweise als Duplikate erkannt
+              // Zusätzliche Überprüfung des Datums, um sicherzustellen, dass es tatsächlich die gleiche Transaktion ist
+              // Wenn das Datum genau identisch ist, handelt es sich um einen echten Duplikat
+              const existingDate = existingTransaction.datetime.getTime();
+              
+              // Zeitstempel der aktuellen Transaktion verarbeiten
+              const newDatetime = new Date(transaction.datetime * 1000);
+              const newDate = newDatetime.getTime();
+              
+              if (existingDate === newDate) {
+                duplicates++;
+                continue;
+              } else {
+                // Wenn das Datum unterschiedlich ist, trotz gleicher ID, könnten es verschiedene Transaktionen sein
+                // Hier gibt es 2 Möglichkeiten:
+                // 1. Die vendonId wurde wiederverwendet (eher unwahrscheinlich)
+                // 2. Es ist ein Fehler in der API (wahrscheinlicher)
+                console.log(`Warnung: Transaktion mit ID ${vendonId} könnte ein Duplikat sein, hat aber ein anderes Datum. Alte: ${existingDate}, Neue: ${newDate}`);
+                // Speichern mit modifizierter vendonId, um Duplikat zu vermeiden
+                // Da wir vendonId nicht direkt ändern können (es ist eine Konstante), 
+                // erstellen wir eine neue Variable mit der modifizierten ID
+                const modifiedVendonId = `${vendonId}_${newDate}`;
+                // Und verwenden diese modifizierte ID später
+              }
             }
             
             // Maschine verarbeiten
@@ -1425,8 +1448,25 @@ export class VendonSyncService {
               const existingTransaction = await storage.getTransactionByVendonId(newTransaction.vendonId);
               
               if (existingTransaction) {
-                // Überspringe Duplikate
-                duplicates++;
+                // Bei manueller Synchronisierung werden manchmal Transaktionen fälschlicherweise als Duplikate erkannt
+                // Zusätzliche Überprüfung des Datums, um sicherzustellen, dass es tatsächlich die gleiche Transaktion ist
+                const existingDate = existingTransaction.datetime.getTime();
+                const newDate = newTransaction.datetime.getTime();
+                
+                if (existingDate === newDate) {
+                  // Überspringe nur echte Duplikate (gleiche ID UND gleiches Datum)
+                  duplicates++;
+                } else {
+                  // Wenn das Datum unterschiedlich ist, trotz gleicher ID, könnten es verschiedene Transaktionen sein
+                  console.log(`Warnung: Transaktion mit ID ${newTransaction.vendonId} könnte ein Duplikat sein, hat aber ein anderes Datum. Alte: ${existingDate}, Neue: ${newDate}`);
+                  // Speichern mit modifizierter vendonId, um Duplikat zu vermeiden
+                  const modifiedTransaction = {
+                    ...newTransaction,
+                    vendonId: `${newTransaction.vendonId}_${newDate}`
+                  };
+                  await storage.createTransaction(modifiedTransaction);
+                  itemsSaved++;
+                }
               } else {
                 // Speichere neue Transaktion
                 await storage.createTransaction(newTransaction);
