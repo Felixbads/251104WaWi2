@@ -516,11 +516,28 @@ export async function startSync(syncType: string, options?: {
   batchSize?: number,
   maxDays?: number
 }): Promise<any> {
-  // Sende die Anfrage an den korrekten Endpunkt /vendon/sync und übergebe den syncType als Teil des Payloads
-  return apiRequest<any>('post', `/vendon/sync`, { 
-    type: syncType, 
-    ...options 
-  });
+  try {
+    console.log(`Sende Synchronisierungsanfrage für '${syncType}' mit Optionen:`, options);
+    
+    // Sende die Anfrage an den korrekten Endpunkt /vendon/sync und übergebe den syncType als Teil des Payloads
+    const response = await apiRequest<any>('post', `/vendon/sync`, { 
+      type: syncType, 
+      ...options 
+    });
+    
+    console.log(`Synchronisierungsantwort erhalten:`, response);
+    
+    // Prüfe auf leere Objekte oder fehlende syncLogId
+    if (!response || Object.keys(response).length === 0) {
+      throw new Error('Server hat eine leere Antwort zurückgegeben.');
+    }
+    
+    return response;
+  } catch (error) {
+    console.error(`Fehler bei der Synchronisierung (${syncType}):`, error);
+    // Füge einen detaillierteren Fehler für das Frontend hinzu
+    throw new Error(`Fehler bei der ${syncType}-Synchronisierung: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
+  }
 }
 
 // Die obere Deklaration von triggerSync wird für neue Komponenten verwendet, diese ist abwärtskompatibel
