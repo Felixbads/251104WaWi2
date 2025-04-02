@@ -256,14 +256,16 @@ export default function AutomatDetail() {
 
   if (machineError || !machine) {
     return (
-      <div>
-        <Button 
-          variant="ghost" 
-          className="mb-4" 
-          onClick={() => setLocation("/automaten")}
-        >
-          <ChevronLeft className="h-4 w-4 mr-1" /> Zurück
-        </Button>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <Button 
+            variant="ghost" 
+            className="-ml-2" 
+            onClick={() => setLocation("/automaten")}
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" /> Zurück
+          </Button>
+        </div>
         <Card className="bg-red-50 border-red-200">
           <CardContent className="pt-6">
             <div className="flex items-center text-red-600">
@@ -278,62 +280,67 @@ export default function AutomatDetail() {
 
   return (
     <div className="space-y-6">
-      {/* Navigation zurück */}
-      <Button 
-        variant="ghost" 
-        onClick={() => setLocation("/automaten")}
-        className="mb-2 -ml-2"
-      >
-        <ChevronLeft className="h-4 w-4 mr-1" /> Zurück zur Übersicht
-      </Button>
-
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-2xl font-bold">{machine.machineName}</h1>
-            <StatusBadge status={machine.status} />
-          </div>
-          <p className="text-gray-600 flex items-center gap-2">
-            <span>Vendon ID: {machine.vendonId}</span>
-            {machine.serialNumber && (
-              <>
-                <span className="text-gray-400">|</span>
-                <span>Seriennummer: {machine.serialNumber}</span>
-              </>
-            )}
-            {machine.machineType && (
-              <>
-                <span className="text-gray-400">|</span>
-                <span>Typ: {machine.machineType}</span>
-              </>
-            )}
-          </p>
-          <p className="text-gray-600">Standort: {machine.location || "Nicht angegeben"}</p>
-          <p className="text-gray-500 text-sm mt-1">
-            Letzter Sync: {machine.lastSync ? formatDateTime(machine.lastSync, 'datetime') : 'Nie'} 
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger>
-                  <Info className="h-3 w-3 ml-1 inline text-gray-400" />
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Zeitpunkt der letzten Synchronisation mit dem Vendon-System</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={handleRefresh} variant="outline" className="gap-2">
+      {/* Funktionsleiste */}
+      <div className="flex items-center justify-between">
+        <Button 
+          variant="ghost" 
+          onClick={() => setLocation("/automaten")}
+          className="-ml-2"
+        >
+          <ChevronLeft className="h-4 w-4 mr-1" /> Zurück zur Übersicht
+        </Button>
+        
+        <div className="flex items-center gap-2">
+          <Button onClick={handleRefresh} variant="outline" size="sm" className="gap-2">
             <RefreshCw className="h-4 w-4" />
-            Aktualisieren
+            <span className="hidden sm:inline">Aktualisieren</span>
           </Button>
-          <Button className="gap-2">
+          <Button variant="outline" size="sm" className="gap-2">
             <Settings className="h-4 w-4" />
-            Bearbeiten
+            <span className="hidden sm:inline">Bearbeiten</span>
+          </Button>
+          <Button variant="default" size="sm" className="gap-2">
+            <PackagePlus className="h-4 w-4" />
+            <span className="hidden sm:inline">Auffüllen</span>
           </Button>
         </div>
+      </div>
+
+      {/* Automaten-Header mit Infos */}
+      <div>
+        <div className="flex items-center gap-2 mb-1">
+          <h1 className="text-2xl font-bold">{machine.machineName}</h1>
+          <StatusBadge status={machine.status} />
+        </div>
+        <p className="text-gray-600 flex items-center gap-2">
+          <span>Vendon ID: {machine.vendonId}</span>
+          {machine.serialNumber && (
+            <>
+              <span className="text-gray-400">|</span>
+              <span>Seriennummer: {machine.serialNumber}</span>
+            </>
+          )}
+          {machine.machineType && (
+            <>
+              <span className="text-gray-400">|</span>
+              <span>Typ: {machine.machineType}</span>
+            </>
+          )}
+        </p>
+        <p className="text-gray-600">Standort: {machine.location || "Nicht angegeben"}</p>
+        <p className="text-gray-500 text-sm mt-1">
+          Letzter Sync: {machine.lastSync ? formatDateTime(machine.lastSync, 'datetime') : 'Nie'} 
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                <Info className="h-3 w-3 ml-1 inline text-gray-400" />
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Zeitpunkt der letzten Synchronisation mit dem Vendon-System</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </p>
       </div>
 
       <Separator />

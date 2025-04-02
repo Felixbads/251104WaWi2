@@ -435,6 +435,9 @@ export default function OrderDetail() {
     queryClient.invalidateQueries({ queryKey: [`/api/orders/${id}`] });
   };
   
+  // Bestellung abschließen
+  // Die Funktion handleCompleteOrder wurde durch handleProcessReceipt ersetzt
+  
   // Bestellung stornieren
   const handleCancelOrder = () => {
     if (!order) return;
@@ -601,6 +604,33 @@ Nationalpark Zentrum`);
     toast({
       title: "E-Mail versendet",
       description: `Die Bestellung wurde per E-Mail an ${emailAddress} gesendet.`
+    });
+    
+    setShowEmailDialog(false);
+  };ren,
+
+anbei erhalten Sie unsere Bestellung ${order.orderNumber} vom ${formatDate(order.createdAt)}.
+
+Bitte bestätigen Sie den Erhalt und den voraussichtlichen Liefertermin über unser Lieferantenportal:
+${window.location.origin}/lieferantenportal/${order.supplierId}/bestellung/${order.id}
+
+Sie können den QR-Code im Anhang scannen, um direkt zum Portal zu gelangen.
+
+Bei Fragen stehen wir Ihnen gerne zur Verfügung.
+
+Mit freundlichen Grüßen
+Nationale Parkverwaltung Sächsische Schweiz
+Einkaufsabteilung`);
+    
+    setShowEmailDialog(true);
+  };
+  
+  // E-Mail absenden (Mock)
+  const handleSendEmail = () => {
+    // In der Praxis würde hier ein API-Call zum Versenden der E-Mail folgen
+    toast({
+      title: "E-Mail gesendet",
+      description: `Die E-Mail wurde erfolgreich an ${emailAddress} gesendet.`
     });
     
     setShowEmailDialog(false);
@@ -781,7 +811,7 @@ Nationalpark Zentrum`);
                 </tr>
               </thead>
               <tbody>
-                {order.orderItems.map((item: any, index: number) => (
+                {order.orderItems.map((item, index) => (
                   <tr key={item.id} className="border-t">
                     <td className="py-2">{index + 1}</td>
                     <td className="py-2">{item.productName}</td>
@@ -908,7 +938,7 @@ Nationalpark Zentrum`);
                     <div className="flex justify-between mb-2">
                       <span className="text-sm">Gesamtmenge:</span>
                       <span className="font-medium">
-                        {order.orderItems.reduce((sum: number, item: any) => sum + item.quantity, 0)} Stück
+                        {order.orderItems.reduce((sum, item) => sum + item.quantity, 0)} Stück
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -1050,7 +1080,7 @@ Nationalpark Zentrum`);
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {order.orderItems.map((item: any) => (
+                  {order.orderItems.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">
                         {item.productName}
@@ -1116,7 +1146,7 @@ Nationalpark Zentrum`);
                   {(Array.isArray(order.statusHistory) ? [...order.statusHistory] : 
                   (order.statusHistory ? JSON.parse(order.statusHistory as string) : []))
                   .reverse().map((entry: any, index: number) => (
-                    <li key={entry.id || index} className="relative pl-14">
+                    <li key={entry.id} className="relative pl-14">
                       <div className="absolute left-0 flex h-14 w-14 items-center justify-center rounded-full border bg-card">
                         {entry.status === "draft" && <FileText className="h-6 w-6 text-blue-500" />}
                         {entry.status === "pending" && <Send className="h-6 w-6 text-yellow-500" />}

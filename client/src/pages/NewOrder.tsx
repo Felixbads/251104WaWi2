@@ -1143,29 +1143,33 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
   const [isProcessingForecast, setIsProcessingForecast] = useState(false);
 
   // Holen Sie Lieferanten
-  const { data: suppliers, isLoading: isSuppliersLoading } = useQuery({
+  const { data: suppliersData, isLoading: isSuppliersLoading } = useQuery({
     queryKey: ["/api/suppliers"],
     retry: 1
   });
+  const suppliers = Array.isArray(suppliersData) ? suppliersData : [];
   
   // Holen Sie Prognosemodelle
-  const { data: models, isLoading: isModelsLoading } = useQuery({
+  const { data: modelsData, isLoading: isModelsLoading } = useQuery({
     queryKey: ["/api/forecast/models"],
     retry: 1
   });
+  const models = Array.isArray(modelsData) ? modelsData : [];
   
   // Holen Sie Produkte für das Lager
   const { data: products, isLoading: isProductsLoading } = useQuery({
     queryKey: ["/api/products", { warehouseId }],
-    queryFn: () => apiRequest(`/api/products?warehouseId=${warehouseId}`),
-    retry: 1
+    queryFn: () => apiRequest(`/api/products?warehouseId=${warehouseId}`, null, "GET"),
+    retry: 1,
+    enabled: !!warehouseId
   });
   
   // Holen Sie Maschinen für das Lager
   const { data: machines, isLoading: isMachinesLoading } = useQuery({
     queryKey: ["/api/machines", { warehouseId }],
-    queryFn: () => apiRequest(`/api/machines?locationId=${warehouseId}`),
-    retry: 1
+    queryFn: () => apiRequest(`/api/machines?locationId=${warehouseId}`, null, "GET"),
+    retry: 1,
+    enabled: !!warehouseId
   });
   
   // Laden Sie Prognosen basierend auf Modell und Zeitraum
@@ -1178,7 +1182,7 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
       const endDate = new Date();
       endDate.setDate(today.getDate() + parseInt(forecastPeriod));
       
-      return apiRequest(`/api/forecast/demand?modelId=${selectedModelId}&startDate=${today.toISOString().split("T")[0]}&endDate=${endDate.toISOString().split("T")[0]}`);
+      return apiRequest(`/api/forecast/demand?modelId=${selectedModelId}&startDate=${today.toISOString().split("T")[0]}&endDate=${endDate.toISOString().split("T")[0]}`, null, "GET");
     },
     enabled: !!selectedModelId && !!forecastPeriod,
     retry: 1
@@ -1187,10 +1191,7 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
   // Bestellung erstellen Mutation
   const createOrderMutation = useMutation({
     mutationFn: (data: any) => {
-      return apiRequest("/api/orders", {
-        method: "POST",
-        data: data
-      });
+      return apiRequest("/api/orders", data, "POST");
     },
     onSuccess: (response) => {
       const data = response as any;
@@ -1534,8 +1535,8 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
                         <div><span className="font-medium">Zeitraum:</span> {forecastPeriod} Tage</div>
                         <div>
                           <span className="font-medium">Genauigkeit:</span>{' '}
-                          {models?.find((m: any) => m.id === selectedModelId)?.accuracy 
-                            ? `${(models.find((m: any) => m.id === selectedModelId).accuracy * 100).toFixed(1)}%` 
+                          {models.find((m: any) => m.id === selectedModelId)?.accuracy 
+                            ? `${(models.find((m: any) => m.id === selectedModelId)?.accuracy * 100).toFixed(1)}%` 
                             : 'Unbekannt'}
                         </div>
                         <div><span className="font-medium">Produkte:</span> {selectedProducts.length}</div>
@@ -1615,12 +1616,24 @@ export default function NewOrder() {
   
   // Je nach Schritt den entsprechenden Inhalt anzeigen
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="pb-2 mb-6">
-        <h1 className="text-3xl font-bold tracking-tight">Neue Bestellung</h1>
-        <p className="text-muted-foreground">
-          Erstellen Sie eine neue Bestellung für Ihre Lager oder Maschinen.
-        </p>
+    <div className="space-y-6">
+      {/* Funktionsleiste */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => history.back()} className="-ml-2">
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Zurück
+          </Button>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          {step > 1 && (
+            <Button variant="outline" size="sm" onClick={step === 2 ? backToWarehouseSelection : backToModeSelection}>
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              <span className="hidden sm:inline">Zurück</span>
+            </Button>
+          )}
+        </div>
       </div>
       
       {step === 1 && (
