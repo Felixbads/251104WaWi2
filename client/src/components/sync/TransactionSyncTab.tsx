@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { format, addDays, subDays } from 'date-fns';
+import { format, subDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { motion } from 'framer-motion';
-import { Calendar as CalendarIcon, Loader2, FileText, Calendar, Info, AlertCircle } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, FileText, Info, AlertCircle } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
@@ -88,79 +87,43 @@ export default function TransactionSyncTab() {
         
         console.log('Sync response:', response);
         
-        // Wenn die Antwort syncLog enthält, benutze dies für initiale Werte
-        if (response && response.syncLog) {
+        // Setze Status direkt aus der Antwort
+        if (response) {
+          // Aktualisiere den Status mit der tatsächlichen Antwort vom Server
           setSyncProgress(prev => ({
             ...prev,
-            total: response.syncLog.itemsFound || response.stats?.itemsFound || 0,
-            processed: response.syncLog.itemsSaved || response.stats?.itemsSaved || 0,
-            duplicates: response.syncLog.duplicates || response.stats?.duplicates || 0,
-            errors: response.syncLog.errors || response.stats?.errors || 0
+            status: 'success',
+            endTime: new Date(),
+            // Verwende direkt die Daten aus dem syncLog oder den stats
+            total: response.syncLog?.itemsFound || response.stats?.itemsFound || 0,
+            processed: response.syncLog?.itemsSaved || response.stats?.itemsSaved || 0,
+            duplicates: response.syncLog?.duplicates || response.stats?.duplicates || 0,
+            errors: response.syncLog?.errors || response.stats?.errors || 0
           }));
+
+          // Sofort aktualisiere die Liste der Synchronisationslogs
+          queryClient.invalidateQueries({ queryKey: ['/api/sync/logs', 'transactions'] });
+          
+          // Aktualisiere den Sync-Status
+          queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
+          
+          return response;
         }
         
-        // Speichere die syncLogId für späteres Polling
-        const syncLogId = response?.syncLogId || response?.syncLog?.id;
+        // Wenn keine Antwort vom Server, setze Status auf Fehler
+        setSyncProgress(prev => ({
+          ...prev,
+          status: 'error',
+          endTime: new Date()
+        }));
         
-        // Start polling for updates
-        const intervalId = setInterval(async () => {
-          try {
-            // Holen des aktuellen Sync-Status
-            const statusResponse = await fetch('/api/sync/status');
-            if (!statusResponse.ok) throw new Error('Failed to fetch sync status');
-            const status = await statusResponse.json();
-            
-            // Prüfe, ob die Transaktion abgeschlossen ist
-            if (status.transactions && status.transactions.status !== 'running') {
-              clearInterval(intervalId);
-              setSyncProgress(prev => ({
-                ...prev,
-                status: 'success',
-                endTime: new Date()
-              }));
-            }
-            
-            // Hole den aktuellen Sync-Log, wenn syncLogId verfügbar ist
-            if (syncLogId) {
-              const logResponse = await fetch(`/api/sync/logs/${syncLogId}`);
-              if (logResponse.ok) {
-                const logData = await logResponse.json();
-                console.log('Sync log update:', logData);
-                setSyncProgress(prev => ({
-                  ...prev,
-                  total: logData.itemsFound || prev.total,
-                  processed: logData.itemsSaved || prev.processed,
-                  duplicates: logData.duplicates || prev.duplicates,
-                  errors: logData.errors || prev.errors
-                }));
-              }
-            } else {
-              // Wenn keine syncLogId verfügbar ist, hole die neuesten Logs
-              const logsResponse = await fetch('/api/sync/logs?type=transactions&limit=1');
-              if (logsResponse.ok) {
-                const logs = await logsResponse.json();
-                if (logs && logs.length > 0) {
-                  const latestLog = logs[0];
-                  console.log('Latest sync log:', latestLog);
-                  setSyncProgress(prev => ({
-                    ...prev,
-                    total: latestLog.itemsFound || prev.total,
-                    processed: latestLog.itemsSaved || prev.processed, 
-                    duplicates: latestLog.duplicates || prev.duplicates,
-                    errors: latestLog.errors || prev.errors
-                  }));
-                }
-              }
-            }
-          } catch (e) {
-            console.error('Error polling for updates:', e);
-          }
-        }, 2000);
+        toast({
+          title: "Synchronisationsfehler",
+          description: "Es wurde keine Antwort vom Server erhalten.",
+          variant: "destructive"
+        });
         
-        // Clear interval after 5 minutes to prevent memory leaks
-        setTimeout(() => clearInterval(intervalId), 5 * 60 * 1000);
-        
-        return response;
+        return null;
       } catch (error) {
         setSyncProgress(prev => ({
           ...prev,
@@ -170,15 +133,24 @@ export default function TransactionSyncTab() {
         throw error;
       }
     },
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
       queryClient.invalidateQueries({ queryKey: ['/api/sync/logs', 'transactions'] });
       
-      toast({
-        title: "Transaktions-Synchronisierung gestartet",
-        description: "Die Transaktions-Synchronisierung wurde erfolgreich gestartet.",
-        variant: "success",
-      });
+      // Überprüfe ob Transaktionen gefunden wurden
+      if (response?.syncLog?.itemsFound > 0 || response?.stats?.itemsFound > 0) {
+        toast({
+          title: "Transaktions-Synchronisierung abgeschlossen",
+          description: `${response?.syncLog?.itemsFound || response?.stats?.itemsFound || 0} Transaktionen gefunden, ${response?.syncLog?.itemsSaved || response?.stats?.itemsSaved || 0} gespeichert.`,
+          variant: "success",
+        });
+      } else {
+        toast({
+          title: "Transaktions-Synchronisierung abgeschlossen",
+          description: "Keine neuen Transaktionen gefunden für den ausgewählten Zeitraum.",
+          variant: "default",
+        });
+      }
     },
     onError: (error) => {
       toast({
@@ -517,8 +489,7 @@ export default function TransactionSyncTab() {
         <Info className="h-4 w-4" />
         <AlertTitle>Hinweis zur Transaktions-Synchronisierung</AlertTitle>
         <AlertDescription>
-          <p className="text-sm mt-1">Die Synchronisierung lädt Transaktionen vom Vendon-Server und speichert sie in der lokalen Datenbank. Bereits vorhandene Transaktionen werden erkannt und übersprungen, um Duplikate zu vermeiden.</p>
-          <p className="text-sm mt-2">Für die vollständige Synchronisierung aller historischen Daten, verwenden Sie die <strong>Historische Synchronisierung</strong> im Konfigurations-Tab.</p>
+          <p className="text-sm mt-1">Die Synchronisierung von Transaktionen kann je nach Zeitraum und Datenmenge einige Zeit in Anspruch nehmen. Es werden nur Transaktionen aus dem ausgewählten Zeitraum synchronisiert, die noch nicht in der Datenbank vorhanden sind.</p>
         </AlertDescription>
       </Alert>
     </div>
