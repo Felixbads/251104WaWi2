@@ -341,13 +341,30 @@ Zeitraum: ${formattedStart} - ${formattedEnd}`;
 
   return (
     <div className="space-y-6">
+      {/* Einheitliche Filter- und Aktionsleiste */}
+      <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
+        {/* Linke Seite: keine Suchfunktion für diesen Bereich */}
+        <div className="flex-grow">
+        </div>
+        
+        {/* Rechte Seite: Aktionsbuttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button 
+            variant="outline" 
+            className="flex items-center gap-2"
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ['sync-status'] });
+              queryClient.invalidateQueries({ queryKey: ['db-stats'] });
+            }}
+            disabled={syncMutation.isPending}
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoadingSyncStatus ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Status aktualisieren</span>
+          </Button>
+        </div>
+      </div>
+
       <Card>
-        <CardHeader>
-          <CardTitle>Datensynchronisierung</CardTitle>
-          <CardDescription>
-            Konfigurieren und starten Sie die Synchronisierung mit dem Vendon-System
-          </CardDescription>
-        </CardHeader>
         <CardContent>
           <Tabs defaultValue="status" className="space-y-4">
             <TabsList className="grid grid-cols-6">

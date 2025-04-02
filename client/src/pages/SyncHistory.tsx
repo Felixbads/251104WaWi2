@@ -79,33 +79,43 @@ export default function SyncHistory() {
 
   return (
     <div className="space-y-6">
+      {/* Einheitliche Filter- und Aktionsleiste */}
+      <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
+        {/* Linke Seite: keine Suchfunktion für diesen Bereich */}
+        <div className="flex-grow">
+        </div>
+        
+        {/* Rechte Seite: Aktionsbuttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={String(limit)} onValueChange={(value) => setLimit(parseInt(value))}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue placeholder="Anzahl anzeigen" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10 Einträge</SelectItem>
+              <SelectItem value="20">20 Einträge</SelectItem>
+              <SelectItem value="50">50 Einträge</SelectItem>
+              <SelectItem value="100">100 Einträge</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button 
+            variant="outline" 
+            onClick={() => refetch()} 
+            className="flex items-center gap-2"
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Aktualisieren</span>
+          </Button>
+        </div>
+      </div>
+      
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <CardTitle>Synchronisierungsverlauf</CardTitle>
-              <CardDescription>
-                Verlauf aller durchgeführten Synchronisierungen mit dem Vendon-System
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Select value={String(limit)} onValueChange={(value) => setLimit(parseInt(value))}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder="Anzahl anzeigen" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10 Einträge</SelectItem>
-                  <SelectItem value="20">20 Einträge</SelectItem>
-                  <SelectItem value="50">50 Einträge</SelectItem>
-                  <SelectItem value="100">100 Einträge</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="outline" onClick={() => refetch()} className="flex items-center">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Aktualisieren
-              </Button>
-            </div>
-          </div>
+          <CardTitle>Synchronisierungsverlauf</CardTitle>
+          <CardDescription>
+            Verlauf aller durchgeführten Synchronisierungen mit dem Vendon-System
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto border rounded-md">

@@ -629,17 +629,13 @@ export default function Reporting() {
   
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center">
-            <BarChart2 className="h-6 w-6 mr-2" />
-            Auswertungen
-          </h1>
-          <p className="text-gray-500 mt-1">
-            Analysieren Sie Kennzahlen, Trends und wichtige Geschäftsindikatoren
-          </p>
+      {/* Einheitliche Filter- und Aktionsleiste */}
+      <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
+        {/* Linke Seite: keine Suchfunktion für diesen Bereich */}
+        <div className="flex-grow">
         </div>
+        
+        {/* Rechte Seite: Aktionsbuttons */}
         <div className="flex flex-wrap items-center gap-2">
           <DateRangeFilter 
             dateRange={dateRange}
