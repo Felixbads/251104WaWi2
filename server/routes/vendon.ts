@@ -47,6 +47,8 @@ router.post('/sync', async (req, res) => {
           });
           
           // Starte die Verarbeitung im Hintergrund
+          // Stelle sicher, dass die Transaktionen korrekt an syncTransactions übergeben werden
+          console.log("API-Antwort-Format für Transaktionen:", apiResponse ? Object.keys(apiResponse) : "keine Antwort");
           vendonSync.syncTransactions(startDateObj, endDateObj, batchSize, maxTransactions, apiResponse)
             .then(syncResult => {
               console.log("Synchronisierung erfolgreich abgeschlossen:", syncResult);
@@ -60,12 +62,16 @@ router.post('/sync', async (req, res) => {
             });
           
           // Sofort Antwort zurückgeben
+          // Die Transaktionsdaten können entweder in apiResponse.result oder apiResponse.data sein
+          const transactionsData = apiResponse?.result || apiResponse?.data || [];
+          const transactionsCount = Array.isArray(transactionsData) ? transactionsData.length : 0;
+          
           result = {
             syncLogId: syncLog.id,
             status: 'running',
-            message: `Synchronisierung von ${apiResponse?.result?.length || 0} gefundenen Transaktionen läuft im Hintergrund`,
+            message: `Synchronisierung von ${transactionsCount} gefundenen Transaktionen läuft im Hintergrund`,
             stats: {
-              itemsFound: apiResponse?.result?.length || 0,
+              itemsFound: transactionsCount,
               itemsSaved: 0,
               itemsUpdated: 0,
               duplicates: 0,

@@ -1066,8 +1066,15 @@ export class VendonSyncService {
       
       // Wenn vorgeladene Daten existieren, diese zuerst verarbeiten
       let transactions = [];
-      if (preloadedData && preloadedData.result && Array.isArray(preloadedData.result)) {
-        const preloadedTransactions = preloadedData.result;
+      
+      // Die Transaktionsdaten können entweder in preloadedData.result oder preloadedData.data sein
+      console.log("preloadedData Format:", preloadedData ? Object.keys(preloadedData) : "keine Daten");
+      
+      // Extrahiere die Transaktionsdaten aus der passenden Eigenschaft der API-Antwort
+      const preloadedTransactionsArray = preloadedData?.result || preloadedData?.data || [];
+      
+      if (preloadedTransactionsArray && Array.isArray(preloadedTransactionsArray)) {
+        const preloadedTransactions = preloadedTransactionsArray;
         console.log(`Verarbeite ${preloadedTransactions.length} vorgeladene Transaktionen direkt`);
         totalItems += preloadedTransactions.length;
 
