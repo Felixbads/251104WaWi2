@@ -272,8 +272,18 @@ function DataTimelineChart() {
   };
   
   // Benutzerdefinierter Renderer für die Zeitleisten-Balken
-  const CustomTimelineBar = ({ x, y, width, height, payload, index }: any) => {
-    const dataPoint = payload as DailyDataPoint;
+  interface CustomTimelineBarProps {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    payload: DailyDataPoint;
+    index: number;
+    [key: string]: any; // Für alle weiteren Props, die recharts übergeben könnte
+  }
+  
+  const CustomTimelineBar = ({ x, y, width, height, payload, index }: CustomTimelineBarProps) => {
+    const dataPoint = payload;
     const barHeight = 20;
     
     // X-Position und Breite bleiben gleich wie vom Chart vorgegeben
@@ -430,7 +440,7 @@ function DataTimelineChart() {
               fill="#3b82f6" 
               name="Transaktionsdaten" 
               barSize={15}
-              shape={(props) => <CustomTimelineBar {...props} />}
+              shape={(props: any) => <CustomTimelineBar {...props} />}
               isAnimationActive={false}
             />
           </ComposedChart>
