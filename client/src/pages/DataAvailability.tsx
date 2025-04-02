@@ -73,7 +73,12 @@ export default function DataAvailability() {
     queryKey: ["/api/data-coverage"],
     queryFn: async () => {
       try {
-        const response = await axios.get<DataCoverageType[]>("/api/data-coverage");
+        console.log("Fetching data coverage...");
+        const token = localStorage.getItem("auth_token");
+        const response = await axios.get<DataCoverageType[]>("/api/data-coverage", {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : undefined
+        });
+        console.log("Data coverage response:", response.data);
         return response.data;
       } catch (error: any) {
         console.error("API Error:", error);
@@ -87,12 +92,16 @@ export default function DataAvailability() {
     queryKey: ["/api/data-coverage/monthly-transactions", startDate, endDate],
     queryFn: async () => {
       try {
+        console.log("Fetching monthly transaction data...");
+        const token = localStorage.getItem("auth_token");
         const response = await axios.get("/api/data-coverage/monthly-transactions", {
           params: {
             startDate: startDate.toISOString(),
             endDate: endDate.toISOString()
-          }
+          },
+          headers: token ? { 'Authorization': `Bearer ${token}` } : undefined
         });
+        console.log("Monthly transaction data response:", response.data);
         return response.data;
       } catch (error: any) {
         console.error("API Error beim Abrufen der monatlichen Transaktionsdaten:", error);
@@ -356,16 +365,24 @@ export default function DataAvailability() {
                 Visualisierung der Transaktionsdaten und Wetterdaten über Zeit
               </CardDescription>
             </div>
-            <TabsList>
-              <TabsTrigger value="monthly" onClick={() => setActiveView("monthly")}>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant={activeView === "monthly" ? "default" : "outline"} 
+                size="sm" 
+                onClick={() => setActiveView("monthly")}
+              >
                 <BarChartIcon className="h-4 w-4 mr-2" />
                 Monatlich
-              </TabsTrigger>
-              <TabsTrigger value="daily" onClick={() => setActiveView("daily")}>
+              </Button>
+              <Button 
+                variant={activeView === "daily" ? "default" : "outline"} 
+                size="sm" 
+                onClick={() => setActiveView("daily")}
+              >
                 <CalendarIcon className="h-4 w-4 mr-2" />
                 Tagesansicht
-              </TabsTrigger>
-            </TabsList>
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
