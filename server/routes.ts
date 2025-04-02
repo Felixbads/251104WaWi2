@@ -121,6 +121,7 @@ import exportImportRoutes from "./routes/exportImport";
 import removedProductsRoutes from "./routes/removedProducts";
 import weatherRoutes from "./routes/weather";
 import holidaysRoutes from "./routes/holidays";
+import bulkSyncRoutes from "./routes/bulkSync";
 import { WebSocketServer } from 'ws';
 
 // API route prefix
@@ -1200,6 +1201,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/removed-products`, removedProductsRoutes);
   app.use(`${API_PREFIX}/weather`, weatherRoutes);
   app.use(`${API_PREFIX}/holidays`, holidaysRoutes);
+  app.use(`${API_PREFIX}/bulk`, bulkSyncRoutes);
   
   // Registriere Bestellungs-Routen
   app.use(`${API_PREFIX}/orders`, ordersRouter);
