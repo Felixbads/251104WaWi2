@@ -35,7 +35,9 @@ function ProtectedRoute({ component: Component, ...rest }: any) {
   }
   
   if (!isAuthenticated) {
-    return <Redirect to={`/login?redirect=${encodeURIComponent(location)}`} />;
+    // Wir entfernen führende Slashes aus dem Location-String für die Weiterleitung
+    const cleanLocation = location.startsWith('/') ? location.slice(1) : location;
+    return <Redirect to={`/login?redirect=${encodeURIComponent(cleanLocation)}`} />;
   }
   
   return <Component {...rest} />;

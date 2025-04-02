@@ -41,7 +41,11 @@ export default function Login() {
       const redirectTo = params.get('redirect');
       
       if (redirectTo) {
-        setLocation(decodeURIComponent(redirectTo));
+        // Füge einen führenden Slash hinzu, wenn er nicht vorhanden ist
+        const path = decodeURIComponent(redirectTo);
+        const redirectPath = path.startsWith('/') ? path : `/${path}`;
+        console.log("Weiterleitung nach Login zu:", redirectPath);
+        setLocation(redirectPath);
       } else {
         setLocation('/');
       }

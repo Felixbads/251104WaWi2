@@ -55,6 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       const storedToken = localStorage.getItem('auth_token');
+      console.log("Gespeicherter Token gefunden:", !!storedToken);
       
       if (storedToken) {
         try {
