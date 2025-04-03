@@ -119,11 +119,12 @@ export default function SupplierDetail() {
     enabled: showProductAssignmentDialog
   });
   
-  // Alle Produkte extrahieren und Produkte markieren, die bereits einem Lieferanten zugewiesen sind
+  // Alle Produkte extrahieren und Produkte markieren, die bereits diesem oder einem anderen Lieferanten zugewiesen sind
   const allProducts = allProductsResponse?.data 
     ? allProductsResponse.data.map((product: any) => ({
         ...product,
-        alreadyAssigned: !!product.supplierId
+        // Ein Produkt ist zugeordnet, wenn es einen Lieferanten hat UND der Lieferant nicht der aktuell angezeigt ist
+        alreadyAssigned: !!product.supplierId && product.supplierId !== parseInt(id)
       }))
     : [];
   
@@ -958,11 +959,17 @@ export default function SupplierDetail() {
         {/* Produkte Tab */}
         <TabsContent value="products">
           <Card>
-            <CardHeader>
-              <CardTitle>Produkte</CardTitle>
-              <CardDescription>
-                Alle Produkte dieses Lieferanten
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div>
+                <CardTitle>Produkte</CardTitle>
+                <CardDescription>
+                  Alle Produkte dieses Lieferanten
+                </CardDescription>
+              </div>
+              <Button onClick={() => setShowProductAssignmentDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Produkt zuordnen
+              </Button>
             </CardHeader>
             <CardContent>
               {isProductsLoading ? (
@@ -1305,7 +1312,12 @@ export default function SupplierDetail() {
               <Input 
                 placeholder="Produkte suchen..." 
                 className="w-full pl-10" 
-                type="search" 
+                type="search"
+                onChange={(e) => {
+                  // Implementierung der Suchfunktion
+                  console.log("Suche nach:", e.target.value);
+                  // Hier könnte eine Filterfunktion implementiert werden
+                }}
               />
             </div>
             
