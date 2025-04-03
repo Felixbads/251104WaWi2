@@ -84,6 +84,13 @@ export const getQueryFn: <T>(options: {
     return await res.json();
   };
 
+// Globale Fehlerbehandlung für unbehandelte Fehler einrichten
+const handleError = (error: unknown) => {
+  console.error("API-Fehler abgefangen:", error);
+  // Wir könnten hier auch Toast-Nachrichten anzeigen
+  return null; // Wir geben null zurück, um Fehler nicht weiterzupropagieren
+};
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -92,9 +99,12 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       staleTime: Infinity,
       retry: false,
+      // Bei Fehler sollen wir die Funktion aufrufen
+      onError: handleError
     },
     mutations: {
       retry: false,
+      onError: handleError
     },
-  },
+  }
 });

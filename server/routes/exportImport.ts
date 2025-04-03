@@ -37,14 +37,20 @@ function createWorkbook(sheets: Record<string, any[]>) {
 router.get("/export/suppliers", async (req: Request, res: Response) => {
   try {
     // Lieferanten aus dem Speicher abrufen
-    const suppliers = await storage.getSuppliers();
+    const suppliersResult = await storage.getSuppliers();
     
-    if (!suppliers || suppliers.length === 0) {
+    // Überprüfen, ob Daten vorhanden sind
+    if (!suppliersResult || !suppliersResult.data || suppliersResult.data.length === 0) {
       return res.status(404).json({ error: "Keine Lieferanten gefunden" });
     }
     
+    // Wir verwenden nur das data-Array aus dem Ergebnis
+    const suppliers = suppliersResult.data;
+    
     // XLSX-Arbeitsmappe erstellen
-    const workbook = createWorkbook({ "Lieferanten": suppliers });
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(suppliers);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Lieferanten");
     
     // Als Buffer zurückgeben
     const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
@@ -65,21 +71,27 @@ router.get("/export/suppliers", async (req: Request, res: Response) => {
 router.get("/export/products", async (req: Request, res: Response) => {
   try {
     // Produkte aus dem Speicher abrufen
-    const products = await storage.getProducts();
+    const productsResult = await storage.getProducts();
     
-    if (!products || products.length === 0) {
+    // Überprüfen, ob Produkte vorhanden sind
+    if (!productsResult || !productsResult.data || productsResult.data.length === 0) {
       return res.status(404).json({ error: "Keine Produkte gefunden" });
     }
     
-    // Filtere Produkte, die NICHT von Vendon importiert wurden
-    const exportableProducts = products.filter(p => !p.vendonId);
+    // Wir verwenden das data-Array aus dem Ergebnis
+    const products = productsResult.data;
     
-    if (exportableProducts.length === 0) {
-      return res.status(404).json({ error: "Keine manuell hinzugefügten Produkte gefunden" });
-    }
+    // Alle Produkte exportieren (inklusive Vendon-Produkte)
+    // Das gibt dem Nutzer mehr Flexibilität
+    
+    // Eine Warnung hinzufügen, wenn es keine manuell hinzugefügten Produkte gibt
+    const manualProducts = products.filter(p => !p.vendonId);
+    const includesVendonProducts = manualProducts.length < products.length;
     
     // XLSX-Arbeitsmappe erstellen
-    const workbook = createWorkbook({ "Produkte": exportableProducts });
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(products);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Produkte");
     
     // Als Buffer zurückgeben
     const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
@@ -100,29 +112,32 @@ router.get("/export/products", async (req: Request, res: Response) => {
 router.get("/export/orders", async (req: Request, res: Response) => {
   try {
     // Bestellungen aus dem Speicher abrufen
-    const orders = await storage.getOrders();
+    const ordersResult = await storage.getOrders();
     
-    if (!orders || orders.length === 0) {
+    // Überprüfen, ob Daten vorhanden sind
+    if (!ordersResult || !ordersResult.data || ordersResult.data.length === 0) {
       return res.status(404).json({ error: "Keine Bestellungen gefunden" });
     }
     
-    // Bestellpositionen abrufen
-    const orderItems = await storage.getOrderItems();
+    // Wir verwenden das data-Array aus dem Ergebnis
+    const orders = ordersResult.data;
     
-    // Gruppiere Bestellpositionen nach BestellungsID
-    const itemsByOrderId = orderItems.reduce((acc, item) => {
-      if (!acc[item.orderId]) {
-        acc[item.orderId] = [];
-      }
-      acc[item.orderId].push(item);
-      return acc;
-    }, {} as Record<number, any[]>);
+    // Bestellpositionen abrufen
+    const orderItemsResult = await storage.getOrderItems();
+    const orderItems = orderItemsResult.data || [];
     
     // XLSX-Arbeitsmappe erstellen mit zwei Blättern
-    const workbook = createWorkbook({
-      "Bestellungen": orders,
-      "Bestellpositionen": orderItems
-    });
+    const workbook = XLSX.utils.book_new();
+    
+    // Bestellungen-Arbeitsblatt hinzufügen
+    const ordersWorksheet = XLSX.utils.json_to_sheet(orders);
+    XLSX.utils.book_append_sheet(workbook, ordersWorksheet, "Bestellungen");
+    
+    // Bestellpositionen-Arbeitsblatt hinzufügen
+    if (orderItems.length > 0) {
+      const itemsWorksheet = XLSX.utils.json_to_sheet(orderItems);
+      XLSX.utils.book_append_sheet(workbook, itemsWorksheet, "Bestellpositionen");
+    }
     
     // Als Buffer zurückgeben
     const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });

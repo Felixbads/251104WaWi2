@@ -315,15 +315,20 @@ function PublicRouter() {
   );
 }
 
+// ErrorBoundary importieren
+import ErrorBoundary from "@/components/ErrorBoundary";
+
 // Haupt-App-Komponente
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <MainRouter />
-        <Toaster />
-      </AuthProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <MainRouter />
+          <Toaster />
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
