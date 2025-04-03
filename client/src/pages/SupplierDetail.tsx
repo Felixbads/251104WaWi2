@@ -111,11 +111,14 @@ export default function SupplierDetail() {
   const products = productsResponse?.data ? productsResponse.data : [];
   
   // Bestellungen des Lieferanten abfragen
-  const { data: orders, isLoading: isOrdersLoading } = useQuery({
+  const { data: ordersResponse, isLoading: isOrdersLoading } = useQuery({
     queryKey: ['/api/orders', { supplierId: parseInt(id) }],
     staleTime: 1000 * 60, // 1 Minute
     enabled: !!id
   });
+  
+  // Bestellungen extrahieren und als Array zur Verfügung stellen
+  const orders = ordersResponse?.data ? ordersResponse.data : [];
   
   // Einkaufsbedingungen des Lieferanten abfragen
   const { 
