@@ -143,6 +143,12 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
         
+        <Route path="/produkte/neu" component={props => (
+          <ApprovedUserRoute>
+            <ProductDetail {...props} isNew={true} />
+          </ApprovedUserRoute>
+        )} />
+        
         <Route path="/produkte/:id" component={props => (
           <ApprovedUserRoute>
             <ProductDetail {...props} />

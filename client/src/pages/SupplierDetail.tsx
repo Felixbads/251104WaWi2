@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   ArrowLeft, Phone, Mail, Globe, MapPin, Building, Truck, 
   Calendar, Clock, Edit, Package, FileText, BarChart, AlertTriangle,
-  RefreshCw, Download, CheckCircle, X, Trash2, Save, Plus
+  RefreshCw, Download, CheckCircle, X, Trash2, Save, Plus, Check, Search
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +34,8 @@ import {
   updatePurchaseCondition, 
   deletePurchaseCondition, 
   PurchaseCondition,
-  getProducts
+  getProducts,
+  assignProductToSupplier
 } from "@/lib/api";
 import PurchaseConditionForm from "@/components/forms/PurchaseConditionForm";
 
@@ -93,6 +94,7 @@ export default function SupplierDetail() {
   const [showAddPurchaseCondition, setShowAddPurchaseCondition] = useState(false);
   const [editingPurchaseCondition, setEditingPurchaseCondition] = useState<PurchaseCondition | null>(null);
   const [deletingPurchaseConditionId, setDeletingPurchaseConditionId] = useState<number | null>(null);
+  const [showProductAssignmentDialog, setShowProductAssignmentDialog] = useState(false);
   
   // Lieferantendaten abfragen
   const { data: supplier, isLoading, error } = useQuery<Supplier>({
@@ -109,6 +111,21 @@ export default function SupplierDetail() {
   
   // Produkte extrahieren und als Array zur Verfügung stellen
   const products = productsResponse?.data ? productsResponse.data : [];
+  
+  // Alle verfügbaren Produkte abfragen (für Zuordnung)
+  const { data: allProductsResponse, isLoading: isAllProductsLoading } = useQuery({
+    queryKey: ['/api/products'],
+    staleTime: 1000 * 60, // 1 Minute
+    enabled: showProductAssignmentDialog
+  });
+  
+  // Alle Produkte extrahieren und Produkte markieren, die bereits einem Lieferanten zugewiesen sind
+  const allProducts = allProductsResponse?.data 
+    ? allProductsResponse.data.map((product: any) => ({
+        ...product,
+        alreadyAssigned: !!product.supplierId
+      }))
+    : [];
   
   // Bestellungen des Lieferanten abfragen
   const { data: ordersResponse, isLoading: isOrdersLoading } = useQuery({
@@ -226,6 +243,33 @@ export default function SupplierDetail() {
       toast({
         title: "Fehler",
         description: `Fehler beim Löschen der Einkaufsbedingung: ${error}`,
+        variant: "destructive",
+      });
+    }
+  });
+  
+  // Mutation für das Zuweisen eines Produkts zu einem Lieferanten
+  const assignProductToSupplierMutation = useMutation({
+    mutationFn: (productId: number) => {
+      // Sicherstellen, dass supplier nicht undefined ist
+      if (!supplier) {
+        throw new Error("Lieferant nicht gefunden");
+      }
+      return assignProductToSupplier(productId, parseInt(id), supplier.name);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Erfolg",
+        description: "Produkt erfolgreich zugeordnet",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/products`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/products`, { supplierId: parseInt(id) }] });
+      setShowProductAssignmentDialog(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Fehler",
+        description: `Fehler bei der Zuordnung des Produkts: ${error}`,
         variant: "destructive",
       });
     }
@@ -933,15 +977,15 @@ export default function SupplierDetail() {
                     </div>
                   ))}
                 </div>
-              ) : !products?.data || products.data.length === 0 ? (
+              ) : !products || products.length === 0 ? (
                 <div className="text-center p-6">
                   <Package className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
                   <h3 className="text-lg font-medium mb-1">Keine Produkte gefunden</h3>
                   <p className="text-muted-foreground mb-4">
                     Für diesen Lieferanten sind noch keine Produkte erfasst.
                   </p>
-                  <Button variant="outline" onClick={() => navigate('/produkte/neu')}>
-                    Produkt hinzufügen
+                  <Button variant="outline" onClick={() => setShowProductAssignmentDialog(true)}>
+                    Produkte zuordnen
                   </Button>
                 </div>
               ) : (
@@ -1245,6 +1289,92 @@ export default function SupplierDetail() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      
+      {/* Dialog zur Produktzuordnung */}
+      <Dialog open={showProductAssignmentDialog} onOpenChange={setShowProductAssignmentDialog}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Produkte zuordnen</DialogTitle>
+            <DialogDescription>
+              Wählen Sie die Produkte aus, die diesem Lieferanten zugeordnet werden sollen.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="relative w-full">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input 
+                placeholder="Produkte suchen..." 
+                className="w-full pl-10" 
+                type="search" 
+              />
+            </div>
+            
+            <div className="border rounded-md max-h-[400px] overflow-y-auto">
+              {isAllProductsLoading ? (
+                <div className="p-4 space-y-3">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : allProducts.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Package className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                  <h3 className="text-lg font-medium mb-1">Keine Produkte gefunden</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Es sind keine Produkte vorhanden, die zugeordnet werden können.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {allProducts.map((product: any) => (
+                    <div 
+                      key={product.id} 
+                      className={`p-3 flex items-center ${
+                        product.alreadyAssigned 
+                          ? 'bg-gray-50 text-muted-foreground opacity-60 cursor-not-allowed' 
+                          : 'hover:bg-accent cursor-pointer'
+                      }`}
+                      onClick={() => {
+                        if (!product.alreadyAssigned) {
+                          assignProductToSupplierMutation.mutate(product.id);
+                        }
+                      }}
+                    >
+                      <div className="flex-grow">
+                        <div className="font-medium">
+                          {product.productName || product.name}
+                          {product.alreadyAssigned && product.supplierId == parseInt(id) && (
+                            <Badge className="ml-2 bg-green-100 text-green-800 border-green-200">
+                              Bereits zugeordnet
+                            </Badge>
+                          )}
+                          {product.alreadyAssigned && product.supplierId != parseInt(id) && (
+                            <Badge className="ml-2 bg-yellow-100 text-yellow-800 border-yellow-200">
+                              Anderer Lieferant
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {product.sku && <span className="mr-3">SKU: {product.sku}</span>}
+                          {product.category && <span>Kategorie: {product.category}</span>}
+                        </div>
+                      </div>
+                      {!product.alreadyAssigned && (
+                        <Button size="sm" variant="outline">
+                          <Plus className="h-4 w-4 mr-1" /> Zuordnen
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowProductAssignmentDialog(false)}>Schließen</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

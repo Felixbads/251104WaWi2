@@ -574,6 +574,13 @@ export async function updateProduct(id: string, productData: Partial<Product>): 
   return apiRequest<Product>('put', `/products/${id}`, productData);
 }
 
+export async function assignProductToSupplier(productId: number, supplierId: number, supplierName?: string): Promise<Product> {
+  return apiRequest<Product>('put', `/products/${productId}`, {
+    supplierId: supplierId,
+    supplierName: supplierName
+  });
+}
+
 /**
  * Produktdaten als Excel exportieren
  * @returns Ein Blob mit der Excel-Datei
