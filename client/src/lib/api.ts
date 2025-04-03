@@ -2,6 +2,59 @@ import axios from 'axios';
 
 const API_BASE_URL = '/api';
 
+// Interface für Maschinenbestand (MachineStock)
+export interface MachineStock {
+  id: number;
+  machineId: number;
+  machineVendonId: string;
+  productVendonId: string;
+  selectionNumber: string;
+  quantity: number;
+  status: string;
+  lastFilled: string;
+  rawData?: string;
+  lastSync?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// Interface für Standorte (Location)
+export interface Location {
+  id: number;
+  name: string;
+  address?: string;
+  city?: string;
+  postalCode?: string;
+  country?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// Interface für Produkt-Bestand (Stock)
+export interface Stock {
+  id: number;
+  vendonId: string;
+  productName: string;
+  sku?: string;
+  barcode?: string;
+  price?: number;
+  vat?: number;
+  status: string;
+  units?: string;
+  warehouseLocation?: string;
+  description?: string;
+  productType?: string;
+  amountMax?: number;
+  amountStandard?: number;
+  amountCritical?: number;
+  refillUnitSize?: number;
+  minRefill?: number;
+  rawData?: string;
+  lastSync?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 // Interface für Datenbankstatistiken
 export interface DatabaseStatistics {
   transactions: number;
@@ -917,6 +970,41 @@ export async function getLocations(): Promise<Location[]> {
 
 export async function getLocation(id: number): Promise<Location> {
   return apiRequest<Location>('get', `/locations/${id}`);
+}
+
+// Neue Funktionen für Maschinenbestände
+export async function getStocks(): Promise<Stock[]> {
+  return apiRequest<Stock[]>('get', '/stocks');
+}
+
+export async function getMachineStocks(machineId?: number): Promise<MachineStock[]> {
+  const url = machineId ? `/machine-stocks?machineId=${machineId}` : '/machine-stocks';
+  return apiRequest<MachineStock[]>('get', url);
+}
+
+export async function getMachineStocksByLocation(locationId: number): Promise<MachineStock[]> {
+  // Diese Funktion holt alle Maschinenbestände für einen bestimmten Standort,
+  // indem sie zuerst alle Maschinen für diesen Standort abruft und dann
+  // für jede Maschine die Bestände abfragt
+  
+  // Schritt 1: Alle Maschinen mit dem angegebenen locationId abrufen
+  const machines = await getMachines();
+  const locationMachines = machines.filter(machine => 
+    machine.location && machine.location.toString().includes(locationId.toString()));
+  
+  if (locationMachines.length === 0) {
+    return [];
+  }
+  
+  // Schritt 2: Für jede Maschine die Bestände abrufen und zusammenführen
+  const machineStocksPromises = locationMachines.map(machine => 
+    getMachineStocks(Number(machine.id)));
+  
+  // Warten auf alle Anfragen und die Ergebnisse zusammenführen
+  const machineStocksResults = await Promise.all(machineStocksPromises);
+  
+  // Alle Ergebnisse in einem Array zusammenführen
+  return machineStocksResults.flat();
 }
 
 // Formatiert ein Datum im ISO-Format

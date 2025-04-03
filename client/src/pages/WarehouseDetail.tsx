@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { apiRequest } from '@/lib/queryClient';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { LocationStockTab } from '@/components/stock/LocationStockTab';
 
 export default function WarehouseDetail() {
   const { id } = useParams<{ id: string }>();
@@ -388,6 +389,7 @@ export default function WarehouseDetail() {
           <TabsTrigger value="inventory">Lagerbestand</TabsTrigger>
           <TabsTrigger value="movements">Warenbewegungen</TabsTrigger>
           <TabsTrigger value="machines">Automaten-Zuordnung</TabsTrigger>
+          <TabsTrigger value="stocks">Automat-Bestand</TabsTrigger>
           <TabsTrigger value="counts">Inventur</TabsTrigger>
         </TabsList>
         
@@ -588,6 +590,18 @@ export default function WarehouseDetail() {
                   Erfassen Sie Ein- und Ausgänge, um Ihren Lagerbestand zu verfolgen.
                 </p>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="stocks" className="mt-0">
+          <Card>
+            <CardHeader>
+              <CardTitle>Automaten-Bestand</CardTitle>
+              <CardDescription>Aktuelle Bestände in den Automaten an diesem Standort</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <LocationStockTab locationId={Number(id)} />
             </CardContent>
           </Card>
         </TabsContent>
