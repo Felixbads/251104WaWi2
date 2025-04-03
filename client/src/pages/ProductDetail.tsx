@@ -1302,50 +1302,6 @@ export default function ProductDetail() {
                 </Button>
               </CardContent>
             </Card>
-
-            {product && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Zusammenfassung</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-500 mb-1">Produktname</h3>
-                      <p className="font-medium">{product.productName}</p>
-                    </div>
-                    
-                    <div className="flex justify-between">
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Preis</h3>
-                        <p className="font-medium">{product.price?.toFixed(2) || '–'} €</p>
-                      </div>
-                      
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Bestand</h3>
-                        <p className="font-medium">
-                          {typeof product.inStock === 'number' ? product.inStock : '–'}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    {product.supplier && (
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Lieferant</h3>
-                        <p className="font-medium">{product.supplier}</p>
-                      </div>
-                    )}
-                    
-                    {product.category && (
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Kategorie</h3>
-                        <p className="font-medium">{product.category}</p>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
           </div>
         </div>
       )}
