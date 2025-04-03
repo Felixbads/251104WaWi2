@@ -443,6 +443,35 @@ export default function ProductDetail() {
                         </div>
                       )}
 
+                      {/* Altersverifizierung */}
+                      <div className="col-span-2">
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Altersverifizierung</h3>
+                        {editMode ? (
+                          <div className="flex items-center space-x-2 pt-1">
+                            <Checkbox 
+                              id="requiresAgeVerification" 
+                              checked={editedProduct.requiresAgeVerification}
+                              onCheckedChange={(checked) => setEditedProduct({
+                                ...editedProduct,
+                                requiresAgeVerification: checked === true
+                              })}
+                            />
+                            <Label htmlFor="requiresAgeVerification">Altersprüfung erforderlich (18+)</Label>
+                          </div>
+                        ) : (
+                          <p className="font-medium">
+                            {product.requiresAgeVerification ? 
+                              <span className="flex items-center text-amber-600">
+                                <Check className="h-4 w-4 mr-1" /> Ja, Altersprüfung erforderlich (18+)
+                              </span> : 
+                              <span className="flex items-center text-gray-500">
+                                <X className="h-4 w-4 mr-1" /> Nein, keine Altersprüfung erforderlich
+                              </span>
+                            }
+                          </p>
+                        )}
+                      </div>
+
                       {/* Artikel/Barcode */}
                       <div>
                         <h3 className="text-sm font-medium text-gray-500 mb-1">Artikelnummer</h3>
@@ -1226,104 +1255,8 @@ export default function ProductDetail() {
             </Card>
           </div>
 
-          {/* Rechte Spalte: Aktionen und Zusatzinfos */}
+          {/* Rechte Spalte: Zusatzinfos */}
           <div>
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle className="text-lg">Aktionen</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <Button 
-                  className="w-full justify-start"
-                  onClick={() => {
-                    toast({
-                      title: "Bestand anpassen",
-                      description: `Weiterleitung zur Bestandsanpassung für "${product?.productName || `Produkt #${id}`}"`,
-                    });
-                    setLocation(`/lager?adjust=product&id=${id}`);
-                  }}
-                >
-                  <Package className="h-4 w-4 mr-2" />
-                  Bestand anpassen
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start"
-                  onClick={() => {
-                    toast({
-                      title: "Verkaufsstatistik",
-                      description: `Weiterleitung zur Verkaufsstatistik für "${product?.productName || `Produkt #${id}`}"`,
-                      variant: "default",
-                    });
-                    setLocation(`/auswertungen?productId=${id}&view=sales`);
-                  }}
-                >
-                  <BarChart3 className="h-4 w-4 mr-2" />
-                  Verkaufsstatistik
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start"
-                  onClick={() => {
-                    toast({
-                      title: "Bestandsverlauf",
-                      description: `Weiterleitung zum Bestandsverlauf für "${product?.productName || `Produkt #${id}`}"`,
-                      variant: "default",
-                    });
-                    setLocation(`/lager?productId=${id}&view=history`);
-                  }}
-                >
-                  <Clipboard className="h-4 w-4 mr-2" />
-                  Bestandsverlauf
-                </Button>
-                <Separator className="my-2" />
-                <Button 
-                  variant={product?.critical || (typeof product?.inStock === 'number' && product?.inStock <= 0) ? "default" : "outline"}
-                  className={`w-full justify-start ${product?.critical || (typeof product?.inStock === 'number' && product?.inStock <= 0) ? "bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-200 hover:text-amber-900" : ""}`}
-                  onClick={() => {
-                    toast({
-                      title: "Bestellung anlegen",
-                      description: `Weiterleitung zur Bestellungsseite mit "${product?.productName || `Produkt #${id}`}"`,
-                      variant: "default",
-                    });
-                    setLocation(`/bestellungen/neu?productId=${id}`);
-                  }}
-                >
-                  <Truck className="h-4 w-4 mr-2" />
-                  Bestellung anlegen
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start"
-                  onClick={() => {
-                    toast({
-                      title: "Nachfüllungen anzeigen",
-                      description: `Weiterleitung zur Übersicht der Nachfüllungen für "${product?.productName || `Produkt #${id}`}"`,
-                      variant: "default",
-                    });
-                    setLocation(`/automaten?view=refills&productId=${id}`);
-                  }}
-                >
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Nachfüllungen anzeigen
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start"
-                  onClick={() => {
-                    toast({
-                      title: "Verkäufe anzeigen",
-                      description: `Weiterleitung zur Transaktionsübersicht für "${product?.productName || `Produkt #${id}`}"`,
-                      variant: "default",
-                    });
-                    setLocation(`/transactions?productId=${id}`);
-                  }}
-                >
-                  <ShoppingCart className="h-4 w-4 mr-2" />
-                  Verkäufe anzeigen
-                </Button>
-              </CardContent>
-            </Card>
           </div>
         </div>
       )}
