@@ -103,26 +103,7 @@ function DataTimelineChart() {
     },
   });
   
-  // Abrufen monatlicher Transaktionsdaten
-  const { data: monthlyTransactions } = useQuery({
-    queryKey: ["/api/data-coverage/monthly-transactions", startDate, endDate],
-    queryFn: async () => {
-      try {
-        const token = localStorage.getItem("auth_token");
-        const response = await axios.get("/api/data-coverage/monthly-transactions", {
-          params: {
-            startDate: startDate.toISOString(),
-            endDate: endDate.toISOString()
-          },
-          headers: token ? { 'Authorization': `Bearer ${token}` } : undefined
-        });
-        return response.data;
-      } catch (error: any) {
-        console.error("API Error beim Abrufen der monatlichen Transaktionsdaten:", error);
-        throw new Error(error.response?.data?.error || error.message);
-      }
-    },
-  });
+  // Monatliche Transaktionsdaten werden erst später abgerufen (siehe unten)
   
   // Zeitraum basierend auf Zoom-Level berechnen
   const getZoomRange = () => {
@@ -154,7 +135,11 @@ function DataTimelineChart() {
   
   // Abrufen von Feiertagen für den Zeitraum
   const { data: holidaysData } = useQuery({
-    queryKey: ["/api/holidays", startDate, endDate],
+    queryKey: ["/api/holidays", startDate.toISOString(), endDate.toISOString()],
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
+    gcTime: 24 * 60 * 60 * 1000, // 24 Stunden
     queryFn: async () => {
       try {
         const token = localStorage.getItem("auth_token");
@@ -507,6 +492,10 @@ export default function DataAvailability() {
   // Abfragen der Datenabdeckung für alle Datentypen
   const { data: dataCoverage, isLoading: isLoadingCoverage } = useQuery({
     queryKey: ["/api/data-coverage"],
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
+    gcTime: 24 * 60 * 60 * 1000,
     queryFn: async () => {
       try {
         console.log("Fetching data coverage...");
@@ -525,7 +514,11 @@ export default function DataAvailability() {
 
   // Abfragen der monatlichen Transaktionsdaten für die Visualisierung
   const { data: monthlyTransactions, isLoading: isLoadingMonthlyData } = useQuery({
-    queryKey: ["/api/data-coverage/monthly-transactions", startDate, endDate],
+    queryKey: ["/api/data-coverage/monthly-transactions", startDate.toISOString(), endDate.toISOString()],
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
+    gcTime: 24 * 60 * 60 * 1000,
     queryFn: async () => {
       try {
         console.log("Fetching monthly transaction data...");

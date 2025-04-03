@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format, subDays, addDays, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -71,28 +71,37 @@ const ForecastEvaluation: React.FC = () => {
   // Abrufen der verfügbaren Maschinen
   const { data: machines } = useQuery({
     queryKey: ['/api/machines'],
-    staleTime: 60000, // 1 Minute
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
     queryFn: () => apiRequest("get", "/api/machines")
   });
   
   // Abrufen der verfügbaren Produkte
   const { data: products } = useQuery({
     queryKey: ['/api/products'],
-    staleTime: 60000, // 1 Minute
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
     queryFn: () => apiRequest("get", "/api/products")
   });
   
   // Abrufen der verfügbaren Lieferanten
   const { data: suppliers } = useQuery({
     queryKey: ['/api/suppliers'],
-    staleTime: 60000, // 1 Minute
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
     queryFn: () => apiRequest("get", "/api/suppliers")
   });
   
   // Abrufen der verfügbaren Modelle
   const { data: models } = useQuery({
     queryKey: ['/api/forecast/models'],
-    staleTime: 60000, // 1 Minute
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
+    gcTime: 24 * 60 * 60 * 1000, // 24 Stunden (ersetzt cacheTime in TanStack Query v5),
     queryFn: () => apiRequest("get", "/api/forecast/models")
   });
   
@@ -114,10 +123,11 @@ const ForecastEvaluation: React.FC = () => {
     isError,
     refetch
   } = useQuery({
-    queryKey: ['/api/forecast/evaluation', queryParams],
+    queryKey: ['/api/forecast/evaluation', startDate.toISOString(), endDate.toISOString(), selectedMachine, selectedProduct, selectedModel, selectedSupplier],
     staleTime: Infinity, // Keine automatische Invalidierung
     refetchInterval: false, // Kein automatisches Refetching
     refetchOnWindowFocus: false, // Kein Refetching bei Fokuswechsel
+    gcTime: 24 * 60 * 60 * 1000, // 24 Stunden (ersetzt cacheTime in TanStack Query v5)
     enabled: false, // Nicht automatisch abrufen beim ersten Rendern
     queryFn: async () => {
       const params = new URLSearchParams();
