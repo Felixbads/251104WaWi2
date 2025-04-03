@@ -117,6 +117,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             title: "Erfolgreich angemeldet",
             description: `Willkommen zurück, ${user.username}!`,
           });
+          
+          // Direkt zum Dashboard weiterleiten
+          window.location.href = "/dashboard";
         }
         
         setIsLoading(false);
