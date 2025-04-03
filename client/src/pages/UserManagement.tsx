@@ -1,345 +1,444 @@
-import { useEffect, useState } from "react";
-import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/lib";
-import axios from "axios";
-import { User } from "@/lib/types";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { AlertTriangle, CheckCircle, User as UserIcon, Shield, Calendar } from "lucide-react";
+  Table, 
+  TableBody, 
+  TableCaption, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import { 
+  Check, 
+  X, 
+  UserCheck, 
+  UserX, 
+  Shield, 
+  Mail, 
+  Calendar, 
+  TrashIcon, 
+  CheckCircle, 
+  XCircle 
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
+import { de } from 'date-fns/locale';
+import { useAuth } from '@/lib/auth';
 
-export default function UserManagement() {
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
-  const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
-  const [newRole, setNewRole] = useState<string>("");
-  const { user } = useAuth();
+interface User {
+  id: number;
+  username: string;
+  email: string | null;
+  role: string | null;
+  approved: boolean | null;
+  approvedBy: number | null;
+  approvedAt: Date | null;
+  createdAt: Date | null;
+  updatedAt: Date | null;
+}
+
+const UserManagement: React.FC = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { user: currentUser } = useAuth();
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
-  // Benutzer laden
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        setLoading(true);
-        const response = await axios.get('/api/admin/users');
-        if (response.data) {
-          setUsers(response.data);
-        }
-      } catch (error) {
-        const errorMessage = axios.isAxiosError(error) 
-          ? error.response?.data?.error || "Fehler beim Laden der Benutzer" 
-          : "Fehler beim Laden der Benutzer";
-        setError(errorMessage);
-        toast({
-          variant: "destructive",
-          title: "Fehler",
-          description: errorMessage,
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Abfrage zum Abrufen aller Benutzer
+  const { data: users, isLoading, error } = useQuery<User[]>({
+    queryKey: ['/api/admin/users'],
+    staleTime: 60 * 1000, // 1 Minute
+  });
 
-    fetchUsers();
-  }, [toast]);
-
-  // Benutzer genehmigen
-  const approveUser = async (userId: number) => {
-    try {
-      const response = await axios.post(`/api/admin/users/${userId}/approve`);
-      
-      if (response.data.success) {
-        // Benutzerliste aktualisieren
-        setUsers(users.map(u => 
-          u.id === userId 
-            ? { ...u, approved: true, approvedBy: user?.id, approvedAt: new Date() }
-            : u
-        ));
-        
-        toast({
-          title: "Benutzer freigegeben",
-          description: "Der Benutzer wurde erfolgreich freigegeben.",
-        });
-        
-        setIsApproveDialogOpen(false);
-      } else {
-        throw new Error(response.data.error || "Fehler bei der Benutzerfreigabe");
-      }
-    } catch (error) {
-      const errorMessage = axios.isAxiosError(error) 
-        ? error.response?.data?.error || "Fehler bei der Benutzerfreigabe" 
-        : "Fehler bei der Benutzerfreigabe";
-      
+  // Mutation zum Genehmigen eines Benutzers
+  const approveMutation = useMutation({
+    mutationFn: (userId: number) =>
+      apiRequest(`/api/admin/users/${userId}/approve`, {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
       toast({
-        variant: "destructive",
-        title: "Fehler",
-        description: errorMessage,
+        title: "Benutzer genehmigt",
+        description: "Der Benutzer wurde erfolgreich freigeschaltet.",
+        variant: "default",
       });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Fehler",
+        description: `Fehler beim Genehmigen des Benutzers: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation zum Löschen eines Benutzers
+  const deleteMutation = useMutation({
+    mutationFn: (userId: number) =>
+      apiRequest(`/api/admin/users/${userId}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      toast({
+        title: "Benutzer gelöscht",
+        description: "Der Benutzer wurde erfolgreich gelöscht.",
+        variant: "default",
+      });
+      setDeleteDialogOpen(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Fehler",
+        description: `Fehler beim Löschen des Benutzers: ${error.message}`,
+        variant: "destructive",
+      });
+      setDeleteDialogOpen(false);
+    },
+  });
+
+  // Mutation zum Zurücksetzen einer Genehmigung
+  const resetApprovalMutation = useMutation({
+    mutationFn: (userId: number) =>
+      apiRequest(`/api/admin/users/${userId}/reset-approval`, {
+        method: 'POST',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      toast({
+        title: "Genehmigung zurückgesetzt",
+        description: "Die Benutzerfreigabe wurde zurückgesetzt.",
+        variant: "default",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Fehler",
+        description: `Fehler beim Zurücksetzen der Genehmigung: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Behandlung des Löschens eines Benutzers
+  const handleDeleteUser = (user: User) => {
+    setUserToDelete(user);
+    setDeleteDialogOpen(true);
+  };
+
+  // Bestätigung des Löschens
+  const confirmDelete = () => {
+    if (userToDelete) {
+      deleteMutation.mutate(userToDelete.id);
     }
   };
 
-  // Benutzerrolle ändern
-  const changeUserRole = async (userId: number, role: string) => {
-    try {
-      const response = await axios.post(`/api/admin/users/${userId}/role`, { role });
-      
-      if (response.data.success) {
-        // Benutzerliste aktualisieren
-        setUsers(users.map(u => 
-          u.id === userId 
-            ? { ...u, role }
-            : u
-        ));
-        
-        toast({
-          title: "Rolle geändert",
-          description: `Die Rolle wurde erfolgreich zu "${role}" geändert.`,
-        });
-        
-        setIsRoleDialogOpen(false);
-      } else {
-        throw new Error(response.data.error || "Fehler beim Ändern der Rolle");
-      }
-    } catch (error) {
-      const errorMessage = axios.isAxiosError(error) 
-        ? error.response?.data?.error || "Fehler beim Ändern der Rolle" 
-        : "Fehler beim Ändern der Rolle";
-      
-      toast({
-        variant: "destructive",
-        title: "Fehler",
-        description: errorMessage,
-      });
+  // Funktion zum Formatieren eines Datums
+  const formatDate = (date: Date | null) => {
+    if (!date) return 'Nicht verfügbar';
+    return format(new Date(date), 'dd.MM.yyyy HH:mm', { locale: de });
+  };
+
+  // Funktion zum Generieren eines Badge-Typs basierend auf der Benutzerrolle
+  const getRoleBadgeVariant = (role: string | null) => {
+    switch (role) {
+      case 'admin':
+        return 'destructive';
+      case 'manager':
+        return 'yellow';
+      default:
+        return 'secondary';
     }
   };
 
-  // Dialog zur Rollenänderung öffnen
-  const openRoleDialog = (user: User) => {
-    setSelectedUser(user);
-    setNewRole(user.role);
-    setIsRoleDialogOpen(true);
+  // Funktion zum Formatieren eines Rollennamens
+  const formatRoleName = (role: string | null) => {
+    if (!role) return 'Keine Rolle';
+    
+    switch (role) {
+      case 'admin':
+        return 'Administrator';
+      case 'manager':
+        return 'Manager';
+      case 'user':
+        return 'Benutzer';
+      default:
+        return role;
+    }
   };
 
-  // Dialog zur Benutzerfreigabe öffnen
-  const openApproveDialog = (user: User) => {
-    setSelectedUser(user);
-    setIsApproveDialogOpen(true);
-  };
-
-  // Formatiert ein Datum für die Anzeige
-  const formatDate = (date?: Date) => {
-    if (!date) return "Nicht verfügbar";
-    return new Date(date).toLocaleString("de-DE", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="container mx-auto py-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Benutzerverwaltung</CardTitle>
+            <CardDescription>Verwaltung von Benutzerkonten und Freigaben</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-center space-x-4">
+                  <Skeleton className="h-12 w-12 rounded-full" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-[250px]" />
+                    <Skeleton className="h-4 w-[200px]" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
-        <AlertTriangle className="w-12 h-12 text-destructive" />
-        <h2 className="text-xl font-semibold">Fehler beim Laden der Benutzerdaten</h2>
-        <p>{error}</p>
-        <Button onClick={() => window.location.reload()}>Erneut versuchen</Button>
+      <div className="container mx-auto py-6">
+        <Card className="border-red-200 bg-red-50">
+          <CardHeader>
+            <CardTitle className="text-red-700">Fehler beim Laden der Benutzerdaten</CardTitle>
+            <CardDescription className="text-red-600">
+              Es ist ein Fehler beim Abrufen der Benutzer aufgetreten. Bitte versuchen Sie es später erneut.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] })}>
+              Erneut versuchen
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
+  const pendingApprovalUsers = users?.filter(user => !user.approved) || [];
+  const approvedUsers = users?.filter(user => user.approved) || [];
+
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Benutzerverwaltung</h1>
-      </div>
+    <div className="container mx-auto py-6 space-y-8">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl">Benutzerverwaltung</CardTitle>
+          <CardDescription>
+            Verwaltung von Benutzerkonten, Genehmigungen und Berechtigungen.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+
+      {pendingApprovalUsers.length > 0 && (
+        <Card>
+          <CardHeader className="bg-yellow-50">
+            <CardTitle className="flex items-center">
+              <UserCheck className="mr-2 h-5 w-5 text-yellow-600" />
+              Ausstehende Genehmigungen
+            </CardTitle>
+            <CardDescription>
+              Diese Benutzer haben sich registriert und warten auf Freigabe.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Benutzername</TableHead>
+                  <TableHead>E-Mail</TableHead>
+                  <TableHead>Registrierungsdatum</TableHead>
+                  <TableHead>Aktionen</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pendingApprovalUsers.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">{user.username}</TableCell>
+                    <TableCell>{user.email || 'Keine E-Mail'}</TableCell>
+                    <TableCell>{formatDate(user.createdAt)}</TableCell>
+                    <TableCell>
+                      <div className="flex space-x-2">
+                        <Button
+                          size="sm"
+                          onClick={() => approveMutation.mutate(user.id)}
+                          disabled={approveMutation.isPending}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          <Check className="mr-1 h-4 w-4" />
+                          Genehmigen
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleDeleteUser(user)}
+                          disabled={deleteMutation.isPending}
+                        >
+                          <X className="mr-1 h-4 w-4" />
+                          Ablehnen
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
-          <CardTitle>Benutzerübersicht</CardTitle>
+          <CardTitle className="flex items-center">
+            <Shield className="mr-2 h-5 w-5" />
+            Alle Benutzer
+          </CardTitle>
+          <CardDescription>
+            Übersicht aller Benutzerkonten und deren Status.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {users.length === 0 ? (
-            <div className="text-center py-6">
-              <UserIcon className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-2 text-lg font-medium">Keine Benutzer gefunden</h3>
-              <p className="mt-1 text-gray-500">Es sind derzeit keine Benutzer im System registriert.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Benutzer</TableHead>
-                    <TableHead>E-Mail</TableHead>
-                    <TableHead>Rolle</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Registriert am</TableHead>
-                    <TableHead>Aktionen</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <div className="font-medium">{user.username}</div>
-                      </TableCell>
-                      <TableCell>{user.email}</TableCell>
-                      <TableCell>
-                        <Badge variant={user.role === "admin" ? "default" : "outline"}>
-                          {user.role === "admin" ? "Administrator" : "Benutzer"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {user.approved ? (
-                          <Badge variant="default" className="bg-green-600">
-                            <CheckCircle className="w-4 h-4 mr-1" /> Freigegeben
-                          </Badge>
-                        ) : (
-                          <Badge variant="destructive">
-                            <AlertTriangle className="w-4 h-4 mr-1" /> Nicht freigegeben
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center">
-                          <Calendar className="w-4 h-4 mr-1 text-muted-foreground" />
-                          <span className="text-sm">
-                            {formatDate(user.createdAt)}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openRoleDialog(user)}
-                          >
-                            <Shield className="w-4 h-4 mr-1" /> Rolle ändern
-                          </Button>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Benutzername</TableHead>
+                <TableHead>E-Mail</TableHead>
+                <TableHead>Rolle</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Genehmigt von</TableHead>
+                <TableHead>Genehmigungsdatum</TableHead>
+                <TableHead>Registrierungsdatum</TableHead>
+                <TableHead>Aktionen</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {users?.map((user) => (
+                <TableRow key={user.id} className={user.id === currentUser?.id ? 'bg-blue-50' : ''}>
+                  <TableCell className="font-medium">
+                    {user.username}
+                    {user.id === currentUser?.id && (
+                      <Badge className="ml-2 bg-blue-500" variant="secondary">Sie</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="flex items-center">
+                    <Mail className="mr-1 h-4 w-4 text-muted-foreground" />
+                    {user.email || 'Keine E-Mail'}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={getRoleBadgeVariant(user.role)}>
+                      {formatRoleName(user.role)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {user.approved ? (
+                      <span className="flex items-center text-green-600">
+                        <CheckCircle className="mr-1 h-4 w-4" />
+                        Genehmigt
+                      </span>
+                    ) : (
+                      <span className="flex items-center text-yellow-600">
+                        <XCircle className="mr-1 h-4 w-4" />
+                        Ausstehend
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {user.approvedBy ? `ID: ${user.approvedBy}` : 'Nicht genehmigt'}
+                  </TableCell>
+                  <TableCell>
+                    <span className="flex items-center">
+                      <Calendar className="mr-1 h-4 w-4 text-muted-foreground" />
+                      {user.approvedAt ? formatDate(user.approvedAt) : 'Nicht genehmigt'}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="flex items-center">
+                      <Calendar className="mr-1 h-4 w-4 text-muted-foreground" />
+                      {formatDate(user.createdAt)}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex space-x-2">
+                      {user.id !== currentUser?.id && (
+                        <>
                           {!user.approved && (
                             <Button
-                              variant="default"
                               size="sm"
-                              onClick={() => openApproveDialog(user)}
+                              onClick={() => approveMutation.mutate(user.id)}
+                              disabled={approveMutation.isPending}
+                              className="bg-green-600 hover:bg-green-700"
                             >
-                              <CheckCircle className="w-4 h-4 mr-1" /> Freigeben
+                              <Check className="mr-1 h-4 w-4" />
+                              Genehmigen
                             </Button>
                           )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+                          {user.approved && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => resetApprovalMutation.mutate(user.id)}
+                              disabled={resetApprovalMutation.isPending}
+                            >
+                              <UserX className="mr-1 h-4 w-4" />
+                              Freigabe zurücksetzen
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDeleteUser(user)}
+                            disabled={deleteMutation.isPending}
+                          >
+                            <TrashIcon className="mr-1 h-4 w-4" />
+                            Löschen
+                          </Button>
+                        </>
+                      )}
+                      {user.id === currentUser?.id && (
+                        <Badge variant="outline">Aktueller Benutzer</Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
 
-      {/* Dialog zur Rollenänderung */}
-      <Dialog open={isRoleDialogOpen} onOpenChange={setIsRoleDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Benutzerrolle ändern</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <p className="mb-4">
-              Sie ändern die Rolle für Benutzer <strong>{selectedUser?.username}</strong>.
-            </p>
-            <div className="space-y-2">
-              <label htmlFor="role" className="text-sm font-medium">
-                Neue Rolle
-              </label>
-              <Select
-                value={newRole}
-                onValueChange={setNewRole}
-              >
-                <SelectTrigger id="role">
-                  <SelectValue placeholder="Rolle auswählen" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="user">Benutzer</SelectItem>
-                  <SelectItem value="admin">Administrator</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">Abbrechen</Button>
-            </DialogClose>
-            <Button 
-              onClick={() => selectedUser && changeUserRole(selectedUser.id, newRole)}
-            >
-              Speichern
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog zur Benutzerfreigabe */}
-      <Dialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Benutzer freigeben</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <p>
-              Möchten Sie den Benutzer <strong>{selectedUser?.username}</strong> freigeben?
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Nach der Freigabe kann sich der Benutzer anmelden und das System verwenden.
-            </p>
-          </div>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="outline">Abbrechen</Button>
-            </DialogClose>
-            <Button
-              onClick={() => selectedUser && approveUser(selectedUser.id)}
-            >
-              Benutzer freigeben
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Benutzer löschen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sind Sie sicher, dass Sie den Benutzer <span className="font-bold">{userToDelete?.username}</span> löschen möchten?
+              Diese Aktion kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
-}
+};
+
+export default UserManagement;

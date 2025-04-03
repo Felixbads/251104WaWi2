@@ -1,58 +1,79 @@
-import { useAuth } from "../lib/auth";
-import { Button } from "../components/ui/button";
-import { AlertTriangle, Clock, UserCheck, Mail } from "lucide-react";
+import React from 'react';
+import { useAuth } from '@/lib/auth';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Link } from 'wouter';
+import { ClockIcon, ShieldAlert, LogOut } from 'lucide-react';
 
-export default function NotApproved() {
-  const { logout, user } = useAuth();
+/**
+ * NotApproved-Seite
+ * 
+ * Diese Seite wird angezeigt, wenn ein Benutzer sich erfolgreich registriert hat,
+ * aber sein Konto noch nicht von einem Administrator genehmigt wurde.
+ */
+const NotApproved: React.FC = () => {
+  const { logout } = useAuth();
   
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
-      <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-xl shadow-lg">
-        <div className="flex flex-col items-center">
-          <div className="rounded-full bg-amber-100 p-3 mb-4">
-            <AlertTriangle className="h-10 w-10 text-amber-600" />
+    <div className="flex h-screen w-full items-center justify-center bg-gray-50 px-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-yellow-100">
+            <ClockIcon className="h-6 w-6 text-yellow-600" />
           </div>
-          <h2 className="mt-2 text-center text-2xl font-bold text-gray-900">
-            Konto wartet auf Freigabe
-          </h2>
-          <p className="mt-4 text-center text-md text-gray-600">
-            Ihr Konto wurde erfolgreich erstellt, muss aber vom Administrator noch freigegeben werden, 
-            bevor Sie auf das System zugreifen können.
-          </p>
-          
-          <div className="mt-6 w-full">
-            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-              <h3 className="font-medium text-gray-900 mb-2">Ihr Konto</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center">
-                  <UserCheck className="h-4 w-4 mr-2 text-gray-500" />
-                  <span className="text-gray-700">Benutzername: {user?.username}</span>
+          <CardTitle className="text-xl">Konto wartet auf Genehmigung</CardTitle>
+          <CardDescription>
+            Ihr Konto wurde erfolgreich erstellt, muss aber noch von einem Administrator genehmigt werden.
+          </CardDescription>
+        </CardHeader>
+        
+        <CardContent>
+          <div className="space-y-4 text-sm text-muted-foreground">
+            <p>
+              Aus Sicherheitsgründen erfordert die Proviantomat-Anwendung eine manuelle Überprüfung
+              neuer Benutzerkonten, bevor der Zugriff gewährt wird.
+            </p>
+            <p>
+              Ein Administrator wird Ihre Anfrage in Kürze prüfen. Sie erhalten Zugriff, sobald Ihr
+              Konto genehmigt wurde.
+            </p>
+            <div className="mt-6 rounded-md bg-blue-50 p-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <ShieldAlert className="h-5 w-5 text-blue-600" />
                 </div>
-                <div className="flex items-center">
-                  <Mail className="h-4 w-4 mr-2 text-gray-500" />
-                  <span className="text-gray-700">E-Mail: {user?.email}</span>
-                </div>
-                <div className="flex items-center">
-                  <Clock className="h-4 w-4 mr-2 text-gray-500" />
-                  <span className="text-gray-700">Status: Warte auf Freigabe</span>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-blue-800">Haben Sie Fragen?</h3>
+                  <div className="mt-2 text-sm text-blue-700">
+                    <p>
+                      Falls Sie Fragen zur Kontogenehmigung haben oder der Prozess länger als erwartet dauert,
+                      wenden Sie sich bitte an Ihren Administrator oder das Support-Team.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-          
-          <div className="mt-5 p-3 bg-blue-50 border border-blue-100 rounded text-blue-800 text-sm">
-            <p>Bitte kontaktieren Sie den Administrator, um den Freigabeprozess zu beschleunigen.</p>
-          </div>
-        </div>
-        <div className="mt-6">
-          <Button 
+        </CardContent>
+        
+        <CardFooter className="flex justify-between border-t bg-gray-50/50 px-6 py-4">
+          <Button
+            variant="outline"
             onClick={logout}
-            className="w-full"
+            className="flex items-center"
           >
+            <LogOut className="mr-2 h-4 w-4" />
             Abmelden
           </Button>
-        </div>
-      </div>
+          <Button asChild variant="ghost">
+            <Link href="/login">
+              Zurück zum Login
+            </Link>
+          </Button>
+        </CardFooter>
+      </Card>
     </div>
   );
-}
+};
+
+export default NotApproved;

@@ -1,38 +1,46 @@
-import { Redirect } from "wouter";
-import { useAuth } from "../../lib/auth";
-import { ReactElement } from "react";
+import React from 'react';
+import { Redirect } from 'wouter';
+import { useAuth } from '@/lib/auth';
+import { Loader2 } from 'lucide-react';
 
 interface ApprovedUserRouteProps {
-  component: React.ComponentType<any>;
-  [x: string]: any;
+  children: React.ReactNode;
 }
 
 /**
- * Schützt Routen, die nur für freigegebene Benutzer zugänglich sein sollten
- * Diese Komponente kann für alle regulären Seiten verwendet werden, die eine Freigabe erfordern,
- * aber von jedem Benutzertyp (Admin oder regulärer Benutzer) besucht werden können
+ * ApprovedUserRoute-Komponente
+ * 
+ * Schützt Routen, die nur für angemeldete und genehmigte Benutzer zugänglich sein sollen.
+ * Überprüft, ob der Benutzer authentifiziert ist UND genehmigt wurde.
+ * Leitet zu /login um, wenn der Benutzer nicht angemeldet ist.
+ * Leitet zu /not-approved um, wenn der Benutzer nicht genehmigt wurde.
  */
-export default function ApprovedUserRoute({ 
-  component: Component, 
-  ...rest 
-}: ApprovedUserRouteProps): ReactElement {
-  const { user, isAuthenticated, isLoading } = useAuth();
+const ApprovedUserRoute: React.FC<ApprovedUserRouteProps> = ({ children }) => {
+  const { isAuthenticated, isLoading, user } = useAuth();
   
-  // Während des Ladens zeigen wir nichts an
+  // Während der Authentifizierungsstatus geladen wird, zeigen wir einen Ladeindikator
   if (isLoading) {
-    return <div className="flex items-center justify-center h-screen">Lade...</div>;
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <Loader2 className="mr-2 h-8 w-8 animate-spin" />
+        <span className="text-lg">Authentifizierung wird überprüft...</span>
+      </div>
+    );
   }
   
-  // Prüfen, ob der Benutzer authentifiziert ist
-  if (!isAuthenticated || !user) {
+  // Wenn der Benutzer nicht angemeldet ist, leiten wir ihn zur Login-Seite weiter
+  if (!isAuthenticated) {
     return <Redirect to="/login" />;
   }
   
-  // Prüfen, ob der Benutzer freigegeben wurde
-  // Admins können immer alle Seiten sehen, auch wenn sie theoretisch nicht freigegeben sind
-  if (!user.approved && user.role !== 'admin') {
-    return <Redirect to="/nicht-freigegeben" />;
+  // Wenn der Benutzer angemeldet ist, aber nicht genehmigt wurde, leiten wir ihn zur
+  // "Nicht genehmigt"-Seite weiter
+  if (!user?.approved) {
+    return <Redirect to="/not-approved" />;
   }
   
-  return <Component {...rest} />;
-}
+  // Wenn der Benutzer angemeldet und genehmigt ist, zeigen wir die geschützte Route an
+  return <>{children}</>;
+};
+
+export default ApprovedUserRoute;

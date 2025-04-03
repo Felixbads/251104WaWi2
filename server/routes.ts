@@ -12,6 +12,7 @@ import { syncWeatherForecast } from './services/openWeatherService';
 import { holidayService } from './services/holidayService';
 import ordersRouter from './routes/orders';
 import holidaysRouter from './routes/holidays';
+import adminRouter from './routes/admin';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -1341,6 +1342,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/holidays`, holidaysRoutes);
   app.use(`${API_PREFIX}/bulk`, bulkSyncRoutes);
   app.use(`${API_PREFIX}/db`, dbExportRoutes);
+  app.use(`${API_PREFIX}/admin`, adminRouter);
   
   // Registriere Bestellungs-Routen
   app.use(`${API_PREFIX}/orders`, ordersRouter);

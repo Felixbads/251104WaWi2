@@ -20,11 +20,13 @@ import ForecastEvaluation from "@/pages/ForecastEvaluation";
 import DataAvailability from "@/pages/DataAvailability"; // Neue Datenverfügbarkeits-Komponente
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
-import NotApproved from "@/pages/NotApproved"; // Neu: Seite für nicht-freigegebene Benutzer
+import NotApproved from "@/pages/NotApproved"; // Seite für nicht-freigegebene Benutzer
+import Unauthorized from "@/pages/Unauthorized"; // Seite für nicht-autorisierte Benutzer
 import AppShell from "@/components/layout/AppShell";
 import Layout from "@/components/layout/Layout";
 import { AuthProvider, useAuth } from "@/lib";
-import AdminRoute, { RoleBasedRoute } from "@/components/auth/AdminRoute";
+import AdminRoute from "@/components/auth/AdminRoute"; // Route nur für Admins
+import ApprovedUserRoute from "@/components/auth/ApprovedUserRoute"; // Route für genehmigte Benutzer
 
 /**
  * HOC, der eine geschützte Route mit Benutzerfreigabe-Prüfung erstellt
@@ -109,45 +111,192 @@ function AuthenticatedRouter() {
   return (
     <Layout>
       <Switch>
-        {/* Öffentliche Route für nicht freigegebene Benutzer */}
+        {/* Öffentliche Routen */}
         <Route path="/nicht-freigegeben" component={NotApproved} />
+        <Route path="/unauthorized" component={Unauthorized} />
         
         {/* Geschützte Routen, die Freigabe erfordern */}
-        <Route path="/" component={ProtectedDashboard} />
-        <Route path="/transactions" component={ProtectedTransactions} />
-        <Route path="/machines" component={ProtectedMachines} />
-        <Route path="/automaten" component={ProtectedAutomaten} />
-        <Route path="/automaten/:id" component={ProtectedAutomatDetail} />
-        <Route path="/automaten/:id/refills/:refillId" component={ProtectedRefillDetail} />
-        <Route path="/produkte" component={ProtectedProducts} />
-        <Route path="/produkte/:id" component={ProtectedProductDetail} />
-        <Route path="/lieferanten" component={ProtectedSuppliers} />
-        <Route path="/lieferanten/:id" component={ProtectedSupplierDetail} />
-        <Route path="/bestellungen" component={ProtectedOrders} />
-        <Route path="/bestellungen/neu" component={ProtectedNewOrder} />
-        <Route path="/bestellungen/:id" component={ProtectedOrderDetail} />
-        <Route path="/bestellungen/:id/wareneingang" component={ProtectedOrderReceipt} />
-        <Route path="/lieferantenportal" component={ProtectedSupplierPortal} />
-        <Route path="/lager" component={ProtectedLagerPage} />
-        <Route path="/inventory" component={ProtectedInventory} />
-        <Route path="/lager/:id" component={ProtectedWarehouseDetail} />
-        <Route path="/warenentnahme" component={ProtectedWarenentnahmePage} />
-        <Route path="/warenentnahme/new" component={ProtectedWarenentnahmeNew} />
-        <Route path="/warenentnahme/:id" component={ProtectedWarenentnahmeDetail} />
+        <Route path="/" component={props => (
+          <ApprovedUserRoute>
+            <Dashboard {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/transactions" component={props => (
+          <ApprovedUserRoute>
+            <Transactions {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/machines" component={props => (
+          <ApprovedUserRoute>
+            <Machines {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/automaten" component={props => (
+          <ApprovedUserRoute>
+            <Automaten {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/automaten/:id" component={props => (
+          <ApprovedUserRoute>
+            <AutomatDetail {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/automaten/:id/refills/:refillId" component={props => (
+          <ApprovedUserRoute>
+            <RefillDetail {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/produkte" component={props => (
+          <ApprovedUserRoute>
+            <Products {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/produkte/:id" component={props => (
+          <ApprovedUserRoute>
+            <ProductDetail {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/lieferanten" component={props => (
+          <ApprovedUserRoute>
+            <Suppliers {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/lieferanten/:id" component={props => (
+          <ApprovedUserRoute>
+            <SupplierDetail {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/bestellungen" component={props => (
+          <ApprovedUserRoute>
+            <Orders {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/bestellungen/neu" component={props => (
+          <ApprovedUserRoute>
+            <NewOrder {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/bestellungen/:id" component={props => (
+          <ApprovedUserRoute>
+            <OrderDetail {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/bestellungen/:id/wareneingang" component={props => (
+          <ApprovedUserRoute>
+            <OrderReceipt {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/lieferantenportal" component={props => (
+          <ApprovedUserRoute>
+            <SupplierPortal {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/lager" component={props => (
+          <ApprovedUserRoute>
+            <LagerPage {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/inventory" component={props => (
+          <ApprovedUserRoute>
+            <Inventory {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/lager/:id" component={props => (
+          <ApprovedUserRoute>
+            <WarehouseDetail {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/warenentnahme" component={props => (
+          <ApprovedUserRoute>
+            <WarenentnahmePage {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/warenentnahme/new" component={props => (
+          <ApprovedUserRoute>
+            <WarenentnahmeNew {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/warenentnahme/:id" component={props => (
+          <ApprovedUserRoute>
+            <WarenentnahmeDetail {...props} />
+          </ApprovedUserRoute>
+        )} />
         
         {/* Nur Admin kann die Auswertungsseite sehen */}
-        <Route path="/auswertungen" component={props => <AdminRoute component={Reporting} {...props} />} />
+        <Route path="/auswertungen" component={props => (
+          <AdminRoute>
+            <Reporting {...props} />
+          </AdminRoute>
+        )} />
         
-        <Route path="/datenverfuegbarkeit" component={ProtectedDataAvailability} />
-        <Route path="/synchronization" component={ProtectedSynchronization} />
-        <Route path="/sync-history" component={ProtectedSyncHistory} />
-        <Route path="/sync" component={ProtectedSyncPage} />
-        <Route path="/forecast" component={ProtectedForecast} />
-        <Route path="/forecast-evaluation" component={ProtectedForecastEvaluation} />
-        <Route path="/settings" component={ProtectedSettings} />
+        <Route path="/datenverfuegbarkeit" component={props => (
+          <ApprovedUserRoute>
+            <DataAvailability {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/synchronization" component={props => (
+          <ApprovedUserRoute>
+            <Synchronization {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/sync-history" component={props => (
+          <ApprovedUserRoute>
+            <SyncHistory {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/sync" component={props => (
+          <ApprovedUserRoute>
+            <SyncPage {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/forecast" component={props => (
+          <ApprovedUserRoute>
+            <Forecast {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/forecast-evaluation" component={props => (
+          <ApprovedUserRoute>
+            <ForecastEvaluation {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/settings" component={props => (
+          <ApprovedUserRoute>
+            <Settings {...props} />
+          </ApprovedUserRoute>
+        )} />
         
         {/* Benutzer-Verwaltung für Admins */}
-        <Route path="/benutzer" component={props => <AdminRoute component={UserManagement} {...props} />} />
+        <Route path="/benutzer" component={props => (
+          <AdminRoute>
+            <UserManagement {...props} />
+          </AdminRoute>
+        )} />
         
         <Route path="/:rest*" component={(props: any) => {
           const rest = props.params?.rest;

@@ -1,50 +1,46 @@
-import { Redirect } from "wouter";
-import { useAuth } from "../../lib/auth";
+import React from 'react';
+import { Redirect } from 'wouter';
+import { useAuth } from '@/lib/auth';
+import { Loader2 } from 'lucide-react';
 
-/**
- * Schützt Routen, die nur für Admin-Benutzer zugänglich sein sollten
- */
-export default function AdminRoute({ component: Component, ...rest }: any) {
-  const { user, isAuthenticated, isLoading } = useAuth();
-  
-  // Während des Ladens zeigen wir nichts an
-  if (isLoading) {
-    return <div className="flex items-center justify-center h-screen">Lade...</div>;
-  }
-  
-  // Prüfen, ob der Benutzer authentifiziert ist und Admin-Rechte hat
-  if (!isAuthenticated || user?.role !== 'admin') {
-    return <Redirect to="/" />;
-  }
-  
-  // Admins müssen generell nicht freigegeben werden, aber wir können das für zusätzliche Sicherheit hinzufügen
-  if (user && !user.approved) {
-    return <Redirect to="/nicht-freigegeben" />;
-  }
-  
-  return <Component {...rest} />;
+interface AdminRouteProps {
+  children: React.ReactNode;
 }
 
 /**
- * Schützt Routen, die nur für bestimmte Rollen zugänglich sein sollten
+ * AdminRoute-Komponente
+ * 
+ * Schützt Routen, die nur für Administratoren zugänglich sein sollen.
+ * Überprüft, ob der Benutzer authentifiziert ist UND die Rolle "admin" hat.
+ * Leitet zu /login um, wenn der Benutzer nicht angemeldet ist.
+ * Leitet zu /unauthorized um, wenn der Benutzer nicht die erforderliche Rolle hat.
  */
-export function RoleBasedRoute({ component: Component, allowedRoles, ...rest }: any) {
-  const { user, isAuthenticated, isLoading } = useAuth();
+const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
+  const { isAuthenticated, isLoading, user } = useAuth();
   
-  // Während des Ladens zeigen wir nichts an
+  // Während der Authentifizierungsstatus geladen wird, zeigen wir einen Ladeindikator
   if (isLoading) {
-    return <div className="flex items-center justify-center h-screen">Lade...</div>;
+    return (
+      <div className="flex h-screen w-full items-center justify-center">
+        <Loader2 className="mr-2 h-8 w-8 animate-spin" />
+        <span className="text-lg">Authentifizierung wird überprüft...</span>
+      </div>
+    );
   }
   
-  // Prüfen, ob der Benutzer authentifiziert ist und die erforderliche Rolle hat
-  if (!isAuthenticated || !user || !allowedRoles.includes(user.role)) {
-    return <Redirect to="/" />;
+  // Wenn der Benutzer nicht angemeldet ist, leiten wir ihn zur Login-Seite weiter
+  if (!isAuthenticated) {
+    return <Redirect to="/login" />;
   }
   
-  // Prüfen, ob der Benutzer freigegeben wurde
-  if (!user.approved) {
-    return <Redirect to="/nicht-freigegeben" />;
+  // Wenn der Benutzer angemeldet ist, aber keine Admin-Rolle hat, leiten wir ihn zur
+  // Unauthorized-Seite weiter
+  if (user?.role !== 'admin') {
+    return <Redirect to="/unauthorized" />;
   }
   
-  return <Component {...rest} />;
-}
+  // Wenn der Benutzer ein Admin ist, zeigen wir die geschützte Route an
+  return <>{children}</>;
+};
+
+export default AdminRoute;
