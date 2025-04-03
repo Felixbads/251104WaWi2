@@ -1,5 +1,5 @@
 import { Redirect } from "wouter";
-import { useAuth } from "@/lib";
+import { useAuth } from "../../lib/auth";
 import { ReactElement } from "react";
 
 interface ApprovedUserRouteProps {

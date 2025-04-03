@@ -1,5 +1,5 @@
 import { Redirect } from "wouter";
-import { useAuth } from "@/lib";
+import { useAuth } from "../../lib/auth";
 
 /**
  * Schützt Routen, die nur für Admin-Benutzer zugänglich sein sollten

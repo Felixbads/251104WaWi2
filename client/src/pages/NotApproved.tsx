@@ -1,5 +1,5 @@
-import { useAuth } from "@/lib";
-import { Button } from "@/components/ui/button";
+import { useAuth } from "../lib/auth";
+import { Button } from "../components/ui/button";
 import { AlertTriangle, Clock, UserCheck, Mail } from "lucide-react";
 
 export default function NotApproved() {

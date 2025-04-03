@@ -1,7 +1,7 @@
 import { useState, useEffect, createContext, useContext } from "react";
 import axios from "axios";
-import { useToast } from "@/hooks/use-toast";
-import { User } from "@/lib/types";
+import { useToast } from "../hooks/use-toast";
+import { User } from "./types";
 
 // Auth Context für globale Authentifizierungsinformationen
 interface AuthContextType {
