@@ -255,16 +255,18 @@ export default function SupplierDetail() {
   };
 
   // Form für das Bearbeiten des Lieferanten
+  const defaultValues = supplier ? {
+    ...supplier,
+    minimumOrderValue: supplier.minimumOrderValue || undefined,
+  } : {
+    name: '',
+    status: 'active',
+    country: 'Deutschland'
+  };
+  
   const form = useForm<SupplierFormValues>({
     resolver: zodResolver(supplierFormSchema),
-    defaultValues: supplier ? {
-      ...supplier,
-      minimumOrderValue: supplier.minimumOrderValue || undefined,
-    } : {
-      name: '',
-      status: 'active',
-      country: 'Deutschland'
-    }
+    defaultValues
   });
 
   // Handler für das Absenden des Formulars
