@@ -34,8 +34,15 @@ export async function triggerSync(type: string, options: any = {}) {
 export async function getAllVendonProducts() {
   // Nutze die korrekte Route /vendon/products
   // um die Liste direkt von der Vendon API zu bekommen
-  const response = await axios.get(`${API_BASE_URL}/vendon/products`);
-  return response.data;
+  console.log('Abrufen der Vendon-Produkte vom Server...');
+  try {
+    const response = await axios.get(`${API_BASE_URL}/vendon/products`);
+    console.log('Vendon API Antwort erhalten:', response.data);
+    return response.data?.result || response.data;
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Vendon-Produkte:', error);
+    throw error;
+  }
 }
 
 // Hilfsfunktionen

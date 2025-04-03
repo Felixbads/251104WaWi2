@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { 
@@ -356,28 +356,95 @@ export default function Products() {
     error: vendonProductsError
   } = useQuery({
     queryKey: ['/api/vendon/products'],
-    queryFn: getAllVendonProducts,
+    queryFn: getAllVendonProducts
   });
+  
+  // Logging in einem Effekt statt in den Query-Optionen
+  useEffect(() => {
+    if (vendonProducts) {
+      console.log('Vendon Produkte erfolgreich geladen:', vendonProducts);
+    }
+  }, [vendonProducts]);
+  
+  useEffect(() => {
+    if (vendonProductsError) {
+      console.error('Fehler beim Laden der Vendon-Produkte:', vendonProductsError);
+    }
+  }, [vendonProductsError]);
 
   // Category Filter
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
-  // Kategorien und Lieferanten sammeln aus Vendon-Produkten
-  const categories = vendonProducts 
-    ? Array.from(new Set(vendonProducts.map((product: Product) => product.category || 'Unkategorisiert')))
-    : [];
+  // Debug: Das Format der API-Antwort untersuchen
+  useEffect(() => {
+    if (vendonProducts) {
+      console.log('Vendon-Produkte Struktur prüfen:', vendonProducts);
+      if (Array.isArray(vendonProducts)) {
+        console.log('Vendon-Produkte sind ein Array mit', vendonProducts.length, 'Einträgen');
+      } else if (vendonProducts.result && Array.isArray(vendonProducts.result)) {
+        console.log('Vendon-Produkte haben result-Eigenschaft mit', vendonProducts.result.length, 'Einträgen');
+      } else {
+        console.log('Vendon-Produkte haben unerwartetes Format:', typeof vendonProducts);
+      }
+    }
+  }, [vendonProducts]);
+
+  // Verarbeite die Produkte abhängig vom API-Antwortformat
+  const processedVendonProducts = useMemo(() => {
+    if (!vendonProducts) return [];
     
-  const suppliers = vendonProducts
-    ? Array.from(new Set(vendonProducts.filter((p: Product) => p.supplier).map((p: Product) => p.supplier as string)))
-    : [];
+    // Wenn die Antwort direkt ein Array ist
+    if (Array.isArray(vendonProducts)) {
+      return vendonProducts;
+    }
+    
+    // Wenn die Antwort ein Objekt mit einer 'result'-Eigenschaft ist
+    if (vendonProducts.result && Array.isArray(vendonProducts.result)) {
+      return vendonProducts.result.map((p: any) => ({
+        id: p.id,
+        vendonId: p.id.toString(),
+        productName: p.name,
+        description: p.description,
+        category: p.category || 'Unkategorisiert',
+        price: p.price || 0,
+        vat: p.vat,
+        status: p.status,
+        sku: p.article,
+        barcode: p.barcode,
+        inStock: 10, // Beispielwert
+        amountCritical: 3 // Beispielwert
+      }));
+    }
+    
+    // Fallback für unerwartete Formate
+    return [];
+  }, [vendonProducts]);
+
+  // Kategorien und Lieferanten sammeln aus verarbeiteten Vendon-Produkten
+  const categories = useMemo(() => {
+    return processedVendonProducts.length > 0
+      ? Array.from(new Set(processedVendonProducts.map((product: any) => 
+          product.category || 'Unkategorisiert')))
+      : [];
+  }, [processedVendonProducts]);
+    
+  const suppliers = useMemo(() => {
+    return processedVendonProducts.length > 0
+      ? Array.from(new Set(processedVendonProducts.filter((p: any) => p.supplier)
+          .map((p: any) => p.supplier as string)))
+      : [];
+  }, [processedVendonProducts]);
 
   // Nutze nur Vendon-Produkte, da Produkte nur über Vendon-Import kommen
-  const vendonProductsWithoutDuplicates = (vendonProducts || []).reduce((acc: Map<string, Product>, product: Product) => {
-    if (product.vendonId && !acc.has(product.vendonId)) {
-      acc.set(product.vendonId, product);
-    }
-    return acc;
-  }, new Map<string, Product>());
+  const vendonProductsWithoutDuplicates = useMemo(() => {
+    return processedVendonProducts.reduce((acc: Map<string, any>, product: any) => {
+      const productId = product.vendonId || product.id?.toString();
+      if (productId && !acc.has(productId)) {
+        acc.set(productId, product);
+      }
+      return acc;
+    }, new Map<string, any>());
+  }, [processedVendonProducts]);
   
   const combinedProducts = Array.from(vendonProductsWithoutDuplicates.values()) as Product[];
   
