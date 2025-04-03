@@ -30,17 +30,17 @@ export async function triggerSync(type: string, options: any = {}) {
   return response.data;
 }
 
-// Funktion zum Abrufen aller Vendon-Produkte direkt von der API
+// Funktion zum Abrufen aller Vendon-Produkte direkt von der Stock-API (ca. 109 Produkte)
 export async function getAllVendonProducts(page = 0, limit = 200) {
-  // Die korrekte Route ist /vendon/vendon/products
-  console.log('Abrufen der Vendon-Produkte vom Server...');
+  // Die korrekte Route ist /vendon/stocks
+  console.log('Abrufen der Vendon-Stock-Produkte vom Server...');
   try {
-    const response = await axios.get(`${API_BASE_URL}/vendon/vendon/products?page=${page}&limit=${limit}`);
-    console.log('Vendon-Produkte Struktur prüfen:', response.data);
-    console.log('Vendon-Produkte sind ein Array mit', response.data.length, 'Einträgen');
+    const response = await axios.get(`${API_BASE_URL}/vendon/stocks?page=${page}&limit=${limit}`);
+    console.log('Vendon-Stock-Produkte Struktur prüfen:', response.data);
+    console.log('Vendon-Stock-Produkte sind ein Array mit', response.data.length, 'Einträgen');
     return response.data;
   } catch (error) {
-    console.error('Fehler beim Abrufen der Vendon-Produkte:', error);
+    console.error('Fehler beim Abrufen der Vendon-Stock-Produkte:', error);
     throw error;
   }
 }

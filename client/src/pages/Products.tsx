@@ -320,7 +320,7 @@ function FilterDialog({ isOpen, onOpenChange, onApplyFilters, categories, initia
 
 export default function Products() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [, setLocation] = useLocation();
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   
@@ -645,7 +645,10 @@ export default function Products() {
     }
     
     return (
-      <div className="flex items-center p-4 hover:bg-gray-50">
+      <div 
+        className="flex items-center p-4 hover:bg-gray-50 cursor-pointer"
+        onClick={() => setLocation(`/produkte/${product.id}`)}
+      >
         <div className="flex-1 min-w-0">
           <div className="flex items-center">
             <h3 className="text-base font-medium truncate mr-2">{product.productName}</h3>
@@ -695,7 +698,10 @@ export default function Products() {
           <Button 
             variant="outline" 
             size="sm"
-            onClick={() => setLocation(`/produkte/${product.id}`)}
+            onClick={(e) => {
+              e.stopPropagation(); // Verhindert, dass der Click-Handler des Elternelements ausgelöst wird
+              setLocation(`/produkte/${product.id}`);
+            }}
           >
             <ExternalLink className="h-4 w-4 mr-2" />
             Details
