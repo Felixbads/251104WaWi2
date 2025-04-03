@@ -119,13 +119,10 @@ export default function SupplierDetail() {
     enabled: showProductAssignmentDialog
   });
   
-  // Alle Produkte extrahieren und Produkte markieren, die bereits diesem oder einem anderen Lieferanten zugewiesen sind
+  // Alle Produkte extrahieren
   const allProducts = allProductsResponse?.data 
     ? allProductsResponse.data.map((product: any) => ({
-        ...product,
-        // Ein Produkt ist "bereits zugeordnet", wenn es einen Lieferanten hat,
-        // aber wir wollen immer noch Produkte, die bereits diesem aktuellen Lieferanten zugeordnet sind, anzeigen können
-        alreadyAssigned: product.supplierId ? product.supplierId !== parseInt(id) : false
+        ...product
       }))
     : [];
   
@@ -1343,12 +1340,12 @@ export default function SupplierDetail() {
                     <div 
                       key={product.id} 
                       className={`p-3 flex items-center ${
-                        product.alreadyAssigned 
+                        product.supplierId !== null && product.supplierId !== undefined
                           ? 'bg-gray-50 text-muted-foreground opacity-60 cursor-not-allowed' 
                           : 'hover:bg-accent cursor-pointer'
                       }`}
                       onClick={() => {
-                        if (!product.alreadyAssigned) {
+                        if (product.supplierId === null || product.supplierId === undefined) {
                           assignProductToSupplierMutation.mutate(product.id);
                         }
                       }}
@@ -1356,12 +1353,12 @@ export default function SupplierDetail() {
                       <div className="flex-grow">
                         <div className="font-medium">
                           {product.productName || product.name}
-                          {product.alreadyAssigned && product.supplierId == parseInt(id) && (
+                          {product.supplierId === parseInt(id) && (
                             <Badge className="ml-2 bg-green-100 text-green-800 border-green-200">
                               Bereits zugeordnet
                             </Badge>
                           )}
-                          {product.alreadyAssigned && product.supplierId != parseInt(id) && (
+                          {product.supplierId !== null && product.supplierId !== undefined && product.supplierId !== parseInt(id) && (
                             <Badge className="ml-2 bg-yellow-100 text-yellow-800 border-yellow-200">
                               Anderer Lieferant
                             </Badge>
@@ -1372,7 +1369,7 @@ export default function SupplierDetail() {
                           {product.category && <span>Kategorie: {product.category}</span>}
                         </div>
                       </div>
-                      {!product.alreadyAssigned && (
+                      {product.supplierId === null && (
                         <Button size="sm" variant="outline">
                           <Plus className="h-4 w-4 mr-1" /> Zuordnen
                         </Button>
