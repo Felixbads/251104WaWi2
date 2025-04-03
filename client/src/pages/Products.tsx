@@ -333,7 +333,8 @@ function FilterDialog({ isOpen, onOpenChange, onApplyFilters, categories, initia
 
 export default function Products() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
+  // Immer Listenansicht verwenden
+  const viewMode = "list";
   const [, setLocation] = useLocation();
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -768,21 +769,17 @@ export default function Products() {
 
   return (
     <div className="space-y-6">
-      {/* Einheitliche Filter- und Aktionsleiste */}
-      <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
-        {/* Linke Seite: Suchfeld */}
-        <div className="flex-grow flex flex-col sm:flex-row gap-2">
-          {/* Suchfeld */}
-          <div className="relative flex-grow">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              value={searchTerm}
-              placeholder="Nach Produkten suchen..."
-              className="pl-8 h-9 w-full"
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
+      {/* Suchleiste */}
+      <div className="w-full mb-6">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="search"
+            value={searchTerm}
+            placeholder="Nach Produkten suchen..."
+            className="pl-8 h-9 w-full"
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
       </div>
       

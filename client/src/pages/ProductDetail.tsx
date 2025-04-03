@@ -387,7 +387,36 @@ export default function ProductDetail() {
                       {/* Kategorie */}
                       <div>
                         <h3 className="text-sm font-medium text-gray-500 mb-1">Kategorie</h3>
-                        <p className="font-medium">{product.category || '–'}</p>
+                        {editMode ? (
+                          <div className="flex gap-2">
+                            <Select 
+                              value={editedProduct.category || ''}
+                              onValueChange={(value) => setEditedProduct({...editedProduct, category: value})}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Kategorie auswählen" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Aufstrich">Aufstrich</SelectItem>
+                                <SelectItem value="Bier">Bier</SelectItem>
+                                <SelectItem value="Brot und Gebäck">Brot und Gebäck</SelectItem>
+                                <SelectItem value="Eier">Eier</SelectItem>
+                                <SelectItem value="Gerichte im Glas">Gerichte im Glas</SelectItem>
+                                <SelectItem value="Honig und Marmeladen">Honig und Marmeladen</SelectItem>
+                                <SelectItem value="Kaffee">Kaffee</SelectItem>
+                                <SelectItem value="Limonaden und Säfte">Limonaden und Säfte</SelectItem>
+                                <SelectItem value="Käse und Milchwaren">Käse und Milchwaren</SelectItem>
+                                <SelectItem value="Nudeln">Nudeln</SelectItem>
+                                <SelectItem value="Süßigkeiten">Süßigkeiten</SelectItem>
+                                <SelectItem value="Sekt und Wein">Sekt und Wein</SelectItem>
+                                <SelectItem value="Wasser">Wasser</SelectItem>
+                                <SelectItem value="Wurst und Fleisch">Wurst und Fleisch</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ) : (
+                          <p className="font-medium">{product.category || '–'}</p>
+                        )}
                       </div>
 
                       {/* Beschreibung */}
@@ -425,14 +454,7 @@ export default function ProductDetail() {
                         <p className="font-medium">{product.barcode || '–'}</p>
                       </div>
 
-                      {/* Pfand */}
-                      {(product.depositPrice !== null && product.depositPrice !== undefined) && (
-                        <div>
-                          <h3 className="text-sm font-medium text-gray-500 mb-1">Pfand</h3>
-                          <p className="font-medium">{product.depositPrice.toFixed(2)} €</p>
-                          {product.depositVat && <p className="text-xs text-gray-500">zzgl. {product.depositVat}% MwSt.</p>}
-                        </div>
-                      )}
+
 
                       {/* Pfand */}
                       <div>
