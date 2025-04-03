@@ -139,6 +139,11 @@ export const products = pgTable("products", {
   supplierId: integer("supplier_id").references(() => suppliers.id),
   supplierName: text("supplier_name"),
   supplierSku: text("supplier_sku"),
+  // Neue Zusatzfelder für Lieferanten-Details
+  articleSupplier: text("article_supplier"),      // Artikelnummer des Lieferanten
+  packageSize: text("package_size"),              // Gebindegröße, z.B. "6x0,5L" oder "24x330ml"
+  shelfLifeDays: integer("shelf_life_days"),      // MHD-Haltbarkeit in Tagen ab Lieferung
+  minOrderQuantity: integer("min_order_quantity"), // Mindestbestellmenge
   // Extracted from additionalData
   vat: real("vat"),
   depositPrice: real("deposit_price"),
