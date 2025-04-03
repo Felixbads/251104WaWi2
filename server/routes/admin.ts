@@ -107,6 +107,50 @@ router.post('/users/:id/approve', requireAdmin, async (req: AuthRequest, res: Re
   }
 });
 
+// Benutzerfreigabe zurücksetzen
+router.post('/users/:id/reset-approval', requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = parseInt(req.params.id);
+    
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+    
+    const adminUser = req.user;
+    
+    if (!adminUser) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    const user = await storage.getUser(userId);
+    
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    // Administratoren können nicht die Genehmigung eines anderen Administrators zurücksetzen
+    if (user.role === 'admin' && userId !== adminUser.id) {
+      return res.status(403).json({ 
+        error: 'Cannot reset approval for another administrator' 
+      });
+    }
+    
+    const updatedUser = await storage.updateUser(userId, {
+      approved: false,
+      approvedBy: null,
+      approvedAt: null,
+    } as any);
+    
+    res.json({ success: true, user: updatedUser });
+  } catch (error) {
+    console.error(`Error resetting approval for user ${req.params.id}:`, error);
+    res.status(500).json({
+      error: 'Failed to reset approval for user',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
 // Benutzerrolle ändern
 router.post('/users/:id/role', requireAdmin, async (req: AuthRequest, res: Response) => {
   try {

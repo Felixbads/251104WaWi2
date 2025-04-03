@@ -78,35 +78,7 @@ function AuthenticatedRouter() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   
-  // Anwenden des withAuth-HOC auf alle Komponenten, die Authentifizierung erfordern
-  const ProtectedDashboard = withAuth(Dashboard);
-  const ProtectedTransactions = withAuth(Transactions);
-  const ProtectedMachines = withAuth(Machines);
-  const ProtectedAutomaten = withAuth(Automaten);
-  const ProtectedAutomatDetail = withAuth(AutomatDetail);
-  const ProtectedRefillDetail = withAuth(RefillDetail);
-  const ProtectedProducts = withAuth(Products);
-  const ProtectedProductDetail = withAuth(ProductDetail);
-  const ProtectedSuppliers = withAuth(Suppliers);
-  const ProtectedSupplierDetail = withAuth(SupplierDetail);
-  const ProtectedOrders = withAuth(Orders);
-  const ProtectedNewOrder = withAuth(NewOrder);
-  const ProtectedOrderDetail = withAuth(OrderDetail);
-  const ProtectedOrderReceipt = withAuth(OrderReceipt);
-  const ProtectedSupplierPortal = withAuth(SupplierPortal);
-  const ProtectedLagerPage = withAuth(LagerPage);
-  const ProtectedInventory = withAuth(Inventory);
-  const ProtectedWarehouseDetail = withAuth(WarehouseDetail);
-  const ProtectedWarenentnahmePage = withAuth(WarenentnahmePage);
-  const ProtectedWarenentnahmeNew = withAuth(WarenentnahmeNew);
-  const ProtectedWarenentnahmeDetail = withAuth(WarenentnahmeDetail);
-  const ProtectedDataAvailability = withAuth(DataAvailability);
-  const ProtectedSynchronization = withAuth(Synchronization);
-  const ProtectedSyncHistory = withAuth(SyncHistory);
-  const ProtectedSyncPage = withAuth(SyncPage);
-  const ProtectedForecast = withAuth(Forecast);
-  const ProtectedForecastEvaluation = withAuth(ForecastEvaluation);
-  const ProtectedSettings = withAuth(Settings);
+  // Wir entfernen die withAuth-HOCs, da wir jetzt ApprovedUserRoute und AdminRoute verwenden
 
   return (
     <Layout>
@@ -116,17 +88,21 @@ function AuthenticatedRouter() {
         <Route path="/unauthorized" component={Unauthorized} />
         
         {/* Geschützte Routen, die Freigabe erfordern */}
-        <Route path="/" component={props => (
-          <ApprovedUserRoute>
-            <Dashboard {...props} />
-          </ApprovedUserRoute>
-        )} />
+        <Route path="/">
+          {() => (
+            <ApprovedUserRoute>
+              <Dashboard />
+            </ApprovedUserRoute>
+          )}
+        </Route>
         
-        <Route path="/transactions" component={props => (
-          <ApprovedUserRoute>
-            <Transactions {...props} />
-          </ApprovedUserRoute>
-        )} />
+        <Route path="/transactions">
+          {() => (
+            <ApprovedUserRoute>
+              <Transactions />
+            </ApprovedUserRoute>
+          )}
+        </Route>
         
         <Route path="/machines" component={props => (
           <ApprovedUserRoute>
@@ -292,11 +268,13 @@ function AuthenticatedRouter() {
         )} />
         
         {/* Benutzer-Verwaltung für Admins */}
-        <Route path="/benutzer" component={props => (
-          <AdminRoute>
-            <UserManagement {...props} />
-          </AdminRoute>
-        )} />
+        <Route path="/benutzer">
+          {() => (
+            <AdminRoute>
+              <UserManagement />
+            </AdminRoute>
+          )}
+        </Route>
         
         <Route path="/:rest*" component={(props: any) => {
           const rest = props.params?.rest;
