@@ -823,7 +823,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUsers(): Promise<User[]> {
-    return await db.select().from(users).orderBy(desc(users.createdAt));
+    return await db.select({
+      id: users.id,
+      username: users.username,
+      email: users.email,
+      password: users.password,
+      role: users.role,
+      approved: users.approved,
+      approvedBy: users.approvedBy,
+      approvedAt: users.approvedAt,
+      createdAt: users.createdAt,
+      updatedAt: users.updatedAt
+    }).from(users).orderBy(desc(users.createdAt));
   }
 
   async updateUser(id: number, updateData: Partial<InsertUser>): Promise<User | undefined> {
