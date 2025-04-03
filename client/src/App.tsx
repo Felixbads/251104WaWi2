@@ -301,12 +301,10 @@ function PublicRouter() {
   // Beim Rendern überprüfen wir die aktuelle URL 
   const [location] = useLocation();
   
-  // Wir können die automatischen Weiterleitungen entfernen, 
-  // da sie bereits durch Router-Komponenten besser umgesetzt werden
-  
   return (
     <Switch>
-      <Route path="/login" component={() => <PublicRoute component={Login} />} />
+      {/* Login-Seite zeigt stattdessen direkt das Dashboard mit Login-Formular */}
+      <Route path="/login" component={() => <Dashboard />} />
       <Route path="/register" component={() => <PublicRoute component={Register} />} />
       <Route path="/">
         <Redirect to="/login" />

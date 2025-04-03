@@ -19,6 +19,8 @@ import PageHeader from "@/components/layout/PageHeader";
 import WeatherWidget from "@/components/weather/WeatherWidget";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { useAuth } from "@/lib/auth";
+import Login from "@/pages/Login";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   getTransactions, 
@@ -51,6 +53,12 @@ export default function Dashboard() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
+  const { isAuthenticated } = useAuth();
+  
+  // Wenn nicht authentifiziert, zeigen wir stattdessen die Login-Komponente an
+  if (!isAuthenticated) {
+    return <Login />;
+  }
 
   // Fetch data for metrics
   const { data: transactions, isLoading: isLoadingTransactions } = useQuery({
