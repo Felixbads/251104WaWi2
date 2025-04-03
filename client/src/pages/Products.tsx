@@ -29,10 +29,7 @@ import {
   Percent,
   RefreshCw,
   Upload,
-  FileSpreadsheet,
-  Link as LinkIcon,
-  FilePlus,
-  ScanBarcode
+  FileSpreadsheet
 } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 import { ExportImportButtons } from "@/components/ExportImportButtons";
@@ -341,19 +338,7 @@ export default function Products() {
   const viewMode = "list" as "list" | "grid";
   const [, setLocation] = useLocation();
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
-  const [isScannerDialogOpen, setScannerDialogOpen] = useState(false);
   const { toast } = useToast();
-  
-  // Funktion zum Verarbeiten nach einem erfolgreichen Import
-  const handleSuccessfulImport = () => {
-    toast({
-      title: "Import erfolgreich",
-      description: "Die Produkte wurden erfolgreich importiert. Die Seite wird aktualisiert.",
-    });
-    // Query-Cache invalidieren, um die Daten neu zu laden
-    queryClient.invalidateQueries({ queryKey: ['/api/products'] });
-    queryClient.invalidateQueries({ queryKey: ['/api/vendon/products'] });
-  };
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -380,14 +365,14 @@ export default function Products() {
     }),
   });
   
-  // Alle Vendon-Produkte abrufen
+  // Alle Vendon-Produkte abrufen (mit Paginierung)
   const { 
     data: vendonProducts, 
     isLoading: isLoadingVendonProducts,
     error: vendonProductsError
   } = useQuery({
     queryKey: ['/api/vendon/products'],
-    queryFn: () => getAllVendonProducts() // Keine Parameter benötigt
+    queryFn: () => getAllVendonProducts(0, 500) // Erster Parameter ist 'page', zweiter ist 'limit'
   });
   
   // Logging in einem Effekt statt in den Query-Optionen
@@ -569,7 +554,7 @@ export default function Products() {
     : [];
 
   // Product Card Component
-  const ProductCard = ({ product, setLocation }: { product: Product, setLocation: (path: string) => void }) => {
+  const ProductCard = ({ product }: { product: Product }) => {
     // Extrahiere Tags, wenn vorhanden
     const tags = product.tags ? JSON.parse(product.tags) : [];
     const isAlcohol = tags.includes('alcohol') || product.requiresAgeVerification;
@@ -653,7 +638,7 @@ export default function Products() {
   };
 
   // Product List Item Component
-  const ProductListItem = ({ product, setLocation }: { product: Product, setLocation: (path: string) => void }) => {
+  const ProductListItem = ({ product }: { product: Product }) => {
     // Extrahiere Tags, wenn vorhanden
     const tags = product.tags ? JSON.parse(product.tags) : [];
     const isAlcohol = tags.includes('alcohol') || product.requiresAgeVerification;
@@ -783,57 +768,34 @@ export default function Products() {
     }
   };
 
-  // Wir verwenden die bereits definierte handleSuccessfulImport-Funktion
+  // Callback für erfolgreichen Import
+  const handleSuccessfulImport = () => {
+    // Daten nach dem Import neu laden
+    queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+  };
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <PageHeader 
-        title="Produkte"
-        showSearch={true}
-        showFilter={true}
-        showAdd={false}
-        searchPlaceholder="Nach Produkten suchen..."
-        onSearch={setSearchTerm}
-        onFilter={() => setIsFilterDialogOpen(true)}
-        activeFilters={activeFilters}
-        onClearFilter={clearFilter}
-        additionalButtons={
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setScannerDialogOpen(true)}
-            >
-              <ScanBarcode className="mr-2 h-4 w-4" />
-              <span>Scanner</span>
-            </Button>
-            
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setLocation("/produkte/neu")}
-            >
-              <FilePlus className="mr-2 h-4 w-4" />
-              <span>Neues Produkt</span>
-            </Button>
-            
-            <Button 
-              size="sm" 
-              onClick={() => setLocation("/produkte/zuweisen")}
-            >
-              <LinkIcon className="mr-2 h-4 w-4" />
-              <span>Produkt zuweisen</span>
-            </Button>
-            
-            <ExportImportButtons 
-              type="products" 
-              label="Produkte" 
-              onSuccessfulImport={handleSuccessfulImport}
-            />
-          </div>
-        }
-      />
+      {/* Suchleiste und Export/Import-Buttons */}
+      <div className="w-full mb-6 flex justify-between">
+        <div className="relative flex-1 mr-4">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="search"
+            value={searchTerm}
+            placeholder="Nach Produkten suchen..."
+            className="pl-8 h-9 w-full"
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        
+        {/* Export/Import Buttons */}
+        <ExportImportButtons 
+          type="products" 
+          label="Produkte" 
+          onSuccessfulImport={handleSuccessfulImport}
+        />
+      </div>
       
       {/* Aktive Filter anzeigen */}
       {activeFilters.length > 0 && (
@@ -926,7 +888,7 @@ export default function Products() {
       {!isLoading && !error && viewMode === "grid" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {(filteredProducts as Product[]).map((product: Product) => (
-            <ProductCard key={product.id} product={product} setLocation={setLocation} />
+            <ProductCard key={product.id} product={product} />
           ))}
         </div>
       )}
@@ -934,7 +896,7 @@ export default function Products() {
       {!isLoading && !error && viewMode === "list" && (
         <div className="border rounded-md divide-y">
           {(filteredProducts as Product[]).map((product: Product) => (
-            <ProductListItem key={product.id} product={product} setLocation={setLocation} />
+            <ProductListItem key={product.id} product={product} />
           ))}
         </div>
       )}
@@ -1045,47 +1007,6 @@ export default function Products() {
           </div>
         </div>
       )}
-      
-      {/* Barcode-Scanner Dialog */}
-      <Dialog open={isScannerDialogOpen} onOpenChange={setScannerDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Barcode Scanner</DialogTitle>
-            <DialogDescription>
-              Scanne einen Barcode, um ein Produkt zu finden oder gib den Barcode manuell ein.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex items-center space-x-2">
-            <div className="grid flex-1 gap-2">
-              <Input
-                placeholder="Barcode eingeben..."
-                className="flex-1"
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  if (e.target.value.length > 3) {
-                    // Automatisch nach Eingabe suchen
-                    setScannerDialogOpen(false);
-                  }
-                }}
-              />
-            </div>
-            <Button 
-              type="submit" 
-              onClick={() => setScannerDialogOpen(false)}
-            >
-              Suchen
-            </Button>
-          </div>
-          <div className="flex justify-center border-2 border-dashed rounded-md p-6 my-4">
-            <ScanBarcode className="h-16 w-16 text-gray-400" />
-          </div>
-          <DialogDescription className="text-center">
-            Kamera-Zugriff ist erforderlich für Barcode-Scanning.
-            <br />
-            <span className="text-xs text-gray-500">(Funktion wird in einer späteren Version implementiert)</span>
-          </DialogDescription>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

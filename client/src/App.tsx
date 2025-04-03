@@ -65,8 +65,6 @@ import Orders from "@/pages/Orders";
 import NewOrder from "@/pages/NewOrder";
 import OrderDetail from "@/pages/OrderDetail";
 import OrderReceipt from "@/pages/OrderReceipt";
-import NewProduct from "@/pages/NewProduct";
-import AssignProductToSupplier from "@/pages/AssignProductToSupplier";
 import SupplierPortal from "@/pages/SupplierPortal";
 import Inventory from "@/pages/Inventory";
 import LagerPage from "@/pages/LagerPage";
@@ -142,18 +140,6 @@ function AuthenticatedRouter() {
         <Route path="/produkte" component={props => (
           <ApprovedUserRoute>
             <Products {...props} />
-          </ApprovedUserRoute>
-        )} />
-        
-        <Route path="/produkte/neu" component={props => (
-          <ApprovedUserRoute>
-            <NewProduct {...props} />
-          </ApprovedUserRoute>
-        )} />
-        
-        <Route path="/produkte/zuweisen" component={props => (
-          <ApprovedUserRoute>
-            <AssignProductToSupplier {...props} />
           </ApprovedUserRoute>
         )} />
         
