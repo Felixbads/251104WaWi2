@@ -942,6 +942,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Auffüllungen für ein Produkt abrufen
+  // Update product by ID
+  app.put(`${API_PREFIX}/products/:id`, async (req: Request, res: Response) => {
+    try {
+      const productId = parseInt(req.params.id);
+      
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+      
+      // Überprüfen ob das Produkt existiert
+      const existingProduct = await storage.getProduct(productId);
+      
+      if (!existingProduct) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+      
+      // Aktualisiere das Produkt
+      const updatedProduct = await storage.updateProduct(productId, req.body);
+      
+      res.json(updatedProduct);
+    } catch (error) {
+      console.error(`Error updating product with ID ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to update product", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
   app.get(`${API_PREFIX}/products/:id/refills`, async (req: Request, res: Response) => {
     try {
       const productId = parseInt(req.params.id);
