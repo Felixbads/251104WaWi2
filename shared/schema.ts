@@ -475,13 +475,42 @@ export type SyncLog = typeof syncLogs.$inferSelect;
 // Define relations
 export const suppliersRelations = relations(suppliers, ({ many }) => ({
   products: many(products),
+  purchaseConditions: many(purchaseConditions),
 }));
 
-export const productsRelations = relations(products, ({ one }) => ({
+// Purchase Conditions Tabelle - Beziehungen zwischen Produkten und Lieferanten
+export const purchaseConditions = pgTable("purchase_conditions", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").notNull().references(() => products.id),
+  supplierId: integer("supplier_id").notNull().references(() => suppliers.id),
+  unitPrice: real("unit_price").notNull(),
+  minQuantity: integer("min_quantity").default(1),
+  packagingUnit: text("packaging_unit"), // Beschreibung der Verpackungseinheit (z.B. "Karton mit 6 Flaschen")
+  deliveryTime: text("delivery_time"), // Lieferzeit (z.B. "2-3 Tage")
+  validFrom: timestamp("valid_from"), // Gültigkeit von
+  validTo: timestamp("valid_to"), // Gültigkeit bis
+  isPreferred: boolean("is_preferred").default(false), // Ist dies der bevorzugte Lieferant für dieses Produkt
+  notes: text("notes"), // Notizen zu dieser Einkaufsbedingung
+  leadTime: integer("lead_time"), // Vorlaufzeit in Tagen
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPurchaseConditionSchema = createInsertSchema(purchaseConditions).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertPurchaseCondition = z.infer<typeof insertPurchaseConditionSchema>;
+export type PurchaseCondition = typeof purchaseConditions.$inferSelect;
+
+export const productsRelations = relations(products, ({ one, many }) => ({
   supplier: one(suppliers, {
     fields: [products.supplierId],
     references: [suppliers.id],
   }),
+  purchaseConditions: many(purchaseConditions),
 }));
 
 export const machinesRelations = relations(machines, ({ one }) => ({
@@ -1458,6 +1487,18 @@ export type ProductDisposal = typeof productDisposals.$inferSelect;
 export type InsertProductDisposalItem = z.infer<typeof insertProductDisposalItemSchema>;
 export type ProductDisposalItem = typeof productDisposalItems.$inferSelect;
 
+// Relationen für purchaseConditions definieren
+export const purchaseConditionsRelations = relations(purchaseConditions, ({ one }) => ({
+  product: one(products, {
+    fields: [purchaseConditions.productId],
+    references: [products.id],
+  }),
+  supplier: one(suppliers, {
+    fields: [purchaseConditions.supplierId],
+    references: [suppliers.id],
+  }),
+}));
+
 // Add warehouse relations to existing relations object
 export const allRelations = {
   orderRelations,
@@ -1470,4 +1511,5 @@ export const allRelations = {
   inventoryCountItemRelations,
   productDisposalsRelations,
   productDisposalItemsRelations,
+  purchaseConditionsRelations,
 };

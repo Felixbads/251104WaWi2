@@ -22,7 +22,8 @@ import {
   stocks, type Stock, type InsertStock,
   machineStocks, type MachineStock, type InsertMachineStock,
   orders, type Order, type InsertOrder,
-  orderItems, type OrderItem, type InsertOrderItem
+  orderItems, type OrderItem, type InsertOrderItem,
+  purchaseConditions, type PurchaseCondition, type InsertPurchaseCondition
 } from "@shared/schema";
 
 // Interface defining all storage operations
@@ -191,6 +192,14 @@ export interface IStorage {
   createSupplier(supplier: InsertSupplier): Promise<Supplier>;
   updateSupplier(id: number, supplier: Partial<InsertSupplier>): Promise<Supplier | undefined>;
   deleteSupplier(id: number): Promise<boolean>;
+  
+  // Purchase Conditions operations
+  getPurchaseConditionById(id: number): Promise<PurchaseCondition | undefined>;
+  getPurchaseConditionsBySupplier(supplierId: number): Promise<PurchaseCondition[]>;
+  getPurchaseConditionsByProduct(productId: number): Promise<PurchaseCondition[]>;
+  createPurchaseCondition(purchaseCondition: InsertPurchaseCondition): Promise<PurchaseCondition>;
+  updatePurchaseCondition(id: number, purchaseCondition: Partial<InsertPurchaseCondition>): Promise<PurchaseCondition | undefined>;
+  deletePurchaseCondition(id: number): Promise<boolean>;
   
   // Order operations
   getOrders(): Promise<Order[]>;
@@ -1595,6 +1604,71 @@ export class DatabaseStorage implements IStorage {
     await db.delete(suppliers).where(eq(suppliers.id, id));
     
     return true;
+  }
+  
+  // Purchase Conditions Operations
+  async getPurchaseConditionById(id: number): Promise<PurchaseCondition | undefined> {
+    const [condition] = await db
+      .select()
+      .from(purchaseConditions)
+      .where(eq(purchaseConditions.id, id))
+      .limit(1);
+      
+    return condition;
+  }
+  
+  async getPurchaseConditionsBySupplier(supplierId: number): Promise<PurchaseCondition[]> {
+    return await db
+      .select()
+      .from(purchaseConditions)
+      .where(eq(purchaseConditions.supplierId, supplierId))
+      .orderBy(desc(purchaseConditions.createdAt));
+  }
+  
+  async getPurchaseConditionsByProduct(productId: number): Promise<PurchaseCondition[]> {
+    return await db
+      .select()
+      .from(purchaseConditions)
+      .where(eq(purchaseConditions.productId, productId))
+      .orderBy(
+        desc(purchaseConditions.isPreferred), 
+        asc(purchaseConditions.unitPrice)
+      );
+  }
+  
+  async createPurchaseCondition(data: InsertPurchaseCondition): Promise<PurchaseCondition> {
+    const [newCondition] = await db
+      .insert(purchaseConditions)
+      .values({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+      
+    return newCondition;
+  }
+  
+  async updatePurchaseCondition(id: number, data: Partial<InsertPurchaseCondition>): Promise<PurchaseCondition | undefined> {
+    const [updatedCondition] = await db
+      .update(purchaseConditions)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(purchaseConditions.id, id))
+      .returning();
+      
+    return updatedCondition;
+  }
+  
+  async deletePurchaseCondition(id: number): Promise<boolean> {
+    const result = await db
+      .delete(purchaseConditions)
+      .where(eq(purchaseConditions.id, id))
+      .returning({ id: purchaseConditions.id });
+      
+    return result.length > 0;
   }
   
   // Warehouse operations

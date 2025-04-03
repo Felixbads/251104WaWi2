@@ -784,6 +784,53 @@ export async function deleteSupplier(id: number): Promise<{success: boolean; mes
   return apiRequest<{success: boolean; message: string}>('delete', `/suppliers/${id}`);
 }
 
+// Einkaufsbedingungen (PurchaseConditions)
+export interface PurchaseCondition {
+  id: number;
+  productId: number;
+  supplierId: number;
+  unitPrice: number;
+  minQuantity?: number;
+  packagingUnit?: string;
+  deliveryTime?: string;
+  validFrom?: string;
+  validTo?: string;
+  isPreferred: boolean;
+  notes?: string;
+  leadTime?: number;
+  createdAt?: string;
+  updatedAt?: string;
+  // Erweiterte Felder für die Anzeige
+  productName?: string;
+  productSku?: string;
+  supplierName?: string;
+}
+
+// API-Methoden für PurchaseConditions
+export async function getPurchaseConditionsBySupplier(supplierId: number): Promise<PurchaseCondition[]> {
+  return apiRequest<PurchaseCondition[]>('get', `/suppliers/${supplierId}/purchase-conditions`);
+}
+
+export async function getPurchaseConditionsByProduct(productId: number): Promise<PurchaseCondition[]> {
+  return apiRequest<PurchaseCondition[]>('get', `/products/${productId}/purchase-conditions`);
+}
+
+export async function getPurchaseCondition(id: number): Promise<PurchaseCondition> {
+  return apiRequest<PurchaseCondition>('get', `/purchase-conditions/${id}`);
+}
+
+export async function createPurchaseCondition(data: Omit<PurchaseCondition, 'id' | 'createdAt' | 'updatedAt'>): Promise<PurchaseCondition> {
+  return apiRequest<PurchaseCondition>('post', `/purchase-conditions`, data);
+}
+
+export async function updatePurchaseCondition(id: number, data: Partial<Omit<PurchaseCondition, 'id' | 'createdAt' | 'updatedAt'>>): Promise<PurchaseCondition> {
+  return apiRequest<PurchaseCondition>('put', `/purchase-conditions/${id}`, data);
+}
+
+export async function deletePurchaseCondition(id: number): Promise<{success: boolean; message: string}> {
+  return apiRequest<{success: boolean; message: string}>('delete', `/purchase-conditions/${id}`);
+}
+
 // Bestellungen (Orders)
 export interface Order {
   id: number;

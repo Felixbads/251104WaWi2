@@ -778,47 +778,39 @@ const SupplierCard = ({
       </CardHeader>
       <CardContent className="pt-0 pb-2">
         <div className="grid grid-cols-1 gap-2">
-          {/* Kontaktdaten */}
-          <div className="flex flex-col space-y-1.5">
-            {supplier.contactPerson && (
-              <div className="text-sm flex items-center">
-                <span className="font-medium mr-1">Ansprechpartner:</span> {supplier.contactPerson}
-              </div>
+          {/* Kontaktinformationen - nur Website, Email, Telefon als Icons */}
+          <div className="flex flex-wrap gap-2 justify-center mb-2">
+            {supplier.phone && (
+              <a 
+                href={`tel:${supplier.phone}`} 
+                className="inline-flex items-center justify-center w-8 h-8 text-gray-500 hover:text-primary hover:bg-gray-100 rounded-full"
+                title={`Anrufen: ${supplier.phone}`}
+              >
+                <Phone className="h-4 w-4" />
+              </a>
             )}
             
-            <div className="flex flex-wrap gap-2">
-              {supplier.phone && (
-                <a 
-                  href={`tel:${supplier.phone}`} 
-                  className="inline-flex items-center text-xs text-gray-500 hover:text-primary"
-                >
-                  <Phone className="h-3 w-3 mr-1" />
-                  {supplier.phone}
-                </a>
-              )}
-              
-              {supplier.email && (
-                <a 
-                  href={`mailto:${supplier.email}`} 
-                  className="inline-flex items-center text-xs text-gray-500 hover:text-primary"
-                >
-                  <Mail className="h-3 w-3 mr-1" />
-                  {supplier.email}
-                </a>
-              )}
-              
-              {supplier.website && (
-                <a 
-                  href={supplier.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center text-xs text-gray-500 hover:text-primary"
-                >
-                  <Globe className="h-3 w-3 mr-1" />
-                  Website
-                </a>
-              )}
-            </div>
+            {supplier.email && (
+              <a 
+                href={`mailto:${supplier.email}`} 
+                className="inline-flex items-center justify-center w-8 h-8 text-gray-500 hover:text-primary hover:bg-gray-100 rounded-full"
+                title={`E-Mail: ${supplier.email}`}
+              >
+                <Mail className="h-4 w-4" />
+              </a>
+            )}
+            
+            {supplier.website && (
+              <a 
+                href={supplier.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center w-8 h-8 text-gray-500 hover:text-primary hover:bg-gray-100 rounded-full"
+                title="Website besuchen"
+              >
+                <Globe className="h-4 w-4" />
+              </a>
+            )}
           </div>
           
           {/* KPIs */}

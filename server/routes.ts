@@ -1,5 +1,5 @@
 import type { Express, Request as ExpressRequest, Response, NextFunction } from "express";
-import { User } from '../shared/schema';
+import { User, insertPurchaseConditionSchema } from '../shared/schema';
 
 // Erweitern der Request-Schnittstelle zur Unterstützung des user-Objekts
 interface Request extends ExpressRequest {
@@ -526,6 +526,155 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(500).json({ 
         error: "Failed to delete supplier", 
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  
+  // Purchase Conditions Routes
+  
+  // Get all purchase conditions for a supplier
+  app.get(`${API_PREFIX}/suppliers/:supplierId/purchase-conditions`, async (req: Request, res: Response) => {
+    try {
+      const supplierId = parseInt(req.params.supplierId);
+      
+      if (isNaN(supplierId)) {
+        return res.status(400).json({ error: "Invalid supplier ID" });
+      }
+      
+      const purchaseConditions = await storage.getPurchaseConditionsBySupplier(supplierId);
+      res.json(purchaseConditions);
+    } catch (error) {
+      console.error(`Error fetching purchase conditions for supplier ${req.params.supplierId}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch purchase conditions", 
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  
+  // Get all purchase conditions for a product
+  app.get(`${API_PREFIX}/products/:productId/purchase-conditions`, async (req: Request, res: Response) => {
+    try {
+      const productId = parseInt(req.params.productId);
+      
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+      
+      const purchaseConditions = await storage.getPurchaseConditionsByProduct(productId);
+      res.json(purchaseConditions);
+    } catch (error) {
+      console.error(`Error fetching purchase conditions for product ${req.params.productId}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch purchase conditions", 
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  
+  // Get specific purchase condition
+  app.get(`${API_PREFIX}/purchase-conditions/:id`, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid purchase condition ID" });
+      }
+      
+      const purchaseCondition = await storage.getPurchaseConditionById(id);
+      
+      if (!purchaseCondition) {
+        return res.status(404).json({ error: "Purchase condition not found" });
+      }
+      
+      res.json(purchaseCondition);
+    } catch (error) {
+      console.error(`Error fetching purchase condition ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch purchase condition", 
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  
+  // Create new purchase condition
+  app.post(`${API_PREFIX}/purchase-conditions`, async (req: Request, res: Response) => {
+    try {
+      const validatedData = insertPurchaseConditionSchema.parse(req.body);
+      const purchaseCondition = await storage.createPurchaseCondition(validatedData);
+      res.status(201).json(purchaseCondition);
+    } catch (error) {
+      console.error("Error creating purchase condition:", error);
+      
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid purchase condition data", 
+          details: error.errors 
+        });
+      }
+      
+      res.status(500).json({ 
+        error: "Failed to create purchase condition", 
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  
+  // Update purchase condition
+  app.put(`${API_PREFIX}/purchase-conditions/:id`, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid purchase condition ID" });
+      }
+      
+      const validatedData = insertPurchaseConditionSchema.partial().parse(req.body);
+      const updatedPurchaseCondition = await storage.updatePurchaseCondition(id, validatedData);
+      
+      if (!updatedPurchaseCondition) {
+        return res.status(404).json({ error: "Purchase condition not found" });
+      }
+      
+      res.json(updatedPurchaseCondition);
+    } catch (error) {
+      console.error(`Error updating purchase condition ${req.params.id}:`, error);
+      
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: "Invalid purchase condition data", 
+          details: error.errors 
+        });
+      }
+      
+      res.status(500).json({ 
+        error: "Failed to update purchase condition", 
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  
+  // Delete purchase condition
+  app.delete(`${API_PREFIX}/purchase-conditions/:id`, async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid purchase condition ID" });
+      }
+      
+      const result = await storage.deletePurchaseCondition(id);
+      
+      if (!result) {
+        return res.status(404).json({ error: "Purchase condition not found" });
+      }
+      
+      res.json({ success: true, message: "Purchase condition deleted successfully" });
+    } catch (error) {
+      console.error(`Error deleting purchase condition ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to delete purchase condition", 
         details: error instanceof Error ? error.message : String(error)
       });
     }

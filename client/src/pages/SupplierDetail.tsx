@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -9,13 +10,32 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   ArrowLeft, Phone, Mail, Globe, MapPin, Building, Truck, 
   Calendar, Clock, Edit, Package, FileText, BarChart, AlertTriangle,
-  RefreshCw, Download
+  RefreshCw, Download, CheckCircle, X, Trash2, Save, Plus
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import PageHeader from "@/components/layout/PageHeader";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { queryClient } from "@/lib/queryClient";
+import { 
+  updateSupplier, 
+  getPurchaseConditionsBySupplier, 
+  createPurchaseCondition, 
+  updatePurchaseCondition, 
+  deletePurchaseCondition, 
+  PurchaseCondition,
+  getProductsBySupplier
+} from "@/lib/api";
 
 interface Supplier {
   id: number;
@@ -40,10 +60,38 @@ interface Supplier {
   openOrdersCount?: number;
 }
 
+// Schema für das Lieferanten-Formular
+const supplierFormSchema = z.object({
+  name: z.string().min(1, "Lieferantenname ist erforderlich"),
+  contactPerson: z.string().optional(),
+  phone: z.string().optional(),
+  email: z.string().email("Ungültige E-Mail-Adresse").optional().or(z.literal("")),
+  website: z.string().url("Ungültige Website-URL").optional().or(z.literal("")),
+  address: z.string().optional(),
+  city: z.string().optional(),
+  postalCode: z.string().optional(),
+  country: z.string().default("Deutschland"),
+  status: z.string().default("active"),
+  notes: z.string().optional(),
+  paymentTerms: z.string().optional(),
+  deliveryTerms: z.string().optional(),
+  minimumOrderValue: z.number().optional().or(z.literal("").transform(() => undefined)),
+  deliveryDays: z.string().optional(),
+  taxId: z.string().optional(),
+  accountNumber: z.string().optional(),
+  bankDetails: z.string().optional(),
+});
+
+type SupplierFormValues = z.infer<typeof supplierFormSchema>;
+
 export default function SupplierDetail() {
   const { id } = useParams<{ id: string }>();
   const [_, navigate] = useLocation();
   const { toast } = useToast();
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [showAddPurchaseCondition, setShowAddPurchaseCondition] = useState(false);
+  const [editingPurchaseCondition, setEditingPurchaseCondition] = useState<PurchaseCondition | null>(null);
+  const [deletingPurchaseConditionId, setDeletingPurchaseConditionId] = useState<number | null>(null);
   
   // Lieferantendaten abfragen
   const { data: supplier, isLoading, error } = useQuery<Supplier>({
@@ -65,16 +113,45 @@ export default function SupplierDetail() {
     enabled: !!id
   });
   
+  // Einkaufsbedingungen des Lieferanten abfragen
+  const { 
+    data: purchaseConditions, 
+    isLoading: isPurchaseConditionsLoading,
+    refetch: refetchPurchaseConditions
+  } = useQuery({
+    queryKey: [`/api/suppliers/${id}/purchase-conditions`],
+    staleTime: 1000 * 60, // 1 Minute
+    enabled: !!id
+  });
+  
+  // Mutation für das Aktualisieren des Lieferanten
+  const updateMutation = useMutation({
+    mutationFn: (data: Partial<SupplierFormValues>) => 
+      updateSupplier(parseInt(id), data),
+    onSuccess: () => {
+      toast({
+        title: "Erfolg",
+        description: "Lieferant erfolgreich aktualisiert",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/suppliers/${id}`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
+      setIsEditDialogOpen(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Fehler",
+        description: `Fehler beim Aktualisieren des Lieferanten: ${error}`,
+        variant: "destructive",
+      });
+    }
+  });
+  
   const handleBack = () => {
     navigate('/lieferanten');
   };
   
   const handleEdit = () => {
-    // In späterer Implementierung: navigate(`/lieferanten/${id}/edit`);
-    toast({
-      title: "Info",
-      description: "Bearbeiten-Funktion wird später implementiert."
-    });
+    setIsEditDialogOpen(true);
   };
   
   const handleCreateOrder = () => {
@@ -176,6 +253,100 @@ export default function SupplierDetail() {
     });
   };
 
+  // Form für das Bearbeiten des Lieferanten
+  const form = useForm<SupplierFormValues>({
+    resolver: zodResolver(supplierFormSchema),
+    defaultValues: supplier ? {
+      ...supplier,
+      minimumOrderValue: supplier.minimumOrderValue || undefined,
+    } : {
+      name: '',
+      status: 'active',
+      country: 'Deutschland'
+    }
+  });
+
+  // Handler für das Absenden des Formulars
+  const onSubmit = (values: SupplierFormValues) => {
+    updateMutation.mutate(values);
+  };
+  
+  // Handler für Einkaufsbedingungen
+  const handleAddPurchaseCondition = () => {
+    setShowAddPurchaseCondition(true);
+  };
+  
+  const handleEditPurchaseCondition = (condition: PurchaseCondition) => {
+    setEditingPurchaseCondition(condition);
+  };
+  
+  const handleDeletePurchaseCondition = (id: number) => {
+    setDeletingPurchaseConditionId(id);
+  };
+  
+  // Mutation für das Erstellen einer neuen Einkaufsbedingung
+  const createPurchaseConditionMutation = useMutation({
+    mutationFn: (data: Partial<PurchaseCondition>) => 
+      createPurchaseCondition(data),
+    onSuccess: () => {
+      toast({
+        title: "Erfolg",
+        description: "Einkaufsbedingung erfolgreich erstellt",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/suppliers/${id}/purchase-conditions`] });
+      setShowAddPurchaseCondition(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Fehler",
+        description: `Fehler beim Erstellen der Einkaufsbedingung: ${error}`,
+        variant: "destructive",
+      });
+    }
+  });
+  
+  // Mutation für das Aktualisieren einer Einkaufsbedingung
+  const updatePurchaseConditionMutation = useMutation({
+    mutationFn: (data: { id: number, data: Partial<PurchaseCondition> }) => 
+      updatePurchaseCondition(data.id, data.data),
+    onSuccess: () => {
+      toast({
+        title: "Erfolg",
+        description: "Einkaufsbedingung erfolgreich aktualisiert",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/suppliers/${id}/purchase-conditions`] });
+      setEditingPurchaseCondition(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Fehler",
+        description: `Fehler beim Aktualisieren der Einkaufsbedingung: ${error}`,
+        variant: "destructive",
+      });
+    }
+  });
+  
+  // Mutation für das Löschen einer Einkaufsbedingung
+  const deletePurchaseConditionMutation = useMutation({
+    mutationFn: (id: number) => 
+      deletePurchaseCondition(id),
+    onSuccess: () => {
+      toast({
+        title: "Erfolg",
+        description: "Einkaufsbedingung erfolgreich gelöscht",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/suppliers/${id}/purchase-conditions`] });
+      setDeletingPurchaseConditionId(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Fehler",
+        description: `Fehler beim Löschen der Einkaufsbedingung: ${error}`,
+        variant: "destructive",
+      });
+    }
+  });
+
   return (
     <div className="container space-y-6">
       {/* Standardisierter PageHeader */}
@@ -203,6 +374,305 @@ export default function SupplierDetail() {
         onDownload={handleExport}
       />
       
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Lieferanten bearbeiten
+            </DialogTitle>
+            <DialogDescription>
+              Bearbeiten Sie die Informationen des Lieferanten.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Hauptdaten */}
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem className="md:col-span-2">
+                      <FormLabel>Name *</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="contactPerson"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Ansprechpartner</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Status</FormLabel>
+                      <Select 
+                        onValueChange={field.onChange} 
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Status wählen" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="active">Aktiv</SelectItem>
+                          <SelectItem value="inactive">Inaktiv</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                {/* Kontaktdaten */}
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>E-Mail</FormLabel>
+                      <FormControl>
+                        <Input {...field} type="email" value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Telefon</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="website"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Website</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                {/* Adresse */}
+                <FormField
+                  control={form.control}
+                  name="address"
+                  render={({ field }) => (
+                    <FormItem className="md:col-span-2">
+                      <FormLabel>Adresse</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="postalCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>PLZ</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="city"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Stadt</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="country"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Land</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                {/* Lieferbedingungen */}
+                <FormField
+                  control={form.control}
+                  name="paymentTerms"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Zahlungsbedingungen</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="deliveryTerms"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Lieferbedingungen</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="minimumOrderValue"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Mindestbestellwert</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="number" 
+                          step="0.01" 
+                          value={field.value || ''}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            field.onChange(value === '' ? '' : parseFloat(value));
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="deliveryDays"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Liefertage</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value || ''} placeholder="z.B. Mo, Mi, Fr" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                {/* Steuerinformationen */}
+                <FormField
+                  control={form.control}
+                  name="taxId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Steuernummer/USt-ID</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="bankDetails"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Bankverbindung</FormLabel>
+                      <FormControl>
+                        <Input {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                {/* Anmerkungen */}
+                <FormField
+                  control={form.control}
+                  name="notes"
+                  render={({ field }) => (
+                    <FormItem className="md:col-span-2">
+                      <FormLabel>Anmerkungen</FormLabel>
+                      <FormControl>
+                        <Textarea rows={4} {...field} value={field.value || ''} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                  Abbrechen
+                </Button>
+                <Button type="submit" disabled={updateMutation.isPending}>
+                  {updateMutation.isPending ? (
+                    <>Speichern...</>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Speichern
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+      
       {/* Lieferanten Header */}
       <div>
         <h1 className="text-2xl font-bold">{supplier.name}</h1>
@@ -220,6 +690,10 @@ export default function SupplierDetail() {
           <TabsTrigger value="products" className="gap-1.5">
             <Package className="h-4 w-4" />
             <span>Produkte</span>
+          </TabsTrigger>
+          <TabsTrigger value="purchaseConditions" className="gap-1.5">
+            <FileText className="h-4 w-4" />
+            <span>Einkaufsbedingungen</span>
           </TabsTrigger>
           <TabsTrigger value="orders" className="gap-1.5">
             <Truck className="h-4 w-4" />
@@ -537,6 +1011,109 @@ export default function SupplierDetail() {
                 Alle Bestellungen anzeigen
               </Button>
             </CardFooter>
+          </Card>
+        </TabsContent>
+        
+        {/* Einkaufsbedingungen Tab */}
+        <TabsContent value="purchaseConditions">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Einkaufsbedingungen</CardTitle>
+                <CardDescription>
+                  Preise und Konditionen für Produkte dieses Lieferanten
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setShowAddPurchaseCondition(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Neue Kondition
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {isPurchaseConditionsLoading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center p-3 border rounded-md">
+                      <div className="flex-grow">
+                        <Skeleton className="h-5 w-40 mb-1" />
+                        <Skeleton className="h-4 w-24" />
+                      </div>
+                      <Skeleton className="h-6 w-16" />
+                    </div>
+                  ))}
+                </div>
+              ) : !purchaseConditions || purchaseConditions.length === 0 ? (
+                <div className="text-center p-6">
+                  <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+                  <h3 className="text-lg font-medium mb-1">Keine Einkaufsbedingungen gefunden</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Für diesen Lieferanten sind noch keine Einkaufsbedingungen erfasst.
+                  </p>
+                  <Button onClick={() => setShowAddPurchaseCondition(true)}>
+                    Einkaufsbedingung hinzufügen
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-8 gap-2 px-3 py-2 font-medium text-sm text-muted-foreground">
+                    <div className="col-span-3">Produkt</div>
+                    <div className="col-span-1 text-right">Preis</div>
+                    <div className="col-span-1 text-center">Min. Menge</div>
+                    <div className="col-span-2">Gültigkeitszeitraum</div>
+                    <div className="col-span-1 text-right">Aktionen</div>
+                  </div>
+                  
+                  {purchaseConditions.map((condition) => (
+                    <div 
+                      key={condition.id} 
+                      className="grid grid-cols-8 gap-2 p-3 border rounded-md items-center"
+                    >
+                      <div className="col-span-3">
+                        <div className="font-medium">{condition.productName || 'Unbekanntes Produkt'}</div>
+                        {condition.productSku && (
+                          <div className="text-xs text-muted-foreground">SKU: {condition.productSku}</div>
+                        )}
+                      </div>
+                      <div className="col-span-1 text-right font-medium">
+                        {condition.unitPrice.toFixed(2)} €
+                      </div>
+                      <div className="col-span-1 text-center">
+                        {condition.minQuantity || 'k.A.'}
+                      </div>
+                      <div className="col-span-2 text-sm">
+                        {condition.validFrom && condition.validTo ? (
+                          <>
+                            {new Date(condition.validFrom).toLocaleDateString('de-DE')} - {new Date(condition.validTo).toLocaleDateString('de-DE')}
+                          </>
+                        ) : condition.validFrom ? (
+                          <>Ab {new Date(condition.validFrom).toLocaleDateString('de-DE')}</>
+                        ) : condition.validTo ? (
+                          <>Bis {new Date(condition.validTo).toLocaleDateString('de-DE')}</>
+                        ) : (
+                          'Unbegrenzt'
+                        )}
+                      </div>
+                      <div className="col-span-1 flex justify-end space-x-1">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          onClick={() => handleEditPurchaseCondition(condition)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleDeletePurchaseCondition(condition.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
           </Card>
         </TabsContent>
         
