@@ -1164,6 +1164,43 @@ export class DatabaseStorage implements IStorage {
 
   async getProduct(id: number): Promise<Product | undefined> {
     const [product] = await db.select().from(products).where(eq(products.id, id));
+    
+    if (product) {
+      // Verkaufsdaten für das Produkt abrufen
+      try {
+        // Anzahl der Transaktionen für dieses Produkt abrufen
+        const countResult = await db.select({ count: count() })
+          .from(transactions)
+          .where(
+            or(
+              eq(transactions.productId, String(product.vendonId)),
+              sql`LOWER(${transactions.productName}) = LOWER(${product.productName})`
+            )
+          );
+          
+        // Letzte Transaktion für dieses Produkt abrufen
+        const [lastTransaction] = await db.select()
+          .from(transactions)
+          .where(
+            or(
+              eq(transactions.productId, String(product.vendonId)),
+              sql`LOWER(${transactions.productName}) = LOWER(${product.productName})`
+            )
+          )
+          .orderBy(desc(transactions.datetime))
+          .limit(1);
+          
+        // Ergänze das Produktobjekt mit den Verkaufsdaten
+        product.salesCount = parseInt(countResult[0]?.count?.toString() || '0');
+        product.lastSale = lastTransaction?.datetime?.toISOString() || null;
+      } catch (error) {
+        console.error(`Fehler beim Abrufen der Verkaufsdaten für Produkt ${id}:`, error);
+        // Bei einem Fehler die Standardwerte setzen
+        product.salesCount = 0;
+        product.lastSale = null;
+      }
+    }
+    
     return product;
   }
 
@@ -1220,7 +1257,15 @@ export class DatabaseStorage implements IStorage {
     const product = await this.getProduct(productId);
     if (!product) return [];
 
-    // Maschinen-Stocks für das Produkt mit vendonId abrufen
+    // Maschinen-Set für einzigartige Einträge
+    let uniqueMachines = new Map<number, {
+      machineId: number,
+      machineName: string,
+      currentStock: number,
+      lastRefill: string | null
+    }>();
+
+    // 1. Maschinen-Stocks für das Produkt mit vendonId abrufen
     const machineStocksResult = await db.select({
       machineId: machineStocks.machineId,
       machineName: machines.machineName,
@@ -1233,9 +1278,76 @@ export class DatabaseStorage implements IStorage {
     .where(eq(machineStocks.productVendonId, product.vendonId))
     .orderBy(desc(machineStocks.quantity));
 
-    // Für jede Maschine die letzte Auffüllung finden
+    // Maschinen aus Stocks hinzufügen
+    for (const stock of machineStocksResult) {
+      uniqueMachines.set(stock.machineId, {
+        machineId: stock.machineId,
+        machineName: String(stock.machineName || ""),
+        currentStock: stock.currentStock || 0,
+        lastRefill: null // Wird später aktualisiert
+      });
+    }
+
+    // 2. Maschinen aus Transaktionen für dieses Produkt abrufen
+    const transactionMachinesResult = await db.select({
+      machineId: transactions.machineId,
+      machineName: transactions.machineName,
+      datetime: transactions.datetime
+    })
+    .from(transactions)
+    .where(
+      or(
+        eq(transactions.productId, String(product.vendonId)),
+        sql`LOWER(${transactions.productName}) = LOWER(${product.productName})`
+      )
+    )
+    .orderBy(desc(transactions.datetime))
+    .groupBy(transactions.machineId, transactions.machineName, transactions.datetime);
+
+    // Maschinen aus Transaktionen hinzufügen
+    for (const machine of transactionMachinesResult) {
+      if (machine.machineId && !uniqueMachines.has(machine.machineId)) {
+        uniqueMachines.set(machine.machineId, {
+          machineId: machine.machineId,
+          machineName: String(machine.machineName || ""),
+          currentStock: 0, // Standardwert für unbekannten Bestand
+          lastRefill: null // Wird später aktualisiert
+        });
+      }
+    }
+
+    // 3. Maschinen aus Refills für dieses Produkt abrufen
+    const refillMachinesResult = await db.select({
+      machineId: refills.machineId,
+      machineName: refills.machineName,
+      datetime: refills.datetime
+    })
+    .from(refills)
+    .innerJoin(refillDetails, eq(refillDetails.refillId, refills.id))
+    .where(
+      or(
+        eq(refillDetails.vendonProductId, product.vendonId),
+        sql`LOWER(${refillDetails.productName}) = LOWER(${product.productName})`
+      )
+    )
+    .orderBy(desc(refills.datetime))
+    .groupBy(refills.machineId, refills.machineName, refills.datetime);
+
+    // Maschinen aus Refills hinzufügen
+    for (const machine of refillMachinesResult) {
+      if (machine.machineId && !uniqueMachines.has(machine.machineId)) {
+        uniqueMachines.set(machine.machineId, {
+          machineId: machine.machineId,
+          machineName: String(machine.machineName || ""),
+          currentStock: 0, // Standardwert für unbekannten Bestand
+          lastRefill: machine.datetime ? machine.datetime.toISOString() : null
+        });
+      }
+    }
+
+    // Für jede Maschine die letzte Auffüllung finden und aktualisieren
     const result = await Promise.all(
-      machineStocksResult.map(async (stock) => {
+      Array.from(uniqueMachines.values()).map(async (machine) => {
         // Letzte Auffüllung für diese Maschine und dieses Produkt finden
         const [lastRefill] = await db.select({
           datetime: refills.datetime
@@ -1244,23 +1356,26 @@ export class DatabaseStorage implements IStorage {
         .innerJoin(refillDetails, eq(refillDetails.refillId, refills.id))
         .where(
           and(
-            eq(refills.machineId, stock.machineId),
-            eq(refillDetails.productId, product.vendonId)
+            eq(refills.machineId, machine.machineId),
+            or(
+              eq(refillDetails.vendonProductId, product.vendonId),
+              sql`LOWER(${refillDetails.productName}) = LOWER(${product.productName})`
+            )
           )
         )
         .orderBy(desc(refills.datetime))
         .limit(1);
 
-        return {
-          machineId: stock.machineId,
-          machineName: String(stock.machineName || ""),
-          currentStock: stock.currentStock || 0,
-          lastRefill: lastRefill?.datetime ? lastRefill.datetime.toISOString() : null
-        };
+        if (lastRefill?.datetime) {
+          machine.lastRefill = lastRefill.datetime.toISOString();
+        }
+
+        return machine;
       })
     );
 
-    return result;
+    // Sortiere nach Bestand absteigend
+    return result.sort((a, b) => b.currentStock - a.currentStock);
   }
 
   async getProductRefills(productId: number, limit: number = 100): Promise<RefillDetail[]> {
