@@ -31,14 +31,34 @@ export async function triggerSync(type: string, options: any = {}) {
 }
 
 // Funktion zum Abrufen aller Vendon-Produkte direkt von der Stock-API (ca. 109 Produkte)
-export async function getAllVendonProducts(page = 0, limit = 200) {
+export async function getAllVendonProducts(page = 0, limit = 100) {
   // Die korrekte Route ist /vendon/stocks
   console.log('Abrufen der Vendon-Stock-Produkte vom Server...');
   try {
-    const response = await axios.get(`${API_BASE_URL}/vendon/stocks?page=${page}&limit=${limit}`);
-    console.log('Vendon-Stock-Produkte Struktur prüfen:', response.data);
-    console.log('Vendon-Stock-Produkte sind ein Array mit', response.data.length, 'Einträgen');
-    return response.data;
+    // Frage die ersten 100 Produkte ab
+    const batch1Response = await axios.get(`${API_BASE_URL}/vendon/stocks?page=0&limit=${limit}`);
+    let allProducts = batch1Response.data;
+    console.log('Erster Batch Vendon-Stock-Produkte:', allProducts.length, 'Einträge');
+    
+    // Frage die nächsten 100 Produkte ab
+    const batch2Response = await axios.get(`${API_BASE_URL}/vendon/stocks?page=1&limit=${limit}`);
+    if (batch2Response.data && batch2Response.data.length > 0) {
+      allProducts = [...allProducts, ...batch2Response.data];
+      console.log('Zweiter Batch Vendon-Stock-Produkte:', batch2Response.data.length, 'Einträge');
+    }
+    
+    // Optional: Dritter Batch, wenn nötig
+    if (batch2Response.data && batch2Response.data.length === limit) {
+      const batch3Response = await axios.get(`${API_BASE_URL}/vendon/stocks?page=2&limit=${limit}`);
+      if (batch3Response.data && batch3Response.data.length > 0) {
+        allProducts = [...allProducts, ...batch3Response.data];
+        console.log('Dritter Batch Vendon-Stock-Produkte:', batch3Response.data.length, 'Einträge');
+      }
+    }
+    
+    console.log('Vendon-Stock-Produkte Struktur prüfen:', allProducts);
+    console.log('Insgesamt Vendon-Stock-Produkte:', allProducts.length, 'Einträge');
+    return allProducts;
   } catch (error) {
     console.error('Fehler beim Abrufen der Vendon-Stock-Produkte:', error);
     throw error;
@@ -483,6 +503,45 @@ export async function getProductMachines(productId: string): Promise<{machineId:
 
 export async function updateProduct(id: string, productData: Partial<Product>): Promise<Product> {
   return apiRequest<Product>('put', `/products/${id}`, productData);
+}
+
+/**
+ * Produktdaten als Excel exportieren
+ * @returns Ein Blob mit der Excel-Datei
+ */
+export async function exportProductsAsExcel(): Promise<Blob> {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/products/export`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Fehler beim Exportieren der Produktdaten:', error);
+    throw error;
+  }
+}
+
+/**
+ * Importiert Produktdaten aus einer Excel-Datei
+ * @param file Excel-Datei mit Produktdaten
+ * @returns Ergebnis des Imports
+ */
+export async function importProductsFromExcel(file: File): Promise<{success: boolean, imported: number, errors: any[]}> {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await axios.post(`${API_BASE_URL}/products/import`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('Fehler beim Importieren der Produktdaten:', error);
+    throw error;
+  }
 }
 
 // Synchronisierung

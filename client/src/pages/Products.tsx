@@ -26,7 +26,9 @@ import {
   BarChart,
   Truck,
   Percent,
-  RefreshCw
+  RefreshCw,
+  Upload,
+  FileSpreadsheet
 } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 import { ExportImportButtons } from "@/components/ExportImportButtons";
@@ -52,11 +54,22 @@ import { Slider } from "@/components/ui/slider";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { getProducts, getAllVendonProducts } from "@/lib/api";
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
+import { 
+  getProducts, 
+  getAllVendonProducts, 
+  exportProductsAsExcel, 
+  importProductsFromExcel,
+  Product 
+} from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
-
-// Import die Produkt-Definition aus der API
-import { Product } from "@/lib/api";
 
 // Filter Dialog Komponente
 interface FilterDialogProps {
@@ -323,6 +336,7 @@ export default function Products() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("list");
   const [, setLocation] = useLocation();
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
+  const { toast } = useToast();
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -816,8 +830,106 @@ export default function Products() {
               <TooltipContent>{viewMode === "grid" ? "Listenansicht" : "Kachelansicht"}</TooltipContent>
             </Tooltip>
             
-            {/* Alle Buttons für Inventurbericht, Export/Import und Neues Produkt wurden entfernt,
-                da Produkte nur über Vendon Import kommen sollen */}
+            {/* Export/Import-Funktionen */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-9 w-9"
+                    >
+                      <Download className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Produktdaten</DropdownMenuLabel>
+                    <DropdownMenuItem 
+                      onClick={async () => {
+                        try {
+                          const blob = await exportProductsAsExcel();
+                          const url = window.URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `produkte-export-${new Date().toISOString().split('T')[0]}.xlsx`;
+                          document.body.appendChild(a);
+                          a.click();
+                          window.URL.revokeObjectURL(url);
+                          document.body.removeChild(a);
+                          
+                          toast({
+                            title: "Export erfolgreich",
+                            description: "Die Produktdaten wurden erfolgreich exportiert.",
+                            variant: "success",
+                          });
+                        } catch (error) {
+                          console.error("Fehler beim Export:", error);
+                          toast({
+                            title: "Export fehlgeschlagen",
+                            description: "Beim Export der Produktdaten ist ein Fehler aufgetreten.",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                    >
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />
+                      Produkte als Excel exportieren
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => {
+                        // Datei-Input-Element erstellen
+                        const fileInput = document.createElement('input');
+                        fileInput.type = 'file';
+                        fileInput.accept = '.xlsx, .xls';
+                        
+                        // Dateiauswahl-Event-Handler
+                        fileInput.onchange = async (e) => {
+                          const files = (e.target as HTMLInputElement).files;
+                          if (files && files.length > 0) {
+                            const file = files[0];
+                            try {
+                              const result = await importProductsFromExcel(file);
+                              if (result.success) {
+                                toast({
+                                  title: "Import erfolgreich",
+                                  description: `${result.imported} Produkte wurden erfolgreich importiert.`,
+                                  variant: "success",
+                                });
+                                
+                                // Produkte neu laden
+                                window.location.reload();
+                              } else {
+                                toast({
+                                  title: "Import teilweise fehlgeschlagen",
+                                  description: `Es sind Fehler aufgetreten. ${result.imported} Produkte wurden importiert.`,
+                                  variant: "warning",
+                                });
+                              }
+                            } catch (error) {
+                              console.error("Fehler beim Import:", error);
+                              toast({
+                                title: "Import fehlgeschlagen",
+                                description: "Beim Import der Produktdaten ist ein Fehler aufgetreten.",
+                                variant: "destructive",
+                              });
+                            }
+                          }
+                        };
+                        
+                        // Dateiauswahl-Dialog öffnen
+                        fileInput.click();
+                      }}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Produkte aus Excel importieren
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TooltipTrigger>
+              <TooltipContent>Export/Import</TooltipContent>
+            </Tooltip>
           </TooltipProvider>
         </div>
       </div>

@@ -557,6 +557,146 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Produkt-Export als Excel
+  app.get(`${API_PREFIX}/products/export`, async (req: Request, res: Response) => {
+    try {
+      // XLSX Modul importieren
+      const XLSX = require('xlsx');
+      
+      // Alle Produkte ohne Limit abrufen
+      const productsResponse = await storage.getProducts({
+        limit: 9999
+      });
+      
+      // Stelle sicher, dass wir ein Array erhalten
+      let products: any[] = [];
+      if (Array.isArray(productsResponse)) {
+        products = productsResponse;
+      } else if (productsResponse.data && Array.isArray(productsResponse.data)) {
+        products = productsResponse.data;
+      }
+      
+      // Transformiere Daten für Excel (entferne nicht benötigte Felder)
+      const exportData = products.map(product => ({
+        ID: product.id,
+        VendonID: product.vendonId || '',
+        Produktname: product.productName,
+        Artikelnummer: product.sku || '',
+        Barcode: product.barcode || '',
+        Kategorie: product.category || '',
+        Preis: product.price || 0,
+        MwSt: product.vat || 0,
+        Beschreibung: product.description || '',
+        Lagerbestand: product.inStock || 0,
+        Mindestbestand: product.amountMinimum || 0,
+        KritischerBestand: product.amountCritical || 0,
+        AltersprüfungErforderlich: product.requiresAgeVerification ? 'Ja' : 'Nein',
+        Lieferant: product.supplier || '',
+        Status: product.status || 'aktiv'
+      }));
+      
+      // Erstelle ein Arbeitsblatt
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      
+      // Erstelle ein Arbeitsbuch und füge das Arbeitsblatt hinzu
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Produkte');
+      
+      // Erstelle einen Buffer für die Excel-Datei
+      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+      
+      // Setze die Header für den Download
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=produkte-export-${new Date().toISOString().split('T')[0]}.xlsx`);
+      
+      // Sende die Excel-Datei
+      res.send(excelBuffer);
+    } catch (error) {
+      console.error('Error exporting products:', error);
+      res.status(500).json({ error: 'Fehler beim Exportieren der Produkte' });
+    }
+  });
+  
+  // Produkt-Import aus Excel
+  app.post(`${API_PREFIX}/products/import`, async (req: Request, res: Response) => {
+    try {
+      // Prüfe, ob Express-Fileupload installiert und konfiguriert ist
+      if (!req.files || Object.keys(req.files).length === 0) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Keine Datei hochgeladen' 
+        });
+      }
+      
+      // XLSX Modul importieren
+      const XLSX = require('xlsx');
+      
+      // Zugriff auf die hochgeladene Datei
+      const uploadedFile = req.files.file;
+      
+      // Arbeitsmappe aus der Datei lesen
+      const workbook = XLSX.read(uploadedFile.data, { type: 'buffer' });
+      
+      // Erstes Arbeitsblatt lesen
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      
+      // Daten aus dem Arbeitsblatt als JSON extrahieren
+      const importData = XLSX.utils.sheet_to_json(worksheet);
+      
+      // Zähle importierte und fehlerhafte Produkte
+      const results = {
+        success: true,
+        imported: 0,
+        errors: [] as any[]
+      };
+      
+      // Importiere jedes Produkt
+      for (const row of importData) {
+        try {
+          // Transformiere Excel-Daten zurück in das Produktformat
+          const product = {
+            id: row.ID,
+            vendonId: row.VendonID || row.ID.toString(), // Fallback zur ID
+            productName: row.Produktname,
+            sku: row.Artikelnummer,
+            barcode: row.Barcode,
+            category: row.Kategorie,
+            price: row.Preis,
+            vat: row.MwSt,
+            description: row.Beschreibung,
+            inStock: row.Lagerbestand,
+            amountMinimum: row.Mindestbestand,
+            amountCritical: row.KritischerBestand,
+            requiresAgeVerification: row.AltersprüfungErforderlich === 'Ja',
+            supplier: row.Lieferant,
+            status: row.Status || 'aktiv'
+          };
+          
+          // Aktualisiere das Produkt in der Datenbank
+          await storage.updateProduct(product.id, product);
+          results.imported++;
+        } catch (error) {
+          console.error('Error importing product:', error, row);
+          results.errors.push({
+            row,
+            error: error instanceof Error ? error.message : 'Unbekannter Fehler'
+          });
+        }
+      }
+      
+      // Erfolgsmeldung senden
+      res.json(results);
+    } catch (error) {
+      console.error('Error importing products:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Fehler beim Importieren der Produkte', 
+        details: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+      });
+    }
+  });
+  
   // Get product by ID
   app.get(`${API_PREFIX}/products/:id`, async (req: Request, res: Response) => {
     try {
