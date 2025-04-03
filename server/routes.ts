@@ -895,13 +895,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get product by ID
   app.get(`${API_PREFIX}/products/:id`, async (req: Request, res: Response) => {
     try {
-      const productId = parseInt(req.params.id);
+      const productId = req.params.id;
       
-      if (isNaN(productId)) {
-        return res.status(400).json({ error: "Invalid product ID" });
+      // Versuchen, das Produkt erst als Nummer abzurufen
+      let product = null;
+      
+      if (!isNaN(Number(productId))) {
+        // Wenn es eine gültige Nummer ist, konvertiere und rufe als Nummer ab
+        product = await storage.getProduct(Number(productId));
       }
       
-      const product = await storage.getProduct(productId);
+      // Wenn kein Produkt gefunden wurde, versuche es direkt mit der String-ID
+      if (!product) {
+        product = await storage.getProduct(productId);
+      }
       
       if (!product) {
         return res.status(404).json({ error: "Product not found" });
@@ -920,26 +927,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Produkt-Verkaufsdaten abrufen
   app.get(`${API_PREFIX}/products/:id/sales`, async (req: Request, res: Response) => {
     try {
-      const productId = parseInt(req.params.id);
+      const productId = req.params.id;
       const period = req.query.period as 'day' | 'week' | 'month' | 'year' || 'month';
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 1000;
       
-      if (isNaN(productId)) {
-        return res.status(400).json({ error: "Invalid product ID" });
+      // Produkt abrufen, um zu überprüfen, ob es existiert
+      let product = null;
+      let numericId = null;
+      
+      if (!isNaN(Number(productId))) {
+        numericId = Number(productId);
+        product = await storage.getProduct(numericId);
       }
       
-      // Produkt abrufen, um zu überprüfen, ob es existiert
-      const product = await storage.getProduct(productId);
+      // Wenn kein Produkt gefunden wurde, versuche es direkt mit der String-ID
+      if (!product) {
+        product = await storage.getProduct(productId);
+      }
       
       if (!product) {
         return res.status(404).json({ error: "Product not found" });
       }
       
+      // Verwende die ID, mit der das Produkt gefunden wurde
+      const idToUse = numericId !== null ? numericId : product.id;
+      
       // Transaktionen des Produkts mit Limit abrufen
       // Der verbesserte getTransactionsByProduct sucht nun auch nach dem Produktnamen
-      const transactions = await storage.getTransactionsByProduct(productId, limit);
+      const transactions = await storage.getTransactionsByProduct(idToUse, limit);
       
-      console.log(`Gefundene Transaktionen für Produkt ${productId} (${product.productName}): ${transactions.length}`);
+      console.log(`Gefundene Transaktionen für Produkt ${idToUse} (${product.productName}): ${transactions.length}`);
       
       if (!transactions || transactions.length === 0) {
         return res.json([]);
@@ -961,21 +978,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Automaten für ein Produkt abrufen
   app.get(`${API_PREFIX}/products/:id/machines`, async (req: Request, res: Response) => {
     try {
-      const productId = parseInt(req.params.id);
-      
-      if (isNaN(productId)) {
-        return res.status(400).json({ error: "Invalid product ID" });
-      }
+      const productId = req.params.id;
       
       // Produkt abrufen, um zu überprüfen, ob es existiert
-      const product = await storage.getProduct(productId);
+      let product = null;
+      let numericId = null;
+      
+      if (!isNaN(Number(productId))) {
+        numericId = Number(productId);
+        product = await storage.getProduct(numericId);
+      }
+      
+      // Wenn kein Produkt gefunden wurde, versuche es direkt mit der String-ID
+      if (!product) {
+        product = await storage.getProduct(productId);
+      }
       
       if (!product) {
         return res.status(404).json({ error: "Product not found" });
       }
       
+      // Verwende die ID, mit der das Produkt gefunden wurde
+      const idToUse = numericId !== null ? numericId : product.id;
+      
       // Automaten abrufen, die dieses Produkt enthalten
-      const machines = await storage.getProductMachines(productId);
+      const machines = await storage.getProductMachines(idToUse);
       
       res.json(machines);
     } catch (error) {
@@ -991,21 +1018,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update product by ID
   app.put(`${API_PREFIX}/products/:id`, async (req: Request, res: Response) => {
     try {
-      const productId = parseInt(req.params.id);
+      const productId = req.params.id;
       
-      if (isNaN(productId)) {
-        return res.status(400).json({ error: "Invalid product ID" });
+      // Produkt abrufen, um zu überprüfen, ob es existiert
+      let existingProduct = null;
+      let numericId = null;
+      
+      if (!isNaN(Number(productId))) {
+        numericId = Number(productId);
+        existingProduct = await storage.getProduct(numericId);
       }
       
-      // Überprüfen ob das Produkt existiert
-      const existingProduct = await storage.getProduct(productId);
+      // Wenn kein Produkt gefunden wurde, versuche es direkt mit der String-ID
+      if (!existingProduct) {
+        existingProduct = await storage.getProduct(productId);
+      }
       
       if (!existingProduct) {
         return res.status(404).json({ error: "Product not found" });
       }
       
+      // Verwende die ID, mit der das Produkt gefunden wurde
+      const idToUse = numericId !== null ? numericId : existingProduct.id;
+      
       // Aktualisiere das Produkt
-      const updatedProduct = await storage.updateProduct(productId, req.body);
+      const updatedProduct = await storage.updateProduct(idToUse, req.body);
       
       res.json(updatedProduct);
     } catch (error) {
@@ -1019,22 +1056,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get(`${API_PREFIX}/products/:id/refills`, async (req: Request, res: Response) => {
     try {
-      const productId = parseInt(req.params.id);
+      const productId = req.params.id;
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 100;
       
-      if (isNaN(productId)) {
-        return res.status(400).json({ error: "Invalid product ID" });
+      // Produkt abrufen, um zu überprüfen, ob es existiert
+      let product = null;
+      let numericId = null;
+      
+      if (!isNaN(Number(productId))) {
+        numericId = Number(productId);
+        product = await storage.getProduct(numericId);
       }
       
-      // Produkt abrufen, um zu überprüfen, ob es existiert
-      const product = await storage.getProduct(productId);
+      // Wenn kein Produkt gefunden wurde, versuche es direkt mit der String-ID
+      if (!product) {
+        product = await storage.getProduct(productId);
+      }
       
       if (!product) {
         return res.status(404).json({ error: "Product not found" });
       }
       
+      // Verwende die ID, mit der das Produkt gefunden wurde
+      const idToUse = numericId !== null ? numericId : product.id;
+      
       // Auffüllungen für dieses Produkt abrufen
-      const refills = await storage.getProductRefills(productId, limit);
+      const refills = await storage.getProductRefills(idToUse, limit);
       
       res.json(refills);
     } catch (error) {

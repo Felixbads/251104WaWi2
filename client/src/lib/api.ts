@@ -563,7 +563,7 @@ export async function getProducts(params?: {
   return apiRequest<ProductsResponse>('get', url);
 }
 
-export async function getProduct(id: string): Promise<Product> {
+export async function getProduct(id: string | number): Promise<Product> {
   return apiRequest<Product>('get', `/products/${id}`);
 }
 

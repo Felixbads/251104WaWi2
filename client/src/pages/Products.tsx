@@ -341,7 +341,19 @@ export default function Products() {
   const viewMode = "list" as "list" | "grid";
   const [, setLocation] = useLocation();
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
+  const [isScannerDialogOpen, setScannerDialogOpen] = useState(false);
   const { toast } = useToast();
+  
+  // Funktion zum Verarbeiten nach einem erfolgreichen Import
+  const handleSuccessfulImport = () => {
+    toast({
+      title: "Import erfolgreich",
+      description: "Die Produkte wurden erfolgreich importiert. Die Seite wird aktualisiert.",
+    });
+    // Query-Cache invalidieren, um die Daten neu zu laden
+    queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+    queryClient.invalidateQueries({ queryKey: ['/api/vendon/products'] });
+  };
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -368,14 +380,14 @@ export default function Products() {
     }),
   });
   
-  // Alle Vendon-Produkte abrufen (mit Paginierung)
+  // Alle Vendon-Produkte abrufen
   const { 
     data: vendonProducts, 
     isLoading: isLoadingVendonProducts,
     error: vendonProductsError
   } = useQuery({
     queryKey: ['/api/vendon/products'],
-    queryFn: () => getAllVendonProducts(0, 500) // Erster Parameter ist 'page', zweiter ist 'limit'
+    queryFn: () => getAllVendonProducts() // Keine Parameter benötigt
   });
   
   // Logging in einem Effekt statt in den Query-Optionen
@@ -771,11 +783,7 @@ export default function Products() {
     }
   };
 
-  // Callback für erfolgreichen Import
-  const handleSuccessfulImport = () => {
-    // Daten nach dem Import neu laden
-    queryClient.invalidateQueries({ queryKey: ['/api/products'] });
-  };
+  // Wir verwenden die bereits definierte handleSuccessfulImport-Funktion
 
   return (
     <div className="space-y-6">
@@ -1037,6 +1045,47 @@ export default function Products() {
           </div>
         </div>
       )}
+      
+      {/* Barcode-Scanner Dialog */}
+      <Dialog open={isScannerDialogOpen} onOpenChange={setScannerDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Barcode Scanner</DialogTitle>
+            <DialogDescription>
+              Scanne einen Barcode, um ein Produkt zu finden oder gib den Barcode manuell ein.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center space-x-2">
+            <div className="grid flex-1 gap-2">
+              <Input
+                placeholder="Barcode eingeben..."
+                className="flex-1"
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  if (e.target.value.length > 3) {
+                    // Automatisch nach Eingabe suchen
+                    setScannerDialogOpen(false);
+                  }
+                }}
+              />
+            </div>
+            <Button 
+              type="submit" 
+              onClick={() => setScannerDialogOpen(false)}
+            >
+              Suchen
+            </Button>
+          </div>
+          <div className="flex justify-center border-2 border-dashed rounded-md p-6 my-4">
+            <ScanBarcode className="h-16 w-16 text-gray-400" />
+          </div>
+          <DialogDescription className="text-center">
+            Kamera-Zugriff ist erforderlich für Barcode-Scanning.
+            <br />
+            <span className="text-xs text-gray-500">(Funktion wird in einer späteren Version implementiert)</span>
+          </DialogDescription>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
