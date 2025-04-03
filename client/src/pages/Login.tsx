@@ -53,8 +53,8 @@ export default function Login() {
       const success = await login(data);
       
       if (success) {
-        // Sofort zum Dashboard weiterleiten, nicht auf React-Effekte warten
-        window.location.replace('/dashboard');
+        // Sofort zur Login-Seite (mit Dashboard) weiterleiten, nicht auf React-Effekte warten
+        window.location.replace('/login');
       } else {
         // Fehler wird bereits in der Login-Funktion über Toast angezeigt
         setIsFormSubmitting(false);
