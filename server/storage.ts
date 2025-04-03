@@ -1183,9 +1183,31 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateProduct(id: number, product: Partial<InsertProduct>): Promise<Product | undefined> {
+    let updateData = { ...product, updatedAt: new Date() };
+    
+    // Wenn eine supplierId vorhanden ist, aktualisiere supplierName
+    if (product.supplierId) {
+      try {
+        // Lieferanten abrufen
+        const supplier = await this.getSupplier(product.supplierId);
+        console.log(`Lieferant für ID ${product.supplierId}:`, supplier);
+        if (supplier) {
+          // SupplierName mit dem Namen des Lieferanten aktualisieren
+          updateData.supplierName = supplier.name;
+        }
+      } catch (error) {
+        console.error(`Fehler beim Abrufen des Lieferanten für ID ${product.supplierId}:`, error);
+      }
+    } else if (product.supplierId === null) {
+      // Wenn supplierId auf null gesetzt wird, auch supplierName zurücksetzen
+      updateData.supplierName = null;
+    }
+    
+    console.log("Update data:", updateData);
+    
     const [updatedProduct] = await db
       .update(products)
-      .set({ ...product, updatedAt: new Date() })
+      .set(updateData)
       .where(eq(products.id, id))
       .returning();
     return updatedProduct;
@@ -1557,6 +1579,11 @@ export class DatabaseStorage implements IStorage {
   async getSupplierById(id: number): Promise<Supplier | undefined> {
     const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, id));
     return supplier;
+  }
+  
+  // Alias für getSupplierById für Kompatibilität
+  async getSupplier(id: number): Promise<Supplier | undefined> {
+    return this.getSupplierById(id);
   }
   
   async createSupplier(supplier: InsertSupplier): Promise<Supplier> {
