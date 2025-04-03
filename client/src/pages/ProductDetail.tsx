@@ -1312,7 +1312,7 @@ export default function ProductDetail() {
                         // Dialog zum Bearbeiten/Hinzufügen einer Einkaufsbedingung
                         const ConditionDialog = () => (
                           <Dialog open={showAddConditionDialog} onOpenChange={setShowAddConditionDialog}>
-                            <DialogContent className="max-w-2xl">
+                            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
                               <DialogHeader>
                                 <DialogTitle>
                                   {selectedCondition ? 'Einkaufsbedingung bearbeiten' : 'Neue Einkaufsbedingung'}

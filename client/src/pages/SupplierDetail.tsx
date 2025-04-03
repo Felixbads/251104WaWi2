@@ -1275,7 +1275,7 @@ export default function SupplierDetail() {
 
       {/* Dialog zum Erstellen einer neuen Einkaufsbedingung */}
       <Dialog open={showAddPurchaseCondition} onOpenChange={setShowAddPurchaseCondition}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Neue Einkaufsbedingung erstellen</DialogTitle>
             <DialogDescription>
@@ -1293,7 +1293,7 @@ export default function SupplierDetail() {
 
       {/* Dialog zum Bearbeiten einer Einkaufsbedingung */}
       <Dialog open={!!editingPurchaseCondition} onOpenChange={(open) => !open && setEditingPurchaseCondition(null)}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Einkaufsbedingung bearbeiten</DialogTitle>
             <DialogDescription>
