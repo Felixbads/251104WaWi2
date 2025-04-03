@@ -147,28 +147,58 @@ export default function PurchaseConditionForm({
   }, [form.getValues('productId'), products]);
 
   const handleSubmit = (values: PurchaseConditionFormValues) => {
-    // Wenn kein validFrom angegeben ist, setzen wir es auf das aktuelle Datum
-    // und wenn kein validTo angegeben ist, bleibt es undefined (unbegrenzt gültig)
-    const formData = {
+    // Validierung der Pflichtfelder
+    if (!values.productId) {
+      form.setError("productId", {
+        type: "manual",
+        message: "Bitte wählen Sie ein Produkt aus.",
+      });
+      return;
+    }
+    
+    if (!values.unitPrice && values.unitPrice !== 0) {
+      form.setError("unitPrice", {
+        type: "manual",
+        message: "Bitte geben Sie einen Einheitspreis an.",
+      });
+      return;
+    }
+    
+    // Explizit Date-Objekte erstellen für korrekte Serialisierung zum Server
+    const dateValidFrom = values.validFrom ? new Date(values.validFrom) : new Date();
+    const dateValidTo = values.validTo ? new Date(values.validTo) : null;
+    
+    // Zuerst die Daten für die Konsole formatieren und ausgeben (zum Debugging)
+    console.log("Erstelle Einkaufsbedingung mit Daten:", {
       ...values,
-      // Stellen sicher, dass Datumsobjekte korrekt formatiert sind
-      validFrom: values.validFrom ? values.validFrom : new Date(), // Falls nicht gesetzt, ab heute gültig
-      validTo: values.validTo || undefined, // Falls nicht gesetzt, unbegrenzt gültig
+      productId: typeof values.productId === 'string' ? parseInt(values.productId) : values.productId,
+      unitPrice: typeof values.unitPrice === 'string' ? parseFloat(values.unitPrice) : values.unitPrice,
       supplierId,
       id: initialData?.id,
-      // Sicherstellen, dass die neuen Felder korrekt übertragen werden
+      validFrom: dateValidFrom.toISOString(),
+      validTo: dateValidTo ? dateValidTo.toISOString() : undefined,
       taxRate: values.taxRate || 19,
       packagingUnit: values.packagingUnit || '',
       packagingQuantity: values.packagingQuantity || 1,
-      // Konvertiere Strings zu Zahlen, falls nötig
-      unitPrice: typeof values.unitPrice === 'string' ? parseFloat(values.unitPrice) : values.unitPrice,
       minQuantity: typeof values.minQuantity === 'string' ? parseInt(values.minQuantity as string) : values.minQuantity,
-      // Setze isPreferred als Flag, wenn es im Schema vorkommt
+      isPreferred: false
+    });
+    
+    // Formatierte Daten für die API mit ISO-String-Format für Datumswerte
+    const formData = {
+      ...values,
+      productId: typeof values.productId === 'string' ? parseInt(values.productId) : values.productId,
+      unitPrice: typeof values.unitPrice === 'string' ? parseFloat(values.unitPrice) : values.unitPrice,
+      supplierId,
+      id: initialData?.id,
+      validFrom: dateValidFrom.toISOString(),  // ISO-String-Format für den Server
+      validTo: dateValidTo ? dateValidTo.toISOString() : undefined,  // ISO-String-Format oder undefined
+      taxRate: values.taxRate || 19,
+      packagingUnit: values.packagingUnit || '',
+      packagingQuantity: values.packagingQuantity || 1,
+      minQuantity: typeof values.minQuantity === 'string' ? parseInt(values.minQuantity as string) : values.minQuantity,
       isPreferred: false
     };
-    
-    // Loggen der Daten zum Debugging
-    console.log("Erstelle Einkaufsbedingung mit Daten:", formData);
     
     onSubmit(formData);
   };

@@ -89,20 +89,77 @@ export function PurchaseConditionForm({
     try {
       setIsSubmitting(true);
       
+      // Validierung der Pflichtfelder
+      if (!data.productId) {
+        toast({
+          title: "Fehler",
+          description: "Bitte wählen Sie ein Produkt aus.",
+          variant: "destructive"
+        });
+        setIsSubmitting(false);
+        return;
+      }
+      
+      if (!data.unitPrice && data.unitPrice !== 0) {
+        toast({
+          title: "Fehler",
+          description: "Bitte geben Sie einen Einheitspreis an.",
+          variant: "destructive"
+        });
+        setIsSubmitting(false);
+        return;
+      }
+      
+      // Stelle sicher, dass supplierId vorhanden ist
+      if (!supplierId && !data.supplierId) {
+        toast({
+          title: "Fehler",
+          description: "Fehler: Kein Lieferant ausgewählt.",
+          variant: "destructive"
+        });
+        setIsSubmitting(false);
+        return;
+      }
+      
       // Datumsfelder und numerische Werte korrekt formatieren
-      const formattedData = {
+      // Explizit Date-Objekte erstellen für korrekte Serialisierung zum Server
+      const dateValidFrom = data.validFrom ? new Date(data.validFrom) : new Date();
+      const dateValidTo = data.validTo ? new Date(data.validTo) : null;
+      
+      console.log("Erstelle Einkaufsbedingung mit Daten:", {
         ...data,
-        // Sicherstellen, dass Datumsfelder korrekt formatiert sind
-        validFrom: data.validFrom ? data.validFrom : new Date(),
-        validTo: data.validTo || undefined,
-        // Konvertiere Strings zu Zahlen, falls nötig
+        productId: typeof data.productId === 'string' ? parseInt(data.productId) : data.productId,
+        supplierId: supplierId,
         unitPrice: typeof data.unitPrice === 'string' ? parseFloat(data.unitPrice) : data.unitPrice,
-        minQuantity: typeof data.minQuantity === 'string' ? parseInt(data.minQuantity as string) : data.minQuantity,
-        // Setze isPreferred falls nicht definiert
+        taxRate: data.taxRate || 19,
+        grossPrice: data.grossPrice || null,
+        packagingUnit: data.packagingUnit || "Stück",
+        packagingQuantity: data.packagingQuantity || 1,
+        minQuantity: typeof data.minQuantity === 'string' ? parseInt(data.minQuantity) : (data.minQuantity || 0),
+        validFrom: dateValidFrom.toISOString(),
+        validTo: dateValidTo ? dateValidTo.toISOString() : undefined,
+        notes: data.notes || "",
+        supplierId: supplierId,
+        isPreferred: data.isPreferred || false
+      });
+      
+      // formatierte Daten für die API
+      const formattedData = {
+        productId: typeof data.productId === 'string' ? parseInt(data.productId) : data.productId,
+        supplierId: supplierId,
+        unitPrice: typeof data.unitPrice === 'string' ? parseFloat(data.unitPrice) : data.unitPrice,
+        taxRate: data.taxRate || 19,
+        grossPrice: data.grossPrice || null,
+        packagingUnit: data.packagingUnit || "Stück",
+        packagingQuantity: data.packagingQuantity || 1,
+        minQuantity: typeof data.minQuantity === 'string' ? parseInt(data.minQuantity) : (data.minQuantity || 0),
+        validFrom: dateValidFrom.toISOString(),
+        validTo: dateValidTo ? dateValidTo.toISOString() : undefined,
+        notes: data.notes || "",
         isPreferred: data.isPreferred || false
       };
       
-      console.log("Formatierte Daten für API:", formattedData);
+      console.log("Formatierte Daten:", formattedData);
 
       if (existingCondition) {
         // Bestehende Bedingung aktualisieren
