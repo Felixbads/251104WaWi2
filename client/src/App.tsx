@@ -102,15 +102,7 @@ function AuthenticatedRouter() {
         </Route>
         
         <Route path="/">
-          <script dangerouslySetInnerHTML={{ __html: `
-            window.location.href = '/dashboard';
-          `}} />
-          <div className="flex items-center justify-center h-screen">
-            <div className="flex flex-col items-center space-y-4">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-              <div className="text-xl font-semibold">Weiterleitung zum Dashboard...</div>
-            </div>
-          </div>
+          <Redirect to="/dashboard" />
         </Route>
         
         <Route path="/transactions">
@@ -309,27 +301,15 @@ function PublicRouter() {
   // Beim Rendern überprüfen wir die aktuelle URL 
   const [location] = useLocation();
   
-  // Bei Direktaufruf von / sofort zur Login-Seite umleiten
-  useEffect(() => {
-    if (location === '/') {
-      window.location.replace('/login');
-    }
-  }, [location]);
+  // Wir können die automatischen Weiterleitungen entfernen, 
+  // da sie bereits durch Router-Komponenten besser umgesetzt werden
   
   return (
     <Switch>
       <Route path="/login" component={() => <PublicRoute component={Login} />} />
       <Route path="/register" component={() => <PublicRoute component={Register} />} />
       <Route path="/">
-        <script dangerouslySetInnerHTML={{ __html: `
-          window.location.replace('/login');
-        `}} />
-        <div className="flex items-center justify-center h-screen">
-          <div className="flex flex-col items-center space-y-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-            <div className="text-xl font-semibold">Weiterleitung...</div>
-          </div>
-        </div>
+        <Redirect to="/login" />
       </Route>
     </Switch>
   );
@@ -352,15 +332,8 @@ function MainRouter() {
   const { isAuthenticated, user, isLoading } = useAuth();
   console.log("Auth status:", { isAuthenticated, user });
   
-  // Auto-Weiterleitung zum Dashboard, wenn bereits authentifiziert
-  useEffect(() => {
-    // Wenn der Benutzer bereits authentifiziert ist und auf der Hauptseite oder Login-Seite...
-    if (isAuthenticated && !isLoading && user?.approved && 
-        (window.location.pathname === '/' || window.location.pathname === '/login')) {
-      // ...direkt zum Dashboard weiterleiten ohne Router-Umweg
-      window.location.replace('/dashboard');
-    }
-  }, [isAuthenticated, isLoading, user]);
+  // Hier entfernen wir die automatische Weiterleitung, um mehrfache Weiterleitungen zu vermeiden
+  // Die Navigation wird durch den Router basierend auf isAuthenticated gesteuert
   
   // Während des Ladens zeigen wir einen Ladebildschirm an
   if (isLoading) {

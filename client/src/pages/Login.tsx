@@ -33,13 +33,8 @@ export default function Login() {
   const [isFormSubmitting, setIsFormSubmitting] = useState(false);
   const { login, isAuthenticated, isLoading } = useAuth();
 
-  // Sofortige Weiterleitung nach Login zum Dashboard
-  useEffect(() => {
-    if (isAuthenticated) {
-      // Direkte Weiterleitung ohne Umwege zum Dashboard
-      window.location.replace('/dashboard');
-    }
-  }, [isAuthenticated]);
+  // Keine automatische Weiterleitung per useEffect mehr
+  // Die Weiterleitung erfolgt nur noch direkt im erfolgreichen Login-Handler
 
   // Form-Handling mit react-hook-form und zod-Validierung
   const form = useForm<LoginFormValues>({
