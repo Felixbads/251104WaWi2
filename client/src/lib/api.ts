@@ -570,6 +570,10 @@ export async function getProductMachines(productId: string): Promise<{machineId:
   );
 }
 
+export async function createProduct(productData: Partial<Product>): Promise<Product> {
+  return apiRequest<Product>('post', `/products`, productData);
+}
+
 export async function updateProduct(id: string, productData: Partial<Product>): Promise<Product> {
   return apiRequest<Product>('put', `/products/${id}`, productData);
 }

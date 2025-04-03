@@ -554,7 +554,7 @@ export default function Products() {
     : [];
 
   // Product Card Component
-  const ProductCard = ({ product }: { product: Product }) => {
+  const ProductCard = ({ product, setLocation }: { product: Product, setLocation: (path: string) => void }) => {
     // Extrahiere Tags, wenn vorhanden
     const tags = product.tags ? JSON.parse(product.tags) : [];
     const isAlcohol = tags.includes('alcohol') || product.requiresAgeVerification;
@@ -638,7 +638,7 @@ export default function Products() {
   };
 
   // Product List Item Component
-  const ProductListItem = ({ product }: { product: Product }) => {
+  const ProductListItem = ({ product, setLocation }: { product: Product, setLocation: (path: string) => void }) => {
     // Extrahiere Tags, wenn vorhanden
     const tags = product.tags ? JSON.parse(product.tags) : [];
     const isAlcohol = tags.includes('alcohol') || product.requiresAgeVerification;
@@ -776,26 +776,26 @@ export default function Products() {
 
   return (
     <div className="space-y-6">
-      {/* Suchleiste und Export/Import-Buttons */}
-      <div className="w-full mb-6 flex justify-between">
-        <div className="relative flex-1 mr-4">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            value={searchTerm}
-            placeholder="Nach Produkten suchen..."
-            className="pl-8 h-9 w-full"
-            onChange={(e) => setSearchTerm(e.target.value)}
+      {/* Page Header */}
+      <PageHeader 
+        title="Produkte"
+        showSearch={true}
+        showFilter={true}
+        showAdd={true}
+        searchPlaceholder="Nach Produkten suchen..."
+        onSearch={setSearchTerm}
+        onFilter={() => setIsFilterDialogOpen(true)}
+        onAdd={() => setLocation("/produkte/neu")}
+        activeFilters={activeFilters}
+        onClearFilter={clearFilter}
+        additionalButtons={
+          <ExportImportButtons 
+            type="products" 
+            label="Produkte" 
+            onSuccessfulImport={handleSuccessfulImport}
           />
-        </div>
-        
-        {/* Export/Import Buttons */}
-        <ExportImportButtons 
-          type="products" 
-          label="Produkte" 
-          onSuccessfulImport={handleSuccessfulImport}
-        />
-      </div>
+        }
+      />
       
       {/* Aktive Filter anzeigen */}
       {activeFilters.length > 0 && (
@@ -888,7 +888,7 @@ export default function Products() {
       {!isLoading && !error && viewMode === "grid" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {(filteredProducts as Product[]).map((product: Product) => (
-            <ProductCard key={product.id} product={product} />
+            <ProductCard key={product.id} product={product} setLocation={setLocation} />
           ))}
         </div>
       )}
@@ -896,7 +896,7 @@ export default function Products() {
       {!isLoading && !error && viewMode === "list" && (
         <div className="border rounded-md divide-y">
           {(filteredProducts as Product[]).map((product: Product) => (
-            <ProductListItem key={product.id} product={product} />
+            <ProductListItem key={product.id} product={product} setLocation={setLocation} />
           ))}
         </div>
       )}
