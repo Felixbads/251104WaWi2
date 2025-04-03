@@ -3,7 +3,6 @@ export interface User {
   id: number;
   username: string;
   email: string;
-  name?: string;
   role: string;
   approved?: boolean;
   approvedBy?: number;
@@ -39,6 +38,5 @@ export interface RegisterFormValues {
   email: string;
   password: string;
   confirmPassword: string;
-  name: string;
   role?: string;
 }

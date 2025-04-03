@@ -218,7 +218,6 @@ export default function UserManagement() {
                     <TableRow key={user.id}>
                       <TableCell>
                         <div className="font-medium">{user.username}</div>
-                        <div className="text-sm text-muted-foreground">{user.name}</div>
                       </TableCell>
                       <TableCell>{user.email}</TableCell>
                       <TableCell>

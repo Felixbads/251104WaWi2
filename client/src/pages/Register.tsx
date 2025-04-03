@@ -24,7 +24,6 @@ const registerSchema = z.object({
   email: z.string().email("Bitte geben Sie eine gültige E-Mail-Adresse ein"),
   password: z.string().min(6, "Passwort muss mindestens 6 Zeichen lang sein"),
   confirmPassword: z.string(),
-  name: z.string().min(1, "Name ist erforderlich"),
   role: z.string().default("user"),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwörter stimmen nicht überein",
@@ -47,7 +46,6 @@ export default function Register() {
       email: "",
       password: "",
       confirmPassword: "",
-      name: "",
       role: "user",
     },
   });
@@ -103,18 +101,7 @@ export default function Register() {
                 <p className="text-sm text-red-500">{form.formState.errors.username.message}</p>
               )}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input 
-                id="name"
-                placeholder="Ihr vollständiger Name" 
-                {...form.register("name")}
-                autoComplete="name"
-              />
-              {form.formState.errors.name && (
-                <p className="text-sm text-red-500">{form.formState.errors.name.message}</p>
-              )}
-            </div>
+
             <div className="space-y-2">
               <Label htmlFor="email">E-Mail</Label>
               <Input 

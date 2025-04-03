@@ -46,7 +46,6 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   email: text("email").unique(),
   role: text("role").default("user"),
-  name: text("name"),
   approved: boolean("approved").default(false), // Standardmäßig nicht freigeschaltet
   approvedBy: integer("approved_by").references(() => users.id),
   approvedAt: timestamp("approved_at"),

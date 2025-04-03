@@ -78,7 +78,6 @@ export async function getAllUsers() {
       username: users.username,
       email: users.email,
       role: users.role,
-      name: users.name,
       approved: users.approved,
       approvedAt: users.approvedAt,
       approvedBy: users.approvedBy,
