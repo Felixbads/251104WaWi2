@@ -53,8 +53,9 @@ export default function Login() {
       const success = await login(data);
       
       if (success) {
-        // Sofort zur Login-Seite (mit Dashboard) weiterleiten, nicht auf React-Effekte warten
-        window.location.replace('/login');
+        // Nach erfolgreichem Login machen wir nichts, da der Dashboard-Inhalt direkt angezeigt wird
+        // Wir verwenden keine Weiterleitungen mehr, um unnötige Seitenreloads zu vermeiden
+        setIsFormSubmitting(false);
       } else {
         // Fehler wird bereits in der Login-Funktion über Toast angezeigt
         setIsFormSubmitting(false);
