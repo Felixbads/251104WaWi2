@@ -93,7 +93,7 @@ function AuthenticatedRouter() {
         <Route path="/unauthorized" component={Unauthorized} />
         
         {/* Geschützte Routen, die Freigabe erfordern */}
-        <Route path="/dashboard">
+        <Route path="/login">
           {() => (
             <ApprovedUserRoute>
               <Dashboard />
@@ -101,8 +101,12 @@ function AuthenticatedRouter() {
           )}
         </Route>
         
+        <Route path="/dashboard">
+          <Redirect to="/login" />
+        </Route>
+        
         <Route path="/">
-          <Redirect to="/dashboard" />
+          <Redirect to="/login" />
         </Route>
         
         <Route path="/transactions">
@@ -304,7 +308,9 @@ function PublicRouter() {
   return (
     <Switch>
       {/* Login-Seite zeigt stattdessen direkt das Dashboard mit Login-Formular */}
-      <Route path="/login" component={() => <Dashboard />} />
+      <Route path="/login">
+        {() => <Dashboard />}
+      </Route>
       <Route path="/register" component={() => <PublicRoute component={Register} />} />
       <Route path="/">
         <Redirect to="/login" />
