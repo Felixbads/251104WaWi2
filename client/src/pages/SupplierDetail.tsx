@@ -123,8 +123,9 @@ export default function SupplierDetail() {
   const allProducts = allProductsResponse?.data 
     ? allProductsResponse.data.map((product: any) => ({
         ...product,
-        // Ein Produkt ist zugeordnet, wenn es einen Lieferanten hat UND der Lieferant nicht der aktuell angezeigt ist
-        alreadyAssigned: !!product.supplierId && product.supplierId !== parseInt(id)
+        // Ein Produkt ist "bereits zugeordnet", wenn es einen Lieferanten hat,
+        // aber wir wollen immer noch Produkte, die bereits diesem aktuellen Lieferanten zugeordnet sind, anzeigen können
+        alreadyAssigned: product.supplierId ? product.supplierId !== parseInt(id) : false
       }))
     : [];
   
