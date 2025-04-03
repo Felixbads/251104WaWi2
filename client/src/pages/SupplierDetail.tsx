@@ -147,6 +147,90 @@ export default function SupplierDetail() {
     }
   });
   
+  // Mutation für das Erstellen einer neuen Einkaufsbedingung
+  const createPurchaseConditionMutation = useMutation({
+    mutationFn: (data: Partial<PurchaseCondition>) => 
+      createPurchaseCondition({
+        ...data,
+        supplierId: parseInt(id) // Stellen Sie sicher, dass die Lieferanten-ID gesetzt ist
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Erfolg",
+        description: "Einkaufsbedingung erfolgreich erstellt",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/suppliers/${id}/purchase-conditions`] });
+      setShowAddPurchaseCondition(false);
+    },
+    onError: (error) => {
+      toast({
+        title: "Fehler",
+        description: `Fehler beim Erstellen der Einkaufsbedingung: ${error}`,
+        variant: "destructive",
+      });
+    }
+  });
+  
+  // Mutation für das Aktualisieren einer Einkaufsbedingung
+  const updatePurchaseConditionMutation = useMutation({
+    mutationFn: (data: { id: number, data: Partial<PurchaseCondition> }) => 
+      updatePurchaseCondition(data.id, data.data),
+    onSuccess: () => {
+      toast({
+        title: "Erfolg",
+        description: "Einkaufsbedingung erfolgreich aktualisiert",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/suppliers/${id}/purchase-conditions`] });
+      setEditingPurchaseCondition(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Fehler",
+        description: `Fehler beim Aktualisieren der Einkaufsbedingung: ${error}`,
+        variant: "destructive",
+      });
+    }
+  });
+  
+  // Mutation für das Löschen einer Einkaufsbedingung
+  const deletePurchaseConditionMutation = useMutation({
+    mutationFn: (id: number) => 
+      deletePurchaseCondition(id),
+    onSuccess: () => {
+      toast({
+        title: "Erfolg",
+        description: "Einkaufsbedingung erfolgreich gelöscht",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/suppliers/${id}/purchase-conditions`] });
+      setDeletingPurchaseConditionId(null);
+    },
+    onError: (error) => {
+      toast({
+        title: "Fehler",
+        description: `Fehler beim Löschen der Einkaufsbedingung: ${error}`,
+        variant: "destructive",
+      });
+    }
+  });
+
+  // WICHTIG: Form-Initialisierung erfolgt immer, unabhängig vom Zustand der Komponente
+  // Standardwerte für das Formular definieren
+  const defaultValues = supplier ? {
+    ...supplier,
+    minimumOrderValue: supplier.minimumOrderValue || undefined,
+  } : {
+    name: '',
+    status: 'active',
+    country: 'Deutschland'
+  };
+  
+  // Form Hook für das Bearbeiten des Lieferanten - wird immer initialisiert
+  const form = useForm<SupplierFormValues>({
+    resolver: zodResolver(supplierFormSchema),
+    defaultValues
+  });
+  
+  // Funktionen nach allen Hook-Aufrufen definieren
   const handleBack = () => {
     navigate('/lieferanten');
   };
@@ -159,6 +243,70 @@ export default function SupplierDetail() {
     navigate(`/bestellungen/neu?supplierId=${id}`);
   };
   
+  // Handler für das Absenden des Formulars
+  const onSubmit = (values: SupplierFormValues) => {
+    updateMutation.mutate(values);
+  };
+  
+  // Handler für Einkaufsbedingungen
+  const handleAddPurchaseCondition = () => {
+    setShowAddPurchaseCondition(true);
+  };
+  
+  const handleEditPurchaseCondition = (condition: PurchaseCondition) => {
+    setEditingPurchaseCondition(condition);
+  };
+  
+  const handleDeletePurchaseCondition = (id: number) => {
+    setDeletingPurchaseConditionId(id);
+  };
+  
+  // Handler für die Einkaufsbedingungsformulare
+  const handleCreatePurchaseCondition = (data: any) => {
+    createPurchaseConditionMutation.mutate(data);
+  };
+  
+  const handleUpdatePurchaseCondition = (data: any) => {
+    if (editingPurchaseCondition) {
+      updatePurchaseConditionMutation.mutate({
+        id: editingPurchaseCondition.id,
+        data
+      });
+    }
+  };
+  
+  const handleConfirmDelete = () => {
+    if (deletingPurchaseConditionId) {
+      deletePurchaseConditionMutation.mutate(deletingPurchaseConditionId);
+    }
+  };
+  
+  // Helper für den Status
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "active":
+        return <Badge className="bg-green-500">Aktiv</Badge>;
+      case "inactive":
+        return <Badge variant="secondary">Inaktiv</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+  
+  // Refreshing function für die Daten
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
+  // Export function 
+  const handleExport = () => {
+    toast({
+      title: "Info",
+      description: "Export-Funktion wird implementiert."
+    });
+  };
+  
+  // Rendering-Bedingungen nach dem Definieren aller Hooks und Funktionen
   if (isLoading) {
     return (
       <div className="container space-y-6">
@@ -228,150 +376,6 @@ export default function SupplierDetail() {
       </div>
     );
   }
-  
-  // Helper für den Status
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "active":
-        return <Badge className="bg-green-500">Aktiv</Badge>;
-      case "inactive":
-        return <Badge variant="secondary">Inaktiv</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-  
-  // Refreshing function für die Daten
-  const handleRefresh = () => {
-    window.location.reload();
-  };
-
-  // Export function 
-  const handleExport = () => {
-    toast({
-      title: "Info",
-      description: "Export-Funktion wird implementiert."
-    });
-  };
-
-  // Form für das Bearbeiten des Lieferanten
-  const defaultValues = supplier ? {
-    ...supplier,
-    minimumOrderValue: supplier.minimumOrderValue || undefined,
-  } : {
-    name: '',
-    status: 'active',
-    country: 'Deutschland'
-  };
-  
-  const form = useForm<SupplierFormValues>({
-    resolver: zodResolver(supplierFormSchema),
-    defaultValues
-  });
-
-  // Handler für das Absenden des Formulars
-  const onSubmit = (values: SupplierFormValues) => {
-    updateMutation.mutate(values);
-  };
-  
-  // Handler für Einkaufsbedingungen
-  const handleAddPurchaseCondition = () => {
-    setShowAddPurchaseCondition(true);
-  };
-  
-  const handleEditPurchaseCondition = (condition: PurchaseCondition) => {
-    setEditingPurchaseCondition(condition);
-  };
-  
-  const handleDeletePurchaseCondition = (id: number) => {
-    setDeletingPurchaseConditionId(id);
-  };
-  
-  // Mutation für das Erstellen einer neuen Einkaufsbedingung
-  const createPurchaseConditionMutation = useMutation({
-    mutationFn: (data: Partial<PurchaseCondition>) => 
-      createPurchaseCondition({
-        ...data,
-        supplierId: parseInt(id) // Stellen Sie sicher, dass die Lieferanten-ID gesetzt ist
-      }),
-    onSuccess: () => {
-      toast({
-        title: "Erfolg",
-        description: "Einkaufsbedingung erfolgreich erstellt",
-      });
-      queryClient.invalidateQueries({ queryKey: [`/api/suppliers/${id}/purchase-conditions`] });
-      setShowAddPurchaseCondition(false);
-    },
-    onError: (error) => {
-      toast({
-        title: "Fehler",
-        description: `Fehler beim Erstellen der Einkaufsbedingung: ${error}`,
-        variant: "destructive",
-      });
-    }
-  });
-  
-  // Mutation für das Aktualisieren einer Einkaufsbedingung
-  const updatePurchaseConditionMutation = useMutation({
-    mutationFn: (data: { id: number, data: Partial<PurchaseCondition> }) => 
-      updatePurchaseCondition(data.id, data.data),
-    onSuccess: () => {
-      toast({
-        title: "Erfolg",
-        description: "Einkaufsbedingung erfolgreich aktualisiert",
-      });
-      queryClient.invalidateQueries({ queryKey: [`/api/suppliers/${id}/purchase-conditions`] });
-      setEditingPurchaseCondition(null);
-    },
-    onError: (error) => {
-      toast({
-        title: "Fehler",
-        description: `Fehler beim Aktualisieren der Einkaufsbedingung: ${error}`,
-        variant: "destructive",
-      });
-    }
-  });
-  
-  // Mutation für das Löschen einer Einkaufsbedingung
-  const deletePurchaseConditionMutation = useMutation({
-    mutationFn: (id: number) => 
-      deletePurchaseCondition(id),
-    onSuccess: () => {
-      toast({
-        title: "Erfolg",
-        description: "Einkaufsbedingung erfolgreich gelöscht",
-      });
-      queryClient.invalidateQueries({ queryKey: [`/api/suppliers/${id}/purchase-conditions`] });
-      setDeletingPurchaseConditionId(null);
-    },
-    onError: (error) => {
-      toast({
-        title: "Fehler",
-        description: `Fehler beim Löschen der Einkaufsbedingung: ${error}`,
-        variant: "destructive",
-      });
-    }
-  });
-  
-  // Handler für die Einkaufsbedingungsformulare
-  const handleCreatePurchaseCondition = (data: any) => {
-    createPurchaseConditionMutation.mutate(data);
-  };
-  
-  const handleUpdatePurchaseCondition = (data: any) => {
-    if (editingPurchaseCondition) {
-      updatePurchaseConditionMutation.mutate({
-        id: editingPurchaseCondition.id,
-        data
-      });
-    }
-  };
-  
-  const handleConfirmDelete = () => {
-    if (deletingPurchaseConditionId) {
-      deletePurchaseConditionMutation.mutate(deletingPurchaseConditionId);
-    }
-  };
 
   return (
     <div className="container space-y-6">
