@@ -151,13 +151,20 @@ export default function PurchaseConditionForm({
     // und wenn kein validTo angegeben ist, bleibt es undefined (unbegrenzt gültig)
     const formData = {
       ...values,
-      validFrom: values.validFrom || new Date(), // Falls nicht gesetzt, ab heute gültig
+      // Stellen sicher, dass Datumsobjekte korrekt formatiert sind
+      validFrom: values.validFrom ? values.validFrom : new Date(), // Falls nicht gesetzt, ab heute gültig
+      validTo: values.validTo || undefined, // Falls nicht gesetzt, unbegrenzt gültig
       supplierId,
       id: initialData?.id,
       // Sicherstellen, dass die neuen Felder korrekt übertragen werden
       taxRate: values.taxRate || 19,
       packagingUnit: values.packagingUnit || '',
       packagingQuantity: values.packagingQuantity || 1,
+      // Konvertiere Strings zu Zahlen, falls nötig
+      unitPrice: typeof values.unitPrice === 'string' ? parseFloat(values.unitPrice) : values.unitPrice,
+      minQuantity: typeof values.minQuantity === 'string' ? parseInt(values.minQuantity as string) : values.minQuantity,
+      // Setze isPreferred als Flag, wenn es im Schema vorkommt
+      isPreferred: false
     };
     
     // Loggen der Daten zum Debugging

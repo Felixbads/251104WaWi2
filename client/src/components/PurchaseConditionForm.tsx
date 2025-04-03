@@ -89,27 +89,53 @@ export function PurchaseConditionForm({
     try {
       setIsSubmitting(true);
       
-      // Nullwerte für optionale Datumsfelder handhaben
+      // Datumsfelder und numerische Werte korrekt formatieren
       const formattedData = {
         ...data,
-        validFrom: data.validFrom,
-        validTo: data.validTo,
+        // Sicherstellen, dass Datumsfelder korrekt formatiert sind
+        validFrom: data.validFrom ? data.validFrom : new Date(),
+        validTo: data.validTo || undefined,
+        // Konvertiere Strings zu Zahlen, falls nötig
+        unitPrice: typeof data.unitPrice === 'string' ? parseFloat(data.unitPrice) : data.unitPrice,
+        minQuantity: typeof data.minQuantity === 'string' ? parseInt(data.minQuantity as string) : data.minQuantity,
+        // Setze isPreferred falls nicht definiert
+        isPreferred: data.isPreferred || false
       };
+      
+      console.log("Formatierte Daten für API:", formattedData);
 
       if (existingCondition) {
         // Bestehende Bedingung aktualisieren
-        await updatePurchaseCondition(existingCondition.id, formattedData);
-        toast({
-          title: "Einkaufsbedingung aktualisiert",
-          description: "Die Einkaufsbedingung wurde erfolgreich aktualisiert.",
-        });
+        try {
+          await updatePurchaseCondition(existingCondition.id, formattedData);
+          toast({
+            title: "Einkaufsbedingung aktualisiert",
+            description: "Die Einkaufsbedingung wurde erfolgreich aktualisiert.",
+          });
+        } catch (error) {
+          console.error("Fehler beim Aktualisieren der Einkaufsbedingung:", error);
+          toast({
+            title: "Fehler",
+            description: "Die Einkaufsbedingung konnte nicht aktualisiert werden. Bitte überprüfen Sie die Eingaben.",
+            variant: "destructive"
+          });
+        }
       } else {
         // Neue Bedingung erstellen
-        await createPurchaseCondition(formattedData);
-        toast({
-          title: "Einkaufsbedingung erstellt",
-          description: "Die Einkaufsbedingung wurde erfolgreich erstellt.",
-        });
+        try {
+          await createPurchaseCondition(formattedData);
+          toast({
+            title: "Einkaufsbedingung erstellt",
+            description: "Die Einkaufsbedingung wurde erfolgreich erstellt.",
+          });
+        } catch (error) {
+          console.error("Fehler beim Erstellen der Einkaufsbedingung:", error);
+          toast({
+            title: "Fehler",
+            description: "Die Einkaufsbedingung konnte nicht erstellt werden. Bitte überprüfen Sie die Eingaben.",
+            variant: "destructive"
+          });
+        }
       }
 
       // Cache invalidieren, um frische Daten zu laden
