@@ -778,41 +778,6 @@ const SupplierCard = ({
       </CardHeader>
       <CardContent className="pt-0 pb-2">
         <div className="grid grid-cols-1 gap-2">
-          {/* Kontaktinformationen - nur Website, Email, Telefon als Icons */}
-          <div className="flex flex-wrap gap-2 justify-center mb-2">
-            {supplier.phone && (
-              <a 
-                href={`tel:${supplier.phone}`} 
-                className="inline-flex items-center justify-center w-8 h-8 text-gray-500 hover:text-primary hover:bg-gray-100 rounded-full"
-                title={`Anrufen: ${supplier.phone}`}
-              >
-                <Phone className="h-4 w-4" />
-              </a>
-            )}
-            
-            {supplier.email && (
-              <a 
-                href={`mailto:${supplier.email}`} 
-                className="inline-flex items-center justify-center w-8 h-8 text-gray-500 hover:text-primary hover:bg-gray-100 rounded-full"
-                title={`E-Mail: ${supplier.email}`}
-              >
-                <Mail className="h-4 w-4" />
-              </a>
-            )}
-            
-            {supplier.website && (
-              <a 
-                href={supplier.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center w-8 h-8 text-gray-500 hover:text-primary hover:bg-gray-100 rounded-full"
-                title="Website besuchen"
-              >
-                <Globe className="h-4 w-4" />
-              </a>
-            )}
-          </div>
-          
           {/* KPIs */}
           <div className="grid grid-cols-2 gap-3 mt-1">
             <div className="flex flex-col">
@@ -1376,12 +1341,8 @@ export default function Suppliers() {
     refetch();
   };
 
-  // Simulierte Kopplung von Produkten und Bestellungen (in einer echten App würden diese vom Backend kommen)
-  const enhancedSuppliers = data?.data ? data.data.map((supplier: Supplier) => ({
-    ...supplier,
-    productsCount: Math.floor(Math.random() * 20), // In einer echten App: supplier.productsCount
-    openOrdersCount: Math.floor(Math.random() * 3) // In einer echten App: supplier.openOrdersCount
-  })) : [];
+  // Verwende die tatsächlichen Daten vom Backend
+  const enhancedSuppliers = data?.data ? data.data : [];
 
   return (
     <div className="space-y-6">
