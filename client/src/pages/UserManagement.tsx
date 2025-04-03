@@ -69,10 +69,7 @@ const UserManagement: React.FC = () => {
   // Mutation zum Genehmigen eines Benutzers
   const approveMutation = useMutation({
     mutationFn: (userId: number) =>
-      apiRequest(`/api/admin/users/${userId}/approve`, {
-        method: 'POST',
-        body: JSON.stringify({}), // Leeres Objekt hinzufügen, um einen gültigen Body zu haben
-      }),
+      apiRequest(`/api/admin/users/${userId}/approve`, {}, 'POST'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
       toast({
@@ -93,9 +90,7 @@ const UserManagement: React.FC = () => {
   // Mutation zum Löschen eines Benutzers
   const deleteMutation = useMutation({
     mutationFn: (userId: number) =>
-      apiRequest(`/api/admin/users/${userId}`, {
-        method: 'DELETE',
-      }),
+      apiRequest(`/api/admin/users/${userId}`, {}, 'DELETE'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
       toast({
@@ -118,10 +113,7 @@ const UserManagement: React.FC = () => {
   // Mutation zum Zurücksetzen einer Genehmigung
   const resetApprovalMutation = useMutation({
     mutationFn: (userId: number) =>
-      apiRequest(`/api/admin/users/${userId}/reset-approval`, {
-        method: 'POST',
-        body: JSON.stringify({}), // Leeres Objekt hinzufügen, um einen gültigen Body zu haben
-      }),
+      apiRequest(`/api/admin/users/${userId}/reset-approval`, {}, 'POST'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
       toast({
