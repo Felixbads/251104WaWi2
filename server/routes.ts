@@ -945,6 +945,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Update product by ID
   app.put(`${API_PREFIX}/products/:id`, async (req: Request, res: Response) => {
     try {
+      // Versuche ID als Zahl zu parsen
       const productId = parseInt(req.params.id);
       
       if (isNaN(productId)) {
@@ -956,6 +957,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!existingProduct) {
         return res.status(404).json({ error: "Product not found" });
+      }
+      
+      // Wenn supplierId als String gesendet wird, konvertiere es zu einer Zahl
+      if (req.body.supplierId && typeof req.body.supplierId === 'string') {
+        req.body.supplierId = parseInt(req.body.supplierId);
+        
+        // Prüfe, ob die Konvertierung erfolgreich war
+        if (isNaN(req.body.supplierId)) {
+          req.body.supplierId = null;
+        }
       }
       
       // Aktualisiere das Produkt
