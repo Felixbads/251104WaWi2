@@ -314,7 +314,7 @@ export default function PurchaseConditionForm({
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="">Stück</SelectItem>
+                    <SelectItem value="Stück">Stück</SelectItem>
                     <SelectItem value="Flasche">Flasche</SelectItem>
                     <SelectItem value="Kasten">Kasten</SelectItem>
                     <SelectItem value="Karton">Karton</SelectItem>
