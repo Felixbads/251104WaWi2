@@ -56,6 +56,11 @@ export default function ProductDetail() {
   });
   const [editMode, setEditMode] = useState(false);
   const [editedProduct, setEditedProduct] = useState<Partial<Product>>({});
+  
+  // States für Einkaufsbedingungen
+  const [showAddConditionDialog, setShowAddConditionDialog] = useState(false);
+  const [selectedSupplier, setSelectedSupplier] = useState<number | null>(null);
+  const [selectedCondition, setSelectedCondition] = useState<PurchaseCondition | null>(null);
   const queryClient = useQueryClient();
 
   // Hole Produktdaten
@@ -93,9 +98,50 @@ export default function ProductDetail() {
   const { data: suppliersData } = useQuery({
     queryKey: ['/api/suppliers'],
     queryFn: () => getSuppliers({ limit: 100 }),
-    enabled: activeTab === 'supplier',
+    enabled: activeTab === 'supplier' || activeTab === 'purchase-conditions',
     staleTime: 1000 * 60 * 15, // 15 Minuten
   });
+  
+  // Einkaufsbedingungen für dieses Produkt laden
+  const { data: purchaseConditions, isLoading: isLoadingPurchaseConditions } = useQuery({
+    queryKey: [`/api/products/${id}/purchase-conditions`],
+    queryFn: () => getPurchaseConditionsByProduct(Number(id)),
+    enabled: activeTab === 'purchase-conditions',
+    staleTime: 1000 * 60 * 5, // 5 Minuten
+  });
+  
+  // Einkaufsbedingungen nach Datum sortieren
+  const sortedConditions = useMemo(() => {
+    if (!purchaseConditions) return [];
+    return [...purchaseConditions].sort((a, b) => {
+      // Bevorzugte zuerst
+      if (a.isPreferred && !b.isPreferred) return -1;
+      if (!a.isPreferred && b.isPreferred) return 1;
+      
+      // Nach Gültigkeitsdatum
+      const dateA = a.validFrom ? new Date(a.validFrom) : new Date(0);
+      const dateB = b.validFrom ? new Date(b.validFrom) : new Date(0);
+      return dateB.getTime() - dateA.getTime();
+    });
+  }, [purchaseConditions]);
+  
+  // Berechne aktuell gültige Einkaufsbedingungen
+  const validConditions = useMemo(() => {
+    if (!purchaseConditions) return [];
+    const now = new Date();
+    
+    return purchaseConditions.filter(condition => {
+      const validFrom = condition.validFrom ? new Date(condition.validFrom) : null;
+      const validTo = condition.validTo ? new Date(condition.validTo) : null;
+      
+      // Prüfe, ob die Bedingung aktuell gültig ist
+      const isValid = 
+        (!validFrom || validFrom <= now) && 
+        (!validTo || validTo >= now);
+      
+      return isValid;
+    });
+  }, [purchaseConditions]);
 
   // Mutation zum Aktualisieren des Produkts
   const updateProductMutation = useMutation({
@@ -1261,307 +1307,248 @@ export default function ProductDetail() {
                   {/* Einkaufspreise */}
                   <TabsContent value="purchase-conditions">
                     <div className="space-y-6">
-                      {/* Query für Einkaufsbedingungen */}
-                      {(() => {
-                        // Einkaufsbedingungen für dieses Produkt laden
-                        const { data: purchaseConditions, isLoading: isLoadingPurchaseConditions } = useQuery({
-                          queryKey: [`/api/products/${id}/purchase-conditions`],
-                          queryFn: () => getPurchaseConditionsByProduct(Number(id)),
-                          enabled: activeTab === 'purchase-conditions',
-                          staleTime: 1000 * 60 * 5, // 5 Minuten
-                        });
-                        
-                        // Dialog-Status für neue Einkaufsbedingung
-                        const [showAddConditionDialog, setShowAddConditionDialog] = useState(false);
-                        const [selectedSupplier, setSelectedSupplier] = useState<number | null>(null);
-                        const [selectedCondition, setSelectedCondition] = useState<PurchaseCondition | null>(null);
-                        
-                        // Einkaufsbedingungen nach Datum sortieren
-                        const sortedConditions = useMemo(() => {
-                          if (!purchaseConditions) return [];
-                          return [...purchaseConditions].sort((a, b) => {
-                            // Bevorzugte zuerst
-                            if (a.isPreferred && !b.isPreferred) return -1;
-                            if (!a.isPreferred && b.isPreferred) return 1;
-                            
-                            // Nach Gültigkeitsdatum
-                            const dateA = a.validFrom ? new Date(a.validFrom) : new Date(0);
-                            const dateB = b.validFrom ? new Date(b.validFrom) : new Date(0);
-                            return dateB.getTime() - dateA.getTime();
-                          });
-                        }, [purchaseConditions]);
-                        
-                        // Berechne aktuell gültige Einkaufsbedingungen
-                        const validConditions = useMemo(() => {
-                          if (!purchaseConditions) return [];
-                          const now = new Date();
-                          
-                          return purchaseConditions.filter(condition => {
-                            const validFrom = condition.validFrom ? new Date(condition.validFrom) : null;
-                            const validTo = condition.validTo ? new Date(condition.validTo) : null;
-                            
-                            // Prüfe, ob die Bedingung aktuell gültig ist
-                            const isValid = 
-                              (!validFrom || validFrom <= now) && 
-                              (!validTo || validTo >= now);
-                            
-                            return isValid;
-                          });
-                        }, [purchaseConditions]);
-                        
-                        // Dialog zum Bearbeiten/Hinzufügen einer Einkaufsbedingung
-                        const ConditionDialog = () => (
-                          <Dialog open={showAddConditionDialog} onOpenChange={setShowAddConditionDialog}>
-                            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-                              <DialogHeader>
-                                <DialogTitle>
-                                  {selectedCondition ? 'Einkaufsbedingung bearbeiten' : 'Neue Einkaufsbedingung'}
-                                </DialogTitle>
-                                <DialogDescription>
-                                  {selectedCondition 
-                                    ? 'Bearbeiten Sie die Einkaufsbedingung für dieses Produkt.'
-                                    : 'Fügen Sie eine neue Einkaufsbedingung für dieses Produkt hinzu.'}
-                                </DialogDescription>
-                              </DialogHeader>
-                              
-                              {!selectedSupplier && !selectedCondition ? (
-                                <div className="space-y-4 py-4">
-                                  <Label>Lieferant auswählen</Label>
-                                  <Select 
-                                    onValueChange={(value) => setSelectedSupplier(parseInt(value))}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Lieferant wählen" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {suppliersData?.data && Array.isArray(suppliersData.data) ? 
-                                        suppliersData.data.map((supplier) => (
-                                          <SelectItem key={supplier.id} value={supplier.id.toString()}>
-                                            {supplier.name}
-                                          </SelectItem>
-                                        ))
-                                      : null}
-                                    </SelectContent>
-                                  </Select>
-                                  
-                                  <DialogFooter className="mt-6">
-                                    <Button 
-                                      variant="outline" 
-                                      onClick={() => setShowAddConditionDialog(false)}
-                                    >
-                                      Abbrechen
-                                    </Button>
-                                    <Button 
-                                      disabled={!selectedSupplier}
-                                      onClick={() => {
-                                        if (selectedSupplier) {
-                                          // Fortfahren, Formular zeigen
-                                        }
-                                      }}
-                                    >
-                                      Weiter
-                                    </Button>
-                                  </DialogFooter>
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-medium">Einkaufspreise</h3>
+                        <Button 
+                          size="sm"
+                          onClick={() => {
+                            setSelectedCondition(null);
+                            setSelectedSupplier(null);
+                            setShowAddConditionDialog(true);
+                          }}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Neuer Einkaufspreis
+                        </Button>
+                      </div>
+                      
+                      {isLoadingPurchaseConditions ? (
+                        <div className="flex justify-center py-10">
+                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                          <span className="ml-2 text-muted-foreground">Lade Einkaufspreise...</span>
+                        </div>
+                      ) : !sortedConditions || sortedConditions.length === 0 ? (
+                        <Card>
+                          <CardContent className="py-10 flex flex-col items-center justify-center text-center">
+                            <ShoppingCart className="h-16 w-16 text-gray-300 mb-4" />
+                            <h3 className="text-lg font-medium text-gray-500 mb-2">Keine Einkaufspreise vorhanden</h3>
+                            <p className="text-gray-500 mb-4 max-w-lg">
+                              Für dieses Produkt wurden noch keine Einkaufspreise hinterlegt. 
+                              Fügen Sie Einkaufspreise hinzu, um Bestellungen effizienter zu gestalten.
+                            </p>
+                            <Button 
+                              onClick={() => {
+                                setSelectedCondition(null);
+                                setSelectedSupplier(null);
+                                setShowAddConditionDialog(true);
+                              }}
+                            >
+                              <Plus className="h-4 w-4 mr-2" />
+                              Einkaufspreis hinzufügen
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      ) : (
+                        <div className="space-y-4">
+                          {/* Aktuell gültige Bedingungen */}
+                          {validConditions.length > 0 && (
+                            <div>
+                              <h4 className="text-sm font-medium text-gray-500 mb-2">Aktuell gültige Einkaufspreise</h4>
+                              <div className="border rounded-md">
+                                <div className="grid grid-cols-12 py-2 px-4 bg-muted font-medium text-sm">
+                                  <div className="col-span-3">Lieferant</div>
+                                  <div className="col-span-2 text-right">Preis</div>
+                                  <div className="col-span-2 text-center">Mindestmenge</div>
+                                  <div className="col-span-3 text-center">Gültig ab</div>
+                                  <div className="col-span-2 text-right">Aktionen</div>
                                 </div>
-                              ) : (
-                                <div className="py-4">
-                                  {selectedSupplier && product?.id && (
-                                    // PurchaseConditionForm importieren und verwenden
-                                    <PurchaseConditionForm
-                                      productId={product.id}
-                                      supplierId={selectedCondition?.supplierId || selectedSupplier}
-                                      existingCondition={selectedCondition}
-                                      onSuccess={() => {
-                                        setShowAddConditionDialog(false);
-                                        setSelectedSupplier(null);
-                                        setSelectedCondition(null);
-                                      }}
-                                      onCancel={() => {
-                                        setShowAddConditionDialog(false);
-                                        setSelectedSupplier(null);
-                                        setSelectedCondition(null);
-                                      }}
-                                    />
-                                  )}
-                                </div>
-                              )}
-                            </DialogContent>
-                          </Dialog>
-                        );
-                        
-                        return (
-                          <>
-                            <div className="flex items-center justify-between">
-                              <h3 className="text-lg font-medium">Einkaufspreise</h3>
-                              <Button 
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedCondition(null);
-                                  setSelectedSupplier(null);
-                                  setShowAddConditionDialog(true);
-                                }}
-                              >
-                                <Plus className="h-4 w-4 mr-2" />
-                                Neuer Einkaufspreis
-                              </Button>
-                            </div>
-                            
-                            {isLoadingPurchaseConditions ? (
-                              <div className="flex justify-center py-10">
-                                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                                <span className="ml-2 text-muted-foreground">Lade Einkaufspreise...</span>
-                              </div>
-                            ) : !sortedConditions || sortedConditions.length === 0 ? (
-                              <Card>
-                                <CardContent className="py-10 flex flex-col items-center justify-center text-center">
-                                  <ShoppingCart className="h-16 w-16 text-gray-300 mb-4" />
-                                  <h3 className="text-lg font-medium text-gray-500 mb-2">Keine Einkaufspreise vorhanden</h3>
-                                  <p className="text-gray-500 mb-4 max-w-lg">
-                                    Für dieses Produkt wurden noch keine Einkaufspreise hinterlegt. 
-                                    Fügen Sie Einkaufspreise hinzu, um Bestellungen effizienter zu gestalten.
-                                  </p>
-                                  <Button 
-                                    onClick={() => {
-                                      setSelectedCondition(null);
-                                      setSelectedSupplier(null);
-                                      setShowAddConditionDialog(true);
-                                    }}
-                                  >
-                                    <Plus className="h-4 w-4 mr-2" />
-                                    Einkaufspreis hinzufügen
-                                  </Button>
-                                </CardContent>
-                              </Card>
-                            ) : (
-                              <div className="space-y-4">
-                                {/* Aktuell gültige Bedingungen */}
-                                {validConditions.length > 0 && (
-                                  <div>
-                                    <h4 className="text-sm font-medium text-gray-500 mb-2">Aktuell gültige Einkaufspreise</h4>
-                                    <div className="border rounded-md">
-                                      <div className="grid grid-cols-12 py-2 px-4 bg-muted font-medium text-sm">
-                                        <div className="col-span-3">Lieferant</div>
-                                        <div className="col-span-2 text-right">Preis</div>
-                                        <div className="col-span-2 text-center">Mindestmenge</div>
-                                        <div className="col-span-3 text-center">Gültig ab</div>
-                                        <div className="col-span-2 text-right">Aktionen</div>
-                                      </div>
-                                      
-                                      {validConditions.map((condition) => (
-                                        <div 
-                                          key={condition.id} 
-                                          className={`grid grid-cols-12 py-3 px-4 border-t ${condition.isPreferred ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'}`}
-                                        >
-                                          <div className="col-span-3 flex items-center">
-                                            {condition.isPreferred && (
-                                              <CheckCircle2 className="h-4 w-4 text-blue-500 mr-2" />
-                                            )}
-                                            <span>{condition.supplierName || `Lieferant #${condition.supplierId}`}</span>
-                                          </div>
-                                          <div className="col-span-2 text-right font-medium">
-                                            {condition.unitPrice.toFixed(2)} €
-                                          </div>
-                                          <div className="col-span-2 text-center">
-                                            {condition.minQuantity || 1}
-                                          </div>
-                                          <div className="col-span-3 text-center">
-                                            {condition.validFrom ? formatDateTime(condition.validFrom, 'date') : 'Immer'}
-                                            {condition.validTo && ` - ${formatDateTime(condition.validTo, 'date')}`}
-                                          </div>
-                                          <div className="col-span-2 text-right">
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              onClick={() => {
-                                                setSelectedCondition(condition);
-                                                setShowAddConditionDialog(true);
-                                              }}
-                                            >
-                                              <Edit className="h-4 w-4" />
-                                            </Button>
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
                                 
-                                {/* Alle Bedingungen */}
-                                <div className="mt-6">
-                                  <h4 className="text-sm font-medium text-gray-500 mb-2">Alle Einkaufspreise</h4>
-                                  <div className="border rounded-md">
-                                    <div className="grid grid-cols-12 py-2 px-4 bg-muted font-medium text-sm">
-                                      <div className="col-span-3">Lieferant</div>
-                                      <div className="col-span-2 text-right">Preis</div>
-                                      <div className="col-span-2 text-center">Mindestmenge</div>
-                                      <div className="col-span-3 text-center">Gültigkeitszeitraum</div>
-                                      <div className="col-span-2 text-right">Aktionen</div>
+                                {validConditions.map((condition) => (
+                                  <div 
+                                    key={condition.id} 
+                                    className={`grid grid-cols-12 py-3 px-4 border-t ${condition.isPreferred ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'}`}
+                                  >
+                                    <div className="col-span-3 flex items-center">
+                                      {condition.isPreferred && (
+                                        <CheckCircle2 className="h-4 w-4 text-blue-500 mr-2" />
+                                      )}
+                                      <span>{condition.supplierName || `Lieferant #${condition.supplierId}`}</span>
                                     </div>
-                                    
-                                    {sortedConditions.map((condition) => {
-                                      // Prüfe, ob die Bedingung aktuell gültig ist
-                                      const now = new Date();
-                                      const validFrom = condition.validFrom ? new Date(condition.validFrom) : null;
-                                      const validTo = condition.validTo ? new Date(condition.validTo) : null;
-                                      const isValid = 
-                                        (!validFrom || validFrom <= now) && 
-                                        (!validTo || validTo >= now);
-                                        
-                                      return (
-                                        <div 
-                                          key={condition.id} 
-                                          className={`grid grid-cols-12 py-3 px-4 border-t 
-                                            ${condition.isPreferred ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'}
-                                            ${!isValid ? 'opacity-70' : ''}
-                                          `}
-                                        >
-                                          <div className="col-span-3 flex items-center">
-                                            {condition.isPreferred && (
-                                              <CheckCircle2 className="h-4 w-4 text-blue-500 mr-2" />
-                                            )}
-                                            <span>{condition.supplierName || `Lieferant #${condition.supplierId}`}</span>
-                                          </div>
-                                          <div className="col-span-2 text-right font-medium">
-                                            {condition.unitPrice.toFixed(2)} €
-                                          </div>
-                                          <div className="col-span-2 text-center">
-                                            {condition.minQuantity || 1}
-                                          </div>
-                                          <div className="col-span-3 text-center">
-                                            {condition.validFrom ? formatDateTime(condition.validFrom, 'date') : 'Immer'}
-                                            {condition.validTo && ` - ${formatDateTime(condition.validTo, 'date')}`}
-                                            
-                                            {!isValid && (
-                                              <span className="block text-xs text-gray-500 mt-1">
-                                                {validFrom && validFrom > now ? 'Zukünftig' : 'Abgelaufen'}
-                                              </span>
-                                            )}
-                                          </div>
-                                          <div className="col-span-2 text-right">
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              onClick={() => {
-                                                setSelectedCondition(condition);
-                                                setShowAddConditionDialog(true);
-                                              }}
-                                            >
-                                              <Edit className="h-4 w-4" />
-                                            </Button>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
+                                    <div className="col-span-2 text-right font-medium">
+                                      {condition.unitPrice.toFixed(2)} €
+                                    </div>
+                                    <div className="col-span-2 text-center">
+                                      {condition.minQuantity || 1}
+                                    </div>
+                                    <div className="col-span-3 text-center">
+                                      {condition.validFrom ? formatDateTime(condition.validFrom, 'date') : 'Immer'}
+                                      {condition.validTo && ` - ${formatDateTime(condition.validTo, 'date')}`}
+                                    </div>
+                                    <div className="col-span-2 text-right">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                          setSelectedCondition(condition);
+                                          setShowAddConditionDialog(true);
+                                        }}
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                    </div>
                                   </div>
-                                </div>
+                                ))}
                               </div>
-                            )}
-                            
-                            {/* Dialog für Einkaufsbedingungen */}
-                            <ConditionDialog />
-                          </>
-                        );
-                      })()}
+                            </div>
+                          )}
+                          
+                          {/* Alle Bedingungen */}
+                          <div className="mt-6">
+                            <h4 className="text-sm font-medium text-gray-500 mb-2">Alle Einkaufspreise</h4>
+                            <div className="border rounded-md">
+                              <div className="grid grid-cols-12 py-2 px-4 bg-muted font-medium text-sm">
+                                <div className="col-span-3">Lieferant</div>
+                                <div className="col-span-2 text-right">Preis</div>
+                                <div className="col-span-2 text-center">Mindestmenge</div>
+                                <div className="col-span-3 text-center">Gültigkeitszeitraum</div>
+                                <div className="col-span-2 text-right">Aktionen</div>
+                              </div>
+                              
+                              {sortedConditions.map((condition) => {
+                                // Prüfe, ob die Bedingung aktuell gültig ist
+                                const now = new Date();
+                                const validFrom = condition.validFrom ? new Date(condition.validFrom) : null;
+                                const validTo = condition.validTo ? new Date(condition.validTo) : null;
+                                const isValid = 
+                                  (!validFrom || validFrom <= now) && 
+                                  (!validTo || validTo >= now);
+                                  
+                                return (
+                                  <div 
+                                    key={condition.id} 
+                                    className={`grid grid-cols-12 py-3 px-4 border-t 
+                                      ${condition.isPreferred ? 'bg-blue-50 hover:bg-blue-100' : 'hover:bg-gray-50'}
+                                      ${!isValid ? 'opacity-70' : ''}
+                                    `}
+                                  >
+                                    <div className="col-span-3 flex items-center">
+                                      {condition.isPreferred && (
+                                        <CheckCircle2 className="h-4 w-4 text-blue-500 mr-2" />
+                                      )}
+                                      <span>{condition.supplierName || `Lieferant #${condition.supplierId}`}</span>
+                                    </div>
+                                    <div className="col-span-2 text-right font-medium">
+                                      {condition.unitPrice.toFixed(2)} €
+                                    </div>
+                                    <div className="col-span-2 text-center">
+                                      {condition.minQuantity || 1}
+                                    </div>
+                                    <div className="col-span-3 text-center">
+                                      {condition.validFrom ? formatDateTime(condition.validFrom, 'date') : 'Immer'}
+                                      {condition.validTo && ` - ${formatDateTime(condition.validTo, 'date')}`}
+                                      
+                                      {!isValid && (
+                                        <span className="block text-xs text-gray-500 mt-1">
+                                          {validFrom && validFrom > now ? 'Zukünftig' : 'Abgelaufen'}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="col-span-2 text-right">
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                          setSelectedCondition(condition);
+                                          setShowAddConditionDialog(true);
+                                        }}
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Dialog zum Bearbeiten/Hinzufügen einer Einkaufsbedingung */}
+                      <Dialog open={showAddConditionDialog} onOpenChange={setShowAddConditionDialog}>
+                        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                          <DialogHeader>
+                            <DialogTitle>
+                              {selectedCondition ? 'Einkaufsbedingung bearbeiten' : 'Neue Einkaufsbedingung'}
+                            </DialogTitle>
+                            <DialogDescription>
+                              {selectedCondition 
+                                ? 'Bearbeiten Sie die Einkaufsbedingung für dieses Produkt.'
+                                : 'Fügen Sie eine neue Einkaufsbedingung für dieses Produkt hinzu.'}
+                            </DialogDescription>
+                          </DialogHeader>
+                          
+                          {!selectedSupplier && !selectedCondition ? (
+                            <div className="space-y-4 py-4">
+                              <Label>Lieferant auswählen</Label>
+                              <Select 
+                                onValueChange={(value) => setSelectedSupplier(parseInt(value))}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Lieferant wählen" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {suppliersData?.data && Array.isArray(suppliersData.data) ? 
+                                    suppliersData.data.map((supplier) => (
+                                      <SelectItem key={supplier.id} value={supplier.id.toString()}>
+                                        {supplier.name}
+                                      </SelectItem>
+                                    ))
+                                  : null}
+                                </SelectContent>
+                              </Select>
+                              
+                              <DialogFooter className="mt-6">
+                                <Button 
+                                  variant="outline" 
+                                  onClick={() => setShowAddConditionDialog(false)}
+                                >
+                                  Abbrechen
+                                </Button>
+                                <Button 
+                                  disabled={!selectedSupplier}
+                                  onClick={() => {
+                                    // Der Code fährt automatisch mit dem Formular fort,
+                                    // wenn ein Lieferant ausgewählt wurde
+                                  }}
+                                >
+                                  Weiter
+                                </Button>
+                              </DialogFooter>
+                            </div>
+                          ) : (
+                            <div className="py-4">
+                              {selectedSupplier && product?.id && (
+                                <PurchaseConditionForm
+                                  productId={product.id}
+                                  supplierId={selectedCondition?.supplierId || selectedSupplier}
+                                  existingCondition={selectedCondition}
+                                  onSuccess={() => {
+                                    setShowAddConditionDialog(false);
+                                    setSelectedSupplier(null);
+                                    setSelectedCondition(null);
+                                    queryClient.invalidateQueries({ queryKey: [`/api/products/${id}/purchase-conditions`] });
+                                  }}
+                                  onCancel={() => {
+                                    setShowAddConditionDialog(false);
+                                    setSelectedSupplier(null);
+                                    setSelectedCondition(null);
+                                  }}
+                                />
+                              )}
+                            </div>
+                          )}
+                        </DialogContent>
+                      </Dialog>
                     </div>
                   </TabsContent>
                 </Tabs>
