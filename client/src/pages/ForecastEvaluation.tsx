@@ -97,58 +97,65 @@ const ForecastEvaluation: React.FC = () => {
   });
   
   // Abrufen der Prognosedaten basierend auf Filtern
+  // Vorhersagedaten laden mit React Query
+  const queryParams = {
+    startDate: format(startDate, 'yyyy-MM-dd'),
+    endDate: format(endDate, 'yyyy-MM-dd'),
+    modelId: selectedModel === 'all' ? undefined : selectedModel,
+    machineId: selectedMachine === 'all' ? undefined : selectedMachine,
+    productId: selectedProduct === 'all' ? undefined : selectedProduct,
+    supplierId: selectedSupplier === 'all' ? undefined : selectedSupplier,
+    groupBy: activeTab
+  };
+  
   const {
     data: forecastData,
     isLoading,
     isError,
     refetch
   } = useQuery({
-    queryKey: [
-      '/api/forecast/evaluation',
-      {
-        startDate: format(startDate, 'yyyy-MM-dd'),
-        endDate: format(endDate, 'yyyy-MM-dd'),
-        modelId: selectedModel === 'all' ? undefined : selectedModel,
-        machineId: selectedMachine === 'all' ? undefined : selectedMachine,
-        productId: selectedProduct === 'all' ? undefined : selectedProduct,
-        supplierId: selectedSupplier === 'all' ? undefined : selectedSupplier,
-        groupBy: activeTab
-      }
-    ],
+    queryKey: ['/api/forecast/evaluation', queryParams],
     staleTime: 30000, // 30 Sekunden
     enabled: false, // Nicht automatisch abrufen beim ersten Rendern
-    queryFn: async ({ queryKey }) => {
-      const [url, params] = queryKey as [string, {
-        startDate: string;
-        endDate: string;
-        modelId?: string;
-        machineId?: string;
-        productId?: string;
-        supplierId?: string;
-        groupBy: string;
-      }];
+    queryFn: async () => {
+      const params = new URLSearchParams();
       
-      const queryParams = new URLSearchParams();
+      if (queryParams.startDate) params.append('startDate', queryParams.startDate);
+      if (queryParams.endDate) params.append('endDate', queryParams.endDate);
+      if (queryParams.modelId) params.append('modelId', queryParams.modelId);
+      if (queryParams.machineId) params.append('machineId', queryParams.machineId);
+      if (queryParams.productId) params.append('productId', queryParams.productId);
+      if (queryParams.supplierId) params.append('supplierId', queryParams.supplierId);
+      if (queryParams.groupBy) params.append('groupBy', queryParams.groupBy);
       
-      if (params.startDate) queryParams.append('startDate', params.startDate);
-      if (params.endDate) queryParams.append('endDate', params.endDate);
-      if (params.modelId) queryParams.append('modelId', params.modelId);
-      if (params.machineId) queryParams.append('machineId', params.machineId);
-      if (params.productId) queryParams.append('productId', params.productId);
-      if (params.supplierId) queryParams.append('supplierId', params.supplierId);
-      if (params.groupBy) queryParams.append('groupBy', params.groupBy);
-      
-      return apiRequest("get", `${url}?${queryParams.toString()}`);
+      return apiRequest("get", `/api/forecast/evaluation?${params.toString()}`);
     }
   });
   
   // Anwenden der Filter
   const applyFilters = () => {
-    refetch();
-    toast({
-      title: "Filter angewendet",
-      description: `Daten werden für den Zeitraum ${format(startDate, 'dd.MM.yyyy')} bis ${format(endDate, 'dd.MM.yyyy')} geladen.`,
-    });
+    try {
+      refetch().then(() => {
+        toast({
+          title: "Filter angewendet",
+          description: `Daten werden für den Zeitraum ${format(startDate, 'dd.MM.yyyy')} bis ${format(endDate, 'dd.MM.yyyy')} geladen.`,
+        });
+      }).catch(error => {
+        console.error("Fehler beim Laden der Daten:", error);
+        toast({
+          title: "Fehler beim Laden der Daten",
+          description: "Bitte versuche es später erneut.",
+          variant: "destructive"
+        });
+      });
+    } catch (error) {
+      console.error("Fehler beim Anwenden der Filter:", error);
+      toast({
+        title: "Fehler beim Anwenden der Filter",
+        description: "Ein unerwarteter Fehler ist aufgetreten.",
+        variant: "destructive"
+      });
+    }
   };
   
   // Format der Daten für die Diagramme anpassen je nach aktivem Tab
@@ -156,30 +163,35 @@ const ForecastEvaluation: React.FC = () => {
     // Vor der ersten Filteranwendung oder bei Fehlern leeres Array zurückgeben
     if (!forecastData || !forecastData.data) return [];
     
-    switch (activeTab) {
-      case 'date':
-        return forecastData.data.map((item: any) => ({
-          ...item,
-          date: format(new Date(item.date), 'dd.MM'),
-          formattedDate: format(new Date(item.date), 'EEEE, dd.MM.yyyy', { locale: de })
-        }));
-      case 'machine':
-        return forecastData.data.map((item: any) => ({
-          ...item,
-          name: item.machineName || 'Unbekannt'
-        }));
-      case 'product':
-        return forecastData.data.map((item: any) => ({
-          ...item,
-          name: item.productName || 'Unbekannt'
-        }));
-      case 'supplier':
-        return forecastData.data.map((item: any) => ({
-          ...item,
-          name: item.supplierName || 'Unbekannt'
-        }));
-      default:
-        return [];
+    try {
+      switch (activeTab) {
+        case 'date':
+          return forecastData.data.map((item: any) => ({
+            ...item,
+            date: format(new Date(item.date), 'dd.MM'),
+            formattedDate: format(new Date(item.date), 'EEEE, dd.MM.yyyy', { locale: de })
+          }));
+        case 'machine':
+          return forecastData.data.map((item: any) => ({
+            ...item,
+            name: item.machineName || 'Unbekannt'
+          }));
+        case 'product':
+          return forecastData.data.map((item: any) => ({
+            ...item,
+            name: item.productName || 'Unbekannt'
+          }));
+        case 'supplier':
+          return forecastData.data.map((item: any) => ({
+            ...item,
+            name: item.supplierName || 'Unbekannt'
+          }));
+        default:
+          return [];
+      }
+    } catch (error) {
+      console.error("Fehler bei der Datenverarbeitung:", error);
+      return [];
     }
   };
   
