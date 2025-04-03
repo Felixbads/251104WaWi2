@@ -71,6 +71,7 @@ const UserManagement: React.FC = () => {
     mutationFn: (userId: number) =>
       apiRequest(`/api/admin/users/${userId}/approve`, {
         method: 'POST',
+        body: JSON.stringify({}), // Leeres Objekt hinzufügen, um einen gültigen Body zu haben
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
@@ -119,6 +120,7 @@ const UserManagement: React.FC = () => {
     mutationFn: (userId: number) =>
       apiRequest(`/api/admin/users/${userId}/reset-approval`, {
         method: 'POST',
+        body: JSON.stringify({}), // Leeres Objekt hinzufügen, um einen gültigen Body zu haben
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
@@ -157,14 +159,14 @@ const UserManagement: React.FC = () => {
   };
 
   // Funktion zum Generieren eines Badge-Typs basierend auf der Benutzerrolle
-  const getRoleBadgeVariant = (role: string | null) => {
+  const getRoleBadgeVariant = (role: string | null): "default" | "destructive" | "secondary" | "outline" => {
     switch (role) {
       case 'admin':
         return 'destructive';
       case 'manager':
-        return 'yellow';
-      default:
         return 'secondary';
+      default:
+        return 'outline';
     }
   };
 
