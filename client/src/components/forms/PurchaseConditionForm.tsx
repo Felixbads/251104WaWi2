@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -42,6 +43,10 @@ const purchaseConditionFormSchema = z.object({
   unitPrice: z.number({
     required_error: "Bitte geben Sie einen Preis ein",
   }).min(0, "Der Preis muss mindestens 0 sein"),
+  taxRate: z.coerce.number().min(0, "Der Steuersatz muss positiv sein").default(19),
+  grossPrice: z.number().optional(),
+  packagingUnit: z.string().optional(),
+  packagingQuantity: z.coerce.number().min(1, "Die Gebindegröße muss mindestens 1 sein").default(1),
   minQuantity: z.number().optional(),
   validFrom: z.date().optional(),
   validTo: z.date().optional(),
@@ -78,23 +83,68 @@ export default function PurchaseConditionForm({
   const { data: productsResponse, isLoading: isProductsLoading } = useQuery({
     queryKey: ['/api/products', { supplierId }],
     enabled: !!supplierId,
+    queryFn: async () => {
+      return await getProducts({ supplierId });
+    }
   });
   
   // Extrahiere die Products-Daten aus der Response
   const products = productsResponse?.data || [];
 
+  // Produkt-Details für den ausgewählten Produkttyp
+  const [selectedProductDetails, setSelectedProductDetails] = React.useState<any>(null);
+  
   // Form mit Standardwerten
   const form = useForm<PurchaseConditionFormValues>({
     resolver: zodResolver(purchaseConditionFormSchema),
     defaultValues: {
       productId: initialData?.productId || 0,
       unitPrice: initialData?.unitPrice || 0,
+      taxRate: 19, // Standard-Mehrwertsteuersatz
+      grossPrice: initialData?.unitPrice ? initialData.unitPrice * 1.19 : 0, // Brutto = Netto * (1 + MwSt/100)
+      packagingUnit: '', // z.B. "Flasche", "Kasten", "Palette"
+      packagingQuantity: 1, // z.B. 6 Flaschen pro Einheit
       minQuantity: initialData?.minQuantity || 0,
       validFrom: initialData?.validFrom ? new Date(initialData.validFrom) : undefined,
       validTo: initialData?.validTo ? new Date(initialData.validTo) : undefined,
       notes: initialData?.notes || '',
     },
   });
+  
+  // Beobachte Änderungen am Nettopreis oder Steuersatz und berechne Bruttopreis
+  React.useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === 'unitPrice' || name === 'taxRate') {
+        const unitPrice = form.getValues('unitPrice') || 0;
+        const taxRate = form.getValues('taxRate') || 19;
+        const grossPrice = unitPrice * (1 + taxRate / 100);
+        form.setValue('grossPrice', +grossPrice.toFixed(2));
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form]);
+  
+  // Wenn ein Produkt ausgewählt wird, lade dessen Details
+  React.useEffect(() => {
+    const productId = form.getValues('productId');
+    if (productId) {
+      const product = products.find((p: any) => p.id === productId);
+      if (product) {
+        setSelectedProductDetails(product);
+        
+        // Wenn das Produkt einen MwSt-Satz hat, verwende diesen
+        if (product.vat) {
+          form.setValue('taxRate', product.vat);
+          
+          // Bruttopreis neu berechnen
+          const unitPrice = form.getValues('unitPrice') || 0;
+          const taxRate = product.vat || 19;
+          const grossPrice = unitPrice * (1 + taxRate / 100);
+          form.setValue('grossPrice', +grossPrice.toFixed(2));
+        }
+      }
+    }
+  }, [form.getValues('productId'), products]);
 
   const handleSubmit = (values: PurchaseConditionFormValues) => {
     // Wenn kein validFrom angegeben ist, setzen wir es auf das aktuelle Datum
@@ -104,7 +154,14 @@ export default function PurchaseConditionForm({
       validFrom: values.validFrom || new Date(), // Falls nicht gesetzt, ab heute gültig
       supplierId,
       id: initialData?.id,
+      // Sicherstellen, dass die neuen Felder korrekt übertragen werden
+      taxRate: values.taxRate || 19,
+      packagingUnit: values.packagingUnit || '',
+      packagingQuantity: values.packagingQuantity || 1,
     };
+    
+    // Loggen der Daten zum Debugging
+    console.log("Erstelle Einkaufsbedingung mit Daten:", formData);
     
     onSubmit(formData);
   };
@@ -149,13 +206,13 @@ export default function PurchaseConditionForm({
           )}
         />
 
-        {/* Preis */}
+        {/* Netto-Preis */}
         <FormField
           control={form.control}
           name="unitPrice"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Preis (€) *</FormLabel>
+              <FormLabel>Netto-Preis (€) *</FormLabel>
               <FormControl>
                 <Input
                   type="number"
@@ -170,6 +227,107 @@ export default function PurchaseConditionForm({
             </FormItem>
           )}
         />
+        
+        {/* Mehrwertsteuersatz */}
+        <FormField
+          control={form.control}
+          name="taxRate"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Mehrwertsteuersatz (%)</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  step="0.1"
+                  disabled={isLoading}
+                  placeholder="19"
+                  {...field}
+                  onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        {/* Brutto-Preis (berechnet) */}
+        <FormField
+          control={form.control}
+          name="grossPrice"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Brutto-Preis (€)</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  step="0.01"
+                  disabled={true}
+                  placeholder="0.00"
+                  {...field}
+                />
+              </FormControl>
+              <FormDescription>
+                Berechnet aus Nettopreis und Mehrwertsteuersatz
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
+        {/* Gebindegröße */}
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="packagingQuantity"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Gebindegröße</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    disabled={isLoading}
+                    placeholder="1"
+                    {...field}
+                    onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : 1)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="packagingUnit"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Gebindeeinheit</FormLabel>
+                <Select
+                  disabled={isLoading}
+                  onValueChange={field.onChange}
+                  value={field.value}
+                  defaultValue=""
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Einheit wählen" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="">Stück</SelectItem>
+                    <SelectItem value="Flasche">Flasche</SelectItem>
+                    <SelectItem value="Kasten">Kasten</SelectItem>
+                    <SelectItem value="Karton">Karton</SelectItem>
+                    <SelectItem value="Palette">Palette</SelectItem>
+                    <SelectItem value="Kiste">Kiste</SelectItem>
+                    <SelectItem value="Einheit">Einheit</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         {/* Mindestmenge */}
         <FormField
