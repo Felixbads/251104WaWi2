@@ -144,7 +144,7 @@ export default function SupplierDetail() {
   
   // Einkaufsbedingungen des Lieferanten abfragen
   const { 
-    data: purchaseConditionsResponse, 
+    data: purchaseConditions, 
     isLoading: isPurchaseConditionsLoading,
     refetch: refetchPurchaseConditions
   } = useQuery({
@@ -152,9 +152,6 @@ export default function SupplierDetail() {
     staleTime: 1000 * 60, // 1 Minute
     enabled: !!id
   });
-  
-  // Einkaufsbedingungen extrahieren und als Array zur Verfügung stellen
-  const purchaseConditions = purchaseConditionsResponse?.data ? purchaseConditionsResponse.data : [];
   
   // Mutation für das Aktualisieren des Lieferanten
   const updateMutation = useMutation({
