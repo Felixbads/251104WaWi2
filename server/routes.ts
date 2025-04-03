@@ -689,6 +689,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const search = req.query.search as string | undefined;
       const supplierId = req.query.supplierId ? parseInt(req.query.supplierId as string) : undefined;
       
+      console.log("[DEBUG] /api/products - Query parameters:", { 
+        limit, offset, category, search, supplierId, 
+        rawSupplierId: req.query.supplierId
+      });
+      
       const products = await storage.getProducts({
         limit,
         offset,

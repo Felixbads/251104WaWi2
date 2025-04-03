@@ -55,7 +55,26 @@ export const getQueryFn: <T>(options: {
   async ({ queryKey }) => {
     // Stelle sicher, dass URL mit /api beginnt
     const url = queryKey[0] as string;
-    const apiUrl = url.startsWith('/api') ? url : `/api${url}`;
+    let apiUrl = url.startsWith('/api') ? url : `/api${url}`;
+    
+    // Check if there are query parameters in queryKey[1]
+    if (queryKey.length > 1 && queryKey[1] && typeof queryKey[1] === 'object') {
+      const queryParams = new URLSearchParams();
+      
+      // Add all parameters from queryKey[1] to the URLSearchParams
+      Object.entries(queryKey[1] as Record<string, any>).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          queryParams.append(key, value.toString());
+        }
+      });
+      
+      // Append the query string to the URL if there are parameters
+      const queryString = queryParams.toString();
+      if (queryString) {
+        apiUrl += `?${queryString}`;
+        console.log(`API Request with params: ${apiUrl}`);
+      }
+    }
     
     // Füge das Auth-Token aus dem localStorage hinzu, wenn vorhanden
     const token = localStorage.getItem('auth_token');

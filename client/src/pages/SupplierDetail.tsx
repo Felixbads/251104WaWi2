@@ -112,6 +112,10 @@ export default function SupplierDetail() {
   // Produkte extrahieren und als Array zur Verfügung stellen
   const products = productsResponse?.data ? productsResponse.data : [];
   
+  // Debugging-Ausgabe (temporär)
+  console.log(`Lieferant ${id} - Produkte geladen:`, products?.length, 
+    productsResponse);
+  
   // Alle verfügbaren Produkte abfragen (für Zuordnung)
   const { data: allProductsResponse, isLoading: isAllProductsLoading } = useQuery({
     queryKey: ['/api/products'],
