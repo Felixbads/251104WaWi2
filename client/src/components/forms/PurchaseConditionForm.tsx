@@ -75,10 +75,13 @@ export default function PurchaseConditionForm({
   isLoading = false,
 }: PurchaseConditionFormProps) {
   // Produkte laden
-  const { data: products = [], isLoading: isProductsLoading } = useQuery({
+  const { data: productsResponse, isLoading: isProductsLoading } = useQuery({
     queryKey: ['/api/products'],
     enabled: true,
   });
+  
+  // Extrahiere die Products-Daten aus der Response
+  const products = productsResponse?.data || [];
 
   // Form mit Standardwerten
   const form = useForm<PurchaseConditionFormValues>({
