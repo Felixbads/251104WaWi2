@@ -349,14 +349,14 @@ export default function Products() {
     }),
   });
   
-  // Alle Vendon-Produkte abrufen (ohne Paginierung)
+  // Alle Vendon-Produkte abrufen (mit Paginierung)
   const { 
     data: vendonProducts, 
     isLoading: isLoadingVendonProducts,
     error: vendonProductsError
   } = useQuery({
     queryKey: ['/api/vendon/products'],
-    queryFn: getAllVendonProducts
+    queryFn: () => getAllVendonProducts(0, 500) // Erster Parameter ist 'page', zweiter ist 'limit'
   });
   
   // Logging in einem Effekt statt in den Query-Optionen
@@ -395,24 +395,28 @@ export default function Products() {
     
     // Wenn die Antwort direkt ein Array ist
     if (Array.isArray(vendonProducts)) {
-      return vendonProducts;
+      return vendonProducts.map((p: any) => ({
+        ...p,
+        // Sicherstellen, dass die Kategorie immer gesetzt ist
+        category: p.category || 'Unkategorisiert',
+      }));
     }
     
     // Wenn die Antwort ein Objekt mit einer 'result'-Eigenschaft ist
     if (vendonProducts.result && Array.isArray(vendonProducts.result)) {
       return vendonProducts.result.map((p: any) => ({
         id: p.id,
-        vendonId: p.id.toString(),
-        productName: p.name,
+        vendonId: p.vendonId || p.id?.toString(),
+        productName: p.productName || p.name,
         description: p.description,
         category: p.category || 'Unkategorisiert',
         price: p.price || 0,
         vat: p.vat,
         status: p.status,
-        sku: p.article,
+        sku: p.sku || p.article,
         barcode: p.barcode,
-        inStock: 10, // Beispielwert
-        amountCritical: 3 // Beispielwert
+        inStock: p.inStock || 0,
+        amountCritical: p.amountCritical || 5
       }));
     }
     
@@ -421,10 +425,10 @@ export default function Products() {
   }, [vendonProducts]);
 
   // Kategorien und Lieferanten sammeln aus verarbeiteten Vendon-Produkten
-  const categories = useMemo(() => {
+  const categories: string[] = useMemo(() => {
     return processedVendonProducts.length > 0
       ? Array.from(new Set(processedVendonProducts.map((product: any) => 
-          product.category || 'Unkategorisiert')))
+          product.category || 'Unkategorisiert'))) as string[]
       : [];
   }, [processedVendonProducts]);
     

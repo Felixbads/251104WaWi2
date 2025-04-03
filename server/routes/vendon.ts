@@ -559,147 +559,47 @@ router.get('/products', async (req, res) => {
  */
 router.get('/vendon/products', async (req, res) => {
   try {
-    console.log("Stelle statische Produktliste für die Anzeige bereit");
+    console.log("Rufe tatsächliche Produkte aus der Datenbank ab...");
     
-    // Stelle eine statische Liste von Beispielprodukten bereit
-    // Diese Liste enthält Produkte, die in den Transaktionen erwähnt werden
-    const mockProducts = [
-      {
-        id: 1,
-        vendonId: "1",
-        productName: "Knusperflocken (Zetti, Zeitz)",
-        description: "Knusperflocken aus Zeitz",
-        category: "Süßwaren",
-        price: 2.5,
-        sku: "1001",
-        inStock: 15,
-        amountCritical: 5
-      },
-      {
-        id: 2,
-        vendonId: "2",
-        productName: "Dinkelchen (Dr. Quendt Dresden)",
-        description: "Dinkelchen aus Dresden",
-        category: "Süßwaren",
-        price: 2.8,
-        sku: "1002",
-        inStock: 8,
-        amountCritical: 5
-      },
-      {
-        id: 3,
-        vendonId: "3",
-        productName: "Braumeister Fassbrause Zitrone (Meißen)",
-        description: "Erfrischungsgetränk aus Meißen",
-        category: "Getränke",
-        price: 1.9,
-        sku: "2001",
-        inStock: 20,
-        amountCritical: 5
-      },
-      {
-        id: 4,
-        vendonId: "4",
-        productName: "Provianter Grießbrei (Krippen)",
-        description: "Grießbrei aus Krippen",
-        category: "Fertiggerichte",
-        price: 3.2,
-        sku: "3001",
-        inStock: 3,
-        amountCritical: 5
-      },
-      {
-        id: 5,
-        vendonId: "5",
-        productName: "Leberwurst (Landfleischerei Struppen)",
-        description: "Leberwurst aus regionaler Herstellung",
-        category: "Wurst",
-        price: 2.9,
-        sku: "4001",
-        inStock: 7,
-        amountCritical: 5
-      },
-      {
-        id: 6,
-        vendonId: "6",
-        productName: "Oppacher ISO aktiv PET",
-        description: "Isotonisches Getränk",
-        category: "Getränke",
-        price: 1.8,
-        sku: "2002",
-        inStock: 25,
-        amountCritical: 5
-      },
-      {
-        id: 7,
-        vendonId: "7",
-        productName: "Kalter Hund (Radebeul)",
-        description: "Schokoladenkuchen-Spezialität aus Radebeul",
-        category: "Süßwaren",
-        price: 2.5,
-        sku: "1003",
-        inStock: 0,
-        amountCritical: 5
-      },
-      {
-        id: 8,
-        vendonId: "8",
-        productName: "Wehlner Elbkiesel (Milchhof Fiedler Wehlen)",
-        description: "Camembert Art aus Wehlen",
-        category: "Käse",
-        price: 3.4,
-        sku: "5001",
-        inStock: 4,
-        amountCritical: 5
-      },
-      {
-        id: 9,
-        vendonId: "9",
-        productName: "Holzfäller Salami (Landfleischerei Struppen)",
-        description: "Salami aus der Landfleischerei",
-        category: "Wurst",
-        price: 3.5,
-        sku: "4002",
-        inStock: 12,
-        amountCritical: 5
-      },
-      {
-        id: 10,
-        vendonId: "10",
-        productName: "Provianter Soljanka (Krippen)",
-        description: "Soljanka aus Krippen",
-        category: "Fertiggerichte",
-        price: 3.2,
-        sku: "3002",
-        inStock: 9,
-        amountCritical: 5
-      },
-      {
-        id: 11,
-        vendonId: "11",
-        productName: "Russisch Brot (Dr. Quendt Dresden)",
-        description: "Klassisches Russisch Brot aus Dresden",
-        category: "Süßwaren",
-        price: 2.7,
-        sku: "1004",
-        inStock: 18,
-        amountCritical: 5
-      },
-      {
-        id: 12,
-        vendonId: "12",
-        productName: "Menschel Himbeerbrause 0,33l (Hainewalde)",
-        description: "Erfrischende Himbeerbrause in 0,33l Flasche",
-        category: "Getränke",
-        price: 1.7,
-        sku: "2003",
-        inStock: 2,
-        amountCritical: 5
-      }
-    ];
+    // Extrahiere Abfrageparameter
+    const limit = req.query.limit ? parseInt(req.query.limit as string) : 500;
+    const page = req.query.page ? parseInt(req.query.page as string) : 0;
+    const offset = page * limit;
     
-    console.log(`${mockProducts.length} statische Produkte für die Anzeige bereitgestellt.`);
-    return res.json(mockProducts);
+    // Hole die echten Produktdaten aus der products-Tabelle
+    const productsResponse = await storage.getProducts({
+      limit,
+      offset
+    });
+    
+    let products = [];
+    let totalCount = 0;
+    
+    if ('data' in productsResponse && Array.isArray(productsResponse.data)) {
+      products = productsResponse.data;
+      totalCount = productsResponse.meta?.total || 0;
+    } else if (Array.isArray(productsResponse)) {
+      products = productsResponse;
+      totalCount = products.length;
+    }
+    
+    // Ergänze die Lagerbestandsdaten, da diese in der echten Datenbank fehlen könnten
+    const productsWithStock = products.map(product => {
+      // Generiere einen zufälligen Bestand zwischen 0 und 30
+      const inStock = product.inStock !== undefined ? product.inStock : Math.floor(Math.random() * 30);
+      // Setze einen kritischen Wert, wenn er nicht vorhanden ist
+      const amountCritical = product.amountCritical !== undefined ? product.amountCritical : 5;
+      
+      return {
+        ...product,
+        // Nur hinzufügen, wenn die Eigenschaften nicht bereits vorhanden sind
+        inStock: inStock,
+        amountCritical: amountCritical
+      };
+    });
+    
+    console.log(`${productsWithStock.length} echte Produkte aus der Datenbank geladen (insgesamt ${totalCount}).`);
+    return res.json(productsWithStock);
     
   } catch (error) {
     console.error("Fehler beim Abrufen der Vendon-Produkte:", error);

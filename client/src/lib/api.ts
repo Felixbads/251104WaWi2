@@ -31,13 +31,14 @@ export async function triggerSync(type: string, options: any = {}) {
 }
 
 // Funktion zum Abrufen aller Vendon-Produkte direkt von der API
-export async function getAllVendonProducts() {
+export async function getAllVendonProducts(page = 0, limit = 200) {
   // Die korrekte Route ist /vendon/vendon/products
   console.log('Abrufen der Vendon-Produkte vom Server...');
   try {
-    const response = await axios.get(`${API_BASE_URL}/vendon/vendon/products`);
-    console.log('Vendon API Antwort erhalten:', response.data);
-    return response.data?.result || response.data;
+    const response = await axios.get(`${API_BASE_URL}/vendon/vendon/products?page=${page}&limit=${limit}`);
+    console.log('Vendon-Produkte Struktur prüfen:', response.data);
+    console.log('Vendon-Produkte sind ein Array mit', response.data.length, 'Einträgen');
+    return response.data;
   } catch (error) {
     console.error('Fehler beim Abrufen der Vendon-Produkte:', error);
     throw error;
