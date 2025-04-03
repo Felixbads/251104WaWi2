@@ -16,7 +16,7 @@ import {
   Loader2, ArrowLeft, Truck, Package, Tag, Info, Clipboard, Clock, 
   BarChart3, Calendar, ShoppingCart, Edit, Check, CheckCircle2, 
   XCircle, Building2, User, AlertTriangle, PackageOpen, BarChart4, 
-  Settings, Store, FileText, Plus
+  Settings, Store, FileText, Plus, FileDown, FileUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -249,9 +249,9 @@ export default function ProductDetail() {
       )}
 
       {product && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Linke Spalte: Produktdetails */}
-          <div className="lg:col-span-2">
+        <div className="grid grid-cols-1 gap-6">
+          {/* Produktdetails */}
+          <div>
             <Card className="mb-6">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
@@ -276,6 +276,49 @@ export default function ProductDetail() {
                       </Badge></span>
                     )}
                   </div>
+                </div>
+                <div className="flex items-center mt-3 justify-end">
+                  {editMode ? (
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setEditMode(false)}
+                      >
+                        Abbrechen
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        onClick={handleSaveProduct}
+                      >
+                        Speichern
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setEditMode(true)}
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Bearbeiten
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        onClick={() => {
+                          toast({
+                            title: "Bestand anpassen",
+                            description: `Weiterleitung zur Bestandsanpassung für "${product?.productName || `Produkt #${id}`}"`,
+                          });
+                          setLocation(`/lager?adjust=product&id=${id}`);
+                        }}
+                      >
+                        <Package className="h-4 w-4 mr-2" />
+                        Bestand anpassen
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </CardHeader>
 
@@ -421,18 +464,6 @@ export default function ProductDetail() {
                         <p className="font-medium">{product.refillUnitSize || '–'}</p>
                       </div>
 
-                      {/* Minimale Menge */}
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Mindestbestand</h3>
-                        <p className="font-medium">{product.amountCritical || '–'}</p>
-                      </div>
-
-                      {/* Maximale Menge */}
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Maximalbestand</h3>
-                        <p className="font-medium">{product.amountMax || '–'}</p>
-                      </div>
-
                       {/* Lagerort */}
                       <div>
                         <h3 className="text-sm font-medium text-gray-500 mb-1">Lagerort</h3>
@@ -459,6 +490,38 @@ export default function ProductDetail() {
                         </div>
                       </div>
 
+                      {/* Lagerbestände */}
+                      <div className="col-span-2 mt-4">
+                        <div className="flex justify-between items-center mb-3">
+                          <h3 className="text-sm font-medium text-gray-500">Lagerbestände</h3>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => setLocation(`/lager?productId=${id}`)}
+                          >
+                            Alle anzeigen
+                          </Button>
+                        </div>
+                        {isLoadingMachines ? (
+                          <div className="py-6 flex justify-center">
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            <span>Lade Lagerdaten...</span>
+                          </div>
+                        ) : (
+                          <div className="border rounded-md overflow-hidden">
+                            <div className="grid grid-cols-12 py-2 px-4 bg-muted font-medium text-sm">
+                              <div className="col-span-5">Lager</div>
+                              <div className="col-span-3 text-center">Aktueller Bestand</div>
+                              <div className="col-span-4 text-center">Min/Max</div>
+                            </div>
+                            {/* Example warehouse data - replace with actual API data */}
+                            <div className="p-4 text-center text-muted-foreground text-sm">
+                              Keine Lagerdaten verfügbar. Verwenden Sie "Bestand anpassen", um das Produkt einem Lager zuzuweisen.
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
                       {/* Automaten mit diesem Produkt */}
                       <div className="col-span-2 mt-6">
                         <h3 className="text-sm font-medium text-gray-500 mb-3">Automaten mit diesem Produkt</h3>
@@ -471,8 +534,17 @@ export default function ProductDetail() {
                           <div className="bg-gray-50 border border-gray-100 rounded-md p-6 flex flex-col items-center justify-center">
                             <Store className="h-12 w-12 text-gray-300 mb-3" />
                             <p className="text-sm text-gray-500 text-center">
-                              Dieses Produkt ist aktuell in keinem Automaten eingefüllt.
+                              Dieses Produkt ist aktuell in keinen Automaten eingefüllt.
                             </p>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="mt-3"
+                              onClick={() => setLocation('/automaten')}
+                            >
+                              <Store className="h-4 w-4 mr-2" />
+                              Zu den Automaten
+                            </Button>
                           </div>
                         ) : (
                           <div className="border rounded-md">
