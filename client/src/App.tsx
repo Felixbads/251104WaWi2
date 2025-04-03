@@ -20,28 +20,38 @@ import ForecastEvaluation from "@/pages/ForecastEvaluation";
 import DataAvailability from "@/pages/DataAvailability"; // Neue Datenverfügbarkeits-Komponente
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
+import NotApproved from "@/pages/NotApproved"; // Neu: Seite für nicht-freigegebene Benutzer
 import AppShell from "@/components/layout/AppShell";
 import Layout from "@/components/layout/Layout";
 import { AuthProvider, useAuth } from "@/lib";
-import AdminRoute from "@/components/auth/AdminRoute";
+import AdminRoute, { RoleBasedRoute } from "@/components/auth/AdminRoute";
 
-// Geschützte Route Komponente
-function ProtectedRoute({ component: Component, ...rest }: any) {
-  const { isAuthenticated, isLoading } = useAuth();
-  const [location] = useLocation();
-  
-  // Während des Ladens zeigen wir nichts an
-  if (isLoading) {
-    return <div className="flex items-center justify-center h-screen">Lade...</div>;
-  }
-  
-  if (!isAuthenticated) {
-    // Wir entfernen führende Slashes aus dem Location-String für die Weiterleitung
-    const cleanLocation = location.startsWith('/') ? location.slice(1) : location;
-    return <Redirect to={`/login?redirect=${encodeURIComponent(cleanLocation)}`} />;
-  }
-  
-  return <Component {...rest} />;
+/**
+ * HOC, der eine geschützte Route mit Benutzerfreigabe-Prüfung erstellt
+ */
+function withAuth(WrappedComponent: React.ComponentType<any>) {
+  return function WithAuthComponent(props: any) {
+    const { isAuthenticated, isLoading, user } = useAuth();
+    const [location] = useLocation();
+    
+    // Während des Ladens zeigen wir nichts an
+    if (isLoading) {
+      return <div className="flex items-center justify-center h-screen">Lade...</div>;
+    }
+    
+    if (!isAuthenticated) {
+      // Wir entfernen führende Slashes aus dem Location-String für die Weiterleitung
+      const cleanLocation = location.startsWith('/') ? location.slice(1) : location;
+      return <Redirect to={`/login?redirect=${encodeURIComponent(cleanLocation)}`} />;
+    }
+    
+    // Wenn der Benutzer nicht freigegeben ist und die Route nicht "/nicht-freigegeben" ist
+    if (user && !user.approved && location !== '/nicht-freigegeben') {
+      return <Redirect to="/nicht-freigegeben" />;
+    }
+    
+    return <WrappedComponent {...props} />;
+  };
 }
 
 // Importiere fehlende Komponenten
@@ -63,39 +73,82 @@ import UserManagement from "@/pages/UserManagement";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  
+  // Anwenden des withAuth-HOC auf alle Komponenten, die Authentifizierung erfordern
+  const ProtectedDashboard = withAuth(Dashboard);
+  const ProtectedTransactions = withAuth(Transactions);
+  const ProtectedMachines = withAuth(Machines);
+  const ProtectedAutomaten = withAuth(Automaten);
+  const ProtectedAutomatDetail = withAuth(AutomatDetail);
+  const ProtectedRefillDetail = withAuth(RefillDetail);
+  const ProtectedProducts = withAuth(Products);
+  const ProtectedProductDetail = withAuth(ProductDetail);
+  const ProtectedSuppliers = withAuth(Suppliers);
+  const ProtectedSupplierDetail = withAuth(SupplierDetail);
+  const ProtectedOrders = withAuth(Orders);
+  const ProtectedNewOrder = withAuth(NewOrder);
+  const ProtectedOrderDetail = withAuth(OrderDetail);
+  const ProtectedOrderReceipt = withAuth(OrderReceipt);
+  const ProtectedSupplierPortal = withAuth(SupplierPortal);
+  const ProtectedLagerPage = withAuth(LagerPage);
+  const ProtectedInventory = withAuth(Inventory);
+  const ProtectedWarehouseDetail = withAuth(WarehouseDetail);
+  const ProtectedWarenentnahmePage = withAuth(WarenentnahmePage);
+  const ProtectedWarenentnahmeNew = withAuth(WarenentnahmeNew);
+  const ProtectedWarenentnahmeDetail = withAuth(WarenentnahmeDetail);
+  const ProtectedDataAvailability = withAuth(DataAvailability);
+  const ProtectedSynchronization = withAuth(Synchronization);
+  const ProtectedSyncHistory = withAuth(SyncHistory);
+  const ProtectedSyncPage = withAuth(SyncPage);
+  const ProtectedForecast = withAuth(Forecast);
+  const ProtectedForecastEvaluation = withAuth(ForecastEvaluation);
+  const ProtectedSettings = withAuth(Settings);
+
   return (
     <Layout>
       <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/transactions" component={Transactions} />
-        <Route path="/machines" component={Machines} />
-        <Route path="/automaten" component={Automaten} />
-        <Route path="/automaten/:id" component={AutomatDetail} />
-        <Route path="/automaten/:id/refills/:refillId" component={RefillDetail} />
-        <Route path="/produkte" component={Products} />
-        <Route path="/produkte/:id" component={ProductDetail} />
-        <Route path="/lieferanten" component={Suppliers} />
-        <Route path="/lieferanten/:id" component={SupplierDetail} />
-        <Route path="/bestellungen" component={Orders} />
-        <Route path="/bestellungen/neu" component={NewOrder} />
-        <Route path="/bestellungen/:id" component={OrderDetail} />
-        <Route path="/bestellungen/:id/wareneingang" component={OrderReceipt} />
-        <Route path="/lieferantenportal" component={SupplierPortal} />
-        <Route path="/lager" component={LagerPage} />
-        <Route path="/inventory" component={Inventory} />
-        <Route path="/lager/:id" component={WarehouseDetail} />
-        <Route path="/warenentnahme" component={WarenentnahmePage} />
-        <Route path="/warenentnahme/new" component={WarenentnahmeNew} />
-        <Route path="/warenentnahme/:id" component={WarenentnahmeDetail} />
-        <Route path="/auswertungen" component={Reporting} />
-        <Route path="/datenverfuegbarkeit" component={DataAvailability} />
-        <Route path="/synchronization" component={Synchronization} />
-        <Route path="/sync-history" component={SyncHistory} />
-        <Route path="/sync" component={SyncPage} />
-        <Route path="/forecast" component={Forecast} />
-        <Route path="/forecast-evaluation" component={ForecastEvaluation} />
-        <Route path="/settings" component={Settings} />
+        {/* Öffentliche Route für nicht freigegebene Benutzer */}
+        <Route path="/nicht-freigegeben" component={NotApproved} />
+        
+        {/* Geschützte Routen, die Freigabe erfordern */}
+        <Route path="/" component={ProtectedDashboard} />
+        <Route path="/transactions" component={ProtectedTransactions} />
+        <Route path="/machines" component={ProtectedMachines} />
+        <Route path="/automaten" component={ProtectedAutomaten} />
+        <Route path="/automaten/:id" component={ProtectedAutomatDetail} />
+        <Route path="/automaten/:id/refills/:refillId" component={ProtectedRefillDetail} />
+        <Route path="/produkte" component={ProtectedProducts} />
+        <Route path="/produkte/:id" component={ProtectedProductDetail} />
+        <Route path="/lieferanten" component={ProtectedSuppliers} />
+        <Route path="/lieferanten/:id" component={ProtectedSupplierDetail} />
+        <Route path="/bestellungen" component={ProtectedOrders} />
+        <Route path="/bestellungen/neu" component={ProtectedNewOrder} />
+        <Route path="/bestellungen/:id" component={ProtectedOrderDetail} />
+        <Route path="/bestellungen/:id/wareneingang" component={ProtectedOrderReceipt} />
+        <Route path="/lieferantenportal" component={ProtectedSupplierPortal} />
+        <Route path="/lager" component={ProtectedLagerPage} />
+        <Route path="/inventory" component={ProtectedInventory} />
+        <Route path="/lager/:id" component={ProtectedWarehouseDetail} />
+        <Route path="/warenentnahme" component={ProtectedWarenentnahmePage} />
+        <Route path="/warenentnahme/new" component={ProtectedWarenentnahmeNew} />
+        <Route path="/warenentnahme/:id" component={ProtectedWarenentnahmeDetail} />
+        
+        {/* Nur Admin kann die Auswertungsseite sehen */}
+        <Route path="/auswertungen" component={props => <AdminRoute component={Reporting} {...props} />} />
+        
+        <Route path="/datenverfuegbarkeit" component={ProtectedDataAvailability} />
+        <Route path="/synchronization" component={ProtectedSynchronization} />
+        <Route path="/sync-history" component={ProtectedSyncHistory} />
+        <Route path="/sync" component={ProtectedSyncPage} />
+        <Route path="/forecast" component={ProtectedForecast} />
+        <Route path="/forecast-evaluation" component={ProtectedForecastEvaluation} />
+        <Route path="/settings" component={ProtectedSettings} />
+        
+        {/* Benutzer-Verwaltung für Admins */}
         <Route path="/benutzer" component={props => <AdminRoute component={UserManagement} {...props} />} />
+        
         <Route path="/:rest*" component={(props: any) => {
           const rest = props.params?.rest;
           return <NotFound title="Seite nicht gefunden" message={`Der Pfad /${Array.isArray(rest) ? rest.join('/') : rest || ''} existiert nicht.`} />;

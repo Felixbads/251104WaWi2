@@ -68,8 +68,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const response = await axios.get('/api/auth/me', config);
           
           if (response.data) {
+            // Setze den Benutzer in den State
             setUser(response.data);
             setToken(storedToken);
+            
+            // Auch nicht freigegebene Benutzer gelten als authentifiziert,
+            // damit wir sie zur "Nicht freigegeben"-Seite leiten können
             setIsAuthenticated(true);
           }
         } catch (error) {
@@ -101,10 +105,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(user);
         setIsAuthenticated(true);
         
-        toast({
-          title: "Erfolgreich angemeldet",
-          description: `Willkommen zurück, ${user.username}!`,
-        });
+        // Prüfe, ob der Benutzer freigegeben wurde
+        if (!user.approved && user.role !== 'admin') {
+          toast({
+            title: "Anmeldung erfolgreich",
+            description: "Dein Konto wurde noch nicht vom Administrator freigegeben.",
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "Erfolgreich angemeldet",
+            description: `Willkommen zurück, ${user.username}!`,
+          });
+        }
         
         setIsLoading(false);
         return true;
@@ -137,7 +150,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (response.data && response.data.success) {
         toast({
           title: "Registrierung erfolgreich",
-          description: "Du kannst dich jetzt anmelden.",
+          description: "Dein Konto wurde angelegt, muss aber noch von einem Administrator freigegeben werden, bevor du dich anmelden kannst.",
         });
         setIsLoading(false);
         return true;

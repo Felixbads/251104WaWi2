@@ -86,6 +86,9 @@ export default function Register() {
           <CardDescription>
             Erstellen Sie ein neues Konto
           </CardDescription>
+          <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-md text-amber-700 text-sm">
+            <p>Hinweis: Nach der Registrierung muss Ihr Konto von einem Administrator freigegeben werden, bevor Sie sich anmelden können.</p>
+          </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

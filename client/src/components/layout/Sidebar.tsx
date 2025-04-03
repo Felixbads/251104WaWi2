@@ -15,17 +15,31 @@ import {
   Users,
   Building2,
   TrashIcon,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib";
 
 // Verwenden wir die wouter Link-Komponente für korrekte Navigation
-const NavItem = ({ href, icon, children, isActive }: { 
+const NavItem = ({ href, icon, children, isActive, disabled = false }: { 
   href: string; 
   icon: React.ReactNode; 
   children: React.ReactNode;
   isActive: boolean;
+  disabled?: boolean;
 }) => {
+  // Wenn das Element deaktiviert ist, zeigen wir es ausgegraut an und deaktivieren die Navigation
+  if (disabled) {
+    return (
+      <div
+        className={`flex items-center px-6 py-2 text-sm font-medium cursor-not-allowed text-gray-400`}
+      >
+        {icon}
+        {children}
+      </div>
+    );
+  }
+  
   return (
     <Link href={href}>
       <div
@@ -45,6 +59,7 @@ const NavItem = ({ href, icon, children, isActive }: {
 export default function Sidebar() {
   const [location] = useLocation();
   const { logout, user } = useAuth();
+  const isAdmin = user?.role === 'admin';
 
   // Helper function to determine if a link is active
   const isActive = (path: string) => {
@@ -146,12 +161,25 @@ export default function Sidebar() {
             >
               Prognoseanalyse
             </NavItem>
+            
+            {/* Ergebnisse/Auswertungen nur für Admins sichtbar */}
             <NavItem 
               href="/auswertungen" 
               icon={<BarChart2 className="h-5 w-5 mr-3" />}
               isActive={isActive("/auswertungen")}
+              disabled={!isAdmin}
             >
-              Auswertungen
+              Ergebnis
+            </NavItem>
+            
+            {/* Downloads nur für Admins sichtbar */}
+            <NavItem 
+              href="/downloads" 
+              icon={<Download className="h-5 w-5 mr-3" />}
+              isActive={isActive("/downloads")}
+              disabled={!isAdmin}
+            >
+              Downloads
             </NavItem>
           </nav>
         </div>
@@ -176,13 +204,17 @@ export default function Sidebar() {
             >
               Sync-Verlauf
             </NavItem>
+            
+            {/* Benutzerverwaltung nur für Admins sichtbar */}
             <NavItem 
               href="/benutzer" 
               icon={<Users className="h-5 w-5 mr-3" />}
               isActive={isActive("/benutzer")}
+              disabled={!isAdmin}
             >
               Benutzerverwaltung
             </NavItem>
+            
             <NavItem 
               href="/settings" 
               icon={<Settings className="h-5 w-5 mr-3" />}
@@ -204,6 +236,9 @@ export default function Sidebar() {
             <div className="ml-3">
               <p className="text-sm font-medium text-gray-700">{user?.username || 'Admin'}</p>
               <p className="text-xs font-medium text-gray-500">{user?.role || 'Administrator'}</p>
+              {!user?.approved && (
+                <p className="text-xs font-medium text-red-500">Nicht freigegeben</p>
+              )}
             </div>
             <Button
               variant="ghost"
