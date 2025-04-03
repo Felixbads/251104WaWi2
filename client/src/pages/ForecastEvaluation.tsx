@@ -115,7 +115,9 @@ const ForecastEvaluation: React.FC = () => {
     refetch
   } = useQuery({
     queryKey: ['/api/forecast/evaluation', queryParams],
-    staleTime: 30000, // 30 Sekunden
+    staleTime: Infinity, // Keine automatische Invalidierung
+    refetchInterval: false, // Kein automatisches Refetching
+    refetchOnWindowFocus: false, // Kein Refetching bei Fokuswechsel
     enabled: false, // Nicht automatisch abrufen beim ersten Rendern
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -132,13 +134,19 @@ const ForecastEvaluation: React.FC = () => {
     }
   });
   
-  // Anwenden der Filter
+  // Anwenden der Filter (einmalig und nur bei Button-Klick)
   const applyFilters = () => {
     try {
+      toast({
+        title: "Filter werden angewendet",
+        description: `Daten werden für den Zeitraum ${format(startDate, 'dd.MM.yyyy')} bis ${format(endDate, 'dd.MM.yyyy')} geladen...`,
+      });
+      
       refetch().then(() => {
+        // Erfolgsmeldung nur einmal anzeigen
         toast({
-          title: "Filter angewendet",
-          description: `Daten werden für den Zeitraum ${format(startDate, 'dd.MM.yyyy')} bis ${format(endDate, 'dd.MM.yyyy')} geladen.`,
+          title: "Filter erfolgreich angewendet",
+          description: `Daten für den Zeitraum ${format(startDate, 'dd.MM.yyyy')} bis ${format(endDate, 'dd.MM.yyyy')} wurden geladen.`,
         });
       }).catch(error => {
         console.error("Fehler beim Laden der Daten:", error);
