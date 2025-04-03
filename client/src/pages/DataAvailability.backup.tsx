@@ -27,7 +27,8 @@ import {
   ReferenceLine,
   Label,
   TooltipProps,
-  Rectangle
+  Rectangle,
+  ComposedChart
 } from "recharts";
 import { 
   Calendar as CalendarIcon, 
@@ -57,6 +58,8 @@ interface DailyDataPoint {
   formattedDate: string;
   hasTransactionData: boolean;
   hasWeatherData: boolean;
+  hasHolidayData: boolean;
+  holidayName?: string;
 }
 
 interface DataCoverageType {
@@ -83,43 +86,9 @@ function DataTimelineChart() {
   const [zoomLevel, setZoomLevel] = useState<number>(1); // 1 = letztes Jahr, 2 = letzte 6 Monate, 3 = letzten 3 Monate
   const [zoomStart, setZoomStart] = useState<Date>(new Date(endDate.getFullYear() - 1, endDate.getMonth(), 1));
   
-  // Abrufen der Datenabdeckung
-  const { data: dataCoverage } = useQuery({
-    queryKey: ["/api/data-coverage"],
-    queryFn: async () => {
-      try {
-        const token = localStorage.getItem("auth_token");
-        const response = await axios.get<DataCoverageType[]>("/api/data-coverage", {
-          headers: token ? { 'Authorization': `Bearer ${token}` } : undefined
-        });
-        return response.data;
-      } catch (error: any) {
-        console.error("API Error:", error);
-        throw new Error(error.response?.data?.error || error.message);
-      }
-    },
-  });
+  // Keine doppelte Abfrage hier, siehe unten
   
-  // Abrufen monatlicher Transaktionsdaten
-  const { data: monthlyTransactions } = useQuery({
-    queryKey: ["/api/data-coverage/monthly-transactions", startDate, endDate],
-    queryFn: async () => {
-      try {
-        const token = localStorage.getItem("auth_token");
-        const response = await axios.get("/api/data-coverage/monthly-transactions", {
-          params: {
-            startDate: startDate.toISOString(),
-            endDate: endDate.toISOString()
-          },
-          headers: token ? { 'Authorization': `Bearer ${token}` } : undefined
-        });
-        return response.data;
-      } catch (error: any) {
-        console.error("API Error beim Abrufen der monatlichen Transaktionsdaten:", error);
-        throw new Error(error.response?.data?.error || error.message);
-      }
-    },
-  });
+  // Monatliche Transaktionsdaten werden erst später abgerufen (siehe unten)
   
   // Zeitraum basierend auf Zoom-Level berechnen
   const getZoomRange = () => {
@@ -149,9 +118,37 @@ function DataTimelineChart() {
     };
   };
   
+  // Abrufen von Feiertagen für den Zeitraum
+  const { data: holidaysData } = useQuery({
+    queryKey: ["/api/holidays", startDate.toISOString(), endDate.toISOString()],
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
+    gcTime: 24 * 60 * 60 * 1000, // 24 Stunden
+    queryFn: async () => {
+      try {
+        const token = localStorage.getItem("auth_token");
+        const response = await axios.get("/api/holidays", {
+          params: {
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString()
+          },
+          headers: token ? { 'Authorization': `Bearer ${token}` } : undefined
+        });
+        return response.data;
+      } catch (error: any) {
+        console.error("API Error beim Abrufen der Feiertage:", error);
+        throw new Error(error.response?.data?.error || error.message);
+      }
+    },
+  });
+
   // Erstellt tägliche Datenpunkte für den aktuellen Zoom-Bereich
   const generateTimelineData = (): DailyDataPoint[] => {
-    const { start, end } = getZoomRange();
+    // Immer den vollständigen Datumsbereich verwenden (2022-01-01 bis heute)
+    // für die Datenvorbereitung, unabhängig vom Zoom-Level
+    const fullRangeStart = new Date(2022, 0, 1);
+    const fullRangeEnd = new Date();
     
     // Transactions-Daten
     const transactionCoverage = dataCoverage?.find(d => d.data_type === "transaction");
@@ -163,10 +160,16 @@ function DataTimelineChart() {
     const weatherStartDate = weatherCoverage?.earliest_date ? new Date(weatherCoverage.earliest_date) : null;
     const weatherEndDate = weatherCoverage?.latest_date ? new Date(weatherCoverage.latest_date) : null;
     
-    // Alle Tage im Bereich
-    const days = eachDayOfInterval({ start, end });
+    // Feiertagsdaten
+    const holidayCoverage = dataCoverage?.find(d => d.data_type === "holiday");
+    const holidayStartDate = holidayCoverage?.earliest_date ? new Date(holidayCoverage.earliest_date) : null;
+    const holidayEndDate = holidayCoverage?.latest_date ? new Date(holidayCoverage.latest_date) : null;
     
-    return days.map(day => {
+    // Alle Tage im gesamten Bereich (2022-01-01 bis heute)
+    const days = eachDayOfInterval({ start: fullRangeStart, end: fullRangeEnd });
+    
+    // Erstelle das vollständige Datensatz, dann filtern wir später für die Anzeige
+    const allData = days.map(day => {
       // Transaktionsdaten vorhanden?
       const hasTransactionData = !!(transactionStartDate && transactionEndDate && 
                                 day >= transactionStartDate && day <= transactionEndDate);
@@ -175,13 +178,28 @@ function DataTimelineChart() {
       const hasWeatherData = !!(weatherStartDate && weatherEndDate && 
                            day >= weatherStartDate && day <= weatherEndDate);
       
+      // Feiertagsdaten vorhanden?
+      const hasHolidayData = !!(holidayStartDate && holidayEndDate && 
+                          day >= holidayStartDate && day <= holidayEndDate);
+      
+      // Prüfen, ob der Tag ein Feiertag ist
+      const formattedDate = format(day, "yyyy-MM-dd");
+      const holiday = holidaysData?.find((h: any) => h.date === formattedDate);
+      
       return {
         date: day,
         formattedDate: format(day, "dd.MM.yyyy"),
         hasTransactionData,
-        hasWeatherData
+        hasWeatherData,
+        hasHolidayData,
+        holidayName: holiday?.name,
+        dummy: "" // Für Y-Achse
       };
     });
+    
+    // Für die Anzeige nur den aktuellen Zoom-Bereich zurückgeben
+    const { start, end } = getZoomRange();
+    return allData.filter(data => data.date >= start && data.date <= end);
   };
   
   // Daten generieren
@@ -207,6 +225,11 @@ function DataTimelineChart() {
       return (
         <div className="bg-background border border-border p-3 rounded-md shadow-md">
           <p className="font-medium">{day.formattedDate}</p>
+          {day.holidayName && (
+            <p className="text-sm text-amber-600 font-medium mt-1">
+              Feiertag: {day.holidayName}
+            </p>
+          )}
           <div className="mt-1">
             <p className="text-sm flex items-center">
               <span className={`inline-block w-3 h-3 mr-2 rounded-full ${day.hasTransactionData ? 'bg-blue-500' : 'bg-red-500'}`}></span>
@@ -216,6 +239,10 @@ function DataTimelineChart() {
               <span className={`inline-block w-3 h-3 mr-2 rounded-full ${day.hasWeatherData ? 'bg-green-500' : 'bg-red-500'}`}></span>
               Wetterdaten: {day.hasWeatherData ? 'Verfügbar' : 'Keine Daten'}
             </p>
+            <p className="text-sm flex items-center">
+              <span className={`inline-block w-3 h-3 mr-2 rounded-full ${day.hasHolidayData ? 'bg-amber-500' : 'bg-red-500'}`}></span>
+              Feiertagsdaten: {day.hasHolidayData ? 'Verfügbar' : 'Keine Daten'}
+            </p>
           </div>
         </div>
       );
@@ -223,17 +250,103 @@ function DataTimelineChart() {
     return null;
   };
   
-  // Angepasster Scatter-Punkt
-  const CustomScatterPoint = ({ cx, cy, payload }: any) => {
-    const dataPoint = payload as DailyDataPoint;
+  // Benutzerdefinierter Renderer für die Zeitleisten-Balken
+  interface CustomTimelineBarProps {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    payload: DailyDataPoint;
+    index: number;
+    [key: string]: any; // Für alle weiteren Props, die recharts übergeben könnte
+  }
+  
+  const CustomTimelineBar = ({ x, y, width, height, payload, index }: CustomTimelineBarProps) => {
+    const dataPoint = payload;
+    const barHeight = 15;
+
+    // Konstanten für die Positionierung - mit mehr Abstand zwischen den Balken
+    const firstBarY = 20;    // Erste Balkenreihe - Transaktionen
+    const secondBarY = 45;   // Zweite Balkenreihe - Wetterdaten
+    const thirdBarY = 70;    // Dritte Balkenreihe - Feiertage
+    const timelineY = 100;   // Zeitachse (unter den Datenelementen)
+    
+    // Fester Abstand zwischen Balken für bessere Lesbarkeit
+    const barSpacing = 2;
     
     return (
       <g>
-        {!dataPoint.hasTransactionData && (
-          <rect x={cx - 3} y={cy - 10} width={6} height={6} fill="red" />
+        {/* Zeitachse als Hintergrundlinie (ganz unten) */}
+        {index === 0 && (
+          <line 
+            x1={0} 
+            y1={timelineY} 
+            x2="100%" 
+            y2={timelineY} 
+            stroke="#e5e7eb" 
+            strokeWidth={2} 
+          />
         )}
-        {!dataPoint.hasWeatherData && (
-          <rect x={cx - 3} y={cy + 4} width={6} height={6} fill="red" />
+        
+        {/* Transaktions-Balken */}
+        <rect 
+          x={x + barSpacing/2} 
+          y={firstBarY} 
+          width={Math.max(1, width - barSpacing)} 
+          height={barHeight} 
+          fill={dataPoint.hasTransactionData ? "#3b82f6" : "transparent"} 
+          stroke={dataPoint.hasTransactionData ? "none" : "#ef4444"}
+          strokeWidth={dataPoint.hasTransactionData ? 0 : 1}
+          rx={1}
+          ry={1}
+        />
+        
+        {/* Wetterdaten-Balken */}
+        <rect 
+          x={x + barSpacing/2} 
+          y={secondBarY} 
+          width={Math.max(1, width - barSpacing)} 
+          height={barHeight} 
+          fill={dataPoint.hasWeatherData ? "#22c55e" : "transparent"} 
+          stroke={dataPoint.hasWeatherData ? "none" : "#ef4444"}
+          strokeWidth={dataPoint.hasWeatherData ? 0 : 1}
+          rx={1}
+          ry={1}
+        />
+        
+        {/* Feiertags-Balken */}
+        <rect 
+          x={x + barSpacing/2} 
+          y={thirdBarY} 
+          width={Math.max(1, width - barSpacing)} 
+          height={barHeight} 
+          fill={dataPoint.hasHolidayData ? "#f59e0b" : "transparent"} 
+          stroke={dataPoint.hasHolidayData ? "none" : "#ef4444"}
+          strokeWidth={dataPoint.hasHolidayData ? 0 : 1}
+          rx={1}
+          ry={1}
+        />
+        
+        {/* Feiertags-Markierung - Nur anzeigen, wenn tatsächlich ein Feiertag ist */}
+        {dataPoint.holidayName && (
+          <circle 
+            cx={x + width/2} 
+            cy={thirdBarY + barHeight/2} 
+            r={4} 
+            fill="#f59e0b" 
+          />
+        )}
+        
+        {/* Zeitstrahl-Markierung für wichtige Daten */}
+        {(index % 30 === 0 || dataPoint.date.getDate() === 1) && (
+          <line 
+            x1={x + width/2} 
+            y1={thirdBarY + barHeight + 5} 
+            x2={x + width/2} 
+            y2={timelineY} 
+            stroke="#6b7280" 
+            strokeWidth={1} 
+          />
         )}
       </g>
     );
@@ -270,11 +383,11 @@ function DataTimelineChart() {
       
       <div className="h-[400px]">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart
+          <ComposedChart
             data={timelineData}
             margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
           >
-            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
             <XAxis 
               dataKey="formattedDate"
               type="category"
@@ -306,39 +419,25 @@ function DataTimelineChart() {
               tickLine={false}
               width={120}
             >
-              <Label value="Transaktionen" position="insideLeft" offset={10} style={{ textAnchor: 'middle', fontSize: 12 }} />
-              <Label value="Wetterdaten" position="insideLeft" offset={55} style={{ textAnchor: 'middle', fontSize: 12 }} />
+              <Label value="Transaktionen" position="insideLeft" offset={20} style={{ textAnchor: 'middle', fontSize: 12 }} />
+              <Label value="Wetterdaten" position="insideLeft" offset={45} style={{ textAnchor: 'middle', fontSize: 12 }} />
+              <Label value="Feiertage" position="insideLeft" offset={70} style={{ textAnchor: 'middle', fontSize: 12 }} />
             </YAxis>
             <Tooltip content={<CustomTimelineTooltip />} />
-            <Line
-              type="monotone"
-              dataKey="hasTransactionData"
-              stroke="#3b82f6"
-              name="Transaktionsdaten"
-              dot={(props) => <CustomScatterPoint {...props} />}
-              activeDot={false}
+            <Bar 
+              dataKey="hasTransactionData" 
+              fill="#3b82f6" 
+              name="Transaktionsdaten" 
+              barSize={15}
+              shape={(props: any) => <CustomTimelineBar {...props} />}
               isAnimationActive={false}
-              strokeWidth={2}
-              yAxisId={0}
             />
-            <Line
-              type="monotone"
-              dataKey="hasWeatherData"
-              stroke="#22c55e"
-              name="Wetterdaten"
-              dot={false}
-              activeDot={false}
-              isAnimationActive={false}
-              strokeWidth={2}
-              yAxisId={0}
-              strokeDasharray="5 5"
-            />
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
       
       <div className="flex justify-between items-center text-sm text-muted-foreground pt-2">
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center flex-wrap gap-2">
           <div className="flex items-center">
             <span className="inline-block w-3 h-3 bg-blue-500 mr-2 rounded-full"></span>
             <span>Transaktionsdaten</span>
@@ -346,6 +445,10 @@ function DataTimelineChart() {
           <div className="flex items-center">
             <span className="inline-block w-3 h-3 bg-green-500 mr-2 rounded-full"></span>
             <span>Wetterdaten</span>
+          </div>
+          <div className="flex items-center">
+            <span className="inline-block w-3 h-3 bg-amber-500 mr-2 rounded-full"></span>
+            <span>Feiertage</span>
           </div>
           <div className="flex items-center">
             <span className="inline-block w-3 h-3 bg-red-500 mr-2 rounded-full"></span>
@@ -374,6 +477,10 @@ export default function DataAvailability() {
   // Abfragen der Datenabdeckung für alle Datentypen
   const { data: dataCoverage, isLoading: isLoadingCoverage } = useQuery({
     queryKey: ["/api/data-coverage"],
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
+    gcTime: 24 * 60 * 60 * 1000,
     queryFn: async () => {
       try {
         console.log("Fetching data coverage...");
@@ -392,7 +499,11 @@ export default function DataAvailability() {
 
   // Abfragen der monatlichen Transaktionsdaten für die Visualisierung
   const { data: monthlyTransactions, isLoading: isLoadingMonthlyData } = useQuery({
-    queryKey: ["/api/data-coverage/monthly-transactions", startDate, endDate],
+    queryKey: ["/api/data-coverage/monthly-transactions", startDate.toISOString(), endDate.toISOString()],
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
+    gcTime: 24 * 60 * 60 * 1000,
     queryFn: async () => {
       try {
         console.log("Fetching monthly transaction data...");
