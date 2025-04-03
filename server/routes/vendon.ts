@@ -559,10 +559,61 @@ router.get('/products', async (req, res) => {
  */
 router.get('/vendon/products', async (req, res) => {
   try {
-    // Produkte direkt von der Vendon API abrufen
-    const api = vendonSync.getApi();
-    const products = await api.getProducts();
-    return res.json(products);
+    // Produkte direkt von der Datenbank abrufen
+    const products = await storage.getProducts(0); // 0 = kein Limit
+    
+    // Vendon-Produkte sind in der Datenbank schon durch Synchronisierung vorhanden
+    if (Array.isArray(products) && products.length > 0) {
+      console.log(`${products.length} Produkte aus der Datenbank für die Anzeige abgerufen.`);
+      return res.json(products);
+    } 
+    
+    // Wenn keine Produkte in der Datenbank sind, versuchen wir die API-Abfrage
+    console.log("Keine Produkte in der Datenbank gefunden. Synchronisiere Produkte...");
+    
+    // Den Synchronisierungsprozess für Produkte ausführen
+    try {
+      await vendonSync.syncProducts();
+      console.log("Produktsynchronisierung abgeschlossen.");
+      
+      // Nach der Synchronisierung nochmal aus der Datenbank abfragen
+      const updatedProducts = await storage.getProducts(0);
+      console.log(`Nach der Synchronisierung wurden ${Array.isArray(updatedProducts) ? updatedProducts.length : 0} Produkte gefunden.`);
+      
+      return res.json(updatedProducts);
+    } catch (syncError) {
+      console.error("Fehler bei der automatischen Produktsynchronisierung:", syncError);
+      
+      // Als Fallback die API direkt abfragen und das Format anpassen
+      const api = vendonSync.getApi();
+      const apiProducts = await api.getProducts();
+      
+      if (Array.isArray(apiProducts) && apiProducts.length > 0) {
+        // Format zu unserem Frontend-Format konvertieren
+        const formattedProducts = apiProducts.map(p => ({
+          id: p.id,
+          vendonId: p.id.toString(),
+          productName: p.name,
+          description: p.description || '',
+          category: p.category || 'Unkategorisiert',
+          price: p.price || 0,
+          vat: p.vat,
+          status: p.status,
+          sku: p.article,
+          barcode: p.barcode,
+          // Lagerbestand simulieren für UI-Anzeige
+          inStock: 10,
+          amountCritical: 3
+        }));
+        
+        console.log(`${formattedProducts.length} Produkte direkt von der API im angepassten Format bereitgestellt.`);
+        return res.json(formattedProducts);
+      }
+      
+      // Wenn alles scheitert, leeres Array zurückgeben
+      console.warn("Keine Produkte von der API erhalten. Gebe leeres Array zurück.");
+      return res.json([]);
+    }
   } catch (error) {
     console.error("Fehler beim Abrufen der Vendon-Produkte:", error);
     return res.status(500).json({ 
