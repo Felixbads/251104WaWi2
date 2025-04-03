@@ -18,6 +18,7 @@ import {
   Tag,
   Download,
   RefreshCw,
+  Info as InfoIcon,
   MapPin,
   CalendarClock,
   X,
@@ -611,6 +612,14 @@ interface DeleteDialogProps {
 }
 
 const DeleteDialog = ({ isOpen, onOpenChange, supplier }: DeleteDialogProps) => {
+  const [showProducts, setShowProducts] = useState(false);
+  
+  // Produkte des Lieferanten abfragen
+  const { data: products } = useQuery({
+    queryKey: ['/api/products', { supplierId: supplier?.id }],
+    enabled: !!supplier?.id && supplier.productsCount > 0 && showProducts
+  });
+  
   // Mutation zum Löschen eines Lieferanten
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteSupplier(id),
@@ -639,7 +648,7 @@ const DeleteDialog = ({ isOpen, onOpenChange, supplier }: DeleteDialogProps) => 
   
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Lieferanten löschen</DialogTitle>
           <DialogDescription>
@@ -649,10 +658,53 @@ const DeleteDialog = ({ isOpen, onOpenChange, supplier }: DeleteDialogProps) => 
         </DialogHeader>
         
         {supplier?.productsCount && supplier.productsCount > 0 && (
-          <div className="bg-yellow-50 border border-yellow-100 rounded-md p-3 text-yellow-800 text-sm">
-            <AlertTriangle className="h-4 w-4 inline-block mr-2" />
-            Diesem Lieferanten sind {supplier.productsCount} Produkte zugeordnet. 
-            Bitte entfernen Sie zuerst die Zuordnung der Produkte, bevor Sie den Lieferanten löschen.
+          <div className="space-y-3">
+            <div className="bg-yellow-50 border border-yellow-100 rounded-md p-3 text-yellow-800 text-sm">
+              <AlertTriangle className="h-4 w-4 inline-block mr-2" />
+              <span>
+                Diesem Lieferanten sind <strong>{supplier.productsCount} Produkte</strong> zugeordnet. 
+                Bitte entfernen Sie zuerst die Zuordnung der Produkte, bevor Sie den Lieferanten löschen.
+              </span>
+              <Button 
+                variant="link" 
+                size="sm" 
+                className="p-0 h-auto ml-1 text-yellow-800 underline"
+                onClick={() => setShowProducts(!showProducts)}
+              >
+                {showProducts ? 'Produkte ausblenden' : 'Produkte anzeigen'}
+              </Button>
+            </div>
+            
+            {showProducts && (
+              <div className="border rounded-md max-h-[200px] overflow-y-auto p-1">
+                {products ? (
+                  products.data?.length > 0 ? (
+                    <ul className="text-sm space-y-1">
+                      {products.data.map((product) => (
+                        <li key={product.id} className="flex items-center p-2 hover:bg-gray-50 rounded">
+                          <span className="font-medium">{product.productName}</span>
+                          <span className="ml-auto text-xs text-gray-500">
+                            {product.sku || product.article || '-'}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-gray-500 p-2">Keine Produkte gefunden</p>
+                  )
+                ) : (
+                  <div className="flex justify-center items-center p-4">
+                    <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                    <span className="text-sm">Produkte werden geladen...</span>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            <div className="text-sm text-gray-600">
+              <InfoIcon className="h-4 w-4 inline-block mr-2" />
+              Sie können die Produktzuordnung ändern, indem Sie auf das jeweilige Produkt gehen und den Lieferanten ändern.
+            </div>
           </div>
         )}
         

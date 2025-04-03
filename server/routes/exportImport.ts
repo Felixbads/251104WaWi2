@@ -72,25 +72,28 @@ router.get("/export/products", async (req: Request, res: Response) => {
   try {
     // Produkte aus dem Speicher abrufen
     const productsResult = await storage.getProducts();
+    let products = [];
     
-    // Überprüfen, ob Produkte vorhanden sind
-    if (!productsResult || !productsResult.data || productsResult.data.length === 0) {
-      return res.status(404).json({ error: "Keine Produkte gefunden" });
+    // Array-Format oder Objekt-Format mit data-Property überprüfen
+    if (productsResult) {
+      if (Array.isArray(productsResult)) {
+        products = productsResult;
+      } else if (productsResult.data && Array.isArray(productsResult.data)) {
+        products = productsResult.data;
+      }
     }
     
-    // Wir verwenden das data-Array aus dem Ergebnis
-    const products = productsResult.data;
-    
-    // Alle Produkte exportieren (inklusive Vendon-Produkte)
-    // Das gibt dem Nutzer mehr Flexibilität
-    
-    // Eine Warnung hinzufügen, wenn es keine manuell hinzugefügten Produkte gibt
-    const manualProducts = products.filter(p => !p.vendonId);
-    const includesVendonProducts = manualProducts.length < products.length;
+    // Immer eine Antwort senden, auch wenn keine Produkte vorhanden sind
+    // Das wird dazu führen, dass eine leere Excel-Datei zurückgegeben wird statt einer Fehlermeldung
     
     // XLSX-Arbeitsmappe erstellen
     const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.json_to_sheet(products);
+    const worksheet = XLSX.utils.json_to_sheet(products.length > 0 ? products : [{
+      id: null,
+      productName: "Keine Produkte vorhanden",
+      sku: "",
+      createdAt: new Date()
+    }]);
     XLSX.utils.book_append_sheet(workbook, worksheet, "Produkte");
     
     // Als Buffer zurückgeben
