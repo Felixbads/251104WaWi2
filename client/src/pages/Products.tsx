@@ -784,19 +784,46 @@ export default function Products() {
         title="Produkte"
         showSearch={true}
         showFilter={true}
-        showAdd={true}
+        showAdd={false}
         searchPlaceholder="Nach Produkten suchen..."
         onSearch={setSearchTerm}
         onFilter={() => setIsFilterDialogOpen(true)}
-        onAdd={() => setLocation("/produkte/neu")}
         activeFilters={activeFilters}
         onClearFilter={clearFilter}
         additionalButtons={
-          <ExportImportButtons 
-            type="products" 
-            label="Produkte" 
-            onSuccessfulImport={handleSuccessfulImport}
-          />
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setScannerDialogOpen(true)}
+            >
+              <ScanBarcode className="mr-2 h-4 w-4" />
+              <span>Scanner</span>
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setLocation("/produkte/neu")}
+            >
+              <FilePlus className="mr-2 h-4 w-4" />
+              <span>Neues Produkt</span>
+            </Button>
+            
+            <Button 
+              size="sm" 
+              onClick={() => setLocation("/produkte/zuweisen")}
+            >
+              <LinkIcon className="mr-2 h-4 w-4" />
+              <span>Produkt zuweisen</span>
+            </Button>
+            
+            <ExportImportButtons 
+              type="products" 
+              label="Produkte" 
+              onSuccessfulImport={handleSuccessfulImport}
+            />
+          </div>
         }
       />
       
