@@ -1760,22 +1760,52 @@ export class DatabaseStorage implements IStorage {
   }
   
   async getPurchaseConditionsBySupplier(supplierId: number): Promise<PurchaseCondition[]> {
-    return await db
-      .select()
+    // Verbesserte Abfrage, die Produktnamen mit einbezieht
+    const result = await db
+      .select({
+        condition: purchaseConditions,
+        product: {
+          id: products.id,
+          name: products.productName,
+          sku: products.sku
+        }
+      })
       .from(purchaseConditions)
+      .leftJoin(products, eq(purchaseConditions.productId, products.id))
       .where(eq(purchaseConditions.supplierId, supplierId))
       .orderBy(desc(purchaseConditions.createdAt));
+    
+    // Füge Produktnamen zu den Bedingungen hinzu und gib sie zurück
+    return result.map(row => ({
+      ...row.condition,
+      productName: row.product.name,
+      productSku: row.product.sku
+    }));
   }
   
   async getPurchaseConditionsByProduct(productId: number): Promise<PurchaseCondition[]> {
-    return await db
-      .select()
+    // Verbesserte Abfrage, die Lieferantennamen mit einbezieht
+    const result = await db
+      .select({
+        condition: purchaseConditions,
+        supplier: {
+          id: suppliers.id,
+          name: suppliers.name
+        }
+      })
       .from(purchaseConditions)
+      .leftJoin(suppliers, eq(purchaseConditions.supplierId, suppliers.id))
       .where(eq(purchaseConditions.productId, productId))
       .orderBy(
         desc(purchaseConditions.isPreferred), 
         asc(purchaseConditions.unitPrice)
       );
+    
+    // Füge Lieferantennamen zu den Bedingungen hinzu und gib sie zurück
+    return result.map(row => ({
+      ...row.condition,
+      supplierName: row.supplier.name
+    }));
   }
   
   async createPurchaseCondition(data: InsertPurchaseCondition): Promise<PurchaseCondition> {
