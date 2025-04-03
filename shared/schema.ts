@@ -504,11 +504,25 @@ export const purchaseConditions = pgTable("purchase_conditions", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertPurchaseConditionSchema = createInsertSchema(purchaseConditions).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+// Erstellung des Schemas für Einkaufsbedingungen mit Anpassung der Datumsfelder
+export const insertPurchaseConditionSchema = createInsertSchema(purchaseConditions)
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    // Erlaube sowohl Date-Objekte als auch ISO-Datums-Strings für validFrom
+    validFrom: z.union([
+      z.date(),
+      z.string().transform((str) => new Date(str))
+    ]).optional(),
+    // Erlaube sowohl Date-Objekte als auch ISO-Datums-Strings für validTo
+    validTo: z.union([
+      z.date(),
+      z.string().transform((str) => new Date(str))
+    ]).optional(),
+  });
 
 export type InsertPurchaseCondition = z.infer<typeof insertPurchaseConditionSchema>;
 export type PurchaseCondition = typeof purchaseConditions.$inferSelect;
