@@ -2,6 +2,22 @@ import axios from 'axios';
 
 const API_BASE_URL = '/api';
 
+// Interface für Einkaufsbedingungen
+export interface PurchaseCondition {
+  id: number;
+  supplierId: number;
+  productId: number;
+  productName?: string;
+  productSku?: string;
+  unitPrice: number;
+  minQuantity?: number;
+  validFrom?: Date | string;
+  validTo?: Date | string;
+  notes?: string;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+}
+
 // Interface für Maschinenbestand (MachineStock)
 export interface MachineStock {
   id: number;

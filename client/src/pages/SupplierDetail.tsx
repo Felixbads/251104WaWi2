@@ -34,8 +34,9 @@ import {
   updatePurchaseCondition, 
   deletePurchaseCondition, 
   PurchaseCondition,
-  getProductsBySupplier
+  getProducts
 } from "@/lib/api";
+import PurchaseConditionForm from "@/components/forms/PurchaseConditionForm";
 
 interface Supplier {
   id: number;
@@ -287,7 +288,10 @@ export default function SupplierDetail() {
   // Mutation für das Erstellen einer neuen Einkaufsbedingung
   const createPurchaseConditionMutation = useMutation({
     mutationFn: (data: Partial<PurchaseCondition>) => 
-      createPurchaseCondition(data),
+      createPurchaseCondition({
+        ...data,
+        supplierId: parseInt(id) // Stellen Sie sicher, dass die Lieferanten-ID gesetzt ist
+      }),
     onSuccess: () => {
       toast({
         title: "Erfolg",
@@ -346,6 +350,26 @@ export default function SupplierDetail() {
       });
     }
   });
+  
+  // Handler für die Einkaufsbedingungsformulare
+  const handleCreatePurchaseCondition = (data: any) => {
+    createPurchaseConditionMutation.mutate(data);
+  };
+  
+  const handleUpdatePurchaseCondition = (data: any) => {
+    if (editingPurchaseCondition) {
+      updatePurchaseConditionMutation.mutate({
+        id: editingPurchaseCondition.id,
+        data
+      });
+    }
+  };
+  
+  const handleConfirmDelete = () => {
+    if (deletingPurchaseConditionId) {
+      deletePurchaseConditionMutation.mutate(deletingPurchaseConditionId);
+    }
+  };
 
   return (
     <div className="container space-y-6">
@@ -1031,16 +1055,10 @@ export default function SupplierDetail() {
             </CardHeader>
             <CardContent>
               {isPurchaseConditionsLoading ? (
-                <div className="space-y-4">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="flex items-center p-3 border rounded-md">
-                      <div className="flex-grow">
-                        <Skeleton className="h-5 w-40 mb-1" />
-                        <Skeleton className="h-4 w-24" />
-                      </div>
-                      <Skeleton className="h-6 w-16" />
-                    </div>
-                  ))}
+                <div className="flex flex-col space-y-3">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
                 </div>
               ) : !purchaseConditions || purchaseConditions.length === 0 ? (
                 <div className="text-center p-6">
@@ -1136,6 +1154,71 @@ export default function SupplierDetail() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Dialog zum Erstellen einer neuen Einkaufsbedingung */}
+      <Dialog open={showAddPurchaseCondition} onOpenChange={setShowAddPurchaseCondition}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Neue Einkaufsbedingung erstellen</DialogTitle>
+            <DialogDescription>
+              Erstellen Sie eine neue Einkaufsbedingung für diesen Lieferanten.
+            </DialogDescription>
+          </DialogHeader>
+          <PurchaseConditionForm
+            supplierId={parseInt(id)}
+            onSubmit={handleCreatePurchaseCondition}
+            onCancel={() => setShowAddPurchaseCondition(false)}
+            isLoading={createPurchaseConditionMutation.isPending}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog zum Bearbeiten einer Einkaufsbedingung */}
+      <Dialog open={!!editingPurchaseCondition} onOpenChange={(open) => !open && setEditingPurchaseCondition(null)}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Einkaufsbedingung bearbeiten</DialogTitle>
+            <DialogDescription>
+              Bearbeiten Sie die ausgewählte Einkaufsbedingung.
+            </DialogDescription>
+          </DialogHeader>
+          {editingPurchaseCondition && (
+            <PurchaseConditionForm
+              supplierId={parseInt(id)}
+              initialData={editingPurchaseCondition}
+              onSubmit={handleUpdatePurchaseCondition}
+              onCancel={() => setEditingPurchaseCondition(null)}
+              isLoading={updatePurchaseConditionMutation.isPending}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog zum Löschen einer Einkaufsbedingung */}
+      <AlertDialog 
+        open={!!deletingPurchaseConditionId} 
+        onOpenChange={(open) => !open && setDeletingPurchaseConditionId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Einkaufsbedingung löschen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sind Sie sicher, dass Sie diese Einkaufsbedingung löschen möchten? 
+              Diese Aktion kann nicht rückgängig gemacht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction 
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleConfirmDelete}
+              disabled={deletePurchaseConditionMutation.isPending}
+            >
+              {deletePurchaseConditionMutation.isPending ? "Löschen..." : "Löschen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
