@@ -696,6 +696,24 @@ router.get('/vendon/stocks', async (req, res) => {
 });
 
 /**
+ * Route, um Vendon-Produkte direkt von der API abzurufen
+ */
+router.get('/vendon/api-products', async (req, res) => {
+  try {
+    // Produkte direkt von der Vendon API abrufen
+    const api = vendonSync.getApi();
+    const products = await api.getProducts();
+    return res.json(products);
+  } catch (error) {
+    console.error("Fehler beim Abrufen der Vendon-Produkte direkt von der API:", error);
+    return res.status(500).json({ 
+      status: 'error', 
+      message: `Vendon-Produkt-API-Abruf fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}` 
+    });
+  }
+});
+
+/**
  * Route, um Vendon Maschinen-Stock-Daten direkt von der API abzurufen
  */
 router.get('/vendon/machine-stock/:machineId', async (req, res) => {

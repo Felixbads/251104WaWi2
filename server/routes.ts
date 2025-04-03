@@ -706,6 +706,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Verknüpfe ein Vendon-Produkt mit einem Lieferanten
+  app.post(`${API_PREFIX}/products/assign-supplier`, async (req: Request, res: Response) => {
+    try {
+      const { vendonProductId, productName, supplierId, supplierName, ...productData } = req.body;
+      
+      if (!vendonProductId || !productName || !supplierId) {
+        return res.status(400).json({ 
+          error: "Fehlende Pflichtfelder", 
+          details: "Vendon-Produkt-ID, Produktname und Lieferanten-ID sind erforderlich" 
+        });
+      }
+      
+      // Prüfen, ob das Produkt bereits existiert
+      let product = await storage.getProductByVendonId(vendonProductId);
+      
+      if (product) {
+        // Produkt aktualisieren mit Lieferanteninformationen
+        product = await storage.updateProduct(product.id, {
+          ...productData,
+          supplierId: supplierId,
+          supplierName: supplierName,
+        });
+        
+        return res.json(product);
+      } else {
+        // Neues Produkt anlegen basierend auf Vendon-Produkt
+        const newProduct: InsertProduct = {
+          vendonId: vendonProductId,
+          productName: productName,
+          supplierId: supplierId,
+          supplierName: supplierName,
+          ...productData
+        };
+        
+        const createdProduct = await storage.createProduct(newProduct);
+        return res.status(201).json(createdProduct);
+      }
+    } catch (error) {
+      console.error("Error assigning supplier to product:", error);
+      res.status(500).json({ 
+        error: "Fehler bei der Zuweisung des Lieferanten", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
   // Produkt-Export als Excel
   app.get(`${API_PREFIX}/products/export`, async (req: Request, res: Response) => {
     try {

@@ -29,7 +29,10 @@ import {
   Percent,
   RefreshCw,
   Upload,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Link as LinkIcon,
+  FilePlus,
+  ScanBarcode
 } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 import { ExportImportButtons } from "@/components/ExportImportButtons";

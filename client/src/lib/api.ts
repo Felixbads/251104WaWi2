@@ -100,7 +100,7 @@ export async function triggerSync(type: string, options: any = {}) {
 }
 
 // Funktion zum Abrufen aller Vendon-Produkte direkt von der Stock-API (ca. 109 Produkte)
-export async function getAllVendonProducts(page = 0, limit = 100) {
+export async function getAllVendonStockProducts(page = 0, limit = 100) {
   // Die korrekte Route ist /vendon/stocks
   console.log('Abrufen der Vendon-Stock-Produkte vom Server...');
   try {
@@ -130,6 +130,19 @@ export async function getAllVendonProducts(page = 0, limit = 100) {
     return allProducts;
   } catch (error) {
     console.error('Fehler beim Abrufen der Vendon-Stock-Produkte:', error);
+    throw error;
+  }
+}
+
+// Funktion zum Abrufen aller Vendon-Produkte direkt von der Vendon API (alle verfügbaren Produkte)
+export async function getAllVendonProducts() {
+  console.log('Abrufen der Vendon-Produkte direkt von der API...');
+  try {
+    const response = await axios.get(`${API_BASE_URL}/vendon/api-products`);
+    console.log(`${response.data.length} Vendon-Produkte von der API erhalten`);
+    return response.data;
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Vendon-Produkte direkt von der API:', error);
     throw error;
   }
 }
@@ -1422,4 +1435,19 @@ export async function initializeDefaultForecastModel() {
       error: String(error)
     };
   }
+}
+
+// Produkt einem Lieferanten zuweisen oder aktualisieren
+export async function assignProductToSupplier(data: {
+  vendonProductId: string;
+  productName: string;
+  supplierId: number;
+  supplierName?: string;
+  costPrice?: number;
+  articleSupplier?: string;
+  minOrderQuantity?: number;
+  packageSize?: string;
+  shelfLifeDays?: number;
+}) {
+  return await apiRequest('post', '/products/assign-supplier', data);
 }
