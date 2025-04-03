@@ -248,6 +248,7 @@ export default function SupplierDetail() {
   
   // Handler für das Absenden des Formulars
   const onSubmit = (values: SupplierFormValues) => {
+    // Die ID muss nicht übergeben werden, da updateSupplier sie bereits als Parameter nimmt
     updateMutation.mutate(values);
   };
   
