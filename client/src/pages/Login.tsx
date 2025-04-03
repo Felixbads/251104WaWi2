@@ -37,7 +37,7 @@ export default function Login() {
   useEffect(() => {
     if (isAuthenticated) {
       // Direkte Weiterleitung ohne Umwege zum Dashboard
-      window.location.href = '/dashboard';
+      window.location.replace('/dashboard');
     }
   }, [isAuthenticated]);
 
@@ -57,7 +57,10 @@ export default function Login() {
     try {
       const success = await login(data);
       
-      if (!success) {
+      if (success) {
+        // Sofort zum Dashboard weiterleiten, nicht auf React-Effekte warten
+        window.location.replace('/dashboard');
+      } else {
         // Fehler wird bereits in der Login-Funktion über Toast angezeigt
         setIsFormSubmitting(false);
       }

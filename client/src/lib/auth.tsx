@@ -54,6 +54,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Prüfen, ob es einen gespeicherten Auth-Status gibt
   useEffect(() => {
     const checkAuth = async () => {
+      // Wenn bereits auf dem Dashboard, keine erneute Überprüfung notwendig
+      const currentPath = window.location.pathname;
       const storedToken = localStorage.getItem('auth_token');
       console.log("Gespeicherter Token gefunden:", !!storedToken);
       
@@ -75,12 +77,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Auch nicht freigegebene Benutzer gelten als authentifiziert,
             // damit wir sie zur "Nicht freigegeben"-Seite leiten können
             setIsAuthenticated(true);
+            
+            // Wenn auf der Login-Seite und erfolgreich authentifiziert, direkt zum Dashboard
+            if ((currentPath === '/' || currentPath === '/login') && response.data.approved) {
+              window.location.href = '/dashboard';
+            }
           }
         } catch (error) {
           console.error('Token validation error:', error);
           // Bei Fehler den Token entfernen
           localStorage.removeItem('auth_token');
         }
+      } else if (currentPath !== '/login' && currentPath !== '/register') {
+        // Wenn kein Token und nicht auf Login/Register, direkt zur Login-Seite
+        window.location.replace('/login');
+        return; // Wir beenden hier, da wir umleiten
       }
       
       setIsLoading(false);
@@ -118,8 +129,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             description: `Willkommen zurück, ${user.username}!`,
           });
           
-          // Sofortige Umleitung zum Dashboard nach erfolgreicher Anmeldung
-          window.location.href = "/dashboard";
+          // Wir leiten nicht hier weiter, sondern in der Login-Funktion selbst
+          // für schnellere Reaktionszeit
         }
         
         setIsLoading(false);

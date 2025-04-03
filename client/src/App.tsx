@@ -352,6 +352,16 @@ function MainRouter() {
   const { isAuthenticated, user, isLoading } = useAuth();
   console.log("Auth status:", { isAuthenticated, user });
   
+  // Auto-Weiterleitung zum Dashboard, wenn bereits authentifiziert
+  useEffect(() => {
+    // Wenn der Benutzer bereits authentifiziert ist und auf der Hauptseite oder Login-Seite...
+    if (isAuthenticated && !isLoading && user?.approved && 
+        (window.location.pathname === '/' || window.location.pathname === '/login')) {
+      // ...direkt zum Dashboard weiterleiten ohne Router-Umweg
+      window.location.replace('/dashboard');
+    }
+  }, [isAuthenticated, isLoading, user]);
+  
   // Während des Ladens zeigen wir einen Ladebildschirm an
   if (isLoading) {
     return (
