@@ -101,10 +101,6 @@ function AuthenticatedRouter() {
           )}
         </Route>
         
-        <Route path="/dashboard">
-          <Redirect to="/login" />
-        </Route>
-        
         <Route path="/">
           <Redirect to="/login" />
         </Route>
