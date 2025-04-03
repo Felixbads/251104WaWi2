@@ -117,13 +117,18 @@ const ForecastEvaluation: React.FC = () => {
     groupBy: activeTab
   };
   
+  // Verwende einen statischen Schlüssel für die Abfrage, um die Stabilität zu verbessern
+  const queryKey = React.useMemo(() => 
+    ['/api/forecast/evaluation-manual', startDate.toISOString(), endDate.toISOString(), selectedMachine, selectedProduct, selectedModel, selectedSupplier, activeTab],
+  [startDate, endDate, selectedMachine, selectedProduct, selectedModel, selectedSupplier, activeTab]);
+  
   const {
     data: forecastData,
     isLoading,
     isError,
     refetch
   } = useQuery({
-    queryKey: ['/api/forecast/evaluation', startDate.toISOString(), endDate.toISOString(), selectedMachine, selectedProduct, selectedModel, selectedSupplier],
+    queryKey,
     staleTime: Infinity, // Keine automatische Invalidierung
     refetchInterval: false, // Kein automatisches Refetching
     refetchOnWindowFocus: false, // Kein Refetching bei Fokuswechsel
