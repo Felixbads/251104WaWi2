@@ -18,8 +18,12 @@ export async function apiRequest(
   // Stelle sicher, dass URL mit /api beginnt
   const apiUrl = url.startsWith('/api') ? url : `/api${url}`;
   
+  // Füge das Auth-Token aus dem localStorage hinzu, wenn vorhanden
+  const token = localStorage.getItem('auth_token');
+  
   const headers = {
     "Content-Type": "application/json",
+    ...(token ? { "Authorization": `Bearer ${token}` } : {}),
     ...(options?.headers || {})
   };
   
@@ -53,7 +57,16 @@ export const getQueryFn: <T>(options: {
     const url = queryKey[0] as string;
     const apiUrl = url.startsWith('/api') ? url : `/api${url}`;
     
+    // Füge das Auth-Token aus dem localStorage hinzu, wenn vorhanden
+    const token = localStorage.getItem('auth_token');
+    const headers: Record<string, string> = {};
+    
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    
     const res = await fetch(apiUrl, {
+      headers: headers,
       credentials: "include",
     });
 

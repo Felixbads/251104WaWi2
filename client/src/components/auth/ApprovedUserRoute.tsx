@@ -36,7 +36,7 @@ const ApprovedUserRoute: React.FC<ApprovedUserRouteProps> = ({ children }) => {
   // Wenn der Benutzer angemeldet ist, aber nicht genehmigt wurde, leiten wir ihn zur
   // "Nicht genehmigt"-Seite weiter
   if (!user?.approved) {
-    return <Redirect to="/not-approved" />;
+    return <Redirect to="/nicht-freigegeben" />;
   }
   
   // Wenn der Benutzer angemeldet und genehmigt ist, zeigen wir die geschützte Route an
