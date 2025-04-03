@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { queryClient } from "@/lib/queryClient";
 import { 
   ShoppingBag, 
   Search, 
@@ -334,7 +335,7 @@ function FilterDialog({ isOpen, onOpenChange, onApplyFilters, categories, initia
 export default function Products() {
   const [searchTerm, setSearchTerm] = useState("");
   // Immer Listenansicht verwenden
-  const viewMode = "list";
+  const viewMode = "list" as "list" | "grid";
   const [, setLocation] = useLocation();
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -767,11 +768,17 @@ export default function Products() {
     }
   };
 
+  // Callback für erfolgreichen Import
+  const handleSuccessfulImport = () => {
+    // Daten nach dem Import neu laden
+    queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+  };
+
   return (
     <div className="space-y-6">
-      {/* Suchleiste */}
-      <div className="w-full mb-6">
-        <div className="relative">
+      {/* Suchleiste und Export/Import-Buttons */}
+      <div className="w-full mb-6 flex justify-between">
+        <div className="relative flex-1 mr-4">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             type="search"
@@ -781,6 +788,13 @@ export default function Products() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+        
+        {/* Export/Import Buttons */}
+        <ExportImportButtons 
+          type="products" 
+          label="Produkte" 
+          onSuccessfulImport={handleSuccessfulImport}
+        />
       </div>
       
       {/* Aktive Filter anzeigen */}

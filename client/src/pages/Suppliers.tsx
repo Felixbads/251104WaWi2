@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { 
   Truck, 
@@ -1283,6 +1283,7 @@ const ExcelImportDialog = ({ isOpen, onOpenChange }: ExcelImportDialogProps) => 
 };
 
 export default function Suppliers() {
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [filterDialogOpen, setFilterDialogOpen] = useState(false);
