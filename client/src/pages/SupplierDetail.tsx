@@ -35,7 +35,8 @@ import {
   deletePurchaseCondition, 
   PurchaseCondition,
   getProducts,
-  assignProductToSupplier
+  assignProductToSupplier,
+  unassignProductFromSupplier
 } from "@/lib/api";
 import PurchaseConditionForm from "@/components/forms/PurchaseConditionForm";
 
@@ -95,6 +96,7 @@ export default function SupplierDetail() {
   const [editingPurchaseCondition, setEditingPurchaseCondition] = useState<PurchaseCondition | null>(null);
   const [deletingPurchaseConditionId, setDeletingPurchaseConditionId] = useState<number | null>(null);
   const [showProductAssignmentDialog, setShowProductAssignmentDialog] = useState(false);
+  const [productSearchTerm, setProductSearchTerm] = useState("");
   
   // Lieferantendaten abfragen
   const { data: supplier, isLoading, error } = useQuery<Supplier>({
@@ -273,6 +275,28 @@ export default function SupplierDetail() {
       toast({
         title: "Fehler",
         description: `Fehler bei der Zuordnung des Produkts: ${error}`,
+        variant: "destructive",
+      });
+    }
+  });
+  
+  // Mutation für das Entfernen der Zuordnung eines Produkts von einem Lieferanten
+  const removeProductFromSupplierMutation = useMutation({
+    mutationFn: (productId: number) => {
+      return unassignProductFromSupplier(productId);
+    },
+    onSuccess: () => {
+      toast({
+        title: "Erfolg",
+        description: "Produktzuordnung erfolgreich entfernt",
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/products`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/products`, { supplierId: parseInt(id) }] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Fehler",
+        description: `Fehler beim Entfernen der Produktzuordnung: ${error}`,
         variant: "destructive",
       });
     }
@@ -1002,20 +1026,35 @@ export default function SupplierDetail() {
                   {products.map((product: any) => (
                     <div 
                       key={product.id} 
-                      className="flex items-center p-3 border rounded-md hover:bg-accent cursor-pointer"
-                      onClick={() => navigate(`/produkte/${product.id}`)}
+                      className="flex items-center p-3 border rounded-md hover:bg-accent"
                     >
-                      <div className="flex-grow">
+                      <div 
+                        className="flex-grow cursor-pointer"
+                        onClick={() => navigate(`/produkte/${product.id}`)}
+                      >
                         <h3 className="font-medium">{product.productName || product.name || 'Unbenanntes Produkt'}</h3>
                         <div className="text-sm text-muted-foreground">
                           {product.sku && <span className="mr-2">SKU: {product.sku}</span>}
                           {product.supplierSku && <span>Lieferanten-Nr.: {product.supplierSku}</span>}
                         </div>
                       </div>
-                      <Badge variant="outline">
-                        {product.purchasePrice ? `${product.purchasePrice.toFixed(2)} €` : 
-                         product.price ? `${product.price.toFixed(2)} €` : 'k.A.'}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">
+                          {product.purchasePrice ? `${product.purchasePrice.toFixed(2)} €` : 
+                           product.price ? `${product.price.toFixed(2)} €` : 'k.A.'}
+                        </Badge>
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeProductFromSupplierMutation.mutate(product.id);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1316,9 +1355,7 @@ export default function SupplierDetail() {
                 className="w-full pl-10" 
                 type="search"
                 onChange={(e) => {
-                  // Implementierung der Suchfunktion
-                  console.log("Suche nach:", e.target.value);
-                  // Hier könnte eine Filterfunktion implementiert werden
+                  setProductSearchTerm(e.target.value);
                 }}
               />
             </div>
@@ -1340,7 +1377,12 @@ export default function SupplierDetail() {
                 </div>
               ) : (
                 <div className="divide-y">
-                  {allProducts.map((product: any) => (
+                  {allProducts
+                    .filter((product: any) => 
+                      productSearchTerm === "" || 
+                      (product.productName && product.productName.toLowerCase().includes(productSearchTerm.toLowerCase())) ||
+                      (product.sku && product.sku.toLowerCase().includes(productSearchTerm.toLowerCase())))
+                    .map((product: any) => (
                     <div 
                       key={product.id} 
                       className={`p-3 flex items-center ${

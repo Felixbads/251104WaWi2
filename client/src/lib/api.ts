@@ -581,6 +581,13 @@ export async function assignProductToSupplier(productId: number, supplierId: num
   });
 }
 
+export async function unassignProductFromSupplier(productId: number): Promise<Product> {
+  return apiRequest<Product>('put', `/products/${productId}`, {
+    supplierId: null,
+    supplierName: null
+  });
+}
+
 /**
  * Produktdaten als Excel exportieren
  * @returns Ein Blob mit der Excel-Datei

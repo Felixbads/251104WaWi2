@@ -356,12 +356,13 @@ export default function Products() {
     sortDirection: "asc"
   });
 
-  // Daten abrufen
+  // Daten abrufen - IMMER alle Produkte anzeigen ohne supplierId Filter
   const { data: products, isLoading, error } = useQuery({
     queryKey: ['/api/products', { page: currentPage, limit }],
     queryFn: () => getProducts({ 
       offset: (currentPage - 1) * limit,
       limit
+      // Kein supplierId-Filter, damit immer ALLE Produkte angezeigt werden
     }),
   });
   
