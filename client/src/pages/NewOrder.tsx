@@ -927,12 +927,20 @@ function NewOrderForm({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent className="max-h-[300px] overflow-y-auto">
-                          {products?.data ? products.data.map((product: any) => (
-                            <SelectItem key={product.id} value={product.id.toString()}>
-                              {product.name}
-                              {product.sku ? ` (${product.sku})` : ''}
-                            </SelectItem>
-                          )) : null}
+                          {products?.data ? products.data
+                            .filter((product: any) => {
+                              // Wenn kein Lieferant ausgewählt ist, alle Produkte anzeigen
+                              if (!currentSupplierId) return true;
+                              // Sonst nur Produkte anzeigen, die dem ausgewählten Lieferanten zugeordnet sind
+                              return product.supplierId === currentSupplierId;
+                            })
+                            .map((product: any) => (
+                              <SelectItem key={product.id} value={product.id.toString()}>
+                                {product.productName || product.name}
+                                {product.sku ? ` (${product.sku})` : ''}
+                              </SelectItem>
+                            ))
+                          : null}
                         </SelectContent>
                       </Select>
                       <FormMessage />
