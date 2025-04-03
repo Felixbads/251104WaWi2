@@ -33,24 +33,13 @@ export default function Login() {
   const [isFormSubmitting, setIsFormSubmitting] = useState(false);
   const { login, isAuthenticated, isLoading } = useAuth();
 
-  // Umleitung zurück zur ursprünglichen Seite nach Login
+  // Sofortige Weiterleitung nach Login zum Dashboard
   useEffect(() => {
     if (isAuthenticated) {
-      // Wenn die Weiterleitung in der URL steht, diese verwenden
-      const params = new URLSearchParams(window.location.search);
-      const redirectTo = params.get('redirect');
-      
-      if (redirectTo) {
-        // Füge einen führenden Slash hinzu, wenn er nicht vorhanden ist
-        const path = decodeURIComponent(redirectTo);
-        const redirectPath = path.startsWith('/') ? path : `/${path}`;
-        console.log("Weiterleitung nach Login zu:", redirectPath);
-        setLocation(redirectPath);
-      } else {
-        setLocation('/dashboard');
-      }
+      // Direkte Weiterleitung ohne Umwege zum Dashboard
+      window.location.href = '/dashboard';
     }
-  }, [isAuthenticated, setLocation]);
+  }, [isAuthenticated]);
 
   // Form-Handling mit react-hook-form und zod-Validierung
   const form = useForm<LoginFormValues>({

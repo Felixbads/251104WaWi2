@@ -80,12 +80,8 @@ function AuthenticatedRouter() {
   const isAdmin = user?.role === 'admin';
   const [location] = useLocation();
   
-  // Wenn der Benutzer authentifiziert ist und auf "/" oder "/login" zugreift, wird er zum Dashboard weitergeleitet
-  useEffect(() => {
-    if (location === '/' || location === '/login') {
-      window.location.href = '/dashboard';
-    }
-  }, [location]);
+  // Da wir bereits direkte Weiterleitungen im Login-Prozess haben,
+  // ist keine weitere Umleitung für "/" und "/login" nötig
   
   // Wir entfernen die withAuth-HOCs, da wir jetzt ApprovedUserRoute und AdminRoute verwenden
 
@@ -106,6 +102,9 @@ function AuthenticatedRouter() {
         </Route>
         
         <Route path="/">
+          <script dangerouslySetInnerHTML={{ __html: `
+            window.location.href = '/dashboard';
+          `}} />
           <div className="flex items-center justify-center h-screen">
             <div className="flex flex-col items-center space-y-4">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
@@ -303,22 +302,28 @@ function AuthenticatedRouter() {
   );
 }
 
+// Importiere PublicRoute Wrapper
+import PublicRoute from "@/pages/PublicRoute";
+
 function PublicRouter() {
   // Beim Rendern überprüfen wir die aktuelle URL 
   const [location] = useLocation();
   
-  // Wenn die URL "/" ist, leiten wir auf "/login" um
+  // Bei Direktaufruf von / sofort zur Login-Seite umleiten
   useEffect(() => {
     if (location === '/') {
-      window.location.href = '/login';
+      window.location.replace('/login');
     }
   }, [location]);
   
   return (
     <Switch>
-      <Route path="/login" component={Login} />
-      <Route path="/register" component={Register} />
+      <Route path="/login" component={() => <PublicRoute component={Login} />} />
+      <Route path="/register" component={() => <PublicRoute component={Register} />} />
       <Route path="/">
+        <script dangerouslySetInnerHTML={{ __html: `
+          window.location.replace('/login');
+        `}} />
         <div className="flex items-center justify-center h-screen">
           <div className="flex flex-col items-center space-y-4">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>

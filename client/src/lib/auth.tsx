@@ -118,9 +118,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             description: `Willkommen zurück, ${user.username}!`,
           });
           
-          // Es wird keine direkte Weiterleitung benötigt, da der MainRouter
-          // automatisch auf die AuthenticatedRouter-Komponente umschaltet und
-          // diese als erste Route das Dashboard hat.
+          // Sofortige Umleitung zum Dashboard nach erfolgreicher Anmeldung
+          window.location.href = "/dashboard";
         }
         
         setIsLoading(false);
