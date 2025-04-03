@@ -74,10 +74,10 @@ export default function PurchaseConditionForm({
   onCancel,
   isLoading = false,
 }: PurchaseConditionFormProps) {
-  // Produkte laden
+  // Produkte für diesen Lieferanten laden
   const { data: productsResponse, isLoading: isProductsLoading } = useQuery({
-    queryKey: ['/api/products'],
-    enabled: true,
+    queryKey: ['/api/products', { supplierId }],
+    enabled: !!supplierId,
   });
   
   // Extrahiere die Products-Daten aus der Response
@@ -97,11 +97,16 @@ export default function PurchaseConditionForm({
   });
 
   const handleSubmit = (values: PurchaseConditionFormValues) => {
-    onSubmit({
+    // Wenn kein validFrom angegeben ist, setzen wir es auf das aktuelle Datum
+    // und wenn kein validTo angegeben ist, bleibt es undefined (unbegrenzt gültig)
+    const formData = {
       ...values,
+      validFrom: values.validFrom || new Date(), // Falls nicht gesetzt, ab heute gültig
       supplierId,
       id: initialData?.id,
-    });
+    };
+    
+    onSubmit(formData);
   };
 
   return (
