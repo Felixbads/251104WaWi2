@@ -152,11 +152,19 @@ export default function SupplierDetail() {
   
   // Mutation für das Erstellen einer neuen Einkaufsbedingung
   const createPurchaseConditionMutation = useMutation({
-    mutationFn: (data: Partial<PurchaseCondition>) => 
-      createPurchaseCondition({
+    mutationFn: (data: any) => {
+      console.log("Erstelle Einkaufsbedingung mit Daten:", data);
+      // Stelle sicher, dass alle erforderlichen Felder vorhanden sind
+      const condition = {
         ...data,
-        supplierId: parseInt(id) // Stellen Sie sicher, dass die Lieferanten-ID gesetzt ist
-      }),
+        supplierId: parseInt(id), // Stelle sicher, dass die ID als Nummer vorliegt
+        productId: Number(data.productId), // Stelle sicher, dass die Produkt-ID als Nummer vorliegt
+        unitPrice: Number(data.unitPrice), // Stelle sicher, dass der Preis als Nummer vorliegt
+        isPreferred: !!data.isPreferred // Standardwert für isPreferred
+      };
+      console.log("Formatierte Daten:", condition);
+      return createPurchaseCondition(condition);
+    },
     onSuccess: () => {
       toast({
         title: "Erfolg",
@@ -166,6 +174,7 @@ export default function SupplierDetail() {
       setShowAddPurchaseCondition(false);
     },
     onError: (error) => {
+      console.error("Fehler beim Erstellen der Einkaufsbedingung:", error);
       toast({
         title: "Fehler",
         description: `Fehler beim Erstellen der Einkaufsbedingung: ${error}`,
