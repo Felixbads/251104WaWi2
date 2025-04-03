@@ -362,13 +362,13 @@ export default function Products() {
   // Category Filter
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
-  // Kategorien und Lieferanten sammeln
-  const categories = products?.data 
-    ? Array.from(new Set(products.data.map((product: Product) => product.category || 'Unkategorisiert')))
+  // Kategorien und Lieferanten sammeln aus Vendon-Produkten
+  const categories = vendonProducts 
+    ? Array.from(new Set(vendonProducts.map((product: Product) => product.category || 'Unkategorisiert')))
     : [];
     
-  const suppliers = products?.data
-    ? Array.from(new Set(products.data.filter(p => p.supplier).map(p => p.supplier as string)))
+  const suppliers = vendonProducts
+    ? Array.from(new Set(vendonProducts.filter((p: Product) => p.supplier).map((p: Product) => p.supplier as string)))
     : [];
 
   // Nutze nur Vendon-Produkte, da Produkte nur über Vendon-Import kommen
