@@ -15,7 +15,7 @@ import {
 import { 
   Loader2, ArrowLeft, Truck, Package, Tag, Info, Clipboard, Clock, 
   BarChart3, Calendar, ShoppingCart, Edit, Check, CheckCircle2, 
-  XCircle, Building2, User, AlertTriangle, PackageOpen, BarChart4, 
+  X, XCircle, Building2, User, AlertTriangle, PackageOpen, BarChart4, 
   Settings, Store, FileText, Plus, FileDown, FileUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
