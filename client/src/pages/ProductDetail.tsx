@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -29,14 +31,12 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, 
   DialogHeader, DialogTitle, DialogTrigger 
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { 
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line } from 'recharts';
 
 export default function ProductDetail() {
@@ -434,10 +434,24 @@ export default function ProductDetail() {
                         </div>
                       )}
 
-                      {/* Typ */}
+                      {/* Pfand */}
                       <div>
-                        <h3 className="text-sm font-medium text-gray-500 mb-1">Produkttyp</h3>
-                        <p className="font-medium">{product.productType || 'Standard'}</p>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Pfand</h3>
+                        {editMode ? (
+                          <div className="flex gap-2">
+                            <Input 
+                              type="number" 
+                              step="0.01"
+                              placeholder="Pfand" 
+                              value={editedProduct.depositPrice?.toString() || ''} 
+                              onChange={(e) => setEditedProduct({...editedProduct, depositPrice: parseFloat(e.target.value) || 0})}
+                              className="w-2/3"
+                            />
+                            <span className="flex items-center text-gray-500">€</span>
+                          </div>
+                        ) : (
+                          <p className="font-medium">{product.depositPrice?.toFixed(2) || '0.00'} €</p>
+                        )}
                       </div>
 
                       {/* Einheiten */}
