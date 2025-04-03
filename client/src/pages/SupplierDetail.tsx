@@ -101,11 +101,14 @@ export default function SupplierDetail() {
   });
   
   // Produkte des Lieferanten abfragen
-  const { data: products, isLoading: isProductsLoading } = useQuery({
+  const { data: productsResponse, isLoading: isProductsLoading } = useQuery({
     queryKey: ['/api/products', { supplierId: parseInt(id) }],
     staleTime: 1000 * 60, // 1 Minute
     enabled: !!id
   });
+  
+  // Produkte extrahieren und als Array zur Verfügung stellen
+  const products = productsResponse?.data ? productsResponse.data : [];
   
   // Bestellungen des Lieferanten abfragen
   const { data: orders, isLoading: isOrdersLoading } = useQuery({
@@ -927,21 +930,22 @@ export default function SupplierDetail() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {products.data.map((product: any) => (
+                  {products.map((product: any) => (
                     <div 
                       key={product.id} 
                       className="flex items-center p-3 border rounded-md hover:bg-accent cursor-pointer"
                       onClick={() => navigate(`/produkte/${product.id}`)}
                     >
                       <div className="flex-grow">
-                        <h3 className="font-medium">{product.name}</h3>
+                        <h3 className="font-medium">{product.productName || product.name || 'Unbenanntes Produkt'}</h3>
                         <div className="text-sm text-muted-foreground">
                           {product.sku && <span className="mr-2">SKU: {product.sku}</span>}
                           {product.supplierSku && <span>Lieferanten-Nr.: {product.supplierSku}</span>}
                         </div>
                       </div>
                       <Badge variant="outline">
-                        {product.purchasePrice ? `${product.purchasePrice.toFixed(2)} €` : 'k.A.'}
+                        {product.purchasePrice ? `${product.purchasePrice.toFixed(2)} €` : 
+                         product.price ? `${product.price.toFixed(2)} €` : 'k.A.'}
                       </Badge>
                     </div>
                   ))}
@@ -981,7 +985,7 @@ export default function SupplierDetail() {
                     </div>
                   ))}
                 </div>
-              ) : !orders?.data || orders.data.length === 0 ? (
+              ) : !orders || orders.length === 0 ? (
                 <div className="text-center p-6">
                   <Truck className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
                   <h3 className="text-lg font-medium mb-1">Keine Bestellungen gefunden</h3>
@@ -994,7 +998,7 @@ export default function SupplierDetail() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {orders.data.map((order: any) => (
+                  {orders.map((order: any) => (
                     <div 
                       key={order.id} 
                       className="flex items-center justify-between p-3 border rounded-md hover:bg-accent cursor-pointer"
