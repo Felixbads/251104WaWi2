@@ -495,14 +495,19 @@ export default function Products() {
                                         (product.category && filters.categories.includes(product.category));
         
         // Bestand-Filter
-        const hasStock = !filters.onlyInStock || (typeof product.inStock === 'number' && product.inStock > 0);
+        // Überprüfe nur, wenn der Filter aktiviert ist und Bestandsdaten verfügbar sind
+        const hasStock = !filters.onlyInStock || 
+                        (typeof product.inStock === 'number' && product.inStock > 0);
         
         // Kritischer Bestand
+        // Überprüfe nur, wenn der Filter aktiviert ist und Bestandsdaten verfügbar sind
         const hasLowStock = !filters.onlyLowStock || 
-                            (typeof product.inStock === 'number' && 
-                            typeof product.amountCritical === 'number' && 
-                            product.inStock <= product.amountCritical && 
-                            product.inStock > 0);
+                           (typeof product.inStock === 'number' && 
+                           ((typeof product.amountCritical === 'number' && 
+                             product.inStock <= product.amountCritical && 
+                             product.inStock > 0) || 
+                            // Falls amountCritical nicht definiert ist, zeige das Produkt trotzdem
+                            (product.amountCritical === undefined && product.inStock > 0)));
         
         // Preis-Filter
         const priceInRange = !product.price || 
