@@ -371,27 +371,22 @@ export default function Products() {
     ? Array.from(new Set(products.data.filter(p => p.supplier).map(p => p.supplier as string)))
     : [];
 
-  // Kombiniere reguläre Produkte mit Vendon-Produkten
-  const allProducts = [...(products?.data || []), ...(vendonProducts || [])];
-  
-  // Entferne Duplikate basierend auf vendonId
-  const uniqueProductsMap = new Map();
-  allProducts.forEach(product => {
-    if (product.vendonId && !uniqueProductsMap.has(product.vendonId)) {
-      uniqueProductsMap.set(product.vendonId, product);
-    } else if (!uniqueProductsMap.has(product.id)) {
-      uniqueProductsMap.set(product.id, product);
+  // Nutze nur Vendon-Produkte, da Produkte nur über Vendon-Import kommen
+  const vendonProductsWithoutDuplicates = (vendonProducts || []).reduce((acc: Map<string, Product>, product: Product) => {
+    if (product.vendonId && !acc.has(product.vendonId)) {
+      acc.set(product.vendonId, product);
     }
-  });
+    return acc;
+  }, new Map<string, Product>());
   
-  const combinedProducts = Array.from(uniqueProductsMap.values());
+  const combinedProducts = Array.from(vendonProductsWithoutDuplicates.values()) as Product[];
   
   // Count-Anzeige für alle Produkte
   const totalProductCount = combinedProducts?.length || 0;
 
   // Filter- und Suchfunktionen
   const filteredProducts = combinedProducts
-    ? combinedProducts.filter((product: Product) => {
+    ? (combinedProducts as Product[]).filter((product: Product) => {
         // Sicherstellen, dass product und seine Eigenschaften definiert sind
         if (!product || !product.productName) return false;
         
@@ -505,7 +500,23 @@ export default function Products() {
             </div>
             <div>
               <p className="text-sm text-gray-500">Bestand</p>
-              <p className="font-medium">{typeof product.inStock === 'number' ? product.inStock : '–'}</p>
+              <div className="flex items-center">
+                {(() => {
+                  let stockStatusClass = "bg-gray-300";
+                  
+                  if (typeof product.inStock === 'number') {
+                    if (product.inStock <= 0) {
+                      stockStatusClass = "bg-red-500";
+                    } else if (product.amountCritical && product.inStock <= product.amountCritical) {
+                      stockStatusClass = "bg-amber-500";
+                    } else {
+                      stockStatusClass = "bg-green-500";
+                    }
+                  }
+                  
+                  return <div className={`w-4 h-4 rounded-full ${stockStatusClass}`} />;
+                })()}
+              </div>
             </div>
           </div>
           
@@ -600,9 +611,9 @@ export default function Products() {
           </div>
           <div className="text-right min-w-[80px]">
             <p className="text-xs text-gray-500">Bestand</p>
-            <p className={`font-medium ${stockStatusClass}`}>
-              {typeof product.inStock === 'number' ? product.inStock : '–'}
-            </p>
+            <div className="flex items-center justify-end">
+              <div className={`w-4 h-4 rounded-full ${stockStatusClass.replace('text-', 'bg-')}`} />
+            </div>
           </div>
           {product.salesCount !== undefined && (
             <div className="text-right min-w-[80px]">
@@ -728,32 +739,8 @@ export default function Products() {
               <TooltipContent>{viewMode === "grid" ? "Listenansicht" : "Kachelansicht"}</TooltipContent>
             </Tooltip>
             
-            {/* Inventurbericht Button */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  className="h-9 flex items-center"
-                  onClick={() => setLocation("/produkte/inventory")}
-                >
-                  <FileText className="h-4 w-4 mr-1.5" />
-                  Inventurbericht
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Inventurbericht erstellen</TooltipContent>
-            </Tooltip>
-            
-            {/* Export/Import */}
-            <ExportImportButtons type="products" />
-            
-            {/* Neues Produkt Button */}
-            <Button
-              className="h-9"
-              onClick={() => setLocation("/produkte/new")}
-            >
-              <Plus className="h-4 w-4 mr-1.5" />
-              Neues Produkt
-            </Button>
+            {/* Alle Buttons für Inventurbericht, Export/Import und Neues Produkt wurden entfernt,
+                da Produkte nur über Vendon Import kommen sollen */}
           </TooltipProvider>
         </div>
       </div>
@@ -848,7 +835,7 @@ export default function Products() {
       {/* Products Grid/List View */}
       {!isLoading && !error && viewMode === "grid" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredProducts.map((product: Product) => (
+          {(filteredProducts as Product[]).map((product: Product) => (
             <ProductCard key={product.id} product={product} />
           ))}
         </div>
@@ -856,7 +843,7 @@ export default function Products() {
 
       {!isLoading && !error && viewMode === "list" && (
         <div className="border rounded-md divide-y">
-          {filteredProducts.map((product: Product) => (
+          {(filteredProducts as Product[]).map((product: Product) => (
             <ProductListItem key={product.id} product={product} />
           ))}
         </div>
