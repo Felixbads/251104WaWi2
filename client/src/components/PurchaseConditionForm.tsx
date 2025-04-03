@@ -123,6 +123,7 @@ export function PurchaseConditionForm({
       
       // Datumsfelder und numerische Werte korrekt formatieren
       // Explizit Date-Objekte erstellen für korrekte Serialisierung zum Server
+      // Wenn kein Datum ausgewählt ist, verwenden wir das aktuelle Datum (ab sofort gültig)
       const dateValidFrom = data.validFrom ? new Date(data.validFrom) : new Date();
       const dateValidTo = data.validTo ? new Date(data.validTo) : null;
       
@@ -139,7 +140,6 @@ export function PurchaseConditionForm({
         validFrom: dateValidFrom.toISOString(),
         validTo: dateValidTo ? dateValidTo.toISOString() : undefined,
         notes: data.notes || "",
-        supplierId: supplierId,
         isPreferred: data.isPreferred || false
       });
       

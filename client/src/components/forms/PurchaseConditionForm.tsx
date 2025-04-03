@@ -165,6 +165,7 @@ export default function PurchaseConditionForm({
     }
     
     // Explizit Date-Objekte erstellen für korrekte Serialisierung zum Server
+    // Wenn kein Datum ausgewählt ist, verwenden wir das aktuelle Datum (ab sofort gültig)
     const dateValidFrom = values.validFrom ? new Date(values.validFrom) : new Date();
     const dateValidTo = values.validTo ? new Date(values.validTo) : null;
     
