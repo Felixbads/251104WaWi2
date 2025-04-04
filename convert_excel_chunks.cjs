@@ -2,15 +2,15 @@ const fs = require('fs');
 const path = require('path');
 const xlsx = require('xlsx');
 
-// Konfiguration
+// Konfiguration für einen schnellen Durchlauf
 const config = {
-  // Excel-Konfiguration
-  inputExcelFile: './attached_assets/Report 2022-04-01 2025-04-05 a18b605bf619a514f7ad636191ecf601.xlsx', // Große Excel-Datei
-  outputDir: './json_chunks',
-  chunkSize: 50, // Anzahl der Datensätze pro JSON-Datei
-  maxChunks: 10, // Begrenzte Anzahl von Chunks für Tests
+  // Datei-Konfiguration
+  inputExcelFile: './attached_assets/Report 2022-04-01 2025-04-05 a18b605bf619a514f7ad636191ecf601.xlsx',
+  outputDir: './json_chunks_smaller',
+  chunkSize: 20, // Kleiner für schnellere Verarbeitung
+  maxChunks: 5, // Nur 5 Chunks pro Durchlauf
   
-  // Zeitlimits und Prozesssteuerung
+  // Prozesssteuerung
   maxProcessingTime: 60000, // 1 Minute maximale Verarbeitungszeit
   
   // Mapping für Maschinen-IDs
@@ -20,16 +20,6 @@ const config = {
     '866174040098984': 53  // Rathen
   }
 };
-
-/**
- * Zeigt die Dateigröße in lesbarem Format an
- */
-function getReadableFileSize(filePath) {
-  const stats = fs.statSync(filePath);
-  const fileSizeInBytes = stats.size;
-  const fileSizeInMB = fileSizeInBytes / (1024 * 1024);
-  return fileSizeInMB.toFixed(2) + ' MB';
-}
 
 /**
  * Erstellt das Ausgabeverzeichnis, falls es nicht existiert
@@ -51,13 +41,10 @@ function convertToVendonFormat(excelData) {
     try {
       dateTime = new Date(row['Date / Time']);
       if (isNaN(dateTime.getTime())) {
-        // Fallback für ungültiges Datum
         dateTime = new Date();
-        console.warn(`Ungültiges Datum in Zeile ${index + 1}: "${row['Date / Time']}", verwende aktuelles Datum.`);
       }
     } catch (e) {
       dateTime = new Date();
-      console.warn(`Fehler beim Parsen des Datums in Zeile ${index + 1}: ${e.message}`);
     }
     
     const isoDate = dateTime.toISOString();
@@ -89,7 +76,6 @@ function convertToVendonFormat(excelData) {
       metadata: JSON.stringify({
         importedFromExcel: true,
         importDate: new Date().toISOString(),
-        originalRow: index + 1,
         telemetryUnit: telemetryUnit,
         address: row['Adresse'],
         transactionType: row['Transaktionstyp']
@@ -117,7 +103,6 @@ function splitExcelToJson() {
     }
     
     console.log(`Konvertierung der Excel-Datei zu JSON: ${config.inputExcelFile}`);
-    console.log(`Dateigröße: ${getReadableFileSize(config.inputExcelFile)}`);
     
     // Prüfe, ob die Datei existiert
     if (!fs.existsSync(config.inputExcelFile)) {

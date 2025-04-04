@@ -1,0 +1,15 @@
+{
+  "totalRowsInFile": 0,
+  "processedRows": 0,
+  "currentChunk": 0,
+  "chunksCreated": 0,
+  "jsonFilesCreated": 0,
+  "jsonFilesImported": 0,
+  "totalTransactions": 0,
+  "savedTransactions": 0,
+  "duplicateTransactions": 0,
+  "errors": 0,
+  "completed": false,
+  "lastProcessed": "2025-04-04T07:55:27.848Z",
+  "startTime": "2025-04-04T07:55:27.845Z"
+}

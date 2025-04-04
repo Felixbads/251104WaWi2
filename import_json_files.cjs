@@ -1,297 +1,217 @@
-/**
- * Import von JSON-Transaktionsdateien in die Datenbank
- * Für die Verwendung mit Dateien, die von convert_excel_to_json.cjs erzeugt wurden
- */
-
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 
 // Konfiguration
-const CONFIG = {
-  apiEndpoint: 'http://localhost:5000/api/vendon/import/json', // API-Endpunkt für den Import
-  jsonDir: './json_chunks', // Verzeichnis mit JSON-Dateien
-  delay: 1000, // Verzögerung zwischen Importen in ms
-  concurrent: false // Ob Dateien parallel importiert werden sollen
+const config = {
+  // Datei-Konfiguration
+  jsonDir: './json_chunks_small',
+  jsonPattern: /^chunk_(\d+)\.json$/, // Regex-Muster für die JSON-Dateien
+  startFromChunk: 1, // Beginne mit diesem Chunk (1-basiert)
+  maxChunks: 2, // Maximale Anzahl von zu importierenden Chunks (0 für alle)
+  
+  // API-Konfiguration
+  apiEndpoint: 'http://localhost:5000/api/vendon/import/json',
+  delayBetweenRequests: 2000, // Wartezeit zwischen API-Anfragen in Millisekunden
+  
+  // Logging
+  logFile: './import_results.log'
 };
 
 /**
- * Importiert eine einzelne JSON-Datei über die API
- * 
- * @param {string} filePath - Pfad zur JSON-Datei
- * @param {Object} options - Optionen für den Import
- * @returns {Object} Ergebnis des Imports
+ * Erzeugt eine Zeitangabe im Format [HH:MM:SS]
  */
-async function importJsonFile(filePath, options = {}) {
-  console.log(`Importiere Datei: ${filePath}`);
-  
-  try {
-    // Lese die JSON-Datei
-    const jsonContent = fs.readFileSync(filePath, 'utf8');
-    const transactions = JSON.parse(jsonContent);
-    
-    console.log(`Datei enthält ${transactions.length} Transaktionen.`);
-    
-    // Falls es ein Testlauf ist, nicht tatsächlich importieren
-    if (options.dryRun) {
-      console.log('Testlauf: Keine tatsächlichen API-Aufrufe.');
-      return {
-        success: true,
-        fileName: path.basename(filePath),
-        transactions: transactions.length,
-        imported: 0,
-        duplicates: 0,
-        errors: 0,
-        message: 'Testlauf abgeschlossen'
-      };
-    }
-    
-    // Importiere die Transaktionen über die API
-    const response = await axios.post(options.apiEndpoint || CONFIG.apiEndpoint, {
-      transactions,
-      skipExistingCheck: false // Prüfe auf Duplikate
-    });
-    
-    if (response.data && response.data.status === 'success') {
-      console.log(`Import erfolgreich: ${response.data.stats.saved} gespeichert, ${response.data.stats.duplicates} Duplikate, ${response.data.stats.errors} Fehler`);
-      
-      return {
-        success: true,
-        fileName: path.basename(filePath),
-        transactions: transactions.length,
-        imported: response.data.stats.saved,
-        duplicates: response.data.stats.duplicates,
-        errors: response.data.stats.errors,
-        message: 'Import erfolgreich'
-      };
-    } else {
-      console.error('API-Fehler:', response.data);
-      return {
-        success: false,
-        fileName: path.basename(filePath),
-        transactions: transactions.length,
-        message: `API-Fehler: ${response.data.message || 'Unbekannter Fehler'}`
-      };
-    }
-  } catch (error) {
-    console.error(`Fehler beim Importieren von ${filePath}:`, error.message);
-    return {
-      success: false,
-      fileName: path.basename(filePath),
-      message: error.message
-    };
-  }
+function getTimeString() {
+  const now = new Date();
+  return `[${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}]`;
 }
 
 /**
- * Importiert alle JSON-Dateien in einem Verzeichnis
- * 
- * @param {string} dirPath - Pfad zum Verzeichnis mit JSON-Dateien
- * @param {Object} options - Optionen für den Import
- * @returns {Object} Ergebnis des Imports
+ * Schreibt eine Nachricht in die Log-Datei und auf die Konsole
  */
-async function importJsonDirectory(dirPath, options = {}) {
-  console.log(`\nImportiere JSON-Dateien aus: ${dirPath}`);
-  console.log(`Optionen: ${JSON.stringify(options)}`);
+function log(message, silent = false) {
+  const logMessage = `${getTimeString()} ${message}\n`;
   
-  try {
-    // Überprüfe, ob das Verzeichnis existiert
-    if (!fs.existsSync(dirPath)) {
-      throw new Error(`Verzeichnis ${dirPath} existiert nicht.`);
-    }
-    
-    // Lese alle Dateien im Verzeichnis
-    const files = fs.readdirSync(dirPath)
-      .filter(file => file.endsWith('.json'))
-      .map(file => path.join(dirPath, file));
-    
-    if (files.length === 0) {
-      console.log('Keine JSON-Dateien im Verzeichnis gefunden.');
-      return {
-        success: true,
-        filesFound: 0,
-        message: 'Keine JSON-Dateien gefunden'
-      };
-    }
-    
-    console.log(`${files.length} JSON-Dateien gefunden.`);
-    
-    // Sortiere Dateien nach Namen (für sequentiellen Import)
-    files.sort();
-    
-    // Initialisiere Statistik
-    const stats = {
-      totalFiles: files.length,
-      processedFiles: 0,
-      successfulImports: 0,
-      failedImports: 0,
-      totalTransactions: 0,
-      importedTransactions: 0,
-      duplicateTransactions: 0,
-      errorTransactions: 0,
-      startTime: Date.now()
-    };
-    
-    // Wähle zwischen parallelem und sequentiellem Import
-    if (options.concurrent) {
-      // Paralleler Import aller Dateien
-      console.log('Starte parallelen Import...');
-      
-      const importPromises = files.map(file => importJsonFile(file, options));
-      const results = await Promise.all(importPromises);
-      
-      // Aktualisiere Statistik
-      results.forEach(result => {
-        stats.processedFiles++;
-        
-        if (result.success) {
-          stats.successfulImports++;
-          stats.totalTransactions += result.transactions || 0;
-          stats.importedTransactions += result.imported || 0;
-          stats.duplicateTransactions += result.duplicates || 0;
-          stats.errorTransactions += result.errors || 0;
-        } else {
-          stats.failedImports++;
-        }
-      });
-    } else {
-      // Sequentieller Import mit Verzögerung
-      console.log('Starte sequentiellen Import...');
-      
-      const delay = options.delay || CONFIG.delay;
-      
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        console.log(`\nImportiere Datei ${i+1}/${files.length}: ${path.basename(file)}`);
-        
-        const result = await importJsonFile(file, options);
-        
-        // Aktualisiere Statistik
-        stats.processedFiles++;
-        
-        if (result.success) {
-          stats.successfulImports++;
-          stats.totalTransactions += result.transactions || 0;
-          stats.importedTransactions += result.imported || 0;
-          stats.duplicateTransactions += result.duplicates || 0;
-          stats.errorTransactions += result.errors || 0;
-        } else {
-          stats.failedImports++;
-        }
-        
-        // Verzögerung zwischen Importen (außer beim letzten)
-        if (i < files.length - 1 && delay > 0) {
-          console.log(`Warte ${delay}ms vor dem nächsten Import...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-      }
-    }
-    
-    // Zusammenfassung
-    const totalTimeSeconds = Math.floor((Date.now() - stats.startTime) / 1000);
-    console.log('\n=== Import-Zusammenfassung ===');
-    console.log(`Gesamtzeit: ${totalTimeSeconds} Sekunden`);
-    console.log(`Verarbeitete Dateien: ${stats.processedFiles}/${stats.totalFiles}`);
-    console.log(`Erfolgreiche Importe: ${stats.successfulImports}`);
-    console.log(`Fehlgeschlagene Importe: ${stats.failedImports}`);
-    console.log(`Gefundene Transaktionen: ${stats.totalTransactions}`);
-    console.log(`Importierte Transaktionen: ${stats.importedTransactions}`);
-    console.log(`Duplikate: ${stats.duplicateTransactions}`);
-    console.log(`Fehler: ${stats.errorTransactions}`);
-    
-    return {
-      success: true,
-      message: 'Import abgeschlossen',
-      stats
-    };
-    
-  } catch (error) {
-    console.error(`Fehler beim Importieren des Verzeichnisses:`, error);
-    return {
-      success: false,
-      message: error.message
-    };
+  if (!silent) {
+    console.log(message);
   }
+  
+  fs.appendFileSync(config.logFile, logMessage);
 }
 
 /**
- * Hauptfunktion
+ * Verzögerungsfunktion für asynchrones Warten
  */
-async function main() {
-  const args = process.argv.slice(2);
-  
-  // Optionen parsen
-  const options = {
-    apiEndpoint: CONFIG.apiEndpoint,
-    concurrent: CONFIG.concurrent,
-    delay: CONFIG.delay,
-    dryRun: false,
-    jsonDir: CONFIG.jsonDir
-  };
-  
-  // Flags parsen
-  if (args.includes('--dry-run')) {
-    options.dryRun = true;
-  }
-  
-  if (args.includes('--concurrent')) {
-    options.concurrent = true;
-  }
-  
-  // Verzeichnis parsen
-  const dirArg = args.find(arg => arg.startsWith('--dir='));
-  if (dirArg) {
-    options.jsonDir = dirArg.split('=')[1];
-  }
-  
-  // API-Endpunkt parsen
-  const apiArg = args.find(arg => arg.startsWith('--api='));
-  if (apiArg) {
-    options.apiEndpoint = apiArg.split('=')[1];
-  }
-  
-  // Verzögerung parsen
-  const delayArg = args.find(arg => arg.startsWith('--delay='));
-  if (delayArg) {
-    options.delay = parseInt(delayArg.split('=')[1], 10);
-  }
-  
-  // Einzelne Datei parsen
-  const fileArg = args.find(arg => !arg.startsWith('--'));
-  if (fileArg && fileArg.endsWith('.json')) {
-    console.log(`Importiere einzelne JSON-Datei: ${fileArg}`);
-    const result = await importJsonFile(fileArg, options);
-    
-    if (result.success) {
-      console.log(`\nImport erfolgreich: ${result.message}`);
-      if (!options.dryRun) {
-        console.log(`Importierte Transaktionen: ${result.imported}`);
-        console.log(`Duplikate: ${result.duplicates}`);
-        console.log(`Fehler: ${result.errors}`);
-      }
-    } else {
-      console.error(`\nImport fehlgeschlagen: ${result.message}`);
-    }
-    return;
-  }
-  
-  // Importiere alle JSON-Dateien im Verzeichnis
-  const result = await importJsonDirectory(options.jsonDir, options);
-  
-  if (result.success) {
-    console.log(`\nVerzeichnis-Import erfolgreich: ${result.message}`);
-  } else {
-    console.error(`\nVerzeichnis-Import fehlgeschlagen: ${result.message}`);
-  }
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Ausführen der Hauptfunktion
-if (require.main === module) {
-  main().catch(err => {
-    console.error('Unbehandelte Ausnahme:', err);
-    process.exit(1);
+/**
+ * Findet alle JSON-Dateien, die dem Muster entsprechen
+ */
+function findJsonFiles() {
+  // Manuell die Dateien im Verzeichnis auflisten
+  const files = fs.readdirSync(config.jsonDir)
+    .filter(file => config.jsonPattern.test(file))
+    .map(file => path.join(config.jsonDir, file));
+  
+  // Sortiere die Dateien nach Chunk-Nummer
+  return files.sort((a, b) => {
+    const fileNameA = path.basename(a);
+    const fileNameB = path.basename(b);
+    const numA = parseInt(fileNameA.match(/chunk_(\d+)\.json/)[1]);
+    const numB = parseInt(fileNameB.match(/chunk_(\d+)\.json/)[1]);
+    return numA - numB;
   });
 }
 
-// Export für die Verwendung in anderen Skripten
-module.exports = { importJsonFile, importJsonDirectory };
+/**
+ * Importiert eine JSON-Datei über die API
+ */
+async function importJsonFile(filePath, chunkIndex) {
+  try {
+    log(`Importiere JSON-Datei: ${filePath} (Chunk ${chunkIndex})`);
+    
+    // JSON-Datei lesen
+    const fileContent = fs.readFileSync(filePath, 'utf8');
+    const jsonData = JSON.parse(fileContent);
+    
+    // Anzahl der Transaktionen ausgeben
+    const transactionCount = jsonData.transactions ? jsonData.transactions.length : 0;
+    log(`Datei enthält ${transactionCount} Transaktionen.`);
+    
+    // API-Aufruf durchführen
+    const response = await axios.post(config.apiEndpoint, jsonData, {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    log(`Import von Chunk ${chunkIndex} abgeschlossen. Status: ${response.status}`);
+    log(`Ergebnis: ${JSON.stringify(response.data.stats)}`);
+    
+    return {
+      success: true,
+      stats: response.data.stats,
+      chunkIndex,
+      transactionCount
+    };
+  } catch (error) {
+    log(`Fehler beim Importieren von ${filePath}:`, error.message);
+    log(error.stack);
+    
+    return {
+      success: false,
+      error: error.message,
+      chunkIndex,
+      transactionCount: 0
+    };
+  }
+}
+
+/**
+ * Importiert alle gefundenen JSON-Dateien
+ */
+async function importAllJsonFiles() {
+  try {
+    // Log-Datei initialisieren
+    fs.writeFileSync(config.logFile, `--- Import-Protokoll gestartet am ${new Date().toLocaleString()} ---\n\n`);
+    
+    // JSON-Dateien finden
+    const jsonFiles = findJsonFiles();
+    
+    if (jsonFiles.length === 0) {
+      log(`Keine JSON-Dateien gefunden in ${config.jsonDir}`);
+      return;
+    }
+    
+    log(`${jsonFiles.length} JSON-Dateien gefunden.`);
+    
+    // Bestimme die zu importierenden Dateien basierend auf der Konfiguration
+    const startIndex = config.startFromChunk - 1;
+    const endIndex = config.maxChunks > 0 
+      ? Math.min(startIndex + config.maxChunks, jsonFiles.length) 
+      : jsonFiles.length;
+    
+    const filesToImport = jsonFiles.slice(startIndex, endIndex);
+    
+    log(`Importiere Dateien ${startIndex + 1} bis ${endIndex} von ${jsonFiles.length}.`);
+    
+    // Statistik initialisieren
+    const stats = {
+      totalFiles: filesToImport.length,
+      processedFiles: 0,
+      successfulFiles: 0,
+      failedFiles: 0,
+      totalTransactions: 0,
+      savedTransactions: 0,
+      duplicates: 0,
+      errors: 0
+    };
+    
+    // Verarbeite jede Datei sequentiell
+    for (let i = 0; i < filesToImport.length; i++) {
+      const filePath = filesToImport[i];
+      const chunkIndex = startIndex + i + 1;
+      
+      // Importiere die Datei
+      const result = await importJsonFile(filePath, chunkIndex);
+      stats.processedFiles++;
+      
+      if (result.success) {
+        stats.successfulFiles++;
+        stats.totalTransactions += result.transactionCount;
+        
+        if (result.stats) {
+          stats.savedTransactions += result.stats.saved || 0;
+          stats.duplicates += result.stats.duplicates || 0;
+          stats.errors += result.stats.errors || 0;
+        }
+      } else {
+        stats.failedFiles++;
+      }
+      
+      // Fortschritt anzeigen
+      const progress = ((stats.processedFiles / stats.totalFiles) * 100).toFixed(2);
+      log(`Fortschritt: ${progress}% (${stats.processedFiles}/${stats.totalFiles})`);
+      
+      // Warte zwischen den Anfragen, falls es nicht die letzte Datei ist
+      if (i < filesToImport.length - 1) {
+        log(`Warte ${config.delayBetweenRequests}ms vor dem nächsten Import...`);
+        await sleep(config.delayBetweenRequests);
+      }
+    }
+    
+    // Gesamtstatistik anzeigen
+    log(`\nImport abgeschlossen!`);
+    log(`Gesamtstatistik:
+      - Verarbeitete Dateien: ${stats.processedFiles}/${stats.totalFiles}
+      - Erfolgreiche Importe: ${stats.successfulFiles}
+      - Fehlgeschlagene Importe: ${stats.failedFiles}
+      - Verarbeitete Transaktionen: ${stats.totalTransactions}
+      - Gespeicherte Transaktionen: ${stats.savedTransactions}
+      - Duplikate: ${stats.duplicates}
+      - Fehler: ${stats.errors}
+    `);
+    
+    return stats;
+  } catch (error) {
+    log(`Kritischer Fehler bei der Verarbeitung:`, error.message);
+    log(error.stack);
+    return null;
+  }
+}
+
+// Starte die Verarbeitung
+console.time('Total Import Time');
+
+importAllJsonFiles()
+  .then(stats => {
+    log('Import-Prozess abgeschlossen.');
+    console.timeEnd('Total Import Time');
+  })
+  .catch(error => {
+    log(`Unerwarteter Fehler: ${error.message}`);
+    log(error.stack);
+    console.timeEnd('Total Import Time');
+  });

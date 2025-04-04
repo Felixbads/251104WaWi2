@@ -2,16 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const xlsx = require('xlsx');
 
-// Konfiguration
+// Konfiguration für kleine Excel-Datei
 const config = {
   // Excel-Konfiguration
-  inputExcelFile: './attached_assets/Report 2022-04-01 2025-04-05 a18b605bf619a514f7ad636191ecf601.xlsx', // Große Excel-Datei
-  outputDir: './json_chunks',
-  chunkSize: 50, // Anzahl der Datensätze pro JSON-Datei
-  maxChunks: 10, // Begrenzte Anzahl von Chunks für Tests
-  
-  // Zeitlimits und Prozesssteuerung
-  maxProcessingTime: 60000, // 1 Minute maximale Verarbeitungszeit
+  inputExcelFile: './attached_assets/1.xlsx', // Kleine Excel-Datei für Tests
+  outputDir: './json_chunks_small',
+  chunkSize: 5, // Anzahl der Datensätze pro JSON-Datei
   
   // Mapping für Maschinen-IDs
   telemetryToMachineMap: {
@@ -20,16 +16,6 @@ const config = {
     '866174040098984': 53  // Rathen
   }
 };
-
-/**
- * Zeigt die Dateigröße in lesbarem Format an
- */
-function getReadableFileSize(filePath) {
-  const stats = fs.statSync(filePath);
-  const fileSizeInBytes = stats.size;
-  const fileSizeInMB = fileSizeInBytes / (1024 * 1024);
-  return fileSizeInMB.toFixed(2) + ' MB';
-}
 
 /**
  * Erstellt das Ausgabeverzeichnis, falls es nicht existiert
@@ -103,21 +89,11 @@ function convertToVendonFormat(excelData) {
 }
 
 /**
- * Teilt eine große Excel-Datei in JSON-Chunks auf
+ * Konvertiert eine Excel-Datei in JSON-Chunks
  */
-function splitExcelToJson() {
+function convertExcelToJson() {
   try {
-    // Startzeit für Zeitbegrenzung festlegen
-    const startTime = Date.now();
-    
-    // Hilfsfunktion zur Prüfung, ob Zeitlimit überschritten wurde
-    function isTimeExceeded() {
-      return config.maxProcessingTime > 0 && 
-             (Date.now() - startTime) > config.maxProcessingTime;
-    }
-    
     console.log(`Konvertierung der Excel-Datei zu JSON: ${config.inputExcelFile}`);
-    console.log(`Dateigröße: ${getReadableFileSize(config.inputExcelFile)}`);
     
     // Prüfe, ob die Datei existiert
     if (!fs.existsSync(config.inputExcelFile)) {
@@ -127,86 +103,32 @@ function splitExcelToJson() {
     // Ausgabeverzeichnis erstellen
     createOutputDirIfNeeded();
     
-    // Excel-Datei für Low-Memory-Verarbeitung öffnen
-    console.log('Öffne Excel-Datei mit optimierten Einstellungen...');
+    // Excel-Datei einlesen
+    console.log('Lese Excel-Datei...');
     const workbook = xlsx.readFile(config.inputExcelFile, {
-      cellFormula: false,  // Keine Formeln verarbeiten
-      cellHTML: false,     // Kein HTML verarbeiten
-      cellStyles: false,   // Keine Stile verarbeiten
-      cellNF: false,       // Keine Zahlenformate
-      cellDates: true,     // Datumsformate beibehalten
-      sheetStubs: true,    // Leere Zellen berücksichtigen
-      bookDeps: false,     // Keine Abhängigkeiten verfolgen
-      bookVBA: false,      // Kein VBA-Code laden
-      dense: true,         // Optimierung für große Dateien
-      WTF: false           // Weniger Warnungen ausgeben
+      cellFormula: false,
+      cellHTML: false,
+      cellStyles: false
     });
     
-    // Arbeitsblatt auswählen
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     
-    // Bereich des Arbeitsblatts ermitteln
-    const range = xlsx.utils.decode_range(worksheet['!ref']);
-    const totalRows = range.e.r - range.s.r; // Gesamtanzahl der Zeilen (ohne Header)
+    // Konvertiere das Arbeitsblatt in JSON
+    const allRows = xlsx.utils.sheet_to_json(worksheet, { raw: true });
     
-    console.log(`Arbeitsblatt '${sheetName}' hat ${totalRows} Datenzeilen.`);
+    console.log(`Excel-Datei erfolgreich gelesen. ${allRows.length} Zeilen gefunden.`);
     
-    // Spaltenüberschriften aus der ersten Zeile lesen
-    const headers = {};
-    for (let c = range.s.c; c <= range.e.c; c++) {
-      const cellAddress = xlsx.utils.encode_cell({ r: range.s.r, c });
-      if (worksheet[cellAddress] && worksheet[cellAddress].v !== undefined) {
-        headers[c] = worksheet[cellAddress].v;
-      } else {
-        headers[c] = `Column_${c}`;
-      }
-    }
-    
-    console.log(`${Object.keys(headers).length} Spalten gefunden.`);
-    
-    // Verarbeitung einrichten
-    const rows = range.s.r + 1; // Beginne bei erster Datenzeile (nach Header)
-    const maxRow = config.maxChunks > 0 
-      ? Math.min(rows + (config.chunkSize * config.maxChunks), range.e.r + 1)
-      : range.e.r + 1;
-    
-    console.log(`Verarbeite Zeilen ${rows} bis ${maxRow - 1} (maximal ${config.maxChunks} Chunks mit je ${config.chunkSize} Zeilen).`);
-    
-    // Chunks verarbeiten
+    // Aufteilen in Chunks
     let currentChunk = [];
     let currentChunkNumber = 1;
-    let rowsProcessed = 0;
     let jsonFilesCreated = 0;
     
-    for (let r = rows; r < maxRow; r++) {
-      // Prüfe, ob das Zeitlimit überschritten wurde
-      if (isTimeExceeded()) {
-        console.log(`Zeitlimit von ${config.maxProcessingTime}ms überschritten, breche Verarbeitung ab.`);
-        break;
-      }
+    for (let i = 0; i < allRows.length; i++) {
+      currentChunk.push(allRows[i]);
       
-      // Zeile verarbeiten
-      const rowData = {};
-      let hasData = false;
-      
-      // Alle Zellen der Zeile lesen
-      for (let c = range.s.c; c <= range.e.c; c++) {
-        const cellAddress = xlsx.utils.encode_cell({ r, c });
-        if (worksheet[cellAddress] && worksheet[cellAddress].v !== undefined) {
-          rowData[headers[c]] = worksheet[cellAddress].v;
-          hasData = true;
-        }
-      }
-      
-      // Nur Zeilen mit Daten hinzufügen
-      if (hasData) {
-        currentChunk.push(rowData);
-        rowsProcessed++;
-      }
-      
-      // Wenn der Chunk voll ist oder wir am Ende sind
-      if (currentChunk.length >= config.chunkSize || r === maxRow - 1) {
+      // Wenn ein Chunk voll ist oder dies die letzte Zeile ist
+      if (currentChunk.length >= config.chunkSize || i === allRows.length - 1) {
         if (currentChunk.length > 0) {
           // Konvertiere in Vendon-Format
           const vendonTransactions = convertToVendonFormat(currentChunk);
@@ -231,7 +153,7 @@ function splitExcelToJson() {
     }
     
     console.log(`\nKonvertierung abgeschlossen!`);
-    console.log(`${rowsProcessed} Zeilen in ${jsonFilesCreated} JSON-Dateien konvertiert.`);
+    console.log(`${allRows.length} Zeilen in ${jsonFilesCreated} JSON-Dateien konvertiert.`);
     
     return jsonFilesCreated;
   } catch (error) {
@@ -243,6 +165,6 @@ function splitExcelToJson() {
 
 // Starte die Verarbeitung
 console.time('Total Processing Time');
-const jsonCount = splitExcelToJson();
+const jsonCount = convertExcelToJson();
 console.timeEnd('Total Processing Time');
 console.log(`Total: ${jsonCount} JSON-Dateien erstellt.`);

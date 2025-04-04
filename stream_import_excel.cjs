@@ -1,412 +1,452 @@
 /**
- * Stream-basierter Import von Excel-Dateien
- * 
- * Dieses Skript verwendet einen Chunk-basierten Ansatz, um große Excel-Dateien
- * zu verarbeiten, ohne den gesamten Inhalt auf einmal in den Speicher zu laden.
+ * Durchgängiges Skript für den Import von Excel-Dateien in die Datenbank
+ * Dieses Skript kombiniert die Konvertierung und den Import in einem Durchlauf
  */
-
-const xlsx = require('xlsx');
 const fs = require('fs');
 const path = require('path');
+const XLSX = require('xlsx');
 const axios = require('axios');
 
 // Konfiguration
 const CONFIG = {
-  // API-Endpunkt für den Import
-  apiEndpoint: 'http://localhost:3000/api/vendon/import/excel',
-  // Größe der Chunks (Anzahl der Zeilen pro Verarbeitung)
-  chunkSize: 100,
-  // Automatisches Mapping von Automatennamen zu IDs
-  machineMapping: {
-    'Pfaffendorf': 51, 
-    'Bahnhof Bad Schandau': 52, 
-    'Bad Schandau, Nationalparkbahnhof': 52, 
-    'Rathen': 53
+  sourceFile: null,
+  apiEndpoint: 'http://localhost:5000/api/vendon/import/json',
+  tempDir: './json_chunks_temp',
+  batchSize: 25,
+  delayBetweenRequests: 2000, // 2 Sekunden Pause zwischen API-Anfragen
+  logFile: './excel_import.log',
+  cleanup: true // Temporäre JSON-Dateien nach dem Import löschen
+};
+
+// Statistiken
+const stats = {
+  excelRows: {
+    total: 0,
+    processed: 0,
+    valid: 0,
+    invalid: 0
+  },
+  api: {
+    batches: 0,
+    successful: 0,
+    failed: 0,
+    savedRecords: 0,
+    duplicates: 0,
+    errors: 0
+  },
+  timings: {
+    start: null,
+    end: null,
+    conversion: {
+      start: null,
+      end: null
+    },
+    import: {
+      start: null,
+      end: null
+    }
   }
 };
 
 /**
- * Liest und importiert Excel-Daten in Chunks
+ * Normalisiert und validiert einen Excel-Datensatz
+ * @param {Object} row - Rohdaten aus Excel
+ * @param {number} index - Zeilenindex im Excel
+ * @returns {Object|null} - Normalisierter Datensatz oder null bei ungültigen Daten
  */
-async function streamImportExcel(filePath, options = {}) {
-  console.log(`\nStreaming-Import der Excel-Datei: ${filePath}`);
+function normalizeRow(row, index) {
+  try {
+    // Fallback für fehlende Werte
+    const vendonId = `imported-${new Date().toISOString().replace(/[:.]/g, '-')}-unknown-${index}`;
+    const importDate = new Date().toISOString();
+    
+    // Standardwerte für den normalisierten Datensatz
+    const normalizedRow = {
+      vendonId: vendonId,
+      datetime: importDate,
+      machineName: null,
+      productId: null,
+      productName: null,
+      quantity: 1,
+      price: 0,
+      priceWoVat: null,
+      vat: null,
+      currency: "EUR",
+      source: "excel-import",
+      metadata: JSON.stringify({
+        importedFromExcel: true,
+        importDate: importDate,
+        originalRow: index
+      }),
+      status: "completed",
+      processingStatus: "processed",
+      syncedAt: importDate,
+      createdAt: importDate
+    };
+    
+    // Hier können weitere Felder aus den Excel-Daten extrahiert werden
+    // Beispiel: Wenn Excel Spalten für Produkt, Preis usw. enthält
+    if (row['Product Name']) {
+      normalizedRow.productName = row['Product Name'];
+    }
+    
+    if (row['Price']) {
+      const price = parseFloat(row['Price']);
+      if (!isNaN(price)) {
+        normalizedRow.price = price;
+      }
+    }
+    
+    if (row['Machine Name'] || row['Machine']) {
+      normalizedRow.machineName = row['Machine Name'] || row['Machine'];
+    }
+    
+    if (row['Transaction Date'] || row['Date']) {
+      try {
+        // Konvertiere Excel-Datum in ISO-String
+        const dateValue = row['Transaction Date'] || row['Date'];
+        if (dateValue) {
+          let transactionDate;
+          
+          // Prüfen ob es sich um eine Excel-Seriennummer handelt
+          if (typeof dateValue === 'number') {
+            transactionDate = new Date(Math.round((dateValue - 25569) * 86400 * 1000));
+          } else if (typeof dateValue === 'string') {
+            // Versuche, das Datum als String zu parsen
+            transactionDate = new Date(dateValue);
+          }
+          
+          if (transactionDate && !isNaN(transactionDate.getTime())) {
+            normalizedRow.datetime = transactionDate.toISOString();
+            // Aktualisiere auch die Metadaten
+            const metadata = JSON.parse(normalizedRow.metadata);
+            metadata.originalDate = normalizedRow.datetime;
+            normalizedRow.metadata = JSON.stringify(metadata);
+          }
+        }
+      } catch (error) {
+        // Bei Fehlern beim Datumsparsen: Behalte den Standard-Zeitstempel
+        console.warn(`Warnung: Konnte Datum in Zeile ${index + 1} nicht parsen:`, error.message);
+      }
+    }
+    
+    return normalizedRow;
+  } catch (error) {
+    console.error(`Fehler bei der Normalisierung von Zeile ${index + 1}:`, error.message);
+    return null;
+  }
+}
+
+/**
+ * Importiert einen Batch von Transaktionen über die API
+ * @param {Array} transactions - Array von Transaktionsobjekten
+ * @param {number} batchNumber - Batch-Nummer für die Protokollierung
+ * @returns {Promise<Object>} - Ergebnisobjekt mit Status und Statistiken
+ */
+async function importBatch(transactions, batchNumber) {
+  try {
+    console.log(`Importiere Batch ${batchNumber} mit ${transactions.length} Transaktionen...`);
+    
+    // API-Anfrage senden
+    const response = await axios.post(CONFIG.apiEndpoint, {
+      transactions,
+      validate: true,
+      allowDuplicates: false
+    });
+    
+    // Ergebnis verarbeiten
+    const result = response.data || {};
+    const saved = result.saved || 0;
+    const duplicates = result.duplicates || 0;
+    const errors = result.errors || 0;
+    
+    console.log(`Batch ${batchNumber} importiert: ${saved} gespeichert, ${duplicates} Duplikate, ${errors} Fehler`);
+    
+    // Statistiken aktualisieren
+    stats.api.successful++;
+    stats.api.savedRecords += saved;
+    stats.api.duplicates += duplicates;
+    stats.api.errors += errors;
+    
+    // Log-Eintrag
+    fs.appendFileSync(CONFIG.logFile, `\n----- Batch ${batchNumber} -----\n`);
+    fs.appendFileSync(CONFIG.logFile, `Status: Erfolgreich\n`);
+    fs.appendFileSync(CONFIG.logFile, `Transaktionen: ${transactions.length}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Gespeichert: ${saved}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Duplikate: ${duplicates}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Fehler: ${errors}\n`);
+    
+    return { success: true, saved, duplicates, errors };
+  } catch (error) {
+    console.error(`Fehler beim Import von Batch ${batchNumber}:`);
+    
+    stats.api.failed++;
+    
+    if (error.response) {
+      console.error(`  Status: ${error.response.status}`);
+      console.error(`  Fehler: ${JSON.stringify(error.response.data)}`);
+      
+      // Log-Eintrag
+      fs.appendFileSync(CONFIG.logFile, `\n----- Batch ${batchNumber} -----\n`);
+      fs.appendFileSync(CONFIG.logFile, `Status: Fehler (HTTP ${error.response.status})\n`);
+      fs.appendFileSync(CONFIG.logFile, `Fehler: ${JSON.stringify(error.response.data)}\n`);
+    } else {
+      console.error(`  Fehler: ${error.message}`);
+      
+      // Log-Eintrag
+      fs.appendFileSync(CONFIG.logFile, `\n----- Batch ${batchNumber} -----\n`);
+      fs.appendFileSync(CONFIG.logFile, `Status: Fehler\n`);
+      fs.appendFileSync(CONFIG.logFile, `Fehler: ${error.message}\n`);
+    }
+    
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Liest eine Excel-Datei, konvertiert die Daten und importiert sie direkt
+ * @returns {Promise<void>}
+ */
+async function streamExcelImport() {
+  console.log(`Verarbeite Excel-Datei: ${CONFIG.sourceFile}`);
   
-  // Parameter zusammenführen
-  const params = {
-    chunkSize: options.chunkSize || CONFIG.chunkSize,
-    dryRun: options.dryRun || false,
-    apiEndpoint: options.apiEndpoint || CONFIG.apiEndpoint,
-    machineMapping: options.machineMapping || CONFIG.machineMapping
-  };
-  
-  console.log(`Optionen: Chunk-Größe=${params.chunkSize}, Dry-Run=${params.dryRun}`);
+  // Startzeit für die Konvertierung
+  stats.timings.conversion.start = new Date();
+  console.log(`Excel-Konvertierung gestartet: ${stats.timings.conversion.start.toISOString()}`);
   
   try {
-    // Überprüfe Dateigröße
-    const fileStats = fs.statSync(filePath);
-    const fileSizeMB = (fileStats.size / (1024 * 1024)).toFixed(2);
-    console.log(`Dateigröße: ${fileSizeMB} MB`);
+    // Excel-Datei laden
+    console.log('Lese Excel-Datei...');
+    const workbook = XLSX.readFile(CONFIG.sourceFile);
+    const sheetName = workbook.SheetNames[0]; // Erste Arbeitsmappe
+    const worksheet = workbook.Sheets[sheetName];
     
-    // Fortschrittsvariablen initialisieren
-    let totalRows = 0;
-    let processedRows = 0;
-    let savedRows = 0;
-    let duplicateRows = 0;
-    let errorRows = 0;
-    let startTime = Date.now();
+    // In JSON konvertieren
+    const rows = XLSX.utils.sheet_to_json(worksheet);
+    stats.excelRows.total = rows.length;
     
-    // Lese Workbook mit minimalem Lesen
-    console.log('\nLese Arbeitsblatt-Struktur...');
+    console.log(`Excel-Datei geladen: ${stats.excelRows.total} Zeilen gefunden`);
     
-    // Versuche zuerst nur die Struktur zu lesen
-    const workbook = xlsx.readFile(filePath, {
-      bookSheets: true,
-      cellFormula: false
-    });
+    // Endezeit für die Konvertierung
+    stats.timings.conversion.end = new Date();
+    const conversionDurationSec = ((stats.timings.conversion.end - stats.timings.conversion.start) / 1000).toFixed(2);
+    console.log(`Excel-Datei in ${conversionDurationSec} Sekunden geladen.`);
     
-    if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
-      throw new Error('Keine Arbeitsblätter in der Excel-Datei gefunden.');
-    }
+    // Startzeit für den Import
+    stats.timings.import.start = new Date();
+    console.log(`Datenbankimport gestartet: ${stats.timings.import.start.toISOString()}`);
     
-    const sheetName = workbook.SheetNames[0];
-    console.log(`Verwende Arbeitsblatt: ${sheetName}`);
+    // Arrays für Batches
+    let currentBatch = [];
+    let batchNumber = 1;
     
-    // Bestimme die Gesamtzahl der Zeilen (sofern möglich)
-    // Wir müssen dies in chunks tun, um Timeouts zu vermeiden
-    console.log('\nSchätze Zeilenanzahl...');
+    // Log-Eintrag für den Import
+    fs.appendFileSync(CONFIG.logFile, `\n===== IMPORT GESTARTET =====\n`);
+    fs.appendFileSync(CONFIG.logFile, `Zeitstempel: ${stats.timings.import.start.toISOString()}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Excel-Zeilen: ${stats.excelRows.total}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Batch-Größe: ${CONFIG.batchSize}\n`);
+    fs.appendFileSync(CONFIG.logFile, `API-Endpunkt: ${CONFIG.apiEndpoint}\n`);
     
-    // Lese die ersten Zeilen, um die Struktur zu ermitteln
-    console.log('Lese Header-Zeilen...');
-    const headerWorkbook = xlsx.readFile(filePath, {
-      sheetRows: 1, // Nur Header-Zeile
-      cellDates: true
-    });
+    // Fortschrittsbalken
+    const totalBatches = Math.ceil(stats.excelRows.total / 1000);
+    let currentBatchGroup = 0;
     
-    if (!headerWorkbook.Sheets[sheetName]) {
-      throw new Error(`Arbeitsblatt ${sheetName} konnte nicht gelesen werden.`);
-    }
-    
-    const headerWorksheet = headerWorkbook.Sheets[sheetName];
-    const headers = xlsx.utils.sheet_to_json(headerWorksheet, { header: 1 })[0];
-    
-    if (!headers || headers.length === 0) {
-      throw new Error('Keine Header-Zeilen gefunden.');
-    }
-    
-    console.log(`Gefundene Spalten: ${headers.length}`);
-    console.log('Spaltenüberschriften:');
-    headers.slice(0, 10).forEach((header, idx) => {
-      console.log(`  ${idx+1}. ${header}`);
-    });
-    
-    // Wir können die genaue Zeilenzahl nicht im Voraus bestimmen, ohne die ganze Datei zu lesen
-    // Stattdessen lesen wir in Chunks und verarbeiten diese
-    console.log('\nBeginne Chunk-basierte Verarbeitung...');
-    
-    // Importstatistik initialisieren
-    const importStats = {
-      totalChunks: 0,
-      processedChunks: 0,
-      savedRows: 0,
-      duplicateRows: 0,
-      errorRows: 0,
-      startTime: Date.now()
-    };
-    
-    // Verarbeite die Datei in Chunks
-    let currentRow = 1; // Start nach der Header-Zeile
-    let isComplete = false;
-    
-    while (!isComplete) {
-      importStats.totalChunks++;
+    // Verarbeite die Daten in Gruppen für besseres Memory-Management
+    for (let i = 0; i < rows.length; i += 1000) {
+      currentBatchGroup++;
+      const batchGroupEnd = Math.min(i + 1000, rows.length);
+      console.log(`Verarbeite Batch-Gruppe ${currentBatchGroup}/${totalBatches} (Zeilen ${i+1}-${batchGroupEnd})...`);
       
-      console.log(`\nVerarbeite Chunk ${importStats.totalChunks}...`);
-      console.log(`Lese Zeilen ${currentRow} bis ${currentRow + params.chunkSize - 1}...`);
-      
-      try {
-        // Lese den nächsten Chunk
-        const chunkWorkbook = xlsx.readFile(filePath, {
-          sheetRows: currentRow + params.chunkSize, // Lese bis zum Ende dieses Chunks
-          cellDates: true
-        });
+      // Verarbeite jede Zeile in der Gruppe
+      for (let j = i; j < batchGroupEnd; j++) {
+        const row = rows[j];
+        stats.excelRows.processed++;
         
-        if (!chunkWorkbook.Sheets[sheetName]) {
-          console.log('Keine weiteren Daten gefunden. Import abgeschlossen.');
-          isComplete = true;
-          continue;
-        }
+        // Normalisiere und validiere die Zeile
+        const normalizedRow = normalizeRow(row, j);
         
-        const chunkWorksheet = chunkWorkbook.Sheets[sheetName];
-        
-        // Konvertiere nur die relevanten Zeilen dieses Chunks in JSON (ohne die bereits verarbeiteten Zeilen)
-        const range = {
-          s: { r: currentRow, c: 0 }, // Startzeile für diesen Chunk
-          e: { r: currentRow + params.chunkSize - 1, c: headers.length - 1 } // Endzeile für diesen Chunk
-        };
-        
-        // Konvertiere den Bereich in A1-Notation
-        const rangeStr = xlsx.utils.encode_range(range);
-        
-        // Lese nur die Zeilen aus diesem Bereich
-        const jsonData = xlsx.utils.sheet_to_json(chunkWorksheet, {
-          range: rangeStr,
-          defval: null,
-          blankrows: false
-        });
-        
-        if (!jsonData || jsonData.length === 0) {
-          console.log('Keine weiteren Daten gefunden. Import abgeschlossen.');
-          isComplete = true;
-          continue;
-        }
-        
-        console.log(`Chunk enthält ${jsonData.length} Zeilen.`);
-        
-        // Verarbeite die Daten
-        const processedData = jsonData.map((row, index) => {
-          // Erzeuge eine strukturierte Transaktion aus den Rohdaten
-          return formatTransaction(row, params.machineMapping, currentRow + index);
-        });
-        
-        // Update der verarbeiteten Zeilen
-        processedRows += processedData.length;
-        
-        // Wenn es ein Dry-Run ist, keine API-Aufrufe machen
-        if (params.dryRun) {
-          console.log(`Dry-Run: Würde ${processedData.length} Zeilen importieren.`);
+        if (normalizedRow) {
+          stats.excelRows.valid++;
+          currentBatch.push(normalizedRow);
           
-          // Zeige das erste Element zur Überprüfung
-          if (processedData.length > 0) {
-            console.log('\nBeispiel für verarbeitete Daten:');
-            console.log(JSON.stringify(processedData[0], null, 2));
+          // Wenn der Batch voll ist, importiere ihn
+          if (currentBatch.length >= CONFIG.batchSize) {
+            stats.api.batches++;
+            
+            // Importiere den Batch
+            await importBatch(currentBatch, batchNumber);
+            
+            // Warte vor dem nächsten Import
+            if (j < rows.length - 1) {
+              console.log(`Warte ${CONFIG.delayBetweenRequests / 1000} Sekunden vor dem nächsten Batch...`);
+              await new Promise(resolve => setTimeout(resolve, CONFIG.delayBetweenRequests));
+            }
+            
+            // Zurücksetzen für den nächsten Batch
+            currentBatch = [];
+            batchNumber++;
           }
         } else {
-          // Sende den Chunk an die API
-          console.log(`Sende ${processedData.length} Zeilen an API...`);
-          
-          try {
-            const response = await axios.post(params.apiEndpoint, {
-              transactions: processedData,
-              skipExistingCheck: false // Prüfe auf Duplikate
-            });
-            
-            if (response.data && response.data.status === 'success') {
-              console.log(`Chunk ${importStats.totalChunks} erfolgreich importiert: ${response.data.stats.saved} gespeichert, ${response.data.stats.duplicates} Duplikate`);
-              importStats.savedRows += response.data.stats.saved;
-              importStats.duplicateRows += response.data.stats.duplicates;
-              importStats.errorRows += response.data.stats.errors;
-            } else {
-              console.error(`Fehler beim Import von Chunk ${importStats.totalChunks}:`, response.data);
-              importStats.errorRows += processedData.length;
-            }
-          } catch (apiError) {
-            console.error(`API-Fehler bei Chunk ${importStats.totalChunks}:`, apiError.message);
-            importStats.errorRows += processedData.length;
-          }
-        }
-        
-        // Aktualisiere den Fortschritt
-        importStats.processedChunks++;
-        const elapsedSeconds = Math.floor((Date.now() - importStats.startTime) / 1000);
-        const rowsPerSecond = Math.floor(processedRows / (elapsedSeconds || 1));
-        
-        console.log(`Fortschritt: ${processedRows} Zeilen verarbeitet in ${elapsedSeconds} Sekunden (${rowsPerSecond} Zeilen/s)`);
-        
-        // Für den nächsten Chunk
-        currentRow += params.chunkSize;
-        
-        // Sicherheitsabbruch, falls die Datei zu groß ist oder ein Problem vorliegt
-        if (importStats.totalChunks > 1000) {
-          console.log('Maximale Anzahl von Chunks erreicht. Beende Import.');
-          isComplete = true;
-        }
-        
-      } catch (chunkError) {
-        console.error(`Fehler beim Verarbeiten von Chunk ${importStats.totalChunks}:`, chunkError.message);
-        errorRows += params.chunkSize; // Schätze Fehler für diesen Chunk
-        
-        // Versuche mit dem nächsten Chunk fortzufahren
-        currentRow += params.chunkSize;
-        
-        // Bei wiederholten Fehlern abbrechen
-        if (importStats.totalChunks >= 3 && importStats.errorRows >= processedRows) {
-          console.error('Zu viele Fehler. Beende Import.');
-          isComplete = true;
+          stats.excelRows.invalid++;
         }
       }
+      
+      // Fortschritt anzeigen
+      const progress = (stats.excelRows.processed / stats.excelRows.total * 100).toFixed(2);
+      console.log(`Fortschritt: ${progress}% (${stats.excelRows.processed}/${stats.excelRows.total} Zeilen)`);
     }
     
-    // Zusammenfassung
-    const totalTimeSeconds = Math.floor((Date.now() - importStats.startTime) / 1000);
-    console.log('\n=== Import-Zusammenfassung ===');
-    console.log(`Gesamtzeit: ${totalTimeSeconds} Sekunden`);
-    console.log(`Verarbeitete Chunks: ${importStats.processedChunks} von ${importStats.totalChunks}`);
-    console.log(`Verarbeitete Zeilen: ca. ${processedRows}`);
-    
-    if (!params.dryRun) {
-      console.log(`Gespeicherte Zeilen: ${importStats.savedRows}`);
-      console.log(`Duplikate: ${importStats.duplicateRows}`);
-      console.log(`Fehler: ${importStats.errorRows}`);
+    // Verbleibende Daten als letzten Batch importieren, falls vorhanden
+    if (currentBatch.length > 0) {
+      stats.api.batches++;
+      await importBatch(currentBatch, batchNumber);
     }
     
-    return {
-      success: true,
-      message: params.dryRun ? 'Dry-Run abgeschlossen' : 'Import abgeschlossen',
-      stats: {
-        processedRows,
-        savedRows: importStats.savedRows,
-        duplicateRows: importStats.duplicateRows,
-        errorRows: importStats.errorRows,
-        totalTimeSeconds
-      }
-    };
+    // Endezeit für den Import
+    stats.timings.import.end = new Date();
+    const importDurationSec = ((stats.timings.import.end - stats.timings.import.start) / 1000).toFixed(2);
+    
+    console.log(`\nDatenbankimport abgeschlossen in ${importDurationSec} Sekunden`);
+    console.log(`- Verarbeitete Batches: ${stats.api.batches}`);
+    console.log(`- Erfolgreiche Importe: ${stats.api.successful}`);
+    console.log(`- Fehlgeschlagene Importe: ${stats.api.failed}`);
+    console.log(`- Gespeicherte Datensätze: ${stats.api.savedRecords}`);
+    console.log(`- Duplikate: ${stats.api.duplicates}`);
+    console.log(`- Fehler: ${stats.api.errors}`);
+    
+    // Log-Eintrag
+    fs.appendFileSync(CONFIG.logFile, `\n===== IMPORT ABGESCHLOSSEN =====\n`);
+    fs.appendFileSync(CONFIG.logFile, `Zeitstempel: ${stats.timings.import.end.toISOString()}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Dauer: ${importDurationSec} Sekunden\n`);
+    fs.appendFileSync(CONFIG.logFile, `Verarbeitete Batches: ${stats.api.batches}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Erfolgreiche Importe: ${stats.api.successful}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Fehlgeschlagene Importe: ${stats.api.failed}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Gespeicherte Datensätze: ${stats.api.savedRecords}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Duplikate: ${stats.api.duplicates}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Fehler: ${stats.api.errors}\n`);
     
   } catch (error) {
-    console.error(`Fehler beim Stream-Import der Excel-Datei:`, error);
-    return { success: false, message: error.message };
-  }
-}
-
-/**
- * Formatiert eine Transaktionszeile für den Import
- */
-function formatTransaction(row, machineMapping, rowIndex) {
-  // Neues Objekt mit gemappten Feldern erstellen
-  const mappedRow = {};
-  
-  // Eindeutige Transaktions-ID erzeugen, falls nicht vorhanden
-  if (!row['Transaction ID']) {
-    // Erzeuge eine eindeutige ID basierend auf Datum und anderen verfügbaren Daten
-    const date = row['Date / Time'] || new Date().toISOString();
-    const productName = row['Produktname'] || 'unknown';
-    const price = row['Preis (inkl. MwSt.)'] || '0';
-    mappedRow['vendonId'] = `imported-${date}-${productName}-${price}`.replace(/[^a-zA-Z0-9]/g, '-');
-  } else {
-    mappedRow['vendonId'] = row['Transaction ID'];
-  }
-  
-  // Datum korrekt formatieren
-  if (row['Date / Time']) {
-    // Verschiedene Datumsformate berücksichtigen
-    let dateValue = row['Date / Time'];
+    console.error('Fehler bei der Excel-Verarbeitung:');
+    console.error(error);
     
-    if (typeof dateValue === 'string') {
-      // String-Datum parsen
-      mappedRow['datetime'] = new Date(dateValue).toISOString();
-    } else if (dateValue instanceof Date) {
-      // Date-Objekt direkt verwenden
-      mappedRow['datetime'] = dateValue.toISOString();
-    } else {
-      // Fallback
-      mappedRow['datetime'] = new Date().toISOString();
-    }
-  } else {
-    mappedRow['datetime'] = new Date().toISOString();
+    fs.appendFileSync(CONFIG.logFile, `\n===== KRITISCHER FEHLER =====\n`);
+    fs.appendFileSync(CONFIG.logFile, `Zeitstempel: ${new Date().toISOString()}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Fehler: ${error.message}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Stack: ${error.stack}\n`);
+    
+    throw error; // Weitergabe des Fehlers
   }
-  
-  // Automatische Zuordnung von Automatennamen zu IDs, falls die ID fehlt
-  if ((!row['Automaten-ID'] || row['Automaten-ID'] === '') && row['Automatenname']) {
-    const machineName = row['Automatenname'];
-    if (machineMapping[machineName]) {
-      mappedRow['machineId'] = machineMapping[machineName];
-    }
-  } else if (row['Automaten-ID']) {
-    // Verwende die vorhandene ID
-    mappedRow['machineId'] = Number(row['Automaten-ID']);
-  }
-  
-  // Maschinenname
-  mappedRow['machineName'] = row['Automatenname'] || null;
-  
-  // Produktinformationen
-  mappedRow['productId'] = row['Produktnr.'] ? String(row['Produktnr.']) : null;
-  mappedRow['productName'] = row['Produktname'] || null;
-  
-  // Preis und Mengeninformationen
-  mappedRow['quantity'] = row['Menge'] ? Number(row['Menge']) : 1;
-  mappedRow['price'] = row['Preis (inkl. MwSt.)'] ? Number(row['Preis (inkl. MwSt.)']) : 0;
-  mappedRow['priceWoVat'] = row['Preis (ohne MwSt.)'] ? Number(row['Preis (ohne MwSt.)']) : null;
-  mappedRow['vat'] = row['MwSt. %'] ? Number(row['MwSt. %']) : null;
-  mappedRow['currency'] = row['Währung'] || 'EUR';
-  
-  // Zahlungsinformationen
-  if (row['Transaktionstyp']) {
-    const paymentTypeMap = {
-      'BAR': 'CASH',
-      'BARGELDLOS': 'CASHLESS'
-    };
-    mappedRow['paymentMethod'] = paymentTypeMap[row['Transaktionstyp']] || row['Transaktionstyp'];
-    mappedRow['paymentType'] = row['Transaktionstyp'];
-  }
-  
-  // Metadaten
-  mappedRow['source'] = 'excel-import';
-  mappedRow['metadata'] = JSON.stringify({
-    importedFromExcel: true,
-    importDate: new Date().toISOString(),
-    originalRow: rowIndex
-  });
-  
-  // Status und Verarbeitung
-  mappedRow['status'] = 'completed';
-  mappedRow['processingStatus'] = 'processed';
-  mappedRow['syncedAt'] = new Date().toISOString();
-  mappedRow['createdAt'] = new Date().toISOString();
-  
-  return mappedRow;
 }
 
 /**
- * Hauptfunktion
+ * Hauptfunktion für den Import
  */
 async function main() {
-  const args = process.argv.slice(2);
+  stats.timings.start = new Date();
+  console.log(`Excel-Import gestartet: ${stats.timings.start.toISOString()}`);
   
-  if (args.length === 0) {
-    console.error('Bitte geben Sie den Pfad zur Excel-Datei an.');
-    console.log('Verwendung: node stream_import_excel.cjs <dateipfad> [--dry-run] [--chunk-size=100]');
-    return;
-  }
-  
-  const filePath = args[0];
-  
-  // Optionen parsen
-  const options = {
-    dryRun: args.includes('--dry-run'),
-    chunkSize: 100
-  };
-  
-  // Chunk-Größe parsen
-  const chunkArg = args.find(arg => arg.startsWith('--chunk-size='));
-  if (chunkArg) {
-    options.chunkSize = parseInt(chunkArg.split('=')[1], 10);
-  }
-  
-  if (!fs.existsSync(filePath)) {
-    console.error(`Die Datei ${filePath} existiert nicht.`);
-    return;
-  }
-  
-  console.log(`Datei gefunden: ${filePath}`);
-  
-  // Stream-basierter Import
-  const result = await streamImportExcel(filePath, options);
-  
-  if (result.success) {
-    console.log(`\nImport erfolgreich: ${result.message}`);
-    console.log('Statistik:', result.stats);
-  } else {
-    console.error(`\nImport fehlgeschlagen: ${result.message}`);
-  }
-}
-
-// Ausführen der Hauptfunktion
-if (require.main === module) {
-  main().catch(err => {
-    console.error('Unbehandelte Ausnahme:', err);
+  // Prüfe, ob eine Quelldatei angegeben wurde
+  if (!CONFIG.sourceFile) {
+    console.error('Keine Excel-Quelldatei angegeben. Verwende --source=pfad/zur/datei.xlsx');
     process.exit(1);
-  });
+  }
+  
+  // Prüfe, ob die Quelldatei existiert
+  if (!fs.existsSync(CONFIG.sourceFile)) {
+    console.error(`Die angegebene Quelldatei existiert nicht: ${CONFIG.sourceFile}`);
+    process.exit(1);
+  }
+  
+  // Prüfe, ob es sich um eine Excel-Datei handelt
+  const fileExt = path.extname(CONFIG.sourceFile).toLowerCase();
+  if (fileExt !== '.xlsx' && fileExt !== '.xls') {
+    console.error(`Die angegebene Datei ist keine Excel-Datei: ${CONFIG.sourceFile}`);
+    process.exit(1);
+  }
+  
+  // Initialisiere Log-Datei
+  fs.writeFileSync(CONFIG.logFile, `Excel-zu-Datenbank-Import gestartet: ${stats.timings.start.toISOString()}\n`);
+  fs.appendFileSync(CONFIG.logFile, `Quelldatei: ${CONFIG.sourceFile}\n`);
+  fs.appendFileSync(CONFIG.logFile, `API-Endpunkt: ${CONFIG.apiEndpoint}\n`);
+  fs.appendFileSync(CONFIG.logFile, `Batch-Größe: ${CONFIG.batchSize}\n`);
+  fs.appendFileSync(CONFIG.logFile, `Verzögerung zwischen Anfragen: ${CONFIG.delayBetweenRequests}ms\n`);
+  
+  try {
+    // Import durchführen
+    await streamExcelImport();
+    
+    // Endezeit erfassen und Dauer berechnen
+    stats.timings.end = new Date();
+    const durationMs = stats.timings.end - stats.timings.start;
+    const durationMin = (durationMs / 60000).toFixed(2);
+    
+    console.log('\n----- GESAMTVORGANG ABGESCHLOSSEN -----');
+    console.log(`Gesamtdauer: ${durationMin} Minuten`);
+    console.log(`Excel-Datei: ${CONFIG.sourceFile}`);
+    console.log(`Excel-Zeilen: ${stats.excelRows.total}`);
+    console.log(`Verarbeitete Zeilen: ${stats.excelRows.processed}`);
+    console.log(`Gültige Zeilen: ${stats.excelRows.valid}`);
+    console.log(`Ungültige Zeilen: ${stats.excelRows.invalid}`);
+    console.log(`Gespeicherte Datensätze: ${stats.api.savedRecords}`);
+    console.log(`Duplikate: ${stats.api.duplicates}`);
+    console.log(`Fehler: ${stats.api.errors}`);
+    
+    // Schreibe Zusammenfassung in Log-Datei
+    fs.appendFileSync(CONFIG.logFile, '\n----- ZUSAMMENFASSUNG -----\n');
+    fs.appendFileSync(CONFIG.logFile, `Start: ${stats.timings.start.toISOString()}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Ende: ${stats.timings.end.toISOString()}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Gesamtdauer: ${durationMin} Minuten\n`);
+    fs.appendFileSync(CONFIG.logFile, `Excel-Datei: ${CONFIG.sourceFile}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Excel-Zeilen: ${stats.excelRows.total}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Verarbeitete Zeilen: ${stats.excelRows.processed}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Gültige Zeilen: ${stats.excelRows.valid}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Ungültige Zeilen: ${stats.excelRows.invalid}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Gespeicherte Datensätze: ${stats.api.savedRecords}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Duplikate: ${stats.api.duplicates}\n`);
+    fs.appendFileSync(CONFIG.logFile, `Fehler: ${stats.api.errors}\n`);
+    
+    console.log(`\nAusführliches Protokoll in: ${CONFIG.logFile}`);
+    process.exit(0);
+  } catch (error) {
+    console.error('Kritischer Fehler bei der Verarbeitung:');
+    console.error(error);
+    
+    fs.appendFileSync(CONFIG.logFile, '\n----- KRITISCHER FEHLER -----\n');
+    fs.appendFileSync(CONFIG.logFile, `${error.message}\n`);
+    fs.appendFileSync(CONFIG.logFile, `${error.stack}\n`);
+    
+    process.exit(1);
+  }
 }
 
-// Export für die Verwendung in anderen Skripten
-module.exports = { streamImportExcel };
+// Verarbeite Befehlszeilenargumente
+const args = process.argv.slice(2);
+
+for (const arg of args) {
+  if (arg.startsWith('--source=')) {
+    CONFIG.sourceFile = arg.split('=')[1];
+  } else if (arg.startsWith('--endpoint=')) {
+    CONFIG.apiEndpoint = arg.split('=')[1];
+  } else if (arg.startsWith('--batch=')) {
+    CONFIG.batchSize = parseInt(arg.split('=')[1]);
+  } else if (arg.startsWith('--delay=')) {
+    CONFIG.delayBetweenRequests = parseInt(arg.split('=')[1]);
+  } else if (arg.startsWith('--log=')) {
+    CONFIG.logFile = arg.split('=')[1];
+  } else if (arg === '--no-cleanup') {
+    CONFIG.cleanup = false;
+  } else if (arg === '--help') {
+    console.log('Verwendung: node stream_import_excel.cjs [Optionen]');
+    console.log('Optionen:');
+    console.log('  --source=pfad/zur/datei.xlsx  Pfad zur Excel-Quelldatei (erforderlich)');
+    console.log('  --endpoint=url               API-Endpunkt (Standard: http://localhost:5000/api/vendon/import/json)');
+    console.log('  --batch=25                   Batch-Größe für API-Anfragen (Standard: 25)');
+    console.log('  --delay=2000                 Verzögerung zwischen API-Anfragen in ms (Standard: 2000)');
+    console.log('  --log=datei.log              Pfad zur Log-Datei (Standard: ./excel_import.log)');
+    console.log('  --no-cleanup                 Temporäre Dateien nicht löschen');
+    console.log('  --help                       Zeigt diese Hilfe an');
+    process.exit(0);
+  }
+}
+
+main();
