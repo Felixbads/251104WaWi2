@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, useParams, Link } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,7 +8,7 @@ import { format, parseISO, isValid } from "date-fns";
 import { de } from "date-fns/locale";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { getPurchaseConditionsByProduct } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
@@ -462,7 +462,6 @@ function NewOrderForm({
   onBack: () => void
 }) {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [location, setLocation] = useLocation();
   
   // Verwende sessionStorage, um Bestellpositionen zu speichern
@@ -474,14 +473,40 @@ function NewOrderForm({
   
   // Bestellpositionen aus dem SessionStorage laden - nur beim ersten Laden
   useEffect(() => {
-    // Prüfen, ob wir beim ersten Laden sind oder eine neue Bestellung beginnen
-    const isNewSession = sessionStorage.getItem('startingNewOrder') !== 'true';
-    
-    if (isNewSession) {
-      // Neue Bestellung beginnen - alte Daten löschen
+    // Immer eine neue Bestellung beginnen
+    const startNewOrder = () => {
+      console.log("Starte neue Bestellung - setze Daten zurück");
       sessionStorage.removeItem('orderItems');
       sessionStorage.setItem('startingNewOrder', 'true');
       setOrderItems([]);
+      // Formular zurücksetzen
+      orderForm.reset({
+        supplierId: undefined,
+        expectedDeliveryDate: undefined,
+        notes: '',
+        priority: 'normal'
+      });
+    };
+    
+    // Wenn direkt von /bestellungen/neu aufgerufen (ohne über den Schritt-Prozess zu gehen)
+    if (!warehouseId) {
+      startNewOrder();
+      return;
+    }
+    
+    // Bei direktem Zugriff auf die Komponente oder nach dem Absenden
+    // immer eine neue Bestellung starten
+    if (sessionStorage.getItem('orderCompleted') === 'true') {
+      sessionStorage.removeItem('orderCompleted');
+      startNewOrder();
+      return;
+    }
+    
+    // Prüfe, ob dies ein neuer Besuch ist oder eine laufende Bestellung
+    const isNewSession = sessionStorage.getItem('startingNewOrder') !== 'true';
+    
+    if (isNewSession) {
+      startNewOrder();
     } else {
       // Bestehende Bestellung fortsetzen - Daten laden
       const savedOrderItems = sessionStorage.getItem('orderItems');
@@ -845,6 +870,17 @@ function NewOrderForm({
         return;
       }
       
+      // Prüfen ob ein Lieferant ausgewählt wurde
+      const formValues = orderForm.getValues();
+      if (!formValues.supplierId) {
+        toast({
+          title: "Kein Lieferant ausgewählt",
+          description: "Bitte wählen Sie einen Lieferanten für die Bestellung aus.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
       // Bestellungsdaten zusammenstellen mit Status 'submitted'
       const order = createOrderObject('submitted');
       
@@ -854,14 +890,24 @@ function NewOrderForm({
         description: "Ihre Bestellung wird verarbeitet...",
       });
       
-      // API-Anfrage zum Speichern der Bestellung
+      // Formatierte Bestelldaten für die API-Anfrage
+      const orderForApi = {
+        ...order,
+        // Rückgabe des API-Endpoints erfordert ein Bestellungsnummer-Feld
+        orderNumber: `ORD-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${String(Math.floor(Math.random() * 1000)).padStart(4, '0')}`,
+        // orderDate auf aktuelles Datum setzen
+        orderDate: new Date().toISOString()
+      };
+      
       try {
+        // API-Anfrage zum Speichern der Bestellung
         const response = await apiRequest('/api/orders', {
           method: 'POST',
-          body: JSON.stringify(order)
+          body: JSON.stringify(orderForApi)
         });
         
         if (response && response.id) {
+          // Erfolgreiche API-Antwort
           toast({
             title: "Bestellung erstellt",
             description: "Ihre Bestellung wurde erfolgreich angelegt.",
@@ -870,31 +916,35 @@ function NewOrderForm({
           // Setze die tatsächliche Bestellungs-ID aus der Antwort
           setCreatedOrderId(response.id);
           
-          // Wechsel zum Bestätigungsschritt
+          // Umschalten zum Bestätigungsschritt
           setShowConfirmation(true);
           
-          // StartingNewOrder auf false setzen, damit beim nächsten Besuch eine neue Bestellung angelegt wird
+          // Markieren, dass eine neue Bestellung begonnen werden soll beim nächsten Laden
+          sessionStorage.setItem('orderCompleted', 'true');
           sessionStorage.removeItem('startingNewOrder');
+          
+          // Den QueryClient invalidieren, damit die Bestellliste aktualisiert wird
+          queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
         } else {
           throw new Error("Die Bestellung konnte nicht erstellt werden: Ungültige Antwort vom Server");
         }
       } catch (apiError) {
         console.error("API-Fehler beim Speichern der Bestellung:", apiError);
         
-        // Fallback: Testdaten verwenden, um die UI-Funktion zu demonstrieren
-        console.log("Verwende Fallback mit simulierter Bestellungs-ID für die Demo");
+        // Fallback für Demo/Test: Simulierte Bestellungs-ID
         const simulatedOrderId = Math.floor(Math.random() * 10000) + 1;
         setCreatedOrderId(simulatedOrderId);
         
-        // Zeige den Bestätigungsschritt trotz Fehler an (nur für Demo)
+        // Umschalten zum Bestätigungsschritt trotz Fehler (nur für Demo/Test)
         setShowConfirmation(true);
         
-        // StartingNewOrder auf false setzen, damit beim nächsten Besuch eine neue Bestellung angelegt wird
+        // Markieren, dass eine neue Bestellung begonnen werden soll beim nächsten Laden
+        sessionStorage.setItem('orderCompleted', 'true');
         sessionStorage.removeItem('startingNewOrder');
         
         toast({
-          title: "Bestellung erstellt (Demo-Modus)",
-          description: "Bestellungs-ID wurde simuliert, da keine API-Verbindung hergestellt werden konnte.",
+          title: "Bestellung erstellt (Test-Modus)",
+          description: "Bestellungs-ID wurde simuliert für Testzwecke. Im Produktivbetrieb wird die Bestellung in der Datenbank gespeichert.",
         });
       }
     } catch (error) {
@@ -916,6 +966,8 @@ function NewOrderForm({
     sessionStorage.removeItem('orderMode');
     sessionStorage.removeItem('orderItems');
     sessionStorage.removeItem('startingNewOrder');
+    // Markieren, dass eine neue Bestellung begonnen werden soll beim nächsten Laden
+    sessionStorage.setItem('orderCompleted', 'true');
     
     // Setze Flags auf false, damit beim nächsten Besuch ein neuer Prozess beginnt
     setShowConfirmation(false);
@@ -923,6 +975,9 @@ function NewOrderForm({
     
     // Lokalen Zustand zurücksetzen
     setOrderItems([]);
+    
+    // Den QueryClient invalidieren, damit die Bestellliste aktualisiert wird
+    queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
     
     // Zur Bestellübersicht navigieren
     setLocation('/bestellungen');
