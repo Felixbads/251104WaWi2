@@ -1,7 +1,15 @@
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import { vendonSync } from '../services/vendonSync';
 import { storage } from '../storage';
 import { MachineStock } from '@shared/schema';
+import { UploadedFile } from 'express-fileupload';
+
+// Erweitere den Express Request-Typ um files-Eigenschaft
+interface FileUploadRequest extends Request {
+  files?: {
+    [fieldname: string]: UploadedFile | UploadedFile[]
+  };
+}
 
 const router = Router();
 
@@ -772,6 +780,93 @@ router.post('/historical-sync', async (req, res) => {
     return res.status(500).json({ 
       status: 'error', 
       message: `Historische Synchronisierung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}` 
+    });
+  }
+});
+
+/**
+ * Route für den Import von Vendon-Transaktionen aus einer Excel-Datei
+ * POST /api/vendon/import/excel
+ */
+router.post('/import/excel', async (req: FileUploadRequest, res: Response) => {
+  try {
+    console.log('Starte Import von Vendon-Transaktionen aus Excel-Datei...');
+    
+    // Prüfe, ob eine Datei hochgeladen wurde
+    if (!req.files || !req.files.file) {
+      return res.status(400).json({ 
+        status: 'error', 
+        message: 'Keine Datei hochgeladen' 
+      });
+    }
+    
+    // Importiere den Excel-Importer
+    const { vendonExcelImporter } = await import('../services/vendonExcelImport');
+    
+    // Hole die hochgeladene Datei
+    const file = Array.isArray(req.files.file) ? req.files.file[0] : req.files.file;
+    
+    console.log(`Datei ${file.name} (${file.size} Bytes) hochgeladen`);
+    
+    // Optionen aus dem Request-Body extrahieren
+    const options = {
+      sheetName: req.body.sheetName || undefined,
+      skipRows: req.body.skipRows ? parseInt(req.body.skipRows) : undefined,
+      headerMappings: req.body.headerMappings ? JSON.parse(req.body.headerMappings) : undefined
+    };
+    
+    console.log(`Import-Optionen:`, options);
+    
+    // Starte den Import-Prozess
+    const importResults = await vendonExcelImporter.importTransactionsFromExcel(file.data, options);
+    
+    // Synchronisierungslog erstellen
+    let syncLogId = null;
+    try {
+      const syncLogData = {
+        syncType: 'transactions_excel_import',
+        startDate: new Date(),
+        endDate: new Date(),
+        syncStatus: 'completed',
+        itemsFound: importResults.total,
+        itemsSaved: importResults.saved,
+        duplicates: importResults.duplicates,
+        errors: importResults.errors,
+        additionalData: JSON.stringify({
+          fileName: file.name,
+          fileSize: file.size,
+          importOptions: options
+        })
+      };
+      
+      const logEntry = await storage.createSyncLog(syncLogData);
+      if (logEntry && logEntry.id) {
+        syncLogId = logEntry.id;
+        console.log(`Sync-Log-Eintrag erstellt mit ID: ${syncLogId}`);
+      }
+    } catch (logError) {
+      console.error(`Fehler beim Erstellen des Sync-Log-Eintrags: ${logError}`);
+    }
+    
+    // Erfolgsantwort senden
+    return res.status(200).json({
+      status: 'success',
+      message: 'Excel-Import abgeschlossen',
+      syncLogId: syncLogId,
+      stats: {
+        total: importResults.total,
+        saved: importResults.saved,
+        duplicates: importResults.duplicates,
+        errors: importResults.errors
+      }
+    });
+  } catch (error) {
+    console.error('Fehler beim Importieren der Excel-Datei:', error);
+    
+    // Fehlerantwort senden
+    return res.status(500).json({
+      status: 'error',
+      message: `Fehler beim Import: ${error instanceof Error ? error.message : String(error)}`
     });
   }
 });
