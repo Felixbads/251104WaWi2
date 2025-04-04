@@ -462,18 +462,14 @@ function NewOrderForm({
   const [location, setLocation] = useLocation();
   
   // Verwende localStorage, um Bestellpositionen zu speichern
-  const [orderItems, setOrderItems] = useState<any[]>(() => {
-    const savedItems = localStorage.getItem('order_items');
-    return savedItems ? JSON.parse(savedItems) : [];
-  });
+  // Bestellpositionen werden als Array verwaltet
+  const [orderItems, setOrderItems] = useState<any[]>([]);
   
   const [showAddItem, setShowAddItem] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   
-  // Aktualisiere localStorage, wenn sich die Bestellpositionen ändern
-  useEffect(() => {
-    localStorage.setItem('order_items', JSON.stringify(orderItems));
-  }, [orderItems]);
+  // Wir verwenden kein localStorage für order_items mehr
+  // Dies kann komplett entfernt werden, da wir den Zustand direkt im Component verwalten
   
   // Warehouse-Daten abfragen
   const { data: warehouse, isLoading: isWarehouseLoading } = useQuery<{id: number, name: string}>({
@@ -547,65 +543,104 @@ function NewOrderForm({
   useEffect(() => {
     const productId = itemForm.watch('productId');
     
-    if (productId && products) {
-      const product = products.data.find((p: any) => p.id === productId);
-      
-      if (product) {
-        setSelectedProduct(product);
-        
-        // Bestellbedingungen für dieses Produkt abfragen
-        const fetchPurchaseConditions = async () => {
-          try {
-            const conditions = await getPurchaseConditionsByProduct(productId);
-            setPurchaseConditions(conditions);
-            
-            // Bevorzugte oder erste gültige Bedingung suchen
-            const currentDate = new Date();
-            const validConditions = conditions.filter((condition: any) => {
-              const validFrom = condition.validFrom ? new Date(condition.validFrom) : null;
-              const validTo = condition.validTo ? new Date(condition.validTo) : null;
-              
-              return (!validFrom || validFrom <= currentDate) && 
-                     (!validTo || validTo >= currentDate) &&
-                     (condition.supplierId === currentSupplierId);
-            });
-            
-            // Bevorzugte Bedingung finden oder erste gültige verwenden
-            const preferredCondition = validConditions.find((c: any) => c.isPreferred) || validConditions[0];
-            
-            if (preferredCondition) {
-              // Formular mit Werten aus der Bedingung aktualisieren
-              itemForm.setValue('unitPrice', preferredCondition.unitPrice);
-              
-              // Wenn Mindestmenge definiert ist, diese als Standard setzen
-              if (preferredCondition.minQuantity && preferredCondition.minQuantity > 0) {
-                itemForm.setValue('quantity', preferredCondition.minQuantity);
-              }
-              
-              toast({
-                title: "Einkaufsbedingungen geladen",
-                description: `Preis und Mindestmenge wurden aus den hinterlegten Einkaufsbedingungen übernommen.`,
-              });
-            } else {
-              // Wenn keine passende Bedingung gefunden wurde, Standardpreis verwenden
-              const currentPrice = itemForm.watch('unitPrice');
-              if (currentPrice === 0 || !currentPrice) {
-                itemForm.setValue('unitPrice', product.purchasePrice || 0);
-              }
-            }
-          } catch (error) {
-            console.error("Fehler beim Laden der Einkaufsbedingungen:", error);
-            // Nur den Standard-Preis aus dem Produkt setzen
-            const currentPrice = itemForm.watch('unitPrice');
-            if (currentPrice === 0 || !currentPrice) {
-              itemForm.setValue('unitPrice', product.purchasePrice || 0);
-            }
-          }
-        };
-        
-        fetchPurchaseConditions();
-      }
+    if (!productId || !products || !products.data) {
+      // Keine Aktion, wenn keine Daten vorhanden sind
+      return;
     }
+    
+    // Produkt in den Produktdaten suchen
+    const product = products.data.find((p: any) => p.id === productId);
+    
+    if (!product) {
+      console.warn(`Produkt mit ID ${productId} nicht gefunden`);
+      return;
+    }
+    
+    // Produkt für die Anzeige setzen
+    setSelectedProduct(product);
+    
+    // Preiskonditionen für dieses Produkt abfragen
+    const fetchPurchaseConditions = async () => {
+      try {
+        console.log(`Lade Preiskonditionen für Produkt ${productId} und Lieferant ${currentSupplierId}`);
+        const conditions = await getPurchaseConditionsByProduct(productId);
+        
+        if (!conditions || conditions.length === 0) {
+          console.log("Keine Preiskonditionen gefunden, verwende Standardpreis");
+          // Standardpreis aus dem Produkt verwenden
+          itemForm.setValue('unitPrice', product.purchasePrice || 0);
+          return;
+        }
+        
+        setPurchaseConditions(conditions);
+        
+        // Bevorzugte oder erste gültige Bedingung suchen
+        const currentDate = new Date();
+        const validConditions = conditions.filter((condition: any) => {
+          if (!condition) return false;
+          
+          const validFrom = condition.validFrom ? new Date(condition.validFrom) : null;
+          const validTo = condition.validTo ? new Date(condition.validTo) : null;
+          
+          // Prüfe Gültigkeitsdatum
+          const isValidDate = (!validFrom || validFrom <= currentDate) && 
+                             (!validTo || validTo >= currentDate);
+                           
+          // Prüfe, ob der Lieferant übereinstimmt (falls einer ausgewählt ist)
+          const isMatchingSupplier = currentSupplierId 
+            ? condition.supplierId === currentSupplierId 
+            : true;
+          
+          return isValidDate && isMatchingSupplier;
+        });
+        
+        console.log(`${validConditions.length} gültige Preiskonditionen gefunden`);
+        
+        // Bevorzugte Bedingung finden oder erste gültige verwenden
+        const preferredCondition = validConditions.find((c: any) => c.isPreferred) || validConditions[0];
+        
+        if (preferredCondition) {
+          console.log(`Verwende Preiskondition: ${JSON.stringify(preferredCondition)}`);
+          
+          // Formular mit Werten aus der Bedingung aktualisieren
+          itemForm.setValue('unitPrice', preferredCondition.unitPrice);
+          
+          // Wenn Mindestmenge definiert ist, diese als Standard setzen
+          if (preferredCondition.minQuantity && preferredCondition.minQuantity > 0) {
+            itemForm.setValue('quantity', preferredCondition.minQuantity);
+          }
+          
+          toast({
+            title: "Einkaufsbedingungen geladen",
+            description: `Preis (${preferredCondition.unitPrice.toFixed(2)} €) wurde aus den hinterlegten Einkaufsbedingungen übernommen.`,
+          });
+        } else {
+          // Wenn keine passende Bedingung gefunden wurde, Standardpreis verwenden
+          console.log("Keine bevorzugte Preiskondition gefunden, verwende Standardpreis");
+          const currentPrice = itemForm.watch('unitPrice');
+          if (currentPrice === 0 || !currentPrice) {
+            itemForm.setValue('unitPrice', product.purchasePrice || 0);
+          }
+        }
+      } catch (error) {
+        console.error("Fehler beim Laden der Einkaufsbedingungen:", error);
+        // Fehlermeldung anzeigen
+        toast({
+          title: "Fehler beim Laden der Einkaufsbedingungen",
+          description: "Der Standardpreis wird verwendet.",
+          variant: "destructive"
+        });
+        
+        // Nur den Standard-Preis aus dem Produkt setzen
+        const currentPrice = itemForm.watch('unitPrice');
+        if (currentPrice === 0 || !currentPrice) {
+          itemForm.setValue('unitPrice', product.purchasePrice || 0);
+        }
+      }
+    };
+    
+    // Preiskonditionen laden
+    fetchPurchaseConditions();
   }, [itemForm.watch('productId'), products, currentSupplierId]);
   
   // Bestellposition hinzufügen
@@ -706,11 +741,12 @@ function NewOrderForm({
           description: "Ihre Bestellung wurde erfolgreich angelegt.",
         });
         
-        // Bestelldaten im localStorage zurücksetzen
-        localStorage.removeItem('order_step');
-        localStorage.removeItem('order_warehouseId');
-        localStorage.removeItem('order_mode');
-        localStorage.removeItem('order_items');
+        // Keine Notwendigkeit, localStorage zu löschen, da wir es nicht verwenden
+        // Stattdessen alle Zustände zurücksetzen
+        setStep(1);
+        setWarehouseId(null);
+        setOrderMode(null);
+        setOrderItems([]);
         
         // Zur Bestellübersicht zurückkehren
         setLocation('/bestellungen');
@@ -1680,24 +1716,23 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
 
 // Hauptkomponente: Neue Bestellung
 export default function NewOrder() {
-  // Verwende localStorage, um den aktuellen Schritt zu speichern
-  const [step, setStep] = useState(() => {
-    // Versuche, den gespeicherten Schritt aus localStorage zu laden
-    const savedStep = localStorage.getItem('order_step');
-    return savedStep ? parseInt(savedStep, 10) : 1;
-  });
+  // Beim Neuladen der Komponente wird immer mit Schritt 1 begonnen, um sicherzustellen, 
+  // dass der Benutzer alle erforderlichen Schritte durchläuft
+  const [step, setStep] = useState(1);
   
-  // Verwende localStorage, um die Lager-ID zu speichern
-  const [warehouseId, setWarehouseId] = useState<number | null>(() => {
-    const savedWarehouseId = localStorage.getItem('order_warehouseId');
-    return savedWarehouseId ? parseInt(savedWarehouseId, 10) : null;
-  });
+  // Warehouse ID ist anfangs null, bis der Benutzer ein Lager auswählt
+  const [warehouseId, setWarehouseId] = useState<number | null>(null);
   
-  // Verwende localStorage, um den Bestellmodus zu speichern
-  const [orderMode, setOrderMode] = useState<OrderMode | null>(() => {
-    const savedOrderMode = localStorage.getItem('order_mode');
-    return savedOrderMode as OrderMode | null;
-  });
+  // Bestellmodus ist anfangs null, bis der Benutzer einen Modus auswählt
+  const [orderMode, setOrderMode] = useState<OrderMode | null>(null);
+  
+  // Lösche alte localStorage-Einträge beim ersten Laden
+  useEffect(() => {
+    localStorage.removeItem('order_step');
+    localStorage.removeItem('order_warehouseId');
+    localStorage.removeItem('order_mode');
+    localStorage.removeItem('order_items');
+  }, []);
   
   // Aktualisiere localStorage, wenn sich der Schritt ändert
   useEffect(() => {
