@@ -1,0 +1,51 @@
+Ja, ich habe das Konzept verstanden und fasse es zur Sicherheit noch einmal in meinen Worten zusammen, damit wir sicherstellen können, dass alle Zusammenhänge und gewünschten Funktionen korrekt bedacht und später technisch umgesetzt werden:
+
+⸻
+
+Grundkonzept: Automaten – Lager – Lagerhaltung
+
+1. Zuweisung von Automaten zu Lagern
+	•	Jeder Automat wird einem bestimmten Lager zugeordnet.
+	•	Diese Zuordnung ist fest, d.h. ein Automat wird immer aus seinem Lager bestückt.
+	•	In der Lagerübersicht soll klar ersichtlich sein:
+	•	Welche Automaten diesem Lager zugeordnet sind.
+	•	Welche Produkte sich potenziell in diesen Automaten befinden (siehe Punkt 3).
+
+2. Refill = Lagerabgang
+	•	Wenn ein Refill (Auffüllvorgang) stattfindet, wird:
+	•	Der entsprechende Artikel im jeweiligen Automaten dokumentiert als befüllt.
+	•	Gleichzeitig wird derselbe Artikel in derselben Menge automatisch aus dem zugeordneten Lagerbestand abgebucht.
+	•	Dieser Abgang muss in der Lagerhistorie nachvollziehbar dokumentiert sein (Datum, Menge, Produkt, Zielautomat).
+
+3. Automatensortiment als Teil des Lagerbestands
+	•	Die Produkte, die im Automaten geführt werden (also das Sortiment), sollen:
+	•	automatisch als Bestandsposten im zugehörigen Lager auftauchen.
+	•	Zunächst mit Bestand = 0, bis durch eine Bestellung oder manuellen Wareneingang ein Bestand aufgebaut wird.
+	•	Ziel: Du willst nicht jedes Produkt manuell zum Lager hinzufügen – die Automatenzuordnung soll das übernehmen.
+
+4. Wareneingang = Lagerzugang
+	•	Wenn eine Bestellung beim Lieferanten erfolgt (z.B. über dein Bestellsystem) und:
+	•	Die Lieferung dokumentiert wird (Wareneingang),
+	•	Dann wird automatisch die entsprechende Lagerposition im zugeordneten Lager erhöht.
+	•	Auch dieser Zugang muss klar dokumentiert sein (Lieferant, Produkt, Menge, Datum, ggf. Preis und Charge).
+
+5. Transparenz & Dokumentation im Lagerbereich
+
+Im Bereich Lagerverwaltung soll deutlich sichtbar sein:
+	•	Welche Automaten zugeordnet sind.
+	•	Welche Produkte (aus diesen Automaten) im Lager geführt werden.
+	•	Historie aller:
+	•	Zugänge (Bestellungen/Wareneingänge),
+	•	Abgänge (Refills),
+	•	manuelle Änderungen (z.B. Korrekturen oder Inventuren).
+
+⸻
+
+Zusätzliche Überlegungen (für ein robustes System):
+	•	Warnhinweise bei niedrigem Lagerbestand eines Produkts, das regelmäßig in einem Automaten benötigt wird.
+	•	Filter- oder Sortiermöglichkeit nach Lager – um z.B. schnell zu sehen, wie der Lagerbestand für die Automaten dieses Lagers aussieht.
+	•	Verknüpfung zu Bestellvorschlägen: Wenn ein Lagerbestand knapp wird (z.B. auf Basis des durchschnittlichen Verbrauchs durch Refills), sollte das Prognosemodell einen Bestellvorschlag generieren können.
+
+⸻
+
+Wenn du willst, kann ich daraus auch ein Mockup für die Datenstruktur oder eine Übersicht der notwendigen Tabellenbeziehungen ableiten, oder ein Beispiel für die Oberfläche skizzieren. Sag einfach Bescheid.
