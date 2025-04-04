@@ -4,6 +4,18 @@ import { z } from "zod";
 import { sql } from "drizzle-orm";
 import { relations } from "drizzle-orm";
 
+// Schema für historische Synchronisierungsoptionen
+export const historicalSyncOptionsSchema = z.object({
+  startDate: z.string().or(z.date()).optional(),
+  endDate: z.string().or(z.date()).optional(),
+  batchSize: z.number().min(1).max(100).default(100),
+  maxTransactions: z.number().min(100).default(10000),
+  syncStep: z.number().min(1).default(30), // Anzahl der Tage pro Synchronisierungsschritt
+  forceUpdate: z.boolean().default(false)
+});
+
+export type HistoricalSyncOptions = z.infer<typeof historicalSyncOptionsSchema>;
+
 // Updated users table with more fields
 // Suppliers table
 export const suppliers = pgTable("suppliers", {

@@ -99,6 +99,27 @@ export async function triggerSync(type: string, options: any = {}) {
   return response.data;
 }
 
+// Interface für historische Synchronisierungsoptionen
+export interface HistoricalSyncOptions {
+  startDate?: string | Date;
+  endDate?: string | Date;
+  batchSize?: number;
+  maxTransactions?: number;
+  syncStep?: number;
+  forceUpdate?: boolean;
+}
+
+// Funktion zum Starten einer historischen Synchronisierung
+export async function triggerHistoricalSync(options: HistoricalSyncOptions = {}) {
+  console.log('Starte historische Synchronisierung mit Optionen:', options);
+  
+  const response = await axios.post(`${API_BASE_URL}/vendon/historical-sync`, options);
+  
+  console.log('Antwort von der historischen Synchronisierung:', response.data);
+  
+  return response.data;
+}
+
 // Funktion zum Abrufen aller Vendon-Produkte direkt von der Stock-API (ca. 109 Produkte)
 export async function getAllVendonProducts(page = 0, limit = 100) {
   // Die korrekte Route ist /vendon/stocks

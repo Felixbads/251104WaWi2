@@ -1,8 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { vendonSync } from '../services/vendonSync';
+import { historicalVendonSync } from '../services/historicalVendonSync';
 import { storage } from '../storage';
-import { MachineStock } from '@shared/schema';
+import { MachineStock, historicalSyncOptionsSchema } from '@shared/schema';
 import { UploadedFile } from 'express-fileupload';
+import { z } from 'zod';
 
 // Erweitere den Express Request-Typ um files-Eigenschaft
 interface FileUploadRequest extends Request {
@@ -281,6 +283,45 @@ router.post('/sync', async (req, res) => {
       message: `Unerwarteter Fehler: ${error instanceof Error ? error.message : String(error)}` 
     });
   }  
+});
+
+/**
+ * Route für die historische Synchronisierung von Vendon-Transaktionen
+ * POST /api/vendon/historical-sync
+ */
+router.post('/historical-sync', async (req: Request, res: Response) => {
+  try {
+    console.log('Starte historische Synchronisierung von Vendon-Transaktionen...');
+    console.log('Request-Body:', req.body);
+    
+    // Validiere die Optionen mit Zod
+    const validationResult = historicalSyncOptionsSchema.safeParse(req.body);
+    
+    if (!validationResult.success) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Ungültige Optionen für die historische Synchronisierung',
+        errors: validationResult.error.format()
+      });
+    }
+    
+    const options = validationResult.data;
+    
+    // Starte die historische Synchronisierung
+    const result = await historicalVendonSync.startHistoricalSync(options);
+    
+    // Vollständige Antwort vom Server loggen
+    console.log('Vollständige Antwort vom Server:', JSON.stringify(result, null, 2));
+    
+    return res.json(result);
+    
+  } catch (error) {
+    console.error('Fehler bei der historischen Synchronisierung von Vendon-Transaktionen:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: `Historische Synchronisierung fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`
+    });
+  }
 });
 
 /**
