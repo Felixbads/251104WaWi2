@@ -33,17 +33,33 @@ export default function MachineAssignments() {
       return;
     }
     
+    console.log(`Lösche Zuordnung mit ID ${assignmentId}`);
+    
     try {
-      // Direkte Fetch-Anfrage mit DELETE-Methode
-      const response = await fetch(`/api/machine-warehouse-assignments/${assignmentId}`, {
-        method: 'DELETE',
-        credentials: 'include'
+      // Direkte XMLHttpRequest für die DELETE-Anfrage verwenden
+      // Da fetch-Anfragen in der Anwendung manchmal umgeleitet/verändert werden
+      const xhr = new XMLHttpRequest();
+      xhr.open('DELETE', `/api/machine-warehouse-assignments/${assignmentId}`, true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.withCredentials = true; // Cookies für die Authentifizierung mitsenden
+      
+      // Promise für die Anfrage erstellen
+      const responsePromise = new Promise<void>((resolve, reject) => {
+        xhr.onload = function() {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve();
+          } else {
+            reject(new Error(`Fehler ${xhr.status}: ${xhr.responseText}`));
+          }
+        };
+        xhr.onerror = function() {
+          reject(new Error("Netzwerkfehler bei der Anfrage"));
+        };
       });
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Fehler ${response.status}: ${errorText}`);
-      }
+      // Anfrage senden
+      xhr.send();
+      await responsePromise;
       
       // Nach erfolgreicher Löschung die Daten aktualisieren
       queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
