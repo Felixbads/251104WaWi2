@@ -1,6 +1,7 @@
 import { Express, Request, Response } from "express";
 import { z } from "zod";
-import { storage } from "../storage";
+import { storage, db } from "../storage";
+import { sql, eq, and, or, lt, asc, desc, inArray } from "drizzle-orm";
 import { 
   insertWarehouseSchema, 
   insertInventoryItemSchema, 
@@ -635,10 +636,16 @@ export function registerInventoryRoutes(app: Express) {
       const machineId = req.query.machineId ? Number(req.query.machineId) : undefined;
       const warehouseId = req.query.warehouseId ? Number(req.query.warehouseId) : undefined;
       
+      console.log('Anfrage nach Maschinen-Lager-Zuordnungen mit Parametern:', { machineId, warehouseId });
+      
+      // SQL-Debug - Direkte Datenbankabfrage wurde entfernt, da db und sql nicht importiert wurden.
+      
       const assignments = await storage.getMachineWarehouseAssignments({
         machineId,
         warehouseId
       });
+      
+      console.log('Ergebnis der Maschinen-Lager-Zuordnungen:', JSON.stringify(assignments));
       
       res.json(assignments);
     } catch (error: any) {
@@ -649,7 +656,27 @@ export function registerInventoryRoutes(app: Express) {
 
   app.post(`${apiPrefix}/machine-warehouse-assignments`, async (req: Request, res: Response) => {
     try {
+      console.log('POST Anfrage für neue Maschinen-Lager-Zuordnung mit Daten:', req.body);
+      
       const assignmentData = insertMachineWarehouseAssignmentSchema.parse(req.body);
+      
+      console.log('Validierte Zuordnungsdaten:', assignmentData);
+      
+      // Prüfen, ob die Maschine und das Lager existieren
+      const machine = await storage.getMachine(assignmentData.machineId);
+      const warehouse = await storage.getWarehouse(assignmentData.warehouseId);
+      
+      if (!machine) {
+        console.error(`Maschine mit ID ${assignmentData.machineId} existiert nicht`);
+        return res.status(404).json({ error: `Maschine mit ID ${assignmentData.machineId} existiert nicht` });
+      }
+      
+      if (!warehouse) {
+        console.error(`Lager mit ID ${assignmentData.warehouseId} existiert nicht`);
+        return res.status(404).json({ error: `Lager mit ID ${assignmentData.warehouseId} existiert nicht` });
+      }
+      
+      console.log(`Maschine und Lager existieren: ${machine.machineName} / ${warehouse.name}`);
       
       // Prüfen, ob die Zuordnung bereits existiert
       const existingAssignment = await storage.getMachineWarehouseAssignment(
@@ -658,6 +685,7 @@ export function registerInventoryRoutes(app: Express) {
       );
       
       if (existingAssignment) {
+        console.log('Zuordnung existiert bereits:', existingAssignment);
         return res.status(400).json({
           error: "Diese Maschine ist bereits diesem Lager zugeordnet",
           existingAssignment
@@ -666,11 +694,14 @@ export function registerInventoryRoutes(app: Express) {
       
       // Wenn isPrimary = true, dann andere Zuordnungen auf isPrimary = false setzen
       if (assignmentData.isPrimary) {
+        console.log('Setze existierende Primärzuordnungen zurück für Maschine:', assignmentData.machineId);
         await storage.updatePrimaryWarehouseForMachine(assignmentData.machineId);
       }
       
       // Neue Zuordnung erstellen
+      console.log('Erstelle neue Zuordnung zwischen Maschine und Lager');
       const newAssignment = await storage.createMachineWarehouseAssignment(assignmentData);
+      console.log('Neue Zuordnung erstellt:', newAssignment);
       
       // Produkte der Maschine laden und automatisch zum Lager hinzufügen
       try {

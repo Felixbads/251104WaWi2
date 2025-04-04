@@ -169,7 +169,8 @@ export default function MachineAssignments() {
     createAssignmentMutation.mutate({
       machineId: newAssignMachine,
       warehouseId: newAssignWarehouse,
-      notes: assignNotes
+      isPrimary: true, // Setze als primäres Lager
+      notes: assignNotes || undefined // Nur senden wenn nicht leer
     });
   };
 
@@ -184,7 +185,13 @@ export default function MachineAssignments() {
     if (warehouses) {
       console.log("Verfügbare Lager:", warehouses);
     }
-  }, [assignments, machines, warehouses]);
+    
+    // Debug: Query Parameters ausgeben
+    console.log("Query params für Zuordnungen:", {
+      warehouseId: selectedWarehouse !== 'all' ? parseInt(selectedWarehouse) : undefined,
+      machineId: selectedMachine !== 'all' ? parseInt(selectedMachine) : undefined
+    });
+  }, [assignments, machines, warehouses, selectedWarehouse, selectedMachine]);
 
   // Rendering bei Ladevorgang
   if (warehousesLoading || machinesLoading || assignmentsLoading) {
