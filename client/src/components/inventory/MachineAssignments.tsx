@@ -27,6 +27,41 @@ export default function MachineAssignments() {
   const [newAssignWarehouse, setNewAssignWarehouse] = useState<number | null>(null);
   const [assignNotes, setAssignNotes] = useState('');
   
+  // Funktion zum Löschen einer Zuordnung
+  const handleDeleteAssignment = async (assignmentId: number) => {
+    if (!confirm('Möchten Sie diese Zuordnung wirklich entfernen?')) {
+      return;
+    }
+    
+    try {
+      // Direkte Fetch-Anfrage mit DELETE-Methode
+      const response = await fetch(`/api/machine-warehouse-assignments/${assignmentId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Fehler ${response.status}: ${errorText}`);
+      }
+      
+      // Nach erfolgreicher Löschung die Daten aktualisieren
+      queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
+      
+      toast({
+        title: 'Zuordnung entfernt',
+        description: 'Die Zuordnung wurde erfolgreich entfernt'
+      });
+    } catch (error) {
+      console.error("Fehler beim Entfernen der Zuordnung:", error);
+      toast({
+        title: 'Fehler',
+        description: (error as Error).message || 'Beim Entfernen der Zuordnung ist ein Fehler aufgetreten.',
+        variant: 'destructive'
+      });
+    }
+  };
+  
   // Abfrage der Lager
   const { data: warehouses, isLoading: warehousesLoading } = useQuery({
     queryKey: ['/api/warehouses'],
@@ -444,18 +479,27 @@ export default function MachineAssignments() {
                       : new Date(assignment.createdAt).toLocaleDateString('de-DE')}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => {
-                        toast({
-                          title: "Hinweis",
-                          description: "Das Bearbeiten vorhandener Zuordnungen ist derzeit nicht verfügbar. Bitte löschen Sie die Zuordnung und erstellen Sie eine neue.",
-                        });
-                      }}
-                    >
-                      Bearbeiten
-                    </Button>
+                    <div className="flex justify-end space-x-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          toast({
+                            title: "Hinweis",
+                            description: "Das Bearbeiten vorhandener Zuordnungen ist derzeit nicht verfügbar. Bitte löschen Sie die Zuordnung und erstellen Sie eine neue.",
+                          });
+                        }}
+                      >
+                        Bearbeiten
+                      </Button>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={() => handleDeleteAssignment(assignment.id)}
+                      >
+                        Entfernen
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
