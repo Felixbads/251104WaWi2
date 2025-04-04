@@ -4,28 +4,55 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { formatDuration, formatDateTime, getSyncLogsByType } from "@/lib/api";
+import { formatDuration, formatDateTime, getSyncLogsByType, SyncLog } from "@/lib/api";
 import { Clock, CheckCircle2, Loader2, XCircle } from "lucide-react";
 
+// Erweiterte Version des SyncLog-Interfaces für historische Synchronisierungen
 interface HistoricalSyncLog {
   id: number;
   syncType: string;
   startDate: string;
   endDate: string | null;
-  syncStatus: 'running' | 'completed' | 'error';
   itemsFound: number;
   itemsSaved: number;
+  itemsUpdated: number;
+  duplicates: number;
+  errors: number;
+  syncStatus: 'running' | 'completed' | 'error';
   durationSeconds: number;
-  additionalData: string;
+  errorMessage: string | null;
+  additionalData: string | null;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
 export default function HistoricalSyncStatus() {
   // Abfrage der Synchronisierungslogs mit dem Typ 'historical_transactions'
   const { data: syncLogs, isLoading, error } = useQuery<HistoricalSyncLog[]>({
-    queryKey: ['/api/sync/logs'],
-    queryFn: () => getSyncLogsByType('historical_transactions', 50),
+    queryKey: ['/api/sync/logs/historical'],
+    queryFn: async () => {
+      const logs = await getSyncLogsByType('historical_transactions', 50);
+      // Typ-Umwandlung: Stellt sicher, dass die SyncLogs als HistoricalSyncLogs interpretiert werden
+      return logs.map(log => {
+        return {
+          id: log.id,
+          syncType: log.syncType,
+          startDate: log.startDate,
+          endDate: log.endDate,
+          itemsFound: log.itemsFound,
+          itemsSaved: log.itemsSaved,
+          itemsUpdated: log.itemsUpdated,
+          duplicates: log.duplicates,
+          errors: log.errors,
+          syncStatus: log.sync_status as 'running' | 'completed' | 'error',
+          durationSeconds: log.duration_seconds,
+          errorMessage: log.error_message,
+          additionalData: log.additional_data,
+          createdAt: log.created_at,
+          updatedAt: log.updated_at
+        } as HistoricalSyncLog;
+      });
+    },
     refetchInterval: 5000,
   });
 
@@ -50,8 +77,13 @@ export default function HistoricalSyncStatus() {
       // Wenn es Fortschrittsinformationen gibt
       if (data.currentProgress) {
         const currentDate = new Date(data.currentProgress.currentStartDate);
-        const startDate = new Date(data.startDate);
-        const endDate = new Date(data.endDate || new Date());
+        
+        // Verwende die Werte aus dem Log direkt, falls vorhanden
+        const startDate = new Date(log.startDate);
+        
+        // Für endDate: verwende entweder den Wert aus dem Log oder aus den Metadaten oder das aktuelle Datum
+        const endDateStr = log.endDate || data.endDate;
+        const endDate = endDateStr ? new Date(endDateStr) : new Date();
         
         const totalMs = endDate.getTime() - startDate.getTime();
         const progressMs = currentDate.getTime() - startDate.getTime();

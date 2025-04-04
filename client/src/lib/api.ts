@@ -718,6 +718,25 @@ export interface HistoricalSyncStatus {
   processingTimeMin: number;
 }
 
+// Schnittstelle für Synchronisierungsprotokolle
+export interface SyncLog {
+  id: number;
+  syncType: string;
+  startDate: string;
+  endDate: string | null;
+  itemsFound: number;
+  itemsSaved: number;
+  itemsUpdated: number;
+  duplicates: number;
+  errors: number;
+  duration_seconds: number;
+  sync_status: 'running' | 'completed' | 'error';
+  error_message: string | null;
+  created_at: string;
+  additional_data: string | null;
+  updated_at?: string;
+}
+
 export interface SyncStatus {
   machines: SyncStatusData;
   products: SyncStatusData;
