@@ -284,6 +284,88 @@ router.post('/sync', async (req, res) => {
 });
 
 /**
+ * Route für den Import von Vendon-Transaktionen aus JSON-Daten
+ * POST /api/vendon/import/json
+ */
+router.post('/import/json', async (req: Request, res: Response) => {
+  try {
+    console.log('Starte Import von Vendon-Transaktionen aus JSON-Daten...');
+    
+    // Prüfe, ob Transaktionsdaten im Request enthalten sind
+    if (!req.body || !req.body.transactions || !Array.isArray(req.body.transactions)) {
+      return res.status(400).json({ 
+        status: 'error', 
+        message: 'Keine gültigen Transaktionsdaten im Request' 
+      });
+    }
+    
+    // Importiere den JSON-Importer
+    const { vendonJsonImporter } = await import('../services/vendonJsonImport');
+    
+    // Hole die Transaktionsdaten aus dem Request
+    const transactions = req.body.transactions;
+    
+    console.log(`${transactions.length} Transaktionen im Request gefunden`);
+    
+    // Optionen aus dem Request-Body extrahieren
+    const options = {
+      skipExistingCheck: req.body.skipExistingCheck === true
+    };
+    
+    console.log(`Import-Optionen:`, options);
+    
+    // Starte den Import-Prozess
+    const importResults = await vendonJsonImporter.importTransactionsFromJson(transactions, options);
+    
+    // Synchronisierungslog erstellen
+    let syncLogId = null;
+    try {
+      const syncLogData = {
+        syncType: 'json-import',
+        status: 'completed',
+        startTime: new Date(),
+        endTime: new Date(),
+        totalItems: importResults.total,
+        savedItems: importResults.saved,
+        errorItems: importResults.errors,
+        errorDetails: importResults.errorDetails,
+        metadata: JSON.stringify({
+          transactionCount: transactions.length,
+          options
+        })
+      };
+      
+      const syncLog = await storage.createSyncLog(syncLogData);
+      syncLogId = syncLog.id;
+      
+    } catch (logError) {
+      console.error('Fehler beim Erstellen des Synchronisierungslogs:', logError);
+      // Fahre trotzdem fort, da der Import bereits erfolgt ist
+    }
+    
+    // Erfolgsantwort senden
+    return res.json({
+      status: 'success',
+      message: 'Vendon-Transaktionen erfolgreich importiert',
+      stats: {
+        total: importResults.total,
+        saved: importResults.saved,
+        duplicates: importResults.duplicates,
+        errors: importResults.errors
+      },
+      syncLogId
+    });
+    
+  } catch (error) {
+    console.error('Fehler beim Importieren von Vendon-Transaktionen aus JSON:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: `Import fehlgeschlagen: ${error instanceof Error ? error.message : String(error)}`
+    });
+  }
+});
+
+/**
  * Alte Implementierungen, die jetzt nicht mehr verwendet werden und auskommentiert wurden
  */
 /* 
