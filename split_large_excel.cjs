@@ -1,175 +1,204 @@
+/**
+ * Teilt eine große Excel-Datei in kleinere Dateien auf
+ * 
+ * Dieses Skript verarbeitet eine große Excel-Datei in kleinen Chunks und
+ * speichert Teile der Daten in separaten Excel-Dateien, um Speicherprobleme zu vermeiden.
+ */
+
+const xlsx = require('xlsx');
 const fs = require('fs');
 const path = require('path');
-const xlsx = require('xlsx');
 
-// Konfiguration für das große Excel-File
-const config = {
-  inputExcelFile: './attached_assets/Report 2022-04-01 2025-04-05 a18b605bf619a514f7ad636191ecf601.xlsx',
+// Konfiguration
+const CONFIG = {
+  sourceFilePath: './attached_assets/Report 2022-04-01 2025-04-05 a18b605bf619a514f7ad636191ecf601.xlsx',
   outputDir: './split_excel_large',
-  chunkSize: 25, // Kleinerer Chunk für stabilere Verarbeitung
-  maxChunks: 5,  // Jetzt 5 Chunks pro Durchlauf
-  memoryMode: 'low', // 'low' für speichereffiziente Verarbeitung großer Dateien
-  maxProcessingTime: 60000 // Maximale Verarbeitungszeit in Millisekunden (60 Sekunden)
+  rowsPerChunk: 1000,
+  maxChunks: 50,
+  logFilePath: './split_excel.log'
 };
 
-/**
- * Erstellt das Ausgabeverzeichnis, falls es nicht existiert
- */
-function createOutputDirIfNeeded() {
-  if (!fs.existsSync(config.outputDir)) {
-    fs.mkdirSync(config.outputDir, { recursive: true });
-    console.log(`Ausgabeverzeichnis erstellt: ${config.outputDir}`);
-  }
+// Sicherstellen, dass das Ausgabeverzeichnis existiert
+if (!fs.existsSync(CONFIG.outputDir)) {
+  fs.mkdirSync(CONFIG.outputDir, { recursive: true });
+}
+
+// Logging-Funktion
+function log(message) {
+  const timestamp = new Date().toISOString();
+  const logMessage = `[${timestamp}] ${message}\n`;
+  console.log(message);
+  fs.appendFileSync(CONFIG.logFilePath, logMessage);
 }
 
 /**
- * Zeigt die Dateigröße in lesbarem Format an
+ * Liest einen Chunk aus der Excel-Datei
  */
-function getReadableFileSize(filePath) {
-  const stats = fs.statSync(filePath);
-  const fileSizeInBytes = stats.size;
-  const fileSizeInMB = fileSizeInBytes / (1024 * 1024);
-  return fileSizeInMB.toFixed(2) + ' MB';
-}
-
-/**
- * Teilt eine große Excel-Datei in kleinere Chunks mit geringem Speicherverbrauch
- */
-function splitLargeExcelFile() {
+function readExcelChunk(filePath, startRow, numRows) {
   try {
-    // Startzeit für Zeitbegrenzung festlegen
-    const startTime = Date.now();
+    log(`Lese Chunk aus ${filePath}: Zeilen ${startRow + 1} bis ${startRow + numRows}`);
     
-    // Prüfe, ob die Datei existiert
-    if (!fs.existsSync(config.inputExcelFile)) {
-      throw new Error(`Die Datei ${config.inputExcelFile} existiert nicht.`);
-    }
+    // Optionen für das Lesen der Excel-Datei
+    const options = {
+      type: 'array',
+      cellDates: true,
+      dateNF: 'yyyy-mm-dd',
+      cellNF: false,
+      cellText: false,
+      sheetRows: startRow + numRows // Nur bis zur benötigten Zeile lesen
+    };
     
-    console.log(`Splitting große Excel-Datei: ${config.inputExcelFile}`);
-    console.log(`Dateigröße: ${getReadableFileSize(config.inputExcelFile)}`);
-    
-    // Ausgabeverzeichnis erstellen
-    createOutputDirIfNeeded();
-    
-    // Hilfsfunktion zur Prüfung, ob Zeitlimit überschritten wurde
-    function isTimeExceeded() {
-      return config.maxProcessingTime > 0 && 
-             (Date.now() - startTime) > config.maxProcessingTime;
-    }
-    
-    // Excel-Datei für Low-Memory-Verarbeitung öffnen
-    console.log('Öffne Excel-Datei...');
-    const workbook = xlsx.readFile(config.inputExcelFile, {
-      cellFormula: false,  // Keine Formeln verarbeiten
-      cellHTML: false,     // Kein HTML verarbeiten
-      cellStyles: false,   // Keine Stile verarbeiten
-      cellNF: false,       // Keine Zahlenformate
-      cellDates: true,     // Datumsformate beibehalten
-      sheetStubs: true,    // Leere Zellen berücksichtigen
-      bookDeps: false,     // Keine Abhängigkeiten verfolgen
-      bookVBA: false,      // Kein VBA-Code laden
-      dense: true,         // Optimierung für große Dateien
-      WTF: false           // Weniger Warnung ausgeben
-    });
-    
-    // Arbeitsblatt auswählen
+    const workbook = xlsx.readFile(filePath, options);
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     
-    // Bereich des Arbeitsblatts ermitteln
-    const range = xlsx.utils.decode_range(worksheet['!ref']);
-    const totalRows = range.e.r - range.s.r; // Gesamtanzahl der Zeilen (ohne Header)
+    // Konvertiere zu JSON mit Header
+    const allData = xlsx.utils.sheet_to_json(worksheet, { header: 1, range: 0 });
     
-    console.log(`Arbeitsblatt '${sheetName}' hat ${totalRows} Datenzeilen.`);
+    // Extrahiere den Header (erste Zeile)
+    const header = allData[0];
     
-    // Spaltenüberschriften aus der ersten Zeile lesen
-    const headers = {};
-    for (let c = range.s.c; c <= range.e.c; c++) {
-      const cellAddress = xlsx.utils.encode_cell({ r: range.s.r, c });
-      if (worksheet[cellAddress] && worksheet[cellAddress].v !== undefined) {
-        headers[c] = worksheet[cellAddress].v;
-      } else {
-        headers[c] = `Column_${c}`;
-      }
-    }
+    // Extrahiere die angeforderten Zeilen
+    const dataRows = allData.slice(Math.max(1, startRow), Math.min(startRow + numRows, allData.length));
     
-    console.log(`${Object.keys(headers).length} Spalten gefunden.`);
+    log(`Gelesene Zeilen: ${dataRows.length}`);
     
-    // Verarbeitung einrichten
-    const rows = range.s.r + 1; // Beginne bei erster Datenzeile (nach Header)
-    const maxRow = config.maxChunks > 0 
-      ? Math.min(rows + (config.chunkSize * config.maxChunks), range.e.r + 1)
-      : range.e.r + 1;
-    
-    console.log(`Verarbeite Zeilen ${rows} bis ${maxRow - 1} (maximal ${config.maxChunks} Chunks mit je ${config.chunkSize} Zeilen).`);
-    
-    // Chunks verarbeiten
-    let currentChunk = [];
-    let currentChunkNumber = 1;
-    let rowsProcessed = 0;
-    
-    for (let r = rows; r < maxRow; r++) {
-      // Prüfe, ob das Zeitlimit überschritten wurde
-      if (isTimeExceeded()) {
-        console.log(`Zeitlimit von ${config.maxProcessingTime}ms überschritten, breche Verarbeitung ab.`);
-        break;
-      }
-      
-      // Zeile verarbeiten
-      const rowData = {};
-      let hasData = false;
-      
-      // Alle Zellen der Zeile lesen
-      for (let c = range.s.c; c <= range.e.c; c++) {
-        const cellAddress = xlsx.utils.encode_cell({ r, c });
-        if (worksheet[cellAddress] && worksheet[cellAddress].v !== undefined) {
-          rowData[headers[c]] = worksheet[cellAddress].v;
-          hasData = true;
-        }
-      }
-      
-      // Nur Zeilen mit Daten hinzufügen
-      if (hasData) {
-        currentChunk.push(rowData);
-        rowsProcessed++;
-      }
-      
-      // Wenn der Chunk voll ist oder wir am Ende sind
-      if (currentChunk.length >= config.chunkSize || r === maxRow - 1) {
-        if (currentChunk.length > 0) {
-          // Erstelle ein neues Arbeitsblatt für den Chunk
-          const newWorksheet = xlsx.utils.json_to_sheet(currentChunk);
-          const newWorkbook = xlsx.utils.book_new();
-          xlsx.utils.book_append_sheet(newWorkbook, newWorksheet, 'Data');
-          
-          // Definiere den Ausgabepfad
-          const outputPath = path.join(config.outputDir, `chunk_${currentChunkNumber}.xlsx`);
-          
-          // Schreibe die neue Excel-Datei
-          xlsx.writeFile(newWorkbook, outputPath);
-          
-          console.log(`Chunk ${currentChunkNumber} geschrieben: ${outputPath} (${currentChunk.length} Zeilen)`);
-          
-          // Zurücksetzen für nächsten Chunk
-          currentChunk = [];
-          currentChunkNumber++;
-        }
-      }
-    }
-    
-    console.log(`\nAufteilen abgeschlossen!`);
-    console.log(`${rowsProcessed} Zeilen in ${currentChunkNumber - 1} Excel-Dateien geschrieben.`);
-    
-    return currentChunkNumber - 1;
+    return {
+      header,
+      data: dataRows,
+      endOfFile: dataRows.length < numRows || allData.length <= startRow + numRows
+    };
   } catch (error) {
-    console.error(`Fehler beim Aufteilen der Excel-Datei:`, error);
-    console.error(error.stack);
-    return 0;
+    log(`Fehler beim Lesen der Excel-Chunk: ${error.message}`);
+    if (error.stack) {
+      log(`Stack-Trace: ${error.stack}`);
+    }
+    throw error;
   }
 }
 
-// Starte die Verarbeitung
-console.time('Processing Time');
-const chunkCount = splitLargeExcelFile();
-console.timeEnd('Processing Time');
-console.log(`Total: ${chunkCount} Chunks erstellt.`);
+/**
+ * Schreibt einen Chunk in eine neue Excel-Datei
+ */
+function writeExcelChunk(header, data, chunkIndex) {
+  try {
+    const outputFilePath = path.join(CONFIG.outputDir, `chunk_${chunkIndex.toString().padStart(3, '0')}.xlsx`);
+    log(`Schreibe ${data.length} Zeilen in ${outputFilePath}`);
+    
+    // Neues Workbook erstellen
+    const newWorkbook = xlsx.utils.book_new();
+    
+    // Alle Daten (Header + Datenzeilen) in einem Array kombinieren
+    const allRows = [header, ...data];
+    
+    // Array in ein Worksheet umwandeln
+    const newWorksheet = xlsx.utils.aoa_to_sheet(allRows);
+    
+    // Worksheet zum Workbook hinzufügen
+    xlsx.utils.book_append_sheet(newWorkbook, newWorksheet, 'Sheet1');
+    
+    // Als Excel-Datei speichern
+    xlsx.writeFile(newWorkbook, outputFilePath);
+    
+    log(`Chunk ${chunkIndex} gespeichert: ${outputFilePath}`);
+    return outputFilePath;
+  } catch (error) {
+    log(`Fehler beim Schreiben der Excel-Chunk: ${error.message}`);
+    if (error.stack) {
+      log(`Stack-Trace: ${error.stack}`);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Hauptfunktion zum Aufteilen der Excel-Datei
+ */
+async function splitExcelFile() {
+  log(`Starte Aufteilen der Excel-Datei: ${CONFIG.sourceFilePath}`);
+  log(`Ausgabeverzeichnis: ${CONFIG.outputDir}`);
+  log(`Zeilen pro Chunk: ${CONFIG.rowsPerChunk}`);
+  
+  let currentRow = 0;
+  let chunkIndex = 0;
+  let header = null;
+  let endOfFile = false;
+  
+  const stats = fs.statSync(CONFIG.sourceFilePath);
+  log(`Dateigröße: ${(stats.size / (1024 * 1024)).toFixed(2)} MB`);
+  
+  // Excel-Datei in Chunks lesen und in separate Dateien schreiben
+  while (!endOfFile && chunkIndex < CONFIG.maxChunks) {
+    try {
+      // Chunk lesen
+      const result = readExcelChunk(CONFIG.sourceFilePath, currentRow, CONFIG.rowsPerChunk);
+      
+      // Beim ersten Durchlauf den Header speichern
+      if (chunkIndex === 0) {
+        header = result.header;
+      }
+      
+      // Wenn Daten vorhanden sind, in eine neue Datei schreiben
+      if (result.data.length > 0) {
+        const outputFilePath = writeExcelChunk(header, result.data, chunkIndex);
+        log(`Fortschritt: Chunk ${chunkIndex + 1} abgeschlossen, ${result.data.length} Zeilen verarbeitet`);
+        
+        // Nächster Chunk
+        currentRow += result.data.length;
+        chunkIndex++;
+      }
+      
+      // Prüfen, ob wir das Ende der Datei erreicht haben
+      endOfFile = result.endOfFile;
+      
+      if (endOfFile) {
+        log(`Ende der Datei erreicht nach ${currentRow} Zeilen.`);
+      }
+      
+      // Kurze Pause, um Speicherprobleme zu vermeiden
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+    } catch (error) {
+      log(`Fehler beim Verarbeiten von Chunk ${chunkIndex}: ${error.message}`);
+      if (chunkIndex > 0) {
+        log(`Beende Verarbeitung nach ${chunkIndex} erfolgreichen Chunks.`);
+        break;
+      } else {
+        throw error; // Wenn der erste Chunk fehlschlägt, ist das ein kritischer Fehler
+      }
+    }
+  }
+  
+  log(`Aufteilung abgeschlossen. ${chunkIndex} Chunks erstellt mit insgesamt ${currentRow} Zeilen.`);
+  return {
+    chunks: chunkIndex,
+    totalRows: currentRow,
+    outputDir: CONFIG.outputDir
+  };
+}
+
+// Skript ausführen
+async function main() {
+  try {
+    if (!fs.existsSync(CONFIG.sourceFilePath)) {
+      log(`Fehler: Die Quelldatei ${CONFIG.sourceFilePath} existiert nicht.`);
+      process.exit(1);
+    }
+    
+    const result = await splitExcelFile();
+    log(`Zusammenfassung:`);
+    log(`- Anzahl der erstellten Chunks: ${result.chunks}`);
+    log(`- Insgesamt verarbeitete Zeilen: ${result.totalRows}`);
+    log(`- Ausgabeverzeichnis: ${result.outputDir}`);
+    
+  } catch (error) {
+    log(`Kritischer Fehler: ${error.message}`);
+    if (error.stack) {
+      log(`Stack-Trace: ${error.stack}`);
+    }
+    process.exit(1);
+  }
+}
+
+// Skript starten
+main();

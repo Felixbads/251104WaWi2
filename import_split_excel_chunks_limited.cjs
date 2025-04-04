@@ -1,5 +1,7 @@
 /**
- * Importiert die aufgeteilten Excel-Chunks in die Datenbank
+ * Importiert die aufgeteilten Excel-Chunks in die Datenbank (limitierte Version)
+ * 
+ * Begrenzt die Anzahl der verarbeiteten Zeilen pro Chunk, um Timeouts zu vermeiden.
  */
 
 const { Pool } = require('pg');
@@ -10,8 +12,10 @@ const path = require('path');
 // Konfiguration
 const CONFIG = {
   chunksDir: './split_excel_large',
-  logFilePath: './import_split_chunks.log',
-  statusFilePath: './import_split_chunks_status.json'
+  logFilePath: './import_split_chunks_limited.log',
+  statusFilePath: './import_split_chunks_limited_status.json',
+  rowsPerRun: 50, // Begrenzung der Zeilen pro Durchlauf
+  startPosition: 0 // Startposition innerhalb des aktuellen Chunks
 };
 
 // Datenbankverbindung einrichten
@@ -31,6 +35,8 @@ function getStatus() {
   
   return {
     processedChunks: [],
+    currentChunk: null,
+    currentPosition: 0,
     importedCount: 0,
     skippedCount: 0,
     errorCount: 0,
@@ -117,10 +123,10 @@ async function importTransaction(row) {
   }
 }
 
-// Lese Excel-Datei und importiere Daten
-async function importExcelChunk(filePath) {
+// Lese Excel-Datei und importiere Daten (teilweise)
+async function importExcelChunkPartial(filePath, startPosition, maxRows) {
   try {
-    log(`Verarbeite Excel-Chunk: ${filePath}`);
+    log(`Verarbeite Excel-Chunk: ${filePath} (Zeilen ${startPosition + 1} bis ${startPosition + maxRows})`);
     
     // Excel-Datei einlesen
     const workbook = xlsx.readFile(filePath);
@@ -128,9 +134,12 @@ async function importExcelChunk(filePath) {
     const worksheet = workbook.Sheets[sheetName];
     
     // Konvertiere zu JSON mit Namen
-    const rows = xlsx.utils.sheet_to_json(worksheet);
+    const allRows = xlsx.utils.sheet_to_json(worksheet);
     
-    log(`Datei enthält ${rows.length} Zeilen`);
+    log(`Datei enthält insgesamt ${allRows.length} Zeilen, verarbeite Teilmenge von ${maxRows} Zeilen`);
+    
+    // Begrenzen auf den angeforderten Bereich
+    const rows = allRows.slice(startPosition, startPosition + maxRows);
     
     let importedCount = 0;
     let skippedCount = 0;
@@ -149,7 +158,9 @@ async function importExcelChunk(filePath) {
       importedCount,
       skippedCount,
       errorCount,
-      totalRows: rows.length
+      processedRows: rows.length,
+      totalRows: allRows.length,
+      endOfChunk: startPosition + maxRows >= allRows.length
     };
   } catch (error) {
     log(`Fehler beim Importieren der Datei ${filePath}: ${error.message}`);
@@ -202,36 +213,83 @@ async function main() {
       return;
     }
     
-    // Verarbeite alle Chunks, die noch nicht verarbeitet wurden
-    for (const filePath of chunkFiles) {
-      const fileName = path.basename(filePath);
-      
-      // Überspringe bereits verarbeitete Chunks
-      if (status.processedChunks.includes(fileName)) {
-        log(`Überspringe bereits verarbeiteten Chunk: ${fileName}`);
-        continue;
+    // Bestimme den zu verarbeitenden Chunk und die Position
+    let currentChunkFile;
+    let currentPosition;
+    
+    if (status.currentChunk === null) {
+      // Beginne mit dem ersten nicht verarbeiteten Chunk
+      for (const filePath of chunkFiles) {
+        const fileName = path.basename(filePath);
+        if (!status.processedChunks.includes(fileName)) {
+          currentChunkFile = filePath;
+          currentPosition = 0;
+          status.currentChunk = fileName;
+          status.currentPosition = 0;
+          break;
+        }
       }
+    } else {
+      // Setze die Verarbeitung des aktuellen Chunks fort
+      const remainingChunks = chunkFiles.filter(filePath => 
+        path.basename(filePath) === status.currentChunk || 
+        !status.processedChunks.includes(path.basename(filePath))
+      );
       
-      log(`Starte Import von Chunk: ${fileName}`);
-      const result = await importExcelChunk(filePath);
-      
-      // Status aktualisieren
-      status.importedCount += result.importedCount;
-      status.skippedCount += result.skippedCount;
-      status.errorCount += result.errorCount;
-      status.processedChunks.push(fileName);
-      status.lastProcessed = new Date().toISOString();
-      
-      log(`Chunk ${fileName} verarbeitet: ${result.importedCount} importiert, ${result.skippedCount} übersprungen, ${result.errorCount} Fehler`);
-      saveStatus(status);
-      
-      // Kurze Pause zwischen den Chunks
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (remainingChunks.length > 0) {
+        currentChunkFile = remainingChunks[0];
+        currentPosition = status.currentPosition;
+      }
     }
     
-    // Alle Chunks verarbeitet
-    status.completed = true;
-    log(`Import abgeschlossen. Insgesamt ${status.importedCount} Transaktionen importiert, ${status.skippedCount} übersprungen, ${status.errorCount} Fehler.`);
+    if (!currentChunkFile) {
+      log('Alle Chunks wurden bereits verarbeitet. Import abgeschlossen.');
+      status.completed = true;
+      status.running = false;
+      saveStatus(status);
+      return;
+    }
+    
+    // Verarbeite einen Teil des aktuellen Chunks
+    log(`Verarbeite Chunk ${status.currentChunk} ab Position ${currentPosition}`);
+    const result = await importExcelChunkPartial(currentChunkFile, currentPosition, CONFIG.rowsPerRun);
+    
+    // Status aktualisieren
+    status.importedCount += result.importedCount;
+    status.skippedCount += result.skippedCount;
+    status.errorCount += result.errorCount;
+    status.lastProcessed = new Date().toISOString();
+    
+    if (result.endOfChunk) {
+      // Chunk komplett verarbeitet
+      log(`Chunk ${status.currentChunk} vollständig verarbeitet`);
+      status.processedChunks.push(status.currentChunk);
+      
+      // Wähle den nächsten Chunk
+      const remainingChunks = chunkFiles.filter(filePath => 
+        !status.processedChunks.includes(path.basename(filePath))
+      );
+      
+      if (remainingChunks.length > 0) {
+        status.currentChunk = path.basename(remainingChunks[0]);
+        status.currentPosition = 0;
+        log(`Nächster zu verarbeitender Chunk: ${status.currentChunk}`);
+      } else {
+        status.completed = true;
+        log('Alle Chunks verarbeitet. Import abgeschlossen!');
+      }
+    } else {
+      // Aktualisiere die Position für den nächsten Durchlauf
+      status.currentPosition += result.processedRows;
+      log(`Nächste Position für Chunk ${status.currentChunk}: ${status.currentPosition}`);
+    }
+    
+    // Zeige Fortschritt
+    const chunksProgress = `${status.processedChunks.length}/${chunkFiles.length}`;
+    log(`Fortschritt: ${chunksProgress} Chunks, ${status.importedCount} importiert, ${status.skippedCount} übersprungen, ${status.errorCount} Fehler`);
+    
+    // Status speichern
+    saveStatus(status);
     
   } catch (error) {
     log(`Kritischer Fehler: ${error.message}`);
