@@ -1,0 +1,13 @@
+{
+  "startRow": 1,
+  "currentRow": 0,
+  "totalRows": 0,
+  "processedRows": 0,
+  "importedCount": 0,
+  "skippedCount": 0,
+  "errorCount": 0,
+  "lastProcessed": null,
+  "completed": false,
+  "failed": false,
+  "errorMessage": null
+}

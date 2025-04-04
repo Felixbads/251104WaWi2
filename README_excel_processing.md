@@ -1,92 +1,101 @@
-# Excel-Datenimport Prozess
+# Vendon Transaktionsdaten-Import aus Excel
 
-Diese Dokumentation beschreibt den Prozess zur Verarbeitung und Import von großen Excel-Dateien mit Vendon-Transaktionsdaten.
+Dieses Dokument beschreibt den Prozess zum Import großer Vendon-Transaktionsdaten aus Excel-Dateien in die Datenbank. Der Import ist speziell für die Replit-Umgebung optimiert und besteht aus mehreren Schritten, um die Verarbeitung von großen Datenmengen zuverlässig zu ermöglichen.
 
-## Problemstellung
+## Hintergrund
 
-Die große Excel-Datei (`Report 2022-04-01 2025-04-05 a18b605bf619a514f7ad636191ecf601.xlsx`) enthält historische Transaktionsdaten, die in die Datenbank importiert werden müssen. Da die Datei sehr groß ist (17.97 MB mit über 19.000 Zeilen), muss sie in kleinere Teile aufgeteilt werden, um Timeouts und Speicherprobleme zu vermeiden.
+Die Vendon-API liefert Transaktionsdaten nur für begrenzte Zeiträume. Für historische Daten stellt Vendon Excel-Exporte zur Verfügung, die importiert werden müssen. Diese Excel-Dateien können sehr groß sein (>18 MB) und stellen eine Herausforderung für die Verarbeitung in der Replit-Umgebung dar.
 
-## Lösungsansatz
+## Optimierter Importprozess
 
-Wir haben einen mehrstufigen Prozess entwickelt:
+Der Import erfolgt in zwei Hauptphasen:
 
-1. **Aufteilen der Excel-Datei**: Die große Excel-Datei wird in kleinere Chunks aufgeteilt.
-2. **Konvertierung zu JSON**: Jeder Chunk wird ins Vendon-Transaktionsformat konvertiert und als JSON gespeichert.
-3. **Sequentieller Import**: Die JSON-Dateien werden nacheinander in die Datenbank importiert.
+1. **Aufteilung der Excel-Datei in JSON-Chunks**
+2. **Import der JSON-Chunks in die Datenbank**
+
+Diese Aufteilung ermöglicht einen zuverlässigen Import auch bei großen Datenmengen und Umgebungsbeschränkungen.
+
+## Voraussetzungen
+
+- Excel-Datei im Verzeichnis `attached_assets`
+- Postgres-Datenbank mit dem korrekten Schema (Tabelle `transactions`)
+- Node.js mit den erforderlichen Paketen (xlsx, pg)
 
 ## Skripte
 
-### 1. Aufteilen von Excel-Dateien
+### Aufteilung der Excel-Datei
 
-**`split_excel_file.cjs`**
-- Teilt eine kleinere Excel-Datei in mehrere Excel-Chunks auf
-- Optimiert für kleinere Dateien
-- Verwendet für Testzwecke
+1. **split_excel_to_json.cjs**  
+   Liest die Excel-Datei in Chunks und speichert die Daten als JSON-Dateien.
 
-**`split_large_excel.cjs`**
-- Speziell für die große Excel-Datei optimiert
-- Verwendet speichereffiziente Methoden
-- Hat Zeitlimits und Verarbeitungsbegrenzungen
+2. **run_split_excel_to_json.cjs**  
+   Wrapper-Skript, das den Aufteilungsprozess steuert und mehrere Durchläufe automatisiert.
 
-### 2. Konvertierung zu JSON
+### Import der JSON-Chunks
 
-**`convert_excel_to_json.cjs`**
-- Konvertiert Excel-Chunks in JSON-Dateien
-- Wandelt die Excel-Daten ins Vendon-Transaktionsformat um
-- Speichert die Ergebnisse im korrekten API-Format
+1. **import_json_chunks.cjs**  
+   Verarbeitet die JSON-Chunks und importiert die Daten in die Datenbank.
 
-**`convert_small_excel_to_json.cjs`**
-- Vereinfachte Version für kleine Excel-Dateien
-- Für Testzwecke
+2. **run_import_json_chunks.cjs**  
+   Wrapper-Skript, das den Import-Prozess steuert und mehrere Durchläufe automatisiert.
 
-### 3. Import in die Datenbank
+## Anleitung
 
-**`import_json_files.cjs`**
-- Importiert JSON-Dateien sequentiell in die Datenbank
-- Verarbeitet eine JSON-Datei nach der anderen
-- Wartet zwischen Anfragen, um Überlastung zu vermeiden
-- Führt Protokoll über den Importfortschritt
+### Schritt 1: Excel-Datei in JSON-Chunks aufteilen
 
-### 4. Kombinierte Verarbeitung
+```bash
+node run_split_excel_to_json.cjs
+```
 
-**`split_and_import_excel.cjs`**
-- Kombiniert Aufteilen und Import in einem Skript
-- Für kleinere Excel-Dateien geeignet
+Dieser Befehl startet den Prozess zur Aufteilung der Excel-Datei in JSON-Chunks. Die Aufteilung erfolgt inkrementell und kann mehrere Durchläufe erfordern. Der Prozess speichert seinen Status in `excel_split_status.json` und kann jederzeit unterbrochen und später fortgesetzt werden.
 
-**`import_large_excel_by_chunks.cjs`**
-- Speziell für die große Excel-Datei optimiert
-- Kombiniert alle Schritte in einem optimierten Prozess
-- Hat Sicherheitsfunktionen zur Vermeidung von Timeouts
+### Schritt 2: JSON-Chunks in die Datenbank importieren
 
-## Empfohlene Vorgehensweise für große Dateien
+```bash
+node run_import_json_chunks.cjs
+```
 
-1. **Schritt 1**: Konvertiere die große Excel-Datei zu JSON-Chunks
-   ```bash
-   node convert_excel_to_json.cjs
-   ```
+Dieser Befehl startet den Prozess zum Import der JSON-Chunks in die Datenbank. Der Import erfolgt inkrementell und kann mehrere Durchläufe erfordern. Der Prozess speichert seinen Status in `json_import_status.json` und kann jederzeit unterbrochen und später fortgesetzt werden.
 
-2. **Schritt 2**: Importiere die JSON-Dateien sequentiell
-   ```bash
-   node import_json_files.cjs
-   ```
+## Statusüberprüfung
 
-## Optimierung der Parameter
+Die Status-Dateien (`excel_split_status.json` und `json_import_status.json`) enthalten Informationen über den Fortschritt des jeweiligen Prozesses. Die Wrapper-Skripte zeigen den aktuellen Status beim Start an.
 
-Bei Timeouts oder anderen Problemen können folgende Parameter angepasst werden:
+## Wichtige Hinweise
 
-- **chunkSize**: Anzahl der Datensätze pro Chunk (kleinere Werte, z.B. 25-50, für stabileren Import)
-- **maxChunks**: Begrenzung der zu verarbeitenden Chunks pro Lauf (ermöglicht stufenweisen Import)
-- **maxProcessingTime**: Zeitlimit für die Verarbeitung (verhindert Timeouts)
-- **delayBetweenRequests**: Wartezeit zwischen API-Anfragen (verhindert Überlastung)
+- **Duplizierte Daten**: Der Import-Prozess erkennt bereits importierte Transaktionen und überspringt sie. Dies verhindert Duplikate in der Datenbank.
+- **Transaktionssicherheit**: Jeder Chunk wird als Datenbank-Transaktion verarbeitet, die im Fehlerfall vollständig zurückgerollt wird. Dies gewährleistet die Datenintegrität.
+- **Ressourcenoptimierung**: Die Verarbeitung erfolgt in kleinen Chunks mit Pausen zwischen den Durchläufen, um die Ressourcenbeschränkungen der Replit-Umgebung zu berücksichtigen.
+- **Zuverlässigkeit**: Der Prozess ist robust gegenüber Unterbrechungen und kann jederzeit fortgesetzt werden.
 
-## Demo-Skript
+## Maschinen-Mapping
 
-**`process_excel_demo.cjs`**
-- Demonstriert den gesamten Prozess
-- Zeigt die erwarteten Ausgaben aller Schritte
-- Dient als Leitfaden für manuelle Ausführung
+Das Skript enthält ein Mapping von Telemetrieeinheiten zu internen Maschinen-IDs:
 
-## Logdateien
+```javascript
+const machineMapping = {
+  '869951034402721': 52, // Bahnhof Bad Schandau, Nationalparkbahnhof
+  '866174040097655': 51, // Pfaffendorf
+  '866174040098984': 53  // Rathen
+};
+```
 
-- **`import_results.log`**: Protokolliert den Fortschritt des JSON-Imports
-- **`excel_import.log`**: Bei manchen Skripten: Protokolliert die Excel-Verarbeitung
+Dieses Mapping kann bei Bedarf erweitert werden, um weitere Automaten zu unterstützen.
+
+## Fehlerbehebung
+
+- **Prozess hängt**: Die Wrapper-Skripte haben eine maximale Anzahl von Durchläufen. Wenn diese erreicht wird, wird der Prozess beendet. Erhöhen Sie ggf. den Wert von `maxRuns` in den Wrapper-Skripten.
+- **Datenbank-Fehler**: Überprüfen Sie die Verbindungseinstellungen und das Datenbankschema. Der Prozess speichert Fehler in den Status-Dateien.
+- **Speicherprobleme**: Reduzieren Sie die Werte für `chunkSize` und `maxChunksPerRun` in den Skripten, um den Speicherverbrauch zu verringern.
+
+## Beispiel für einen vollständigen Import
+
+```bash
+# 1. Excel-Datei in JSON-Chunks aufteilen
+node run_split_excel_to_json.cjs
+
+# 2. JSON-Chunks in die Datenbank importieren
+node run_import_json_chunks.cjs
+```
+
+Diese zwei Schritte ermöglichen einen zuverlässigen Import auch sehr großer Excel-Dateien.

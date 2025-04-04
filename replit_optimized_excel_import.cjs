@@ -1,9 +1,17 @@
-const fs = require('fs');
-const path = require('path');
-const xlsx = require('xlsx');
-const { Pool } = require('pg');
+/**
+ * Hochoptimierter Excel-Import für sehr große Dateien in der Replit-Umgebung
+ * 
+ * Dieses Skript implementiert einen noch effizienteren Ansatz für den Import 
+ * von sehr großen Excel-Dateien in die Datenbank, der speziell für die 
+ * Ressourcenbeschränkungen in der Replit-Umgebung optimiert ist.
+ */
 
-// Konfiguration für den Datenbankzugriff
+const fs = require('fs');
+const { Pool } = require('pg');
+const xlsx = require('xlsx');
+const path = require('path');
+
+// Datenbank-Konfiguration für direkten Zugriff
 const dbConfig = {
   connectionString: process.env.DATABASE_URL,
   ssl: {
@@ -15,14 +23,13 @@ const dbConfig = {
 const config = {
   // Datei-Konfiguration
   inputExcelFile: './attached_assets/Report 2022-04-01 2025-04-05 a18b605bf619a514f7ad636191ecf601.xlsx',
-  statusFile: './excel_import_status.json',
-  logFile: './excel_import_full.log',
+  statusFile: './excel_import_status_optimized.json',
+  logFile: './excel_import_optimized.log',
   
-  // Prozesssteuerung
-  chunkSize: 20,           // Anzahl Zeilen pro Verarbeitungseinheit (effiziente Größe für Datenbank)
-  maxChunksPerRun: 3,      // Anzahl Chunks pro Durchlauf (optimiert für Replit-Umgebung)
-  startRow: -1,            // -1 = automatisch fortsetzen
-  maxProcessingTime: 45000, // Maximale Verarbeitungszeit in Millisekunden (optimiert für Replit-Umgebung)
+  // Replit-optimierte Prozesssteuerung
+  chunkSize: 10,           // Kleinere Chunks für bessere Speicherauslastung
+  maxProcessingTime: 20000, // Kürzere Durchläufe, aber mehr davon
+  maxStreamRowsBeforeBreak: 1000, // Maximale Anzahl Zeilen pro Streaming-Durchlauf
   
   // Mapping für Maschinen-IDs
   machineMapping: {
@@ -56,6 +63,7 @@ function getStatus() {
     lastProcessed: null,
     totalRows: 0,
     totalProcessed: 0,
+    currentPass: 1,
     errorMessage: null
   };
 }
@@ -265,76 +273,101 @@ async function importTransactionsToDb(transactions) {
 }
 
 /**
- * Verarbeitet eine große Excel-Datei inkrementell
+ * Verbesserte Funktion zum Lesen der Gesamtzahl der Zeilen in einer Excel-Datei
  */
-async function processLargeExcelFile() {
+function getExcelRowCount() {
   try {
-    // Startzeit für Zeitbegrenzung festlegen
-    const startTime = Date.now();
+    log(`Öffne Excel-Datei für Zeilenanalyse: ${config.inputExcelFile}`);
     
-    // Hilfsfunktion zur Prüfung, ob Zeitlimit überschritten wurde
-    function isTimeExceeded() {
-      return config.maxProcessingTime > 0 && 
-             (Date.now() - startTime) > config.maxProcessingTime;
-    }
+    // Erstelle Dateistream-Objekt für effiziente Analyse
+    const stats = fs.statSync(config.inputExcelFile);
+    log(`Dateigröße: ${(stats.size / (1024 * 1024)).toFixed(2)} MB`);
     
-    // Status lesen oder initialisieren
-    const status = getStatus();
-    
-    // Wenn bereits abgeschlossen, nicht noch einmal verarbeiten
-    if (status.completed === true) {
-      log('Die Verarbeitung wurde bereits abgeschlossen.');
-      return { success: true, completed: true };
-    }
-    
-    log('=== INKREMENTELLER EXCEL-IMPORT WIRD FORTGESETZT ===');
-    
-    // Bestimme die Startzeile
-    const startRow = config.startRow >= 0 ? config.startRow : status.startRow;
-    
-    // Prüfe, ob die Datei existiert
-    if (!fs.existsSync(config.inputExcelFile)) {
-      throw new Error(`Die Datei ${config.inputExcelFile} existiert nicht.`);
-    }
-    
-    log(`Analysiere Excel-Datei: ${config.inputExcelFile}`);
-    
-    // Excel-Datei für Low-Memory-Verarbeitung öffnen
-    log('Öffne Excel-Datei mit optimierten Einstellungen...');
-    
-    // Optimierte Optionen für noch bessere Speichereffizienz
+    // Lese die erste Zeile und ermittle die Gesamtzahl der Zeilen aus der Excel-Datei
+    // Wir verwenden ein anderes Verfahren für große Dateien
     const workbook = xlsx.readFile(config.inputExcelFile, {
-      cellFormula: false,  // Keine Formeln verarbeiten
-      cellHTML: false,     // Kein HTML verarbeiten
-      cellStyles: false,   // Keine Stile verarbeiten
-      cellNF: false,       // Keine Zahlenformate
-      cellDates: true,     // Datumsformate beibehalten
-      sheetStubs: false,   // Ignoriere leere Zellen für bessere Performance
-      bookDeps: false,     // Keine Abhängigkeiten verfolgen
-      bookVBA: false,      // Kein VBA-Code laden
-      dense: true,         // Optimierung für große Dateien
-      WTF: false,          // Weniger Warnungen ausgeben
-      raw: true,           // Rohe Werte ohne Formatierung
-      sheets: [0]          // Nur das erste Blatt lesen
+      cellStyles: false,
+      cellNF: false,
+      cellHTML: false,
+      cellFormula: false,
+      dense: true,
+      raw: true,
     });
     
-    // Arbeitsblatt auswählen
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     
-    // Bereich des Arbeitsblatts ermitteln
-    const range = xlsx.utils.decode_range(worksheet['!ref']);
-    const totalRows = range.e.r - range.s.r; // Gesamtanzahl der Zeilen (ohne Header)
+    // Extrahiere die Bereichsinformation
+    if (worksheet['!ref']) {
+      const range = xlsx.utils.decode_range(worksheet['!ref']);
+      const rowCount = range.e.r;
+      log(`Excel-Datei hat ${rowCount} Zeilen (0-basierter Index)`);
+      return rowCount;
+    } else {
+      log('Konnte keinen gültigen Bereich in der Excel-Datei finden.');
+      return 100000; // Fallback: Eine vernünftige Standardanzahl für Vendon-Berichte
+    }
+  } catch (error) {
+    log(`Fehler beim Ermitteln der Zeilenanzahl: ${error.message}`);
+    log(`Verwende Standardwert für Zeilenanzahl.`);
+    return 100000; // Fallback für Fehlerfall
+  }
+}
+
+/**
+ * Hauptfunktion - Hochoptimierte Version
+ */
+async function main() {
+  log('=== STARTE OPTIMIERTEN EXCEL-IMPORT ===');
+  
+  // Startzeit für Zeitbegrenzung festlegen
+  const startTime = Date.now();
+  
+  try {
+    // Status initialisieren/laden
+    const status = getStatus();
     
-    log(`Arbeitsblatt '${sheetName}' hat ${totalRows} Datenzeilen.`);
+    // Überprüfe, ob bereits abgeschlossen
+    if (status.completed === true) {
+      log('Import bereits abgeschlossen.');
+      return;
+    }
     
-    // Status aktualisieren, falls dies der erste Durchlauf ist
+    // Wenn noch keine Zeilenanzahl bekannt ist, erste Analyse durchführen
     if (status.totalRows === 0) {
-      status.totalRows = totalRows;
+      log('Analysiere Excel-Datei für Zeilenanzahl...');
+      const rowCount = getExcelRowCount();
+      status.totalRows = rowCount;
+      log(`Excel-Datei enthält insgesamt ${rowCount} Zeilen.`);
       saveStatus(status);
     }
     
-    // Spaltenüberschriften aus der ersten Zeile lesen
+    log(`Beginne/setze Import fort ab Zeile ${status.startRow}.`);
+    log(`Fortschritt: ${status.totalProcessed}/${status.totalRows} Zeilen (${((status.totalProcessed / status.totalRows) * 100).toFixed(2)}%)`);
+    
+    // Lese Daten im Stream-Modus, um Arbeitsspeicher zu sparen
+    log('Öffne Excel-Datei im Stream-Modus...');
+    
+    // Optimierte Optionen fürs Lesen
+    const options = {
+      cellFormula: false,
+      cellHTML: false,
+      cellStyles: false,
+      cellNF: false,
+      cellDates: true,
+      sheetStubs: false,
+      sheetRows: status.startRow + config.maxStreamRowsBeforeBreak,
+      sheets: [0],
+      dense: true,
+      raw: true
+    };
+    
+    const workbook = xlsx.readFile(config.inputExcelFile, options);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    
+    // Extrahiere Header aus der ersten Zeile
+    const range = xlsx.utils.decode_range(worksheet['!ref']);
     const headers = {};
     for (let c = range.s.c; c <= range.e.c; c++) {
       const cellAddress = xlsx.utils.encode_cell({ r: range.s.r, c });
@@ -347,33 +380,30 @@ async function processLargeExcelFile() {
     
     log(`${Object.keys(headers).length} Spalten gefunden.`);
     
-    // Verarbeitung einrichten
-    const endRow = Math.min(
-      startRow + (config.chunkSize * config.maxChunksPerRun), 
-      range.e.r + 1
-    );
+    // Verarbeite nur einen begrenzten Bereich in diesem Durchlauf
+    const startRow = status.startRow;
+    const endRow = Math.min(range.e.r + 1, startRow + config.maxStreamRowsBeforeBreak);
     
-    log(`Verarbeite Zeilen ${startRow} bis ${endRow - 1} (maximal ${config.maxChunksPerRun} Chunks mit je ${config.chunkSize} Zeilen).`);
+    log(`Verarbeite Zeilen ${startRow} bis ${endRow - 1} in diesem Durchlauf...`);
     
-    // Daten sammeln
     let batchData = [];
     let rowsProcessed = 0;
     let currentRow = startRow;
     
+    // Daten verarbeiten
     for (let r = startRow; r < endRow; r++) {
-      // Prüfe, ob das Zeitlimit überschritten wurde
-      if (isTimeExceeded()) {
+      // Prüfe Zeitbegrenzung
+      if (config.maxProcessingTime > 0 && (Date.now() - startTime) > config.maxProcessingTime) {
         log(`Zeitlimit von ${config.maxProcessingTime}ms überschritten, unterbreche Verarbeitung.`);
         break;
       }
       
       currentRow = r;
       
-      // Zeile verarbeiten
+      // Daten einer Zeile lesen
       const rowData = {};
       let hasData = false;
       
-      // Alle Zellen der Zeile lesen
       for (let c = range.s.c; c <= range.e.c; c++) {
         const cellAddress = xlsx.utils.encode_cell({ r, c });
         if (worksheet[cellAddress] && worksheet[cellAddress].v !== undefined) {
@@ -403,6 +433,7 @@ async function processLargeExcelFile() {
             log(`Batch-Import erfolgreich: ${importResult.inserted} importiert, ${importResult.skipped} übersprungen.`);
             status.importedCount += importResult.inserted;
             status.skippedCount += importResult.skipped;
+            saveStatus(status);
           } else {
             log(`Batch-Import fehlgeschlagen: ${importResult.error}`);
             
@@ -411,11 +442,7 @@ async function processLargeExcelFile() {
             status.errorMessage = importResult.error;
             saveStatus(status);
             
-            return { 
-              success: false, 
-              error: importResult.error,
-              rowsProcessed
-            };
+            return;
           }
           
           // Zurücksetzen für nächsten Batch
@@ -425,14 +452,15 @@ async function processLargeExcelFile() {
     }
     
     // Nach der Schleife überprüfen, ob alle Daten verarbeitet wurden
-    const allProcessed = currentRow >= range.e.r;
+    const allProcessed = currentRow >= status.totalRows;
     
     // Status aktualisieren
-    status.startRow = allProcessed ? 1 : currentRow + 1; // Wenn alles verarbeitet wurde, zurück zum Anfang, sonst die nächste Zeile
+    status.startRow = allProcessed ? 1 : currentRow + 1;
     status.processedRows = rowsProcessed;
     status.totalProcessed += rowsProcessed;
     status.lastProcessed = new Date().toISOString();
     status.completed = allProcessed;
+    status.currentPass++;
     saveStatus(status);
     
     if (allProcessed) {
@@ -441,73 +469,32 @@ async function processLargeExcelFile() {
       log(`Gesamtergebnis: ${status.importedCount} importiert, ${status.skippedCount} übersprungen.`);
     } else {
       log(`\nTeilimport abgeschlossen. Nächster Durchlauf wird bei Zeile ${status.startRow} fortgesetzt.`);
-      log(`Zwischenstand: ${status.importedCount} importiert, ${status.skippedCount} übersprungen.`);
+      log(`Zwischenstand: Durchlauf ${status.currentPass}, ${status.totalProcessed}/${status.totalRows} Zeilen (${((status.totalProcessed / status.totalRows) * 100).toFixed(2)}%)`);
+      log(`${status.importedCount} importiert, ${status.skippedCount} übersprungen.`);
       
-      // Mit Exit Code 10 beenden (für das Wrapper-Skript)
+      // Exit mit Code 10, damit Wrapper-Script weiß, dass es fortsetzen soll
       process.exit(10);
     }
     
-    return { 
-      success: true, 
-      completed: allProcessed,
-      rowsProcessed,
-      importedCount: status.importedCount,
-      skippedCount: status.skippedCount
-    };
   } catch (error) {
-    log(`Fehler bei der Excel-Verarbeitung: ${error.message}`);
+    log(`Fehler im Hauptprozess: ${error.message}`);
     console.error(error.stack);
     
-    // Status auf fehlgeschlagen setzen
+    // Status als fehlgeschlagen markieren
     const status = getStatus();
     status.failed = true;
     status.errorMessage = error.message;
     saveStatus(status);
-    
-    return { 
-      success: false, 
-      error: error.message
-    };
   }
 }
 
-/**
- * Hauptfunktion
- */
-async function main() {
-  log('=== STARTE INKREMENTELLEN EXCEL-IMPORT ===');
-  
-  try {
-    // Verarbeite die Excel-Datei
-    const result = await processLargeExcelFile();
-    
-    if (result.success) {
-      log('Verarbeitung erfolgreich abgeschlossen.');
-      
-      if (result.completed) {
-        log(`Gesamte Datei verarbeitet: ${result.rowsProcessed} Zeilen in diesem Durchlauf.`);
-      } else {
-        log(`Teilprozess abgeschlossen: ${result.rowsProcessed} Zeilen in diesem Durchlauf.`);
-      }
-      
-      if (result.importedCount !== undefined) {
-        log(`Insgesamt importiert: ${result.importedCount}, übersprungen: ${result.skippedCount}`);
-      }
-    } else {
-      log(`Verarbeitung fehlgeschlagen: ${result.error}`);
-    }
-  } catch (error) {
-    log(`Unerwarteter Fehler: ${error.message}`);
-  }
-}
-
-// Starte die Hauptfunktion
-console.time('Total Processing Time');
+// Starte Hauptprozess
+console.time('Processing Time');
 main()
   .then(() => {
-    console.timeEnd('Total Processing Time');
+    console.timeEnd('Processing Time');
   })
   .catch(error => {
-    console.timeEnd('Total Processing Time');
+    console.timeEnd('Processing Time');
     log(`Kritischer Fehler: ${error.message}`);
   });

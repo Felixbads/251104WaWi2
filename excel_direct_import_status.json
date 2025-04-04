@@ -1,0 +1,13 @@
+{
+  "startRow": 10,
+  "currentRow": 9,
+  "totalRows": 9,
+  "processedRows": 0,
+  "importedCount": 0,
+  "skippedCount": 0,
+  "errorCount": 0,
+  "lastProcessed": "2025-04-04T08:31:06.753Z",
+  "completed": true,
+  "failed": false,
+  "errorMessage": null
+}
