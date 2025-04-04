@@ -29,6 +29,31 @@ export async function apiRequest(
   
   console.log(`API Request: ${method} ${apiUrl}`, data);
   
+  // Für GET-Anfragen mit Daten diese als Query-Parameter hinzufügen
+  let finalUrl = apiUrl;
+  if (method.toUpperCase() === 'GET' && data) {
+    const queryParams = new URLSearchParams();
+    Object.entries(data).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        queryParams.append(key, value.toString());
+      }
+    });
+    const queryString = queryParams.toString();
+    if (queryString) {
+      finalUrl += `?${queryString}`;
+    }
+    
+    // Bei GET-Methode kein Body senden
+    const res = await fetch(finalUrl, {
+      method: 'GET',
+      headers: headers,
+      credentials: "include",
+    });
+    
+    return handleResponse(res);
+  }
+  
+  // Für andere Methoden als GET den Body senden
   const res = await fetch(apiUrl, {
     method: method.toUpperCase(),
     headers: headers,
@@ -36,6 +61,11 @@ export async function apiRequest(
     credentials: "include",
   });
 
+  return handleResponse(res);
+}
+
+// Hilfsfunktion für die Antwortverarbeitung
+async function handleResponse(res: Response) {
   await throwIfResNotOk(res);
   
   // Bei leerer Antwort (204 No Content) ein leeres Objekt zurückgeben

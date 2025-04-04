@@ -49,13 +49,13 @@ export default function MachineAssignments() {
   });
   
   // Abfrage der Maschinenprodukte für den aktuell ausgewählten Automaten
-  const { data: machineProducts, isLoading: machineProductsLoading } = useQuery({
+  const { data: machineProducts = [], isLoading: machineProductsLoading } = useQuery({
     queryKey: ['/api/machines', newAssignMachine, 'products'],
     enabled: !!newAssignMachine,
     queryFn: async () => {
       if (!newAssignMachine) return [];
-      const response = await apiRequest(`/api/machines/${newAssignMachine}/products`);
-      return response;
+      const response = await apiRequest(`/api/machines/${newAssignMachine}/products`, undefined, 'GET');
+      return Array.isArray(response) ? response : [];
     },
     staleTime: 1000 * 60, // 1 Minute
   });
@@ -195,11 +195,11 @@ export default function MachineAssignments() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Alle Lager</SelectItem>
-                {warehouses?.map((warehouse: any) => (
+                {Array.isArray(warehouses) ? warehouses.map((warehouse: any) => (
                   <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
                     {warehouse.name}
                   </SelectItem>
-                ))}
+                )) : null}
               </SelectContent>
             </Select>
           </div>
@@ -215,11 +215,11 @@ export default function MachineAssignments() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Alle Automaten</SelectItem>
-                {machines?.map((machine: any) => (
+                {Array.isArray(machines) ? machines.map((machine: any) => (
                   <SelectItem key={machine.id} value={machine.id.toString()}>
                     {machine.name}
                   </SelectItem>
-                ))}
+                )) : null}
               </SelectContent>
             </Select>
           </div>
@@ -252,19 +252,22 @@ export default function MachineAssignments() {
                     <SelectValue placeholder="Automat auswählen" />
                   </SelectTrigger>
                   <SelectContent>
-                    {machines?.filter((machine: any) => {
-                      if (newAssignWarehouse === null) return true;
-                      // Nur Automaten anzeigen, die noch nicht diesem Lager zugeordnet sind
-                      return !assignments?.some(
-                        (assignment: any) => 
-                          assignment.machineId === machine.id && 
-                          assignment.warehouseId === newAssignWarehouse
-                      );
-                    }).map((machine: any) => (
-                      <SelectItem key={machine.id} value={machine.id.toString()}>
-                        {machine.machineName || machine.name}
-                      </SelectItem>
-                    ))}
+                    {Array.isArray(machines) ? machines
+                      .filter((machine: any) => {
+                        if (newAssignWarehouse === null) return true;
+                        // Nur Automaten anzeigen, die noch nicht diesem Lager zugeordnet sind
+                        return !Array.isArray(assignments) || !assignments.some(
+                          (assignment: any) => 
+                            assignment.machineId === machine.id && 
+                            assignment.warehouseId === newAssignWarehouse
+                        );
+                      })
+                      .map((machine: any) => (
+                        <SelectItem key={machine.id} value={machine.id.toString()}>
+                          {machine.machineName || machine.name}
+                        </SelectItem>
+                      ))
+                     : null}
                   </SelectContent>
                 </Select>
               </div>
@@ -279,12 +282,14 @@ export default function MachineAssignments() {
                     <SelectValue placeholder="Lager auswählen" />
                   </SelectTrigger>
                   <SelectContent>
-                    {warehouses?.filter((warehouse: any) => warehouse.isActive)
+                    {Array.isArray(warehouses) ? warehouses
+                      .filter((warehouse: any) => warehouse.isActive)
                       .map((warehouse: any) => (
                         <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
                           {warehouse.name}
                         </SelectItem>
-                      ))}
+                      ))
+                     : null}
                   </SelectContent>
                 </Select>
               </div>
@@ -318,7 +323,7 @@ export default function MachineAssignments() {
       </div>
 
       {/* Hauptinhalt */}
-      {!assignments || assignments.length === 0 ? (
+      {!assignments || (Array.isArray(assignments) && assignments.length === 0) ? (
         <div className="text-center p-8 border rounded-lg">
           <Truck className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium mb-2">Keine Zuordnungen gefunden</h3>
@@ -344,7 +349,7 @@ export default function MachineAssignments() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {assignments.map((assignment: any) => (
+              {Array.isArray(assignments) && assignments.map((assignment: any) => (
                 <TableRow key={assignment.id}>
                   <TableCell className="font-medium">
                     {assignment.machineName || "Unbekannter Automat"}
