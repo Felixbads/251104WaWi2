@@ -166,11 +166,49 @@ export default function MachineAssignments() {
       return;
     }
     
-    createAssignmentMutation.mutate({
+    // Aktuelle Parameter in der Konsole ausgeben
+    const assignmentData = {
       machineId: newAssignMachine,
       warehouseId: newAssignWarehouse,
       isPrimary: true, // Setze als primäres Lager
       notes: assignNotes || undefined // Nur senden wenn nicht leer
+    };
+    
+    console.log("Sende Zuordnungsdaten:", JSON.stringify(assignmentData));
+    
+    // Direkte Fetch-Anfrage statt Mutation zum Debuggen
+    fetch('/api/machine-warehouse-assignments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+      },
+      body: JSON.stringify(assignmentData)
+    })
+    .then(response => {
+      if (!response.ok) {
+        return response.text().then(text => {
+          throw new Error(`Fehler ${response.status}: ${text}`);
+        });
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log("Erfolgreich erstellt:", data);
+      queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
+      toast({
+        title: 'Zuordnung erstellt',
+        description: 'Die Maschine wurde erfolgreich dem Lager zugeordnet'
+      });
+      closeAndResetDialog();
+    })
+    .catch(error => {
+      console.error("Fehler bei der Zuordnung:", error);
+      toast({
+        title: 'Fehler',
+        description: error.message,
+        variant: 'destructive'
+      });
     });
   };
 

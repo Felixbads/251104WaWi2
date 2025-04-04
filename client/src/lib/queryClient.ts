@@ -27,7 +27,7 @@ export async function apiRequest(
     ...(options?.headers || {})
   };
   
-  console.log(`API Request: ${method} ${apiUrl}`, data);
+  console.log(`API Request: ${method} ${apiUrl}`, {method: method.toUpperCase(), body: data ? JSON.stringify(data) : undefined});
   
   // Für GET-Anfragen mit Daten diese als Query-Parameter hinzufügen
   let finalUrl = apiUrl;
