@@ -90,6 +90,7 @@ import {
   Trash2,
   Save,
   ArrowLeft,
+  FileEdit,
   Loader2,
   Search,
   Filter,
@@ -103,6 +104,7 @@ import {
   Utensils,
   MapPin,
   Info,
+  Send,
   Clock
 } from "lucide-react";
 
@@ -655,7 +657,10 @@ function NewOrderForm({
         // Bei Bedarf weitere Felder
       };
       
-      setOrderItems([...orderItems, newItem]);
+      // Neue Bestellposition zum Array hinzufügen
+      setOrderItems(prevItems => [...prevItems, newItem]);
+      
+      // Dialog schließen
       setShowAddItem(false);
       
       // Form zurücksetzen
@@ -667,8 +672,10 @@ function NewOrderForm({
         targetMachineId: undefined
       });
       
+      // Ausgewähltes Produkt zurücksetzen
       setSelectedProduct(null);
       
+      // Erfolgsmeldung anzeigen, aber NICHT zur Hauptansicht zurückkehren
       toast({
         title: "Position hinzugefügt",
         description: `${newItem.productName} (${newItem.quantity} ${newItem.unit}) wurde zur Bestellung hinzugefügt.`,
@@ -684,6 +691,74 @@ function NewOrderForm({
       title: "Position entfernt",
       description: "Die Position wurde aus der Bestellung entfernt.",
     });
+  };
+  
+  // Hilfsfunktion zum Erstellen des Bestellobjekts
+  const createOrderObject = (status: 'draft' | 'submitted') => {
+    const formValues = orderForm.getValues();
+    
+    return {
+      ...formValues,
+      expectedDeliveryDate: formValues.expectedDeliveryDate ? format(formValues.expectedDeliveryDate, 'yyyy-MM-dd') : null,
+      warehouseId,
+      status: status,
+      totalAmount: orderItems.reduce((sum: number, item: any) => sum + item.totalPrice, 0),
+      orderItems: orderItems.map((item, index) => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        totalPrice: item.totalPrice,
+        notes: item.notes || '',
+        positionNumber: index + 1,
+        targetMachineId: item.targetMachineId,
+        // Weitere benötigte Felder
+      }))
+    };
+  };
+  
+  // Bestellung als Entwurf speichern
+  const saveAsDraft = async () => {
+    try {
+      // Mindestens ein Produkt oder Lieferant sollte vorhanden sein
+      const formValues = orderForm.getValues();
+      
+      if (!formValues.supplierId && orderItems.length === 0) {
+        toast({
+          title: "Unvollständige Bestellung",
+          description: "Bitte wählen Sie mindestens einen Lieferanten oder fügen Sie Produkte hinzu.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Bestellungsdaten zusammenstellen mit Status 'draft'
+      const order = createOrderObject('draft');
+      
+      // In echter Implementierung: API-Aufruf zum Speichern des Entwurfs
+      toast({
+        title: "Entwurf wird gespeichert",
+        description: "Ihre Bestellung wird als Entwurf gespeichert...",
+      });
+      
+      // Simulierter API-Aufruf
+      setTimeout(() => {
+        toast({
+          title: "Entwurf gespeichert",
+          description: "Ihre Bestellung wurde als Entwurf gespeichert.",
+        });
+        
+        // Zur Bestellübersicht zurückkehren
+        setLocation('/bestellungen');
+      }, 1000);
+      
+    } catch (error) {
+      console.error("Fehler beim Speichern des Entwurfs:", error);
+      toast({
+        title: "Fehler beim Speichern",
+        description: error instanceof Error ? error.message : "Ein unbekannter Fehler ist aufgetreten.",
+        variant: "destructive"
+      });
+    }
   };
   
   // Bestellung speichern und absenden
@@ -705,26 +780,8 @@ function NewOrderForm({
         return;
       }
       
-      const formValues = orderForm.getValues();
-      
-      // Bestellungsdaten zusammenstellen
-      const order = {
-        ...formValues,
-        expectedDeliveryDate: formValues.expectedDeliveryDate ? format(formValues.expectedDeliveryDate, 'yyyy-MM-dd') : null,
-        warehouseId,
-        status: 'draft', // Standardstatus für neue Bestellungen
-        totalAmount: orderItems.reduce((sum: number, item: any) => sum + item.totalPrice, 0),
-        orderItems: orderItems.map((item, index) => ({
-          productId: item.productId,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          totalPrice: item.totalPrice,
-          notes: item.notes || '',
-          positionNumber: index + 1,
-          targetMachineId: item.targetMachineId,
-          // Weitere benötigte Felder
-        }))
-      };
+      // Bestellungsdaten zusammenstellen mit Status 'submitted'
+      const order = createOrderObject('submitted');
       
       // In echter Implementierung: API-Aufruf zum Speichern der Bestellung
       toast({
@@ -781,7 +838,7 @@ function NewOrderForm({
       
       <CardContent className="space-y-6">
         <Form {...orderForm}>
-          <form className="space-y-6">
+          <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
             {/* Basisinformationen */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
@@ -1205,18 +1262,27 @@ function NewOrderForm({
       </CardContent>
       
       <CardFooter className="flex justify-between">
-        <Button variant="outline" onClick={onBack}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Zurück
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onBack}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Zurück
+          </Button>
+          <Button 
+            variant="secondary" 
+            onClick={saveAsDraft}
+          >
+            <Save className="mr-2 h-4 w-4" />
+            Als Entwurf speichern
+          </Button>
+        </div>
         
         <Button 
           type="button"
           disabled={orderItems.length === 0 || !orderForm.getValues('supplierId')}
           onClick={submitOrder}
         >
-          <Save className="mr-2 h-4 w-4" />
-          Bestellung speichern
+          <Send className="mr-2 h-4 w-4" />
+          Bestellung absenden
         </Button>
       </CardFooter>
     </Card>
