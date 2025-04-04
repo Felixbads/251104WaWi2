@@ -37,9 +37,7 @@ export default function Inventory() {
   
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Lagerverwaltung</h1>
-      </div>
+      <h1 className="text-3xl font-bold tracking-tight">Lagerverwaltung</h1>
       
       {/* Einheitliche Filter- und Aktionsleiste */}
       <div className="w-full flex flex-col md:flex-row gap-3 mb-6">

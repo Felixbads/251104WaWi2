@@ -54,9 +54,7 @@ export default function MachineAssignments() {
     enabled: !!newAssignMachine,
     queryFn: async () => {
       if (!newAssignMachine) return [];
-      const response = await apiRequest(`/api/machines/${newAssignMachine}/products`, {
-        method: 'GET'
-      });
+      const response = await apiRequest(`/api/machines/${newAssignMachine}/products`);
       return response;
     },
     staleTime: 1000 * 60, // 1 Minute
@@ -67,15 +65,12 @@ export default function MachineAssignments() {
     mutationFn: async ({ warehouseId, products }: { warehouseId: number, products: any[] }) => {
       const promises = products.map(product => 
         apiRequest('/api/inventory', {
-          method: 'POST',
-          data: {
-            warehouseId,
-            productName: product.productName,
-            quantity: 0, // Startmenge ist 0
-            minQuantity: 5, // Standardwert für Mindestbestand
-            notes: `Automatisch hinzugefügt bei Maschinenzuordnung am ${new Date().toLocaleDateString()}`
-          }
-        })
+          warehouseId,
+          productName: product.productName,
+          quantity: 0, // Startmenge ist 0
+          minQuantity: 5, // Standardwert für Mindestbestand
+          notes: `Automatisch hinzugefügt bei Maschinenzuordnung am ${new Date().toLocaleDateString()}`
+        }, 'POST')
       );
       
       return Promise.all(promises);
@@ -99,10 +94,7 @@ export default function MachineAssignments() {
   // Mutation für das Erstellen von Automaten-Zuordnungen
   const createAssignmentMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await apiRequest('/api/machine-warehouse-assignments', {
-        method: 'POST',
-        data
-      });
+      return await apiRequest('/api/machine-warehouse-assignments', data, 'POST');
     },
     onSuccess: async (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
