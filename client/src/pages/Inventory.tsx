@@ -14,7 +14,8 @@ import {
   List,
   Search,
   Filter,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Clock
 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { PageTitle } from '@/components/ui/page-title';
@@ -28,6 +29,7 @@ import InventoryItems from '@/components/inventory/InventoryItems';
 import InventoryMovements from '@/components/inventory/InventoryMovements';
 import InventoryCounts from '@/components/inventory/InventoryCounts';
 import MachineAssignments from '@/components/inventory/MachineAssignments';
+import InventoryBatches from '@/components/inventory/batch/InventoryBatches';
 
 export default function Inventory() {
   // Aktiven Tab aus localStorage laden oder Standard verwenden
@@ -130,6 +132,10 @@ export default function Inventory() {
             <ArrowDownUp className="mr-2 h-4 w-4" />
             Warenbewegungen
           </TabsTrigger>
+          <TabsTrigger value="batches" className="flex items-center">
+            <Clock className="mr-2 h-4 w-4" />
+            Chargen
+          </TabsTrigger>
           <TabsTrigger value="counts" className="flex items-center">
             <ClipboardCheck className="mr-2 h-4 w-4" />
             Inventuren
@@ -153,6 +159,11 @@ export default function Inventory() {
         {/* Warenbewegungen-Tab: Anzeige aller Ein- und Ausgänge */}
         <TabsContent value="movements" className="space-y-4">
           <InventoryMovements />
+        </TabsContent>
+        
+        {/* Chargen-Tab: Verwaltung von Produktchargen */}
+        <TabsContent value="batches" className="space-y-4">
+          <InventoryBatches />
         </TabsContent>
         
         {/* Inventuren-Tab: Verwaltung von Inventuren */}
