@@ -579,13 +579,19 @@ function NewOrderForm({
   useEffect(() => {
     // Den aktuellen Lieferanten-Wert aus dem Formular abrufen
     const supplierId = orderForm.watch('supplierId');
-    // State aktualisieren, wenn sich der Lieferant ändert
-    setCurrentSupplierId(supplierId);
     
-    // Produktauswahl zurücksetzen, wenn der Lieferant geändert wird
-    if (itemForm.getValues('productId')) {
-      itemForm.setValue('productId', null);  // null statt undefined verwenden
-      setSelectedProduct(null);
+    // Prüfen, ob sich der Lieferant tatsächlich geändert hat
+    if (supplierId !== currentSupplierId) {
+      console.log(`Lieferant wurde geändert: ${currentSupplierId} -> ${supplierId}`);
+      
+      // State aktualisieren, wenn sich der Lieferant ändert
+      setCurrentSupplierId(supplierId);
+      
+      // Produktauswahl zurücksetzen, wenn der Lieferant geändert wird
+      if (itemForm.getValues('productId')) {
+        itemForm.setValue('productId', null);  // null statt undefined verwenden
+        setSelectedProduct(null);
+      }
     }
   }, [orderForm.watch('supplierId')]);
 
@@ -697,6 +703,10 @@ function NewOrderForm({
   // Bestellposition hinzufügen
   const addOrderItem = (data: OrderItemValues) => {
     if (selectedProduct) {
+      // Aktuelle supplierId speichern, um sie später wieder zu setzen
+      const currentSupplier = orderForm.getValues('supplierId');
+      console.log(`Lieferant beim Hinzufügen einer Position: ${currentSupplier}`);
+      
       // Neues Item erstellen mit allen relevanten Daten
       const newItem = {
         ...data,
@@ -707,7 +717,7 @@ function NewOrderForm({
         unit: selectedProduct.unit || 'stk',
         totalPrice: data.quantity * data.unitPrice,
         taxRate: selectedProduct.taxRate || 19, // Standard-Mehrwertsteuer falls nicht definiert
-        // Bei Bedarf weitere Felder
+        supplierId: currentSupplier, // Zusätzlich den Lieferanten speichern
       };
       
       // Neue Bestellposition zum Array hinzufügen - zunächst zu einer lokalen Variable
@@ -724,7 +734,7 @@ function NewOrderForm({
         console.error("Fehler beim Speichern der Bestellpositionen:", e);
       }
       
-      // Form zurücksetzen
+      // Form zurücksetzen, aber sicherstellen, dass der Lieferant erhalten bleibt
       itemForm.reset({
         productId: undefined,
         quantity: 1,
