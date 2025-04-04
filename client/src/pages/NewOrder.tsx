@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useParams, Link } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,7 +8,7 @@ import { format, parseISO, isValid } from "date-fns";
 import { de } from "date-fns/locale";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { getPurchaseConditionsByProduct } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
@@ -463,6 +463,7 @@ function NewOrderForm({
 }) {
   const { toast } = useToast();
   const [location, setLocation] = useLocation();
+  const queryClient = useQueryClient();
   
   // Verwende sessionStorage, um Bestellpositionen zu speichern
   // Bestellpositionen werden als Array verwaltet
