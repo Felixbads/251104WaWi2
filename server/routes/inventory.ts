@@ -73,6 +73,57 @@ export function registerInventoryRoutes(app: Express) {
     try {
       const warehouseData = insertWarehouseSchema.parse(req.body);
       const newWarehouse = await storage.createWarehouse(warehouseData);
+      
+      // Lade alle verfügbaren Maschinen
+      const machines = await storage.getMachines();
+      
+      // Produkte aus allen Maschinen zusammensammeln
+      const allProducts = new Map<number, { productId: number, productName: string }>();
+      
+      // Für jede Maschine:
+      for (const machine of machines) {
+        try {
+          // Lade Transaktionen der Maschine um Produkt-IDs zu finden
+          const transactions = await storage.getTransactionsByMachine(machine.id, 100);
+          
+          for (const transaction of transactions) {
+            // Keine doppelten Einträge für das gleiche Produkt
+            if (transaction.productId && !allProducts.has(transaction.productId)) {
+              allProducts.set(transaction.productId, {
+                productId: transaction.productId,
+                productName: transaction.name || 'Unbekanntes Produkt'
+              });
+            }
+          }
+        } catch (error) {
+          console.error(`Fehler beim Laden der Produkte für Maschine ${machine.id}:`, error);
+          // Ignoriere den Fehler und fahre mit der nächsten Maschine fort
+        }
+      }
+      
+      // Produkte zum Lagerbestand hinzufügen
+      for (const product of allProducts.values()) {
+        try {
+          // Prüfe, ob das Produkt in der Datenbank existiert
+          const productExists = await storage.getProduct(product.productId);
+          
+          if (productExists) {
+            // Erstelle Inventar-Eintrag mit Menge 0
+            await storage.createInventoryItem({
+              warehouseId: newWarehouse.id,
+              productId: product.productId,
+              quantity: 0,
+              minQuantity: 0,
+              status: "active",
+              notes: `Automatisch erstellt bei Lageranlage am ${new Date().toISOString().split('T')[0]}`
+            });
+          }
+        } catch (error) {
+          console.error(`Fehler beim Hinzufügen von Produkt ${product.productId} zum Lagerbestand:`, error);
+          // Ignoriere den Fehler und fahre mit dem nächsten Produkt fort
+        }
+      }
+      
       res.status(201).json(newWarehouse);
     } catch (error: any) {
       console.error("Fehler beim Erstellen des Lagers:", error);
@@ -618,7 +669,62 @@ export function registerInventoryRoutes(app: Express) {
         await storage.updatePrimaryWarehouseForMachine(assignmentData.machineId);
       }
       
+      // Neue Zuordnung erstellen
       const newAssignment = await storage.createMachineWarehouseAssignment(assignmentData);
+      
+      // Produkte der Maschine laden und automatisch zum Lager hinzufügen
+      try {
+        // Transaktionen der Maschine laden
+        const transactions = await storage.getTransactionsByMachine(assignmentData.machineId, 100);
+        
+        // Map für eindeutige Produkte erstellen
+        const uniqueProducts = new Map<number, { productId: number, productName: string }>();
+        
+        // Aus Transaktionen eindeutige Produkte extrahieren
+        for (const transaction of transactions) {
+          if (transaction.productId && !uniqueProducts.has(transaction.productId)) {
+            uniqueProducts.set(transaction.productId, {
+              productId: transaction.productId,
+              productName: transaction.name || 'Unbekanntes Produkt'
+            });
+          }
+        }
+        
+        // Produkte zum Lagerbestand hinzufügen, wenn sie noch nicht vorhanden sind
+        for (const product of uniqueProducts.values()) {
+          try {
+            // Prüfen, ob das Produkt in der Datenbank existiert
+            const productExists = await storage.getProduct(product.productId);
+            
+            if (productExists) {
+              // Prüfen, ob das Produkt bereits im Lager vorhanden ist
+              const existingInventoryItem = await storage.getInventoryItemByProductAndWarehouse(
+                product.productId, 
+                assignmentData.warehouseId
+              );
+              
+              // Nur hinzufügen, wenn es noch nicht im Lager ist
+              if (!existingInventoryItem) {
+                await storage.createInventoryItem({
+                  warehouseId: assignmentData.warehouseId,
+                  productId: product.productId,
+                  quantity: 0,
+                  minQuantity: 0,
+                  status: "active",
+                  notes: `Automatisch erstellt bei Maschinenzuordnung am ${new Date().toISOString().split('T')[0]}`
+                });
+              }
+            }
+          } catch (error) {
+            console.error(`Fehler beim Hinzufügen von Produkt ${product.productId} zum Lagerbestand:`, error);
+            // Ignoriere den Fehler und fahre mit dem nächsten Produkt fort
+          }
+        }
+      } catch (error) {
+        console.error(`Fehler beim Laden der Produkte für Maschine ${assignmentData.machineId}:`, error);
+        // Wir ignorieren den Fehler, damit die Zuordnung dennoch erstellt wird
+      }
+      
       res.status(201).json(newAssignment);
     } catch (error: any) {
       console.error("Fehler beim Erstellen der Maschinen-Lager-Zuordnung:", error);
