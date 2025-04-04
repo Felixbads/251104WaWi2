@@ -753,34 +753,29 @@ export default function Orders() {
   
   // Render
   return (
-    <div className="space-y-6">
+    <div className="container max-w-7xl mx-auto py-6 px-4 md:px-6 space-y-6">
       {/* Einheitliche Filter- und Aktionsleiste */}
-      <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
-        {/* Linke Seite: Suchfeld und Filter-Dropdowns */}
-        <div className="flex-grow flex flex-col sm:flex-row gap-2">
-          {/* Suchfeld */}
-          <div className="relative flex-grow">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              value={filterForm.getValues("search") || ""}
-              placeholder="Nach Bestellungen suchen..."
-              className="pl-8 h-9 w-full"
-              onChange={(e) => filterForm.setValue("search", e.target.value)}
-            />
-          </div>
+      <div className="w-full mb-6 flex justify-between">
+        {/* Linke Seite: Suchfeld */}
+        <div className="relative flex-1 mr-4">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="search"
+            value={filterForm.getValues("search") || ""}
+            placeholder="Nach Bestellungen suchen..."
+            className="pl-8 h-9 w-full"
+            onChange={(e) => filterForm.setValue("search", e.target.value)}
+          />
         </div>
         
         {/* Rechte Seite: Aktionen */}
-        <div className="flex flex-wrap items-center gap-2">
-          <TooltipProvider>
-            <Button asChild>
-              <Link to="/bestellungen/neu">
-                <Plus className="h-4 w-4 mr-2" />
-                Neue Bestellung
-              </Link>
-            </Button>
-          </TooltipProvider>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="default">
+            <Link to="/bestellungen/neu">
+              <Plus className="h-4 w-4 mr-2" />
+              Neue Bestellung
+            </Link>
+          </Button>
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

@@ -735,14 +735,16 @@ Nationalpark Zentrum`);
   
   // Bestellübersicht
   return (
-    <div className="space-y-6">
-      {/* Funktionsleiste */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={handleBack} className="-ml-2">
+    <div className="container max-w-7xl mx-auto py-6 px-4 md:px-6 space-y-6">
+      {/* Header mit Funktionsleiste */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div className="flex items-center">
+          <Button variant="ghost" size="sm" onClick={handleBack} className="mr-2">
             <ArrowLeft className="h-4 w-4 mr-1" />
             Zurück
           </Button>
+          <h1 className="text-2xl font-bold">Bestellung {order.orderNumber}</h1>
+          <div className="ml-2">{formatStatus(order.status)}</div>
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
@@ -761,58 +763,47 @@ Nationalpark Zentrum`);
         </div>
       </div>
       
-      {/* Bestellinfo */}
-      <div>
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold">Bestellung #{order.orderNumber}</h1>
-          {formatStatus(order.status)}
-        </div>
-        <p className="text-muted-foreground flex items-center gap-2 mt-1">
-          <Calendar className="h-4 w-4" />
-          {formatDate(order.createdAt)}
-        </p>
-      </div>
+      {/* Aktionen */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        {canSend && (
+          <Button onClick={() => setShowSendDialog(true)} className="gap-1.5">
+            <Send className="h-4 w-4" />
+            An Lieferant senden
+          </Button>
+        )}
         
-        <div className="flex flex-wrap gap-2 mt-2 md:mt-0">
-          {canSend && (
-            <Button onClick={() => setShowSendDialog(true)} className="gap-1.5">
-              <Send className="h-4 w-4" />
-              An Lieferant senden
-            </Button>
-          )}
-          
-          {canAddTracking && (
-            <Button variant="outline" onClick={() => setShowTrackingDialog(true)} className="gap-1.5">
-              <Truck className="h-4 w-4" />
-              Tracking-Code
-            </Button>
-          )}
-          
-          {canMarkAsDelivered && (
-            <Button variant="outline" onClick={handleMarkAsDelivered} className="gap-1.5">
-              <CheckCircle2 className="h-4 w-4" />
-              Als geliefert markieren
-            </Button>
-          )}
-          
-          {canComplete && (
-            <Button variant="outline" onClick={() => setShowReceiveDialog(true)} className="gap-1.5">
-              <PackageCheck className="h-4 w-4" />
-              Wareneingang erfassen
-            </Button>
-          )}
-          
-          {canCancel && (
-            <Button 
-              variant="ghost" 
-              className="text-destructive hover:text-destructive hover:bg-destructive/10"
-              onClick={() => setShowCancelDialog(true)}
-            >
-              <XCircle className="h-4 w-4 mr-1.5" />
-              Stornieren
-            </Button>
-          )}
-        </div>
+        {canAddTracking && (
+          <Button variant="outline" onClick={() => setShowTrackingDialog(true)} className="gap-1.5">
+            <Truck className="h-4 w-4" />
+            Tracking-Code
+          </Button>
+        )}
+        
+        {canMarkAsDelivered && (
+          <Button variant="outline" onClick={handleMarkAsDelivered} className="gap-1.5">
+            <CheckCircle2 className="h-4 w-4" />
+            Als geliefert markieren
+          </Button>
+        )}
+        
+        {canComplete && (
+          <Button variant="outline" onClick={() => setShowReceiveDialog(true)} className="gap-1.5">
+            <PackageCheck className="h-4 w-4" />
+            Wareneingang erfassen
+          </Button>
+        )}
+        
+        {canCancel && (
+          <Button 
+            variant="ghost" 
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => setShowCancelDialog(true)}
+          >
+            <XCircle className="h-4 w-4 mr-1.5" />
+            Stornieren
+          </Button>
+        )}
+      </div>
       
       {/* Unsichtbares PDF-Template für die Generierung */}
       <div className="hidden">
