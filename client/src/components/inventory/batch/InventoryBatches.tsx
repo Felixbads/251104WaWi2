@@ -48,19 +48,19 @@ export default function InventoryBatches() {
   const queryClient = useQueryClient();
 
   // Query für Lager
-  const { data: warehouses, isLoading: warehousesLoading } = useQuery({
+  const { data: warehouses, isLoading: warehousesLoading } = useQuery<any[]>({
     queryKey: ['/api/warehouses'],
     staleTime: 1000 * 60, // 1 Minute
   });
 
   // Query für Produkte
-  const { data: products, isLoading: productsLoading } = useQuery({
+  const { data: products, isLoading: productsLoading } = useQuery<any[]>({
     queryKey: ['/api/products'],
     staleTime: 1000 * 60, // 1 Minute
   });
 
   // Query für Chargen
-  const { data: batches, isLoading: batchesLoading, error } = useQuery({
+  const { data: batches, isLoading: batchesLoading, error } = useQuery<any[]>({
     queryKey: ['/api/inventory-batches', { 
       warehouseId: selectedWarehouse !== 'all' ? parseInt(selectedWarehouse) : undefined,
       productId: selectedProduct !== 'all' ? parseInt(selectedProduct) : undefined,
@@ -97,7 +97,7 @@ export default function InventoryBatches() {
   }
 
   // Filtere Chargen basierend auf der Suche
-  const filteredBatches = batches 
+  const filteredBatches = Array.isArray(batches) 
     ? batches.filter((batch: any) => 
         batch.batchNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
         batch.productName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -168,7 +168,7 @@ export default function InventoryBatches() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Alle Lager</SelectItem>
-                {warehouses?.map((warehouse: any) => (
+                {Array.isArray(warehouses) && warehouses.map((warehouse: any) => (
                   <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
                     {warehouse.name}
                   </SelectItem>
@@ -188,7 +188,7 @@ export default function InventoryBatches() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Alle Produkte</SelectItem>
-                {products?.map((product: any) => (
+                {Array.isArray(products) && products.map((product: any) => (
                   <SelectItem key={product.id} value={product.id.toString()}>
                     {product.productName}
                   </SelectItem>
@@ -331,8 +331,8 @@ export default function InventoryBatches() {
       <NewBatchDialog 
         open={isNewBatchDialogOpen} 
         onOpenChange={setIsNewBatchDialogOpen}
-        warehouses={warehouses || []}
-        products={products || []}
+        warehouses={Array.isArray(warehouses) ? warehouses : []}
+        products={Array.isArray(products) ? products : []}
         onSuccess={() => {
           queryClient.invalidateQueries({ queryKey: ['/api/inventory-batches'] });
           queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });

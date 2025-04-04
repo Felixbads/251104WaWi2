@@ -38,7 +38,7 @@ export default function BatchDetailDialog({
   const [activeTab, setActiveTab] = useState('details');
 
   // Query für Batch-Details
-  const { data: batch, isLoading, error } = useQuery({
+  const { data: batch, isLoading, error } = useQuery<any>({
     queryKey: ['/api/inventory-batches', batchId],
     staleTime: 1000 * 30, // 30 Sekunden
     enabled: !!batchId && open,
@@ -143,9 +143,9 @@ export default function BatchDetailDialog({
                 <CardTitle className="text-sm font-medium">Charge</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{batch.batchNumber}</div>
+                <div className="text-2xl font-bold">{batch?.batchNumber || 'N/A'}</div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  {batch.supplierBatchNumber && `Lieferanten-Charge: ${batch.supplierBatchNumber}`}
+                  {batch?.supplierBatchNumber && `Lieferanten-Charge: ${batch.supplierBatchNumber}`}
                 </div>
               </CardContent>
             </Card>
@@ -167,7 +167,7 @@ export default function BatchDetailDialog({
                 <CardTitle className="text-sm font-medium">Produkt</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="font-semibold">{batch.productName}</div>
+                <div className="font-semibold">{batch?.productName || 'Unbekanntes Produkt'}</div>
               </CardContent>
             </Card>
             <Card>
@@ -175,8 +175,8 @@ export default function BatchDetailDialog({
                 <CardTitle className="text-sm font-medium">Lager</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="font-semibold">{batch.warehouseName}</div>
-                {batch.locationInWarehouse && (
+                <div className="font-semibold">{batch?.warehouseName || 'Unbekanntes Lager'}</div>
+                {batch?.locationInWarehouse && (
                   <div className="text-xs text-muted-foreground mt-1">
                     Lagerort: {batch.locationInWarehouse}
                   </div>
@@ -191,7 +191,7 @@ export default function BatchDetailDialog({
                 <CardTitle className="text-sm font-medium">Menge</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{batch.quantity}</div>
+                <div className="text-2xl font-bold">{batch?.quantity || 0}</div>
               </CardContent>
             </Card>
             <Card>
@@ -200,7 +200,7 @@ export default function BatchDetailDialog({
               </CardHeader>
               <CardContent>
                 <div className="font-semibold">
-                  {format(parseISO(batch.expiryDate), 'dd.MM.yyyy', { locale: de })}
+                  {batch?.expiryDate ? format(parseISO(batch.expiryDate), 'dd.MM.yyyy', { locale: de }) : 'Unbekannt'}
                 </div>
               </CardContent>
             </Card>
@@ -210,13 +210,13 @@ export default function BatchDetailDialog({
               </CardHeader>
               <CardContent>
                 <div className="font-semibold">
-                  {format(parseISO(batch.incomingDate), 'dd.MM.yyyy', { locale: de })}
+                  {batch?.incomingDate ? format(parseISO(batch.incomingDate), 'dd.MM.yyyy', { locale: de }) : 'Unbekannt'}
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {batch.notes && (
+          {batch?.notes && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium">Notizen</CardTitle>

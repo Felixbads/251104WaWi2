@@ -14,7 +14,7 @@ type BatchMovementsListProps = {
 
 export default function BatchMovementsList({ batchId }: BatchMovementsListProps) {
   // Query für Batch-Bewegungen
-  const { data: movements, isLoading, error } = useQuery({
+  const { data: movements, isLoading, error } = useQuery<any[]>({
     queryKey: ['/api/inventory-batch-movements', { batchId }],
     staleTime: 1000 * 30, // 30 Sekunden
     enabled: !!batchId,
@@ -43,7 +43,7 @@ export default function BatchMovementsList({ batchId }: BatchMovementsListProps)
   }
 
   // Wenn keine Bewegungen vorhanden sind
-  if (!movements || movements.length === 0) {
+  if (!movements || !Array.isArray(movements) || movements.length === 0) {
     return (
       <div className="text-center p-8 border rounded-lg">
         <FileBox className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -111,7 +111,7 @@ export default function BatchMovementsList({ batchId }: BatchMovementsListProps)
           </TableRow>
         </TableHeader>
         <TableBody>
-          {movements.map((movement: any) => (
+          {Array.isArray(movements) && movements.map((movement: any) => (
             <TableRow key={movement.id}>
               <TableCell>
                 {format(parseISO(movement.performedAt), 'dd.MM.yyyy HH:mm', { locale: de })}
