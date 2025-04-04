@@ -16,10 +16,9 @@ import Synchronization from "./pages/Synchronization";
 import SyncHistory from "./pages/SyncHistory";
 import SyncPage from "./pages/SyncPage";
 import Settings from "./pages/Settings";
-import Forecast from "./pages/Forecast";
-// Importiere die vereinfachte Version
-import ForecastEvaluation from "./pages/ForecastEvaluation.simplified";
-// Importiere die vereinfachte Version
+// Forecast-Komponenten sind entfernt, um Probleme mit ständigem Neuladen zu beheben
+// import Forecast from "./pages/Forecast";
+// import ForecastEvaluation from "./pages/ForecastEvaluation";
 import DataAvailability from "./pages/DataAvailability.simplified";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -266,17 +265,7 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
         
-        <Route path="/forecast" component={props => (
-          <ApprovedUserRoute>
-            <Forecast {...props} />
-          </ApprovedUserRoute>
-        )} />
-        
-        <Route path="/forecast-evaluation" component={props => (
-          <ApprovedUserRoute>
-            <ForecastEvaluation {...props} />
-          </ApprovedUserRoute>
-        )} />
+        {/* Forecast-Routen entfernt, um Probleme mit ständigem Neuladen zu beheben */}
         
         <Route path="/settings" component={props => (
           <ApprovedUserRoute>
