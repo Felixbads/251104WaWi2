@@ -133,8 +133,12 @@ const COLORS = [
 // Echte Daten aus der Datenbank
 // API-Aufrufe für KPI-Daten
 const useKpiData = (startDate: Date, endDate: Date) => {
+  // Wir verwenden String-Timestamps anstelle von Date-Objekten für Konsistenz im Cache
+  const startTimestamp = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
+  const endTimestamp = endDate.toISOString().split('T')[0]; // YYYY-MM-DD
+  
   const { data, isLoading, error } = useQuery({
-    queryKey: ['/api/transactions/summary', startDate.toISOString(), endDate.toISOString()],
+    queryKey: ['/api/transactions/summary', startTimestamp, endTimestamp],
     queryFn: async () => {
       try {
         // Annahme: Es gibt einen API-Endpunkt, der Zusammenfassungsdaten liefert
@@ -162,7 +166,10 @@ const useKpiData = (startDate: Date, endDate: Date) => {
         };
       }
     },
-    staleTime: 60000 // 1 Minute Cache
+    staleTime: 300000, // 5 Minuten Cache
+    refetchOnWindowFocus: false, // Wichtig: Keine automatische Aktualisierung beim Fokussieren
+    refetchOnMount: false, // Keine automatische Aktualisierung beim Mounten
+    refetchOnReconnect: false // Keine automatische Aktualisierung bei Reconnect
   });
 
   return { data, isLoading, error };
@@ -266,13 +273,20 @@ const DateRangeFilter = ({ dateRange, setDateRange, preset, setPreset }: DateRan
   const handlePresetChange = (value: string) => {
     setPreset(value);
     
+    // Bei benutzerdefiniertem Zeitraum nur den Dialog öffnen
+    if (value === 'custom') {
+      setIsCustomOpen(true);
+      return;
+    }
+
+    // Für alle anderen Presets entsprechendes Datum berechnen
     const today = new Date();
     let start = new Date();
     let end = new Date();
 
     switch (value) {
       case 'today':
-        start = new Date(today.setHours(0, 0, 0, 0));
+        start = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0);
         end = new Date();
         break;
       case 'week':
@@ -298,18 +312,28 @@ const DateRangeFilter = ({ dateRange, setDateRange, preset, setPreset }: DateRan
         start = new Date(today.getFullYear(), 0, 1);
         end = new Date();
         break;
-      case 'custom':
-        setIsCustomOpen(true);
-        return;
     }
 
-    setDateRange({ startDate: start, endDate: end });
+    // Nur einmal setzen, dadurch vermeiden wir kontinuierliche Aktualisierungen
+    setDateRange({ 
+      startDate: new Date(start.getTime()), 
+      endDate: new Date(end.getTime()) 
+    });
+    
+    // Hier könnten wir optional direkt refreshData aufrufen, 
+    // wenn wir sofortige Aktualisierung wünschen
+    // (Erfordert, dass refreshData als Prop übergeben wird)
   };
 
   const applyCustomDates = () => {
     if (tempStartDate && tempEndDate) {
+      // Setze den neuen Datumsbereich und aktualisiere die Daten explizit
       setDateRange({ startDate: tempStartDate, endDate: tempEndDate });
       setIsCustomOpen(false);
+      
+      // Hier können wir optional direkt refreshData aufrufen, 
+      // wenn wir sofortige Aktualisierung wünschen
+      // (Erfordert, dass refreshData als Prop übergeben wird)
     }
   };
 
@@ -601,17 +625,25 @@ export default function Reporting() {
     error: kpiError 
   } = useKpiData(dateRange.startDate, dateRange.endDate);
   
-  // Weitere Daten abfragen
+  // Weitere Daten abfragen mit besserer Cache-Konfiguration
   const { data: machinesData } = useQuery({
     queryKey: ['/api/machines'],
     queryFn: () => getMachines(),
-    enabled: activeTab === "machines"
+    enabled: activeTab === "machines",
+    staleTime: 300000, // 5 Minuten Cache
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false
   });
   
   const { data: productsData } = useQuery({
     queryKey: ['/api/products'],
     queryFn: () => getProducts(),
-    enabled: activeTab === "products"
+    enabled: activeTab === "products",
+    staleTime: 300000, // 5 Minuten Cache
+    refetchOnWindowFocus: false, 
+    refetchOnMount: false,
+    refetchOnReconnect: false
   });
   
   // Simulierte Daten laden (für API-Endpunkte, die noch nicht existieren)
@@ -634,14 +666,11 @@ export default function Reporting() {
   
   // Beim Ändern des Zeitraums Daten aktualisieren, aber mit Debounce
   useEffect(() => {
-    // Wir verwenden einen Debounce-Mechanismus, der den Effekt nur einmal beim ersten Laden auslöst
-    // Danach werden Aktualisierungen nur über den expliziten "Aktualisieren"-Button vorgenommen
-    // oder wenn der Benutzer einen neuen Zeitraum auswählt (durch den DateRangeFilter)
-    
-    // Damit ist nur die initiale Datenladung automatisch, alle weiteren sind explizit
-    refreshData();
-    
-    // Diese Abhängigkeitsliste ist leer, damit der Effect nur einmal läuft
+    // Beim ersten Laden der Seite oder bei Änderungen des Zeitraums
+    // Daten einmalig laden (bei Startup)
+    if (!isLoading) {
+      refreshData();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
