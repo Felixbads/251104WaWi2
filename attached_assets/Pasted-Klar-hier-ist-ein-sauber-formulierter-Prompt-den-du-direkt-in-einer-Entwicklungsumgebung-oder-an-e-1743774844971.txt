@@ -1,0 +1,67 @@
+Klar, hier ist ein sauber formulierter Prompt, den du direkt in einer Entwicklungsumgebung oder an ein Entwicklerteam weitergeben kannst:
+
+⸻
+
+Prompt zur Implementierung des Lager- und Wareneingangsprozesses mit Chargen-/MHD-Verwaltung und automatischer Entnahme beim Refill:
+
+⸻
+
+Bitte implementiere folgende Funktionen in der Lagerverwaltungslogik:
+
+1. Lager-Zuordnung und Produktführung:
+	•	Jeder Automat ist genau einem Lager zugeordnet.
+	•	Das Lager zeigt in der Übersicht:
+	•	Die zugeordneten Automaten
+	•	Alle Produkte, die in diesen Automaten geführt werden (automatisch als Lagerposition mitgeführt, initial mit Bestand = 0).
+
+2. Wareneingang mit Chargenverwaltung:
+	•	Beim Wareneingang soll der Benutzer folgende Angaben machen können:
+	•	Produkt (Auswahl)
+	•	Lager (Auswahl)
+	•	Menge
+	•	MHD (Datum)
+	•	Charge (Freitext oder generiert)
+	•	Die Wareneingangsbuchung soll im Lager zu einer neuen Lagerposition oder zur Erhöhung einer bestehenden Position pro Produkt, Charge und MHD führen.
+	•	Struktur für den Lagerbestand:
+
+{
+  "product_id": "xyz",
+  "warehouse_id": "abc",
+  "quantity": 48,
+  "mhd": "2025-08-01",
+  "batch": "202504",
+  "incoming_date": "2025-04-04"
+}
+
+3. Refill-Logik (Entnahme aus Lager):
+	•	Wenn ein Refill dokumentiert wird (z. B. „Automat X wurde mit Produkt Y befüllt, Menge Z“), soll:
+	•	Das zugeordnete Lager des Automaten erkannt werden.
+	•	Aus dem Lagerbestand des Produkts die Charge mit dem frühesten MHD ausgewählt werden (FIFO nach MHD).
+	•	Die entsprechende Menge aus dieser Charge entnommen werden.
+	•	Falls mehrere Chargen nötig sind (weil erste Charge nicht ausreicht), anteilige Entnahme.
+	•	Dokumentation des Vorgangs (Refill-Protokoll):
+	•	Datum
+	•	Automat
+	•	Produkt
+	•	Entnommene Menge
+	•	MHD/Charge
+	•	Lagerbestand vorher und nachher
+
+Beispiel:
+
+{
+  "date": "2025-04-04",
+  "product": "Apfelschorle 0,5l",
+  "quantity_removed": 10,
+  "mhd": "2025-08-01",
+  "batch": "202504",
+  "warehouse_before": 48,
+  "warehouse_after": 38,
+  "automaton": "Automat X"
+}
+
+
+
+⸻
+
+Wenn du möchtest, formuliere ich daraus auch gleich die nötigen Datenbank-Tabellen oder API-Routen.

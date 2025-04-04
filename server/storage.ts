@@ -13,6 +13,7 @@ import {
   suppliers, type Supplier, type InsertSupplier,
   warehouses, type Warehouse, type InsertWarehouse,
   inventoryItems, type InventoryItem, type InsertInventoryItem,
+  inventoryBatches, type InventoryBatch, type InsertInventoryBatch,
   inventoryMovements, type InventoryMovement, type InsertInventoryMovement,
   inventoryCounts, type InventoryCount, type InsertInventoryCount,
   inventoryCountItems, type InventoryCountItem, type InsertInventoryCountItem,
@@ -23,7 +24,8 @@ import {
   machineStocks, type MachineStock, type InsertMachineStock,
   orders, type Order, type InsertOrder,
   orderItems, type OrderItem, type InsertOrderItem,
-  purchaseConditions, type PurchaseCondition, type InsertPurchaseCondition
+  purchaseConditions, type PurchaseCondition, type InsertPurchaseCondition,
+  refillBatchMovements, type RefillBatchMovement, type InsertRefillBatchMovement
 } from "@shared/schema";
 
 // Interface defining all storage operations
@@ -303,6 +305,47 @@ export interface IStorage {
   deleteProductDisposal(id: number): Promise<boolean>;
   deleteProductDisposalItems(filter: { disposalId: number }): Promise<void>;
   updateInventoryForDisposal(warehouseId: string, productId: string, quantity: number): Promise<void>;
+  
+  // Inventory Batch operations
+  getInventoryBatches(params?: {
+    warehouseId?: number;
+    productId?: number;
+    expired?: boolean;
+    expiryDateBefore?: Date;
+    expiryDateAfter?: Date;
+    limit?: number;
+    offset?: number;
+  }): Promise<InventoryBatch[]>;
+  getInventoryBatch(id: number): Promise<InventoryBatch | undefined>;
+  getInventoryBatchByBatchNumber(batchNumber: string, warehouseId: number): Promise<InventoryBatch | undefined>;
+  createInventoryBatch(batch: InsertInventoryBatch): Promise<InventoryBatch>;
+  updateInventoryBatch(id: number, batch: Partial<InsertInventoryBatch>): Promise<InventoryBatch | undefined>;
+  deleteInventoryBatch(id: number): Promise<boolean>;
+  
+  // Inventory Movement with Batch operations
+  createInventoryMovementWithBatch(
+    movement: InsertInventoryMovement, 
+    batchId: number
+  ): Promise<InventoryMovement>;
+  
+  // Refill Batch Movement operations
+  getRefillBatchMovements(params?: {
+    refillId?: number;
+    refillDetailId?: number;
+    batchId?: number;
+    warehouseId?: number;
+    limit?: number;
+    offset?: number;
+  }): Promise<RefillBatchMovement[]>;
+  getRefillBatchMovement(id: number): Promise<RefillBatchMovement | undefined>;
+  createRefillBatchMovement(movement: InsertRefillBatchMovement): Promise<RefillBatchMovement>;
+  processRefillWithBatches(
+    refillId: number, 
+    refillDetailId: number, 
+    warehouseId: number, 
+    productId: number, 
+    quantity: number
+  ): Promise<RefillBatchMovement[]>;
 }
 
 // Database storage implementation
@@ -2606,6 +2649,370 @@ export class DatabaseStorage implements IStorage {
         updatedAt: new Date()
       })
       .where(eq(inventoryItems.id, inventoryItem.id));
+  }
+  
+  // Implementierung der Inventory Batch Methoden
+  async getInventoryBatches(params?: {
+    warehouseId?: number;
+    productId?: number;
+    expired?: boolean;
+    expiryDateBefore?: Date;
+    expiryDateAfter?: Date;
+    limit?: number;
+    offset?: number;
+  }): Promise<InventoryBatch[]> {
+    let query = db.select({
+      batch: inventoryBatches,
+      product: products,
+      warehouse: warehouses
+    })
+    .from(inventoryBatches)
+    .leftJoin(products, eq(inventoryBatches.productId, products.id))
+    .leftJoin(warehouses, eq(inventoryBatches.warehouseId, warehouses.id));
+    
+    const conditions = [];
+    
+    if (params?.warehouseId) {
+      conditions.push(eq(inventoryBatches.warehouseId, params.warehouseId));
+    }
+    
+    if (params?.productId) {
+      conditions.push(eq(inventoryBatches.productId, params.productId));
+    }
+    
+    if (params?.expired) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      conditions.push(lte(inventoryBatches.expiryDate, today));
+    }
+    
+    if (params?.expiryDateBefore) {
+      conditions.push(lte(inventoryBatches.expiryDate, params.expiryDateBefore));
+    }
+    
+    if (params?.expiryDateAfter) {
+      conditions.push(gte(inventoryBatches.expiryDate, params.expiryDateAfter));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+    
+    // FIFO-Prinzip: Älteste Chargen zuerst
+    query = query.orderBy(asc(inventoryBatches.expiryDate), asc(inventoryBatches.createdAt));
+    
+    if (params?.limit) {
+      query = query.limit(params.limit);
+    }
+    
+    if (params?.offset) {
+      query = query.offset(params.offset);
+    }
+    
+    const result = await query;
+    
+    // Formatieren der Ergebnisse für eine bessere Nutzbarkeit
+    return result.map(row => ({
+      ...row.batch,
+      productName: row.product?.productName,
+      warehouseName: row.warehouse?.name
+    }));
+  }
+  
+  async getInventoryBatch(id: number): Promise<InventoryBatch | undefined> {
+    const [result] = await db.select({
+      batch: inventoryBatches,
+      product: products,
+      warehouse: warehouses
+    })
+    .from(inventoryBatches)
+    .leftJoin(products, eq(inventoryBatches.productId, products.id))
+    .leftJoin(warehouses, eq(inventoryBatches.warehouseId, warehouses.id))
+    .where(eq(inventoryBatches.id, id));
+    
+    if (!result) return undefined;
+    
+    return {
+      ...result.batch,
+      productName: result.product?.productName,
+      warehouseName: result.warehouse?.name
+    };
+  }
+  
+  async getInventoryBatchByBatchNumber(batchNumber: string, warehouseId: number): Promise<InventoryBatch | undefined> {
+    const [result] = await db.select({
+      batch: inventoryBatches,
+      product: products,
+      warehouse: warehouses
+    })
+    .from(inventoryBatches)
+    .leftJoin(products, eq(inventoryBatches.productId, products.id))
+    .leftJoin(warehouses, eq(inventoryBatches.warehouseId, warehouses.id))
+    .where(
+      and(
+        eq(inventoryBatches.batchNumber, batchNumber),
+        eq(inventoryBatches.warehouseId, warehouseId)
+      )
+    );
+    
+    if (!result) return undefined;
+    
+    return {
+      ...result.batch,
+      productName: result.product?.productName,
+      warehouseName: result.warehouse?.name
+    };
+  }
+  
+  async createInventoryBatch(batch: InsertInventoryBatch): Promise<InventoryBatch> {
+    // Überprüfen, ob bereits eine identische Charge existiert
+    const existingBatch = await this.getInventoryBatchByBatchNumber(
+      batch.batchNumber, 
+      batch.warehouseId
+    );
+    
+    if (existingBatch) {
+      // Wenn die Charge bereits existiert, aktualisiere die Menge
+      const updatedBatch = await this.updateInventoryBatch(
+        existingBatch.id, 
+        { 
+          quantity: existingBatch.quantity + batch.quantity,
+          updatedAt: new Date()
+        }
+      );
+      return updatedBatch!;
+    }
+    
+    // Neue Charge anlegen
+    const [newBatch] = await db.insert(inventoryBatches).values({
+      ...batch,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning();
+    
+    return newBatch;
+  }
+  
+  async updateInventoryBatch(id: number, batch: Partial<InsertInventoryBatch>): Promise<InventoryBatch | undefined> {
+    const [updatedBatch] = await db
+      .update(inventoryBatches)
+      .set({ ...batch, updatedAt: new Date() })
+      .where(eq(inventoryBatches.id, id))
+      .returning();
+    
+    if (!updatedBatch) return undefined;
+    
+    const enrichedBatch = await this.getInventoryBatch(id);
+    return enrichedBatch;
+  }
+  
+  async deleteInventoryBatch(id: number): Promise<boolean> {
+    try {
+      await db.delete(inventoryBatches).where(eq(inventoryBatches.id, id));
+      return true;
+    } catch (error) {
+      console.error(`Fehler beim Löschen der Charge mit ID ${id}:`, error);
+      return false;
+    }
+  }
+  
+  // Inventory Movement with Batch operations
+  async createInventoryMovementWithBatch(
+    movement: InsertInventoryMovement, 
+    batchId: number
+  ): Promise<InventoryMovement> {
+    const batch = await this.getInventoryBatch(batchId);
+    
+    if (!batch) {
+      throw new Error(`Batch mit ID ${batchId} nicht gefunden`);
+    }
+    
+    const [newMovement] = await db.insert(inventoryMovements).values({
+      ...movement,
+      batchId,
+      batchNumber: batch.batchNumber,
+      expiryDate: batch.expiryDate,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning();
+    
+    // Aktualisiere die Mengen in der Charge
+    await this.updateInventoryBatch(batchId, {
+      quantity: batch.quantity - movement.quantity,
+      updatedAt: new Date()
+    });
+    
+    return newMovement;
+  }
+  
+  // Refill Batch Movement operations
+  async getRefillBatchMovements(params?: {
+    refillId?: number;
+    refillDetailId?: number;
+    batchId?: number;
+    warehouseId?: number;
+    limit?: number;
+    offset?: number;
+  }): Promise<RefillBatchMovement[]> {
+    let query = db.select().from(refillBatchMovements);
+    
+    const conditions = [];
+    
+    if (params?.refillId) {
+      conditions.push(eq(refillBatchMovements.refillId, params.refillId));
+    }
+    
+    if (params?.refillDetailId) {
+      conditions.push(eq(refillBatchMovements.refillDetailId, params.refillDetailId));
+    }
+    
+    if (params?.batchId) {
+      conditions.push(eq(refillBatchMovements.batchId, params.batchId));
+    }
+    
+    if (params?.warehouseId) {
+      conditions.push(eq(refillBatchMovements.warehouseId, params.warehouseId));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+    
+    query = query.orderBy(desc(refillBatchMovements.performedAt));
+    
+    if (params?.limit) {
+      query = query.limit(params.limit);
+    }
+    
+    if (params?.offset) {
+      query = query.offset(params.offset);
+    }
+    
+    return await query;
+  }
+  
+  async getRefillBatchMovement(id: number): Promise<RefillBatchMovement | undefined> {
+    const [movement] = await db
+      .select()
+      .from(refillBatchMovements)
+      .where(eq(refillBatchMovements.id, id));
+    
+    return movement;
+  }
+  
+  async createRefillBatchMovement(movement: InsertRefillBatchMovement): Promise<RefillBatchMovement> {
+    const [newMovement] = await db.insert(refillBatchMovements).values({
+      ...movement,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning();
+    
+    return newMovement;
+  }
+  
+  // Diese Methode verarbeitet eine Nachfüllung nach dem FIFO-Prinzip
+  async processRefillWithBatches(
+    refillId: number, 
+    refillDetailId: number, 
+    warehouseId: number, 
+    productId: number, 
+    quantity: number
+  ): Promise<RefillBatchMovement[]> {
+    // Alle verfügbaren Chargen für dieses Produkt im Lager finden (sortiert nach Ablaufdatum FIFO)
+    const batches = await this.getInventoryBatches({
+      warehouseId,
+      productId,
+      expiryDateAfter: new Date(), // Nur nicht abgelaufene Chargen
+    });
+    
+    let remainingQuantity = quantity;
+    const movements: RefillBatchMovement[] = [];
+    
+    // Durchlaufe die Chargen nach FIFO-Prinzip
+    for (const batch of batches) {
+      if (remainingQuantity <= 0) break;
+      
+      const quantityFromBatch = Math.min(batch.quantity, remainingQuantity);
+      
+      if (quantityFromBatch <= 0) continue;
+      
+      // Erstelle eine Bewegung für diese Charge
+      const movement = await this.createRefillBatchMovement({
+        refillId,
+        refillDetailId,
+        batchId: batch.id,
+        warehouseId,
+        productId,
+        quantity: quantityFromBatch,
+        batchNumber: batch.batchNumber,
+        expiryDate: batch.expiryDate,
+        warehouseBefore: batch.quantity,
+        warehouseAfter: batch.quantity - quantityFromBatch,
+        movementType: "REFILL",
+        status: "completed",
+        performedAt: new Date(),
+      });
+      
+      // Aktualisiere die Charge
+      await this.updateInventoryBatch(batch.id, {
+        quantity: batch.quantity - quantityFromBatch,
+      });
+      
+      // Erstelle eine Inventarbewegung
+      await this.createInventoryMovementWithBatch({
+        sourceWarehouseId: warehouseId,
+        productId,
+        quantity: quantityFromBatch,
+        movementType: "REFILL",
+        referenceType: "REFILL",
+        referenceId: refillId.toString(),
+        performedAt: new Date(),
+        status: "completed",
+        notes: `Nachfüllung aus Charge ${batch.batchNumber}`
+      }, batch.id);
+      
+      movements.push(movement);
+      remainingQuantity -= quantityFromBatch;
+    }
+    
+    // Falls die Menge nicht vollständig aus Chargen gedeckt werden konnte,
+    // erstelle einen Eintrag ohne Batch (Altbestand)
+    if (remainingQuantity > 0) {
+      // Inventarbewegung ohne Batch
+      await this.createInventoryMovement({
+        sourceWarehouseId: warehouseId,
+        productId,
+        quantity: remainingQuantity,
+        movementType: "REFILL",
+        referenceType: "REFILL",
+        referenceId: refillId.toString(),
+        performedAt: new Date(),
+        status: "completed",
+        notes: `Nachfüllung aus Altbestand (ohne Charge)`
+      });
+      
+      // Refill Batch Movement ohne Batch (mit Dummy-ID)
+      const movementWithoutBatch = await this.createRefillBatchMovement({
+        refillId,
+        refillDetailId,
+        batchId: -1, // Dummy-ID
+        warehouseId,
+        productId,
+        quantity: remainingQuantity,
+        batchNumber: "LEGACY",
+        expiryDate: new Date(), // Setze heutiges Datum
+        warehouseBefore: 0,
+        warehouseAfter: 0,
+        movementType: "REFILL",
+        status: "completed",
+        notes: "Altbestand ohne Chargeninformation",
+        performedAt: new Date(),
+      });
+      
+      movements.push(movementWithoutBatch);
+    }
+    
+    return movements;
   }
 }
 

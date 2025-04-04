@@ -8,7 +8,9 @@ import {
   insertInventoryMovementSchema,
   insertInventoryCountSchema,
   insertInventoryCountItemSchema,
-  insertMachineWarehouseAssignmentSchema
+  insertMachineWarehouseAssignmentSchema,
+  insertInventoryBatchSchema,
+  insertRefillBatchMovementSchema
 } from "@shared/schema";
 
 // Hilfstypen für Validierung
@@ -1123,6 +1125,369 @@ export function registerInventoryRoutes(app: Express) {
       }
       
       res.status(500).json({ error: error.message || "Fehler beim Aktualisieren der Inventur-Position" });
+    }
+  });
+  
+  // Batch-Routen (Inventory Batches)
+  // Validierung für Batch-Daten
+  const inventoryBatchSchema = insertInventoryBatchSchema.extend({});
+  
+  app.get(`${apiPrefix}/inventory-batches`, async (req: Request, res: Response) => {
+    try {
+      const warehouseId = req.query.warehouseId ? Number(req.query.warehouseId) : undefined;
+      const productId = req.query.productId ? Number(req.query.productId) : undefined;
+      const expired = req.query.expired === 'true';
+      const limit = req.query.limit ? Number(req.query.limit) : 50;
+      const offset = req.query.offset ? Number(req.query.offset) : 0;
+      
+      let expiryDateBefore: Date | undefined;
+      let expiryDateAfter: Date | undefined;
+      
+      if (req.query.expiryDateBefore) {
+        expiryDateBefore = new Date(req.query.expiryDateBefore as string);
+      }
+      
+      if (req.query.expiryDateAfter) {
+        expiryDateAfter = new Date(req.query.expiryDateAfter as string);
+      }
+      
+      const batches = await storage.getInventoryBatches({
+        warehouseId,
+        productId,
+        expired,
+        expiryDateBefore,
+        expiryDateAfter,
+        limit,
+        offset
+      });
+      
+      res.json(batches);
+    } catch (error: any) {
+      console.error("Fehler beim Abrufen der Lagerchargen:", error);
+      res.status(500).json({ error: error.message || "Fehler beim Abrufen der Lagerchargen" });
+    }
+  });
+  
+  app.get(`${apiPrefix}/inventory-batches/:id`, async (req: Request, res: Response) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const batch = await storage.getInventoryBatch(id);
+      
+      if (!batch) {
+        return res.status(404).json({ error: "Charge nicht gefunden" });
+      }
+      
+      res.json(batch);
+    } catch (error: any) {
+      console.error(`Fehler beim Abrufen der Charge ${req.params.id}:`, error);
+      
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: "Ungültige Chargen-ID" });
+      }
+      
+      res.status(500).json({ error: error.message || "Fehler beim Abrufen der Charge" });
+    }
+  });
+  
+  app.post(`${apiPrefix}/inventory-batches`, async (req: Request, res: Response) => {
+    try {
+      const batchData = inventoryBatchSchema.parse(req.body);
+      
+      // Prüfen, ob das Produkt im Lager existiert
+      const inventoryItem = await storage.getInventoryItemByProductAndWarehouse(
+        batchData.productId, 
+        batchData.warehouseId
+      );
+      
+      if (!inventoryItem) {
+        return res.status(400).json({
+          error: "Das Produkt ist in diesem Lager nicht vorhanden. Bitte zuerst das Produkt zum Lager hinzufügen."
+        });
+      }
+      
+      const newBatch = await storage.createInventoryBatch(batchData);
+      
+      // Aktualisiere die Gesamtmenge im Inventar-Item
+      await storage.updateInventoryItem(inventoryItem.id, {
+        quantity: inventoryItem.quantity + batchData.quantity
+      });
+      
+      // Erzeugen eines Warenbewegungseintrags für die Charge
+      await storage.createInventoryMovement({
+        destinationWarehouseId: batchData.warehouseId,
+        productId: batchData.productId,
+        quantity: batchData.quantity,
+        movementType: "IN",
+        referenceType: "BATCH_RECEIVED",
+        batchId: newBatch.id,
+        batchNumber: batchData.batchNumber,
+        expiryDate: batchData.expiryDate,
+        status: "completed",
+        notes: `Charge ${batchData.batchNumber} mit Ablaufdatum ${new Date(batchData.expiryDate).toLocaleDateString()} eingelagert`
+      });
+      
+      res.status(201).json(newBatch);
+    } catch (error: any) {
+      console.error("Fehler beim Erstellen der Charge:", error);
+      
+      if (error.name === "ZodError") {
+        return res.status(400).json({ 
+          error: "Ungültige Chargendaten", 
+          details: error.errors 
+        });
+      }
+      
+      res.status(500).json({ error: error.message || "Fehler beim Erstellen der Charge" });
+    }
+  });
+  
+  app.put(`${apiPrefix}/inventory-batches/:id`, async (req: Request, res: Response) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const batchData = inventoryBatchSchema.partial().parse(req.body);
+      
+      // Aktuelle Charge abrufen
+      const currentBatch = await storage.getInventoryBatch(id);
+      if (!currentBatch) {
+        return res.status(404).json({ error: "Charge nicht gefunden" });
+      }
+      
+      // Wenn die Menge geändert wird, die Differenz berechnen und eine Warenbewegung erstellen
+      if (
+        'quantity' in batchData &&
+        batchData.quantity !== undefined &&
+        batchData.quantity !== currentBatch.quantity
+      ) {
+        const quantityDiff = batchData.quantity - currentBatch.quantity;
+        
+        // Inventar-Item aktualisieren
+        const inventoryItem = await storage.getInventoryItemByProductAndWarehouse(
+          currentBatch.productId, 
+          currentBatch.warehouseId
+        );
+        
+        if (inventoryItem) {
+          await storage.updateInventoryItem(inventoryItem.id, {
+            quantity: inventoryItem.quantity + quantityDiff
+          });
+        }
+        
+        // Warenbewegung erstellen
+        if (quantityDiff !== 0) {
+          await storage.createInventoryMovement({
+            sourceWarehouseId: quantityDiff < 0 ? currentBatch.warehouseId : undefined,
+            destinationWarehouseId: quantityDiff > 0 ? currentBatch.warehouseId : undefined,
+            productId: currentBatch.productId,
+            batchId: currentBatch.id,
+            batchNumber: currentBatch.batchNumber,
+            expiryDate: currentBatch.expiryDate,
+            quantity: Math.abs(quantityDiff),
+            movementType: quantityDiff > 0 ? "BATCH_ADJUSTMENT_IN" : "BATCH_ADJUSTMENT_OUT",
+            referenceType: "BATCH_ADJUSTMENT",
+            status: "completed",
+            notes: `Manuelle Anpassung der Chargenmenge ${currentBatch.batchNumber}`
+          });
+        }
+      }
+      
+      const updatedBatch = await storage.updateInventoryBatch(id, batchData);
+      
+      if (!updatedBatch) {
+        return res.status(404).json({ error: "Charge nicht gefunden oder Aktualisierung fehlgeschlagen" });
+      }
+      
+      res.json(updatedBatch);
+    } catch (error: any) {
+      console.error(`Fehler beim Aktualisieren der Charge ${req.params.id}:`, error);
+      
+      if (error.name === "ZodError") {
+        return res.status(400).json({ 
+          error: "Ungültige Chargendaten oder ID", 
+          details: error.errors 
+        });
+      }
+      
+      res.status(500).json({ error: error.message || "Fehler beim Aktualisieren der Charge" });
+    }
+  });
+  
+  app.delete(`${apiPrefix}/inventory-batches/:id`, async (req: Request, res: Response) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      
+      // Charge abrufen
+      const batch = await storage.getInventoryBatch(id);
+      if (!batch) {
+        return res.status(404).json({ error: "Charge nicht gefunden" });
+      }
+      
+      // Prüfen, ob noch Bewegungen für diese Charge existieren
+      // Diese Überprüfung wird vereinfacht, da wir die Bewegungen im realen System beibehalten würden
+      
+      // Inventar-Item aktualisieren
+      if (batch.quantity > 0) {
+        const inventoryItem = await storage.getInventoryItemByProductAndWarehouse(
+          batch.productId, 
+          batch.warehouseId
+        );
+        
+        if (inventoryItem) {
+          await storage.updateInventoryItem(inventoryItem.id, {
+            quantity: Math.max(0, inventoryItem.quantity - batch.quantity)
+          });
+          
+          // Warenbewegung für die Entfernung erstellen
+          await storage.createInventoryMovement({
+            sourceWarehouseId: batch.warehouseId,
+            productId: batch.productId,
+            quantity: batch.quantity,
+            movementType: "BATCH_REMOVED",
+            referenceType: "BATCH_REMOVAL",
+            batchNumber: batch.batchNumber,
+            expiryDate: batch.expiryDate,
+            status: "completed",
+            notes: `Charge ${batch.batchNumber} wurde aus dem System entfernt`
+          });
+        }
+      }
+      
+      const deleted = await storage.deleteInventoryBatch(id);
+      
+      if (!deleted) {
+        return res.status(500).json({ error: "Fehler beim Löschen der Charge" });
+      }
+      
+      res.json({ success: true, message: "Charge erfolgreich gelöscht" });
+    } catch (error: any) {
+      console.error(`Fehler beim Löschen der Charge ${req.params.id}:`, error);
+      
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: "Ungültige Chargen-ID" });
+      }
+      
+      res.status(500).json({ error: error.message || "Fehler beim Löschen der Charge" });
+    }
+  });
+  
+  // Refill Batch Movement Routen
+  app.post(`${apiPrefix}/refill-batch-movements/process`, async (req: Request, res: Response) => {
+    try {
+      const { refillId, refillDetailId, warehouseId, productId, quantity } = z.object({
+        refillId: z.number(),
+        refillDetailId: z.number(),
+        warehouseId: z.number(),
+        productId: z.number(),
+        quantity: z.number().positive()
+      }).parse(req.body);
+      
+      // Prüfen, ob alle erforderlichen Daten vorhanden sind
+      if (!refillId || !refillDetailId || !warehouseId || !productId || !quantity) {
+        return res.status(400).json({
+          error: "Alle erforderlichen Daten müssen angegeben werden: refillId, refillDetailId, warehouseId, productId, quantity"
+        });
+      }
+      
+      // Prüfen, ob der Refill existiert
+      const refill = await storage.getRefill(refillId);
+      if (!refill) {
+        return res.status(404).json({ error: "Nachfüllung nicht gefunden" });
+      }
+      
+      // Prüfen, ob das RefillDetail existiert
+      const refillDetail = await storage.getRefillDetail(refillDetailId);
+      if (!refillDetail) {
+        return res.status(404).json({ error: "Nachfülldetail nicht gefunden" });
+      }
+      
+      // Prüfen, ob das Inventar-Item existiert
+      const inventoryItem = await storage.getInventoryItemByProductAndWarehouse(productId, warehouseId);
+      if (!inventoryItem) {
+        return res.status(404).json({ error: "Produkt nicht im angegebenen Lager gefunden" });
+      }
+      
+      // Prüfen, ob genug Bestand im Lager ist
+      if (inventoryItem.quantity < quantity) {
+        return res.status(400).json({
+          error: `Nicht genug Bestand im Lager. Benötigt: ${quantity}, Verfügbar: ${inventoryItem.quantity}`
+        });
+      }
+      
+      // Verarbeite die Nachfüllung mit Batch-Tracking (FIFO)
+      const movements = await storage.processRefillWithBatches(
+        refillId, 
+        refillDetailId, 
+        warehouseId, 
+        productId, 
+        quantity
+      );
+      
+      // Aktualisiere den Lagerbestand
+      await storage.updateInventoryItem(inventoryItem.id, {
+        quantity: inventoryItem.quantity - quantity
+      });
+      
+      res.json({
+        success: true,
+        message: `Nachfüllung mit Chargen verarbeitet. ${movements.length} Chargenbewegungen erstellt.`,
+        movements
+      });
+    } catch (error: any) {
+      console.error("Fehler bei der Verarbeitung der Nachfüllung mit Chargen:", error);
+      
+      if (error.name === "ZodError") {
+        return res.status(400).json({ 
+          error: "Ungültige Daten für die Chargenverarbeitung", 
+          details: error.errors 
+        });
+      }
+      
+      res.status(500).json({ error: error.message || "Fehler bei der Verarbeitung der Nachfüllung mit Chargen" });
+    }
+  });
+  
+  app.get(`${apiPrefix}/refill-batch-movements`, async (req: Request, res: Response) => {
+    try {
+      const refillId = req.query.refillId ? Number(req.query.refillId) : undefined;
+      const refillDetailId = req.query.refillDetailId ? Number(req.query.refillDetailId) : undefined;
+      const batchId = req.query.batchId ? Number(req.query.batchId) : undefined;
+      const warehouseId = req.query.warehouseId ? Number(req.query.warehouseId) : undefined;
+      const limit = req.query.limit ? Number(req.query.limit) : 50;
+      const offset = req.query.offset ? Number(req.query.offset) : 0;
+      
+      const movements = await storage.getRefillBatchMovements({
+        refillId,
+        refillDetailId,
+        batchId,
+        warehouseId,
+        limit,
+        offset
+      });
+      
+      res.json(movements);
+    } catch (error: any) {
+      console.error("Fehler beim Abrufen der Nachfüll-Chargenbewegungen:", error);
+      res.status(500).json({ error: error.message || "Fehler beim Abrufen der Nachfüll-Chargenbewegungen" });
+    }
+  });
+  
+  app.get(`${apiPrefix}/refill-batch-movements/:id`, async (req: Request, res: Response) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const movement = await storage.getRefillBatchMovement(id);
+      
+      if (!movement) {
+        return res.status(404).json({ error: "Nachfüll-Chargenbewegung nicht gefunden" });
+      }
+      
+      res.json(movement);
+    } catch (error: any) {
+      console.error(`Fehler beim Abrufen der Nachfüll-Chargenbewegung ${req.params.id}:`, error);
+      
+      if (error.name === "ZodError") {
+        return res.status(400).json({ error: "Ungültige Bewegungs-ID" });
+      }
+      
+      res.status(500).json({ error: error.message || "Fehler beim Abrufen der Nachfüll-Chargenbewegung" });
     }
   });
 }

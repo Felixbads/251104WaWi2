@@ -577,12 +577,72 @@ export const refillsRelations = relations(refills, ({ one, many }) => ({
   details: many(refillDetails),
 }));
 
-export const refillDetailsRelations = relations(refillDetails, ({ one }) => ({
+// Neue Tabelle für die Protokollierung von Refill-Batch-Bewegungen
+export const refillBatchMovements = pgTable("refill_batch_movements", {
+  id: serial("id").primaryKey(),
+  refillId: integer("refill_id").references(() => refills.id).notNull(),
+  refillDetailId: integer("refill_detail_id").references(() => refillDetails.id).notNull(),
+  batchId: integer("batch_id").references(() => inventoryBatches.id).notNull(),
+  warehouseId: integer("warehouse_id").references(() => warehouses.id).notNull(),
+  productId: integer("product_id").references(() => products.id).notNull(),
+  quantity: integer("quantity").notNull(),
+  batchNumber: text("batch_number").notNull(),
+  expiryDate: date("expiry_date").notNull(),
+  warehouseBefore: integer("warehouse_before").notNull(),
+  warehouseAfter: integer("warehouse_after").notNull(),
+  movementType: text("movement_type").default("REFILL").notNull(),
+  status: text("status").default("completed").notNull(),
+  performedBy: integer("performed_by").references(() => users.id),
+  performedAt: timestamp("performed_at").defaultNow(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertRefillBatchMovementSchema = createInsertSchema(refillBatchMovements).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertRefillBatchMovement = z.infer<typeof insertRefillBatchMovementSchema>;
+export type RefillBatchMovement = typeof refillBatchMovements.$inferSelect;
+
+export const refillDetailsRelations = relations(refillDetails, ({ one, many }) => ({
   refill: one(refills, {
     fields: [refillDetails.refillId],
     references: [refills.id],
   }),
+  batchMovements: many(refillBatchMovements),
   // Entfernt Relation zu product, da productId jetzt ein Text ist und kein direkter Verweis auf products.id mehr existiert
+}));
+
+// Relationen für refillBatchMovements definieren
+export const refillBatchMovementsRelations = relations(refillBatchMovements, ({ one }) => ({
+  refill: one(refills, {
+    fields: [refillBatchMovements.refillId],
+    references: [refills.id],
+  }),
+  refillDetail: one(refillDetails, {
+    fields: [refillBatchMovements.refillDetailId],
+    references: [refillDetails.id],
+  }),
+  batch: one(inventoryBatches, {
+    fields: [refillBatchMovements.batchId],
+    references: [inventoryBatches.id],
+  }),
+  warehouse: one(warehouses, {
+    fields: [refillBatchMovements.warehouseId],
+    references: [warehouses.id],
+  }),
+  product: one(products, {
+    fields: [refillBatchMovements.productId],
+    references: [products.id],
+  }),
+  performer: one(users, {
+    fields: [refillBatchMovements.performedBy],
+    references: [users.id],
+  }),
 }));
 
 export const eventsRelations = relations(events, ({ one }) => ({
@@ -1266,7 +1326,6 @@ export const inventoryItems = pgTable("inventory_items", {
   locationInWarehouse: text("location_in_warehouse"),
   status: text("status").default("active"), // active, inactive, discontinued
   lastCountDate: timestamp("last_count_date"),
-  expiryDate: date("expiry_date"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -1280,6 +1339,37 @@ export const insertInventoryItemSchema = createInsertSchema(inventoryItems).omit
 
 export type InsertInventoryItem = z.infer<typeof insertInventoryItemSchema>;
 export type InventoryItem = typeof inventoryItems.$inferSelect;
+
+// Inventory Batches table - neue Tabelle für Chargen und MHD-Verwaltung
+export const inventoryBatches = pgTable("inventory_batches", {
+  id: serial("id").primaryKey(),
+  warehouseId: integer("warehouse_id").notNull().references(() => warehouses.id),
+  productId: integer("product_id").notNull().references(() => products.id),
+  quantity: integer("quantity").default(0).notNull(),
+  batchNumber: text("batch_number").notNull(), // Chargennummer
+  expiryDate: date("expiry_date").notNull(), // MHD-Datum
+  incomingDate: date("incoming_date").defaultNow().notNull(), // Eingangsdatum
+  status: text("status").default("active").notNull(), // active, consumed, expired, quarantine
+  supplierBatchNumber: text("supplier_batch_number"), // Charge des Lieferanten (optional)
+  notes: text("notes"),
+  locationInWarehouse: text("location_in_warehouse"), // Lagerort im Lager
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => {
+  return {
+    batchProductWarehouseIdx: unique().on(table.batchNumber, table.productId, table.warehouseId),
+  };
+});
+
+export const insertInventoryBatchSchema = createInsertSchema(inventoryBatches).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertInventoryBatch = z.infer<typeof insertInventoryBatchSchema>;
+export type InventoryBatch = typeof inventoryBatches.$inferSelect;
 
 // Inventory Movements table
 export const inventoryMovements = pgTable("inventory_movements", {
@@ -1296,6 +1386,12 @@ export const inventoryMovements = pgTable("inventory_movements", {
   performedBy: integer("performed_by").references(() => users.id),
   performedAt: timestamp("performed_at").defaultNow(),
   machineId: integer("machine_id").references(() => machines.id),
+  
+  // Neue Felder für Chargen- und MHD-Tracking
+  batchId: integer("batch_id").references(() => inventoryBatches.id),
+  batchNumber: text("batch_number"), // Kopie der Chargen-Nummer für einfache Abfragen
+  expiryDate: date("expiry_date"),   // MHD-Datum für diese Bewegung
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1391,6 +1487,7 @@ export const warehouseRelations = relations(warehouses, ({ one, many }) => ({
     references: [locations.id],
   }),
   inventoryItems: many(inventoryItems),
+  inventoryBatches: many(inventoryBatches),
   machineAssignments: many(machineWarehouseAssignments),
   disposals: many(productDisposals),
 }));
@@ -1405,6 +1502,19 @@ export const inventoryItemRelations = relations(inventoryItems, ({ one, many }) 
     references: [products.id],
   }),
   movements: many(inventoryMovements),
+}));
+
+// Neue Relationen für inventoryBatches
+export const inventoryBatchRelations = relations(inventoryBatches, ({ one, many }) => ({
+  warehouse: one(warehouses, {
+    fields: [inventoryBatches.warehouseId],
+    references: [warehouses.id],
+  }),
+  product: one(products, {
+    fields: [inventoryBatches.productId],
+    references: [products.id],
+  }),
+  movements: many(inventoryMovements, { relationName: "batch_movements" }),
 }));
 
 export const inventoryMovementRelations = relations(inventoryMovements, ({ one }) => ({
@@ -1425,6 +1535,11 @@ export const inventoryMovementRelations = relations(inventoryMovements, ({ one }
   machine: one(machines, {
     fields: [inventoryMovements.machineId],
     references: [machines.id],
+  }),
+  batch: one(inventoryBatches, {
+    fields: [inventoryMovements.batchId],
+    references: [inventoryBatches.id],
+    relationName: "batch_movements",
   }),
 }));
 
@@ -1539,6 +1654,7 @@ export const allRelations = {
   orderItemRelations,
   warehouseRelations,
   inventoryItemRelations,
+  inventoryBatchRelations,
   inventoryMovementRelations,
   machineWarehouseAssignmentRelations,
   inventoryCountRelations,
@@ -1546,4 +1662,6 @@ export const allRelations = {
   productDisposalsRelations,
   productDisposalItemsRelations,
   purchaseConditionsRelations,
+  refillDetailsRelations,
+  refillBatchMovementsRelations,
 };
