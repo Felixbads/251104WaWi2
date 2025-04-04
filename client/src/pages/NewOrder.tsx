@@ -610,10 +610,8 @@ function NewOrderForm({
             itemForm.setValue('quantity', preferredCondition.minQuantity);
           }
           
-          toast({
-            title: "Einkaufsbedingungen geladen",
-            description: `Preis (${preferredCondition.unitPrice.toFixed(2)} €) wurde aus den hinterlegten Einkaufsbedingungen übernommen.`,
-          });
+          // Statt Toast-Nachricht, den Preis direkt im Formular anzeigen
+          // Keine UI-Meldung, die den Prozess unterbricht
         } else {
           // Wenn keine passende Bedingung gefunden wurde, Standardpreis verwenden
           console.log("Keine bevorzugte Preiskondition gefunden, verwende Standardpreis");
@@ -741,11 +739,7 @@ function NewOrderForm({
           description: "Ihre Bestellung wurde erfolgreich angelegt.",
         });
         
-        // Keine Notwendigkeit, localStorage zu löschen, da wir es nicht verwenden
-        // Stattdessen alle Zustände zurücksetzen
-        setStep(1);
-        setWarehouseId(null);
-        setOrderMode(null);
+        // Nur den lokalen orderItems-Zustand zurücksetzen
         setOrderItems([]);
         
         // Zur Bestellübersicht zurückkehren
@@ -1726,32 +1720,18 @@ export default function NewOrder() {
   // Bestellmodus ist anfangs null, bis der Benutzer einen Modus auswählt
   const [orderMode, setOrderMode] = useState<OrderMode | null>(null);
   
-  // Lösche alte localStorage-Einträge beim ersten Laden
+  // Zurücksetzen der Zustände beim Start
   useEffect(() => {
-    localStorage.removeItem('order_step');
-    localStorage.removeItem('order_warehouseId');
-    localStorage.removeItem('order_mode');
-    localStorage.removeItem('order_items');
+    // Zustandsrücksetzung beim Laden der Komponente
+    return () => {
+      // Aufräumen beim Verlassen der Komponente
+      setStep(1);
+      setWarehouseId(null);
+      setOrderMode(null);
+    };
   }, []);
   
-  // Aktualisiere localStorage, wenn sich der Schritt ändert
-  useEffect(() => {
-    localStorage.setItem('order_step', step.toString());
-  }, [step]);
-  
-  // Aktualisiere localStorage, wenn sich die Lager-ID ändert
-  useEffect(() => {
-    if (warehouseId) {
-      localStorage.setItem('order_warehouseId', warehouseId.toString());
-    }
-  }, [warehouseId]);
-  
-  // Aktualisiere localStorage, wenn sich der Bestellmodus ändert
-  useEffect(() => {
-    if (orderMode) {
-      localStorage.setItem('order_mode', orderMode);
-    }
-  }, [orderMode]);
+  // Diese useEffects wurden entfernt, da wir kein localStorage mehr verwenden
   
   // Schritt 1: Lager auswählen
   const handleWarehouseSelected = (id: number) => {
