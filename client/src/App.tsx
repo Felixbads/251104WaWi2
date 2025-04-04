@@ -1,33 +1,35 @@
 import { Switch, Route, useLocation, Redirect } from "wouter";
 import { useEffect } from "react";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { Toaster } from "@/components/ui/toaster";
-import NotFound from "@/pages/NotFound";
-import Dashboard from "@/pages/Dashboard";
-import Transactions from "@/pages/Transactions";
-import Machines from "@/pages/Machines"; // Alte Maschinen-Komponente
-import Automaten from "@/pages/Automaten"; // Neue Automaten-Komponente
-import AutomatDetail from "@/pages/AutomatDetail"; // Detail-Ansicht eines Automaten
-import RefillDetail from "@/pages/RefillDetail"; // Detail-Ansicht einer Auffüllung
-import Products from "@/pages/Products";
-import ProductDetail from "@/pages/ProductDetail"; // Detail-Ansicht eines Produkts
-import Synchronization from "@/pages/Synchronization";
-import SyncHistory from "@/pages/SyncHistory";
-import SyncPage from "@/pages/SyncPage";
-import Settings from "@/pages/Settings";
-import Forecast from "@/pages/Forecast";
-import ForecastEvaluation from "@/pages/ForecastEvaluation";
-import DataAvailability from "@/pages/DataAvailability"; // Neue Datenverfügbarkeits-Komponente
-import Login from "@/pages/Login";
-import Register from "@/pages/Register";
-import NotApproved from "@/pages/NotApproved"; // Seite für nicht-freigegebene Benutzer
-import Unauthorized from "@/pages/Unauthorized"; // Seite für nicht-autorisierte Benutzer
-import AppShell from "@/components/layout/AppShell";
-import Layout from "@/components/layout/Layout";
-import { AuthProvider, useAuth } from "@/lib";
-import AdminRoute from "@/components/auth/AdminRoute"; // Route nur für Admins
-import ApprovedUserRoute from "@/components/auth/ApprovedUserRoute"; // Route für genehmigte Benutzer
+import { Toaster } from "./components/ui/toaster";
+import NotFound from "./pages/NotFound";
+import Dashboard from "./pages/Dashboard";
+import Transactions from "./pages/Transactions";
+import Machines from "./pages/Machines"; // Alte Maschinen-Komponente
+import Automaten from "./pages/Automaten"; // Neue Automaten-Komponente
+import AutomatDetail from "./pages/AutomatDetail"; // Detail-Ansicht eines Automaten
+import RefillDetail from "./pages/RefillDetail"; // Detail-Ansicht einer Auffüllung
+import Products from "./pages/Products";
+import ProductDetail from "./pages/ProductDetail"; // Detail-Ansicht eines Produkts
+import Synchronization from "./pages/Synchronization";
+import SyncHistory from "./pages/SyncHistory";
+import SyncPage from "./pages/SyncPage";
+import Settings from "./pages/Settings";
+import Forecast from "./pages/Forecast";
+// Importiere die vereinfachte Version
+import ForecastEvaluation from "./pages/ForecastEvaluation.simplified";
+// Importiere die vereinfachte Version
+import DataAvailability from "./pages/DataAvailability.simplified";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import NotApproved from "./pages/NotApproved"; // Seite für nicht-freigegebene Benutzer
+import Unauthorized from "./pages/Unauthorized"; // Seite für nicht-autorisierte Benutzer
+import AppShell from "./components/layout/AppShell";
+import Layout from "./components/layout/Layout";
+import { AuthProvider, useAuth } from "./lib";
+import AdminRoute from "./components/auth/AdminRoute"; // Route nur für Admins
+import ApprovedUserRoute from "./components/auth/ApprovedUserRoute"; // Route für genehmigte Benutzer
 
 /**
  * HOC, der eine geschützte Route mit Benutzerfreigabe-Prüfung erstellt
@@ -58,21 +60,21 @@ function withAuth(WrappedComponent: React.ComponentType<any>) {
 }
 
 // Importiere fehlende Komponenten
-import Suppliers from "@/pages/Suppliers";
-import SupplierDetail from "@/pages/SupplierDetail";
-import Reporting from "@/pages/Reporting";
-import Orders from "@/pages/Orders";
-import NewOrder from "@/pages/NewOrder";
-import OrderDetail from "@/pages/OrderDetail";
-import OrderReceipt from "@/pages/OrderReceipt";
-import SupplierPortal from "@/pages/SupplierPortal";
-import Inventory from "@/pages/Inventory";
-import LagerPage from "@/pages/LagerPage";
-import WarehouseDetail from "@/pages/WarehouseDetail";
-import WarenentnahmePage from "@/pages/WarenentnahmePage";
-import WarenentnahmeDetail from "@/pages/WarenentnahmeDetail";
-import WarenentnahmeNew from "@/pages/WarenentnahmeNew";
-import UserManagement from "@/pages/UserManagement";
+import Suppliers from "./pages/Suppliers";
+import SupplierDetail from "./pages/SupplierDetail";
+import Reporting from "./pages/Reporting";
+import Orders from "./pages/Orders";
+import NewOrder from "./pages/NewOrder";
+import OrderDetail from "./pages/OrderDetail";
+import OrderReceipt from "./pages/OrderReceipt";
+import SupplierPortal from "./pages/SupplierPortal";
+import Inventory from "./pages/Inventory";
+import LagerPage from "./pages/LagerPage";
+import WarehouseDetail from "./pages/WarehouseDetail";
+import WarenentnahmePage from "./pages/WarenentnahmePage";
+import WarenentnahmeDetail from "./pages/WarenentnahmeDetail";
+import WarenentnahmeNew from "./pages/WarenentnahmeNew";
+import UserManagement from "./pages/UserManagement";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -301,7 +303,7 @@ function AuthenticatedRouter() {
 }
 
 // Importiere PublicRoute Wrapper
-import PublicRoute from "@/pages/PublicRoute";
+import PublicRoute from "./pages/PublicRoute";
 
 function PublicRouter() {
   // Beim Rendern überprüfen wir die aktuelle URL 
@@ -322,7 +324,7 @@ function PublicRouter() {
 }
 
 // ErrorBoundary importieren
-import ErrorBoundary from "@/components/ErrorBoundary";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 // Haupt-App-Komponente
 function App() {
