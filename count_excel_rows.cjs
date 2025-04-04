@@ -1,61 +1,53 @@
 /**
- * Zählt die Anzahl der Zeilen in einer Excel-Datei
+ * Zählt Zeilen in einer Excel-Datei und gibt die ersten Datensätze zurück
  */
 
-const xlsx = require('xlsx');
 const fs = require('fs');
+const xlsx = require('xlsx');
 
-// Befehlszeilenargumente verarbeiten
-const args = process.argv.slice(2);
-const filePath = args[0] || './attached_assets/Report 2022-04-01 2025-04-05 a18b605bf619a514f7ad636191ecf601.xlsx';
+// Konfiguration
+const CONFIG = {
+  excelFilePath: './attached_assets/Report 2022-04-01 2025-04-05 a18b605bf619a514f7ad636191ecf601.xlsx'
+};
 
-if (!fs.existsSync(filePath)) {
-  console.error(`Fehler: Die Datei "${filePath}" existiert nicht.`);
-  process.exit(1);
-}
-
-try {
-  console.log(`Analysiere Excel-Datei: ${filePath}`);
-  console.log(`Dateigröße: ${(fs.statSync(filePath).size / (1024 * 1024)).toFixed(2)} MB`);
+// Hauptfunktion
+async function main() {
+  console.log(`Analysiere Datei: ${CONFIG.excelFilePath}`);
   
-  // Excel-Datei einlesen
-  const workbook = xlsx.readFile(filePath);
-  const sheetName = workbook.SheetNames[0];
-  const worksheet = workbook.Sheets[sheetName];
-  
-  // Alle Zeilenköpfe ermitteln
-  const headers = xlsx.utils.sheet_to_json(worksheet, { header: 1 })[0];
-  
-  // Alle Daten als JSON umwandeln (aber nur die Header)
-  const allData = xlsx.utils.sheet_to_json(worksheet);
-  
-  console.log(`\nErgebnis:`);
-  console.log(`- Sheet-Name: ${sheetName}`);
-  console.log(`- Anzahl der Spalten: ${headers.length}`);
-  console.log(`- Anzahl der Zeilen (inklusive Header): ${allData.length + 1}`);
-  console.log(`- Anzahl der Datensätze: ${allData.length}`);
-  
-  // Spaltenüberschriften ausgeben
-  console.log(`\nSpaltenüberschriften:`);
-  headers.forEach((header, index) => {
-    console.log(`  ${index + 1}. ${header}`);
-  });
-  
-  // Beispieldaten aus den ersten 3 Zeilen anzeigen
-  console.log(`\nBeispieldaten (erste 3 Zeilen):`);
-  
-  const sampleData = allData.slice(0, 3);
-  sampleData.forEach((row, rowIndex) => {
-    console.log(`\nZeile ${rowIndex + 1}:`);
-    Object.entries(row).forEach(([key, value]) => {
-      console.log(`  ${key}: ${value}`);
-    });
-  });
-  
-} catch (error) {
-  console.error(`Fehler bei der Analyse: ${error.message}`);
-  if (error.stack) {
-    console.error(`Stack-Trace: ${error.stack}`);
+  try {
+    // Excel-Datei laden
+    const workbook = xlsx.readFile(CONFIG.excelFilePath, { sheetRows: 10 }); // Lade nur die ersten 10 Zeilen
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    
+    // Konvertiere in JSON
+    const data = xlsx.utils.sheet_to_json(worksheet);
+    
+    console.log(`Stichprobe (erste ${data.length} Zeilen):`);
+    
+    // Spalten des ersten Datensatzes anzeigen
+    if (data.length > 0) {
+      console.log('\nSpaltennamen:');
+      console.log(JSON.stringify(Object.keys(data[0]), null, 2));
+      
+      // Beispiel des ersten Datensatzes
+      console.log('\nErster Datensatz:');
+      console.log(JSON.stringify(data[0], null, 2));
+    }
+    
+    // Zähle die tatsächliche Anzahl der Zeilen (kann langsam sein bei großen Dateien)
+    console.log('\nZähle alle Zeilen (dies kann bei großen Dateien einige Zeit dauern)...');
+    const fullWorkbook = xlsx.readFile(CONFIG.excelFilePath);
+    const fullWorksheet = fullWorkbook.Sheets[sheetName];
+    const range = xlsx.utils.decode_range(fullWorksheet['!ref']);
+    const rowCount = range.e.r;
+    
+    console.log(`Die Datei enthält insgesamt ${rowCount} Zeilen (${rowCount - 1} Datensätze + Kopfzeile).`);
+    
+  } catch (error) {
+    console.error(`Fehler bei der Analyse: ${error.message}`);
   }
-  process.exit(1);
 }
+
+// Skript ausführen
+main();

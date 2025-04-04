@@ -52,9 +52,14 @@ function getStatus() {
 function runImport() {
   return new Promise((resolve, reject) => {
     log(`\n=== STARTE IMPORT-LAUF ===`);
-    log(`Führe Skript aus: ${CONFIG.scriptPath}`);
     
-    const child = exec(`node ${CONFIG.scriptPath}`, (error, stdout, stderr) => {
+    // Prüfen, ob die Duplikatprüfung deaktiviert werden soll
+    const skipDuplicateCheck = process.argv.includes('--skip-duplicate-check');
+    const skipDuplicateCheckArg = skipDuplicateCheck ? ' --skip-duplicate-check' : '';
+    
+    log(`Führe Skript aus: ${CONFIG.scriptPath}${skipDuplicateCheckArg}`);
+    
+    const child = exec(`node ${CONFIG.scriptPath}${skipDuplicateCheckArg}`, (error, stdout, stderr) => {
       if (error) {
         log(`Fehler beim Ausführen des Skripts: ${error.message}`);
         return reject(error);

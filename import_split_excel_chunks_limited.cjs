@@ -15,8 +15,17 @@ const CONFIG = {
   logFilePath: './import_split_chunks_limited.log',
   statusFilePath: './import_split_chunks_limited_status.json',
   rowsPerRun: 50, // Begrenzung der Zeilen pro Durchlauf
-  startPosition: 0 // Startposition innerhalb des aktuellen Chunks
+  startPosition: 0, // Startposition innerhalb des aktuellen Chunks
+  skipDuplicateCheck: false // Standardmäßig Duplikate prüfen
 };
+
+// Befehlszeilenargumente verarbeiten
+process.argv.forEach(arg => {
+  if (arg === '--skip-duplicate-check') {
+    CONFIG.skipDuplicateCheck = true;
+    console.log('Duplikatprüfung deaktiviert');
+  }
+});
 
 // Datenbankverbindung einrichten
 const pool = new Pool({
@@ -61,6 +70,11 @@ function log(message) {
 
 // Überprüfen, ob eine Transaktion bereits existiert
 async function transactionExists(transactionId) {
+  // Wenn die skipDuplicateCheck Option gesetzt ist, immer false zurückgeben
+  if (CONFIG.skipDuplicateCheck) {
+    return false;
+  }
+
   const query = 'SELECT COUNT(*) FROM transactions WHERE vendon_id = $1';
   const result = await pool.query(query, [transactionId.toString()]);
   return parseInt(result.rows[0].count) > 0;
