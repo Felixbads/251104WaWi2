@@ -755,6 +755,11 @@ function NewOrderForm({
           description: "Ihre Bestellung wurde als Entwurf gespeichert.",
         });
         
+        // Zustand zurücksetzen - WICHTIG: das muss vor der Navigation passieren!
+        sessionStorage.removeItem('orderStep');
+        sessionStorage.removeItem('orderWarehouseId');
+        sessionStorage.removeItem('orderMode');
+        
         // Bei Abschluss des gesamten Prozesses wollen wir zur Übersicht navigieren
         // Aber NUR wenn es ein echter Abschluss ist (speichern/absenden)
         setLocation('/bestellungen');
@@ -804,6 +809,12 @@ function NewOrderForm({
           title: "Bestellung erstellt",
           description: "Ihre Bestellung wurde erfolgreich angelegt.",
         });
+        
+        // Zustand zurücksetzen BEVOR wir navigieren
+        // Dies ist wichtig, damit bei der nächsten Bestellung wieder mit Schritt 1 begonnen wird
+        sessionStorage.removeItem('orderStep');
+        sessionStorage.removeItem('orderWarehouseId');
+        sessionStorage.removeItem('orderMode');
         
         // Nur den lokalen orderItems-Zustand zurücksetzen
         setOrderItems([]);
@@ -1788,25 +1799,58 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
 
 // Hauptkomponente: Neue Bestellung
 export default function NewOrder() {
-  // Beim Neuladen der Komponente wird immer mit Schritt 1 begonnen, um sicherzustellen, 
-  // dass der Benutzer alle erforderlichen Schritte durchläuft
-  const [step, setStep] = useState(1);
+  // PERSISTENTEN ZUSTAND für kritische Werte mit session storage verwenden
+  // Bei Neuladen der Seite oder beim Navigieren innerhalb der Anwendung bleiben so die Werte erhalten
+  const getInitialStep = () => {
+    const savedStep = sessionStorage.getItem('orderStep');
+    return savedStep ? parseInt(savedStep) : 1;
+  };
   
-  // Warehouse ID ist anfangs null, bis der Benutzer ein Lager auswählt
-  const [warehouseId, setWarehouseId] = useState<number | null>(null);
+  const getInitialWarehouseId = () => {
+    const savedId = sessionStorage.getItem('orderWarehouseId');
+    return savedId ? parseInt(savedId) : null;
+  };
   
-  // Bestellmodus ist anfangs null, bis der Benutzer einen Modus auswählt
-  const [orderMode, setOrderMode] = useState<OrderMode | null>(null);
+  const getInitialOrderMode = () => {
+    const savedMode = sessionStorage.getItem('orderMode');
+    return savedMode as OrderMode | null;
+  };
   
-  // Zustände persistieren statt zurückzusetzen beim Start
+  // Zustand mit persistenten Initialwerten
+  const [step, setStepInternal] = useState(getInitialStep);
+  const [warehouseId, setWarehouseIdInternal] = useState<number | null>(getInitialWarehouseId);
+  const [orderMode, setOrderModeInternal] = useState<OrderMode | null>(getInitialOrderMode);
+  
+  // Wrapper-Funktionen die sowohl den State als auch sessionStorage aktualisieren
+  const setStep = (newStep: number) => {
+    setStepInternal(newStep);
+    sessionStorage.setItem('orderStep', newStep.toString());
+  };
+  
+  const setWarehouseId = (newId: number | null) => {
+    setWarehouseIdInternal(newId);
+    if (newId) {
+      sessionStorage.setItem('orderWarehouseId', newId.toString());
+    } else {
+      sessionStorage.removeItem('orderWarehouseId');
+    }
+  };
+  
+  const setOrderMode = (newMode: OrderMode | null) => {
+    setOrderModeInternal(newMode);
+    if (newMode) {
+      sessionStorage.setItem('orderMode', newMode);
+    } else {
+      sessionStorage.removeItem('orderMode');
+    }
+  };
+  
+  // Zustände werden automatisch beim unmounting gelöscht, wenn die komplette Bestellung abgeschlossen ist
+  // oder wenn man explizit zurück zur Liste navigiert
   useEffect(() => {
-    // Nichts tun beim Start - verhindert Zurücksetzen bei Re-Render
     return () => {
-      // Bei echtem Unmounting der Komponente aufräumen (z.B. Navigation zu anderer Seite)
-      // Aber nicht bei internen Updates durch Hinzufügen von Produkten etc.
-      // setStep(1);
-      // setWarehouseId(null);
-      // setOrderMode(null);
+      // Nur bei echter Navigation weg von der Komponente (nicht bei internem re-render)
+      // Der Cleanup wird nur ausgeführt, wenn die gesamte Komponente unmounted wird
       console.log("Component cleanup disabled to prevent state reset issues");
     };
   }, []);
