@@ -6,8 +6,8 @@ const xlsx = require('xlsx');
 const config = {
   inputExcelFile: './attached_assets/Report 2022-04-01 2025-04-05 a18b605bf619a514f7ad636191ecf601.xlsx',
   outputDir: './split_excel_large',
-  chunkSize: 50,
-  maxChunks: 2,  // Begrenzt auf 2 Chunks für Tests, um Timeouts zu vermeiden
+  chunkSize: 25, // Kleinerer Chunk für stabilere Verarbeitung
+  maxChunks: 5,  // Jetzt 5 Chunks pro Durchlauf
   memoryMode: 'low', // 'low' für speichereffiziente Verarbeitung großer Dateien
   maxProcessingTime: 60000 // Maximale Verarbeitungszeit in Millisekunden (60 Sekunden)
 };

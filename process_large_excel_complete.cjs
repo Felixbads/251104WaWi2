@@ -3,26 +3,22 @@ const path = require('path');
 const xlsx = require('xlsx');
 const axios = require('axios');
 
-// Konfiguration für die vollständige Verarbeitung
+// Konfiguration
 const config = {
   // Datei-Konfiguration
-  inputExcelFile: './attached_assets/Report 2022-04-01 2025-04-05 a18b605bf619a514f7ad636191ecf601.xlsx', // Große Excel-Datei
-  outputDir: './json_chunks_large',
-  chunkSize: 25, // Kleinere Chunks für stabileren Import
-  batchSize: 10, // Anzahl der Chunks pro Verarbeitungsdurchlauf
-  
-  // Zeitlimits und Prozesssteuerung
-  maxProcessingTime: 90000, // 1,5 Minuten maximale Verarbeitungszeit pro Durchlauf
-  delayBetweenRequests: 1500, // Wartezeit zwischen API-Anfragen
-  
-  // API-Konfiguration
-  apiEndpoint: 'http://localhost:5000/api/vendon/import/json',
-  
-  // Logging
-  logFile: './excel_import_full.log',
-  
-  // Status-Datei
+  inputExcelFile: './attached_assets/Report 2022-04-01 2025-04-05 a18b605bf619a514f7ad636191ecf601.xlsx',
+  outputDir: './json_chunks_smaller',
   statusFile: './import_status.json',
+  logFile: './excel_import.log',
+  
+  // Prozesssteuerung
+  chunkSize: 20,           // Anzahl Zeilen pro Chunk
+  maxChunksPerBatch: 5,    // Anzahl der Chunks pro Durchlauf
+  startRow: -1,            // -1 = automatisch fortsetzen
+  maxProcessingTime: 55000, // Maximale Verarbeitungszeit in Millisekunden (55 Sekunden)
+  importDelay: 100,        // Verzögerung zwischen Importen in Millisekunden
+  serverUrl: 'http://localhost:3000', // Backend-URL
+  apiEndpoint: '/api/vendon/transactions/import', // Import-Endpunkt
   
   // Mapping für Maschinen-IDs
   telemetryToMachineMap: {
@@ -32,81 +28,59 @@ const config = {
   }
 };
 
-// Status-Tracking
-let processingStatus = {
-  totalRowsInFile: 0,
-  processedRows: 0,
-  currentChunk: 0,
-  chunksCreated: 0,
-  jsonFilesCreated: 0,
-  jsonFilesImported: 0,
-  totalTransactions: 0,
-  savedTransactions: 0,
-  duplicateTransactions: 0,
-  errors: 0,
-  completed: false,
-  lastProcessed: null,
-  startTime: new Date().toISOString()
-};
-
 /**
- * Verzögerungsfunktion für asynchrones Warten
+ * Initialisiert oder liest den Status
  */
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-/**
- * Schreibt eine Nachricht in die Log-Datei und auf die Konsole
- */
-function log(message, silent = false) {
-  const now = new Date();
-  const timeString = `[${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}]`;
-  const logMessage = `${timeString} ${message}\n`;
-  
-  if (!silent) {
-    console.log(message);
-  }
-  
-  fs.appendFileSync(config.logFile, logMessage);
-}
-
-/**
- * Lädt den Verarbeitungsstatus, falls vorhanden
- */
-function loadStatus() {
-  try {
-    if (fs.existsSync(config.statusFile)) {
+function getStatus() {
+  if (fs.existsSync(config.statusFile)) {
+    try {
       const statusContent = fs.readFileSync(config.statusFile, 'utf8');
-      const savedStatus = JSON.parse(statusContent);
-      
-      // Status aktualisieren, aber startTime beibehalten, wenn Prozess fortgesetzt wird
-      processingStatus = {
-        ...savedStatus,
-        lastProcessed: new Date().toISOString()
-      };
-      
-      log(`Status geladen: ${processingStatus.processedRows} von ${processingStatus.totalRowsInFile} Zeilen verarbeitet, ${processingStatus.jsonFilesImported} JSON-Dateien importiert.`);
-      return true;
+      return JSON.parse(statusContent);
+    } catch (error) {
+      console.error(`Fehler beim Lesen der Status-Datei: ${error.message}`);
     }
-  } catch (error) {
-    log(`Fehler beim Laden des Status: ${error.message}`);
   }
   
-  // Initialisiere eine neue Status-Datei, wenn keine vorhanden oder fehlerhaft
-  saveStatus();
-  return false;
+  // Erstelle den Standardstatus
+  return {
+    startRow: 1, // Beginne bei der ersten Datenzeile (nach dem Header)
+    processedRows: 0,
+    currentChunkNumber: 1,
+    failed: false,
+    completed: false,
+    lastProcessed: null,
+    totalRows: 0,
+    totalProcessed: 0,
+    errorMessage: null
+  };
 }
 
 /**
- * Speichert den aktuellen Verarbeitungsstatus
+ * Speichert den Status
  */
-function saveStatus() {
+function saveStatus(status) {
   try {
-    processingStatus.lastProcessed = new Date().toISOString();
-    fs.writeFileSync(config.statusFile, JSON.stringify(processingStatus, null, 2));
+    fs.writeFileSync(config.statusFile, JSON.stringify(status, null, 2));
+    return true;
   } catch (error) {
-    log(`Fehler beim Speichern des Status: ${error.message}`);
+    console.error(`Fehler beim Speichern des Status: ${error.message}`);
+    return false;
+  }
+}
+
+/**
+ * Loggt eine Nachricht in die Logdatei
+ */
+function logMessage(message) {
+  const timestamp = new Date().toISOString();
+  const logEntry = `[${timestamp}] ${message}\n`;
+  
+  try {
+    fs.appendFileSync(config.logFile, logEntry);
+    return true;
+  } catch (error) {
+    console.error(`Fehler beim Schreiben der Logdatei: ${error.message}`);
+    return false;
   }
 }
 
@@ -116,7 +90,8 @@ function saveStatus() {
 function createOutputDirIfNeeded() {
   if (!fs.existsSync(config.outputDir)) {
     fs.mkdirSync(config.outputDir, { recursive: true });
-    log(`Ausgabeverzeichnis erstellt: ${config.outputDir}`);
+    console.log(`Ausgabeverzeichnis erstellt: ${config.outputDir}`);
+    logMessage(`Ausgabeverzeichnis erstellt: ${config.outputDir}`);
   }
 }
 
@@ -131,11 +106,9 @@ function convertToVendonFormat(excelData) {
       dateTime = new Date(row['Date / Time']);
       if (isNaN(dateTime.getTime())) {
         dateTime = new Date();
-        log(`Ungültiges Datum in Zeile: "${row['Date / Time']}", verwende aktuelles Datum.`, true);
       }
     } catch (e) {
       dateTime = new Date();
-      log(`Fehler beim Parsen des Datums: ${e.message}`, true);
     }
     
     const isoDate = dateTime.toISOString();
@@ -180,27 +153,91 @@ function convertToVendonFormat(excelData) {
 }
 
 /**
- * Analysiert die Excel-Datei, um die Gesamtzahl der Zeilen zu ermitteln
+ * Importiert eine JSON-Datei mit Transaktionen in die Datenbank
  */
-function analyzeExcelFile() {
+async function importTransactions(transactions) {
   try {
-    log(`Analysiere Excel-Datei: ${config.inputExcelFile}`);
+    const response = await axios.post(config.serverUrl + config.apiEndpoint, {
+      transactions: transactions,
+      skipExistingCheck: false
+    });
+    
+    return {
+      success: true,
+      imported: response.data.imported || 0,
+      skipped: response.data.skipped || 0,
+      message: response.data.message
+    };
+  } catch (error) {
+    console.error(`Fehler beim Import: ${error.message}`);
+    return {
+      success: false,
+      error: error.message,
+      imported: 0,
+      skipped: 0
+    };
+  }
+}
+
+/**
+ * Verarbeitet eine große Excel-Datei in kleinen Chunks und importiert sie
+ */
+async function processLargeExcelFile() {
+  try {
+    // Startzeit für Zeitbegrenzung festlegen
+    const startTime = Date.now();
+    
+    // Hilfsfunktion zur Prüfung, ob Zeitlimit überschritten wurde
+    function isTimeExceeded() {
+      return config.maxProcessingTime > 0 && 
+             (Date.now() - startTime) > config.maxProcessingTime;
+    }
+    
+    // Status lesen oder initialisieren
+    const status = getStatus();
+    
+    // Wenn bereits abgeschlossen, nicht noch einmal verarbeiten
+    if (status.completed === true) {
+      console.log('Die Verarbeitung wurde bereits abgeschlossen.');
+      logMessage('Die Verarbeitung wurde bereits abgeschlossen.');
+      return { success: true, completed: true };
+    }
+    
+    console.log('=== Import-Prozess wird fortgesetzt ===');
+    logMessage('Import-Prozess wird fortgesetzt');
+    
+    // Bestimme die Startzeile
+    const startRow = config.startRow >= 0 ? config.startRow : status.startRow;
     
     // Prüfe, ob die Datei existiert
     if (!fs.existsSync(config.inputExcelFile)) {
       throw new Error(`Die Datei ${config.inputExcelFile} existiert nicht.`);
     }
     
-    // Excel-Datei öffnen und nur Metadaten laden
+    console.log(`Analysiere Excel-Datei: ${config.inputExcelFile}`);
+    logMessage(`Analysiere Excel-Datei: ${config.inputExcelFile}`);
+    
+    // Ausgabeverzeichnis erstellen
+    createOutputDirIfNeeded();
+    
+    // Excel-Datei für Low-Memory-Verarbeitung öffnen
+    console.log('Öffne Excel-Datei mit optimierten Einstellungen...');
+    logMessage('Öffne Excel-Datei mit optimierten Einstellungen...');
+    
     const workbook = xlsx.readFile(config.inputExcelFile, {
-      sheetRows: 0, // Keine Zeilen laden, nur Metadaten
-      bookVBA: false,
-      bookDeps: false,
-      cellStyles: false,
-      cellHTML: false,
-      cellFormula: false
+      cellFormula: false,  // Keine Formeln verarbeiten
+      cellHTML: false,     // Kein HTML verarbeiten
+      cellStyles: false,   // Keine Stile verarbeiten
+      cellNF: false,       // Keine Zahlenformate
+      cellDates: true,     // Datumsformate beibehalten
+      sheetStubs: true,    // Leere Zellen berücksichtigen
+      bookDeps: false,     // Keine Abhängigkeiten verfolgen
+      bookVBA: false,      // Kein VBA-Code laden
+      dense: true,         // Optimierung für große Dateien
+      WTF: false           // Weniger Warnungen ausgeben
     });
     
+    // Arbeitsblatt auswählen
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     
@@ -208,284 +245,19 @@ function analyzeExcelFile() {
     const range = xlsx.utils.decode_range(worksheet['!ref']);
     const totalRows = range.e.r - range.s.r; // Gesamtanzahl der Zeilen (ohne Header)
     
-    log(`Excel-Datei analysiert: Insgesamt ${totalRows} Datenzeilen gefunden.`);
+    console.log(`Arbeitsblatt '${sheetName}' hat ${totalRows} Datenzeilen.`);
+    logMessage(`Arbeitsblatt '${sheetName}' hat ${totalRows} Datenzeilen.`);
     
-    // Status aktualisieren
-    processingStatus.totalRowsInFile = totalRows;
-    saveStatus();
-    
-    return totalRows;
-  } catch (error) {
-    log(`Fehler bei der Analyse der Excel-Datei: ${error.message}`);
-    log(error.stack);
-    return 0;
-  }
-}
-
-/**
- * Importiert eine JSON-Datei über die API
- */
-async function importJsonFile(filePath, chunkIndex) {
-  try {
-    log(`Importiere JSON-Datei: ${filePath} (Chunk ${chunkIndex})`);
-    
-    // JSON-Datei lesen
-    const fileContent = fs.readFileSync(filePath, 'utf8');
-    const jsonData = JSON.parse(fileContent);
-    
-    // Anzahl der Transaktionen ausgeben
-    const transactionCount = jsonData.transactions ? jsonData.transactions.length : 0;
-    log(`Datei enthält ${transactionCount} Transaktionen.`);
-    
-    // API-Aufruf durchführen
-    const response = await axios.post(config.apiEndpoint, jsonData, {
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    log(`Import von Chunk ${chunkIndex} abgeschlossen. Status: ${response.status}`);
-    log(`Ergebnis: ${JSON.stringify(response.data.stats)}`);
-    
-    // Status aktualisieren
-    processingStatus.jsonFilesImported++;
-    processingStatus.totalTransactions += transactionCount;
-    
-    if (response.data && response.data.stats) {
-      processingStatus.savedTransactions += response.data.stats.saved || 0;
-      processingStatus.duplicateTransactions += response.data.stats.duplicates || 0;
-      processingStatus.errors += response.data.stats.errors || 0;
-    }
-    
-    saveStatus();
-    
-    return {
-      success: true,
-      stats: response.data.stats,
-      chunkIndex,
-      transactionCount
-    };
-  } catch (error) {
-    log(`Fehler beim Importieren von ${filePath}:`, error.message);
-    
-    // Status aktualisieren
-    processingStatus.errors++;
-    saveStatus();
-    
-    return {
-      success: false,
-      error: error.message,
-      chunkIndex,
-      transactionCount: 0
-    };
-  }
-}
-
-/**
- * Findet alle JSON-Dateien, die dem Muster entsprechen
- */
-function findJsonFiles() {
-  // Manuell die Dateien im Verzeichnis auflisten
-  const files = fs.readdirSync(config.outputDir)
-    .filter(file => /^chunk_(\d+)\.json$/.test(file))
-    .map(file => path.join(config.outputDir, file));
-  
-  // Sortiere die Dateien nach Chunk-Nummer
-  return files.sort((a, b) => {
-    const fileNameA = path.basename(a);
-    const fileNameB = path.basename(b);
-    const numA = parseInt(fileNameA.match(/chunk_(\d+)\.json/)[1]);
-    const numB = parseInt(fileNameB.match(/chunk_(\d+)\.json/)[1]);
-    return numA - numB;
-  });
-}
-
-/**
- * Importiert eine Batch von JSON-Dateien
- */
-async function importJsonBatch(startChunk, endChunk) {
-  try {
-    log(`\n=== Import von JSON-Batch (Chunks ${startChunk} bis ${endChunk}) ===`);
-    
-    // JSON-Dateien finden
-    const allJsonFiles = findJsonFiles();
-    
-    if (allJsonFiles.length === 0) {
-      log(`Keine JSON-Dateien gefunden in ${config.outputDir}`);
-      return;
-    }
-    
-    log(`${allJsonFiles.length} JSON-Dateien insgesamt gefunden.`);
-    
-    // Bestimme die zu importierenden Dateien
-    const startIndex = startChunk - 1;
-    const endIndex = Math.min(endChunk, allJsonFiles.length);
-    
-    if (startIndex >= allJsonFiles.length) {
-      log(`Startindex (${startIndex}) außerhalb des verfügbaren Bereichs.`);
-      return;
-    }
-    
-    const filesToImport = allJsonFiles.slice(startIndex, endIndex);
-    
-    log(`Importiere ${filesToImport.length} Dateien (${startChunk} bis ${endIndex}).`);
-    
-    // Verarbeite jede Datei sequentiell
-    for (let i = 0; i < filesToImport.length; i++) {
-      const filePath = filesToImport[i];
-      const chunkIndex = startIndex + i + 1;
-      
-      // Importiere die Datei
-      const result = await importJsonFile(filePath, chunkIndex);
-      
-      // Warte zwischen den Anfragen, falls es nicht die letzte Datei ist
-      if (i < filesToImport.length - 1) {
-        log(`Warte ${config.delayBetweenRequests}ms vor dem nächsten Import...`);
-        await sleep(config.delayBetweenRequests);
-      }
-    }
-    
-    log(`\nBatch-Import abgeschlossen!`);
-    
-    return endIndex;
-  } catch (error) {
-    log(`Kritischer Fehler bei der Batch-Verarbeitung: ${error.message}`);
-    log(error.stack);
-    return null;
-  }
-}
-
-/**
- * Verarbeitet einen Chunk der Excel-Datei und konvertiert ihn in JSON
- */
-async function processExcelChunk(startRow, endRow, headerRow, worksheet, headers) {
-  try {
-    // Startzeit für Zeitlimit
-    const startTime = Date.now();
-    const chunkNumber = processingStatus.chunksCreated + 1;
-    
-    log(`Verarbeite Excel-Chunk ${chunkNumber}: Zeilen ${startRow} bis ${endRow}`);
-    
-    // Hilfsfunktion zur Prüfung des Zeitlimits
-    function isTimeExceeded() {
-      return config.maxProcessingTime > 0 && 
-             (Date.now() - startTime) > config.maxProcessingTime;
-    }
-    
-    // Daten aus den Zeilen extrahieren
-    const rows = [];
-    let rowsProcessed = 0;
-    
-    for (let r = startRow; r <= endRow; r++) {
-      // Zeitlimit prüfen
-      if (isTimeExceeded()) {
-        log(`Zeitlimit überschritten, breche Verarbeitung ab nach ${rowsProcessed} Zeilen.`);
-        break;
-      }
-      
-      // Zeile verarbeiten
-      const rowData = {};
-      let hasData = false;
-      
-      // Alle Zellen der Zeile lesen
-      for (let c in headers) {
-        const cellAddress = xlsx.utils.encode_cell({ r, c: parseInt(c) });
-        if (worksheet[cellAddress] && worksheet[cellAddress].v !== undefined) {
-          rowData[headers[c]] = worksheet[cellAddress].v;
-          hasData = true;
-        }
-      }
-      
-      // Zeile nur hinzufügen, wenn sie Daten enthält
-      if (hasData) {
-        rows.push(rowData);
-        rowsProcessed++;
-      }
-    }
-    
-    if (rows.length === 0) {
-      log(`Keine Daten in den Zeilen ${startRow} bis ${endRow} gefunden.`);
-      return 0;
-    }
-    
-    // Konvertiere in Vendon-Format
-    const vendonTransactions = convertToVendonFormat(rows);
-    
-    // Speichere als JSON
-    const outputPath = path.join(config.outputDir, `chunk_${chunkNumber}.json`);
-    fs.writeFileSync(outputPath, JSON.stringify({
-      transactions: vendonTransactions,
-      skipExistingCheck: false
-    }, null, 2));
-    
-    log(`JSON-Chunk ${chunkNumber} geschrieben: ${outputPath} (${rows.length} Zeilen)`);
-    
-    // Status aktualisieren
-    processingStatus.chunksCreated++;
-    processingStatus.jsonFilesCreated++;
-    processingStatus.processedRows += rowsProcessed;
-    processingStatus.currentChunk = chunkNumber;
-    saveStatus();
-    
-    return rows.length;
-  } catch (error) {
-    log(`Fehler bei der Verarbeitung des Excel-Chunks: ${error.message}`);
-    log(error.stack);
-    return 0;
-  }
-}
-
-/**
- * Konvertiert die nächste Batch aus der Excel-Datei in JSON-Dateien
- */
-async function convertNextExcelBatch() {
-  try {
-    // Startzeit für Zeitlimit
-    const startTime = Date.now();
-    
-    // Hilfsfunktion zur Prüfung des Zeitlimits
-    function isTimeExceeded() {
-      return config.maxProcessingTime > 0 && 
-             (Date.now() - startTime) > config.maxProcessingTime;
-    }
-    
-    log(`\n=== Konvertieren des nächsten Excel-Batches in JSON ===`);
-    
-    // Prüfe, ob die Datei existiert
-    if (!fs.existsSync(config.inputExcelFile)) {
-      throw new Error(`Die Datei ${config.inputExcelFile} existiert nicht.`);
-    }
-    
-    // Ausgabeverzeichnis erstellen
-    createOutputDirIfNeeded();
-    
-    // Excel-Datei öffnen
-    log('Öffne Excel-Datei...');
-    const workbook = xlsx.readFile(config.inputExcelFile, {
-      cellFormula: false,
-      cellHTML: false,
-      cellStyles: false,
-      cellDates: true,
-      sheetStubs: true,
-      bookDeps: false,
-      bookVBA: false
-    });
-    
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    
-    // Bereich des Arbeitsblatts ermitteln
-    const range = xlsx.utils.decode_range(worksheet['!ref']);
-    
-    if (processingStatus.totalRowsInFile === 0) {
-      processingStatus.totalRowsInFile = range.e.r - range.s.r;
+    // Status aktualisieren, falls dies der erste Durchlauf ist
+    if (status.totalRows === 0) {
+      status.totalRows = totalRows;
+      saveStatus(status);
     }
     
     // Spaltenüberschriften aus der ersten Zeile lesen
-    const headerRow = range.s.r;
     const headers = {};
     for (let c = range.s.c; c <= range.e.c; c++) {
-      const cellAddress = xlsx.utils.encode_cell({ r: headerRow, c });
+      const cellAddress = xlsx.utils.encode_cell({ r: range.s.r, c });
       if (worksheet[cellAddress] && worksheet[cellAddress].v !== undefined) {
         headers[c] = worksheet[cellAddress].v;
       } else {
@@ -493,174 +265,199 @@ async function convertNextExcelBatch() {
       }
     }
     
+    console.log(`${Object.keys(headers).length} Spalten gefunden.`);
+    logMessage(`${Object.keys(headers).length} Spalten gefunden.`);
+    
     // Verarbeitung einrichten
-    const startRow = headerRow + 1 + processingStatus.processedRows; // Header + bereits verarbeitete Zeilen
-    
-    // Wenn wir alle Zeilen verarbeitet haben, sind wir fertig
-    if (startRow > range.e.r) {
-      log('Alle Zeilen wurden bereits verarbeitet.');
-      processingStatus.completed = true;
-      saveStatus();
-      return 0;
-    }
-    
-    // Bestimme die Anzahl der zu verarbeitenden Chunks
-    const remainingRows = range.e.r - startRow + 1;
-    const chunksToProcess = Math.min(
-      config.batchSize,
-      Math.ceil(remainingRows / config.chunkSize)
+    const endRow = Math.min(
+      startRow + (config.chunkSize * config.maxChunksPerBatch), 
+      range.e.r + 1
     );
     
-    log(`Starte Verarbeitung ab Zeile ${startRow}, noch ${remainingRows} Zeilen ausstehend.`);
-    log(`Verarbeite bis zu ${chunksToProcess} Chunks in diesem Durchlauf.`);
+    console.log(`Verarbeite Zeilen ${startRow} bis ${endRow - 1} (maximal ${config.maxChunksPerBatch} Chunks mit je ${config.chunkSize} Zeilen).`);
+    logMessage(`Verarbeite Zeilen ${startRow} bis ${endRow - 1} (maximal ${config.maxChunksPerBatch} Chunks mit je ${config.chunkSize} Zeilen).`);
     
-    // Verarbeite jeden Chunk
-    let chunksCreated = 0;
-    let totalRowsProcessed = 0;
+    // Chunks verarbeiten
+    let currentChunk = [];
+    let currentChunkNumber = status.currentChunkNumber;
+    let rowsProcessed = 0;
+    let currentRow = startRow;
+    let importedCount = 0;
+    let skippedCount = 0;
     
-    for (let i = 0; i < chunksToProcess; i++) {
-      // Zeitlimit prüfen
+    for (let r = startRow; r < endRow; r++) {
+      // Prüfe, ob das Zeitlimit überschritten wurde
       if (isTimeExceeded()) {
-        log('Zeitlimit für diesen Durchlauf überschritten, beende Verarbeitung.');
-        break;
+        console.log(`Zeitlimit von ${config.maxProcessingTime}ms überschritten, unterbreche Verarbeitung.`);
+        logMessage(`Zeitlimit von ${config.maxProcessingTime}ms überschritten, unterbreche Verarbeitung.`);
+        
+        // Status speichern und abbrechen
+        status.startRow = currentRow;
+        status.processedRows = rowsProcessed;
+        status.currentChunkNumber = currentChunkNumber;
+        status.totalProcessed += rowsProcessed;
+        status.lastProcessed = new Date().toISOString();
+        saveStatus(status);
+        
+        console.log(`Status gespeichert: Nächstes Mal wird bei Zeile ${currentRow} fortgesetzt.`);
+        logMessage(`Status gespeichert: Nächstes Mal wird bei Zeile ${currentRow} fortgesetzt.`);
+        
+        // Mit Exit Code 10 beenden (für das Wrapper-Skript, um zu erkennen, dass der Prozess fortgesetzt werden muss)
+        process.exit(10);
       }
       
-      const chunkStartRow = startRow + (i * config.chunkSize);
-      const chunkEndRow = Math.min(chunkStartRow + config.chunkSize - 1, range.e.r);
+      currentRow = r;
       
-      const rowsProcessed = await processExcelChunk(chunkStartRow, chunkEndRow, headerRow, worksheet, headers);
+      // Zeile verarbeiten
+      const rowData = {};
+      let hasData = false;
       
-      if (rowsProcessed > 0) {
-        chunksCreated++;
-        totalRowsProcessed += rowsProcessed;
+      // Alle Zellen der Zeile lesen
+      for (let c = range.s.c; c <= range.e.c; c++) {
+        const cellAddress = xlsx.utils.encode_cell({ r, c });
+        if (worksheet[cellAddress] && worksheet[cellAddress].v !== undefined) {
+          rowData[headers[c]] = worksheet[cellAddress].v;
+          hasData = true;
+        }
       }
       
-      // Wenn wir am Ende des Dokuments angekommen sind
-      if (chunkEndRow >= range.e.r) {
-        break;
+      // Nur Zeilen mit Daten hinzufügen
+      if (hasData) {
+        currentChunk.push(rowData);
+        rowsProcessed++;
+      }
+      
+      // Wenn der Chunk voll ist oder wir am Ende sind
+      if (currentChunk.length >= config.chunkSize || r === endRow - 1) {
+        if (currentChunk.length > 0) {
+          // Konvertiere in Vendon-Format
+          const vendonTransactions = convertToVendonFormat(currentChunk);
+          
+          // Importiere die Transaktionen
+          console.log(`Importiere Chunk ${currentChunkNumber} (${currentChunk.length} Zeilen)...`);
+          logMessage(`Importiere Chunk ${currentChunkNumber} (${currentChunk.length} Zeilen)`);
+          
+          const importResult = await importTransactions(vendonTransactions);
+          
+          if (importResult.success) {
+            console.log(`Import erfolgreich: ${importResult.imported} importiert, ${importResult.skipped} übersprungen.`);
+            logMessage(`Import erfolgreich: ${importResult.imported} importiert, ${importResult.skipped} übersprungen.`);
+            
+            importedCount += importResult.imported;
+            skippedCount += importResult.skipped;
+          } else {
+            console.error(`Import fehlgeschlagen: ${importResult.error}`);
+            logMessage(`Import fehlgeschlagen: ${importResult.error}`);
+            
+            // Status auf fehlgeschlagen setzen
+            status.failed = true;
+            status.errorMessage = importResult.error;
+            saveStatus(status);
+            
+            return { 
+              success: false, 
+              error: importResult.error,
+              rowsProcessed
+            };
+          }
+          
+          // Zurücksetzen für nächsten Chunk
+          currentChunk = [];
+          currentChunkNumber++;
+          
+          // Kurze Pause zwischen den Importen
+          if (config.importDelay > 0) {
+            await new Promise(resolve => setTimeout(resolve, config.importDelay));
+          }
+        }
       }
     }
     
-    log(`Batch-Konvertierung abgeschlossen: ${chunksCreated} Chunks mit insgesamt ${totalRowsProcessed} Zeilen erstellt.`);
+    // Nach der Schleife überprüfen, ob alle Daten verarbeitet wurden
+    const allProcessed = currentRow >= range.e.r;
     
-    // Wenn wir alle Daten konvertiert haben
-    if (processingStatus.processedRows >= processingStatus.totalRowsInFile) {
-      log('Konvertierung der gesamten Excel-Datei abgeschlossen!');
+    // Status aktualisieren
+    status.startRow = allProcessed ? 1 : currentRow + 1; // Wenn alles verarbeitet wurde, zurück zum Anfang, sonst die nächste Zeile
+    status.processedRows = rowsProcessed;
+    status.currentChunkNumber = currentChunkNumber;
+    status.totalProcessed += rowsProcessed;
+    status.lastProcessed = new Date().toISOString();
+    status.completed = allProcessed;
+    saveStatus(status);
+    
+    if (allProcessed) {
+      console.log(`\n=== IMPORT VOLLSTÄNDIG ABGESCHLOSSEN ===`);
+      console.log(`Insgesamt ${status.totalProcessed} Zeilen verarbeitet.`);
+      logMessage(`IMPORT VOLLSTÄNDIG ABGESCHLOSSEN. Insgesamt ${status.totalProcessed} Zeilen verarbeitet.`);
+    } else {
+      console.log(`\nTeilimport abgeschlossen. Nächster Durchlauf wird bei Zeile ${status.startRow} fortgesetzt.`);
+      logMessage(`Teilimport abgeschlossen. Nächster Durchlauf wird bei Zeile ${status.startRow} fortgesetzt.`);
+      
+      // Mit Exit Code 10 beenden (für das Wrapper-Skript)
+      process.exit(10);
     }
     
-    return chunksCreated;
+    return { 
+      success: true, 
+      completed: allProcessed,
+      rowsProcessed,
+      importedCount,
+      skippedCount
+    };
   } catch (error) {
-    log(`Fehler bei der Excel-Konvertierung: ${error.message}`);
-    log(error.stack);
-    return 0;
+    console.error(`Fehler bei der Excel-Verarbeitung:`, error);
+    console.error(error.stack);
+    logMessage(`Schwerwiegender Fehler: ${error.message}`);
+    
+    // Status auf fehlgeschlagen setzen
+    const status = getStatus();
+    status.failed = true;
+    status.errorMessage = error.message;
+    saveStatus(status);
+    
+    return { 
+      success: false, 
+      error: error.message
+    };
   }
 }
 
 /**
- * Hauptfunktion zur Verarbeitung der großen Excel-Datei
+ * Hauptfunktion
  */
-async function processLargeExcel() {
+async function main() {
+  console.log('=== STARTE VERARBEITUNG DER GROSSEN EXCEL-DATEI ===');
+  logMessage('=== STARTE VERARBEITUNG DER GROSSEN EXCEL-DATEI ===');
+  
   try {
-    log('=== STARTE VERARBEITUNG DER GROSSEN EXCEL-DATEI ===');
+    // Verarbeite die Excel-Datei
+    const result = await processLargeExcelFile();
     
-    // Log-Datei initialisieren, falls neu
-    if (!fs.existsSync(config.logFile)) {
-      fs.writeFileSync(config.logFile, `--- Excel-Import gestartet am ${new Date().toLocaleString()} ---\n\n`);
+    if (result.success) {
+      console.log('Verarbeitung erfolgreich abgeschlossen.');
+      logMessage('Verarbeitung erfolgreich abgeschlossen.');
+      
+      if (result.completed) {
+        console.log(`Gesamte Datei verarbeitet: ${result.rowsProcessed} Zeilen in diesem Durchlauf.`);
+        logMessage(`Gesamte Datei verarbeitet: ${result.rowsProcessed} Zeilen in diesem Durchlauf.`);
+      } else {
+        console.log(`Teilprozess abgeschlossen: ${result.rowsProcessed} Zeilen in diesem Durchlauf.`);
+        logMessage(`Teilprozess abgeschlossen: ${result.rowsProcessed} Zeilen in diesem Durchlauf.`);
+      }
+      
+      if (result.importedCount !== undefined) {
+        console.log(`Insgesamt importiert: ${result.importedCount}, übersprungen: ${result.skippedCount}`);
+        logMessage(`Insgesamt importiert: ${result.importedCount}, übersprungen: ${result.skippedCount}`);
+      }
     } else {
-      log('\n=== Import-Prozess wird fortgesetzt ===');
-    }
-    
-    // Status laden oder initialisieren
-    const resuming = loadStatus();
-    
-    // Wenn kein Status vorhanden ist, starte Analyse der Datei
-    if (!resuming && processingStatus.totalRowsInFile === 0) {
-      analyzeExcelFile();
-    }
-    
-    log(`Datei enthält insgesamt ${processingStatus.totalRowsInFile} Datenzeilen, davon wurden ${processingStatus.processedRows} bereits verarbeitet.`);
-    
-    // Konvertiere den nächsten Batch aus der Excel-Datei
-    if (processingStatus.processedRows < processingStatus.totalRowsInFile) {
-      await convertNextExcelBatch();
-    }
-    
-    // Importiere eine Batch von JSON-Dateien, beginnend nach der letzten importierten
-    if (processingStatus.jsonFilesImported < processingStatus.jsonFilesCreated) {
-      const startChunk = processingStatus.jsonFilesImported + 1;
-      const endChunk = startChunk + config.batchSize - 1;
-      
-      await importJsonBatch(startChunk, endChunk);
-    }
-    
-    // Prüfe, ob der Prozess abgeschlossen ist
-    const complete = processingStatus.processedRows >= processingStatus.totalRowsInFile &&
-                   processingStatus.jsonFilesImported >= processingStatus.jsonFilesCreated;
-    
-    if (complete) {
-      processingStatus.completed = true;
-      saveStatus();
-      
-      const endTime = new Date();
-      const startTime = new Date(processingStatus.startTime);
-      const totalTimeMs = endTime - startTime;
-      const totalTimeMinutes = Math.floor(totalTimeMs / 60000);
-      const totalTimeSeconds = Math.floor((totalTimeMs % 60000) / 1000);
-      
-      log('\n=== VERARBEITUNG ABGESCHLOSSEN ===');
-      log(`Gesamtstatistik:
-        - Verarbeitete Zeilen: ${processingStatus.processedRows}/${processingStatus.totalRowsInFile}
-        - Erstellte JSON-Dateien: ${processingStatus.jsonFilesCreated}
-        - Importierte JSON-Dateien: ${processingStatus.jsonFilesImported}
-        - Verarbeitete Transaktionen: ${processingStatus.totalTransactions}
-        - Gespeicherte Transaktionen: ${processingStatus.savedTransactions}
-        - Duplikate: ${processingStatus.duplicateTransactions}
-        - Fehler: ${processingStatus.errors}
-        - Gesamtzeit: ${totalTimeMinutes} Minuten, ${totalTimeSeconds} Sekunden
-      `);
-      
-      return true;
-    } else {
-      log('\n=== FORTSCHRITT ===');
-      log(`Konvertierung: ${processingStatus.processedRows}/${processingStatus.totalRowsInFile} Zeilen (${Math.round(processingStatus.processedRows / processingStatus.totalRowsInFile * 100)}%)`);
-      log(`Import: ${processingStatus.jsonFilesImported}/${processingStatus.jsonFilesCreated} JSON-Dateien (${processingStatus.jsonFilesCreated > 0 ? Math.round(processingStatus.jsonFilesImported / processingStatus.jsonFilesCreated * 100) : 0}%)`);
-      
-      // Berechne, wie viel noch zu tun ist
-      const rowsLeft = processingStatus.totalRowsInFile - processingStatus.processedRows;
-      const chunksLeft = Math.ceil(rowsLeft / config.chunkSize);
-      const filesLeft = processingStatus.jsonFilesCreated - processingStatus.jsonFilesImported;
-      
-      log(`Noch zu tun:
-        - Ca. ${chunksLeft} Chunks zu konvertieren
-        - ${filesLeft} JSON-Dateien zu importieren
-      `);
-      
-      log('\nUm den Prozess fortzusetzen, führen Sie erneut "node process_large_excel_complete.cjs" aus.\n');
-      
-      return false;
+      console.error(`Verarbeitung fehlgeschlagen: ${result.error}`);
+      logMessage(`Verarbeitung fehlgeschlagen: ${result.error}`);
     }
   } catch (error) {
-    log(`Kritischer Fehler bei der Verarbeitung: ${error.message}`);
-    log(error.stack);
-    return false;
+    console.error(`Unerwarteter Fehler: ${error.message}`);
+    logMessage(`Unerwarteter Fehler: ${error.message}`);
   }
 }
 
-// Starte die Verarbeitung
-console.time('Processing Time');
-
-processLargeExcel()
-  .then(completed => {
-    console.timeEnd('Processing Time');
-    console.log(`\nDurchlauf ${completed ? 'vollständig abgeschlossen' : 'teilweise abgeschlossen, muss fortgesetzt werden'}.`);
-    
-    // Exit mit einem entsprechenden Code, um Skript-Verkettung zu ermöglichen
-    process.exit(completed ? 0 : 10);
-  })
-  .catch(error => {
-    console.timeEnd('Processing Time');
-    console.error(`\nUnerwarteter Fehler bei der Verarbeitung: ${error.message}`);
-    
-    // Exit mit Fehlercode
-    process.exit(1);
-  });
+// Starte die Hauptfunktion
+main();
