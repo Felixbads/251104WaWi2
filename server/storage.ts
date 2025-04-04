@@ -161,6 +161,7 @@ export interface IStorage {
   // Sync log operations
   getSyncLogs(limit?: number): Promise<SyncLog[]>;
   getSyncLogsByType(syncType: string, limit?: number): Promise<SyncLog[]>;
+  getSyncLogsByTypePatterns(syncTypes: string[], limit?: number): Promise<SyncLog[]>;
   getSyncLogById(id: number): Promise<SyncLog | undefined>;
   getSyncLog(id: number): Promise<SyncLog | undefined>; // Legacy method, use getSyncLogById instead
   createSyncLog(log: InsertSyncLog): Promise<SyncLog>;
@@ -1563,6 +1564,22 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(syncLogs)
       .where(eq(syncLogs.syncType, syncType))
+      .orderBy(desc(syncLogs.createdAt))
+      .limit(limit);
+  }
+  
+  async getSyncLogsByTypePatterns(syncTypes: string[], limit: number = 100): Promise<SyncLog[]> {
+    if (!syncTypes || syncTypes.length === 0) {
+      return [];
+    }
+    
+    // Erstelle eine OR-Bedingung für alle syncTypes
+    const conditions = syncTypes.map(type => eq(syncLogs.syncType, type));
+    
+    return await db
+      .select()
+      .from(syncLogs)
+      .where(or(...conditions))
       .orderBy(desc(syncLogs.createdAt))
       .limit(limit);
   }

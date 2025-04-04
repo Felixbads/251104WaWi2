@@ -65,7 +65,7 @@ router.post('/export', async (req, res) => {
     res.status(500).json({ 
       status: 'error', 
       message: 'Interner Serverfehler beim Starten des Exports',
-      error: error.message
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 });
@@ -110,7 +110,7 @@ router.get('/export/status', (req, res) => {
     res.status(500).json({ 
       status: 'error', 
       message: 'Fehler beim Abrufen des Export-Status',
-      error: error.message
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 });
@@ -163,7 +163,65 @@ router.post('/import', async (req, res) => {
     res.status(500).json({ 
       status: 'error', 
       message: 'Interner Serverfehler beim Starten des Imports',
-      error: error.message
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Excel/JSON-Import-Logs abrufen
+router.get('/import/logs', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 50;
+    
+    // Hole Logs für Excel- und JSON-Importe
+    const logs = await storage.getSyncLogsByTypePatterns(['transactions_excel_import', 'json-import'], limit);
+    
+    // Sortiere nach Erstellungsdatum (neueste zuerst)
+    logs.sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
+    
+    return res.status(200).json({
+      status: 'success',
+      count: logs.length,
+      logs: logs.map(log => {
+        // Parse additionalData wenn vorhanden
+        let parsedAdditionalData = null;
+        if (log.additionalData) {
+          try {
+            parsedAdditionalData = JSON.parse(log.additionalData);
+          } catch (e) {
+            console.error('Fehler beim Parsen der Log-Metadaten:', e);
+          }
+        }
+        
+        // Bereite ein strukturiertes Log-Objekt vor
+        return {
+          id: log.id,
+          syncType: log.syncType,
+          startDate: log.startDate,
+          endDate: log.endDate,
+          itemsFound: log.itemsFound,
+          itemsSaved: log.itemsSaved,
+          itemsUpdated: log.itemsUpdated,
+          duplicates: log.duplicates,
+          errors: log.errors,
+          syncStatus: log.syncStatus,
+          durationSeconds: log.durationSeconds,
+          errorMessage: log.errorMessage,
+          createdAt: log.createdAt,
+          additionalData: parsedAdditionalData
+        };
+      })
+    });
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Import-Logs:', error);
+    res.status(500).json({ 
+      status: 'error', 
+      message: 'Fehler beim Abrufen der Import-Logs',
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 });
