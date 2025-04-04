@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import {
@@ -130,9 +130,21 @@ const COLORS = [
   "#bc5090"
 ];
 
+// DEBUG-COUNTER FÜR API-AUFRUFE
+let apiCallCounter = 0;
+let lastApiCallTime = Date.now();
+
 // Echte Daten aus der Datenbank
 // API-Aufrufe für KPI-Daten
 const useKpiData = (startDate: Date, endDate: Date) => {
+  // DEBUG: Protokollieren der API-Aufrufe und Zeitabstände
+  apiCallCounter++;
+  const now = Date.now();
+  const timeSinceLastCall = now - lastApiCallTime;
+  lastApiCallTime = now;
+  console.log(`DEBUG [${apiCallCounter}] useKpiData aufgerufen (${timeSinceLastCall}ms seit letztem Aufruf)`);
+  console.log(`DEBUG mit Daten: startDate=${startDate.toISOString()}, endDate=${endDate.toISOString()}`);
+  
   // Wir verwenden String-Timestamps anstelle von Date-Objekten für Konsistenz im Cache
   const startTimestamp = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
   const endTimestamp = endDate.toISOString().split('T')[0]; // YYYY-MM-DD
@@ -140,6 +152,7 @@ const useKpiData = (startDate: Date, endDate: Date) => {
   const { data, isLoading, error } = useQuery({
     queryKey: ['/api/transactions/summary', startTimestamp, endTimestamp],
     queryFn: async () => {
+      console.log(`DEBUG API-Anfrage wird tatsächlich gesendet: /api/transactions/summary`);
       try {
         // Annahme: Es gibt einen API-Endpunkt, der Zusammenfassungsdaten liefert
         const response = await fetch(`/api/transactions/summary?start=${startDate.toISOString()}&end=${endDate.toISOString()}`);
@@ -253,18 +266,25 @@ interface DateRangeFilterProps {
   setDateRange: (range: DateRange) => void;
   preset: string;
   setPreset: (preset: string) => void;
+  onApplyFilter?: () => void; // Optionale Callback-Funktion für explizite Aktualisierung
 }
 
-const DateRangeFilter = ({ dateRange, setDateRange, preset, setPreset }: DateRangeFilterProps) => {
+const DateRangeFilter = ({ dateRange, setDateRange, preset, setPreset, onApplyFilter }: DateRangeFilterProps) => {
   const [isCustomOpen, setIsCustomOpen] = useState(false);
   // Wir verwenden useEffect, um tempStartDate und tempEndDate nur einmal zu initialisieren 
   // oder wenn dateRange explizit geändert wird, um Endlos-Aktualisierungen zu vermeiden
   const [tempStartDate, setTempStartDate] = useState<Date>(new Date(dateRange.startDate));
   const [tempEndDate, setTempEndDate] = useState<Date>(new Date(dateRange.endDate));
   
+  // Debug-Zähler für Komponenten-Renders
+  const renderCount = React.useRef(0);
+  renderCount.current++;
+  console.log(`DEBUG DateRangeFilter gerendert (${renderCount.current} Mal)`);
+  
   // Aktualisiere die temporären Daten nur wenn der Dialog geöffnet wird
   useEffect(() => {
     if (isCustomOpen) {
+      console.log("DEBUG Dialog geöffnet, aktualisiere temporäre Datumsauswahl");
       setTempStartDate(new Date(dateRange.startDate));
       setTempEndDate(new Date(dateRange.endDate));
     }
@@ -608,22 +628,38 @@ function KpiCard({
 
 // Hauptkomponente für die Auswertungsseite
 export default function Reporting() {
+  // Debug-Zähler für Komponenten-Renders
+  const renderCount = React.useRef(0);
+  renderCount.current++;
+  console.log(`DEBUG Reporting-Hauptkomponente gerendert (${renderCount.current} Mal)`);
+
   // Status-Variablen
   const today = new Date();
   const [activeTab, setActiveTab] = useState("overview");
   const [dateRangePreset, setDateRangePreset] = useState("month");
-  const [dateRange, setDateRange] = useState<DateRange>({
+  
+  // Stabile Initialisierung des Datumsbereichs - Nur genau einmal ausgeführt
+  const initialDateRange = React.useMemo(() => ({
     startDate: new Date(today.getFullYear(), today.getMonth(), 1),
-    endDate: new Date()
-  });
+    endDate: new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59)
+  }), []);
+  
+  const [dateRange, setDateRange] = useState<DateRange>(initialDateRange);
   const [isLoading, setIsLoading] = useState(false);
   
+  // Memoize die Datumsbereichsobjekte, um Referenzänderungen zu vermeiden
+  const memoizedDateRange = React.useMemo(() => ({
+    startDate: dateRange.startDate,
+    endDate: dateRange.endDate
+  }), [dateRange.startDate.toISOString(), dateRange.endDate.toISOString()]);
+  
   // API-Daten mit dem useKpiData Hook abrufen
+  // WICHTIG: Wir senden nicht direkt dateRange, sondern die memoisierten Werte
   const { 
     data: kpiData, 
     isLoading: isKpiLoading, 
     error: kpiError 
-  } = useKpiData(dateRange.startDate, dateRange.endDate);
+  } = useKpiData(memoizedDateRange.startDate, memoizedDateRange.endDate);
   
   // Weitere Daten abfragen mit besserer Cache-Konfiguration
   const { data: machinesData } = useQuery({
