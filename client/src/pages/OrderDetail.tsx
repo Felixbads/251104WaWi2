@@ -592,18 +592,94 @@ Nationalpark Zentrum`);
   };
   
   // E-Mail versenden
-  const handleSendEmail = () => {
+  const handleSendEmail = async () => {
     if (!order || !pdfBlob) return;
     
-    // In einer realen Anwendung würde hier der E-Mail-Versand implementiert werden
-    // mit dem PDF als Anhang und mit korrekter Fehlererkennung usw.
-    
-    toast({
-      title: "E-Mail versendet",
-      description: `Die Bestellung wurde per E-Mail an ${emailAddress} gesendet.`
-    });
-    
-    setShowEmailDialog(false);
+    try {
+      // PDF in Base64 konvertieren
+      const reader = new FileReader();
+      
+      // Als Promise umwandeln
+      const pdfBase64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => {
+          const base64 = reader.result?.toString().split(',')[1];
+          if (base64) {
+            resolve(base64);
+          } else {
+            reject(new Error("Fehler beim Konvertieren der PDF-Datei"));
+          }
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(pdfBlob);
+      });
+      
+      // Bestellungs-ID extrahieren
+      const orderId = order.id;
+      
+      // Daten für API-Anfrage vorbereiten
+      const emailData = {
+        orderId: orderId,
+        supplierEmail: emailAddress,
+        pdfBase64: pdfBase64,
+        additionalNotes: emailText
+      };
+      
+      // Lädt-Status anzeigen
+      toast({
+        title: "E-Mail wird gesendet",
+        description: "Bitte warten..."
+      });
+      
+      // API-Anfrage senden
+      const response = await fetch('/api/email/order-confirmation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(emailData),
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Fehler beim Senden der E-Mail: ${response.statusText}`);
+      }
+      
+      // Erfolgsmeldung anzeigen
+      toast({
+        title: "E-Mail versendet",
+        description: `Die Bestellung wurde per E-Mail an ${emailAddress} gesendet.`
+      });
+      
+      // Bestehende Statushistorie als Array verarbeiten
+      const currentHistory = Array.isArray(order.statusHistory) 
+        ? order.statusHistory 
+        : (order.statusHistory ? JSON.parse(order.statusHistory as string) : []);
+      
+      // Neuen Status hinzufügen, wenn wir noch nicht im Status 'ordered' sind
+      if (order.status !== 'ordered') {
+        const newStatusEntry = {
+          status: "ordered",
+          timestamp: new Date().toISOString(),
+          note: `Bestellung per E-Mail an ${emailAddress} gesendet`
+        };
+        
+        // Bestellstatus aktualisieren
+        await updateOrderMutation.mutateAsync({ 
+          status: "ordered", 
+          statusHistory: JSON.stringify([...currentHistory, newStatusEntry]) 
+        });
+      }
+      
+      // Dialog schließen
+      setShowEmailDialog(false);
+    } catch (error) {
+      // Fehlermeldung anzeigen
+      toast({
+        title: "Fehler beim Senden der E-Mail",
+        description: (error as Error).message,
+        variant: "destructive"
+      });
+    }
   };
   
   // Ladeansicht
