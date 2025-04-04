@@ -250,8 +250,18 @@ interface DateRangeFilterProps {
 
 const DateRangeFilter = ({ dateRange, setDateRange, preset, setPreset }: DateRangeFilterProps) => {
   const [isCustomOpen, setIsCustomOpen] = useState(false);
-  const [tempStartDate, setTempStartDate] = useState<Date>(dateRange.startDate);
-  const [tempEndDate, setTempEndDate] = useState<Date>(dateRange.endDate);
+  // Wir verwenden useEffect, um tempStartDate und tempEndDate nur einmal zu initialisieren 
+  // oder wenn dateRange explizit geändert wird, um Endlos-Aktualisierungen zu vermeiden
+  const [tempStartDate, setTempStartDate] = useState<Date>(new Date(dateRange.startDate));
+  const [tempEndDate, setTempEndDate] = useState<Date>(new Date(dateRange.endDate));
+  
+  // Aktualisiere die temporären Daten wenn sich dateRange ändert (nur bei Dialog-Öffnung)
+  useEffect(() => {
+    if (isCustomOpen) {
+      setTempStartDate(new Date(dateRange.startDate));
+      setTempEndDate(new Date(dateRange.endDate));
+    }
+  }, [isCustomOpen, dateRange.startDate, dateRange.endDate]);
 
   const handlePresetChange = (value: string) => {
     setPreset(value);
@@ -622,9 +632,22 @@ export default function Reporting() {
     }, 500);
   };
   
-  // Beim Ändern des Zeitraums Daten aktualisieren
+  // Beim Ändern des Zeitraums Daten aktualisieren, aber mit Debounce
   useEffect(() => {
-    refreshData();
+    // Referenz auf den aktuellen Zeitraum für den Clean-up
+    const currentStartDate = dateRange.startDate;
+    const currentEndDate = dateRange.endDate;
+    
+    // Wir verhindern mehrfache Aktualisierungen innerhalb kurzer Zeit
+    const timeoutId = setTimeout(() => {
+      // Prüfen, ob sich der Zeitraum seit dem Start des Timeouts geändert hat
+      if (dateRange.startDate === currentStartDate && dateRange.endDate === currentEndDate) {
+        refreshData();
+      }
+    }, 500);
+    
+    // Cleanup-Funktion, die den Timeout aufräumt
+    return () => clearTimeout(timeoutId);
   }, [dateRange.startDate, dateRange.endDate]);
   
   return (
