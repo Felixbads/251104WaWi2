@@ -747,8 +747,9 @@ function NewOrderForm({
           description: "Ihre Bestellung wurde als Entwurf gespeichert.",
         });
         
-        // Zur Bestellübersicht zurückkehren
-        setLocation('/bestellungen');
+        // Statt Navigation initiieren wir einen Callback zur übergeordneten Komponente
+        // setLocation('/bestellungen');
+        onBack(); // Zurück zum Hauptbildschirm, aber im richtigen Kontext
       }, 1000);
       
     } catch (error) {
@@ -799,8 +800,9 @@ function NewOrderForm({
         // Nur den lokalen orderItems-Zustand zurücksetzen
         setOrderItems([]);
         
-        // Zur Bestellübersicht zurückkehren
-        setLocation('/bestellungen');
+        // Statt Navigation initiieren wir einen Callback zur übergeordneten Komponente
+        // setLocation('/bestellungen');
+        onBack(); // Zurück zum Hauptbildschirm, aber im richtigen Kontext
       }, 1500);
       
     } catch (error) {
