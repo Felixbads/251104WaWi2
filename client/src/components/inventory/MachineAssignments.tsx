@@ -97,7 +97,22 @@ export default function MachineAssignments() {
       return await apiRequest('/api/machine-warehouse-assignments', data, 'POST');
     },
     onSuccess: async (data, variables) => {
+      // Ungültig machen der Abfrage mit allen möglichen Filterkombinationen
       queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
+      
+      // Explizit die gefilterte Abfrage ungültig machen
+      if (selectedWarehouse !== 'all') {
+        queryClient.invalidateQueries({ 
+          queryKey: ['/api/machine-warehouse-assignments', { warehouseId: parseInt(selectedWarehouse) }] 
+        });
+      }
+      
+      // Die Inventarliste für das betroffene Lager aktualisieren
+      if (variables.warehouseId) {
+        queryClient.invalidateQueries({ 
+          queryKey: ['/api/inventory', { warehouseId: variables.warehouseId }] 
+        });
+      }
       toast({
         title: 'Automat zugeordnet',
         description: 'Der Automat wurde erfolgreich dem Lager zugeordnet.',
