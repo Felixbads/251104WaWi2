@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -94,9 +94,14 @@ export default function MachineAssignments() {
   // Mutation für das Erstellen von Automaten-Zuordnungen
   const createAssignmentMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await apiRequest('/api/machine-warehouse-assignments', data, 'POST');
+      console.log("Senden der Daten zum Backend:", data);
+      const result = await apiRequest('/api/machine-warehouse-assignments', data, 'POST');
+      console.log("Antwort vom Backend:", result);
+      return result;
     },
     onSuccess: async (data, variables) => {
+      console.log("Zuordnung erfolgreich erstellt:", data);
+      
       // Ungültig machen der Abfrage mit allen möglichen Filterkombinationen
       queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
       
@@ -168,6 +173,19 @@ export default function MachineAssignments() {
     });
   };
 
+  // Debug: Daten in der Konsole anzeigen, wenn sie sich ändern
+  useEffect(() => {
+    if (assignments) {
+      console.log("Aktuelle Zuordnungen:", assignments);
+    }
+    if (machines) {
+      console.log("Verfügbare Maschinen:", machines);
+    }
+    if (warehouses) {
+      console.log("Verfügbare Lager:", warehouses);
+    }
+  }, [assignments, machines, warehouses]);
+
   // Rendering bei Ladevorgang
   if (warehousesLoading || machinesLoading || assignmentsLoading) {
     return (
@@ -232,7 +250,7 @@ export default function MachineAssignments() {
                 <SelectItem value="all">Alle Automaten</SelectItem>
                 {Array.isArray(machines) ? machines.map((machine: any) => (
                   <SelectItem key={machine.id} value={machine.id.toString()}>
-                    {machine.name}
+                    {machine.machineName || machine.name}
                   </SelectItem>
                 )) : null}
               </SelectContent>
