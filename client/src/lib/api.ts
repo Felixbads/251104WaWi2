@@ -493,6 +493,58 @@ export async function getTransactionsByDateRange(
   );
 }
 
+// Transaktionen als Excel-Datei exportieren
+export async function exportTransactionsToExcel(startDate?: string, endDate?: string, limit?: number) {
+  const params: Record<string, string> = {};
+  
+  if (startDate) params.startDate = startDate;
+  if (endDate) params.endDate = endDate;
+  if (limit) params.limit = limit.toString();
+  
+  // Direkten Download mit axios als Blob anfordern
+  const response = await axios.get(`${API_BASE_URL}/export/transactions`, {
+    params,
+    responseType: 'blob'
+  });
+  
+  // Datei herunterladen
+  const url = window.URL.createObjectURL(new Blob([response.data]));
+  const link = document.createElement('a');
+  
+  // Dateinamen erstellen
+  const filename = startDate && endDate 
+    ? `transactions_${startDate.split('T')[0]}_to_${endDate.split('T')[0]}.xlsx`
+    : `transactions_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+  
+  link.href = url;
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  
+  return { success: true, filename };
+}
+
+// Transaktionen aus Excel-Datei importieren
+export async function importTransactionsFromExcel(file: File, onProgress?: (progress: number) => void) {
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const response = await axios.post(`${API_BASE_URL}/import/transactions`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    },
+    onUploadProgress: (progressEvent) => {
+      if (onProgress && progressEvent.total) {
+        const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        onProgress(progress);
+      }
+    }
+  });
+  
+  return response.data;
+}
+
 export async function getTransactionsByMachine(
   machineId: string,
   limit = 50,

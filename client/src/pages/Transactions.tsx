@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,9 +14,18 @@ import {
   RefreshCw, 
   FileDown, 
   AlertTriangle,
-  X
+  X,
+  FileUp,
+  FileCheck,
+  Loader2
 } from "lucide-react";
-import { getTransactions, getTransactionsByDateRange, formatDateTime } from "@/lib/api";
+import { 
+  getTransactions, 
+  getTransactionsByDateRange, 
+  formatDateTime,
+  exportTransactionsToExcel,
+  importTransactionsFromExcel
+} from "@/lib/api";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -27,6 +36,16 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 
 export default function Transactions() {
   const { toast } = useToast();
@@ -86,13 +105,106 @@ export default function Transactions() {
     }
   };
 
+  // Reference for file input
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // States for import dialog
+  const [importIsOpen, setImportIsOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importResult, setImportResult] = useState<any>(null);
+  
   // Handle export
-  const handleExport = () => {
-    toast({
-      title: "Export gestartet",
-      description: "Die Transaktionen werden als CSV exportiert.",
-    });
-    // In a real implementation, this would trigger a download
+  const handleExport = async () => {
+    try {
+      toast({
+        title: "Excel-Export gestartet",
+        description: "Die Transaktionen werden als Excel-Datei exportiert.",
+      });
+      
+      await exportTransactionsToExcel(
+        startDate?.toISOString(),
+        endDate?.toISOString(),
+        limit
+      );
+      
+      toast({
+        title: "Export erfolgreich",
+        description: "Die Transaktionen wurden erfolgreich exportiert.",
+      });
+    } catch (error) {
+      console.error('Fehler beim Exportieren:', error);
+      
+      toast({
+        title: "Fehler beim Exportieren",
+        description: error instanceof Error ? error.message : "Unbekannter Fehler beim Exportieren",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  // Handle file selection
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      setImportFile(file);
+    }
+  };
+  
+  // Handle file import
+  const handleImport = async () => {
+    if (!importFile) {
+      toast({
+        title: "Keine Datei ausgewählt",
+        description: "Bitte wähle eine Excel-Datei aus.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      setIsImporting(true);
+      setImportProgress(0);
+      setImportResult(null);
+      
+      const result = await importTransactionsFromExcel(importFile, (progress) => {
+        setImportProgress(progress);
+      });
+      
+      setImportResult(result);
+      
+      // Aktualisiere die Transaktionsliste nach dem Import
+      refetch();
+      
+      toast({
+        title: "Import erfolgreich",
+        description: `${result.results.saved} Transaktionen erfolgreich importiert.`,
+      });
+      
+      // Schließe den Dialog nach kurzer Verzögerung
+      setTimeout(() => {
+        setImportIsOpen(false);
+        setImportFile(null);
+        setImportProgress(0);
+        setImportResult(null);
+        
+        if (fileInputRef.current) {
+          fileInputRef.current.value = "";
+        }
+      }, 3000);
+      
+    } catch (error) {
+      console.error('Fehler beim Importieren:', error);
+      
+      toast({
+        title: "Fehler beim Importieren",
+        description: error instanceof Error ? error.message : "Unbekannter Fehler beim Importieren",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImporting(false);
+    }
   };
   
   // Clear specific filter
@@ -246,7 +358,114 @@ export default function Transactions() {
                   Export
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Als CSV exportieren</TooltipContent>
+              <TooltipContent>Als Excel exportieren</TooltipContent>
+            </Tooltip>
+            
+            {/* Import Button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Dialog open={importIsOpen} onOpenChange={setImportIsOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="h-9 flex items-center"
+                    >
+                      <FileUp className="h-4 w-4 mr-1.5" />
+                      Import
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Transaktionen importieren</DialogTitle>
+                      <DialogDescription>
+                        Lade eine Excel-Datei mit Transaktionsdaten hoch, um sie zu importieren.
+                      </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="space-y-4 py-4">
+                      <div className="flex items-center gap-4">
+                        <Label htmlFor="file" className="w-24 text-right">
+                          Excel-Datei
+                        </Label>
+                        <Input
+                          id="file"
+                          ref={fileInputRef}
+                          type="file"
+                          accept=".xlsx,.xls"
+                          onChange={handleFileSelected}
+                          disabled={isImporting}
+                        />
+                      </div>
+                      
+                      {importFile && (
+                        <div className="flex items-center gap-4">
+                          <Label className="w-24 text-right">
+                            Ausgewählt
+                          </Label>
+                          <div className="flex items-center space-x-2">
+                            <FileCheck className="h-4 w-4 text-green-500" />
+                            <span className="text-sm">{importFile.name}</span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {isImporting && (
+                        <div className="flex items-center gap-4">
+                          <Label className="w-24 text-right">
+                            Fortschritt
+                          </Label>
+                          <div className="flex-1 space-y-1">
+                            <Progress value={importProgress} />
+                            <p className="text-xs text-muted-foreground text-right">
+                              {importProgress}%
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {importResult && (
+                        <div className="rounded-md bg-muted p-4">
+                          <div className="flex">
+                            <div className="flex-shrink-0">
+                              <FileCheck className="h-5 w-5 text-green-400" />
+                            </div>
+                            <div className="ml-3">
+                              <h3 className="text-sm font-medium text-green-800">
+                                Import erfolgreich
+                              </h3>
+                              <div className="mt-2 text-sm text-green-700">
+                                <ul className="list-disc space-y-1 pl-5">
+                                  <li>Gesamt: {importResult.results.total}</li>
+                                  <li>Importiert: {importResult.results.saved}</li>
+                                  <li>Duplikate: {importResult.results.duplicates}</li>
+                                  <li>Fehler: {importResult.results.errors}</li>
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setImportIsOpen(false)} disabled={isImporting}>
+                        Abbrechen
+                      </Button>
+                      <Button onClick={handleImport} disabled={!importFile || isImporting}>
+                        {isImporting ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Importiere...
+                          </>
+                        ) : (
+                          "Importieren"
+                        )}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </TooltipTrigger>
+              <TooltipContent>Aus Excel importieren</TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>

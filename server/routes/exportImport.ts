@@ -6,7 +6,8 @@ import {
   insertSupplierSchema, 
   insertProductSchema,
   insertOrderSchema,
-  insertOrderItemSchema
+  insertOrderItemSchema,
+  insertTransactionSchema
 } from "@shared/schema";
 import fileUpload from "express-fileupload";
 
@@ -154,6 +155,67 @@ router.get("/export/orders", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Fehler beim Exportieren der Bestellungen:", error);
     res.status(500).json({ error: "Fehler beim Exportieren der Bestellungen" });
+  }
+});
+
+// Export von Transaktionen
+router.get("/export/transactions", async (req: Request, res: Response) => {
+  try {
+    // Parameter für Datumsbereich abrufen
+    const startDateParam = req.query.startDate as string;
+    const endDateParam = req.query.endDate as string;
+    const limitParam = req.query.limit as string;
+    
+    let transactions = [];
+    
+    // Transaktionen je nach Parametern abrufen
+    if (startDateParam && endDateParam) {
+      // Datumsbereich konvertieren
+      const startDate = new Date(startDateParam);
+      const endDate = new Date(endDateParam);
+      const limit = limitParam ? parseInt(limitParam) : 1000;
+      
+      // Daten mit Datumsbereich abrufen
+      transactions = await storage.getTransactionsByDateRange(startDate, endDate, limit);
+    } else {
+      // Alle Transaktionen abrufen (mit Limit)
+      const limit = limitParam ? parseInt(limitParam) : 1000;
+      transactions = await storage.getTransactions(limit);
+    }
+    
+    // Überprüfen, ob Daten vorhanden sind
+    if (!transactions || transactions.length === 0) {
+      return res.status(404).json({ error: "Keine Transaktionen gefunden" });
+    }
+    
+    // XLSX-Arbeitsmappe erstellen
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(transactions);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Transaktionen");
+    
+    // Dateiname mit Datumsbereich erstellen, falls vorhanden
+    let filename = "transaktionen_export_";
+    if (startDateParam && endDateParam) {
+      const startFormatted = new Date(startDateParam).toISOString().split('T')[0];
+      const endFormatted = new Date(endDateParam).toISOString().split('T')[0];
+      filename += `${startFormatted}_bis_${endFormatted}`;
+    } else {
+      filename += new Date().toISOString().split('T')[0];
+    }
+    filename += ".xlsx";
+    
+    // Als Buffer zurückgeben
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+    
+    // HTTP-Header setzen
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
+    
+    // Buffer als Antwort senden
+    res.send(buffer);
+  } catch (error) {
+    console.error("Fehler beim Exportieren der Transaktionen:", error);
+    res.status(500).json({ error: "Fehler beim Exportieren der Transaktionen" });
   }
 });
 
@@ -405,6 +467,139 @@ router.post("/import/orders", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Fehler beim Importieren der Bestellungen:", error);
     res.status(500).json({ error: "Fehler beim Importieren der Bestellungen" });
+  }
+});
+
+// Validierungsschema für den Transaktionsimport
+const transactionImportSchema = z.array(
+  insertTransactionSchema
+);
+
+// Import von Transaktionen
+router.post("/import/transactions", async (req: Request, res: Response) => {
+  try {
+    // Datei aus dem Request
+    if (!req.files || !req.files.file) {
+      return res.status(400).json({ error: "Keine Datei hochgeladen" });
+    }
+    
+    const file = Array.isArray(req.files.file) ? req.files.file[0] : req.files.file;
+    
+    // XLSX-Datei lesen
+    const workbook = XLSX.read(file.data);
+    
+    // Erstes Arbeitsblatt auswählen (oder spezifisches, falls angegeben)
+    const sheetName = req.body.sheetName || workbook.SheetNames[0];
+    if (!workbook.SheetNames.includes(sheetName)) {
+      return res.status(400).json({ 
+        error: `Arbeitsblatt "${sheetName}" nicht in der Excel-Datei gefunden.` 
+      });
+    }
+    
+    // In JSON konvertieren
+    const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+    
+    console.log(`${jsonData.length} Zeilen aus Excel-Datei geladen.`);
+    
+    // Ergebnisse für den Import speichern
+    const results = {
+      total: jsonData.length,
+      saved: 0,
+      duplicates: 0,
+      errors: 0,
+      errorDetails: [] as any[]
+    };
+    
+    // Jede Zeile in der Datenbank speichern
+    for (let index = 0; index < jsonData.length; index++) {
+      const row = jsonData[index];
+      try {
+        // Versuche, vendonId zu extrahieren (kann unterschiedlich benannt sein)
+        const vendonId = row.vendonId || row.vendon_id || row.transaction_id || row.id;
+        
+        if (!vendonId) {
+          console.warn(`Zeile ${index + 1}: Keine vendonId gefunden, überspringe...`);
+          results.errors++;
+          results.errorDetails.push({
+            row: index + 1,
+            error: 'Keine vendonId gefunden',
+            data: row
+          });
+          continue;
+        }
+        
+        // Prüfe, ob die Transaktion bereits existiert
+        const existingTransaction = await storage.getTransactionByVendonId(vendonId.toString());
+        
+        if (existingTransaction) {
+          console.log(`Zeile ${index + 1}: Transaktion mit vendonId ${vendonId} existiert bereits.`);
+          results.duplicates++;
+          continue;
+        }
+        
+        // Konvertiere Datumsfelder
+        const transactionData: any = { ...row };
+        
+        // Setze vendonId korrekt
+        transactionData.vendonId = vendonId.toString();
+        
+        // Konvertiere Datum
+        if (transactionData.datetime) {
+          if (typeof transactionData.datetime === 'number') {
+            // Excel Datum als Zahl
+            const date = new Date((transactionData.datetime - 25569) * 86400 * 1000);
+            transactionData.datetime = date;
+          } else if (typeof transactionData.datetime === 'string') {
+            // String-Datum
+            transactionData.datetime = new Date(transactionData.datetime);
+          }
+        } else {
+          // Fallback: aktuelles Datum
+          transactionData.datetime = new Date();
+        }
+        
+        // Setze Standardwerte für Pflichtfelder
+        transactionData.price = transactionData.price || 0;
+        transactionData.source = transactionData.source || 'excel-import';
+        
+        // Transaktion in der Datenbank speichern
+        await storage.createTransaction(transactionData);
+        results.saved++;
+        
+        // Statusmeldung bei größeren Importen
+        if (index % 50 === 0 || index === jsonData.length - 1) {
+          console.log(`Importfortschritt: ${index + 1}/${jsonData.length} (${Math.round((index + 1) / jsonData.length * 100)}%)`);
+        }
+      } catch (error) {
+        console.error(`Fehler beim Verarbeiten der Zeile ${index + 1}:`, error);
+        results.errors++;
+        results.errorDetails.push({
+          row: index + 1,
+          error: error instanceof Error ? error.message : 'Unbekannter Fehler',
+          data: row
+        });
+      }
+    }
+    
+    // Sende Ergebnis zurück
+    res.json({
+      status: 'success',
+      message: `Import abgeschlossen. ${results.saved} Transaktionen erfolgreich importiert.`,
+      results: {
+        total: results.total,
+        saved: results.saved,
+        duplicates: results.duplicates,
+        errors: results.errors,
+        errorDetails: results.errorDetails.slice(0, 10) // Begrenzen auf 10 Fehlerdetails
+      }
+    });
+  } catch (error) {
+    console.error("Fehler beim Importieren der Transaktionen:", error);
+    res.status(500).json({ 
+      status: 'error',
+      error: "Fehler beim Importieren der Transaktionen",
+      details: error instanceof Error ? error.message : String(error)
+    });
   }
 });
 
