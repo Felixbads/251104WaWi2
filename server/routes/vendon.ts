@@ -4,6 +4,9 @@ import { historicalVendonSync } from '../services/historicalVendonSync';
 import { storage } from '../storage';
 import { MachineStock, historicalSyncOptionsSchema } from '@shared/schema';
 import { UploadedFile } from 'express-fileupload';
+import { SQL, and, asc, between, count, desc, eq, gt, gte, lt, lte, sql } from 'drizzle-orm';
+import { db } from '../db';
+import { transactions } from '@shared/schema';
 import { z } from 'zod';
 
 // Erweitere den Express Request-Typ um files-Eigenschaft
@@ -990,6 +993,102 @@ router.post('/import/excel', async (req: FileUploadRequest, res: Response) => {
     return res.status(500).json({
       status: 'error',
       message: `Fehler beim Import: ${error instanceof Error ? error.message : String(error)}`
+    });
+  }
+});
+
+/**
+ * Endpunkt für die Verfügbarkeit von historischen Transaktionsdaten
+ * GET /api/vendon/historical-data-availability
+ * 
+ * Liefert aggregierte Daten über die Verfügbarkeit von Transaktionen in verschiedenen Zeiträumen.
+ * Dies hilft bei der Visualisierung, für welche Zeiträume bereits Daten importiert wurden.
+ */
+router.get('/historical-data-availability', async (req: Request, res: Response) => {
+  try {
+    console.log('Abfrage der historischen Datenverfügbarkeit');
+    
+    // Parameter für die Granularität (Monat oder Tag)
+    const granularity = req.query.granularity as string || 'month';
+    
+    // Start- und Endzeiten für die Abfrage
+    const startDate = req.query.startDate ? new Date(req.query.startDate as string) : new Date('2022-01-01');
+    const endDate = req.query.endDate ? new Date(req.query.endDate as string) : new Date();
+    
+    console.log(`Prüfe Datenverfügbarkeit von ${startDate.toISOString()} bis ${endDate.toISOString()} mit Granularität: ${granularity}`);
+    
+    let result;
+    
+    // Je nach gewünschter Granularität unterschiedliche SQL-Abfragen
+    if (granularity === 'day') {
+      // Tägliche Granularität
+      result = await db.select({
+        date: sql`DATE_TRUNC('day', datetime)`,
+        count: count(),
+      })
+      .from(transactions)
+      .where(
+        and(
+          gte(transactions.datetime, startDate),
+          lte(transactions.datetime, endDate)
+        )
+      )
+      .groupBy(sql`DATE_TRUNC('day', datetime)`)
+      .orderBy(sql`DATE_TRUNC('day', datetime)`);
+      
+    } else {
+      // Monatliche Granularität (Standardwert)
+      result = await db.select({
+        date: sql`DATE_TRUNC('month', datetime)`,
+        count: count(),
+      })
+      .from(transactions)
+      .where(
+        and(
+          gte(transactions.datetime, startDate),
+          lte(transactions.datetime, endDate)
+        )
+      )
+      .groupBy(sql`DATE_TRUNC('month', datetime)`)
+      .orderBy(sql`DATE_TRUNC('month', datetime)`);
+    }
+    
+    // Formatiere die Ergebnisse für eine einfachere Verwendung im Frontend
+    const formattedResult = result.map(item => ({
+      date: item.date,
+      count: Number(item.count)
+    }));
+    
+    // Statistik über die Gesamtzahl der Transaktionen im angegebenen Zeitraum
+    const totalStats = await db.select({
+      total: count(),
+      minDate: sql<string>`MIN(datetime)::text`,
+      maxDate: sql<string>`MAX(datetime)::text`
+    })
+    .from(transactions)
+    .where(
+      and(
+        gte(transactions.datetime, startDate),
+        lte(transactions.datetime, endDate)
+      )
+    );
+    
+    return res.json({
+      status: 'success',
+      availability: formattedResult,
+      stats: totalStats[0] || { total: 0, minDate: null, maxDate: null },
+      parameters: {
+        granularity,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString()
+      }
+    });
+    
+  } catch (error) {
+    console.error('Fehler bei der Abfrage der historischen Datenverfügbarkeit:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: `Fehler bei der Abfrage der historischen Datenverfügbarkeit: ${error instanceof Error ? error.message : String(error)}`
     });
   }
 });

@@ -8,11 +8,13 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, CalendarIcon, AlertCircle, Clock, HistoryIcon } from "lucide-react";
+import { Loader2, CalendarIcon, AlertCircle, Clock, History, BarChart3 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { triggerHistoricalSync } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import HistoricalDataAvailability from "./HistoricalDataAvailability";
+import HistoricalSyncStatus from "./HistoricalSyncStatus";
 
 export default function HistoricalSyncTab() {
   const { toast } = useToast();
@@ -320,6 +322,16 @@ export default function HistoricalSyncTab() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Status der historischen Synchronisierung */}
+      <div className="mt-6">
+        <HistoricalSyncStatus />
+      </div>
+      
+      {/* Datenverfügbarkeitsvisualisierung */}
+      <div className="mt-6">
+        <HistoricalDataAvailability />
       </div>
     </div>
   );
