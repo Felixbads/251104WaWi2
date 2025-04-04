@@ -9,6 +9,7 @@ import { de } from "date-fns/locale";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { apiRequest } from "@/lib/queryClient";
+import { getPurchaseConditionsByProduct } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
 // UI Komponenten
@@ -539,21 +540,73 @@ function NewOrderForm({
     }
   }, [orderForm.watch('supplierId')]);
 
+  // Abfrage der Bestellbedingungen (Purchase Conditions) für ein Produkt
+  const [purchaseConditions, setPurchaseConditions] = useState<any[]>([]);
+
   // Wenn ein Produkt ausgewählt wird, Preis und andere Details aktualisieren
   useEffect(() => {
     const productId = itemForm.watch('productId');
+    
     if (productId && products) {
       const product = products.data.find((p: any) => p.id === productId);
+      
       if (product) {
         setSelectedProduct(product);
-        // Preis nur aktualisieren, wenn es noch nicht manuell angepasst wurde
-        const currentPrice = itemForm.watch('unitPrice');
-        if (currentPrice === 0 || !currentPrice) {
-          itemForm.setValue('unitPrice', product.purchasePrice || 0);
-        }
+        
+        // Bestellbedingungen für dieses Produkt abfragen
+        const fetchPurchaseConditions = async () => {
+          try {
+            const conditions = await getPurchaseConditionsByProduct(productId);
+            setPurchaseConditions(conditions);
+            
+            // Bevorzugte oder erste gültige Bedingung suchen
+            const currentDate = new Date();
+            const validConditions = conditions.filter((condition: any) => {
+              const validFrom = condition.validFrom ? new Date(condition.validFrom) : null;
+              const validTo = condition.validTo ? new Date(condition.validTo) : null;
+              
+              return (!validFrom || validFrom <= currentDate) && 
+                     (!validTo || validTo >= currentDate) &&
+                     (condition.supplierId === currentSupplierId);
+            });
+            
+            // Bevorzugte Bedingung finden oder erste gültige verwenden
+            const preferredCondition = validConditions.find((c: any) => c.isPreferred) || validConditions[0];
+            
+            if (preferredCondition) {
+              // Formular mit Werten aus der Bedingung aktualisieren
+              itemForm.setValue('unitPrice', preferredCondition.unitPrice);
+              
+              // Wenn Mindestmenge definiert ist, diese als Standard setzen
+              if (preferredCondition.minQuantity && preferredCondition.minQuantity > 0) {
+                itemForm.setValue('quantity', preferredCondition.minQuantity);
+              }
+              
+              toast({
+                title: "Einkaufsbedingungen geladen",
+                description: `Preis und Mindestmenge wurden aus den hinterlegten Einkaufsbedingungen übernommen.`,
+              });
+            } else {
+              // Wenn keine passende Bedingung gefunden wurde, Standardpreis verwenden
+              const currentPrice = itemForm.watch('unitPrice');
+              if (currentPrice === 0 || !currentPrice) {
+                itemForm.setValue('unitPrice', product.purchasePrice || 0);
+              }
+            }
+          } catch (error) {
+            console.error("Fehler beim Laden der Einkaufsbedingungen:", error);
+            // Nur den Standard-Preis aus dem Produkt setzen
+            const currentPrice = itemForm.watch('unitPrice');
+            if (currentPrice === 0 || !currentPrice) {
+              itemForm.setValue('unitPrice', product.purchasePrice || 0);
+            }
+          }
+        };
+        
+        fetchPurchaseConditions();
       }
     }
-  }, [itemForm.watch('productId'), products]);
+  }, [itemForm.watch('productId'), products, currentSupplierId]);
   
   // Bestellposition hinzufügen
   const addOrderItem = (data: OrderItemValues) => {
@@ -933,7 +986,12 @@ function NewOrderForm({
             </DialogHeader>
             
             <Form {...itemForm}>
-              <form onSubmit={itemForm.handleSubmit(addOrderItem)} className="space-y-4">
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  itemForm.handleSubmit(addOrderItem)();
+                }} 
+                className="space-y-4">
                 <FormField
                   control={itemForm.control}
                   name="productId"
@@ -1124,7 +1182,7 @@ function NewOrderForm({
         
         <Button 
           type="button"
-          disabled={orderItems.length === 0}
+          disabled={orderItems.length === 0 || !orderForm.getValues('supplierId')}
           onClick={submitOrder}
         >
           <Save className="mr-2 h-4 w-4" />
