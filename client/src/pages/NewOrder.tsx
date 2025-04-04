@@ -747,9 +747,9 @@ function NewOrderForm({
           description: "Ihre Bestellung wurde als Entwurf gespeichert.",
         });
         
-        // Statt Navigation initiieren wir einen Callback zur übergeordneten Komponente
-        // setLocation('/bestellungen');
-        onBack(); // Zurück zum Hauptbildschirm, aber im richtigen Kontext
+        // Bei Abschluss des gesamten Prozesses wollen wir zur Übersicht navigieren
+        // Aber NUR wenn es ein echter Abschluss ist (speichern/absenden)
+        setLocation('/bestellungen');
       }, 1000);
       
     } catch (error) {
@@ -800,9 +800,9 @@ function NewOrderForm({
         // Nur den lokalen orderItems-Zustand zurücksetzen
         setOrderItems([]);
         
-        // Statt Navigation initiieren wir einen Callback zur übergeordneten Komponente
-        // setLocation('/bestellungen');
-        onBack(); // Zurück zum Hauptbildschirm, aber im richtigen Kontext
+        // Bei Abschluss des gesamten Prozesses wollen wir zur Übersicht navigieren
+        // aber NUR wenn es ein echter Abschluss ist (speichern/absenden)
+        setLocation('/bestellungen');
       }, 1500);
       
     } catch (error) {
@@ -1788,14 +1788,16 @@ export default function NewOrder() {
   // Bestellmodus ist anfangs null, bis der Benutzer einen Modus auswählt
   const [orderMode, setOrderMode] = useState<OrderMode | null>(null);
   
-  // Zurücksetzen der Zustände beim Start
+  // Zustände persistieren statt zurückzusetzen beim Start
   useEffect(() => {
-    // Zustandsrücksetzung beim Laden der Komponente
+    // Nichts tun beim Start - verhindert Zurücksetzen bei Re-Render
     return () => {
-      // Aufräumen beim Verlassen der Komponente
-      setStep(1);
-      setWarehouseId(null);
-      setOrderMode(null);
+      // Bei echtem Unmounting der Komponente aufräumen (z.B. Navigation zu anderer Seite)
+      // Aber nicht bei internen Updates durch Hinzufügen von Produkten etc.
+      // setStep(1);
+      // setWarehouseId(null);
+      // setOrderMode(null);
+      console.log("Component cleanup disabled to prevent state reset issues");
     };
   }, []);
   
