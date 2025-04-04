@@ -142,61 +142,8 @@ export default function MachineAssignments() {
     }
   });
   
-  // Mutation für das Erstellen von Automaten-Zuordnungen
-  const createAssignmentMutation = useMutation({
-    mutationFn: async (data: any) => {
-      console.log("Senden der Daten zum Backend:", data);
-      const result = await apiRequest('/api/machine-warehouse-assignments', data, 'POST');
-      console.log("Antwort vom Backend:", result);
-      return result;
-    },
-    onSuccess: async (data, variables) => {
-      console.log("Zuordnung erfolgreich erstellt:", data);
-      
-      // Ungültig machen der Abfrage mit allen möglichen Filterkombinationen
-      queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
-      
-      // Explizit die gefilterte Abfrage ungültig machen
-      if (selectedWarehouse !== 'all') {
-        queryClient.invalidateQueries({ 
-          queryKey: ['/api/machine-warehouse-assignments', { warehouseId: parseInt(selectedWarehouse) }] 
-        });
-      }
-      
-      // Die Inventarliste für das betroffene Lager aktualisieren
-      if (variables.warehouseId) {
-        queryClient.invalidateQueries({ 
-          queryKey: ['/api/inventory', { warehouseId: variables.warehouseId }] 
-        });
-      }
-      toast({
-        title: 'Automat zugeordnet',
-        description: 'Der Automat wurde erfolgreich dem Lager zugeordnet.',
-      });
-      
-      // Nach erfolgreicher Zuordnung die Produkte zum Lager hinzufügen
-      if (machineProducts && machineProducts.length > 0) {
-        try {
-          await addInventoryItemsMutation.mutateAsync({
-            warehouseId: variables.warehouseId,
-            products: machineProducts
-          });
-        } catch (error) {
-          console.error("Fehler beim Hinzufügen der Produkte:", error);
-          // Fehlerbehandlung wurde bereits in der Mutation durchgeführt
-        }
-      }
-      
-      closeAndResetDialog();
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Fehler bei der Zuordnung',
-        description: error.message || 'Der Automat konnte nicht zugeordnet werden.',
-        variant: 'destructive'
-      });
-    }
-  });
+  // Status und Handler für Zuordnungserstellung
+  const [isCreatingAssignment, setIsCreatingAssignment] = useState(false);
   
   // Hilfsfunktion zum Schließen und Zurücksetzen des Dialogs
   const closeAndResetDialog = () => {
@@ -217,6 +164,8 @@ export default function MachineAssignments() {
       return;
     }
     
+    setIsCreatingAssignment(true); // Status auf "erstellt" setzen
+    
     // Aktuelle Parameter in der Konsole ausgeben
     const assignmentData = {
       machineId: newAssignMachine,
@@ -227,13 +176,11 @@ export default function MachineAssignments() {
     
     console.log("Sende Zuordnungsdaten:", JSON.stringify(assignmentData));
     
-    // Direkte Fetch-Anfrage statt Mutation zum Debuggen
-    // Problem: die Authorization wurde mit Bearer gesendet, obwohl das Backend dies nicht verwendet
+    // Direkte Fetch-Anfrage mit Cookies für die Authentifizierung
     fetch('/api/machine-warehouse-assignments', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // Cookie Authentication wird automatisch vom Browser gesendet
       },
       body: JSON.stringify(assignmentData),
       credentials: 'include' // Wichtig: Cookies für die Authentifizierung senden
@@ -248,15 +195,35 @@ export default function MachineAssignments() {
     })
     .then(data => {
       console.log("Erfolgreich erstellt:", data);
+      
+      // Alle relevanten Anfragen ungültig machen
       queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
+      
+      // Auch die gefilterte Anfrage ungültig machen
+      if (selectedWarehouse !== 'all') {
+        queryClient.invalidateQueries({ 
+          queryKey: ['/api/machine-warehouse-assignments', { warehouseId: parseInt(selectedWarehouse) }] 
+        });
+      }
+      
+      // Die Inventarliste für das betroffene Lager aktualisieren
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/inventory', { warehouseId: newAssignWarehouse }] 
+      });
+      
+      // Erfolgsbenachrichtigung anzeigen
       toast({
         title: 'Zuordnung erstellt',
         description: 'Die Maschine wurde erfolgreich dem Lager zugeordnet'
       });
+      
+      // Dialog schließen und Zustand zurücksetzen
+      setIsCreatingAssignment(false);
       closeAndResetDialog();
     })
     .catch(error => {
       console.error("Fehler bei der Zuordnung:", error);
+      setIsCreatingAssignment(false);
       toast({
         title: 'Fehler',
         description: error.message,
@@ -444,9 +411,9 @@ export default function MachineAssignments() {
               </Button>
               <Button 
                 onClick={handleCreateAssignment}
-                disabled={createAssignmentMutation.isPending || !newAssignMachine || !newAssignWarehouse}
+                disabled={isCreatingAssignment || !newAssignMachine || !newAssignWarehouse}
               >
-                {createAssignmentMutation.isPending ? 'Wird erstellt...' : 'Zuordnung erstellen'}
+                {isCreatingAssignment ? 'Wird erstellt...' : 'Zuordnung erstellen'}
               </Button>
             </DialogFooter>
           </DialogContent>

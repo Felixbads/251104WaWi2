@@ -30,10 +30,20 @@ import InventoryCounts from '@/components/inventory/InventoryCounts';
 import MachineAssignments from '@/components/inventory/MachineAssignments';
 
 export default function Inventory() {
-  const [activeTab, setActiveTab] = useState('warehouses');
+  // Aktiven Tab aus localStorage laden oder Standard verwenden
+  const [activeTab, setActiveTab] = useState(() => {
+    const savedTab = localStorage.getItem('inventory-active-tab');
+    return savedTab || 'warehouses';
+  });
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("alle");
+  
+  // Bei Tab-Wechsel in localStorage speichern
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    localStorage.setItem('inventory-active-tab', value);
+  };
   
   return (
     <div className="space-y-6">
@@ -106,7 +116,7 @@ export default function Inventory() {
       </div>
       
       {/* Tabs für die verschiedenen Bestandsansichten */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="w-full justify-start overflow-x-auto py-1">
           <TabsTrigger value="warehouses" className="flex items-center">
             <Building2 className="mr-2 h-4 w-4" />
