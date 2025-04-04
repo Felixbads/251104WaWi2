@@ -550,7 +550,7 @@ function NewOrderForm({
       const newItem = {
         ...data,
         id: Date.now(), // Temporäre ID für die UI
-        productName: selectedProduct.name,
+        productName: selectedProduct.name || selectedProduct.productName,
         sku: selectedProduct.sku,
         supplierSku: selectedProduct.supplierSku,
         unit: selectedProduct.unit || 'stk',
@@ -900,7 +900,13 @@ function NewOrderForm({
         </div>
         
         {/* Dialog zum Hinzufügen einer Position */}
-        <Dialog open={showAddItem} onOpenChange={setShowAddItem}>
+        <Dialog 
+          open={showAddItem} 
+          onOpenChange={(open) => {
+            // Nur den Dialog schließen, aber nicht zur Lagerauswahl zurückkehren
+            setShowAddItem(open);
+          }}
+        >
           <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Position hinzufügen</DialogTitle>
@@ -1077,7 +1083,10 @@ function NewOrderForm({
                 )}
                 
                 <DialogFooter>
-                  <Button variant="outline" type="button" onClick={() => setShowAddItem(false)}>
+                  <Button variant="outline" type="button" onClick={() => {
+                    // Dialog nur schließen, nicht zur Lagerauswahl zurückkehren
+                    setShowAddItem(false);
+                  }}>
                     Abbrechen
                   </Button>
                   <Button type="submit">
