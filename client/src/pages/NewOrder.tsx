@@ -657,11 +657,13 @@ function NewOrderForm({
         // Bei Bedarf weitere Felder
       };
       
-      // Neue Bestellposition zum Array hinzufügen
-      setOrderItems(prevItems => [...prevItems, newItem]);
+      // Neue Bestellposition zum Array hinzufügen - zunächst zu einer lokalen Variable
+      // um sicherzustellen, dass der Zustand korrekt aktualisiert wird
+      const updatedItems = [...orderItems, newItem];
+      setOrderItems(updatedItems);
       
-      // Dialog schließen
-      setShowAddItem(false);
+      // Dialog ERST NACH Erfolgsmeldung schließen, um UI-Aktualisierungen zu vermeiden
+      // die den Zustand zurücksetzen könnten
       
       // Form zurücksetzen
       itemForm.reset({
@@ -680,6 +682,12 @@ function NewOrderForm({
         title: "Position hinzugefügt",
         description: `${newItem.productName} (${newItem.quantity} ${newItem.unit}) wurde zur Bestellung hinzugefügt.`,
       });
+      
+      // Dialog verzögert schließen, um sicherzustellen, dass alle Zustandsänderungen
+      // zuerst abgeschlossen sind
+      setTimeout(() => {
+        setShowAddItem(false);
+      }, 50);
     }
   };
   
@@ -1078,6 +1086,8 @@ function NewOrderForm({
               <form 
                 onSubmit={(e) => {
                   e.preventDefault();
+                  // Prevent dialog from closing automatically by stopping event propagation
+                  e.stopPropagation();
                   itemForm.handleSubmit(addOrderItem)();
                 }} 
                 className="space-y-4">
