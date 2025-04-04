@@ -177,13 +177,15 @@ export default function MachineAssignments() {
     console.log("Sende Zuordnungsdaten:", JSON.stringify(assignmentData));
     
     // Direkte Fetch-Anfrage statt Mutation zum Debuggen
+    // Problem: die Authorization wurde mit Bearer gesendet, obwohl das Backend dies nicht verwendet
     fetch('/api/machine-warehouse-assignments', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        // Cookie Authentication wird automatisch vom Browser gesendet
       },
-      body: JSON.stringify(assignmentData)
+      body: JSON.stringify(assignmentData),
+      credentials: 'include' // Wichtig: Cookies für die Authentifizierung senden
     })
     .then(response => {
       if (!response.ok) {
