@@ -103,8 +103,10 @@ import {
   Coffee,
   Utensils,
   MapPin,
-  Info,
+  FileText,
+  Mail,
   Send,
+  Info,
   Clock
 } from "lucide-react";
 
@@ -809,6 +811,10 @@ function NewOrderForm({
     }
   };
   
+  // Status für den Bestätigungsschritt nach Erstellung der Bestellung
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
+  
   // Bestellung speichern und absenden
   const submitOrder = async () => {
     try {
@@ -837,25 +843,19 @@ function NewOrderForm({
         description: "Ihre Bestellung wird verarbeitet...",
       });
       
-      // Simulierter API-Aufruf
+      // Simulierter API-Aufruf - anstatt zu navigieren, zeigen wir den Bestätigungsschritt
       setTimeout(() => {
         toast({
           title: "Bestellung erstellt",
           description: "Ihre Bestellung wurde erfolgreich angelegt.",
         });
         
-        // Zustand zurücksetzen BEVOR wir navigieren
-        // Dies ist wichtig, damit bei der nächsten Bestellung wieder mit Schritt 1 begonnen wird
-        sessionStorage.removeItem('orderStep');
-        sessionStorage.removeItem('orderWarehouseId');
-        sessionStorage.removeItem('orderMode');
+        // Simuliere eine Bestellungs-ID (im echten API-Aufruf würde diese zurückgegeben)
+        const simulatedOrderId = Math.floor(Math.random() * 10000) + 1;
+        setCreatedOrderId(simulatedOrderId);
         
-        // Nur den lokalen orderItems-Zustand zurücksetzen
-        setOrderItems([]);
-        
-        // Bei Abschluss des gesamten Prozesses wollen wir zur Übersicht navigieren
-        // aber NUR wenn es ein echter Abschluss ist (speichern/absenden)
-        setLocation('/bestellungen');
+        // Zeige den Bestätigungsschritt an
+        setShowConfirmation(true);
       }, 1500);
       
     } catch (error) {
@@ -866,6 +866,22 @@ function NewOrderForm({
         variant: "destructive"
       });
     }
+  };
+  
+  // Bestätigung abschließen und zur Übersicht navigieren
+  const completeOrder = () => {
+    // Zustand zurücksetzen BEVOR wir navigieren
+    // Dies ist wichtig, damit bei der nächsten Bestellung wieder mit Schritt 1 begonnen wird
+    sessionStorage.removeItem('orderStep');
+    sessionStorage.removeItem('orderWarehouseId');
+    sessionStorage.removeItem('orderMode');
+    sessionStorage.removeItem('orderItems');
+    
+    // Lokalen Zustand zurücksetzen
+    setOrderItems([]);
+    
+    // Zur Bestellübersicht navigieren
+    setLocation('/bestellungen');
   };
   
   // Berechnung der Gesamtsumme
@@ -1336,29 +1352,114 @@ function NewOrderForm({
         </Dialog>
       </CardContent>
       
-      <CardFooter className="flex justify-between">
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={onBack}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Zurück
-          </Button>
-          <Button 
-            variant="secondary" 
-            onClick={saveAsDraft}
-          >
-            <Save className="mr-2 h-4 w-4" />
-            Als Entwurf speichern
-          </Button>
-        </div>
-        
-        <Button 
-          type="button"
-          disabled={orderItems.length === 0 || !orderForm.getValues('supplierId')}
-          onClick={submitOrder}
-        >
-          <Send className="mr-2 h-4 w-4" />
-          Bestellung absenden
-        </Button>
+      <CardFooter>
+        {!showConfirmation ? (
+          <div className="flex justify-between w-full">
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={onBack}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Zurück
+              </Button>
+              <Button 
+                variant="secondary" 
+                onClick={saveAsDraft}
+              >
+                <Save className="mr-2 h-4 w-4" />
+                Als Entwurf speichern
+              </Button>
+            </div>
+            
+            <Button 
+              type="button"
+              disabled={orderItems.length === 0 || !orderForm.getValues('supplierId')}
+              onClick={submitOrder}
+            >
+              <Send className="mr-2 h-4 w-4" />
+              Bestellung absenden
+            </Button>
+          </div>
+        ) : (
+          <div className="w-full">
+            <Separator className="my-6" />
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900 p-6 rounded-lg mb-6">
+              <div className="flex items-start">
+                <div className="bg-green-100 dark:bg-green-800 rounded-full p-2 mr-4">
+                  <Check className="h-8 w-8 text-green-600 dark:text-green-300" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-semibold text-green-800 dark:text-green-300 mb-2">
+                    Bestellung #{createdOrderId} erfolgreich erstellt
+                  </h3>
+                  <p className="text-green-700 dark:text-green-400 mb-1">
+                    Ihre Bestellung wurde erfolgreich angelegt und kann jetzt bearbeitet werden.
+                  </p>
+                  <p className="text-green-700 dark:text-green-400">
+                    Sie können die PDF-Bestellung herunterladen oder per E-Mail an den Lieferanten senden.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="bg-muted/40 border rounded-lg p-6 mb-6">
+              <h3 className="text-lg font-medium mb-4">Bestellzusammenfassung</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 mb-4">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Bestellnummer</p>
+                  <p className="font-medium">#{createdOrderId}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Datum</p>
+                  <p className="font-medium">{format(new Date(), 'dd.MM.yyyy')}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Status</p>
+                  <Badge variant="outline" className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">
+                    Bestellt
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Lieferant</p>
+                  <p className="font-medium">
+                    {suppliers?.data?.find((s: any) => s.id === orderForm.getValues('supplierId'))?.name || 'Unbekannt'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Lager</p>
+                  <p className="font-medium">{warehouse?.name || 'Unbekannt'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Gesamtbetrag</p>
+                  <p className="font-medium">{formatCurrency(totalAmount * 1.19)} (inkl. MwSt.)</p>
+                </div>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Positionen</p>
+                <p className="font-medium">{orderItems.length} Produkte</p>
+              </div>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row sm:justify-between gap-4">
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <Button variant="outline" className="w-full sm:w-auto" onClick={() => window.open('/bestellung.pdf', '_blank')}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  PDF herunterladen
+                </Button>
+                <Button variant="outline" className="w-full sm:w-auto">
+                  <Mail className="h-4 w-4 mr-2" />
+                  Per E-Mail senden
+                </Button>
+              </div>
+              
+              <Button 
+                className="w-full sm:w-auto" 
+                onClick={completeOrder}
+              >
+                <Check className="h-4 w-4 mr-2" />
+                Abschließen
+              </Button>
+            </div>
+          </div>
+        )}
       </CardFooter>
     </Card>
   );
