@@ -110,8 +110,7 @@ function groupTransactionsByPeriod(transactions, period) {
 
 import { startAutomaticSync, stopAutomaticSync, getSchedulerStatus } from "./scheduler";
 import { z } from "zod";
-// Forecast-Routen deaktiviert um Fehler zu beheben
-// import { registerForecastRoutes } from "./routes/forecast";
+import { registerForecastRoutes } from "./routes/forecast";
 import { registerInventoryRoutes } from "./routes/inventory";
 import { statisticsRoutes } from "./routes/statistics";
 import { 
@@ -125,7 +124,7 @@ import {
   approveUser,
   changeUserRole
 } from "./auth";
-import { insertSupplierSchema } from "../shared/schema";
+import { insertSupplierSchema } from "@shared/schema";
 import vendonRoutes from "./routes/vendon";
 import productDisposalsRoutes from "./routes/productDisposals";
 import exportImportRoutes from "./routes/exportImport";
@@ -1665,8 +1664,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Forecast-Routen deaktiviert um Fehler zu beheben
-  // registerForecastRoutes(app);
+  registerForecastRoutes(app);
   registerInventoryRoutes(app);
   statisticsRoutes(app);
   
