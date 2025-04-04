@@ -16,23 +16,23 @@ const timers: Record<string, NodeJS.Timeout> = {};
 // Konfiguration für verschiedene Syncs
 const syncConfig = {
   immediate: {
-    interval: 5 * 60 * 1000, // 5 Minuten (war: 5 Minuten)
+    interval: 10 * 60 * 1000, // 10 Minuten (erhöht von 5 Minuten)
     syncTypes: ['transactions'] // Sehr schnelle Sync-Typen, die in Echtzeit benötigt werden
   },
   fast: {
-    interval: 30 * 60 * 1000, // 30 Minuten (war: 5 Minuten)
+    interval: 60 * 60 * 1000, // 60 Minuten (erhöht von 30 Minuten)
     syncTypes: ['refills'] // Schnelle Sync-Typen
   },
   medium: {
-    interval: 60 * 60 * 1000, // 1 Stunde
-    syncTypes: ['machines', 'products', 'events', 'weather_forecast', 'weather_historical_batch'] // Mittelschnelle Sync-Typen
+    interval: 2 * 60 * 60 * 1000, // 2 Stunden (erhöht von 1 Stunde)
+    syncTypes: ['machines', 'products', 'events', 'weather_forecast'] // Mittelschnelle Sync-Typen - 'weather_historical_batch' entfernt, um Überlastung zu vermeiden
   },
   slow: {
     interval: 24 * 60 * 60 * 1000, // 24 Stunden
-    syncTypes: ['holidays'] // Langsame Sync-Typen, die nicht oft aktualisiert werden müssen
+    syncTypes: ['holidays', 'weather_historical_batch'] // 'weather_historical_batch' hierher verschoben
   },
   historical: {
-    interval: 2 * 60 * 60 * 1000, // 2 Stunden (war: 12 Stunden)
+    interval: 6 * 60 * 60 * 1000, // 6 Stunden (erhöht von 2 Stunden)
     syncTypes: ['historical_batch'] // Historische Daten schrittweise synchronisieren
   }
 };
@@ -169,36 +169,40 @@ export function startAutomaticSync(): void {
   // Starte sofortige Synchronisierungen
   syncConfig.immediate.syncTypes.forEach(syncType => {
     console.log(`Plane sofortige Synchronisierung für: ${syncType}`);
-    // Starte mit minimaler Verzögerung (5 Sekunden)
-    timers[syncType] = setTimeout(() => performSync(syncType), 5000);
+    // Starte mit minimaler Verzögerung (10 Sekunden)
+    timers[syncType] = setTimeout(() => performSync(syncType), 10000);
   });
   
-  // Starte schnelle Synchronisierungen
-  syncConfig.fast.syncTypes.forEach(syncType => {
+  // Starte schnelle Synchronisierungen mit größerem Abstand
+  syncConfig.fast.syncTypes.forEach((syncType, index) => {
     console.log(`Plane initiale schnelle Synchronisierung für: ${syncType}`);
-    // Starte mit leichter Verzögerung, um Server-Start nicht zu behindern
-    timers[syncType] = setTimeout(() => performSync(syncType), 30000 + Math.random() * 30000);
+    // Starte mit größerer Verzögerung, verteilt über einen längeren Zeitraum
+    const delay = 3 * 60000 + (index * 60000); // 3 Minuten + 1 Minute pro Eintrag
+    timers[syncType] = setTimeout(() => performSync(syncType), delay);
   });
   
-  // Starte mittelschnelle Synchronisierungen
-  syncConfig.medium.syncTypes.forEach(syncType => {
+  // Starte mittelschnelle Synchronisierungen mit noch größerem Abstand
+  syncConfig.medium.syncTypes.forEach((syncType, index) => {
     console.log(`Plane initiale mittelschnelle Synchronisierung für: ${syncType}`);
-    // Starte mit größerer Verzögerung
-    timers[syncType] = setTimeout(() => performSync(syncType), 60000 + Math.random() * 60000);
+    // Starte mit größerer Verzögerung und mehr Abstand zwischen den Tasks
+    const delay = 5 * 60000 + (index * 3 * 60000); // 5 Minuten + 3 Minuten pro Eintrag
+    timers[syncType] = setTimeout(() => performSync(syncType), delay);
   });
   
-  // Starte langsame Synchronisierungen
-  syncConfig.slow.syncTypes.forEach(syncType => {
+  // Starte langsame Synchronisierungen zuletzt
+  syncConfig.slow.syncTypes.forEach((syncType, index) => {
     console.log(`Plane initiale langsame Synchronisierung für: ${syncType}`);
-    // Starte mit noch größerer Verzögerung (2 Minuten + Zufallswert)
-    timers[syncType] = setTimeout(() => performSync(syncType), 120000 + Math.random() * 60000);
+    // Starte mit noch größerer Verzögerung (15 Minuten + 5 Minuten pro Eintrag)
+    const delay = 15 * 60000 + (index * 5 * 60000);
+    timers[syncType] = setTimeout(() => performSync(syncType), delay);
   });
   
-  // Starte historische Synchronisierungen
-  syncConfig.historical.syncTypes.forEach(syncType => {
+  // Starte historische Synchronisierungen als allerletztes
+  syncConfig.historical.syncTypes.forEach((syncType, index) => {
     console.log(`Plane initiale historische Synchronisierung für: ${syncType}`);
-    // Starte mit mittlerer Verzögerung (90 Sekunden + Zufallswert)
-    timers[syncType] = setTimeout(() => performSync(syncType), 90000 + Math.random() * 60000);
+    // Starte mit sehr großer Verzögerung (30 Minuten + 5 Minuten pro Eintrag)
+    const delay = 30 * 60000 + (index * 5 * 60000);
+    timers[syncType] = setTimeout(() => performSync(syncType), delay);
   });
 }
 
