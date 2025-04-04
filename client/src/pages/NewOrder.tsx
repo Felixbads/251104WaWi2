@@ -463,15 +463,28 @@ function NewOrderForm({
   const queryClient = useQueryClient();
   const [location, setLocation] = useLocation();
   
-  // Verwende localStorage, um Bestellpositionen zu speichern
+  // Verwende sessionStorage, um Bestellpositionen zu speichern
   // Bestellpositionen werden als Array verwaltet
   const [orderItems, setOrderItems] = useState<any[]>([]);
   
   const [showAddItem, setShowAddItem] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   
-  // Wir verwenden kein localStorage für order_items mehr
-  // Dies kann komplett entfernt werden, da wir den Zustand direkt im Component verwalten
+  // Bestellpositionen aus dem SessionStorage laden
+  useEffect(() => {
+    const savedOrderItems = sessionStorage.getItem('orderItems');
+    if (savedOrderItems) {
+      try {
+        const parsedItems = JSON.parse(savedOrderItems);
+        if (Array.isArray(parsedItems) && parsedItems.length > 0) {
+          setOrderItems(parsedItems);
+        }
+      } catch (e) {
+        console.error("Fehler beim Laden der gespeicherten Bestellpositionen:", e);
+        sessionStorage.removeItem('orderItems');
+      }
+    }
+  }, []);
   
   // Warehouse-Daten abfragen
   const { data: warehouse, isLoading: isWarehouseLoading } = useQuery<{id: number, name: string}>({
@@ -646,6 +659,7 @@ function NewOrderForm({
   // Bestellposition hinzufügen
   const addOrderItem = (data: OrderItemValues) => {
     if (selectedProduct) {
+      // Neues Item erstellen mit allen relevanten Daten
       const newItem = {
         ...data,
         id: Date.now(), // Temporäre ID für die UI
@@ -654,16 +668,23 @@ function NewOrderForm({
         supplierSku: selectedProduct.supplierSku,
         unit: selectedProduct.unit || 'stk',
         totalPrice: data.quantity * data.unitPrice,
+        taxRate: selectedProduct.taxRate || 19, // Standard-Mehrwertsteuer falls nicht definiert
         // Bei Bedarf weitere Felder
       };
       
       // Neue Bestellposition zum Array hinzufügen - zunächst zu einer lokalen Variable
       // um sicherzustellen, dass der Zustand korrekt aktualisiert wird
       const updatedItems = [...orderItems, newItem];
+      
+      // Zustand aktualisieren
       setOrderItems(updatedItems);
       
-      // Dialog ERST NACH Erfolgsmeldung schließen, um UI-Aktualisierungen zu vermeiden
-      // die den Zustand zurücksetzen könnten
+      // Speichern im SessionStorage für Persistenz
+      try {
+        sessionStorage.setItem('orderItems', JSON.stringify(updatedItems));
+      } catch (e) {
+        console.error("Fehler beim Speichern der Bestellpositionen:", e);
+      }
       
       // Form zurücksetzen
       itemForm.reset({
@@ -693,7 +714,20 @@ function NewOrderForm({
   
   // Bestellposition entfernen
   const removeOrderItem = (itemId: number) => {
-    setOrderItems(orderItems.filter(item => item.id !== itemId));
+    // Aktualisiere den Zustand mit den verbleibenden Positionen
+    const updatedItems = orderItems.filter(item => item.id !== itemId);
+    setOrderItems(updatedItems);
+    
+    // Speichern im SessionStorage oder leeren wenn keine Items mehr vorhanden sind
+    try {
+      if (updatedItems.length > 0) {
+        sessionStorage.setItem('orderItems', JSON.stringify(updatedItems));
+      } else {
+        sessionStorage.removeItem('orderItems');
+      }
+    } catch (e) {
+      console.error("Fehler beim Aktualisieren der Bestellpositionen:", e);
+    }
     
     toast({
       title: "Position entfernt",
@@ -1064,10 +1098,28 @@ function NewOrderForm({
                   ))}
                   <TableRow>
                     <TableCell colSpan={3} className="text-right font-medium">
-                      Gesamtsumme:
+                      Zwischensumme (netto):
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {formatCurrency(totalAmount)}
+                    </TableCell>
+                    <TableCell></TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-right font-medium">
+                      Mehrwertsteuer:
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {formatCurrency(totalAmount * 0.19)} (19%)
+                    </TableCell>
+                    <TableCell></TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-right font-medium">
+                      Gesamtsumme (brutto):
                     </TableCell>
                     <TableCell className="font-bold">
-                      {formatCurrency(totalAmount)}
+                      {formatCurrency(totalAmount * 1.19)}
                     </TableCell>
                     <TableCell></TableCell>
                   </TableRow>
