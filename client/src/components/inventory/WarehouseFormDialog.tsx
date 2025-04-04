@@ -78,15 +78,11 @@ export function WarehouseFormDialog({ open, onOpenChange, warehouse, isNew }: Wa
   const mutation = useMutation({
     mutationFn: async (values: WarehouseFormValues) => {
       if (isNew) {
-        return await apiRequest('/api/warehouses', {
-          method: 'POST',
-          data: values
-        });
+        // POST-Request zum Anlegen eines neuen Lagers
+        return await apiRequest('/api/warehouses', values, 'POST');
       } else {
-        return await apiRequest(`/api/warehouses/${warehouse?.id}`, {
-          method: 'PUT',
-          data: values
-        });
+        // PUT-Request zum Aktualisieren eines bestehenden Lagers
+        return await apiRequest(`/api/warehouses/${warehouse?.id}`, values, 'PUT');
       }
     },
     onSuccess: () => {
