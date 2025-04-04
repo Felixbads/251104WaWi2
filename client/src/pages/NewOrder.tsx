@@ -459,9 +459,20 @@ function NewOrderForm({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [location, setLocation] = useLocation();
-  const [orderItems, setOrderItems] = useState<any[]>([]);
+  
+  // Verwende localStorage, um Bestellpositionen zu speichern
+  const [orderItems, setOrderItems] = useState<any[]>(() => {
+    const savedItems = localStorage.getItem('order_items');
+    return savedItems ? JSON.parse(savedItems) : [];
+  });
+  
   const [showAddItem, setShowAddItem] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  
+  // Aktualisiere localStorage, wenn sich die Bestellpositionen ändern
+  useEffect(() => {
+    localStorage.setItem('order_items', JSON.stringify(orderItems));
+  }, [orderItems]);
   
   // Warehouse-Daten abfragen
   const { data: warehouse, isLoading: isWarehouseLoading } = useQuery<{id: number, name: string}>({
@@ -641,6 +652,12 @@ function NewOrderForm({
           title: "Bestellung erstellt",
           description: "Ihre Bestellung wurde erfolgreich angelegt.",
         });
+        
+        // Bestelldaten im localStorage zurücksetzen
+        localStorage.removeItem('order_step');
+        localStorage.removeItem('order_warehouseId');
+        localStorage.removeItem('order_mode');
+        localStorage.removeItem('order_items');
         
         // Zur Bestellübersicht zurückkehren
         setLocation('/bestellungen');
@@ -1605,9 +1622,43 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
 
 // Hauptkomponente: Neue Bestellung
 export default function NewOrder() {
-  const [step, setStep] = useState(1);
-  const [warehouseId, setWarehouseId] = useState<number | null>(null);
-  const [orderMode, setOrderMode] = useState<OrderMode | null>(null);
+  // Verwende localStorage, um den aktuellen Schritt zu speichern
+  const [step, setStep] = useState(() => {
+    // Versuche, den gespeicherten Schritt aus localStorage zu laden
+    const savedStep = localStorage.getItem('order_step');
+    return savedStep ? parseInt(savedStep, 10) : 1;
+  });
+  
+  // Verwende localStorage, um die Lager-ID zu speichern
+  const [warehouseId, setWarehouseId] = useState<number | null>(() => {
+    const savedWarehouseId = localStorage.getItem('order_warehouseId');
+    return savedWarehouseId ? parseInt(savedWarehouseId, 10) : null;
+  });
+  
+  // Verwende localStorage, um den Bestellmodus zu speichern
+  const [orderMode, setOrderMode] = useState<OrderMode | null>(() => {
+    const savedOrderMode = localStorage.getItem('order_mode');
+    return savedOrderMode as OrderMode | null;
+  });
+  
+  // Aktualisiere localStorage, wenn sich der Schritt ändert
+  useEffect(() => {
+    localStorage.setItem('order_step', step.toString());
+  }, [step]);
+  
+  // Aktualisiere localStorage, wenn sich die Lager-ID ändert
+  useEffect(() => {
+    if (warehouseId) {
+      localStorage.setItem('order_warehouseId', warehouseId.toString());
+    }
+  }, [warehouseId]);
+  
+  // Aktualisiere localStorage, wenn sich der Bestellmodus ändert
+  useEffect(() => {
+    if (orderMode) {
+      localStorage.setItem('order_mode', orderMode);
+    }
+  }, [orderMode]);
   
   // Schritt 1: Lager auswählen
   const handleWarehouseSelected = (id: number) => {
