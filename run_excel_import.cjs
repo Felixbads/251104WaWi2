@@ -14,7 +14,10 @@ const config = {
   maxRuns: 50,
   
   // Wartezeit zwischen Durchläufen in Millisekunden
-  delayBetweenRuns: 5000
+  delayBetweenRuns: 8000,
+  
+  // Maximale Wartezeit nach einem fehlgeschlagenen Durchlauf
+  errorDelayBetweenRuns: 15000
 };
 
 /**
@@ -106,8 +109,10 @@ async function importLargeExcel() {
     const success = runImportScript(config.largeFileScript);
     
     if (!success) {
-      console.error(`Fehler im Durchlauf ${run}, breche Import ab.`);
-      break;
+      console.error(`Fehler im Durchlauf ${run}, warte länger vor dem nächsten Versuch.`);
+      // Warte länger bei Fehlern, breche aber nicht sofort ab
+      await sleep(config.errorDelayBetweenRuns);
+      continue;
     }
     
     // Prüfe, ob der Import abgeschlossen ist

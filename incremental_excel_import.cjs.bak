@@ -14,15 +14,15 @@ const dbConfig = {
 // Konfiguration für den Import
 const config = {
   // Datei-Konfiguration
-  inputExcelFile: './attached_assets/Report 2022-04-01 2025-04-05 a18b605bf619a514f7ad636191ecf601.xlsx',
+  inputExcelFile: './attached_assets/test_small.xlsx',
   statusFile: './excel_import_status.json',
   logFile: './excel_import_full.log',
   
   // Prozesssteuerung
-  chunkSize: 20,           // Anzahl Zeilen pro Verarbeitungseinheit (effiziente Größe für Datenbank)
-  maxChunksPerRun: 3,      // Anzahl Chunks pro Durchlauf (optimiert für Replit-Umgebung)
+  chunkSize: 10,           // Anzahl Zeilen pro Verarbeitungseinheit (reduziert für Testzwecke)
+  maxChunksPerRun: 1,      // Anzahl Chunks pro Durchlauf (reduziert für Testzwecke)
   startRow: -1,            // -1 = automatisch fortsetzen
-  maxProcessingTime: 45000, // Maximale Verarbeitungszeit in Millisekunden (optimiert für Replit-Umgebung)
+  maxProcessingTime: 20000, // Maximale Verarbeitungszeit in Millisekunden (sehr kurz für Testzwecke)
   
   // Mapping für Maschinen-IDs
   machineMapping: {
