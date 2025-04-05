@@ -6,7 +6,8 @@ import { useToast } from "@/hooks/use-toast";
 // API-Funktionen
 import { 
   getWarehouseById, 
-  getWarehouseInventory
+  getWarehouseInventory,
+  WarehouseProduct
 } from "@/lib/api";
 
 // UI-Komponenten
@@ -116,22 +117,52 @@ export default function WarehouseDetail() {
     enabled: !!id
   });
   
+  // Die WarehouseProduct-Schnittstelle wurde bereits oben importiert
+  
   // Lager-Inventar abrufen
   const { 
-    data: inventory = [], 
+    data: inventory = [] as WarehouseProduct[], 
     isLoading: inventoryLoading,
     error: inventoryError
-  } = useQuery({
+  } = useQuery<WarehouseProduct[]>({
     queryKey: [`/api/inventory`, { warehouseId: id }],
     queryFn: () => getWarehouseInventory(id),
     enabled: !!id && activeTab === "inventory"
   });
   
+  // MachineWarehouseAssignment Typ definieren
+  interface MachineWarehouseAssignment {
+    id: number;
+    machineId: number;
+    warehouseId: number;
+    isPrimary: boolean;
+    notes?: string;
+    assignedBy?: number;
+    assignedAt?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    machine?: Machine;
+  }
+
+  // Machine Typ definieren
+  interface Machine {
+    id: number;
+    vendonId: string;
+    machineName: string;
+    location: string;
+    status: string;
+    address?: string;
+    lastSync?: string;
+    lastSale?: string;
+    product_count?: number;
+    error_count?: number;
+  }
+
   // Automaten-Zuordnungen abrufen
   const { 
-    data: machineAssignments = [], 
+    data: machineAssignments = [] as MachineWarehouseAssignment[], 
     isLoading: assignmentsLoading 
-  } = useQuery({
+  } = useQuery<MachineWarehouseAssignment[]>({
     queryKey: ['/api/machine-warehouse-assignments', { warehouseId: Number(id) }],
     staleTime: 1000 * 30, // 30 Sekunden
     enabled: !!id && activeTab === "machines"
@@ -139,28 +170,72 @@ export default function WarehouseDetail() {
   
   // Abfrage aller Automaten für die Zuordnung
   const { 
-    data: machines = [], 
+    data: machines = [] as Machine[], 
     isLoading: machinesLoading 
-  } = useQuery({
+  } = useQuery<Machine[]>({
     queryKey: ['/api/machines'],
     staleTime: 1000 * 60, // 1 Minute
     enabled: !!id && activeTab === "machines"
   });
   
+  // InventoryCount Interface definieren
+  interface InventoryCount {
+    id: number;
+    warehouseId: number;
+    startDate: string;
+    endDate: string;
+    notes?: string;
+    createdBy?: number;
+    createdAt: string;
+    status?: string;
+    initiatedByName?: string;
+    itemCount?: number;
+    adjustmentCount?: number;
+    items?: Array<{
+      id: number;
+      inventoryCountId: number;
+      productId: number;
+      currentQuantity: number;
+      countedQuantity: number;
+      difference: number;
+      productName?: string;
+    }>;
+  }
+
+  // InventoryMovement Interface definieren
+  interface InventoryMovement {
+    id: number;
+    warehouseId: number;
+    productId: number;
+    quantity: number;
+    type: string;
+    reason?: string;
+    notes?: string;
+    createdBy?: number;
+    createdAt: string;
+    productName?: string;
+    productSku?: string;
+    performedAt?: string;
+    movementType?: string;
+    referenceType?: string;
+    referenceId?: number;
+    performedByName?: string;
+  }
+
   // Inventuren abrufen
   const {
-    data: inventoryCounts = [],
+    data: inventoryCounts = [] as InventoryCount[],
     isLoading: inventoryCountsLoading
-  } = useQuery({
+  } = useQuery<InventoryCount[]>({
     queryKey: ['/api/inventory-counts', { warehouseId: Number(id) }],
     enabled: !!id && activeTab === "inventory-count"
   });
   
   // Warenbewegungen abrufen
   const {
-    data: inventoryMovements = [],
+    data: inventoryMovements = [] as InventoryMovement[],
     isLoading: movementsLoading
-  } = useQuery({
+  } = useQuery<InventoryMovement[]>({
     queryKey: ['/api/inventory-movements', { warehouseId: Number(id) }],
     enabled: !!id && activeTab === "movements"
   });
@@ -552,7 +627,7 @@ export default function WarehouseDetail() {
                           {machine?.machineName || "Unbekannter Automat"}
                         </TableCell>
                         <TableCell>
-                          {machine?.locationName || "Kein Standort"}
+                          {machine?.location || "Kein Standort"}
                         </TableCell>
                         <TableCell>
                           {assignment.assignedAt 
@@ -612,7 +687,7 @@ export default function WarehouseDetail() {
                         )
                         .map(machine => (
                           <SelectItem key={machine.id} value={machine.id.toString()}>
-                            {machine.machineName} {machine.locationName && `(${machine.locationName})`}
+                            {machine.machineName} {machine.location && `(${machine.location})`}
                           </SelectItem>
                         ))}
                     </SelectContent>
