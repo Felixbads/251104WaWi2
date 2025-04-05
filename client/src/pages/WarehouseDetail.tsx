@@ -39,6 +39,7 @@ export default function WarehouseDetail() {
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
   const [isAddInventoryDialogOpen, setIsAddInventoryDialogOpen] = useState(false);
+  const [isReconciling, setIsReconciling] = useState(false);
   
   // Abfrage des Lagers
   const { data: warehouse, isLoading: warehouseLoading, error } = useQuery({
@@ -98,6 +99,32 @@ export default function WarehouseDetail() {
     }
   });
   
+  // Mutation für den Lagerabgleich
+  const reconcileWarehouseMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('/api/warehouse-reconciliation', {
+        method: 'POST',
+        body: JSON.stringify({ warehouseId: Number(id) })
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
+      toast({
+        title: 'Lagerabgleich durchgeführt',
+        description: 'Die Produkte aus den Automaten wurden mit dem Lagerbestand abgeglichen.',
+      });
+      setIsReconciling(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Fehler beim Lagerabgleich',
+        description: error.message || 'Der Lagerabgleich konnte nicht durchgeführt werden.',
+        variant: 'destructive'
+      });
+      setIsReconciling(false);
+    }
+  });
+
   // Mutation für das Löschen von Automaten-Zuordnungen
   const deleteAssignmentMutation = useMutation({
     mutationFn: async (assignmentId: number) => {
@@ -444,6 +471,15 @@ export default function WarehouseDetail() {
                 <CardDescription>Übersicht aller Artikel in diesem Lager</CardDescription>
               </div>
               <div className="flex space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => reconcileWarehouseMutation.mutate()}
+                  disabled={isReconciling}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-1 ${isReconciling ? 'animate-spin' : ''}`} />
+                  {isReconciling ? 'Abgleich läuft...' : 'Automaten abgleichen'}
+                </Button>
                 <Button 
                   variant="outline" 
                   size="sm"

@@ -89,7 +89,7 @@ export async function reconcileWarehouseProducts(): Promise<{
                   if (product && product.id) {
                     warehouseToProducts[warehouseId].add(product.id);
                     productsFound++;
-                    console.log(`Produkt "${productName}" über Namen gefunden und zu Lager ${warehouseId} hinzugefügt`);
+                    console.log(`Produkt "${productName}" über Namen gefunden und für Lager ${warehouseId} vorgemerkt`);
                   }
                 }
               }
@@ -120,7 +120,7 @@ export async function reconcileWarehouseProducts(): Promise<{
       // Identifiziere fehlende Produkte
       const missingProductIds = productIds.filter(id => !existingProductIds.has(id));
       
-      console.log(`${missingProductIds.length} fehlende Produkte in Lager ${warehouseId} identifiziert`);
+      console.log(`${missingProductIds.length} fehlende Produkte in Lager ${warehouseId} identifiziert (IDs: ${missingProductIds.join(', ')})`);
       
       // Füge fehlende Produkte dem Lager hinzu
       for (const productId of missingProductIds) {
@@ -183,8 +183,7 @@ export async function reconcileWarehouseProducts(): Promise<{
                     minQuantity: 5,
                     status: "active",
                     notes: `Automatisch hinzugefügt beim Lagerabgleich am ${new Date().toISOString().split('T')[0]}`,
-                    createdAt: new Date(),
-                    updatedAt: new Date()
+                    lastCountDate: new Date()
                   };
                   
                   const newItem = await storage.createInventoryItem(inventoryItem);
@@ -201,13 +200,24 @@ export async function reconcileWarehouseProducts(): Promise<{
               } catch (sqlError) {
                 console.error(`SQL-Fehler beim Hinzufügen von Produkt ${productId} zum Lager ${warehouseId}:`, sqlError);
                 
-                // Versuche es mit ORM als Fallback
+                // Versuche es mit ORM als Fallback, mit korrekten Feldern
                 try {
-                  const newItem = await storage.createInventoryItem(inventoryItem);
+                  // Erstelle einen neuen Inventareintrag mit korrekten Feldern
+                  const inventoryItemFallback: InsertInventoryItem = {
+                    warehouseId: Number(warehouseId),
+                    productId: Number(productId),
+                    quantity: 0,
+                    minQuantity: 5,
+                    status: "active",
+                    notes: `Automatisch hinzugefügt beim Lagerabgleich am ${new Date().toISOString().split('T')[0]}`,
+                    lastCountDate: new Date()
+                  };
+                
+                  const newItem = await storage.createInventoryItem(inventoryItemFallback);
                   
                   if (newItem && newItem.id) {
                     productsAdded++;
-                    console.log(`Produkt ${productId} (${product.productName}) zu Lager ${warehouseId} hinzugefügt (ORM)`);
+                    console.log(`Produkt ${productId} (${product.productName}) zu Lager ${warehouseId} hinzugefügt (ORM-Fallback) mit ID ${newItem.id}`);
                   } else {
                     console.error(`Fehler beim Erstellen des Inventory-Items für Produkt ${productId} in Lager ${warehouseId}: Kein Ergebnis zurückgegeben`);
                     errors++;

@@ -10,8 +10,12 @@ import {
   insertInventoryCountItemSchema,
   insertMachineWarehouseAssignmentSchema,
   insertInventoryBatchSchema,
-  insertRefillBatchMovementSchema
+  insertRefillBatchMovementSchema,
+  InsertInventoryItem
 } from "@shared/schema";
+
+// Import des Lagerabgleich-Services
+import { reconcileWarehouseProducts } from "../services/warehouseReconciliation";
 
 // Hilfstypen für Validierung
 const idParamSchema = z.object({
@@ -39,6 +43,26 @@ const refillMovementSchema = z.object({
  */
 export function registerInventoryRoutes(app: Express) {
   const apiPrefix = "/api";
+  
+  // Automatischer Lagerabgleich Route
+  app.post(`${apiPrefix}/warehouse-reconciliation`, async (req: Request, res: Response) => {
+    try {
+      console.log("Automatischer Lagerabgleich gestartet...");
+      const result = await reconcileWarehouseProducts();
+      console.log("Automatischer Lagerabgleich abgeschlossen:", result);
+      
+      res.json({
+        success: true,
+        message: "Lagerabgleich erfolgreich durchgeführt",
+        result
+      });
+    } catch (error: any) {
+      console.error("Fehler beim Durchführen des Lagerabgleichs:", error);
+      res.status(500).json({ 
+        error: error.message || "Fehler beim Durchführen des Lagerabgleichs" 
+      });
+    }
+  });
 
   // Lager (Warehouses) Routen
   app.get(`${apiPrefix}/warehouses`, async (req: Request, res: Response) => {
