@@ -1358,14 +1358,14 @@ export async function getWarehouseById(warehouseId?: string): Promise<Warehouse>
 
 export async function getWarehouseInventory(warehouseId?: string): Promise<WarehouseProduct[]> {
   if (!warehouseId) throw new Error("Warehouse ID is required");
-  return apiRequest<WarehouseProduct[]>('get', `/warehouses/${warehouseId}/inventory`);
+  return apiRequest<WarehouseProduct[]>('get', `/api/inventory?warehouseId=${warehouseId}`);
 }
 
 export async function updateWarehouseInventory(
   warehouseId: string, 
   products: WarehouseProduct[]
 ): Promise<WarehouseProduct[]> {
-  return apiRequest<WarehouseProduct[]>('put', `/warehouses/${warehouseId}/inventory`, { products });
+  return apiRequest<WarehouseProduct[]>('put', `/api/inventory?warehouseId=${warehouseId}`, { products });
 }
 
 export async function getWeatherForecast(days = 5): Promise<WeatherForecast[]> {

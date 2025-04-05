@@ -172,16 +172,19 @@ export default function WarehouseDetail() {
   
   // Initialisiere Inventurzählung mit aktuellen Beständen
   useEffect(() => {
-    if (inventory.length > 0 && activeTab === "inventory-count") {
+    if (Array.isArray(inventory) && inventory.length > 0 && activeTab === "inventory-count") {
+      console.log("Initialisiere Inventur mit", inventory.length, "Produkten");
       setInventoryCountItems(
         inventory.map(item => ({
           productId: item.productId,
-          productName: item.productName,
-          currentQuantity: item.quantity,
-          countedQuantity: item.quantity, // Standardmäßig aktueller Bestand
+          productName: item.productName || "Unbekannt",
+          currentQuantity: item.quantity || 0,
+          countedQuantity: item.quantity || 0, // Standardmäßig aktueller Bestand
           difference: 0
         }))
       );
+    } else if (activeTab === "inventory-count") {
+      console.log("Inventory für Zählung ist leer oder kein Array", inventory);
     }
   }, [inventory, activeTab]);
   
@@ -656,7 +659,17 @@ export default function WarehouseDetail() {
           <div className="flex justify-between mb-4">
             <h2 className="text-xl font-bold">Warenbestand im Lager</h2>
             <div className="flex space-x-2">
-              <Button variant="outline">
+              <Button 
+                variant="outline"
+                onClick={() => {
+                  // Invalidiere die Abfrage manuell, um die Daten neu zu laden
+                  queryClient.invalidateQueries({ queryKey: [`/api/inventory`] })
+                  toast({
+                    title: "Lagerbestand aktualisiert",
+                    description: "Die Lagerdaten werden neu geladen."
+                  });
+                }}
+              >
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Aktualisieren
               </Button>
@@ -672,6 +685,25 @@ export default function WarehouseDetail() {
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               <span className="ml-2 text-lg text-muted-foreground">Warenbestand wird geladen...</span>
             </div>
+          ) : inventoryError ? (
+            <Alert variant="destructive" className="my-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Fehler beim Laden der Lagerbestände</AlertTitle>
+              <AlertDescription>
+                {(inventoryError as Error).message || "Ein Fehler ist beim Laden der Lagerbestände aufgetreten."}
+              </AlertDescription>
+              <div className="mt-4">
+                <Button 
+                  variant="outline"
+                  onClick={() => {
+                    queryClient.invalidateQueries({ queryKey: [`/api/inventory`] })
+                  }}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Erneut versuchen
+                </Button>
+              </div>
+            </Alert>
           ) : !Array.isArray(inventory) || inventory.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-8">
