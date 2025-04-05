@@ -1,0 +1,75 @@
+Hier ist der strukturierte Prompt für die Umsetzung der neuen Seite „Lager 2.0“ in deiner Warenwirtschaftsanwendung. Dieser Prompt ist so formuliert, dass du ihn direkt an einen Entwickler oder ein Entwicklerteam weitergeben kannst:
+
+⸻
+
+Prompt: Neue Seite „Lager 2.0“ in der Warenwirtschaftssoftware
+
+Bitte implementiere eine neue Seite namens „Lager 2.0“ in der bestehenden Warenwirtschaftsanwendung. Die Datenbanken und APIs für Automaten, Produkte, Lager, Refill, Refill Details etc. sind bereits vorhanden und angebunden – bitte nutze sie entsprechend.
+
+1. Tab: Übersicht aller Lager
+	•	Zeige alle bestehenden Lager als Liste oder Kachelansicht.
+	•	Implementiere eine Funktion „Lager erstellen“ (Name, Beschreibung optional).
+	•	Jeder Lager-Eintrag verlinkt auf eine Detailansicht des Lagers (siehe Punkt 2–5).
+
+2. Tab: Automaten-Zuordnung
+	•	Zeige alle Automaten mit aktuell zugeordnetem Lager (bestehende Datenbankverbindung nutzen).
+	•	Ermögliche die Zuordnung eines Automaten zu einem Lager (Dropdown o.Ä.).
+	•	Zeige für jeden Automaten:
+	•	Name
+	•	Standort (aus der Vendon-API)
+	•	aktuell zugewiesenes Lager
+	•	Die Datenbankverbindung zur Lager-Automaten-Zuordnung ist bereits implementiert – nutze diese für Anzeige & Speicherung.
+
+3. Tab: Warenbestand im Lager
+	•	Liste alle Produkte auf, die in den einem Lager zugewiesenen Automaten verwendet werden (Produkttypen ohne Duplikate).
+	•	Initialer Lagerbestand = 0, wenn Produkt neu aufgenommen wird.
+	•	Wenn ein neues Produkt über einen zugeordneten Automaten dazukommt, aber bereits im Lager gelistet ist, bleibt der Bestand erhalten.
+	•	Zeige pro Produkt:
+	•	Produktname
+	•	Einheit (z. B. Flasche, Stück)
+	•	Produzent
+	•	aktueller Lagerbestand
+	•	Button „Nachbestellen“
+	•	Führt direkt zur Bestellseite
+	•	Übergibt vorausgefüllt: Lager, Produkt, Produzent
+
+4. Tab: Inventur
+	•	Ermögliche manuelle Zählung des tatsächlichen Lagerbestands.
+	•	Struktur:
+	•	Produktliste mit Eingabefeld je Produkt (neue Menge)
+	•	Button „Zwischenspeichern“
+	•	Button „Inventur abschließen“
+	•	Nach Bestätigung wird der neue Lagerbestand gesetzt
+	•	Inventur wird dokumentiert (mit Zeitstempel & Nutzer)
+
+5. Tab: Warenbewegung
+	•	Zeige alle Warenbewegungen je Lager (Liste mit Filter- & Suchfunktion)
+	•	Bewegungsarten:
+	•	Refill (Automatenbefüllung) → Entnahme aus Lager
+	•	Entnahme durch Verderb, Eigenverbrauch etc.
+	•	Umlagerung zu anderem Lager
+	•	Produkte über Edit Products ergänzt
+	•	Für jede Bewegung anzeigen:
+	•	Datum/Uhrzeit
+	•	Produkt
+	•	Menge (+/-)
+	•	Bewegungstyp
+	•	Herkunfts- und Ziel-Lager (bei Umlagerung)
+	•	ggf. zugeordneter Automat (bei Refill)
+	•	Optional: Exportfunktion (CSV/PDF)
+
+⸻
+
+Technische Hinweise:
+	•	Nutze bestehende Datenbanktabellen: Refill, Refill_Details, Lager, Automaten, Products, Vendon_API, Edit_Products.
+	•	Lagerbestand muss automatisch angepasst werden bei:
+	•	Refill: Abzug aus Lager
+	•	Umlagerung: Abzug aus Quelllager, Zuwachs im Ziellager
+	•	Entnahme durch Selbstverbrauch etc.: Abzug aus Lager
+	•	Edit Products (Ergänzung von Produkten): Zuwachs im Lager
+	•	Finalisierte Inventur: Überschreibt Lagerbestand
+	•	Die Initialisierung des Warenbestands erfolgt durch eine Konsolidierung der Produktliste aus den zugeordneten Automaten.
+
+⸻
+
+Wenn du möchtest, kann ich auch eine UI-Struktur oder ein Mockup ergänzen.
