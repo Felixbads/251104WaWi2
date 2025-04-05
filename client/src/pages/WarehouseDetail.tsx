@@ -519,7 +519,7 @@ export default function WarehouseDetail() {
                         <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Bestand</th>
                         <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Min. Bestand</th>
                         <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Aktionen</th>
+                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Bestellung</th>
                       </tr>
                     </thead>
                     <tbody className="bg-popover divide-y divide-border">
@@ -539,7 +539,7 @@ export default function WarehouseDetail() {
                         return (
                           <tr key={item.id}>
                             <td className="px-3 py-2 whitespace-nowrap">
-                              <div className="font-medium">{item.productName}</div>
+                              <div className="text-sm">{item.productName}</div>
                             </td>
                             <td className="px-3 py-2 whitespace-nowrap">
                               {item.quantity !== null ? item.quantity : '-'}
@@ -553,32 +553,14 @@ export default function WarehouseDetail() {
                               </span>
                             </td>
                             <td className="px-3 py-2 whitespace-nowrap">
-                              <div className="flex space-x-1">
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-7 w-7"
-                                  onClick={() => handleQuantityChange(item.id, item.quantity || 0, 1)}
-                                >
-                                  <Plus className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-7 w-7"
-                                  onClick={() => handleQuantityChange(item.id, item.quantity || 0, -1)}
-                                  disabled={(item.quantity || 0) <= 0}
-                                >
-                                  <Minus className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-7 w-7"
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 flex items-center"
+                              >
+                                <Package2 className="h-3.5 w-3.5 mr-1" />
+                                <span className="text-xs">Bestellen</span>
+                              </Button>
                             </td>
                           </tr>
                         );
