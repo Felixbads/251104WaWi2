@@ -663,7 +663,7 @@ export default function WarehouseDetail() {
                 variant="outline"
                 onClick={() => {
                   // Invalidiere die Abfrage manuell, um die Daten neu zu laden
-                  queryClient.invalidateQueries({ queryKey: [`/api/inventory`] })
+                  queryClient.invalidateQueries({ queryKey: [`/api/inventory`] });
                   toast({
                     title: "Lagerbestand aktualisiert",
                     description: "Die Lagerdaten werden neu geladen."
@@ -696,7 +696,7 @@ export default function WarehouseDetail() {
                 <Button 
                   variant="outline"
                   onClick={() => {
-                    queryClient.invalidateQueries({ queryKey: [`/api/inventory`] })
+                    queryClient.invalidateQueries({ queryKey: [`/api/inventory`] });
                   }}
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />

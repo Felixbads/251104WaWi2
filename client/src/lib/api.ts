@@ -1334,9 +1334,21 @@ export async function getRefillById(refillId: string): Promise<Refill> {
 export interface Warehouse {
   id: string;
   name: string;
-  location: string;
+  location?: string;
   description?: string;
   machineIds?: string[]; // Zugeordnete Automaten
+  address?: string;
+  city?: string;
+  postalCode?: string;
+  country?: string;
+  contactPerson?: string;
+  phone?: string;
+  email?: string;
+  isActive?: boolean;
+  status?: string;
+  type?: string;
+  notes?: string;
+  locationId?: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -1346,8 +1358,17 @@ export interface WarehouseProduct {
   warehouseId: string;
   productId: string;
   productName: string;
+  supplierName?: string;
+  units?: string;
   quantity: number;
   minQuantity: number;
+  maxQuantity?: number;
+  reorderPoint?: number;
+  reorderQuantity?: number;
+  locationInWarehouse?: string;
+  status?: string;
+  lastCountDate?: string;
+  notes?: string;
   lastUpdated: string;
 }
 
