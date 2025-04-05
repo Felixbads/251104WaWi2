@@ -54,7 +54,7 @@ export default function WarehouseDetail() {
   
   // Abfrage der Lagerbestände in diesem Lager
   const { data: inventoryItems, isLoading: inventoryLoading } = useQuery({
-    queryKey: ['/api/inventory', { warehouseId: id }],
+    queryKey: ['/api/inventory', { warehouseId: Number(id) }],
     staleTime: 1000 * 30, // 30 Sekunden
   });
   
@@ -66,7 +66,7 @@ export default function WarehouseDetail() {
   
   // Abfrage der Maschinen, die diesem Lager zugeordnet sind
   const { data: machineAssignments, isLoading: assignmentsLoading } = useQuery({
-    queryKey: ['/api/machine-warehouse-assignments', { warehouseId: id }],
+    queryKey: ['/api/machine-warehouse-assignments', { warehouseId: Number(id) }],
     staleTime: 1000 * 30, // 30 Sekunden
   });
   
