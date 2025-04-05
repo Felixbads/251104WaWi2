@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { 
   CircleAlert, Building2, ArrowLeft, Edit, Truck, Package2, ClipboardList,
   Plus, Minus, RefreshCw, Archive, Pencil, RotateCw, MoveRight, ArrowRightLeft,
-  FileSpreadsheet, ClipboardList as ClipboardListIcon
+  FileSpreadsheet, ClipboardList as ClipboardListIcon, Search
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -504,6 +504,19 @@ export default function WarehouseDetail() {
               </div>
             </CardHeader>
             <CardContent>
+              {/* Suchfeld für den Lagerbestand */}
+              <div className="mb-4">
+                <div className="relative max-w-sm">
+                  <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Produkte im Lagerbestand suchen..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+              </div>
+              
               {inventoryLoading ? (
                 <div className="space-y-2">
                   {[1, 2, 3].map(i => (
@@ -538,8 +551,8 @@ export default function WarehouseDetail() {
                         
                         return (
                           <tr key={item.id}>
-                            <td className="px-3 py-2 whitespace-nowrap">
-                              <div className="text-sm">{item.productName}</div>
+                            <td className="px-3 py-2">
+                              <div className="text-sm max-w-[300px] whitespace-normal truncate">{item.productName}</div>
                             </td>
                             <td className="px-3 py-2 whitespace-nowrap">
                               {item.quantity !== null ? item.quantity : '-'}
