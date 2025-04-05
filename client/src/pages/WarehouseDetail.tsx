@@ -1,924 +1,1125 @@
-import { useState } from 'react';
-import { useParams, useLocation } from 'wouter';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useParams, useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
+
+// API-Funktionen
 import { 
-  CircleAlert, Building2, ArrowLeft, Edit, Truck, Package2, ClipboardList,
-  Plus, Minus, RefreshCw, Archive, Pencil, RotateCw, MoveRight, ArrowRightLeft,
-  FileSpreadsheet, ClipboardList as ClipboardListIcon, Search
-} from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/hooks/use-toast';
-import { WarehouseFormDialog } from '@/components/inventory/WarehouseFormDialog';
-import { 
-  Dialog, DialogContent, DialogDescription, DialogFooter, 
-  DialogHeader, DialogTitle, DialogTrigger 
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { apiRequest } from '@/lib/queryClient';
-import { Checkbox } from '@/components/ui/checkbox';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { LocationStockTab } from '@/components/stock/LocationStockTab';
+  getWarehouseById, 
+  getWarehouseInventory
+} from "@/lib/api";
+
+// UI-Komponenten
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardFooter,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+  TableCaption,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { CalendarIcon, ChevronLeftIcon, SaveIcon } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+// Icons
+import {
+  Building2,
+  Package,
+  ArrowDownUp,
+  ClipboardCheck,
+  Truck,
+  Search,
+  Filter,
+  Clock,
+  MapPin,
+  Phone,
+  Mail,
+  AlertTriangle,
+  Plus,
+  ChevronLeft,
+  Save,
+  Loader2,
+  FileText,
+  RefreshCw,
+  ShoppingCart,
+  User
+} from "lucide-react";
 
 export default function WarehouseDetail() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<string>('info');
-  const [isEditWarehouseDialogOpen, setIsEditWarehouseDialogOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedMachine, setSelectedMachine] = useState<number | null>(null);
-  // Primärlager-Funktion wurde entfernt
-  const [assignNotes, setAssignNotes] = useState('');
-  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
-  const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
-  const [isAddInventoryDialogOpen, setIsAddInventoryDialogOpen] = useState(false);
-  const [isReconciling, setIsReconciling] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
   
-  // Abfrage des Lagers
-  const { data: warehouse = {}, isLoading: warehouseLoading, error } = useQuery({
+  // Lager-Details abrufen
+  const { 
+    data: warehouse, 
+    isLoading: warehouseLoading, 
+    error: warehouseError 
+  } = useQuery({
     queryKey: [`/api/warehouses/${id}`],
-    staleTime: 1000 * 30, // 30 Sekunden
+    queryFn: () => getWarehouseById(id),
+    enabled: !!id
   });
   
-  // Abfrage aller Produkte (Vendon)
-  const { data: products = { data: [] }, isLoading: productsLoading } = useQuery({
-    queryKey: ['/api/products'],
-    staleTime: 1000 * 60, // 1 Minute
+  // Lager-Inventar abrufen
+  const { 
+    data: inventory = [], 
+    isLoading: inventoryLoading,
+    error: inventoryError
+  } = useQuery({
+    queryKey: [`/api/inventory`, { warehouseId: id }],
+    queryFn: () => getWarehouseInventory(id),
+    enabled: !!id && activeTab === "inventory"
   });
   
-  // Abfrage der Lagerbestände in diesem Lager
-  const { data: inventoryItems = [], isLoading: inventoryLoading } = useQuery({
-    queryKey: ['/api/inventory', { warehouseId: Number(id) }],
+  // Automaten-Zuordnungen abrufen
+  const { 
+    data: machineAssignments = [], 
+    isLoading: assignmentsLoading 
+  } = useQuery({
+    queryKey: ['/api/machine-warehouse-assignments', { warehouseId: Number(id) }],
     staleTime: 1000 * 30, // 30 Sekunden
+    enabled: !!id && activeTab === "machines"
   });
   
   // Abfrage aller Automaten für die Zuordnung
-  const { data: machines = [], isLoading: machinesLoading } = useQuery({
+  const { 
+    data: machines = [], 
+    isLoading: machinesLoading 
+  } = useQuery({
     queryKey: ['/api/machines'],
     staleTime: 1000 * 60, // 1 Minute
+    enabled: !!id && activeTab === "machines"
   });
   
-  // Abfrage der Maschinen, die diesem Lager zugeordnet sind
-  const { data: machineAssignments = [], isLoading: assignmentsLoading } = useQuery({
-    queryKey: ['/api/machine-warehouse-assignments', { warehouseId: Number(id) }],
-    staleTime: 1000 * 30, // 30 Sekunden
+  // Inventuren abrufen
+  const {
+    data: inventoryCounts = [],
+    isLoading: inventoryCountsLoading
+  } = useQuery({
+    queryKey: ['/api/inventory-counts', { warehouseId: Number(id) }],
+    enabled: !!id && activeTab === "inventory-count"
   });
   
-  // Mutation für das Erstellen von Automaten-Zuordnungen
-  const createAssignmentMutation = useMutation({
+  // Warenbewegungen abrufen
+  const {
+    data: inventoryMovements = [],
+    isLoading: movementsLoading
+  } = useQuery({
+    queryKey: ['/api/inventory-movements', { warehouseId: Number(id) }],
+    enabled: !!id && activeTab === "movements"
+  });
+  
+  // Zustand für die Inventur (Inventurzählung)
+  const [inventoryCountItems, setInventoryCountItems] = useState<any[]>([]);
+  const [isCountInProgress, setIsCountInProgress] = useState(false);
+  const [inventoryCountNotes, setInventoryCountNotes] = useState("");
+  
+  // Initialisiere Inventurzählung mit aktuellen Beständen
+  useEffect(() => {
+    if (inventory.length > 0 && activeTab === "inventory-count") {
+      setInventoryCountItems(
+        inventory.map(item => ({
+          productId: item.productId,
+          productName: item.productName,
+          currentQuantity: item.quantity,
+          countedQuantity: item.quantity, // Standardmäßig aktueller Bestand
+          difference: 0
+        }))
+      );
+    }
+  }, [inventory, activeTab]);
+  
+  // Dialog-Zustände
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [selectedMachine, setSelectedMachine] = useState<any>(null);
+  const [assignNotes, setAssignNotes] = useState("");
+  
+  // Mutation für die Erstellung einer Inventur
+  const createInventoryCountMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await apiRequest(
-        '/api/machine-warehouse-assignments', 
-        data,
-        'POST'
-      );
+      // API-Aufruf für das Erstellen einer neuen Inventur
+      return await fetch(`/api/inventory-counts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      }).then(res => {
+        if (!res.ok) throw new Error('Fehler beim Erstellen der Inventur');
+        return res.json();
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
-      toast({
-        title: 'Automat zugeordnet',
-        description: 'Der Automat wurde erfolgreich diesem Lager zugeordnet.',
-      });
-      setIsAssignDialogOpen(false);
-      setSelectedMachine(null);
-      // Primärlager-Funktion wurde entfernt
-      setAssignNotes('');
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Fehler bei der Zuordnung',
-        description: error.message || 'Der Automat konnte nicht zugeordnet werden.',
-        variant: 'destructive'
-      });
-    }
-  });
-  
-  // Mutation für den Lagerabgleich
-  const reconcileWarehouseMutation = useMutation({
-    mutationFn: async () => {
-      setIsReconciling(true);
-      try {
-        // Korrigierte Version: apiRequest akzeptiert das "data" Objekt als 2. Parameter
-        // und "method" als 3. Parameter, nicht in einem Optionen-Objekt
-        return await apiRequest('/api/warehouse-reconciliation', 
-                               { warehouseId: Number(id) },
-                               'POST');
-      } catch (error) {
-        setIsReconciling(false);
-        throw error;
-      }
-    },
-    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory-counts'] });
       queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
       toast({
-        title: 'Lagerabgleich durchgeführt',
-        description: 'Die Produkte aus den Automaten wurden mit dem Lagerbestand abgeglichen.',
+        title: "Inventur abgeschlossen",
+        description: "Die Inventur wurde erfolgreich durchgeführt und der Lagerbestand aktualisiert.",
       });
-      setIsReconciling(false);
+      setIsCountInProgress(false);
+      setInventoryCountNotes("");
     },
     onError: (error: any) => {
       toast({
-        title: 'Fehler beim Lagerabgleich',
-        description: error.message || 'Der Lagerabgleich konnte nicht durchgeführt werden.',
-        variant: 'destructive'
-      });
-      setIsReconciling(false);
-    }
-  });
-
-  // Mutation für das Löschen von Automaten-Zuordnungen
-  const deleteAssignmentMutation = useMutation({
-    mutationFn: async (assignmentId: number) => {
-      return await apiRequest(
-        `/api/machine-warehouse-assignments/${assignmentId}`,
-        {},
-        'DELETE'
-      );
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
-      toast({
-        title: 'Zuordnung entfernt',
-        description: 'Die Zuordnung wurde erfolgreich entfernt.',
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Fehler beim Entfernen',
-        description: error.message || 'Die Zuordnung konnte nicht entfernt werden.',
-        variant: 'destructive'
+        title: "Fehler bei der Inventur",
+        description: error.message || "Die Inventur konnte nicht durchgeführt werden.",
+        variant: "destructive"
       });
     }
   });
   
-  // Mutation für das Hinzufügen von Produkten zum Inventar
-  const addInventoryMutation = useMutation({
-    mutationFn: async (data: any) => {
-      // Für jedes ausgewählte Produkt einen Inventareintrag erstellen
-      const promises = data.productIds.map((productId: number) => {
-        // Korrigierte Version: apiRequest mit korrekten Parametern aufrufen
-        return apiRequest(
-          '/api/inventory', 
-          {
-            warehouseId: parseInt(id),
-            productId: productId,
-            quantity: 0, // Anfangsbestand 0
-            minQuantity: data.minQuantity || 5, // Standardwert für min. Bestand
-            location: data.location || '',
-            notes: data.notes || ''
-          },
-          'POST'
-        );
-      });
-      
-      return Promise.all(promises);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
-      toast({
-        title: 'Produkte hinzugefügt',
-        description: 'Die ausgewählten Produkte wurden dem Lagerbestand hinzugefügt.',
-      });
-      setIsAddInventoryDialogOpen(false);
-      setSelectedProductIds([]);
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Fehler beim Hinzufügen',
-        description: error.message || 'Die Produkte konnten nicht hinzugefügt werden.',
-        variant: 'destructive'
-      });
-    }
-  });
-  
-  // Mutation für Bestandsänderungen
-  const updateInventoryMutation = useMutation({
-    mutationFn: async ({ id, quantity }: { id: number, quantity: number }) => {
-      return await apiRequest(
-        `/api/inventory/${id}`, 
-        { quantity },
-        'PATCH'
-      );
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
-      toast({
-        title: 'Bestand aktualisiert',
-        description: 'Der Lagerbestand wurde erfolgreich aktualisiert.',
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Fehler bei der Aktualisierung',
-        description: error.message || 'Der Bestand konnte nicht aktualisiert werden.',
-        variant: 'destructive'
-      });
-    }
-  });
-  
-  // Metriken berechnen
-  const totalItems = Array.isArray(inventoryItems) ? inventoryItems.length : 0;
-  const totalStock = Array.isArray(inventoryItems) ? inventoryItems.reduce((sum, item) => sum + (item.quantity || 0), 0) : 0;
-  const criticalItems = Array.isArray(inventoryItems) ? inventoryItems.filter(item => 
-    item.quantity !== null && 
-    item.minQuantity !== null && 
-    item.quantity <= item.minQuantity
-  ).length : 0;
-  const assignedMachines = machineAssignments?.length || 0;
-  // Primärlager-Funktion wurde entfernt
-  const primaryAssignments = 0;
-  
-  // Filter-Funktion für Produkte basierend auf Suchbegriff und bereits vorhandenen Einträgen
-  const productsList = Array.isArray(products?.data) ? products.data : [];
-  const filteredProducts = productsList.filter(product => {
-    // Prüfen, ob das Produkt bereits dem Lager zugeordnet ist
-    const isAlreadyInInventory = Array.isArray(inventoryItems) && 
-      inventoryItems.some(item => item.productId === product.id);
-    
-    // Prüfen, ob der Suchbegriff im Produktnamen enthalten ist
-    const matchesSearch = product.productName?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
-    
-    // Nur Produkte anzeigen, die noch nicht im Inventar sind und dem Suchbegriff entsprechen
-    return !isAlreadyInInventory && matchesSearch;
-  });
-  
-  // Handler für die Bestandsänderung
-  const handleQuantityChange = (inventoryItemId: number, currentQuantity: number, delta: number) => {
-    const newQuantity = Math.max(0, currentQuantity + delta); // Verhindere negative Bestände
-    updateInventoryMutation.mutate({ id: inventoryItemId, quantity: newQuantity });
-  };
-  
-  // Handler für die Automaten-Zuordnung
-  const handleAssignMachine = () => {
-    if (!selectedMachine) {
-      toast({
-        title: 'Fehler',
-        description: 'Bitte wählen Sie einen Automaten aus.',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    createAssignmentMutation.mutate({
-      machineId: selectedMachine,
-      warehouseId: parseInt(id),
-      isPrimary: false, // Primärlager-Funktion entfernt, für Kompatibilität auf false gesetzt
-      notes: assignNotes
+  // Inventurzählung abschließen
+  const handleCompleteInventoryCount = () => {
+    createInventoryCountMutation.mutate({
+      warehouseId: Number(id),
+      notes: inventoryCountNotes,
+      items: inventoryCountItems.map(item => ({
+        productId: item.productId,
+        countedQuantity: item.countedQuantity,
+        difference: item.countedQuantity - item.currentQuantity
+      }))
     });
   };
   
-  // Handler für das Hinzufügen von Produkten
-  const handleAddProducts = () => {
-    if (selectedProductIds.length === 0) {
-      toast({
-        title: 'Fehler',
-        description: 'Bitte wählen Sie mindestens ein Produkt aus.',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    addInventoryMutation.mutate({
-      productIds: selectedProductIds,
-      minQuantity: 5, // Standardwert
-      location: '', // Optional
-      notes: '' // Optional
-    });
+  // Gezählte Menge aktualisieren
+  const handleCountedQuantityChange = (productId: number, countedQuantity: number) => {
+    setInventoryCountItems(prevItems =>
+      prevItems.map(item =>
+        item.productId === productId
+          ? {
+              ...item,
+              countedQuantity,
+              difference: countedQuantity - item.currentQuantity
+            }
+          : item
+      )
+    );
   };
   
-  // Toggle-Funktion für Produkt-Auswahl
-  const toggleProductSelection = (productId: number) => {
-    setSelectedProductIds(prevSelected => {
-      if (prevSelected.includes(productId)) {
-        return prevSelected.filter(id => id !== productId);
-      } else {
-        return [...prevSelected, productId];
-      }
-    });
-  };
-  
-  // Rendering bei Ladevorgang
+  // Laden-Zustand und Fehlerbehandlung
   if (warehouseLoading) {
     return (
-      <div className="space-y-4">
-        <div className="flex items-center space-x-2">
-          <Skeleton className="h-10 w-10" />
-          <Skeleton className="h-10 w-48" />
-        </div>
-        <Skeleton className="h-[400px] w-full" />
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-lg text-muted-foreground">Lager wird geladen...</span>
       </div>
     );
   }
-  
-  // Rendering bei Fehler
-  if (error || !warehouse) {
+
+  if (warehouseError) {
     return (
-      <div className="space-y-4">
-        <Button
-          variant="outline"
-          onClick={() => setLocation('/lager')}
-          className="mb-4"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Zurück zur Übersicht
-        </Button>
-        
-        <div className="rounded-md bg-destructive/15 p-4 text-center">
-          <CircleAlert className="h-6 w-6 mx-auto mb-2 text-destructive" />
-          <h3 className="font-medium text-destructive">
-            {!warehouse ? 'Lager nicht gefunden' : 'Fehler beim Laden des Lagers'}
-          </h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            {(error as Error)?.message || 'Das angeforderte Lager konnte nicht geladen werden.'}
-          </p>
+      <Alert variant="destructive" className="my-8">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Fehler beim Laden des Lagers</AlertTitle>
+        <AlertDescription>
+          {(warehouseError as Error).message || "Bitte versuchen Sie es später erneut."}
+        </AlertDescription>
+        <div className="mt-4">
+          <Button onClick={() => setLocation("/lager")}>
+            <ChevronLeft className="mr-2 h-4 w-4" />
+            Zurück zur Übersicht
+          </Button>
         </div>
-      </div>
+      </Alert>
+    );
+  }
+
+  // Wenn kein Lager gefunden wurde
+  if (!warehouse) {
+    return (
+      <Alert className="my-8">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Lager nicht gefunden</AlertTitle>
+        <AlertDescription>
+          Das angeforderte Lager konnte nicht gefunden werden.
+        </AlertDescription>
+        <div className="mt-4">
+          <Button onClick={() => setLocation("/lager")}>
+            <ChevronLeft className="mr-2 h-4 w-4" />
+            Zurück zur Übersicht
+          </Button>
+        </div>
+      </Alert>
     );
   }
 
   return (
     <div className="space-y-6">
+      {/* Kopfzeile mit Lagername und Zurück-Button */}
       <div className="flex justify-between items-center">
-        <div className="flex items-center">
-          <Button
-            variant="outline"
-            onClick={() => setLocation('/lager')}
-            className="mr-4"
+        <div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setLocation("/lager")}
+            className="mb-2"
           >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Zurück
+            <ChevronLeft className="mr-1 h-4 w-4" />
+            Zurück zur Übersicht
           </Button>
-          <h1 className="text-2xl font-bold">{warehouse.name}</h1>
-          {!warehouse.isActive && (
-            <Badge variant="outline" className="bg-muted ml-2">Inaktiv</Badge>
+          <h1 className="text-3xl font-bold tracking-tight">{warehouse.name}</h1>
+          {warehouse.description && (
+            <p className="text-muted-foreground mt-1">{warehouse.description}</p>
           )}
         </div>
-        <Button 
-          onClick={() => setIsEditWarehouseDialogOpen(true)}
-        >
-          <Edit className="mr-2 h-4 w-4" />
-          Lager bearbeiten
-        </Button>
+        
+        <div className="flex items-center space-x-2">
+          {warehouse.isActive === false && (
+            <Badge variant="outline" className="bg-gray-100">Inaktiv</Badge>
+          )}
+          {/* Weitere Aktionen könnten hier hinzugefügt werden */}
+        </div>
       </div>
-      
-      {/* Metriken/KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="py-4">
-            <CardTitle className="text-base flex items-center">
-              <Package2 className="h-4 w-4 mr-2 text-primary" />
-              Artikel
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="py-0">
-            <div className="text-3xl font-bold">{totalItems}</div>
-            <p className="text-sm text-muted-foreground">Artikel im Lager</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="py-4">
-            <CardTitle className="text-base flex items-center">
-              <ClipboardList className="h-4 w-4 mr-2 text-primary" />
-              Gesamtbestand
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="py-0">
-            <div className="text-3xl font-bold">{totalStock}</div>
-            <p className="text-sm text-muted-foreground">Einheiten verfügbar</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="py-4">
-            <CardTitle className="text-base flex items-center">
-              <CircleAlert className="h-4 w-4 mr-2 text-destructive" />
-              Kritische Bestände
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="py-0">
-            <div className="text-3xl font-bold">{criticalItems}</div>
-            <p className="text-sm text-muted-foreground">Artikel nachzubestellen</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="py-4">
-            <CardTitle className="text-base flex items-center">
-              <Truck className="h-4 w-4 mr-2 text-primary" />
-              Zugeordnete Automaten
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="py-0">
-            <div className="text-3xl font-bold">{assignedMachines}</div>
-            <p className="text-sm text-muted-foreground">Keine Primärlager-Funktion</p>
-          </CardContent>
-        </Card>
-      </div>
-      
-      {/* Lagerdetails und Bestände */}
+
+      {/* Tabs für die verschiedenen Lageransichten */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="info">Lagerinfo</TabsTrigger>
-          <TabsTrigger value="inventory">Lagerbestand</TabsTrigger>
-          <TabsTrigger value="movements">Warenbewegungen</TabsTrigger>
-          <TabsTrigger value="machines">Automaten-Zuordnung</TabsTrigger>
-          <TabsTrigger value="stocks">Automat-Bestand</TabsTrigger>
-          <TabsTrigger value="counts">Inventur</TabsTrigger>
+        <TabsList className="grid grid-cols-5 mb-8">
+          <TabsTrigger value="overview">
+            <Building2 className="h-4 w-4 mr-2" />
+            Übersicht
+          </TabsTrigger>
+          <TabsTrigger value="machines">
+            <Truck className="h-4 w-4 mr-2" />
+            Automaten-Zuordnung
+          </TabsTrigger>
+          <TabsTrigger value="inventory">
+            <Package className="h-4 w-4 mr-2" />
+            Warenbestand
+          </TabsTrigger>
+          <TabsTrigger value="inventory-count">
+            <ClipboardCheck className="h-4 w-4 mr-2" />
+            Inventur
+          </TabsTrigger>
+          <TabsTrigger value="movements">
+            <ArrowDownUp className="h-4 w-4 mr-2" />
+            Warenbewegung
+          </TabsTrigger>
         </TabsList>
-        
-        <TabsContent value="info" className="mt-0">
-          <Card>
-            <CardHeader>
-              <CardTitle>Lagerinformationen</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <h3 className="font-medium">Adresse</h3>
-                <p className="text-muted-foreground">
-                  {[
-                    warehouse.address,
-                    `${warehouse.postalCode || ''} ${warehouse.city || ''}`,
-                    warehouse.country
-                  ].filter(Boolean).join(', ') || 'Keine Adresse angegeben'}
-                </p>
-              </div>
-              
-              <div>
-                <h3 className="font-medium">Beschreibung</h3>
-                <p className="text-muted-foreground">
-                  {warehouse.description || 'Keine Beschreibung vorhanden'}
-                </p>
-              </div>
-              
-              <div>
-                <h3 className="font-medium">Kontakt</h3>
-                <p className="text-muted-foreground">
-                  {warehouse.contactPerson || 'Kein Ansprechpartner angegeben'}
-                  {warehouse.contactPhone && ` · ${warehouse.contactPhone}`}
-                  {warehouse.contactEmail && ` · ${warehouse.contactEmail}`}
-                </p>
-              </div>
-              
-              {warehouse.notes && (
-                <div>
-                  <h3 className="font-medium">Notizen</h3>
-                  <p className="text-muted-foreground">{warehouse.notes}</p>
+
+        {/* Tab: Übersicht */}
+        <TabsContent value="overview" className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Lager-Informationen */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Lagerinformationen</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Adresse und Kontaktdaten */}
+                {(warehouse.address || warehouse.city || warehouse.postalCode) && (
+                  <div className="flex items-start space-x-2">
+                    <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
+                    <div>
+                      <p className="font-medium">Adresse</p>
+                      <p className="text-sm text-muted-foreground">
+                        {warehouse.address && <>{warehouse.address}<br /></>}
+                        {warehouse.postalCode && <>{warehouse.postalCode} </>}
+                        {warehouse.city && <>{warehouse.city}</>}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Telefon */}
+                {warehouse.phone && (
+                  <div className="flex items-start space-x-2">
+                    <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
+                    <div>
+                      <p className="font-medium">Telefon</p>
+                      <p className="text-sm text-muted-foreground">{warehouse.phone}</p>
+                    </div>
+                  </div>
+                )}
+                
+                {/* E-Mail */}
+                {warehouse.email && (
+                  <div className="flex items-start space-x-2">
+                    <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
+                    <div>
+                      <p className="font-medium">E-Mail</p>
+                      <p className="text-sm text-muted-foreground">{warehouse.email}</p>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Ansprechpartner */}
+                {warehouse.contactPerson && (
+                  <div className="flex items-start space-x-2">
+                    <User className="h-5 w-5 text-muted-foreground mt-0.5" />
+                    <div>
+                      <p className="font-medium">Ansprechpartner</p>
+                      <p className="text-sm text-muted-foreground">{warehouse.contactPerson}</p>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Status and Type */}
+                <div className="flex items-start space-x-2">
+                  <div>
+                    <p className="font-medium">Status</p>
+                    <Badge variant={warehouse.isActive !== false ? "success" : "secondary"} className="mt-1">
+                      {warehouse.isActive !== false ? "Aktiv" : "Inaktiv"}
+                    </Badge>
+                  </div>
+                  
+                  {warehouse.type && (
+                    <div className="ml-6">
+                      <p className="font-medium">Typ</p>
+                      <Badge variant="outline" className="mt-1">
+                        {warehouse.type}
+                      </Badge>
+                    </div>
+                  )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+            
+            {/* Lager-Statistiken */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Lagerstatistiken</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Automaten */}
+                  <div className="rounded-lg border p-3">
+                    <h3 className="text-sm font-medium text-muted-foreground">Automaten</h3>
+                    <p className="text-2xl font-bold">{machineAssignments?.length || 0}</p>
+                  </div>
+                  
+                  {/* Produkte */}
+                  <div className="rounded-lg border p-3">
+                    <h3 className="text-sm font-medium text-muted-foreground">Produkte</h3>
+                    <p className="text-2xl font-bold">{Array.isArray(inventory) ? inventory.length : 0}</p>
+                  </div>
+                  
+                  {/* Kritische Artikel */}
+                  <div className="rounded-lg border p-3">
+                    <h3 className="text-sm font-medium text-muted-foreground">Kritische Artikel</h3>
+                    <p className="text-2xl font-bold">
+                      {Array.isArray(inventory) 
+                        ? inventory.filter(item => item.quantity <= (item.minQuantity || 0)).length 
+                        : 0}
+                    </p>
+                  </div>
+                  
+                  {/* Letzte Inventur */}
+                  <div className="rounded-lg border p-3">
+                    <h3 className="text-sm font-medium text-muted-foreground">Letzte Inventur</h3>
+                    <p className="text-sm font-bold">
+                      {inventoryCounts && inventoryCounts.length > 0
+                        ? new Date(inventoryCounts[0].endDate).toLocaleDateString()
+                        : "Keine durchgeführt"}
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Aktionen */}
+                <div className="flex space-x-2 pt-4">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setActiveTab("inventory-count")}
+                  >
+                    <ClipboardCheck className="mr-2 h-4 w-4" />
+                    Inventur durchführen
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setActiveTab("machines")}
+                  >
+                    <Truck className="mr-2 h-4 w-4" />
+                    Automaten zuordnen
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
-        
-        <TabsContent value="inventory" className="mt-0">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Lagerbestand</CardTitle>
-                <CardDescription>Übersicht aller Artikel in diesem Lager</CardDescription>
-              </div>
-              <div className="flex space-x-2">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => reconcileWarehouseMutation.mutate()}
-                  disabled={isReconciling}
-                >
-                  <RefreshCw className={`h-4 w-4 mr-1 ${isReconciling ? 'animate-spin' : ''}`} />
-                  {isReconciling ? 'Abgleich läuft...' : 'Automaten abgleichen'}
+
+        {/* Tab: Automaten-Zuordnung */}
+        <TabsContent value="machines" className="space-y-4">
+          <div className="flex justify-between mb-4">
+            <h2 className="text-xl font-bold">Automaten-Zuordnung</h2>
+            <Button onClick={() => setIsAssignDialogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Automaten zuordnen
+            </Button>
+          </div>
+          
+          {assignmentsLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-lg text-muted-foreground">Automaten werden geladen...</span>
+            </div>
+          ) : machineAssignments.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-8">
+                <Truck className="h-16 w-16 text-muted-foreground mb-4" />
+                <h3 className="text-xl font-semibold mb-2">Keine Automaten zugeordnet</h3>
+                <p className="text-center text-muted-foreground mb-4">
+                  Diesem Lager sind noch keine Automaten zugeordnet. Fügen Sie Automaten hinzu, 
+                  um deren Bestand aus diesem Lager zu verwalten.
+                </p>
+                <Button onClick={() => setIsAssignDialogOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Automaten zuordnen
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setIsAddInventoryDialogOpen(true)}
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Produkte hinzufügen
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {/* Suchfeld für den Lagerbestand */}
-              <div className="mb-4">
-                <div className="relative max-w-sm">
-                  <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Produkte im Lagerbestand suchen..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-8"
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Automaten-ID</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Standort</TableHead>
+                    <TableHead>Zugeordnet am</TableHead>
+                    <TableHead>Notizen</TableHead>
+                    <TableHead className="text-right">Aktionen</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {machineAssignments.map((assignment) => {
+                    const machine = machines.find(m => m.id === assignment.machineId);
+                    
+                    return (
+                      <TableRow key={assignment.id}>
+                        <TableCell>{assignment.machineId}</TableCell>
+                        <TableCell className="font-medium">
+                          {machine?.machineName || "Unbekannter Automat"}
+                        </TableCell>
+                        <TableCell>
+                          {machine?.locationName || "Kein Standort"}
+                        </TableCell>
+                        <TableCell>
+                          {assignment.assignedAt 
+                            ? new Date(assignment.assignedAt).toLocaleDateString() 
+                            : "Unbekannt"}
+                        </TableCell>
+                        <TableCell>{assignment.notes || "-"}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => {
+                              // Dialog für die Entfernung anzeigen oder direkt entfernen
+                              toast({
+                                title: "Nicht implementiert",
+                                description: "Die Funktion zum Entfernen von Automaten ist noch nicht implementiert.",
+                                variant: "destructive"
+                              });
+                            }}
+                          >
+                            Entfernen
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+          
+          {/* Dialog für die Zuordnung von Automaten */}
+          <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Automaten zuordnen</DialogTitle>
+                <DialogDescription>
+                  Wählen Sie einen Automaten aus, der diesem Lager zugeordnet werden soll.
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Automat</label>
+                  <Select
+                    value={selectedMachine}
+                    onValueChange={setSelectedMachine}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Automaten auswählen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {machines
+                        .filter(machine => 
+                          !machineAssignments.some(a => a.machineId === machine.id)
+                        )
+                        .map(machine => (
+                          <SelectItem key={machine.id} value={machine.id.toString()}>
+                            {machine.machineName} {machine.locationName && `(${machine.locationName})`}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Notizen (optional)</label>
+                  <Textarea
+                    placeholder="Zusätzliche Informationen zur Zuordnung"
+                    value={assignNotes}
+                    onChange={(e) => setAssignNotes(e.target.value)}
                   />
                 </div>
               </div>
               
-              {inventoryLoading ? (
-                <div className="space-y-2">
-                  {[1, 2, 3].map(i => (
-                    <Skeleton key={i} className="h-12 w-full" />
-                  ))}
-                </div>
-              ) : inventoryItems && inventoryItems.length > 0 ? (
-                <div className="rounded-md border">
-                  <table className="min-w-full divide-y divide-border">
-                    <thead>
-                      <tr className="bg-muted/50">
-                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Artikel</th>
-                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Bestand</th>
-                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Min. Bestand</th>
-                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Bestellung</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-popover divide-y divide-border">
-                      {/* Filtern der Inventory-Items basierend auf der Suche */}
-                      {inventoryItems
-                        .filter(item => {
-                          const product = products.data?.find(p => p.id === item.productId);
-                          return !searchTerm || 
-                            (product?.productName && 
-                             product.productName.toLowerCase().includes(searchTerm.toLowerCase()));
-                        })
-                        .map((item) => {
-                        // Bestimmen des Status
-                        let statusColor = 'bg-green-100 text-green-800';
-                        let statusText = 'OK';
-                        
-                        if (item.quantity === 0) {
-                          statusColor = 'bg-red-100 text-red-800';
-                          statusText = 'Leer';
-                        } else if (item.minQuantity !== null && item.quantity <= item.minQuantity) {
-                          statusColor = 'bg-yellow-100 text-yellow-800';
-                          statusText = 'Kritisch';
-                        }
-                        
-                        return (
-                          <tr key={item.id}>
-                            <td className="px-3 py-2">
-                              <div className="text-sm max-w-[300px] whitespace-normal truncate">{item.productName}</div>
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap">
-                              {item.quantity !== null ? item.quantity : '-'}
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap">
-                              {item.minQuantity !== null ? item.minQuantity : '-'}
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap">
-                              <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusColor}`}>
-                                {statusText}
-                              </span>
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="h-7 flex items-center"
-                                onClick={() => {
-                                  // Navigiere zur Bestellseite mit vorausgewähltem Produkt und Lager
-                                  const product = products.data?.find(p => p.id === item.productId);
-                                  setLocation(`/bestellungen/neu?warehouseId=${id}&productId=${item.productId}&productName=${product?.productName || ''}&supplierId=${product?.supplierId || ''}`);
-                                }}
-                              >
-                                <Package2 className="h-3.5 w-3.5 mr-1" />
-                                <span className="text-xs">Bestellen</span>
-                              </Button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-6">
-                  <Building2 className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                  <h3 className="text-lg font-medium">Keine Artikel vorhanden</h3>
-                  <p className="text-muted-foreground mb-4">
-                    In diesem Lager sind noch keine Artikel hinterlegt.
-                  </p>
-                  <Button onClick={() => setIsAddInventoryDialogOpen(true)}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Produkte hinzufügen
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsAssignDialogOpen(false)}
+                >
+                  Abbrechen
+                </Button>
+                <Button
+                  onClick={() => {
+                    // Mutation für die Zuweisung von Automaten ausführen
+                    toast({
+                      title: "Zuordnung gespeichert",
+                      description: "Der Automat wurde erfolgreich diesem Lager zugeordnet.",
+                    });
+                    setIsAssignDialogOpen(false);
+                  }}
+                  disabled={!selectedMachine}
+                >
+                  Zuordnen
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
-        
-        <TabsContent value="movements" className="mt-0">
-          <Card>
-            <CardHeader>
-              <CardTitle>Warenbewegungen</CardTitle>
-              <CardDescription>Ein- und Ausgänge von Waren in diesem Lager</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex justify-between mb-4">
-                <div className="flex space-x-2">
-                  <Button variant="outline">
-                    <ArrowRightLeft className="h-4 w-4 mr-2" />
-                    Alle Bewegungen
-                  </Button>
-                  <Button variant="outline">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Eingang
-                  </Button>
-                  <Button variant="outline">
-                    <Minus className="h-4 w-4 mr-2" />
-                    Ausgang
-                  </Button>
-                </div>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Neue Bewegung
+
+        {/* Tab: Warenbestand */}
+        <TabsContent value="inventory" className="space-y-4">
+          <div className="flex justify-between mb-4">
+            <h2 className="text-xl font-bold">Warenbestand im Lager</h2>
+            <div className="flex space-x-2">
+              <Button variant="outline">
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Aktualisieren
+              </Button>
+              <Button>
+                <ShoppingCart className="mr-2 h-4 w-4" />
+                Nachbestellen
+              </Button>
+            </div>
+          </div>
+          
+          {inventoryLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-lg text-muted-foreground">Warenbestand wird geladen...</span>
+            </div>
+          ) : !Array.isArray(inventory) || inventory.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-8">
+                <Package className="h-16 w-16 text-muted-foreground mb-4" />
+                <h3 className="text-xl font-semibold mb-2">Keine Produkte im Lager</h3>
+                <p className="text-center text-muted-foreground mb-4">
+                  Dieses Lager enthält noch keine Produkte. Produkte werden automatisch hinzugefügt, 
+                  wenn sie von zugeordneten Automaten verwendet werden.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {/* Suchleiste für Produkte */}
+              <div className="relative w-full max-w-sm mb-4">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Nach Produkten suchen..."
+                  className="pl-8 h-9 w-full"
+                />
+              </div>
+          
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Produkt</TableHead>
+                      <TableHead>Produzent</TableHead>
+                      <TableHead>Einheit</TableHead>
+                      <TableHead className="text-right">Bestand</TableHead>
+                      <TableHead className="text-right">Aktionen</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {inventory.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">{item.productName}</TableCell>
+                        <TableCell>{item.supplierName || "-"}</TableCell>
+                        <TableCell>{item.units || "Stück"}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge
+                            variant={
+                              item.quantity <= 0
+                                ? "destructive"
+                                : item.quantity <= (item.minQuantity || 5)
+                                ? "warning"
+                                : "success"
+                            }
+                          >
+                            {item.quantity}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              // Nachbestellfunktion
+                              toast({
+                                title: "Nicht implementiert",
+                                description: "Die Nachbestellfunktion ist noch nicht implementiert.",
+                              });
+                            }}
+                          >
+                            Nachbestellen
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+        </TabsContent>
+
+        {/* Tab: Inventur */}
+        <TabsContent value="inventory-count" className="space-y-4">
+          <div className="flex justify-between mb-4">
+            <h2 className="text-xl font-bold">Inventur</h2>
+            {!isCountInProgress ? (
+              <Button onClick={() => setIsCountInProgress(true)}>
+                <ClipboardCheck className="mr-2 h-4 w-4" />
+                Neue Inventur starten
+              </Button>
+            ) : (
+              <div className="flex space-x-2">
+                <Button variant="outline" onClick={() => setIsCountInProgress(false)}>
+                  Abbrechen
+                </Button>
+                <Button onClick={handleCompleteInventoryCount}>
+                  <Save className="mr-2 h-4 w-4" />
+                  Inventur abschließen
                 </Button>
               </div>
-              
-              <div className="rounded-md border p-8 text-center">
-                <MoveRight className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium">Keine Warenbewegungen</h3>
-                <p className="text-muted-foreground mb-2 max-w-md mx-auto">
-                  Für dieses Lager wurden noch keine Warenbewegungen erfasst. 
-                  Erfassen Sie Ein- und Ausgänge, um Ihren Lagerbestand zu verfolgen.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="stocks" className="mt-0">
-          <Card>
-            <CardHeader>
-              <CardTitle>Automaten-Bestand</CardTitle>
-              <CardDescription>Aktuelle Bestände in den Automaten an diesem Standort</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <LocationStockTab locationId={Number(id)} />
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="machines" className="mt-0">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Automaten-Zuordnung</CardTitle>
-                <CardDescription>Verwalten Sie, welche Automaten mit diesem Lager verknüpft sind</CardDescription>
-              </div>
-              <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Automat zuordnen
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Automat diesem Lager zuordnen</DialogTitle>
-                    <DialogDescription>
-                      Wählen Sie einen Automaten aus, der diesem Lager zugeordnet werden soll.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 py-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="machine">Automat</Label>
-                      <Select
-                        value={selectedMachine?.toString() || ''}
-                        onValueChange={(value) => setSelectedMachine(parseInt(value))}
-                      >
-                        <SelectTrigger id="machine">
-                          <SelectValue placeholder="Automat auswählen" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Array.isArray(machines) ? machines.filter(machine => {
-                            // Prüfen, ob der Automat bereits zugeordnet ist
-                            return Array.isArray(machineAssignments) ? !machineAssignments.some(
-                              assignment => assignment.machineId === machine.id
-                            ) : true;
-                          }).map(machine => (
-                            <SelectItem key={machine.id} value={machine.id.toString()}>
-                              {machine.machineName}
-                            </SelectItem>
-                          )) : null}
-                        </SelectContent>
-                      </Select>
+            )}
+          </div>
+          
+          {inventoryLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-lg text-muted-foreground">Warenbestand wird geladen...</span>
+            </div>
+          ) : !isCountInProgress ? (
+            // Liste der bisherigen Inventuren
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Bisherige Inventuren</CardTitle>
+                  <CardDescription>
+                    Übersicht aller durchgeführten Inventuren für dieses Lager.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {inventoryCountsLoading ? (
+                    <div className="flex items-center justify-center h-32">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : !Array.isArray(inventoryCounts) || inventoryCounts.length === 0 ? (
+                    <div className="text-center py-4">
+                      <p className="text-muted-foreground">
+                        Für dieses Lager wurden noch keine Inventuren durchgeführt.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Datum</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Durchgeführt von</TableHead>
+                            <TableHead>Anzahl Artikel</TableHead>
+                            <TableHead>Anpassungen</TableHead>
+                            <TableHead className="text-right">Aktionen</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {inventoryCounts.map((count) => (
+                            <TableRow key={count.id}>
+                              <TableCell>{new Date(count.endDate || count.startDate).toLocaleDateString()}</TableCell>
+                              <TableCell>
+                                <Badge
+                                  variant={
+                                    count.status === "completed"
+                                      ? "success"
+                                      : count.status === "in_progress"
+                                      ? "warning"
+                                      : count.status === "cancelled"
+                                      ? "destructive"
+                                      : "default"
+                                  }
+                                >
+                                  {count.status === "completed"
+                                    ? "Abgeschlossen"
+                                    : count.status === "in_progress"
+                                    ? "In Bearbeitung"
+                                    : count.status === "cancelled"
+                                    ? "Abgebrochen"
+                                    : count.status === "pending"
+                                    ? "Ausstehend"
+                                    : count.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>{count.initiatedByName || "-"}</TableCell>
+                              <TableCell>{count.itemCount || "-"}</TableCell>
+                              <TableCell>{count.adjustmentCount || "0"}</TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    // Details anzeigen
+                                    toast({
+                                      title: "Nicht implementiert",
+                                      description: "Die Detailansicht ist noch nicht implementiert.",
+                                    });
+                                  }}
+                                >
+                                  Details
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            // Inventur-Erfassung
+            <>
+              <Card className="mb-4">
+                <CardHeader>
+                  <CardTitle>Inventur durchführen</CardTitle>
+                  <CardDescription>
+                    Zählen Sie den tatsächlichen Bestand im Lager und erfassen Sie die Mengen.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="relative w-full max-w-sm">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="search"
+                        placeholder="Nach Produkten suchen..."
+                        className="pl-8 h-9 w-full"
+                      />
                     </div>
                     
-                    {/* Primärlager-Funktion wurde entfernt */}
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Produkt</TableHead>
+                            <TableHead>Aktueller Bestand</TableHead>
+                            <TableHead>Gezählter Bestand</TableHead>
+                            <TableHead>Differenz</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {inventoryCountItems.map((item) => (
+                            <TableRow key={item.productId}>
+                              <TableCell className="font-medium">{item.productName}</TableCell>
+                              <TableCell>{item.currentQuantity}</TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  value={item.countedQuantity}
+                                  onChange={(e) => 
+                                    handleCountedQuantityChange(
+                                      item.productId, 
+                                      parseInt(e.target.value) || 0
+                                    )
+                                  }
+                                  className="w-20"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Badge
+                                  variant={
+                                    item.difference === 0
+                                      ? "secondary"
+                                      : item.difference < 0
+                                      ? "destructive"
+                                      : "success"
+                                  }
+                                >
+                                  {item.difference > 0 ? `+${item.difference}` : item.difference}
+                                </Badge>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                     
                     <div className="space-y-2">
-                      <Label htmlFor="notes">Notizen (optional)</Label>
-                      <Input
-                        id="notes"
-                        value={assignNotes}
-                        onChange={(e) => setAssignNotes(e.target.value)}
-                        placeholder="Notizen zur Zuordnung"
+                      <label className="text-sm font-medium">Notizen zur Inventur</label>
+                      <Textarea
+                        placeholder="Anmerkungen zur Inventur (optional)"
+                        value={inventoryCountNotes}
+                        onChange={(e) => setInventoryCountNotes(e.target.value)}
                       />
                     </div>
                   </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsAssignDialogOpen(false)}>
-                      Abbrechen
+                </CardContent>
+                <CardFooter className="flex justify-between">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setIsCountInProgress(false)}
+                  >
+                    Abbrechen
+                  </Button>
+                  <div className="flex space-x-2">
+                    <Button 
+                      variant="outline"
+                      onClick={() => {
+                        // Inventur zwischenspeichern
+                        toast({
+                          title: "Zwischengespeichert",
+                          description: "Die Inventur wurde zwischengespeichert.",
+                        });
+                      }}
+                    >
+                      Zwischenspeichern
                     </Button>
                     <Button 
-                      onClick={handleAssignMachine}
-                      disabled={createAssignmentMutation.isPending || !selectedMachine}
+                      onClick={handleCompleteInventoryCount}
+                      disabled={createInventoryCountMutation.isPending}
                     >
-                      {createAssignmentMutation.isPending ? 'Wird zugeordnet...' : 'Zuordnen'}
+                      {createInventoryCountMutation.isPending && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Inventur abschließen
                     </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </CardHeader>
-            <CardContent>
-              {assignmentsLoading ? (
-                <div className="space-y-2">
-                  {[1, 2, 3].map(i => (
-                    <Skeleton key={i} className="h-12 w-full" />
-                  ))}
-                </div>
-              ) : machineAssignments && machineAssignments.length > 0 ? (
-                <div className="rounded-md border">
-                  <table className="min-w-full divide-y divide-border">
-                    <thead>
-                      <tr className="bg-muted/50">
-                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Automat</th>
-                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Zugewiesen am</th>
-                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Notizen</th>
-                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Aktionen</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-popover divide-y divide-border">
-                      {machineAssignments.map((assignment) => (
-                        <tr key={assignment.id}>
-                          <td className="px-3 py-2 whitespace-nowrap">
-                            <div className="font-medium">{assignment.machineName}</div>
-                          </td>
-                          <td className="px-3 py-2 whitespace-nowrap">
-                            {/* Primärlager-Funktion wurde entfernt */}
-                            <Badge variant="outline">Standard</Badge>
-                          </td>
-                          <td className="px-3 py-2 whitespace-nowrap">
-                            {assignment.assignedAt ? 
-                              new Date(assignment.assignedAt).toLocaleDateString('de-DE') 
-                              : '-'}
-                          </td>
-                          <td className="px-3 py-2">
-                            <div className="max-w-xs truncate">
-                              {assignment.notes || '-'}
-                            </div>
-                          </td>
-                          <td className="px-3 py-2 whitespace-nowrap">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                              onClick={() => deleteAssignmentMutation.mutate(assignment.id)}
-                              disabled={deleteAssignmentMutation.isPending}
-                            >
-                              Entfernen
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="text-center py-6">
-                  <Truck className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                  <h3 className="text-lg font-medium">Keine Automaten zugeordnet</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Diesem Lager sind noch keine Automaten zugewiesen.
-                  </p>
-                  <Button onClick={() => setIsAssignDialogOpen(true)}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Automat zuordnen
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                  </div>
+                </CardFooter>
+              </Card>
+            </>
+          )}
         </TabsContent>
-        
-        <TabsContent value="counts" className="mt-0">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Inventuren</CardTitle>
-                <CardDescription>Verwalten und durchführen von Lagerbestandsaufnahmen</CardDescription>
-              </div>
+
+        {/* Tab: Warenbewegung */}
+        <TabsContent value="movements" className="space-y-4">
+          <div className="flex justify-between mb-4">
+            <h2 className="text-xl font-bold">Warenbewegungen</h2>
+            <div className="flex space-x-2">
               <Button>
-                <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Neue Inventur starten
+                <Plus className="mr-2 h-4 w-4" />
+                Warenbewegung hinzufügen
               </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-md border p-8 text-center">
-                <ClipboardListIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium">Keine Inventuren vorhanden</h3>
-                <p className="text-muted-foreground mb-2 max-w-md mx-auto">
-                  Es wurden noch keine Inventuren für dieses Lager durchgeführt. 
-                  Starten Sie eine neue Inventur, um den tatsächlichen Bestand zu ermitteln.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-      
-      {/* Dialog für Lager bearbeiten */}
-      <WarehouseFormDialog 
-        warehouse={warehouse}
-        open={isEditWarehouseDialogOpen} 
-        onOpenChange={setIsEditWarehouseDialogOpen} 
-        isNew={false}
-      />
-      
-      {/* Dialog für Produkte hinzufügen */}
-      <Dialog open={isAddInventoryDialogOpen} onOpenChange={setIsAddInventoryDialogOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Produkte zum Lagerbestand hinzufügen</DialogTitle>
-            <DialogDescription>
-              Wählen Sie die Produkte aus, die Sie dem Lagerbestand hinzufügen möchten.
-              Der Anfangsbestand ist zunächst 0.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="flex items-center space-x-2">
-              <Input
-                placeholder="Produkte suchen..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="max-w-sm"
-              />
-              <Badge variant="outline">
-                {filteredProducts?.length || 0} Produkte verfügbar
-              </Badge>
-            </div>
-            
-            <div className="border rounded-md">
-              <ScrollArea className="h-[400px]">
-                <div className="p-4 space-y-2">
-                  {productsLoading ? (
-                    <div className="space-y-2">
-                      {[1, 2, 3, 4, 5].map(i => (
-                        <Skeleton key={i} className="h-8 w-full" />
-                      ))}
-                    </div>
-                  ) : filteredProducts && filteredProducts.length > 0 ? (
-                    filteredProducts.map(product => (
-                      <div key={product.id} className="flex items-center space-x-2 py-2 border-b last:border-0">
-                        <Checkbox 
-                          id={`product-${product.id}`}
-                          checked={selectedProductIds.includes(product.id)}
-                          onCheckedChange={() => toggleProductSelection(product.id)}
-                        />
-                        <Label 
-                          htmlFor={`product-${product.id}`}
-                          className="flex-grow cursor-pointer"
-                        >
-                          {product.productName}
-                        </Label>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-4">
-                      <p className="text-muted-foreground">Keine passenden Produkte gefunden</p>
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
             </div>
           </div>
-          <DialogFooter>
-            <div className="flex justify-between items-center w-full">
-              <span className="text-sm text-muted-foreground">
-                {selectedProductIds.length} Produkte ausgewählt
-              </span>
-              <div className="space-x-2">
-                <Button variant="outline" onClick={() => setIsAddInventoryDialogOpen(false)}>
-                  Abbrechen
-                </Button>
-                <Button 
-                  onClick={handleAddProducts}
-                  disabled={addInventoryMutation.isPending || selectedProductIds.length === 0}
-                >
-                  {addInventoryMutation.isPending ? 'Wird hinzugefügt...' : 'Produkte hinzufügen'}
+          
+          {movementsLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-lg text-muted-foreground">Warenbewegungen werden geladen...</span>
+            </div>
+          ) : !Array.isArray(inventoryMovements) || inventoryMovements.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-8">
+                <ArrowDownUp className="h-16 w-16 text-muted-foreground mb-4" />
+                <h3 className="text-xl font-semibold mb-2">Keine Warenbewegungen</h3>
+                <p className="text-center text-muted-foreground mb-4">
+                  Für dieses Lager wurden noch keine Warenbewegungen verzeichnet.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {/* Suchleiste und Filter für Warenbewegungen */}
+              <div className="flex space-x-2 mb-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="search"
+                    placeholder="Warenbewegungen durchsuchen..."
+                    className="pl-8 h-9 w-full"
+                  />
+                </div>
+                <Button variant="outline" size="icon" className="h-9 w-9">
+                  <Filter className="h-4 w-4" />
                 </Button>
               </div>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              
+              <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Datum</TableHead>
+                      <TableHead>Produkt</TableHead>
+                      <TableHead>Typ</TableHead>
+                      <TableHead>Menge</TableHead>
+                      <TableHead>Referenz</TableHead>
+                      <TableHead>Durchgeführt von</TableHead>
+                      <TableHead className="text-right">Aktionen</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {inventoryMovements.map((movement) => (
+                      <TableRow key={movement.id}>
+                        <TableCell>
+                          {new Date(movement.performedAt).toLocaleDateString()}
+                          <div className="text-xs text-muted-foreground">
+                            {new Date(movement.performedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-medium">{movement.productName}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              movement.movementType === "IN"
+                                ? "success"
+                                : movement.movementType === "OUT"
+                                ? "destructive"
+                                : movement.movementType === "TRANSFER"
+                                ? "warning"
+                                : "secondary"
+                            }
+                          >
+                            {movement.movementType === "IN"
+                              ? "Eingang"
+                              : movement.movementType === "OUT"
+                              ? "Ausgang"
+                              : movement.movementType === "TRANSFER"
+                              ? "Umlagerung"
+                              : movement.movementType === "ADJUSTMENT"
+                              ? "Anpassung"
+                              : movement.movementType === "REFILL"
+                              ? "Automaten-Nachfüllung"
+                              : movement.movementType}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span className={
+                            movement.movementType === "IN" || movement.movementType === "ADJUSTMENT" && movement.quantity > 0
+                              ? "text-green-600"
+                              : movement.movementType === "OUT" || movement.movementType === "REFILL" || (movement.movementType === "ADJUSTMENT" && movement.quantity < 0)
+                              ? "text-red-600"
+                              : ""
+                          }>
+                            {movement.movementType === "IN" || (movement.movementType === "ADJUSTMENT" && movement.quantity > 0)
+                              ? `+${movement.quantity}`
+                              : movement.quantity}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {movement.referenceType === "REFILL" 
+                            ? `Nachfüllung #${movement.referenceId}`
+                            : movement.referenceType === "ORDER"
+                            ? `Bestellung #${movement.referenceId}`
+                            : movement.referenceType === "INVENTORY_COUNT"
+                            ? `Inventur #${movement.referenceId}`
+                            : movement.referenceType === "MANUAL"
+                            ? "Manuelle Buchung"
+                            : movement.referenceType || "-"}
+                        </TableCell>
+                        <TableCell>{movement.performedByName || "-"}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              // Details anzeigen
+                              toast({
+                                title: "Nicht implementiert",
+                                description: "Die Detailansicht ist noch nicht implementiert.",
+                              });
+                            }}
+                          >
+                            Details
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
