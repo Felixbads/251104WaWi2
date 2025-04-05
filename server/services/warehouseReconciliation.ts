@@ -64,10 +64,38 @@ export async function reconcileWarehouseProducts(): Promise<{
         
         // Extrahiere eindeutige Produkt-IDs aus den Transaktionen
         for (const transaction of transactions) {
-          if (transaction.productId && typeof transaction.productId === 'number') {
-            // Füge Produkt-ID zum entsprechenden Lager hinzu
-            warehouseToProducts[warehouseId].add(transaction.productId);
-            productsFound++;
+          try {
+            if (transaction.productId && typeof transaction.productId === 'number') {
+              // Füge Produkt-ID zum entsprechenden Lager hinzu
+              warehouseToProducts[warehouseId].add(transaction.productId);
+              productsFound++;
+            }
+            // Wenn keine Produkt-ID gesetzt ist, versuche das Produkt über den Namen zu finden
+            else if (transaction.productName) {
+              const productName = transaction.productName;
+              
+              // Suche das Produkt in der Datenbank anhand des Namens
+              if (productName) {
+                // Suche das Produkt in der Datenbank anhand des Namens
+                const productsResult = await storage.getProducts({
+                  search: productName,
+                  limit: 1
+                });
+                
+                const products = Array.isArray(productsResult) ? productsResult : productsResult.data;
+                
+                if (products.length > 0) {
+                  const product = products[0];
+                  if (product && product.id) {
+                    warehouseToProducts[warehouseId].add(product.id);
+                    productsFound++;
+                    console.log(`Produkt "${productName}" über Namen gefunden und zu Lager ${warehouseId} hinzugefügt`);
+                  }
+                }
+              }
+            }
+          } catch (error) {
+            console.error(`Fehler beim Verarbeiten einer Transaktion:`, error);
           }
         }
       } catch (error) {
