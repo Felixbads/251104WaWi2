@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, Suspense, lazy } from "react";
 import {
   BarChart2,
   Calendar,
@@ -7,48 +7,179 @@ import {
   Package,
   ShoppingBag,
   Truck,
-  ArrowUp,
-  DollarSign,
-  CreditCard,
-  Percent,
-  BarChart,
-  LineChart
+  Database,
+  Loader2,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
+import { useQuery, QueryClient } from "@tanstack/react-query";
+import { format } from 'date-fns';
 
-// Extrem vereinfachte, statische Version der Berichtsseite
-// Ohne API-Aufrufe, ohne Datumsberechnungen, ohne komplexe Diagramme
+// Zentrale Funktion für einfachere API-Aufrufe
+const fetchData = async (url: string) => {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error('Netzwerkfehler beim Laden der Daten.');
+  }
+  return response.json();
+};
 
+// Komponente für den Ladeindikator
+function LoadingIndicator() {
+  return (
+    <div className="flex items-center justify-center h-24">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  );
+}
+
+// Komponente für Fehlermeldungen
+function ErrorDisplay({ error }: { error: Error }) {
+  return (
+    <Card className="border-red-200">
+      <CardHeader>
+        <CardTitle className="text-red-500">Fehler beim Laden der Daten</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p>{error.message}</p>
+        <Button 
+          variant="outline" 
+          className="mt-4"
+          onClick={() => window.location.reload()}
+        >
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Neu laden
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Datenbank-Statistiken Tab
+function DatabaseStatistics() {
+  // Einfache Statistiken aus der Datenbank laden
+  const { data, error, isLoading, isError } = useQuery({
+    queryKey: ['/api/statistics/database'],
+    staleTime: 5 * 60 * 1000 // 5 Minuten Caching um die Serverlast zu reduzieren
+  });
+
+  if (isLoading) return <LoadingIndicator />;
+  if (isError) return <ErrorDisplay error={error as Error} />;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center">
+              <Database className="h-4 w-4 mr-2 text-muted-foreground" />
+              Transaktionen
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.transactions.toLocaleString()}</div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center">
+              <ShoppingBag className="h-4 w-4 mr-2 text-muted-foreground" />
+              Offene Bestellungen
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.openOrders.toLocaleString()}</div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center">
+              <Package className="h-4 w-4 mr-2 text-muted-foreground" />
+              Produkte
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.products.toLocaleString()}</div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center">
+              <Building className="h-4 w-4 mr-2 text-muted-foreground" />
+              Automaten
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.machines.toLocaleString()}</div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center">
+              <Truck className="h-4 w-4 mr-2 text-muted-foreground" />
+              Lieferanten
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.suppliers.toLocaleString()}</div>
+          </CardContent>
+        </Card>
+      </div>
+      
+      <Card>
+        <CardHeader>
+          <CardTitle>Datenbankstatistiken</CardTitle>
+          <CardDescription>Letzte Aktualisierung: {format(new Date(data.lastUpdated), 'dd.MM.yyyy HH:mm')}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p>Diese Ansicht zeigt die aktuellen Datenmengen in unserer Datenbank. 
+          Die Auswertungen werden direkt aus der Datenbank geladen, ohne externe APIs zu verwenden, 
+          um eine maximale Leistung und Stabilität zu gewährleisten.</p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Optimierte, ressourcenschonende Reporting-Komponente
 export default function Reporting() {
-  console.log("Statische Reporting-Komponente gerendert");
+  const [activeTab, setActiveTab] = useState("database");
+  const queryClient = new QueryClient();
   
-  const [activeTab, setActiveTab] = useState("overview");
-  
-  // Nur eine Funktion für UI-Feedback
+  // Nur eine Funktion für UI-Feedback und Datenaktualisierung
   const refreshData = () => {
+    // Alle relevanten Queries ungültig machen
+    queryClient.invalidateQueries({ queryKey: ['/api/statistics/database'] });
+    
     toast({
-      title: "Daten aktualisiert",
-      description: "Die Auswertungsdaten wurden aktualisiert.",
+      title: "Daten werden aktualisiert",
+      description: "Die Statistiken werden neu geladen.",
     });
   };
   
+  // Das aktuelle Datum für den Header
+  const today = new Date();
+  const formattedDate = format(today, 'dd.MM.yyyy');
+  
   return (
     <div className="space-y-6">
-      {/* Header mit Datums-Badge */}
+      {/* Header mit Datum und Refresh-Button */}
       <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
-        <div className="flex-grow"></div>
+        <div className="flex-grow">
+          <h1 className="text-2xl font-bold">Auswertungen</h1>
+          <p className="text-muted-foreground">Ressourcenschonende Datenauswertung</p>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" className="flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            <span>Diesen Monat</span>
-          </Button>
           <Badge variant="outline" className="text-xs h-7 px-2 py-1">
-            01.04.2025 - 04.04.2025
+            Stand: {formattedDate}
           </Badge>
           <Button 
             variant="outline" 
@@ -63,12 +194,12 @@ export default function Reporting() {
 
       <Separator />
 
-      {/* Tabs */}
-      <Tabs defaultValue="overview" onValueChange={setActiveTab}>
+      {/* Vereinfachte Tabs für verschiedene Statistiksichten */}
+      <Tabs defaultValue="database" onValueChange={setActiveTab}>
         <TabsList className="mb-6">
-          <TabsTrigger value="overview" className="flex items-center gap-1">
-            <BarChart2 className="h-4 w-4 md:mr-1" />
-            <span className="hidden md:inline">Übersicht</span>
+          <TabsTrigger value="database" className="flex items-center gap-1">
+            <Database className="h-4 w-4 md:mr-1" />
+            <span className="hidden md:inline">Datenbank</span>
           </TabsTrigger>
           <TabsTrigger value="machines" className="flex items-center gap-1">
             <Building className="h-4 w-4 md:mr-1" />
@@ -78,137 +209,43 @@ export default function Reporting() {
             <Package className="h-4 w-4 md:mr-1" />
             <span className="hidden md:inline">Produkte</span>
           </TabsTrigger>
-          <TabsTrigger value="suppliers" className="flex items-center gap-1">
-            <Truck className="h-4 w-4 md:mr-1" />
-            <span className="hidden md:inline">Lieferanten</span>
-          </TabsTrigger>
-          <TabsTrigger value="analysis" className="flex items-center gap-1">
-            <LineChart className="h-4 w-4 md:mr-1" />
-            <span className="hidden md:inline">Zeitanalyse</span>
-          </TabsTrigger>
         </TabsList>
       
-        {/* Übersichtseite */}
-        <TabsContent value="overview" className="space-y-6">
-          {/* KPI-Karten */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center">
-                  <DollarSign className="h-4 w-4 mr-2 text-muted-foreground" />
-                  Gesamtumsatz
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">942,99 €</div>
-                <p className="text-xs flex items-center text-green-500 mt-1">
-                  <ArrowUp className="h-3 w-3 mr-1" />
-                  <span>+5,2% im Vgl. zum Vormonat</span>
-                </p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center">
-                  <ShoppingBag className="h-4 w-4 mr-2 text-muted-foreground" />
-                  Transaktionen
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">301</div>
-                <p className="text-xs flex items-center text-green-500 mt-1">
-                  <ArrowUp className="h-3 w-3 mr-1" />
-                  <span>+3,8% im Vgl. zum Vormonat</span>
-                </p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center">
-                  <CreditCard className="h-4 w-4 mr-2 text-muted-foreground" />
-                  Ø Transaktionswert
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">3,13 €</div>
-                <p className="text-xs flex items-center text-red-500 mt-1">
-                  <ArrowUp className="h-3 w-3 mr-1 rotate-180" />
-                  <span>-1,2% im Vgl. zum Vormonat</span>
-                </p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium flex items-center">
-                  <Percent className="h-4 w-4 mr-2 text-muted-foreground" />
-                  Profitabilität
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">377,20 €</div>
-                <p className="text-xs flex items-center text-green-500 mt-1">
-                  <ArrowUp className="h-3 w-3 mr-1" />
-                  <span>+6,5% im Vgl. zum Vormonat</span>
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-          
-          {/* Hinweis, dass es sich um eine vereinfachte Ansicht handelt */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Hinweis</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p>Dies ist eine vereinfachte Ansicht der Auswertungsseite mit statischen Daten. Die Diagramme und detaillierten Analysen wurden vorübergehend deaktiviert, um Leistungsprobleme zu beheben.</p>
-            </CardContent>
-          </Card>
+        {/* Datenbank-Statistiken Tab */}
+        <TabsContent value="database" className="space-y-6">
+          <Suspense fallback={<LoadingIndicator />}>
+            <DatabaseStatistics />
+          </Suspense>
         </TabsContent>
         
-        {/* Platzhalter für andere Tabs */}
+        {/* Automaten Tab - Nur ein einfacher Platzhalter */}
         <TabsContent value="machines" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Automaten-Analyse</CardTitle>
+              <CardTitle>Automaten-Übersicht</CardTitle>
+              <CardDescription>Einfache Automaten-Statistiken</CardDescription>
             </CardHeader>
             <CardContent>
-              <p>Automatenanalyse wird geladen...</p>
+              <p>Diese vereinfachte Ansicht zeigt grundlegende Informationen zu den Automaten, 
+              ohne komplexe Berechnungen oder externe API-Aufrufe durchzuführen.</p>
+              <p className="mt-2">Für detaillierte Automaten-Analysen nutzen Sie bitte die Automaten-Ansicht 
+              unter dem Menüpunkt "Automaten".</p>
             </CardContent>
           </Card>
         </TabsContent>
         
+        {/* Produkte Tab - Nur ein einfacher Platzhalter */}
         <TabsContent value="products" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Produkt-Analyse</CardTitle>
+              <CardTitle>Produkt-Übersicht</CardTitle>
+              <CardDescription>Einfache Produkt-Statistiken</CardDescription>
             </CardHeader>
             <CardContent>
-              <p>Produktanalyse wird geladen...</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="suppliers" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Lieferanten-Analyse</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p>Lieferantenanalyse wird geladen...</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="analysis" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Zeitanalyse</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p>Zeitanalyse wird geladen...</p>
+              <p>Diese vereinfachte Ansicht zeigt grundlegende Informationen zu den Produkten, 
+              ohne komplexe Berechnungen oder externe API-Aufrufe durchzuführen.</p>
+              <p className="mt-2">Für detaillierte Produkt-Analysen nutzen Sie bitte die Produkt-Ansicht 
+              unter dem Menüpunkt "Produkte".</p>
             </CardContent>
           </Card>
         </TabsContent>
