@@ -117,14 +117,12 @@ export default function WarehouseDetail() {
     enabled: !!id
   });
   
-  // Die WarehouseProduct-Schnittstelle wurde bereits oben importiert
-  
   // Lager-Inventar abrufen
   const { 
-    data: inventory = [] as WarehouseProduct[], 
+    data: inventory = [], 
     isLoading: inventoryLoading,
     error: inventoryError
-  } = useQuery<WarehouseProduct[]>({
+  } = useQuery({
     queryKey: [`/api/inventory`, { warehouseId: id }],
     queryFn: () => getWarehouseInventory(id),
     enabled: !!id && activeTab === "inventory"
@@ -1147,9 +1145,9 @@ export default function WarehouseDetail() {
                     {inventoryMovements.map((movement) => (
                       <TableRow key={movement.id}>
                         <TableCell>
-                          {new Date(movement.performedAt).toLocaleDateString()}
+                          {movement.performedAt ? new Date(movement.performedAt).toLocaleDateString() : "Unbekannt"}
                           <div className="text-xs text-muted-foreground">
-                            {new Date(movement.performedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {movement.performedAt ? new Date(movement.performedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
                           </div>
                         </TableCell>
                         <TableCell className="font-medium">{movement.productName}</TableCell>
