@@ -74,10 +74,11 @@ export default function WarehouseDetail() {
   // Mutation für das Erstellen von Automaten-Zuordnungen
   const createAssignmentMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await apiRequest('/api/machine-warehouse-assignments', {
-        method: 'POST',
-        body: JSON.stringify(data)
-      });
+      return await apiRequest(
+        '/api/machine-warehouse-assignments', 
+        data,
+        'POST'
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
@@ -104,10 +105,11 @@ export default function WarehouseDetail() {
     mutationFn: async () => {
       setIsReconciling(true);
       try {
-        return await apiRequest('/api/warehouse-reconciliation', {
-          method: 'POST',
-          body: JSON.stringify({ warehouseId: Number(id) })
-        });
+        // Korrigierte Version: apiRequest akzeptiert das "data" Objekt als 2. Parameter
+        // und "method" als 3. Parameter, nicht in einem Optionen-Objekt
+        return await apiRequest('/api/warehouse-reconciliation', 
+                               { warehouseId: Number(id) },
+                               'POST');
       } catch (error) {
         setIsReconciling(false);
         throw error;
@@ -134,9 +136,11 @@ export default function WarehouseDetail() {
   // Mutation für das Löschen von Automaten-Zuordnungen
   const deleteAssignmentMutation = useMutation({
     mutationFn: async (assignmentId: number) => {
-      return await apiRequest(`/api/machine-warehouse-assignments/${assignmentId}`, {
-        method: 'DELETE'
-      });
+      return await apiRequest(
+        `/api/machine-warehouse-assignments/${assignmentId}`,
+        {},
+        'DELETE'
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
@@ -159,17 +163,19 @@ export default function WarehouseDetail() {
     mutationFn: async (data: any) => {
       // Für jedes ausgewählte Produkt einen Inventareintrag erstellen
       const promises = data.productIds.map((productId: number) => {
-        return apiRequest('/api/inventory', {
-          method: 'POST',
-          body: JSON.stringify({
+        // Korrigierte Version: apiRequest mit korrekten Parametern aufrufen
+        return apiRequest(
+          '/api/inventory', 
+          {
             warehouseId: parseInt(id),
             productId: productId,
             quantity: 0, // Anfangsbestand 0
             minQuantity: data.minQuantity || 5, // Standardwert für min. Bestand
             location: data.location || '',
             notes: data.notes || ''
-          })
-        });
+          },
+          'POST'
+        );
       });
       
       return Promise.all(promises);
@@ -195,10 +201,11 @@ export default function WarehouseDetail() {
   // Mutation für Bestandsänderungen
   const updateInventoryMutation = useMutation({
     mutationFn: async ({ id, quantity }: { id: number, quantity: number }) => {
-      return await apiRequest(`/api/inventory/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ quantity })
-      });
+      return await apiRequest(
+        `/api/inventory/${id}`, 
+        { quantity },
+        'PATCH'
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
