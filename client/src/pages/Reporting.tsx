@@ -1,7 +1,5 @@
-import React, { useState, Suspense, lazy } from "react";
+import React, { useState, Suspense } from "react";
 import {
-  BarChart2,
-  Calendar,
   RefreshCw,
   Building,
   Package,
@@ -10,23 +8,25 @@ import {
   Database,
   Loader2,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { toast } from "@/hooks/use-toast";
+// Relative Pfade verwenden statt Aliasnamen, um NPM-Probleme zu vermeiden
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import { Separator } from "../components/ui/separator";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
+import { Badge } from "../components/ui/badge";
+import { toast } from "../hooks/use-toast";
 import { useQuery, QueryClient } from "@tanstack/react-query";
 import { format } from 'date-fns';
 
-// Zentrale Funktion für einfachere API-Aufrufe
-const fetchData = async (url: string) => {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error('Netzwerkfehler beim Laden der Daten.');
-  }
-  return response.json();
-};
+// Typdefinition für die Statistik-API-Antwort
+interface DatabaseStatisticsResponse {
+  transactions: number;
+  openOrders: number;
+  products: number;
+  machines: number;
+  suppliers: number;
+  lastUpdated: string;
+}
 
 // Komponente für den Ladeindikator
 function LoadingIndicator() {
@@ -62,13 +62,14 @@ function ErrorDisplay({ error }: { error: Error }) {
 // Datenbank-Statistiken Tab
 function DatabaseStatistics() {
   // Einfache Statistiken aus der Datenbank laden
-  const { data, error, isLoading, isError } = useQuery({
+  const { data, error, isLoading, isError } = useQuery<DatabaseStatisticsResponse>({
     queryKey: ['/api/statistics/database'],
-    staleTime: 5 * 60 * 1000 // 5 Minuten Caching um die Serverlast zu reduzieren
+    staleTime: 5 * 60 * 1000 // 5 Minuten Caching
   });
 
   if (isLoading) return <LoadingIndicator />;
   if (isError) return <ErrorDisplay error={error as Error} />;
+  if (!data) return <ErrorDisplay error={new Error('Keine Daten erhalten')} />;
 
   return (
     <div className="space-y-6">
@@ -137,12 +138,16 @@ function DatabaseStatistics() {
       <Card>
         <CardHeader>
           <CardTitle>Datenbankstatistiken</CardTitle>
-          <CardDescription>Letzte Aktualisierung: {format(new Date(data.lastUpdated), 'dd.MM.yyyy HH:mm')}</CardDescription>
+          <CardDescription>
+            Letzte Aktualisierung: {format(new Date(data.lastUpdated), 'dd.MM.yyyy HH:mm')}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <p>Diese Ansicht zeigt die aktuellen Datenmengen in unserer Datenbank. 
-          Die Auswertungen werden direkt aus der Datenbank geladen, ohne externe APIs zu verwenden, 
-          um eine maximale Leistung und Stabilität zu gewährleisten.</p>
+          <p>
+            Diese Ansicht zeigt die aktuellen Datenmengen in unserer Datenbank.
+            Die Auswertungen werden direkt aus der Datenbank geladen, ohne externe APIs zu verwenden,
+            um eine maximale Leistung und Stabilität zu gewährleisten.
+          </p>
         </CardContent>
       </Card>
     </div>
@@ -226,10 +231,14 @@ export default function Reporting() {
               <CardDescription>Einfache Automaten-Statistiken</CardDescription>
             </CardHeader>
             <CardContent>
-              <p>Diese vereinfachte Ansicht zeigt grundlegende Informationen zu den Automaten, 
-              ohne komplexe Berechnungen oder externe API-Aufrufe durchzuführen.</p>
-              <p className="mt-2">Für detaillierte Automaten-Analysen nutzen Sie bitte die Automaten-Ansicht 
-              unter dem Menüpunkt "Automaten".</p>
+              <p>
+                Diese vereinfachte Ansicht zeigt grundlegende Informationen zu den Automaten,
+                ohne komplexe Berechnungen oder externe API-Aufrufe durchzuführen.
+              </p>
+              <p className="mt-2">
+                Für detaillierte Automaten-Analysen nutzen Sie bitte die Automaten-Ansicht
+                unter dem Menüpunkt "Automaten".
+              </p>
             </CardContent>
           </Card>
         </TabsContent>
@@ -242,10 +251,14 @@ export default function Reporting() {
               <CardDescription>Einfache Produkt-Statistiken</CardDescription>
             </CardHeader>
             <CardContent>
-              <p>Diese vereinfachte Ansicht zeigt grundlegende Informationen zu den Produkten, 
-              ohne komplexe Berechnungen oder externe API-Aufrufe durchzuführen.</p>
-              <p className="mt-2">Für detaillierte Produkt-Analysen nutzen Sie bitte die Produkt-Ansicht 
-              unter dem Menüpunkt "Produkte".</p>
+              <p>
+                Diese vereinfachte Ansicht zeigt grundlegende Informationen zu den Produkten,
+                ohne komplexe Berechnungen oder externe API-Aufrufe durchzuführen.
+              </p>
+              <p className="mt-2">
+                Für detaillierte Produkt-Analysen nutzen Sie bitte die Produkt-Ansicht
+                unter dem Menüpunkt "Produkte".
+              </p>
             </CardContent>
           </Card>
         </TabsContent>
