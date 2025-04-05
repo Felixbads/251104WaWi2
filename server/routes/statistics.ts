@@ -181,7 +181,7 @@ router.get('/sales', async (req, res) => {
       
       // Top 5 Produkte nach Umsatz in der aktuellen Periode
       db.select({
-        productName: sql<string>`name`,
+        productName: transactions.productName,
         count: count(),
         revenue: sql<number>`COALESCE(SUM(price), 0)`
       }).from(transactions)
@@ -189,7 +189,7 @@ router.get('/sales', async (req, res) => {
           sql`datetime >= ${startDateStr}`,
           sql`datetime <= ${endDateStr}`
         ))
-        .groupBy(sql`name`)
+        .groupBy(transactions.productName)
         .orderBy(desc(sql<number>`COALESCE(SUM(price), 0)`))
         .limit(5),
       
