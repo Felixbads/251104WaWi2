@@ -1490,4 +1490,29 @@ export function registerInventoryRoutes(app: Express) {
       res.status(500).json({ error: error.message || "Fehler beim Abrufen der Nachfüll-Chargenbewegung" });
     }
   });
+  
+  // Warehouse Reconciliation - automatischer Lagerabgleich
+  app.post(`${apiPrefix}/warehouse-reconciliation`, async (req: Request, res: Response) => {
+    try {
+      console.log("Starte automatischen Lagerabgleich durch API-Anfrage...");
+      
+      // Service für automatischen Lagerabgleich importieren
+      const { reconcileWarehouseProducts } = await import('../services/warehouseReconciliation');
+      
+      // Lagerabgleich ausführen
+      const result = await reconcileWarehouseProducts();
+      
+      res.json({
+        success: true,
+        message: "Lagerabgleich erfolgreich durchgeführt",
+        details: result
+      });
+    } catch (error: any) {
+      console.error("Fehler beim Durchführen des Lagerabgleichs:", error);
+      res.status(500).json({ 
+        success: false,
+        error: error.message || "Fehler beim Durchführen des Lagerabgleichs"
+      });
+    }
+  });
 }

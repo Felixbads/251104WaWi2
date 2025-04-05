@@ -1329,6 +1329,11 @@ export const inventoryItems = pgTable("inventory_items", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => {
+  return {
+    // Eindeutiger Index für Lager + Produkt Kombination
+    uniqueProductWarehouse: unique().on(table.warehouseId, table.productId)
+  };
 });
 
 export const insertInventoryItemSchema = createInsertSchema(inventoryItems).omit({
