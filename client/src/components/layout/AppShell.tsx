@@ -3,7 +3,11 @@ import { useLocation } from "wouter";
 import MobileHeader from "./MobileHeader";
 import MobileFooter from "./MobileFooter";
 import MobileMenu from "./MobileMenu";
-import { LogOut, Users, Home, Package, ShoppingBag, Truck, FileText, ShoppingCart, Building2, TrashIcon, BarChart2, RefreshCw, Clock, Settings, LineChart, Database } from "lucide-react";
+import { 
+  LogOut, Users, Home, Package, ShoppingBag, Truck, FileText, 
+  ShoppingCart, Building2, TrashIcon, BarChart2, RefreshCw, 
+  Clock, Settings, LineChart, Database, PieChart, BarChart4 
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { useAuth } from "@/lib";
@@ -24,6 +28,7 @@ export const menuItems = {
     { title: 'Prognosen', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/forecast' },
     { title: 'Prognoseanalyse', icon: <LineChart className="h-5 w-5 mr-3" />, path: '/forecast-evaluation' },
     { title: 'Auswertungen', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/auswertungen' },
+    { title: 'Erweiterte Analyse', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/erweiterte-analyse' },
     { title: 'Datenverfügbarkeit', icon: <Database className="h-5 w-5 mr-3" />, path: '/datenverfuegbarkeit' },
     { title: 'Lieferanten-Portal', icon: <Truck className="h-5 w-5 mr-3" />, path: '/lieferantenportal' },
   ],
@@ -100,6 +105,8 @@ export default function AppShell({ children }: AppShellProps) {
         return "Lager";
       case "/auswertungen":
         return "Auswertungen";
+      case "/erweiterte-analyse":
+        return "Erweiterte Analyse";
       case "/datenverfuegbarkeit":
         return "Datenverfügbarkeit";
       case "/synchronization":

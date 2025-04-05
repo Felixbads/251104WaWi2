@@ -1,8 +1,14 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { transactions, orders, products, machines, suppliers, events } from '../../shared/schema';
-import { count, eq, sql, desc, and, gt, lt, gte, lte, sum, avg } from 'drizzle-orm';
-import { startOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format } from 'date-fns';
+import { 
+  transactions, orders, products, machines, suppliers, events, 
+  refills, refillDetails, weatherData 
+} from '../../shared/schema';
+import { count, eq, sql, desc, and, gt, lt, gte, lte, sum, avg, asc, isNotNull } from 'drizzle-orm';
+import { 
+  startOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, 
+  format, parseISO, addDays 
+} from 'date-fns';
 
 const router = Router();
 
@@ -295,5 +301,660 @@ router.get('/sales', async (req, res) => {
     });
   }
 });
+
+/**
+ * 1. Top-Produkt nach wirtschaftlichem Ergebnis
+ * Berechnung: Verkaufswert – Mehrwertsteuer – Pfand – Einkaufspreis netto
+ * Parameter:
+ * - period: 'day', 'week', 'month', 'custom' (optional, Standard: 'month')
+ * - startDate: Start-Datum im ISO-Format (optional, für 'custom')
+ * - endDate: End-Datum im ISO-Format (optional, für 'custom')
+ * - limit: Anzahl der Ergebnisse (optional, Standard: 10)
+ */
+router.get('/product-performance', async (req, res) => {
+  try {
+    const { period = 'month', startDate, endDate, limit = 10 } = req.query;
+    
+    // Zeitraumfilter berechnen (ähnlich wie bei /sales)
+    let startDateObj = new Date();
+    let endDateObj = new Date();
+    
+    // Zeitraum-Berechnung basierend auf Parameter
+    switch(period) {
+      case 'day':
+        startDateObj = startOfDay(startDateObj);
+        endDateObj = new Date(startDateObj);
+        endDateObj.setHours(23, 59, 59, 999);
+        break;
+      case 'week':
+        startDateObj = startOfWeek(startDateObj, { weekStartsOn: 1 });
+        endDateObj = endOfWeek(startDateObj, { weekStartsOn: 1 });
+        break;
+      case 'month':
+        startDateObj = startOfMonth(startDateObj);
+        endDateObj = endOfMonth(startDateObj);
+        break;
+      case 'custom':
+        if (startDate && endDate) {
+          startDateObj = new Date(startDate as string);
+          endDateObj = new Date(endDate as string);
+        }
+        break;
+    }
+    
+    // Formatierter Zeitraum für Logs
+    const dateRange = `${format(startDateObj, 'yyyy-MM-dd')} bis ${format(endDateObj, 'yyyy-MM-dd')}`;
+    console.log(`Produktleistung wird für Zeitraum ${dateRange} abgefragt`);
+    
+    // String-Formate der Daten für SQL-Vergleiche
+    const startDateStr = startDateObj.toISOString();
+    const endDateStr = endDateObj.toISOString();
+    
+    // Abfrage: Verkaufswert – Mehrwertsteuer – Pfand – Einkaufspreis netto
+    // Hierfür müssen wir:
+    // 1. Transaktionen mit Produktdaten verknüpfen
+    // 2. Die nötigen Berechnungen durchführen
+    
+    const productPerformanceQuery = await db.select({
+      productId: transactions.productId,
+      productName: transactions.productName,
+      totalSales: count(),
+      totalRevenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`,
+      totalCost: sql<number>`COALESCE(SUM(
+        CASE 
+          WHEN p.cost_price IS NOT NULL THEN p.cost_price 
+          ELSE ${transactions.price} * 0.6 -- Fallback: Schätzung der Kosten als 60% des Verkaufspreises
+        END
+      ), 0)`,
+      totalVat: sql<number>`COALESCE(SUM(${transactions.priceVat}), 0)`,
+      totalDeposit: sql<number>`COALESCE(SUM(
+        CASE 
+          WHEN p.deposit_price IS NOT NULL THEN p.deposit_price 
+          ELSE 0
+        END
+      ), 0)`,
+      netProfit: sql<number>`COALESCE(SUM(
+        ${transactions.price} - 
+        COALESCE(${transactions.priceVat}, 0) - 
+        COALESCE((
+          CASE 
+            WHEN p.deposit_price IS NOT NULL THEN p.deposit_price 
+            ELSE 0
+          END
+        ), 0) - 
+        COALESCE((
+          CASE 
+            WHEN p.cost_price IS NOT NULL THEN p.cost_price 
+            ELSE ${transactions.price} * 0.6 -- Fallback: Schätzung der Kosten als 60% des Verkaufspreises
+          END
+        ), 0)
+      ), 0)`,
+      profitMargin: sql<number>`COALESCE(
+        CASE
+          WHEN SUM(${transactions.price}) > 0 THEN
+            (SUM(
+              ${transactions.price} - 
+              COALESCE(${transactions.priceVat}, 0) - 
+              COALESCE((
+                CASE 
+                  WHEN p.deposit_price IS NOT NULL THEN p.deposit_price 
+                  ELSE 0
+                END
+              ), 0) - 
+              COALESCE((
+                CASE 
+                  WHEN p.cost_price IS NOT NULL THEN p.cost_price 
+                  ELSE ${transactions.price} * 0.6
+                END
+              ), 0)
+            ) / SUM(${transactions.price})) * 100
+          ELSE 0
+        END, 0)`
+    })
+    .from(transactions)
+    .leftJoin(products.as('p'), eq(transactions.productId, sql`p.vendon_id`))
+    .where(and(
+      sql`${transactions.datetime} >= ${startDateStr}`,
+      sql`${transactions.datetime} <= ${endDateStr}`,
+      isNotNull(transactions.productName)
+    ))
+    .groupBy(transactions.productId, transactions.productName)
+    .orderBy(desc(sql<number>`COALESCE(SUM(
+      ${transactions.price} - 
+      COALESCE(${transactions.priceVat}, 0) - 
+      COALESCE((
+        CASE 
+          WHEN p.deposit_price IS NOT NULL THEN p.deposit_price 
+          ELSE 0
+        END
+      ), 0) - 
+      COALESCE((
+        CASE 
+          WHEN p.cost_price IS NOT NULL THEN p.cost_price 
+          ELSE ${transactions.price} * 0.6
+        END
+      ), 0)
+    ), 0)`))
+    .limit(Number(limit));
+    
+    return res.json({
+      products: productPerformanceQuery,
+      topPerformer: productPerformanceQuery.length > 0 ? productPerformanceQuery[0] : null,
+      metadata: {
+        period,
+        startDate: startDateObj.toISOString(),
+        endDate: endDateObj.toISOString(),
+        lastUpdated: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Produkt-Leistungsdaten:', error);
+    return res.status(500).json({ 
+      error: 'Fehler beim Abrufen der Produkt-Leistungsdaten',
+      message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+    });
+  }
+});
+
+/**
+ * 2. Automat mit den meisten "Removed"-Produkten
+ * Untersucht die Refill Details und zählt entfernte Produkte je Automat
+ * Parameter:
+ * - period: 'day', 'week', 'month', 'custom' (optional, Standard: 'month')
+ * - startDate: Start-Datum im ISO-Format (optional, für 'custom')
+ * - endDate: End-Datum im ISO-Format (optional, für 'custom')
+ */
+router.get('/removed-products', async (req, res) => {
+  try {
+    const { period = 'month', startDate, endDate } = req.query;
+    
+    // Zeitraumfilter berechnen
+    let startDateObj = new Date();
+    let endDateObj = new Date();
+    
+    // Zeitraum-Berechnung basierend auf Parameter
+    switch(period) {
+      case 'day':
+        startDateObj = startOfDay(startDateObj);
+        endDateObj = new Date(startDateObj);
+        endDateObj.setHours(23, 59, 59, 999);
+        break;
+      case 'week':
+        startDateObj = startOfWeek(startDateObj, { weekStartsOn: 1 });
+        endDateObj = endOfWeek(startDateObj, { weekStartsOn: 1 });
+        break;
+      case 'month':
+        startDateObj = startOfMonth(startDateObj);
+        endDateObj = endOfMonth(startDateObj);
+        break;
+      case 'custom':
+        if (startDate && endDate) {
+          startDateObj = new Date(startDate as string);
+          endDateObj = new Date(endDate as string);
+        }
+        break;
+    }
+    
+    // Formatierter Zeitraum für Logs
+    const dateRange = `${format(startDateObj, 'yyyy-MM-dd')} bis ${format(endDateObj, 'yyyy-MM-dd')}`;
+    console.log(`Entfernte Produkte werden für Zeitraum ${dateRange} abgefragt`);
+    
+    // String-Formate der Daten für SQL-Vergleiche
+    const startDateStr = startDateObj.toISOString();
+    const endDateStr = endDateObj.toISOString();
+    
+    // Abfrage nach Automaten mit den meisten entfernten Produkten
+    const machinesWithRemovedProducts = await db.select({
+      machineId: refills.machineId,
+      machineName: refills.machineName,
+      totalRefills: count(refills.id),
+      totalRemovedProducts: sql<number>`COALESCE(SUM(${refillDetails.removed}), 0)`,
+      avgRemovedPerRefill: sql<number>`COALESCE(AVG(${refillDetails.removed}), 0)`
+    })
+    .from(refills)
+    .innerJoin(refillDetails, eq(refills.id, refillDetails.refillId))
+    .where(and(
+      sql`${refills.datetime} >= ${startDateStr}`,
+      sql`${refills.datetime} <= ${endDateStr}`,
+      sql`${refillDetails.removed} > 0`
+    ))
+    .groupBy(refills.machineId, refills.machineName)
+    .orderBy(desc(sql<number>`COALESCE(SUM(${refillDetails.removed}), 0)`));
+    
+    // Details zu entfernten Produkten für Top-Automaten
+    let topProductsRemoved = [];
+    let topMachine = null;
+    
+    if (machinesWithRemovedProducts.length > 0) {
+      topMachine = machinesWithRemovedProducts[0];
+      
+      // Produkte, die am häufigsten aus dem Top-Automaten entfernt wurden
+      topProductsRemoved = await db.select({
+        productName: refillDetails.productName,
+        totalRemoved: sum(refillDetails.removed),
+        count: count()
+      })
+      .from(refillDetails)
+      .innerJoin(refills, eq(refillDetails.refillId, refills.id))
+      .where(and(
+        sql`${refills.datetime} >= ${startDateStr}`,
+        sql`${refills.datetime} <= ${endDateStr}`,
+        eq(refills.machineId, topMachine.machineId),
+        sql`${refillDetails.removed} > 0`
+      ))
+      .groupBy(refillDetails.productName)
+      .orderBy(desc(sum(refillDetails.removed)))
+      .limit(10);
+    }
+    
+    return res.json({
+      machines: machinesWithRemovedProducts,
+      topMachine,
+      topProductsRemoved,
+      metadata: {
+        period,
+        startDate: startDateObj.toISOString(),
+        endDate: endDateObj.toISOString(),
+        lastUpdated: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Daten zu entfernten Produkten:', error);
+    return res.status(500).json({ 
+      error: 'Fehler beim Abrufen der Daten zu entfernten Produkten',
+      message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+    });
+  }
+});
+
+/**
+ * 3. Event-Häufigkeit je Automat
+ * Ermittelt, welcher Automat die meisten Events erzeugt hat
+ * Parameter:
+ * - period: 'day', 'week', 'month', 'custom' (optional, Standard: 'month')
+ * - startDate: Start-Datum im ISO-Format (optional, für 'custom')
+ * - endDate: End-Datum im ISO-Format (optional, für 'custom')
+ */
+router.get('/event-frequency', async (req, res) => {
+  try {
+    const { period = 'month', startDate, endDate } = req.query;
+    
+    // Zeitraumfilter berechnen
+    let startDateObj = new Date();
+    let endDateObj = new Date();
+    
+    // Zeitraum-Berechnung basierend auf Parameter
+    switch(period) {
+      case 'day':
+        startDateObj = startOfDay(startDateObj);
+        endDateObj = new Date(startDateObj);
+        endDateObj.setHours(23, 59, 59, 999);
+        break;
+      case 'week':
+        startDateObj = startOfWeek(startDateObj, { weekStartsOn: 1 });
+        endDateObj = endOfWeek(startDateObj, { weekStartsOn: 1 });
+        break;
+      case 'month':
+        startDateObj = startOfMonth(startDateObj);
+        endDateObj = endOfMonth(startDateObj);
+        break;
+      case 'custom':
+        if (startDate && endDate) {
+          startDateObj = new Date(startDate as string);
+          endDateObj = new Date(endDate as string);
+        }
+        break;
+    }
+    
+    // Formatierter Zeitraum für Logs
+    const dateRange = `${format(startDateObj, 'yyyy-MM-dd')} bis ${format(endDateObj, 'yyyy-MM-dd')}`;
+    console.log(`Event-Häufigkeit wird für Zeitraum ${dateRange} abgefragt`);
+    
+    // String-Formate der Daten für SQL-Vergleiche
+    const startDateStr = startDateObj.toISOString();
+    const endDateStr = endDateObj.toISOString();
+    
+    // Abfrage nach Automaten mit den meisten Events
+    const machineEventsFrequency = await db.select({
+      machineId: events.machineId,
+      machineName: events.machineName,
+      totalEvents: count()
+    })
+    .from(events)
+    .where(and(
+      sql`${events.datetime} >= ${startDateStr}`,
+      sql`${events.datetime} <= ${endDateStr}`
+    ))
+    .groupBy(events.machineId, events.machineName)
+    .orderBy(desc(count()))
+    .limit(20);
+    
+    // Event-Typen für den Automaten mit den meisten Events
+    let topMachineEventTypes = [];
+    let topMachine = null;
+    
+    if (machineEventsFrequency.length > 0) {
+      topMachine = machineEventsFrequency[0];
+      
+      // Häufigste Event-Typen für den Top-Automaten
+      topMachineEventTypes = await db.select({
+        eventType: events.eventType,
+        description: events.description,
+        count: count(),
+        percentage: sql<number>`(COUNT(*) * 100.0 / 
+          (SELECT COUNT(*) FROM ${events} 
+           WHERE ${events.machineId} = ${topMachine.machineId}
+           AND ${events.datetime} >= ${startDateStr}
+           AND ${events.datetime} <= ${endDateStr})
+        )`
+      })
+      .from(events)
+      .where(and(
+        eq(events.machineId, topMachine.machineId),
+        sql`${events.datetime} >= ${startDateStr}`,
+        sql`${events.datetime} <= ${endDateStr}`
+      ))
+      .groupBy(events.eventType, events.description)
+      .orderBy(desc(count()))
+      .limit(10);
+    }
+    
+    // Gesamtverteilung der Event-Typen über alle Automaten
+    const eventTypeDistribution = await db.select({
+      eventType: events.eventType,
+      count: count(),
+      percentage: sql<number>`(COUNT(*) * 100.0 / 
+        (SELECT COUNT(*) FROM ${events} 
+         WHERE ${events.datetime} >= ${startDateStr}
+         AND ${events.datetime} <= ${endDateStr})
+      )`
+    })
+    .from(events)
+    .where(and(
+      sql`${events.datetime} >= ${startDateStr}`,
+      sql`${events.datetime} <= ${endDateStr}`
+    ))
+    .groupBy(events.eventType)
+    .orderBy(desc(count()))
+    .limit(10);
+    
+    return res.json({
+      machines: machineEventsFrequency,
+      topMachine,
+      topMachineEventTypes,
+      eventTypeDistribution,
+      metadata: {
+        period,
+        startDate: startDateObj.toISOString(),
+        endDate: endDateObj.toISOString(),
+        lastUpdated: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Event-Häufigkeitsdaten:', error);
+    return res.status(500).json({ 
+      error: 'Fehler beim Abrufen der Event-Häufigkeitsdaten',
+      message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+    });
+  }
+});
+
+/**
+ * 4. Wetter-Korrelation zum Verkaufsvolumen
+ * Parameter:
+ * - period: 'day', 'week', 'month', 'custom' (optional, Standard: 'month')
+ * - startDate: Start-Datum im ISO-Format (optional, für 'custom')
+ * - endDate: End-Datum im ISO-Format (optional, für 'custom')
+ */
+router.get('/weather-correlation', async (req, res) => {
+  try {
+    const { period = 'month', startDate, endDate } = req.query;
+    
+    // Zeitraumfilter berechnen
+    let startDateObj = new Date();
+    let endDateObj = new Date();
+    
+    // Zeitraum-Berechnung basierend auf Parameter
+    switch(period) {
+      case 'day':
+        startDateObj = startOfDay(startDateObj);
+        endDateObj = new Date(startDateObj);
+        endDateObj.setHours(23, 59, 59, 999);
+        break;
+      case 'week':
+        startDateObj = startOfWeek(startDateObj, { weekStartsOn: 1 });
+        endDateObj = endOfWeek(startDateObj, { weekStartsOn: 1 });
+        break;
+      case 'month':
+        startDateObj = startOfMonth(startDateObj);
+        endDateObj = endOfMonth(startDateObj);
+        break;
+      case 'custom':
+        if (startDate && endDate) {
+          startDateObj = new Date(startDate as string);
+          endDateObj = new Date(endDate as string);
+        }
+        break;
+    }
+    
+    // Formatierter Zeitraum für Logs
+    const dateRange = `${format(startDateObj, 'yyyy-MM-dd')} bis ${format(endDateObj, 'yyyy-MM-dd')}`;
+    console.log(`Wetter-Korrelation wird für Zeitraum ${dateRange} abgefragt`);
+    
+    // String-Formate der Daten für SQL-Vergleiche
+    const startDateStr = startDateObj.toISOString();
+    const endDateStr = endDateObj.toISOString();
+    
+    // Abfrage der täglichen Verkaufszahlen und Wetterinfos
+    // 1. Aggregierte Verkaufsdaten pro Tag
+    const dailySales = await db.select({
+      date: sql<string>`DATE(${transactions.datetime})`,
+      totalTransactions: count(),
+      totalRevenue: sum(transactions.price)
+    })
+    .from(transactions)
+    .where(and(
+      sql`${transactions.datetime} >= ${startDateStr}`,
+      sql`${transactions.datetime} <= ${endDateStr}`
+    ))
+    .groupBy(sql<string>`DATE(${transactions.datetime})`)
+    .orderBy(asc(sql<string>`DATE(${transactions.datetime})`));
+    
+    // 2. Tägliche Wetterdaten (Durchschnittswerte pro Tag)
+    const dailyWeather = await db.select({
+      date: weatherData.date,
+      avgTemp: avg(weatherData.temp),
+      maxTemp: sql<number>`MAX(${weatherData.temp})`,
+      minTemp: sql<number>`MIN(${weatherData.temp})`,
+      avgHumidity: avg(weatherData.humidity),
+      avgClouds: avg(weatherData.clouds),
+      totalPrecipitation: sum(weatherData.precipitation),
+      avgWindSpeed: avg(weatherData.wind_speed),
+      dominantWeather: sql<string>`
+        (SELECT ${weatherData.weather_main} 
+         FROM ${weatherData} w2 
+         WHERE DATE(w2.timestamp) = DATE(${weatherData.timestamp}) 
+         GROUP BY ${weatherData.weather_main} 
+         ORDER BY COUNT(*) DESC 
+         LIMIT 1)
+      `
+    })
+    .from(weatherData)
+    .where(and(
+      sql`DATE(${weatherData.timestamp}) >= DATE(${startDateStr})`,
+      sql`DATE(${weatherData.timestamp}) <= DATE(${endDateStr})`
+    ))
+    .groupBy(weatherData.date)
+    .orderBy(asc(weatherData.date));
+    
+    // 3. Kombinierte Daten mit Korrelationsanalyse
+    const combinedData = [];
+    const temperatureCorrelation = { correlation: 0, dataPoints: [] };
+    const humidityCorrelation = { correlation: 0, dataPoints: [] };
+    const precipitationCorrelation = { correlation: 0, dataPoints: [] };
+    
+    // Map für einfacheren Zugriff auf Wetterdaten
+    const weatherMap = new Map();
+    dailyWeather.forEach(day => {
+      const dateKey = day.date ? format(new Date(day.date), 'yyyy-MM-dd') : null;
+      if (dateKey) weatherMap.set(dateKey, day);
+    });
+    
+    // Kombiniere Verkaufs- und Wetterdaten
+    for (const salesDay of dailySales) {
+      const dateKey = salesDay.date ? format(new Date(salesDay.date), 'yyyy-MM-dd') : null;
+      if (!dateKey) continue;
+      
+      const weatherDay = weatherMap.get(dateKey);
+      
+      if (salesDay && weatherDay) {
+        const combinedDay = {
+          date: dateKey,
+          sales: {
+            transactions: salesDay.totalTransactions || 0,
+            revenue: salesDay.totalRevenue || 0
+          },
+          weather: {
+            avgTemp: weatherDay.avgTemp || null,
+            maxTemp: weatherDay.maxTemp || null,
+            minTemp: weatherDay.minTemp || null,
+            avgHumidity: weatherDay.avgHumidity || null,
+            avgClouds: weatherDay.avgClouds || null,
+            totalPrecipitation: weatherDay.totalPrecipitation || 0,
+            avgWindSpeed: weatherDay.avgWindSpeed || null,
+            dominantWeather: weatherDay.dominantWeather || null
+          }
+        };
+        
+        combinedData.push(combinedDay);
+        
+        // Sammle Daten für Korrelationsberechnung
+        if (weatherDay.avgTemp !== null && salesDay.totalTransactions !== null) {
+          temperatureCorrelation.dataPoints.push({
+            x: weatherDay.avgTemp,
+            y: salesDay.totalTransactions
+          });
+        }
+        
+        if (weatherDay.avgHumidity !== null && salesDay.totalTransactions !== null) {
+          humidityCorrelation.dataPoints.push({
+            x: weatherDay.avgHumidity,
+            y: salesDay.totalTransactions
+          });
+        }
+        
+        if (weatherDay.totalPrecipitation !== null && salesDay.totalTransactions !== null) {
+          precipitationCorrelation.dataPoints.push({
+            x: weatherDay.totalPrecipitation,
+            y: salesDay.totalTransactions
+          });
+        }
+      }
+    }
+    
+    // Berechne Korrelationskoeffizienten
+    // Temperatur-Korrelation
+    temperatureCorrelation.correlation = calculateCorrelation(
+      temperatureCorrelation.dataPoints.map(p => p.x),
+      temperatureCorrelation.dataPoints.map(p => p.y)
+    );
+    
+    // Luftfeuchtigkeit-Korrelation
+    humidityCorrelation.correlation = calculateCorrelation(
+      humidityCorrelation.dataPoints.map(p => p.x),
+      humidityCorrelation.dataPoints.map(p => p.y)
+    );
+    
+    // Niederschlag-Korrelation
+    precipitationCorrelation.correlation = calculateCorrelation(
+      precipitationCorrelation.dataPoints.map(p => p.x),
+      precipitationCorrelation.dataPoints.map(p => p.y)
+    );
+    
+    // Gruppiere Verkaufsdaten nach Wetter-Kategorien
+    const salesByWeatherType = {};
+    combinedData.forEach(day => {
+      const weatherType = day.weather.dominantWeather || 'Unknown';
+      
+      if (!salesByWeatherType[weatherType]) {
+        salesByWeatherType[weatherType] = {
+          transactions: 0,
+          revenue: 0,
+          days: 0
+        };
+      }
+      
+      salesByWeatherType[weatherType].transactions += day.sales.transactions || 0;
+      salesByWeatherType[weatherType].revenue += day.sales.revenue || 0;
+      salesByWeatherType[weatherType].days += 1;
+    });
+    
+    // Berechne Durchschnitte pro Wetter-Kategorie
+    Object.keys(salesByWeatherType).forEach(weatherType => {
+      const category = salesByWeatherType[weatherType];
+      if (category.days > 0) {
+        category.avgTransactions = category.transactions / category.days;
+        category.avgRevenue = category.revenue / category.days;
+      }
+    });
+    
+    return res.json({
+      dailyData: combinedData,
+      correlations: {
+        temperature: temperatureCorrelation,
+        humidity: humidityCorrelation,
+        precipitation: precipitationCorrelation
+      },
+      salesByWeatherType,
+      metadata: {
+        period,
+        startDate: startDateObj.toISOString(),
+        endDate: endDateObj.toISOString(),
+        daysAnalyzed: combinedData.length,
+        lastUpdated: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Wetter-Korrelationsdaten:', error);
+    return res.status(500).json({ 
+      error: 'Fehler beim Abrufen der Wetter-Korrelationsdaten',
+      message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+    });
+  }
+});
+
+/**
+ * Hilfsfunktion zur Berechnung des Pearson-Korrelationskoeffizienten
+ */
+function calculateCorrelation(x, y) {
+  if (x.length === 0 || y.length === 0 || x.length !== y.length) {
+    return 0;
+  }
+  
+  // Mittelwerte berechnen
+  const xMean = x.reduce((sum, val) => sum + val, 0) / x.length;
+  const yMean = y.reduce((sum, val) => sum + val, 0) / y.length;
+  
+  // Summen für Korrelationsberechnung
+  let sumXY = 0;
+  let sumXSquared = 0;
+  let sumYSquared = 0;
+  
+  for (let i = 0; i < x.length; i++) {
+    const xDiff = x[i] - xMean;
+    const yDiff = y[i] - yMean;
+    
+    sumXY += xDiff * yDiff;
+    sumXSquared += xDiff * xDiff;
+    sumYSquared += yDiff * yDiff;
+  }
+  
+  // Korrelation berechnen
+  if (sumXSquared === 0 || sumYSquared === 0) {
+    return 0;
+  }
+  
+  return sumXY / Math.sqrt(sumXSquared * sumYSquared);
+}
 
 export default router;

@@ -19,6 +19,7 @@ import Settings from "@/pages/Settings";
 import Forecast from "@/pages/Forecast";
 import ForecastEvaluation from "@/pages/ForecastEvaluation";
 import DataAvailability from "@/pages/DataAvailability"; // Neue Datenverfügbarkeits-Komponente
+import AdvancedAnalysis from "@/pages/AdvancedAnalysis"; // Erweiterte Analyse-Komponente
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import NotApproved from "@/pages/NotApproved"; // Seite für nicht-freigegebene Benutzer
@@ -237,6 +238,12 @@ function AuthenticatedRouter() {
         <Route path="/auswertungen" component={props => (
           <AdminRoute>
             <Reporting {...props} />
+          </AdminRoute>
+        )} />
+        
+        <Route path="/erweiterte-analyse" component={props => (
+          <AdminRoute>
+            <AdvancedAnalysis {...props} />
           </AdminRoute>
         )} />
         
