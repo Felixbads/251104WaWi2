@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startAutomaticSync } from "./scheduler";
+import { reconcileWarehouseProducts } from "./services/warehouseReconciliation";
 import fileUpload from "express-fileupload";
 import WebSocket from 'ws';
 import http from 'http';
@@ -73,11 +74,20 @@ app.use((req, res, next) => {
     port,
     host: "0.0.0.0",
     reusePort: true,
-  }, () => {
+  }, async () => {
     log(`serving on port ${port}`);
     
     // Starte die automatische Synchronisierung
     log('Initialisiere automatisches Synchronisierungssystem...');
     startAutomaticSync();
+    
+    // Führe automatischen Lagerabgleich durch
+    log('Starte automatischen Lagerabgleich...');
+    try {
+      const result = await reconcileWarehouseProducts();
+      log(`Lagerabgleich abgeschlossen - ${result.productsAdded} Produkte zu ${result.warehousesChecked} Lagern hinzugefügt`);
+    } catch (error) {
+      console.error('Fehler beim automatischen Lagerabgleich:', error);
+    }
   });
 })();
