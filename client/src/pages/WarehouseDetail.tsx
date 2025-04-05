@@ -42,31 +42,31 @@ export default function WarehouseDetail() {
   const [isReconciling, setIsReconciling] = useState(false);
   
   // Abfrage des Lagers
-  const { data: warehouse, isLoading: warehouseLoading, error } = useQuery({
+  const { data: warehouse = {}, isLoading: warehouseLoading, error } = useQuery({
     queryKey: [`/api/warehouses/${id}`],
     staleTime: 1000 * 30, // 30 Sekunden
   });
   
   // Abfrage aller Produkte (Vendon)
-  const { data: products, isLoading: productsLoading } = useQuery({
+  const { data: products = { data: [] }, isLoading: productsLoading } = useQuery({
     queryKey: ['/api/products'],
     staleTime: 1000 * 60, // 1 Minute
   });
   
   // Abfrage der Lagerbestände in diesem Lager
-  const { data: inventoryItems, isLoading: inventoryLoading } = useQuery({
+  const { data: inventoryItems = [], isLoading: inventoryLoading } = useQuery({
     queryKey: ['/api/inventory', { warehouseId: Number(id) }],
     staleTime: 1000 * 30, // 30 Sekunden
   });
   
   // Abfrage aller Automaten für die Zuordnung
-  const { data: machines, isLoading: machinesLoading } = useQuery({
+  const { data: machines = [], isLoading: machinesLoading } = useQuery({
     queryKey: ['/api/machines'],
     staleTime: 1000 * 60, // 1 Minute
   });
   
   // Abfrage der Maschinen, die diesem Lager zugeordnet sind
-  const { data: machineAssignments, isLoading: assignmentsLoading } = useQuery({
+  const { data: machineAssignments = [], isLoading: assignmentsLoading } = useQuery({
     queryKey: ['/api/machine-warehouse-assignments', { warehouseId: Number(id) }],
     staleTime: 1000 * 30, // 30 Sekunden
   });
@@ -224,22 +224,23 @@ export default function WarehouseDetail() {
   });
   
   // Metriken berechnen
-  const totalItems = inventoryItems?.length || 0;
-  const totalStock = inventoryItems?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
-  const criticalItems = inventoryItems?.filter(item => 
+  const totalItems = Array.isArray(inventoryItems) ? inventoryItems.length : 0;
+  const totalStock = Array.isArray(inventoryItems) ? inventoryItems.reduce((sum, item) => sum + (item.quantity || 0), 0) : 0;
+  const criticalItems = Array.isArray(inventoryItems) ? inventoryItems.filter(item => 
     item.quantity !== null && 
     item.minQuantity !== null && 
     item.quantity <= item.minQuantity
-  ).length || 0;
+  ).length : 0;
   const assignedMachines = machineAssignments?.length || 0;
   // Primärlager-Funktion wurde entfernt
   const primaryAssignments = 0;
   
   // Filter-Funktion für Produkte basierend auf Suchbegriff und bereits vorhandenen Einträgen
-  const productsList = products && 'data' in products ? products.data : [];
+  const productsList = Array.isArray(products?.data) ? products.data : [];
   const filteredProducts = productsList.filter(product => {
     // Prüfen, ob das Produkt bereits dem Lager zugeordnet ist
-    const isAlreadyInInventory = inventoryItems?.some(item => item.productId === product.id) || false;
+    const isAlreadyInInventory = Array.isArray(inventoryItems) && 
+      inventoryItems.some(item => item.productId === product.id);
     
     // Prüfen, ob der Suchbegriff im Produktnamen enthalten ist
     const matchesSearch = product.productName?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
@@ -536,7 +537,15 @@ export default function WarehouseDetail() {
                       </tr>
                     </thead>
                     <tbody className="bg-popover divide-y divide-border">
-                      {inventoryItems.map((item) => {
+                      {/* Filtern der Inventory-Items basierend auf der Suche */}
+                      {inventoryItems
+                        .filter(item => {
+                          const product = products.data?.find(p => p.id === item.productId);
+                          return !searchTerm || 
+                            (product?.productName && 
+                             product.productName.toLowerCase().includes(searchTerm.toLowerCase()));
+                        })
+                        .map((item) => {
                         // Bestimmen des Status
                         let statusColor = 'bg-green-100 text-green-800';
                         let statusText = 'OK';
@@ -570,6 +579,11 @@ export default function WarehouseDetail() {
                                 variant="outline"
                                 size="sm"
                                 className="h-7 flex items-center"
+                                onClick={() => {
+                                  // Navigiere zur Bestellseite mit vorausgewähltem Produkt und Lager
+                                  const product = products.data?.find(p => p.id === item.productId);
+                                  setLocation(`/bestellungen/neu?warehouseId=${id}&productId=${item.productId}&productName=${product?.productName || ''}&supplierId=${product?.supplierId || ''}`);
+                                }}
                               >
                                 <Package2 className="h-3.5 w-3.5 mr-1" />
                                 <span className="text-xs">Bestellen</span>
@@ -682,16 +696,16 @@ export default function WarehouseDetail() {
                           <SelectValue placeholder="Automat auswählen" />
                         </SelectTrigger>
                         <SelectContent>
-                          {machines?.filter(machine => {
+                          {Array.isArray(machines) ? machines.filter(machine => {
                             // Prüfen, ob der Automat bereits zugeordnet ist
-                            return !machineAssignments?.some(
+                            return Array.isArray(machineAssignments) ? !machineAssignments.some(
                               assignment => assignment.machineId === machine.id
-                            );
+                            ) : true;
                           }).map(machine => (
                             <SelectItem key={machine.id} value={machine.id.toString()}>
                               {machine.machineName}
                             </SelectItem>
-                          ))}
+                          )) : null}
                         </SelectContent>
                       </Select>
                     </div>
