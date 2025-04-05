@@ -135,14 +135,10 @@ export async function reconcileWarehouseProducts(): Promise<{
           
           if (product) {
             try {
-              // Prüfe zuerst, ob das Produkt bereits im Lager existiert
-              const existingItems = await storage.getInventoryItemsByWarehouse(warehouseId);
-              const alreadyExists = existingItems.some(item => item.productId === productId);
-              
-              if (alreadyExists) {
-                console.log(`Produkt ${productId} (${product.productName}) ist bereits in Lager ${warehouseId} vorhanden`);
-                continue; // Überspringe die Erstellung, da das Produkt bereits existiert
-              }
+              // Die Prüfung, ob ein Produkt existiert, wird direkt 
+              // durch das SQL mit ON CONFLICT behandelt
+              // Diese Zeilen wurden entfernt, da sie redundant sind und
+              // zusätzliche unnötige Datenbankaufrufe verursachen
               
               // Konvertiere IDs explizit zu Zahlen
               const parsedWarehouseId = Number(warehouseId);
@@ -163,24 +159,44 @@ export async function reconcileWarehouseProducts(): Promise<{
               };
               
               try {
-                // Direkten SQL-Einfügebefehl verwenden als Workaround
-                const sql = `
-                  INSERT INTO inventory_items 
-                  (warehouse_id, product_id, quantity, min_quantity, status, notes, created_at, updated_at) 
-                  VALUES 
-                  (${parsedWarehouseId}, ${parsedProductId}, 0, 5, 'active', 'Automatisch hinzugefügt beim Lagerabgleich', NOW(), NOW())
-                  ON CONFLICT (warehouse_id, product_id) DO NOTHING
-                  RETURNING id;
-                `;
+                // Prüfen, ob das Produkt bereits im Lager existiert
+                console.log(`DEBUG: Prüfe, ob Produkt ${parsedProductId} in Lager ${parsedWarehouseId} existiert...`);
                 
-                // SQL direkt ausführen
-                const result = await storage.query(sql);
+                const existingItems = await storage.query(`
+                  SELECT id, warehouse_id, product_id, quantity FROM inventory_items 
+                  WHERE warehouse_id = $1 AND product_id = $2
+                `, [parsedWarehouseId, parsedProductId]);
                 
-                if (result && result.length > 0) {
-                  productsAdded++;
-                  console.log(`Produkt ${productId} (${product.productName}) zu Lager ${warehouseId} hinzugefügt (SQL)`);
+                console.log(`DEBUG: Existierende Einträge:`, existingItems);
+                
+                if (existingItems && existingItems.length > 0) {
+                  console.log(`Produkt ${productId} (${product.productName}) existiert bereits in Lager ${warehouseId} mit ID ${existingItems[0].id}`);
                 } else {
-                  console.log(`Produkt ${productId} existiert bereits in Lager ${warehouseId} oder konnte nicht hinzugefügt werden`);
+                  // Inventareintrag manuell erstellen, wenn er nicht existiert
+                  console.log(`DEBUG: Füge neuen Inventareintrag für Produkt ${parsedProductId} in Lager ${parsedWarehouseId} hinzu...`);
+                  
+                  // Verwende das ORM zum Einfügen
+                  const inventoryItem: InsertInventoryItem = {
+                    warehouseId: parsedWarehouseId,
+                    productId: parsedProductId,
+                    quantity: 0,
+                    minQuantity: 5,
+                    status: "active",
+                    notes: `Automatisch hinzugefügt beim Lagerabgleich am ${new Date().toISOString().split('T')[0]}`,
+                    createdAt: new Date(),
+                    updatedAt: new Date()
+                  };
+                  
+                  const newItem = await storage.createInventoryItem(inventoryItem);
+                  
+                  if (newItem && newItem.id) {
+                    productsAdded++;
+                    console.log(`Produkt ${productId} (${product.productName}) zu Lager ${warehouseId} hinzugefügt mit ID ${newItem.id}`);
+                    console.log(`DEBUG: Neuer Inventareintrag erstellt:`, newItem);
+                  } else {
+                    console.error(`Fehler beim Erstellen des Inventareintrags für Produkt ${productId} in Lager ${warehouseId}`);
+                    errors++;
+                  }
                 }
               } catch (sqlError) {
                 console.error(`SQL-Fehler beim Hinzufügen von Produkt ${productId} zum Lager ${warehouseId}:`, sqlError);
