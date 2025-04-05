@@ -14,8 +14,10 @@ import type { MachineWarehouseAssignment, Transaction } from "@shared/schema";
  * Führt den automatischen Lagerabgleich zwischen Automaten und Lagern durch.
  * Jedes Produkt, das in einem Automaten geführt wird, wird dem zugeordneten Lager hinzugefügt,
  * sofern es dort noch nicht existiert.
+ * 
+ * @param specificWarehouseId - Optional: Wenn angegeben, wird nur dieses spezifische Lager abgeglichen
  */
-export async function reconcileWarehouseProducts(): Promise<{
+export async function reconcileWarehouseProducts(specificWarehouseId?: number): Promise<{
   processingTime: number;
   warehousesChecked: number;
   machinesChecked: number;
@@ -23,7 +25,8 @@ export async function reconcileWarehouseProducts(): Promise<{
   productsAdded: number;
   errors: number;
 }> {
-  console.log("Starte automatischen Lagerabgleich...");
+  console.log("Starte automatischen Lagerabgleich...", 
+              specificWarehouseId ? `für Lager ${specificWarehouseId}` : "für alle Lager");
   const startTime = Date.now();
   
   let warehousesChecked = 0;
@@ -33,9 +36,18 @@ export async function reconcileWarehouseProducts(): Promise<{
   let errors = 0;
   
   try {
-    // 1. Alle Lager-Automaten-Zuordnungen abrufen
-    const machineWarehouseAssignments = await storage.getMachineWarehouseAssignments();
-    console.log(`${machineWarehouseAssignments.length} Maschinen-Lager-Zuordnungen gefunden`);
+    // 1. Lager-Automaten-Zuordnungen abrufen (gefiltert oder alle)
+    let machineWarehouseAssignments;
+    
+    if (specificWarehouseId) {
+      // Nur Zuordnungen für das angegebene Lager laden
+      machineWarehouseAssignments = await storage.getMachineWarehouseAssignmentsByWarehouse(specificWarehouseId);
+      console.log(`${machineWarehouseAssignments.length} Maschinen-Zuordnungen für Lager ${specificWarehouseId} gefunden`);
+    } else {
+      // Alle Zuordnungen laden
+      machineWarehouseAssignments = await storage.getMachineWarehouseAssignments();
+      console.log(`${machineWarehouseAssignments.length} Maschinen-Lager-Zuordnungen gefunden`);
+    }
     
     // Manuelles Mapping für Lager zu Produkt-IDs
     const warehouseToProducts: Record<number, Set<number>> = {};

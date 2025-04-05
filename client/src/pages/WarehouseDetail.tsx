@@ -102,10 +102,16 @@ export default function WarehouseDetail() {
   // Mutation für den Lagerabgleich
   const reconcileWarehouseMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest('/api/warehouse-reconciliation', {
-        method: 'POST',
-        body: JSON.stringify({ warehouseId: Number(id) })
-      });
+      setIsReconciling(true);
+      try {
+        return await apiRequest('/api/warehouse-reconciliation', {
+          method: 'POST',
+          body: JSON.stringify({ warehouseId: Number(id) })
+        });
+      } catch (error) {
+        setIsReconciling(false);
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });

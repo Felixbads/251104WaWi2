@@ -48,18 +48,28 @@ export function registerInventoryRoutes(app: Express) {
   app.post(`${apiPrefix}/warehouse-reconciliation`, async (req: Request, res: Response) => {
     try {
       console.log("Automatischer Lagerabgleich gestartet...");
-      const result = await reconcileWarehouseProducts();
+      
+      // Zuerst die Warehouse-ID aus dem Request-Body extrahieren, falls vorhanden
+      const { warehouseId } = req.body || {};
+      console.log("Lagerabgleich für Warehouse ID:", warehouseId);
+      
+      // Lagerabgleich ausführen (mit optionaler Warehouse-ID)
+      const result = await reconcileWarehouseProducts(warehouseId ? Number(warehouseId) : undefined);
       console.log("Automatischer Lagerabgleich abgeschlossen:", result);
       
       res.json({
         success: true,
-        message: "Lagerabgleich erfolgreich durchgeführt",
+        message: warehouseId 
+          ? `Lagerabgleich für Lager ${warehouseId} erfolgreich durchgeführt` 
+          : "Lagerabgleich für alle Lager erfolgreich durchgeführt",
         result
       });
     } catch (error: any) {
       console.error("Fehler beim Durchführen des Lagerabgleichs:", error);
       res.status(500).json({ 
-        error: error.message || "Fehler beim Durchführen des Lagerabgleichs" 
+        success: false,
+        message: "Fehler beim Durchführen des Lagerabgleichs",
+        error: error.message 
       });
     }
   });
@@ -1515,28 +1525,5 @@ export function registerInventoryRoutes(app: Express) {
     }
   });
   
-  // Warehouse Reconciliation - automatischer Lagerabgleich
-  app.post(`${apiPrefix}/warehouse-reconciliation`, async (req: Request, res: Response) => {
-    try {
-      console.log("Starte automatischen Lagerabgleich durch API-Anfrage...");
-      
-      // Service für automatischen Lagerabgleich importieren
-      const { reconcileWarehouseProducts } = await import('../services/warehouseReconciliation');
-      
-      // Lagerabgleich ausführen
-      const result = await reconcileWarehouseProducts();
-      
-      res.json({
-        success: true,
-        message: "Lagerabgleich erfolgreich durchgeführt",
-        details: result
-      });
-    } catch (error: any) {
-      console.error("Fehler beim Durchführen des Lagerabgleichs:", error);
-      res.status(500).json({ 
-        success: false,
-        error: error.message || "Fehler beim Durchführen des Lagerabgleichs"
-      });
-    }
-  });
+  // Diese Route wird nicht mehr benötigt, da sie bereits oben implementiert ist
 }
