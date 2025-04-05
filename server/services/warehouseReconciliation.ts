@@ -147,112 +147,55 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
           
           if (product) {
             try {
-              // Die Prüfung, ob ein Produkt existiert, wird direkt 
-              // durch das SQL mit ON CONFLICT behandelt
-              // Diese Zeilen wurden entfernt, da sie redundant sind und
-              // zusätzliche unnötige Datenbankaufrufe verursachen
-              
               // Konvertiere IDs explizit zu Zahlen
               const parsedWarehouseId = Number(warehouseId);
               const parsedProductId = Number(productId);
               
-              // Protokollierung zur Fehlersuche
-              console.log(`Füge Produkt hinzu - warehouseId: ${warehouseId} (${typeof warehouseId}) -> ${parsedWarehouseId} (${typeof parsedWarehouseId})`);
-              console.log(`Füge Produkt hinzu - productId: ${productId} (${typeof productId}) -> ${parsedProductId} (${typeof parsedProductId})`);
+              console.log(`Füge Produkt ${parsedProductId} (${product.productName}) zu Lager ${parsedWarehouseId} hinzu...`);
               
-              // Erstelle Inventar-Eintrag für das Produkt mit Anfangsbestand 0
+              // Direkt prüfen, ob das Produkt bereits im Lager vorhanden ist
+              const existingItems = await storage.getInventoryItemsByWarehouseAndProduct(parsedWarehouseId, parsedProductId);
+              
+              if (existingItems && existingItems.length > 0) {
+                console.log(`Produkt ${parsedProductId} (${product.productName}) existiert bereits in Lager ${parsedWarehouseId}, überspringe...`);
+                continue;
+              }
+              
+              // Erstelle neuen Inventareintrag
               const inventoryItem: InsertInventoryItem = {
                 warehouseId: parsedWarehouseId,
                 productId: parsedProductId,
                 quantity: 0,
-                minQuantity: 5, // Standardwert für Mindestbestand
+                minQuantity: 5,
                 status: "active",
-                notes: `Automatisch hinzugefügt beim Lagerabgleich am ${new Date().toISOString().split('T')[0]}`
+                notes: `Automatisch hinzugefügt beim Lagerabgleich am ${new Date().toISOString().split('T')[0]}`,
+                lastCountDate: new Date()
               };
               
-              try {
-                // Prüfen, ob das Produkt bereits im Lager existiert
-                console.log(`DEBUG: Prüfe, ob Produkt ${parsedProductId} in Lager ${parsedWarehouseId} existiert...`);
-                
-                const existingItems = await storage.query(`
-                  SELECT id, warehouse_id, product_id, quantity FROM inventory_items 
-                  WHERE warehouse_id = $1 AND product_id = $2
-                `, [parsedWarehouseId, parsedProductId]);
-                
-                console.log(`DEBUG: Existierende Einträge:`, existingItems);
-                
-                if (existingItems && existingItems.length > 0) {
-                  console.log(`Produkt ${productId} (${product.productName}) existiert bereits in Lager ${warehouseId} mit ID ${existingItems[0].id}`);
-                } else {
-                  // Inventareintrag manuell erstellen, wenn er nicht existiert
-                  console.log(`DEBUG: Füge neuen Inventareintrag für Produkt ${parsedProductId} in Lager ${parsedWarehouseId} hinzu...`);
-                  
-                  // Verwende das ORM zum Einfügen
-                  const inventoryItem: InsertInventoryItem = {
-                    warehouseId: parsedWarehouseId,
-                    productId: parsedProductId,
-                    quantity: 0,
-                    minQuantity: 5,
-                    status: "active",
-                    notes: `Automatisch hinzugefügt beim Lagerabgleich am ${new Date().toISOString().split('T')[0]}`,
-                    lastCountDate: new Date()
-                  };
-                  
-                  const newItem = await storage.createInventoryItem(inventoryItem);
-                  
-                  if (newItem && newItem.id) {
-                    productsAdded++;
-                    console.log(`Produkt ${productId} (${product.productName}) zu Lager ${warehouseId} hinzugefügt mit ID ${newItem.id}`);
-                    console.log(`DEBUG: Neuer Inventareintrag erstellt:`, newItem);
-                  } else {
-                    console.error(`Fehler beim Erstellen des Inventareintrags für Produkt ${productId} in Lager ${warehouseId}`);
-                    errors++;
-                  }
-                }
-              } catch (sqlError) {
-                console.error(`SQL-Fehler beim Hinzufügen von Produkt ${productId} zum Lager ${warehouseId}:`, sqlError);
-                
-                // Versuche es mit ORM als Fallback, mit korrekten Feldern
-                try {
-                  // Erstelle einen neuen Inventareintrag mit korrekten Feldern
-                  const inventoryItemFallback: InsertInventoryItem = {
-                    warehouseId: Number(warehouseId),
-                    productId: Number(productId),
-                    quantity: 0,
-                    minQuantity: 5,
-                    status: "active",
-                    notes: `Automatisch hinzugefügt beim Lagerabgleich am ${new Date().toISOString().split('T')[0]}`,
-                    lastCountDate: new Date()
-                  };
-                
-                  const newItem = await storage.createInventoryItem(inventoryItemFallback);
-                  
-                  if (newItem && newItem.id) {
-                    productsAdded++;
-                    console.log(`Produkt ${productId} (${product.productName}) zu Lager ${warehouseId} hinzugefügt (ORM-Fallback) mit ID ${newItem.id}`);
-                  } else {
-                    console.error(`Fehler beim Erstellen des Inventory-Items für Produkt ${productId} in Lager ${warehouseId}: Kein Ergebnis zurückgegeben`);
-                    errors++;
-                  }
-                } catch (ormError) {
-                  console.error(`ORM-Fehler beim Hinzufügen von Produkt ${productId} zum Lager ${warehouseId}:`, ormError);
-                  errors++;
-                }
+              // Direkte ORM-Methode zum Einfügen
+              const newItem = await storage.createInventoryItem(inventoryItem);
+              
+              if (newItem && newItem.id) {
+                productsAdded++;
+                console.log(`✅ Produkt ${parsedProductId} (${product.productName}) erfolgreich zu Lager ${parsedWarehouseId} hinzugefügt mit ID ${newItem.id}`);
+              } else {
+                console.error(`❌ Fehler beim Erstellen des Inventareintrags für Produkt ${parsedProductId} in Lager ${parsedWarehouseId}: Kein Ergebnis zurückgegeben`);
+                errors++;
               }
             } catch (innerError: any) {
               // Prüfe, ob es sich um einen Fehler wegen Duplikat handelt
               if (innerError.message && innerError.message.includes('unique constraint')) {
                 console.log(`Produkt ${productId} (${product.productName}) ist bereits in Lager ${warehouseId} vorhanden (Constraint-Fehler)`);
               } else {
-                console.error(`Fehler beim Hinzufügen von Produkt ${productId} zum Lager ${warehouseId}:`, innerError);
+                console.error(`❌ Fehler beim Hinzufügen von Produkt ${productId} zum Lager ${warehouseId}:`, innerError);
                 errors++;
               }
             }
           } else {
-            console.warn(`Produkt mit ID ${productId} existiert nicht in der Datenbank`);
+            console.warn(`⚠️ Produkt mit ID ${productId} existiert nicht in der Datenbank`);
           }
         } catch (error) {
-          console.error(`Fehler beim Hinzufügen von Produkt ${productId} zum Lager ${warehouseId}:`, error);
+          console.error(`❌ Fehler beim Hinzufügen von Produkt ${productId} zum Lager ${warehouseId}:`, error);
           errors++;
         }
       }

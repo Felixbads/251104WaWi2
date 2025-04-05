@@ -244,6 +244,7 @@ export interface IStorage {
   }): Promise<InventoryItem[]>;
   getInventoryItem(id: number): Promise<InventoryItem | undefined>;
   getInventoryItemsByWarehouse(warehouseId: number): Promise<InventoryItem[]>;
+  getInventoryItemsByWarehouseAndProduct(warehouseId: number, productId: number): Promise<InventoryItem[]>;
   getInventoryItemByProductAndWarehouse(productId: number, warehouseId: number): Promise<InventoryItem | undefined>;
   createInventoryItem(item: InsertInventoryItem): Promise<InventoryItem>;
   updateInventoryItem(id: number, item: Partial<InsertInventoryItem>): Promise<InventoryItem | undefined>;
@@ -2024,6 +2025,26 @@ export class DatabaseStorage implements IStorage {
     .leftJoin(products, eq(inventoryItems.productId, products.id))
     .where(eq(inventoryItems.warehouseId, warehouseId))
     .orderBy(asc(products.productName));
+    
+    return result.map(row => ({
+      ...row.inventory,
+      productName: row.product?.productName
+    })) as InventoryItem[];
+  }
+  
+  async getInventoryItemsByWarehouseAndProduct(warehouseId: number, productId: number): Promise<InventoryItem[]> {
+    const result = await db.select({
+      inventory: inventoryItems,
+      product: products
+    })
+    .from(inventoryItems)
+    .leftJoin(products, eq(inventoryItems.productId, products.id))
+    .where(
+      and(
+        eq(inventoryItems.warehouseId, warehouseId),
+        eq(inventoryItems.productId, productId)
+      )
+    );
     
     return result.map(row => ({
       ...row.inventory,
