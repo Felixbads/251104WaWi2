@@ -249,7 +249,7 @@ export default function WarehouseDetail() {
       console.log("Initialisiere Inventur mit", inventory.length, "Produkten");
       setInventoryCountItems(
         inventory.map(item => ({
-          productId: item.productId,
+          productId: typeof item.productId === 'string' ? Number(item.productId) : item.productId,
           productName: item.productName || "Unbekannt",
           currentQuantity: item.quantity || 0,
           countedQuantity: item.quantity || 0, // Standardmäßig aktueller Bestand
@@ -812,7 +812,7 @@ export default function WarehouseDetail() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {inventory.map((item) => (
+                    {inventory && Array.isArray(inventory) && inventory.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell className="font-medium">{item.productName}</TableCell>
                         <TableCell>{item.supplierName || "-"}</TableCell>
@@ -820,14 +820,14 @@ export default function WarehouseDetail() {
                         <TableCell className="text-right">
                           <Badge
                             variant={
-                              item.quantity <= 0
+                              (item.quantity || 0) <= 0
                                 ? "destructive"
-                                : item.quantity <= (item.minQuantity || 5)
+                                : (item.quantity || 0) <= (item.minQuantity || 5)
                                 ? "warning"
                                 : "success"
                             }
                           >
-                            {item.quantity}
+                            {item.quantity || 0}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
@@ -1142,15 +1142,15 @@ export default function WarehouseDetail() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {inventoryMovements.map((movement) => (
+                    {inventoryMovements && Array.isArray(inventoryMovements) && inventoryMovements.map((movement) => (
                       <TableRow key={movement.id}>
                         <TableCell>
-                          {movement.performedAt ? new Date(movement.performedAt).toLocaleDateString() : "Unbekannt"}
+                          {movement.performedAt && movement.performedAt ? new Date(movement.performedAt).toLocaleDateString() : "Unbekannt"}
                           <div className="text-xs text-muted-foreground">
-                            {movement.performedAt ? new Date(movement.performedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
+                            {movement.performedAt && movement.performedAt ? new Date(movement.performedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
                           </div>
                         </TableCell>
-                        <TableCell className="font-medium">{movement.productName}</TableCell>
+                        <TableCell className="font-medium">{movement.productName || "Unbekanntes Produkt"}</TableCell>
                         <TableCell>
                           <Badge
                             variant={
