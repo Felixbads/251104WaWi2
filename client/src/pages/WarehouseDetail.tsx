@@ -436,6 +436,10 @@ export default function WarehouseDetail() {
   const [inventoryCountItems, setInventoryCountItems] = useState<any[]>([]);
   const [isCountInProgress, setIsCountInProgress] = useState(false);
   const [inventoryCountNotes, setInventoryCountNotes] = useState("");
+  const [searchQueryInventory, setSearchQueryInventory] = useState("");
+  const [activeInventoryCount, setActiveInventoryCount] = useState<number | null>(null);
+  const [inventoryDetailDialogOpen, setInventoryDetailDialogOpen] = useState(false);
+  const [selectedInventoryCount, setSelectedInventoryCount] = useState<InventoryCount | null>(null);
   
   // Initialisiere Inventurzählung mit aktuellen Beständen
   useEffect(() => {
@@ -448,7 +452,9 @@ export default function WarehouseDetail() {
             productName: item.productName || "Unbekannt",
             currentQuantity: item.quantity || 0,
             countedQuantity: item.quantity || 0, // Standardmäßig aktueller Bestand
-            difference: 0
+            difference: 0,
+            sku: item.sku || "",
+            location: item.locationInWarehouse || ""
           }))
         );
       } catch (error) {
@@ -462,6 +468,18 @@ export default function WarehouseDetail() {
       setInventoryCountItems([]);
     }
   }, [inventory, activeTab]);
+  
+  // Gefilterte Inventur-Items basierend auf der Suche
+  const filteredInventoryItems = useMemo(() => {
+    if (!searchQueryInventory.trim()) return inventoryCountItems;
+    
+    const lowerCaseQuery = searchQueryInventory.toLowerCase();
+    return inventoryCountItems.filter(item => 
+      item.productName.toLowerCase().includes(lowerCaseQuery) || 
+      (item.sku && item.sku.toLowerCase().includes(lowerCaseQuery)) ||
+      (item.location && item.location.toLowerCase().includes(lowerCaseQuery))
+    );
+  }, [inventoryCountItems, searchQueryInventory]);
   
   // Dialog-Zustände
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
@@ -485,7 +503,7 @@ export default function WarehouseDetail() {
     enabled: isAddMovementDialogOpen && movementType === "TRANSFER"
   });
   
-  // Mutation für die Erstellung einer Inventur
+  // Mutation für die Erstellung einer Inventur (abschließen)
   const createInventoryCountMutation = useMutation({
     mutationFn: async (data: any) => {
       // API-Aufruf für das Erstellen einer neuen Inventur
@@ -494,7 +512,10 @@ export default function WarehouseDetail() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          status: 'completed' // Status auf "abgeschlossen" setzen
+        }),
       }).then(res => {
         if (!res.ok) throw new Error('Fehler beim Erstellen der Inventur');
         return res.json();
@@ -509,11 +530,48 @@ export default function WarehouseDetail() {
       });
       setIsCountInProgress(false);
       setInventoryCountNotes("");
+      setSearchQueryInventory("");
     },
     onError: (error: any) => {
       toast({
         title: "Fehler bei der Inventur",
         description: error.message || "Die Inventur konnte nicht durchgeführt werden.",
+        variant: "destructive"
+      });
+    }
+  });
+  
+  // Mutation für das Zwischenspeichern einer Inventur
+  const saveTemporaryInventoryCountMutation = useMutation({
+    mutationFn: async (data: any) => {
+      // API-Aufruf für das temporäre Speichern einer Inventur
+      return await fetch(`/api/inventory-counts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...data,
+          status: 'in_progress' // Status auf "in Bearbeitung" setzen
+        }),
+      }).then(res => {
+        if (!res.ok) throw new Error('Fehler beim Zwischenspeichern der Inventur');
+        return res.json();
+      });
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory-counts'] });
+      // Aktive Inventur setzen
+      setActiveInventoryCount(data.id);
+      toast({
+        title: "Inventur zwischengespeichert",
+        description: "Die Inventur wurde erfolgreich zwischengespeichert und kann später fortgesetzt werden.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Fehler beim Zwischenspeichern",
+        description: error.message || "Die Inventur konnte nicht zwischengespeichert werden.",
         variant: "destructive"
       });
     }
@@ -1364,28 +1422,36 @@ export default function WarehouseDetail() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="relative w-full max-w-sm">
-                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        type="search"
-                        placeholder="Nach Produkten suchen..."
-                        className="pl-8 h-9 w-full"
-                      />
+                    <div className="flex flex-wrap gap-4 items-center">
+                      <div className="relative flex-1 min-w-[240px]">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          type="search"
+                          placeholder="Nach Produkten, Artikel-Nr. oder Lagerort suchen..."
+                          className="pl-8 h-9 w-full"
+                          value={searchQueryInventory}
+                          onChange={(e) => setSearchQueryInventory(e.target.value)}
+                        />
+                      </div>
+                      
+                      <div className="text-sm text-muted-foreground">
+                        {filteredInventoryItems.length} von {inventoryCountItems.length} Produkten
+                      </div>
                     </div>
                     
                     <div className="rounded-md border">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Produkt</TableHead>
+                            <TableHead className="w-[40%]">Produkt</TableHead>
                             <TableHead>Aktueller Bestand</TableHead>
                             <TableHead>Gezählter Bestand</TableHead>
                             <TableHead>Differenz</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {Array.isArray(inventoryCountItems) && inventoryCountItems.length > 0 ? (
-                            inventoryCountItems.map((item) => (
+                          {Array.isArray(filteredInventoryItems) && filteredInventoryItems.length > 0 ? (
+                            filteredInventoryItems.map((item) => (
                               <TableRow key={item.productId}>
                                 <TableCell className="font-medium">{item.productName}</TableCell>
                                 <TableCell>{item.currentQuantity}</TableCell>
@@ -1451,12 +1517,21 @@ export default function WarehouseDetail() {
                       variant="outline"
                       onClick={() => {
                         // Inventur zwischenspeichern
-                        toast({
-                          title: "Zwischengespeichert",
-                          description: "Die Inventur wurde zwischengespeichert.",
+                        saveTemporaryInventoryCountMutation.mutate({
+                          warehouseId: Number(id),
+                          notes: inventoryCountNotes,
+                          items: inventoryCountItems.map(item => ({
+                            productId: item.productId,
+                            countedQuantity: item.countedQuantity,
+                            difference: item.countedQuantity - item.currentQuantity
+                          }))
                         });
                       }}
+                      disabled={saveTemporaryInventoryCountMutation.isPending}
                     >
+                      {saveTemporaryInventoryCountMutation.isPending && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
                       Zwischenspeichern
                     </Button>
                     <Button 
