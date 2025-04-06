@@ -327,7 +327,7 @@ export default function WarehouseMovements() {
             Zurück zum Lager
           </Button>
         </div>
-        <h1 className="text-2xl font-bold">{warehouse && typeof warehouse === 'object' && 'name' in warehouse ? warehouse.name : 'Lager'} - Warenbewegungen</h1>
+        <h1 className="text-2xl font-bold">{warehouse && typeof warehouse === 'object' && 'name' in warehouse ? String(warehouse.name) : 'Lager'} - Warenbewegungen</h1>
       </div>
 
       {/* Main Content */}
@@ -576,23 +576,29 @@ export default function WarehouseMovements() {
                       {filteredMovements.map((movement: any) => (
                         <TableRow key={movement.id}>
                           <TableCell className="font-medium whitespace-nowrap">
-                            {format(new Date(movement.performedAt || movement.createdAt), "dd.MM.yyyy HH:mm")}
+                            {movement && (movement.performedAt || movement.createdAt) 
+                              ? format(new Date(movement.performedAt || movement.createdAt), "dd.MM.yyyy HH:mm")
+                              : "Unbekanntes Datum"}
                           </TableCell>
                           <TableCell>
-                            <Badge variant={movement.type === 'IN' ? 'default' : 'destructive'}>
-                              {formatMovementType(movement.type, movement.movementType)}
-                            </Badge>
+                            {movement.type && (
+                              <Badge variant={movement.type === 'IN' ? 'default' : 'destructive'}>
+                                {formatMovementType(movement.type || "", movement.movementType || "")}
+                              </Badge>
+                            )}
                           </TableCell>
                           <TableCell>{movement.productName}</TableCell>
                           <TableCell className="text-center font-medium">
-                            {movement.type === 'IN' ? '+' : '-'}{Math.abs(Number(movement.quantity))}
+                            {movement.type && movement.quantity !== undefined ? 
+                              `${movement.type === 'IN' ? '+' : '-'}${Math.abs(Number(movement.quantity))}` : 
+                              "-"}
                           </TableCell>
                           <TableCell>{movement.unit}</TableCell>
                           <TableCell>
                             {movement.movementType === "REFILL" ? (
-                              <span>Refill Automat {movement.machineName}</span>
+                              <span>Refill Automat {movement.machineName || "unbekannt"}</span>
                             ) : movement.type === "IN" && movement.referenceType === "ORDER" ? (
-                              <span>Wareneingang Bestellung #{movement.referenceId}</span>
+                              <span>Wareneingang Bestellung #{movement.referenceId || "?"}</span>
                             ) : movement.type === "OUT" && movement.destinationWarehouseId ? (
                               <span>Umlagerung nach {
                                 // This would require fetching all warehouses to display the name
