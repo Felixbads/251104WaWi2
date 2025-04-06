@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   ClipboardCheck, Search, FilterX, 
-  Plus, RefreshCw, Calendar, Loader2, AlertTriangle 
+  Plus, RefreshCw, Calendar, Loader2, AlertTriangle, Save
 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -17,12 +17,30 @@ import {
   TableHead, TableHeader, TableRow
 } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/hooks/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 
-// Placeholder-Komponente für die Inventur-Verwaltung
+// Komponente für die Inventur-Verwaltung
 export default function InventoryCounts() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('');
+  
+  // Zustand für den Dialog zur Erstellung einer neuen Inventur
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [selectedWarehouse, setSelectedWarehouse] = useState<string>('');
+  const [inventoryNotes, setInventoryNotes] = useState('');
 
   // Lade Inventurdaten
   const {
@@ -42,6 +60,54 @@ export default function InventoryCounts() {
   const { data: warehouses = [] } = useQuery({
     queryKey: ['/api/warehouses'],
     staleTime: 1000 * 60 * 5, // 5 Minuten
+  });
+  
+  // Mutation für das Erstellen einer neuen Inventur
+  const createInventoryCountMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedWarehouse) {
+        throw new Error('Bitte wählen Sie ein Lager aus');
+      }
+      
+      // API-Aufruf für das Erstellen einer neuen Inventur im Status "in_progress"
+      return await fetch(`/api/inventory-counts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          warehouseId: parseInt(selectedWarehouse),
+          notes: inventoryNotes,
+          status: 'in_progress' // Status auf "in Bearbeitung" setzen
+        }),
+      }).then(res => {
+        if (!res.ok) throw new Error('Fehler beim Starten der Inventur');
+        return res.json();
+      });
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory-counts'] });
+      toast({
+        title: "Inventur gestartet",
+        description: "Die Inventur wurde erfolgreich gestartet. Sie können nun die Artikel-Bestände überprüfen.",
+      });
+      // Dialog schließen und Formular zurücksetzen
+      setIsDialogOpen(false);
+      setSelectedWarehouse('');
+      setInventoryNotes('');
+      
+      // Optional: Zur Detailseite des Lagers navigieren
+      if (data && data.warehouseId) {
+        window.location.href = `/inventory/warehouse/${data.warehouseId}#inventory-count`;
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Fehler beim Starten der Inventur",
+        description: error.message || "Die Inventur konnte nicht gestartet werden.",
+        variant: "destructive"
+      });
+    }
   });
   
   // Suche und Filterung
@@ -152,7 +218,7 @@ export default function InventoryCounts() {
           </Button>
           
           <Button
-            onClick={() => window.location.href = '/inventur/neu'}
+            onClick={() => setIsDialogOpen(true)}
           >
             <Plus className="h-4 w-4 mr-2" />
             Neue Inventur
@@ -169,7 +235,7 @@ export default function InventoryCounts() {
             Es wurden keine Inventuren für die aktuelle Filterauswahl gefunden.
           </p>
           <Button
-            onClick={() => window.location.href = '/inventur/neu'}
+            onClick={() => setIsDialogOpen(true)}
           >
             <Plus className="h-4 w-4 mr-2" />
             Neue Inventur starten
@@ -292,6 +358,75 @@ export default function InventoryCounts() {
           </Table>
         </div>
       )}
+      
+      {/* Dialog für neue Inventur */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Neue Inventur starten</DialogTitle>
+            <DialogDescription>
+              Wählen Sie das Lager aus, in dem Sie eine neue Inventur durchführen möchten.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="warehouse">Lager auswählen</Label>
+              <Select 
+                value={selectedWarehouse} 
+                onValueChange={setSelectedWarehouse}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Bitte wählen Sie ein Lager aus" />
+                </SelectTrigger>
+                <SelectContent>
+                  {warehouses.map((warehouse: any) => (
+                    <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
+                      {warehouse.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notizen (optional)</Label>
+              <Textarea
+                id="notes"
+                placeholder="Notizen zur Inventur hinzufügen..."
+                value={inventoryNotes}
+                onChange={(e) => setInventoryNotes(e.target.value)}
+                rows={4}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsDialogOpen(false)}
+            >
+              Abbrechen
+            </Button>
+            <Button 
+              onClick={() => createInventoryCountMutation.mutate()}
+              disabled={createInventoryCountMutation.isPending || !selectedWarehouse}
+            >
+              {createInventoryCountMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Wird erstellt...
+                </>
+              ) : (
+                <>
+                  <ClipboardCheck className="h-4 w-4 mr-2" />
+                  Inventur starten
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
