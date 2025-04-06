@@ -521,6 +521,28 @@ export function registerInventoryRoutes(app: Express) {
     }
   });
 
+  // Route zum Abrufen von Refills für ein bestimmtes Lager
+  app.get(`${apiPrefix}/refills`, async (req: Request, res: Response) => {
+    try {
+      const { warehouseId, limit, offset, startDate, endDate } = req.query;
+      
+      // Parameter validieren
+      const warehouseIdNum = warehouseId ? parseInt(warehouseId as string) : undefined;
+      const limitNum = limit ? parseInt(limit as string) : 50;
+      const offsetNum = offset ? parseInt(offset as string) : 0;
+      const startDateStr = startDate as string | undefined;
+      const endDateStr = endDate as string | undefined;
+      
+      // Refills abrufen (wenn warehouseId vorhanden, nur Refills für Automaten dieses Lagers)
+      const refills = await storage.getRefillsForWarehouse(warehouseIdNum, limitNum, offsetNum, startDateStr, endDateStr);
+      
+      res.json(refills);
+    } catch (error: any) {
+      console.error("Fehler beim Abrufen der Refills:", error);
+      res.status(500).json({ error: error.message || "Fehler beim Abrufen der Refills" });
+    }
+  });
+
   // Spezielle Route für Warenbewegungen basierend auf Refills
   app.post(`${apiPrefix}/inventory-movements/from-refill`, async (req: Request, res: Response) => {
     try {

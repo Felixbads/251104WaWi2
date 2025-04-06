@@ -1293,6 +1293,7 @@ export async function getRefills(params?: {
   startDate?: string;
   endDate?: string;
   machineId?: string;
+  warehouseId?: number;
 }): Promise<RefillsResponse> {
   const queryParams = new URLSearchParams();
   
@@ -1302,6 +1303,7 @@ export async function getRefills(params?: {
     if (params.startDate) queryParams.append('startDate', params.startDate);
     if (params.endDate) queryParams.append('endDate', params.endDate);
     if (params.machineId) queryParams.append('machineId', params.machineId);
+    if (params.warehouseId) queryParams.append('warehouseId', params.warehouseId.toString());
   } else {
     queryParams.append('limit', '50');
   }

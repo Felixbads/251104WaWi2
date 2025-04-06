@@ -144,7 +144,8 @@ export interface IStorage {
   getProductRefills(productId: number, limit?: number): Promise<RefillDetail[]>;
 
   // Refill operations
-  getRefills(limit?: number): Promise<Refill[]>;
+  getRefills(limit?: number, offset?: number, startDate?: string, endDate?: string, machineId?: string): Promise<Refill[]>;
+  getRefillsForWarehouse(warehouseId?: number, limit?: number, offset?: number, startDate?: string, endDate?: string): Promise<Refill[]>;
   getRefillsByMachine(machineId: number, limit?: number): Promise<Refill[]>;
   getRefill(id: number): Promise<Refill | undefined>;
   getRefillByVendonId(vendonId: string): Promise<Refill | undefined>;
@@ -1445,8 +1446,67 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Refill operations
-  async getRefills(limit: number = 100): Promise<Refill[]> {
-    return await db.select().from(refills).orderBy(desc(refills.datetime)).limit(limit);
+  async getRefills(limit: number = 100, offset: number = 0, startDate?: string, endDate?: string, machineId?: string): Promise<Refill[]> {
+    let query = db.select().from(refills).orderBy(desc(refills.datetime));
+    
+    // Filter nach Zeitraum, falls angegeben
+    if (startDate && endDate) {
+      query = query.where(
+        and(
+          gte(refills.datetime, startDate),
+          lte(refills.datetime, endDate)
+        )
+      );
+    } else if (startDate) {
+      query = query.where(gte(refills.datetime, startDate));
+    } else if (endDate) {
+      query = query.where(lte(refills.datetime, endDate));
+    }
+    
+    // Filter nach Automat, falls angegeben
+    if (machineId) {
+      query = query.where(eq(refills.machineId, parseInt(machineId)));
+    }
+    
+    return await query.offset(offset).limit(limit);
+  }
+  
+  // Refills für ein bestimmtes Lager abrufen
+  async getRefillsForWarehouse(warehouseId?: number, limit: number = 100, offset: number = 0, startDate?: string, endDate?: string): Promise<Refill[]> {
+    if (!warehouseId) {
+      // Wenn keine Lager-ID angegeben ist, normale Refills zurückgeben
+      return this.getRefills(limit, offset, startDate, endDate);
+    }
+    
+    // Zuerst alle Automaten abrufen, die diesem Lager zugeordnet sind
+    const assignments = await this.getMachineWarehouseAssignments({ warehouseId });
+    const machineIds = assignments.map(a => a.machineId);
+    
+    if (machineIds.length === 0) {
+      // Keine Automaten dem Lager zugeordnet
+      return [];
+    }
+    
+    // Refills für diese Automaten abrufen
+    let query = db.select().from(refills)
+      .where(inArray(refills.machineId, machineIds))
+      .orderBy(desc(refills.datetime));
+    
+    // Filter nach Zeitraum, falls angegeben
+    if (startDate && endDate) {
+      query = query.where(
+        and(
+          gte(refills.datetime, startDate),
+          lte(refills.datetime, endDate)
+        )
+      );
+    } else if (startDate) {
+      query = query.where(gte(refills.datetime, startDate));
+    } else if (endDate) {
+      query = query.where(lte(refills.datetime, endDate));
+    }
+    
+    return await query.offset(offset).limit(limit);
   }
 
   async getRefillsByMachine(machineId: number, limit: number = 100): Promise<Refill[]> {

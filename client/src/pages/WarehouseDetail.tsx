@@ -2,6 +2,16 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { DateRange, SelectRangeEventHandler } from "react-day-picker";
+
+// Lucide Icons
+import { 
+  Building2, Truck, Package, ChevronLeft, Loader2, 
+  Plus, Search, Filter, ArrowDownUp, AlertTriangle, 
+  ClipboardCheck, MapPin, Phone, Mail, User, 
+  Eye, Save, Trash, Edit, CalendarRange, FileText,
+  RefreshCw, ShoppingCart, Clock
+} from "lucide-react";
 
 // API-Funktionen
 import { 
@@ -66,6 +76,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Calendar } from "@/components/ui/calendar";
 import { CalendarIcon, ChevronLeftIcon, SaveIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -74,30 +85,22 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-
-// Icons
 import {
-  Building2,
-  Package,
-  ArrowDownUp,
-  ClipboardCheck,
-  Truck,
-  Search,
-  Filter,
-  Clock,
-  MapPin,
-  Phone,
-  Mail,
-  AlertTriangle,
-  Plus,
-  ChevronLeft,
-  Save,
-  Loader2,
-  FileText,
-  RefreshCw,
-  ShoppingCart,
-  User
-} from "lucide-react";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+// Removed duplicate icons import
 
 export default function WarehouseDetail() {
   const { id } = useParams<{ id: string }>();
@@ -121,11 +124,13 @@ export default function WarehouseDetail() {
   const { 
     data: inventory = [], 
     isLoading: inventoryLoading,
-    error: inventoryError
+    error: inventoryError,
+    refetch: refetchInventory
   } = useQuery({
     queryKey: [`/api/inventory`, { warehouseId: id }],
     queryFn: () => getWarehouseInventory(id),
-    enabled: !!id
+    enabled: !!id,
+    staleTime: 30000 // 30 Sekunden
   });
   
   // MachineWarehouseAssignment Typ definieren
@@ -255,20 +260,50 @@ export default function WarehouseDetail() {
   }
   
   // Refill-Daten für dieses Lager abrufen
+  const [refillFilter, setRefillFilter] = useState({
+    startDate: '',
+    endDate: '',
+    limit: 50,
+    offset: 0
+  });
+  
   const {
     data: refills = [] as Refill[],
     isLoading: refillsLoading
   } = useQuery<Refill[]>({
-    queryKey: ['/api/refills', { warehouseId: Number(id) }],
+    queryKey: ['/api/refills', { 
+      warehouseId: Number(id),
+      startDate: refillFilter.startDate || undefined,
+      endDate: refillFilter.endDate || undefined,
+      limit: refillFilter.limit,
+      offset: refillFilter.offset
+    }],
     enabled: !!id && activeTab === "movements"
   });
   
   // Warenbewegungen abrufen
+  const [movementFilter, setMovementFilter] = useState({
+    startDate: '',
+    endDate: '',
+    productId: '',
+    movementType: '',
+    limit: 50,
+    offset: 0
+  });
+  
   const {
     data: inventoryMovements = [] as InventoryMovement[],
     isLoading: movementsLoading
   } = useQuery<InventoryMovement[]>({
-    queryKey: ['/api/inventory-movements', { warehouseId: Number(id) }],
+    queryKey: ['/api/inventory-movements', { 
+      warehouseId: Number(id),
+      startDate: movementFilter.startDate || undefined,
+      endDate: movementFilter.endDate || undefined,
+      productId: movementFilter.productId || undefined,
+      movementType: movementFilter.movementType || undefined,
+      limit: movementFilter.limit,
+      offset: movementFilter.offset
+    }],
     enabled: !!id && activeTab === "movements"
   });
   
@@ -352,6 +387,16 @@ export default function WarehouseDetail() {
   const [selectedProduct, setSelectedProduct] = useState<string>("");
   const [movementQuantity, setMovementQuantity] = useState<number>(1);
   const [movementNotes, setMovementNotes] = useState("");
+  const [selectedDestinationWarehouse, setSelectedDestinationWarehouse] = useState<string>("");
+  
+  // Alle Lager für die Umlagerung abrufen
+  const {
+    data: warehouses = [] as any[],
+    isLoading: warehousesLoading
+  } = useQuery<any[]>({
+    queryKey: ['/api/warehouses'],
+    enabled: isAddMovementDialogOpen && movementType === "TRANSFER"
+  });
   
   // Mutation für die Erstellung einer Inventur
   const createInventoryCountMutation = useMutation({
@@ -492,31 +537,59 @@ export default function WarehouseDetail() {
 
       {/* Tabs für die verschiedenen Lageransichten */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        {/* Verbesserte TabsList für bessere mobile Darstellung */}
-        <ScrollArea className="w-full">
-          <TabsList className="flex mb-4 md:mb-8 w-auto min-w-full inline-flex">
-            <TabsTrigger value="overview" className="px-4">
-              <Building2 className="h-4 w-4 mr-2 flex-shrink-0" />
-              <span>Übersicht</span>
+        {/* Verbesserte TabsList für bessere mobile Darstellung in zwei Reihen */}
+        <div className="mb-4 md:mb-8">
+          <div className="grid grid-cols-3 gap-2 mb-2 sm:hidden">
+            <TabsTrigger value="overview" className="px-3 py-2">
+              <Building2 className="h-4 w-4 mr-1 flex-shrink-0" />
+              <span className="text-xs">Übersicht</span>
             </TabsTrigger>
-            <TabsTrigger value="machines" className="px-4">
-              <Truck className="h-4 w-4 mr-2 flex-shrink-0" />
-              <span>Automaten</span>
+            <TabsTrigger value="machines" className="px-3 py-2">
+              <Truck className="h-4 w-4 mr-1 flex-shrink-0" />
+              <span className="text-xs">Automaten</span>
             </TabsTrigger>
-            <TabsTrigger value="inventory" className="px-4">
-              <Package className="h-4 w-4 mr-2 flex-shrink-0" />
-              <span>Bestand</span>
+            <TabsTrigger value="inventory" className="px-3 py-2">
+              <Package className="h-4 w-4 mr-1 flex-shrink-0" />
+              <span className="text-xs">Bestand</span>
             </TabsTrigger>
-            <TabsTrigger value="inventory-count" className="px-4">
-              <ClipboardCheck className="h-4 w-4 mr-2 flex-shrink-0" />
-              <span>Inventur</span>
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:hidden">
+            <TabsTrigger value="inventory-count" className="px-3 py-2">
+              <ClipboardCheck className="h-4 w-4 mr-1 flex-shrink-0" />
+              <span className="text-xs">Inventur</span>
             </TabsTrigger>
-            <TabsTrigger value="movements" className="px-4">
-              <ArrowDownUp className="h-4 w-4 mr-2 flex-shrink-0" />
-              <span>Bewegungen</span>
+            <TabsTrigger value="movements" className="px-3 py-2">
+              <ArrowDownUp className="h-4 w-4 mr-1 flex-shrink-0" />
+              <span className="text-xs">Bewegungen</span>
             </TabsTrigger>
-          </TabsList>
-        </ScrollArea>
+          </div>
+          
+          {/* Desktop-Ansicht - tabs in einer Zeile */}
+          <ScrollArea className="w-full hidden sm:block">
+            <TabsList className="flex w-auto min-w-full inline-flex">
+              <TabsTrigger value="overview" className="px-4">
+                <Building2 className="h-4 w-4 mr-2 flex-shrink-0" />
+                <span>Übersicht</span>
+              </TabsTrigger>
+              <TabsTrigger value="machines" className="px-4">
+                <Truck className="h-4 w-4 mr-2 flex-shrink-0" />
+                <span>Automaten</span>
+              </TabsTrigger>
+              <TabsTrigger value="inventory" className="px-4">
+                <Package className="h-4 w-4 mr-2 flex-shrink-0" />
+                <span>Bestand</span>
+              </TabsTrigger>
+              <TabsTrigger value="inventory-count" className="px-4">
+                <ClipboardCheck className="h-4 w-4 mr-2 flex-shrink-0" />
+                <span>Inventur</span>
+              </TabsTrigger>
+              <TabsTrigger value="movements" className="px-4">
+                <ArrowDownUp className="h-4 w-4 mr-2 flex-shrink-0" />
+                <span>Bewegungen</span>
+              </TabsTrigger>
+            </TabsList>
+          </ScrollArea>
+        </div>
 
         {/* Tab: Übersicht */}
         <TabsContent value="overview" className="space-y-4">
@@ -825,8 +898,8 @@ export default function WarehouseDetail() {
               <Button 
                 variant="outline"
                 onClick={() => {
-                  // Invalidiere die Abfrage manuell, um die Daten neu zu laden
-                  queryClient.invalidateQueries({ queryKey: [`/api/inventory`] });
+                  // Verwende die refetch-Funktion, um die Daten neu zu laden
+                  refetchInventory();
                   toast({
                     title: "Lagerbestand aktualisiert",
                     description: "Die Lagerdaten werden neu geladen."
@@ -867,7 +940,7 @@ export default function WarehouseDetail() {
                 </Button>
               </div>
             </Alert>
-          ) : false && (!Array.isArray(inventory) || inventory.length === 0) ? (
+          ) : (!Array.isArray(inventory) || inventory.length === 0) ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-8">
                 <Package className="h-16 w-16 text-muted-foreground mb-4" />
@@ -1204,8 +1277,8 @@ export default function WarehouseDetail() {
           ) : (
             <>
               {/* Suchleiste und Filter für Warenbewegungen */}
-              <div className="flex space-x-2 mb-4">
-                <div className="relative flex-1">
+              <div className="flex flex-wrap gap-2 mb-4">
+                <div className="relative flex-1 min-w-[200px]">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     type="search"
@@ -1213,9 +1286,79 @@ export default function WarehouseDetail() {
                     className="pl-8 h-9 w-full"
                   />
                 </div>
-                <Button variant="outline" size="icon" className="h-9 w-9">
-                  <Filter className="h-4 w-4" />
-                </Button>
+                <div className="flex space-x-2 flex-wrap">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="h-9 flex space-x-1 items-center">
+                        <CalendarRange className="h-4 w-4 mr-1" />
+                        <span>Zeitraum</span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="range"
+                        selected={{
+                          from: movementFilter.startDate ? new Date(movementFilter.startDate) : undefined,
+                          to: movementFilter.endDate ? new Date(movementFilter.endDate) : undefined,
+                        }}
+                        onSelect={(range: DateRange | undefined) => {
+                          setMovementFilter(prev => ({
+                            ...prev,
+                            startDate: range?.from ? range.from.toISOString() : '',
+                            endDate: range?.to ? range.to.toISOString() : ''
+                          }));
+                        }}
+                        numberOfMonths={2}
+                      />
+                      <div className="flex items-center justify-between p-3 border-t">
+                        <Button
+                          variant="ghost"
+                          onClick={() => {
+                            setMovementFilter(prev => ({
+                              ...prev,
+                              startDate: '',
+                              endDate: ''
+                            }));
+                          }}
+                        >
+                          Zurücksetzen
+                        </Button>
+                        <Button onClick={() => document.dispatchEvent(new Event('keydown'))}>
+                          Anwenden
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="h-9 flex space-x-1 items-center">
+                        <Filter className="h-4 w-4 mr-1" />
+                        <span>Filter</span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuLabel>Nach Typ filtern</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuRadioGroup 
+                        value={movementFilter.movementType} 
+                        onValueChange={(value: string) => {
+                          setMovementFilter(prev => ({
+                            ...prev,
+                            movementType: value
+                          }));
+                        }}
+                      >
+                        <DropdownMenuRadioItem value="">Alle</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="IN">Eingang</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="OUT">Ausgang</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="TRANSFER">Umlagerung</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="ADJUSTMENT">Anpassung</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="REFILL">Nachfüllung</DropdownMenuRadioItem>
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
               
               <div className="rounded-md border">
