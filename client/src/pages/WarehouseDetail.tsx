@@ -18,52 +18,13 @@ import {
 import WarehouseInventory from "@/components/inventory/WarehouseInventory";
 import InventoryCountNew from "@/components/inventory/InventoryCountNew";
 
-// UI Komponenten
-import { Label } from "@/components/ui/label";
-
-// API-Funktionen
-import { 
-  getWarehouseById, 
-  getWarehouseInventory,
-  WarehouseProduct
-} from "@/lib/api";
-
 // UI-Komponenten
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableCaption,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
 import {
   Select,
   SelectContent,
@@ -71,606 +32,302 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert";
+
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, ChevronLeftIcon, SaveIcon } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu";
 
-// InventoryCount Interface definieren
-interface InventoryCount {
-  id: number;
-  warehouseId: number;
-  startDate: string;
-  endDate: string;
-  notes?: string;
-  createdBy?: number;
-  createdAt: string;
-  status?: string;
-  initiatedByName?: string;
-  itemCount?: number;
-  adjustmentCount?: number;
-  items?: Array<{
-    id: number;
-    inventoryCountId: number;
-    productId: number;
-    currentQuantity: number;
-    countedQuantity: number;
-    difference: number;
-    productName?: string;
-  }>;
-}
-
-// MachineWarehouseAssignment Typ definieren
-interface MachineWarehouseAssignment {
-  id: number;
-  machineId: number;
-  warehouseId: number;
-  isPrimary: boolean;
-  notes?: string;
-  assignedBy?: number;
-  assignedAt?: string;
-  createdAt?: string;
-  updatedAt?: string;
-  machine?: Machine;
-}
-
-// Machine Typ definieren
-interface Machine {
-  id: number;
-  vendonId: string;
-  machineName: string;
-  location: string;
-  status: string;
-  address?: string;
-  lastSync?: string;
-  lastSale?: string;
-  product_count?: number;
-  error_count?: number;
-}
-
-// InventoryMovement Interface definieren
-interface InventoryMovement {
-  id: number;
-  warehouseId: number;
-  productId: number;
-  quantity: number;
-  type: string;
-  reason?: string;
-  notes?: string;
-  createdBy?: number;
-  createdAt: string;
-  productName?: string;
-  productSku?: string;
-  performedAt?: string;
-  movementType?: string;
-  referenceType?: string;
-  referenceId?: number | string;
-  performedByName?: string;
-  machineId?: number;
-  machineName?: string;
-  source?: string;
-}
-
-// Refill-Daten definieren
-interface RefillDetail {
-  id: number;
-  refillId: number;
-  productId: string;
-  productName: string;
-  quantity: number;
-  added: number;
-  removed: number;
-  datetime: string;
-}
-
-interface Refill {
-  id: number;
-  vendonId: string;
-  machineId: number;
-  machineName: string;
-  datetime: string;
-  status: string;
-  details: RefillDetail[];
-}
+// API-Klient
+import { apiRequest } from "@/lib/queryClient";
 
 export default function WarehouseDetail() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams();
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
-  // Aktives Tab aus URL-Parameter extrahieren
-  const getInitialTab = () => {
-    try {
-      // URL-Parameter direkt aus der Wouter-Location extrahieren
-      const searchParams = new URLSearchParams(window.location.search);
-      const tabParam = searchParams.get('tab');
-      if (tabParam) {
-        return tabParam;
-      }
-    } catch (error) {
-      console.error("Fehler beim Lesen der URL-Parameter:", error);
-    }
-    return "overview";
-  };
-  
-  const [activeTab, setActiveTab] = useState(getInitialTab());
-  
-  // Inventur-ID aus URL-Parameter holen
-  const getInventoryIdFromUrl = () => {
-    try {
-      // URL-Parameter direkt aus der Wouter-Location extrahieren
-      const searchParams = new URLSearchParams(window.location.search);
-      const inventoryId = searchParams.get('inventoryId');
-      return inventoryId ? parseInt(inventoryId) : null;
-    } catch (error) {
-      console.error("Fehler beim Lesen der Inventur-ID:", error);
-      return null;
-    }
-  };
-  
-  // Hilfsfunktion: Findet eine aktive Inventur im aktuellen Lager und gibt sie zurück
-  const findActiveInventoryCount = () => {
-    if (Array.isArray(inventoryCounts)) {
-      return inventoryCounts.find(count => 
-        count.warehouseId === Number(id) && count.status === 'in_progress'
-      );
-    }
-    return null;
-  };
-  
-  // Zustand für die Inventur (Inventurzählung)
-  const [inventoryCountItems, setInventoryCountItems] = useState<any[]>([]);
-  const [isCountInProgress, setIsCountInProgress] = useState(false);
-  const [inventoryCountNotes, setInventoryCountNotes] = useState("");
-  const [searchQueryInventory, setSearchQueryInventory] = useState("");
-  const [activeInventoryCount, setActiveInventoryCount] = useState<number | null>(null);
-  const [inventoryDetailDialogOpen, setInventoryDetailDialogOpen] = useState(false);
-  const [selectedInventoryCount, setSelectedInventoryCount] = useState<InventoryCount | null>(null);
-
-  // URL-Parameter beim Laden auswerten
-  useEffect(() => {
-    const inventoryId = getInventoryIdFromUrl();
-    if (inventoryId) {
-      // Setze das Tab auf "inventory-count" wenn ein inventoryId Parameter vorhanden ist
-      setActiveTab("inventory-count");
-      setActiveInventoryCount(inventoryId);
-    }
-  }, []); // Einmalig beim Laden ausführen
-  
-  // Lager-Details abrufen
-  const { 
-    data: warehouse, 
-    isLoading: warehouseLoading, 
-    error: warehouseError 
-  } = useQuery({
-    queryKey: [`/api/warehouses/${id}`],
-    queryFn: () => getWarehouseById(id),
-    enabled: !!id
-  });
-  
-  // Lager-Inventar direkt abrufen (ohne getWarehouseInventory)
-  const { 
-    data: rawInventory = [], 
-    isLoading: inventoryLoading,
-    error: inventoryError,
-    refetch: refetchInventory
-  } = useQuery({
-    queryKey: [`/api/inventory`, { warehouseId: Number(id), includeZeroStock: true }],
-    enabled: !!id,
-    staleTime: 30000 // 30 Sekunden
-  });
-  
-  // Deduplizieren des Inventars basierend auf der Produkt-ID
-  const inventory = useMemo(() => {
-    if (!rawInventory || !Array.isArray(rawInventory)) return [];
-    
-    // Verwende eine Map, um Elemente nach Produkt-ID zu gruppieren und dabei nur das neueste zu behalten
-    const productMap = new Map();
-    
-    rawInventory.forEach(item => {
-      const productId = Number(item.productId);
-      
-      if (!productMap.has(productId) || 
-          (productMap.has(productId) && 
-           Number(item.id) > Number(productMap.get(productId).id))) {
-        productMap.set(productId, item);
-      }
-    });
-    
-    // Konvertiere die Map zurück in ein Array
-    return Array.from(productMap.values());
-  }, [rawInventory]);
-  
-  // Automaten-Zuordnungen abrufen
-  const { 
-    data: machineAssignments = [] as MachineWarehouseAssignment[], 
-    isLoading: assignmentsLoading 
-  } = useQuery<MachineWarehouseAssignment[]>({
-    queryKey: ['/api/machine-warehouse-assignments', { warehouseId: Number(id) }],
-    staleTime: 1000 * 30, // 30 Sekunden
-    enabled: !!id && activeTab === "machines"
-  });
-  
-  // Abfrage aller Automaten für die Zuordnung
-  const { 
-    data: machines = [] as Machine[], 
-    isLoading: machinesLoading 
-  } = useQuery<Machine[]>({
-    queryKey: ['/api/machines'],
-    staleTime: 1000 * 60, // 1 Minute
-    enabled: !!id && activeTab === "machines"
-  });
-  
-  // Inventuren abrufen
-  const {
-    data: inventoryCounts = [] as InventoryCount[],
-    isLoading: inventoryCountsLoading
-  } = useQuery<InventoryCount[]>({
-    queryKey: ['/api/inventory-counts', { warehouseId: Number(id) }],
-    enabled: !!id // Immer aktivieren, wenn eine Warehouse-ID vorhanden ist
-  });
-  
-  // Überwache inventoryCounts und aktualisiere selectedInventoryCount, wenn die Inventurdaten geladen sind
-  useEffect(() => {
-    // 1. Prüfe auf URL-Parameter
-    const inventoryIdFromUrl = getInventoryIdFromUrl();
-    if (inventoryIdFromUrl && !activeInventoryCount) {
-      console.log("Setze activeInventoryCount auf URL-Parameter:", inventoryIdFromUrl);
-      setActiveInventoryCount(inventoryIdFromUrl);
-    }
-
-    // 2. Wenn ein aktiver Inventurcount vorhanden ist, lade Details
-    const inventoryId = activeInventoryCount || inventoryIdFromUrl;
-    if (inventoryId && Array.isArray(inventoryCounts) && inventoryCounts.length > 0) {
-      const selectedCount = inventoryCounts.find(count => count.id === inventoryId);
-      if (selectedCount) {
-        console.log("Gefundene Inventur:", selectedCount);
-        setSelectedInventoryCount(selectedCount);
-        // Wenn eine in Bearbeitung befindliche Inventur gefunden wurde, setze das Tab
-        if (selectedCount.status === 'in_progress') {
-          console.log("Aktive Inventur gefunden, wechsle zu Tab 'inventory-count'");
-          setActiveTab("inventory-count");
-        }
-      }
-    }
-    
-    // 3. Prüfe, ob es eine aktive (in_progress) Inventur gibt
-    const activeCount = findActiveInventoryCount();
-    
-    console.log("Aktive Inventur Prüfung:", {
-      aktiverCount: activeCount ? activeCount.id : "keine",
-      isCountInProgress,
-      activeInventoryCount
-    });
-    
-    // Logik zur Bestimmung des isCountInProgress-Status
-    // a) Wenn wir das Formular für eine neue Inventur anzeigen wollen,
-    //    sollte isCountInProgress=true sein, sonst false
-    // b) Wenn es eine aktive Inventur gibt, sollte das Formular nicht angezeigt werden
-    
-    if (activeCount) {
-      // Es gibt eine aktive Inventur
-      if (!activeInventoryCount) {
-        // Setze die aktive Inventur, wenn sie noch nicht gesetzt ist
-        console.log("Aktive Inventur gefunden, setze activeInventoryCount");
-        setActiveInventoryCount(activeCount.id);
-      }
-      
-      // Wenn eine aktive Inventur vorhanden ist und wir momentan das Formular anzeigen,
-      // sollten wir das Formular verstecken
-      if (isCountInProgress) {
-        console.log("Aktive Inventur vorhanden, aber Formular ist sichtbar, verstecke es");
-        setIsCountInProgress(false);
-      }
-    } else {
-      // Es gibt keine aktive Inventur
-      
-      // Wenn kein activeInventoryCount gesetzt ist und isCountInProgress=true,
-      // lassen wir isCountInProgress auf true, damit das Formular angezeigt wird
-      
-      // Wenn ein activeInventoryCount gesetzt ist, aber keine aktive Inventur existiert,
-      // dann müssen wir activeInventoryCount zurücksetzen
-      if (activeInventoryCount && !isCountInProgress) {
-        console.log("activeInventoryCount ist gesetzt, aber keine aktive Inventur existiert, setze zurück");
-        setActiveInventoryCount(null);
-      }
-    }
-  }, [inventoryCounts, activeInventoryCount, id, isCountInProgress]);
-  
-  // Refill-Daten für dieses Lager abrufen
-  const [refillFilter, setRefillFilter] = useState({
-    startDate: '',
-    endDate: '',
-    limit: 100, // Erhöhen auf 100 für mehr Daten
-    offset: 0
-  });
-  
-  const {
-    data: refills = [] as Refill[],
-    isLoading: refillsLoading,
-    isFetching: refillsFetching,
-    isSuccess: refillsSuccess
-  } = useQuery<Refill[]>({
-    queryKey: ['/api/refills', { 
-      warehouseId: Number(id),
-      startDate: refillFilter.startDate || undefined,
-      endDate: refillFilter.endDate || undefined,
-      limit: refillFilter.limit,
-      offset: refillFilter.offset
-    }],
-    enabled: !!id && activeTab === "movements"
-  });
-  
-  // Details für jeden Refill laden
-  const [loadedRefillDetails, setLoadedRefillDetails] = useState<{[key: number]: boolean}>({});
-  
-  // Bei Änderungen der Refills, stelle sicher dass Details geladen werden
-  useEffect(() => {
-    if (refills && Array.isArray(refills) && refills.length > 0 && activeTab === "movements") {
-      // Überprüfe für jeden Refill, ob Details bereits geladen wurden
-      refills.forEach(refill => {
-        if (!loadedRefillDetails[refill.id] && (!refill.details || !Array.isArray(refill.details) || refill.details.length === 0)) {
-          console.log(`Lade Details für Refill ${refill.id}...`);
-          // Lade Details für diesen Refill
-          fetch(`/api/refills/${refill.id}/details`)
-            .then(res => res.json())
-            .then(details => {
-              // Aktualisiere den Refill mit den Details
-              refill.details = details;
-              // Markiere als geladen
-              setLoadedRefillDetails((prev: any) => ({...prev, [refill.id]: true}));
-            })
-            .catch(err => {
-              console.error(`Fehler beim Laden der Details für Refill ${refill.id}:`, err);
-              // Stelle sicher, dass details zumindest ein leeres Array ist
-              refill.details = [];
-              // Markiere trotzdem als geladen, um weitere Versuche zu vermeiden
-              setLoadedRefillDetails((prev: any) => ({...prev, [refill.id]: true}));
-            });
-        }
-      });
-    }
-  }, [refills, activeTab, loadedRefillDetails]);
-  
-  // Warenbewegungen abrufen
-  const [movementFilter, setMovementFilter] = useState({
-    startDate: '',
-    endDate: '',
-    productId: '',
-    movementType: '',
-    limit: 50,
-    offset: 0
-  });
-  
-  const {
-    data: inventoryMovements = [] as InventoryMovement[],
-    isLoading: movementsLoading
-  } = useQuery<InventoryMovement[]>({
-    queryKey: ['/api/inventory-movements', { 
-      warehouseId: Number(id),
-      startDate: movementFilter.startDate || undefined,
-      endDate: movementFilter.endDate || undefined,
-      productId: movementFilter.productId || undefined,
-      movementType: movementFilter.movementType || undefined,
-      limit: movementFilter.limit,
-      offset: movementFilter.offset
-    }],
-    enabled: !!id && activeTab === "movements"
-  });
-  
-  // Kombinierte Warenbewegungen (Lager + Refills)
-  const combinedMovements = useMemo(() => {
-    // Basis-Bewegungen aus der Inventar-Tabelle
-    const baseMovements = [...(inventoryMovements || [])];
-    
-    // Refill-Daten umwandeln und hinzufügen
-    if (refills && refills.length > 0) {
-      const refillMovements: InventoryMovement[] = [];
-      
-      refills.forEach(refill => {
-        // Sicherstellen, dass refill ein gültiges Objekt ist
-        if (refill && typeof refill === 'object') {
-          // Sicherstellen, dass details ein Array ist
-          const details = Array.isArray(refill.details) ? refill.details : [];
-          
-          if (details.length > 0) {
-            details.forEach(detail => {
-              // Sicherstellen, dass detail ein gültiges Objekt ist
-              if (detail && typeof detail === 'object') {
-                // Sichere Zugriffe auf Eigenschaften mit Fallbacks
-                const added = typeof detail.added === 'number' ? detail.added : 0;
-                const removed = typeof detail.removed === 'number' ? detail.removed : 0;
-                
-                if (added > 0 || removed > 0) {
-                  // Eindeutige ID für diesen Eintrag generieren
-                  const uniqueId = (detail.id || Math.floor(Math.random() * 1000000)) + 1000000;
-                  
-                  // Sichere Konvertierung von productId
-                  let productId = 0;
-                  if (typeof detail.productId === 'string') {
-                    productId = parseInt(detail.productId, 10) || 0;
-                  } else if (typeof detail.productId === 'number') {
-                    productId = detail.productId;
-                  }
-                  
-                  refillMovements.push({
-                    id: uniqueId,
-                    warehouseId: Number(id),
-                    productId: productId,
-                    quantity: added > 0 ? added : -removed,
-                    type: added > 0 ? "IN" : "OUT",
-                    movementType: "REFILL",
-                    referenceType: "REFILL",
-                    referenceId: refill.vendonId || "",
-                    productName: detail.productName || "Unbekanntes Produkt",
-                    performedAt: refill.datetime || new Date().toISOString(),
-                    performedByName: "Automat",
-                    machineId: refill.machineId || 0,
-                    machineName: refill.machineName || "Unbekannter Automat",
-                    source: "vendon",
-                    createdAt: refill.datetime || new Date().toISOString(),
-                  });
-                }
-              }
-            });
-          }
-        }
-      });
-      
-      // Kombiniere und sortiere nach Datum (absteigend)
-      return [...baseMovements, ...refillMovements].sort((a, b) => {
-        const dateA = a.performedAt ? new Date(a.performedAt).getTime() : 0;
-        const dateB = b.performedAt ? new Date(b.performedAt).getTime() : 0;
-        return dateB - dateA;
-      });
-    }
-    
-    return baseMovements;
-  }, [inventoryMovements, refills, id]);
-  
-  // Mutation für das Starten einer neuen Inventur
-  const startNewInventoryCountMutation = useMutation({
-    mutationFn: async () => {
-      // API-Aufruf für das Erstellen einer neuen Inventur im Status "in_progress"
-      return await fetch(`/api/inventory-counts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          warehouseId: Number(id),
-          notes: inventoryCountNotes,
-          status: 'in_progress' // Status auf "in Bearbeitung" setzen
-        }),
-      }).then(res => {
-        if (!res.ok) throw new Error('Fehler beim Starten der Inventur');
-        return res.json();
-      });
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/inventory-counts'] });
-      setActiveInventoryCount(data.id);
-      toast({
-        title: "Inventur gestartet",
-        description: "Die Inventur wurde erfolgreich gestartet.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Fehler beim Starten der Inventur",
-        description: error.message || "Die Inventur konnte nicht gestartet werden.",
-        variant: "destructive"
-      });
-      setIsCountInProgress(false); // Zurücksetzen falls Fehler
-    }
-  });
-  
-  // Initialisiere Inventurzählung mit aktuellen Beständen
-  useEffect(() => {
-    if (Array.isArray(inventory) && inventory.length > 0 && activeTab === "inventory-count") {
-      console.log("Initialisiere Inventur mit", inventory.length, "Produkten");
-      try {
-        setInventoryCountItems(
-          inventory.map(item => ({
-            productId: typeof item.productId === 'string' ? Number(item.productId) : item.productId,
-            productName: item.productName || "Unbekannt",
-            currentQuantity: item.quantity || 0,
-            countedQuantity: item.quantity || 0, // Standardmäßig aktueller Bestand
-            difference: 0,
-            sku: item.sku || "",
-            location: item.locationInWarehouse || ""
-          }))
-        );
-      } catch (error) {
-        console.error("Fehler beim Initialisieren der Inventurzählung:", error);
-        // Setze einen leeren Standardwert, wenn die Verarbeitung fehlschlägt
-        setInventoryCountItems([]);
-      }
-    } else if (activeTab === "inventory-count") {
-      console.log("Inventory für Zählung ist leer oder kein Array", inventory);
-      // Stelle sicher, dass inventoryCountItems immer ein Array ist, auch wenn keine Daten vorhanden sind
-      setInventoryCountItems([]);
-    }
-  }, [inventory, activeTab]);
-  
-  // Gefilterte Inventur-Items basierend auf der Suche
-  const filteredInventoryItems = useMemo(() => {
-    if (!searchQueryInventory.trim()) return inventoryCountItems;
-    
-    const lowerCaseQuery = searchQueryInventory.toLowerCase();
-    return inventoryCountItems.filter(item => 
-      item.productName.toLowerCase().includes(lowerCaseQuery) || 
-      (item.sku && item.sku.toLowerCase().includes(lowerCaseQuery)) ||
-      (item.location && item.location.toLowerCase().includes(lowerCaseQuery))
-    );
-  }, [inventoryCountItems, searchQueryInventory]);
-  
-  // Dialog-Zustände
+  // Zustandsvariablen
+  const [activeTab, setActiveTab] = useState("overview");
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [isAddMovementDialogOpen, setIsAddMovementDialogOpen] = useState(false);
   const [selectedMachine, setSelectedMachine] = useState<any>(null);
   const [assignNotes, setAssignNotes] = useState("");
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editedWarehouse, setEditedWarehouse] = useState<any>({});
+  const [movementFilter, setMovementFilter] = useState<any>({});
   
-  // Zustand für Warenbewegung-Dialog
-  const [movementType, setMovementType] = useState<"IN" | "OUT" | "TRANSFER" | "ADJUSTMENT">("IN");
-  const [selectedProduct, setSelectedProduct] = useState<string>("");
-  const [movementQuantity, setMovementQuantity] = useState<number>(1);
+  // Bewegungszustandsvariablen
+  const [movementProductId, setMovementProductId] = useState("");
+  const [movementQuantity, setMovementQuantity] = useState(0);
+  const [movementType, setMovementType] = useState("IN");
+  const [movementReason, setMovementReason] = useState("");
+  const [movementDate, setMovementDate] = useState<Date | undefined>(new Date());
   const [movementNotes, setMovementNotes] = useState("");
-  const [selectedDestinationWarehouse, setSelectedDestinationWarehouse] = useState<string>("");
-
-  // Alle Lager für die Umlagerung abrufen
+  
+  // Lade Lagerdaten
   const {
-    data: warehouses = [] as any[],
-    isLoading: warehousesLoading
-  } = useQuery<any[]>({
-    queryKey: ['/api/warehouses'],
-    enabled: isAddMovementDialogOpen && movementType === "TRANSFER"
+    data: warehouse = {},
+    isLoading: warehouseLoading,
+    error: warehouseError,
+    refetch: refetchWarehouse
+  } = useQuery({
+    queryKey: ['/api/warehouses', id],
   });
-
-  // Mutation für das Erstellen einer Warenbewegung
-  const createMovementMutation = useMutation({
+  
+  // Lade Lagerbestand
+  const {
+    data: inventory = [],
+    isLoading: inventoryLoading,
+    error: inventoryError,
+    refetch: refetchInventory
+  } = useQuery({
+    queryKey: ['/api/inventory', { warehouseId: id }],
+  });
+  
+  // Lade Maschinen
+  const {
+    data: machines = [],
+    isLoading: machinesLoading,
+    error: machinesError,
+  } = useQuery({
+    queryKey: ['/api/machines'],
+  });
+  
+  // Lade Machine-Zuweisungen
+  const {
+    data: machineAssignments = [],
+    isLoading: assignmentsLoading,
+    error: assignmentsError,
+    refetch: refetchAssignments
+  } = useQuery({
+    queryKey: ['/api/machine-warehouse-assignments', { warehouseId: id }],
+  });
+  
+  // Lade Warenbewegungen
+  const {
+    data: movements = [],
+    isLoading: movementsLoading,
+    error: movementsError,
+    refetch: refetchMovements
+  } = useQuery({
+    queryKey: ['/api/inventory-movements', { warehouseId: id }],
+  });
+  
+  // Lade Automaten-Auffüllungen, die diesem Lager zugeordnet sind
+  const {
+    data: refills = [],
+    isLoading: refillsLoading,
+    error: refillsError,
+    refetch: refetchRefills
+  } = useQuery({
+    queryKey: ['/api/refills', { warehouseId: id }],
+  });
+  
+  // Lade Inventurzählungen für dieses Lager
+  const {
+    data: inventoryCounts = [],
+    isLoading: inventoryCountsLoading,
+    error: inventoryCountsError,
+  } = useQuery({
+    queryKey: ['/api/inventory-counts', { warehouseId: id }],
+  });
+  
+  // Lade Produkte für die Bewegung
+  const {
+    data: products = [],
+    isLoading: productsLoading,
+  } = useQuery({
+    queryKey: ['/api/products'],
+  });
+  
+  // Warenbewegungen und Refills kombinieren
+  const combinedMovements = useMemo(() => {
+    if (!movements || !refills) return [];
+    
+    // Konvertiere Refills in das Format von Warenbewegungen
+    const refillMovements = refills.flatMap((refill: any) => {
+      if (refill.details && Array.isArray(refill.details)) {
+        return refill.details.map((detail: any) => ({
+          id: `refill-${refill.id}-${detail.id}`,
+          productId: detail.productId,
+          productName: detail.productName,
+          quantity: detail.removed * -1, // Entfernte Artikel werden als negative Zahl dargestellt
+          type: "OUT",
+          createdAt: refill.datetime,
+          performedAt: refill.datetime,
+          movementType: "Auffüllung",
+          source: "vendon",
+          machineId: refill.machineId,
+          machineName: refill.machineName,
+          notes: `Auffüllung von Automat ${refill.machineName}`
+        }));
+      }
+      return [];
+    });
+    
+    // Kombiniere und sortiere nach Datum (neueste zuerst)
+    return [...movements, ...refillMovements].sort((a: any, b: any) => {
+      const dateA = new Date(a.performedAt || a.createdAt);
+      const dateB = new Date(b.performedAt || b.createdAt);
+      return dateB.getTime() - dateA.getTime();
+    });
+  }, [movements, refills]);
+  
+  // Effekt: Wenn wir ein neues Lager laden, setze die Bearbeitungsdaten zurück
+  useEffect(() => {
+    if (warehouse) {
+      setEditedWarehouse({ ...warehouse });
+    }
+  }, [warehouse]);
+  
+  // Handler: Tab-Wechsel
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+  };
+  
+  // Handler: Lagerhaus bearbeiten
+  const handleEdit = () => {
+    setIsEditMode(true);
+  };
+  
+  // Handler: Bearbeitung abbrechen
+  const handleCancelEdit = () => {
+    setEditedWarehouse({ ...warehouse });
+    setIsEditMode(false);
+  };
+  
+  // Mutation: Lagerhaus aktualisieren
+  const updateWarehouseMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await fetch(`/api/inventory-movements`, {
+      return await apiRequest(`/api/warehouses/${id}`, {
+        method: 'PATCH',
+        data
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/warehouses'] });
+      
+      setIsEditMode(false);
+      toast({
+        title: "Lager aktualisiert",
+        description: "Das Lager wurde erfolgreich aktualisiert."
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Fehler",
+        description: `Das Lager konnte nicht aktualisiert werden: ${error.message}`,
+        variant: "destructive"
+      });
+    }
+  });
+  
+  // Handler: Speichern der Lagerbearbeitung
+  const handleSaveWarehouse = () => {
+    updateWarehouseMutation.mutate(editedWarehouse);
+  };
+  
+  // Mutation: Automat zum Lager zuweisen
+  const assignMachineMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest(`/api/machine-warehouse-assignments`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      }).then(res => {
-        if (!res.ok) throw new Error('Fehler beim Erstellen der Warenbewegung');
-        return res.json();
+        data
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
+      
+      setIsAssignDialogOpen(false);
+      setSelectedMachine(null);
+      setAssignNotes("");
+      
+      toast({
+        title: "Automat zugewiesen",
+        description: "Der Automat wurde erfolgreich dem Lager zugewiesen."
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Fehler",
+        description: `Der Automat konnte nicht zugewiesen werden: ${error.message}`,
+        variant: "destructive"
+      });
+    }
+  });
+  
+  // Mutation: Automaten-Zuweisung entfernen
+  const removeAssignmentMutation = useMutation({
+    mutationFn: async (assignmentId: number) => {
+      return await apiRequest(`/api/machine-warehouse-assignments/${assignmentId}`, {
+        method: 'DELETE'
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
+      
+      toast({
+        title: "Zuweisung entfernt",
+        description: "Die Zuweisung wurde erfolgreich entfernt."
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Fehler",
+        description: `Die Zuweisung konnte nicht entfernt werden: ${error.message}`,
+        variant: "destructive"
+      });
+    }
+  });
+  
+  // Mutation: Warenbewegung hinzufügen
+  const addMovementMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest(`/api/inventory-movements`, {
+        method: 'POST',
+        data
       });
     },
     onSuccess: () => {
@@ -678,415 +335,244 @@ export default function WarehouseDetail() {
       queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
       
       setIsAddMovementDialogOpen(false);
-      setSelectedProduct("");
-      setMovementQuantity(1);
-      setMovementNotes("");
+      setMovementProductId("");
+      setMovementQuantity(0);
       setMovementType("IN");
+      setMovementReason("");
+      setMovementDate(new Date());
+      setMovementNotes("");
       
       toast({
-        title: "Warenbewegung erstellt",
-        description: "Die Warenbewegung wurde erfolgreich erstellt.",
+        title: "Warenbewegung hinzugefügt",
+        description: "Die Warenbewegung wurde erfolgreich hinzugefügt."
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Fehler beim Erstellen der Warenbewegung",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  });
-  
-  // Mutation für das Speichern eines Inventur-Items
-  const saveInventoryCountItemMutation = useMutation({
-    mutationFn: async ({ inventoryCountId, item, status = 'in_progress' }: { inventoryCountId: number, item: any, status?: string }) => {
-      // Erstelle ein neues Objekt mit nur den für die API benötigten Feldern
-      const apiItem = {
-        productId: Number(item.productId),
-        currentQuantity: Number(item.currentQuantity),
-        countedQuantity: Number(item.countedQuantity),
-        difference: Number(item.countedQuantity) - Number(item.currentQuantity)
-      };
-      
-      return await fetch(`/api/inventory-counts/${inventoryCountId}/items`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: status, // Übergebe den Status
-          items: [apiItem]  // Sende nur das eine Item
-        }),
-      }).then(res => {
-        if (!res.ok) throw new Error('Fehler beim Speichern der Inventurzählung');
-        return res.json();
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/inventory-counts'] });
-      toast({
-        title: "Artikel gespeichert",
-        description: "Der Inventurartikel wurde erfolgreich gespeichert.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Fehler beim Speichern",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  });
-
-  // Mutation für das Speichern der kompletten Inventur
-  const saveInventoryCountMutation = useMutation({
-    mutationFn: async ({ inventoryCountId, status = 'completed', hasAdjustments = false }: { inventoryCountId: number, status?: string, hasAdjustments?: boolean }) => {
-      // Erfasse alle Produkte mit einer Abweichung
-      const itemsWithDifference = inventoryCountItems.filter(item => 
-        Number(item.countedQuantity) !== Number(item.currentQuantity)
-      ).map(item => ({
-        productId: Number(item.productId),
-        currentQuantity: Number(item.currentQuantity),
-        countedQuantity: Number(item.countedQuantity),
-        difference: Number(item.countedQuantity) - Number(item.currentQuantity)
-      }));
-      
-      return await fetch(`/api/inventory-counts/${inventoryCountId}/items`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          status: status, // Finalisieren mit Status 'completed'
-          adjustStock: hasAdjustments, // Lagerbestand anpassen falls gewünscht
-          items: itemsWithDifference // Sende nur Items mit Abweichung
-        }),
-      }).then(res => {
-        if (!res.ok) throw new Error('Fehler beim Speichern der Inventurzählung');
-        return res.json();
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/inventory-counts'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
-      
-      setIsCountInProgress(false);
-      setActiveInventoryCount(null);
-      
-      toast({
-        title: "Inventur abgeschlossen",
-        description: "Die Inventurzählung wurde erfolgreich gespeichert und abgeschlossen.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Fehler beim Speichern",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  });
-
-  // Mutation für das Löschen einer Inventur
-  const deleteInventoryCountMutation = useMutation({
-    mutationFn: async (inventoryCountId: number) => {
-      return await fetch(`/api/inventory-counts/${inventoryCountId}`, {
-        method: 'DELETE',
-      }).then(res => {
-        if (!res.ok) throw new Error('Fehler beim Löschen der Inventurzählung');
-        return res.json();
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/inventory-counts'] });
-      setSelectedInventoryCount(null);
-      setActiveInventoryCount(null);
-      
-      toast({
-        title: "Inventur gelöscht",
-        description: "Die Inventurzählung wurde erfolgreich gelöscht.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Fehler beim Löschen",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  });
-
-  // Mutation für die Zuordnung von Automaten zu diesem Lager
-  const assignMachineMutation = useMutation({
-    mutationFn: async (data: {machineId: number, warehouseId: number, isPrimary: boolean, notes?: string}) => {
-      return await fetch(`/api/machine-warehouse-assignments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      }).then(res => {
-        if (!res.ok) throw new Error('Fehler bei der Automatenzuordnung');
-        return res.json();
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
-      setIsAssignDialogOpen(false);
-      setSelectedMachine(null);
-      setAssignNotes("");
-      
-      toast({
-        title: "Automat zugeordnet",
-        description: "Der Automat wurde erfolgreich diesem Lager zugeordnet.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Fehler bei der Zuordnung",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  });
-
-  // Mutation für das Entfernen einer Automatenzuordnung
-  const removeAssignmentMutation = useMutation({
-    mutationFn: async (assignmentId: number) => {
-      return await fetch(`/api/machine-warehouse-assignments/${assignmentId}`, {
-        method: 'DELETE',
-      }).then(res => {
-        if (!res.ok) throw new Error('Fehler beim Entfernen der Zuordnung');
-        return res.ok;
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
-      
-      toast({
-        title: "Zuordnung entfernt",
-        description: "Die Automatenzuordnung wurde erfolgreich entfernt.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Fehler beim Entfernen",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  });
-
-  // Funktion zum Ändern der Tab-Auswahl mit URL-Parameter
-  const handleTabChange = (value: string) => {
-    setActiveTab(value);
-    
-    // Aktualisiere URL mit Tab-Parameter aber behalte andere Parameter bei
-    const currentUrl = new URL(window.location.href);
-    currentUrl.searchParams.set('tab', value);
-    
-    // Aktualisiere die URL mit Wouter ohne Seitenneuladen
-    setLocation(`${window.location.pathname}?${currentUrl.searchParams.toString()}`);
-  };
-  
-  // Funktion zum Aktualisieren der gezählten Menge
-  const updateCountedQuantity = (productId: string | number, newValue: number) => {
-    setInventoryCountItems((prevItems: any) => 
-      prevItems.map((item: any) => 
-        item.productId == productId 
-          ? { 
-              ...item, 
-              countedQuantity: newValue,
-              difference: newValue - Number(item.currentQuantity)
-            } 
-          : item
-      )
-    );
-  };
-  
-  // Funktion zum Speichern einer einzelnen Zählung
-  const saveCountedItem = (item: any) => {
-    if (!activeInventoryCount) {
       toast({
         title: "Fehler",
-        description: "Keine aktive Inventurzählung gefunden.",
+        description: `Die Warenbewegung konnte nicht hinzugefügt werden: ${error.message}`,
+        variant: "destructive"
+      });
+    }
+  });
+  
+  // Handler: Warenbewegung hinzufügen
+  const handleAddMovement = () => {
+    const selectedProduct = products.find((p: any) => p.id.toString() === movementProductId);
+    
+    if (!selectedProduct) {
+      toast({
+        title: "Fehler",
+        description: "Bitte wählen Sie ein Produkt aus.",
         variant: "destructive"
       });
       return;
     }
     
-    saveInventoryCountItemMutation.mutate({ 
-      inventoryCountId: activeInventoryCount, 
-      item 
-    });
-  };
-  
-  // Funktion zum Speichern und Beenden
-  const saveAndCompleteCount = (adjustStock: boolean = false) => {
-    if (!activeInventoryCount) {
+    if (movementQuantity <= 0) {
       toast({
         title: "Fehler",
-        description: "Keine aktive Inventurzählung gefunden.",
+        description: "Die Menge muss größer als 0 sein.",
         variant: "destructive"
       });
       return;
     }
     
-    saveInventoryCountMutation.mutate({
-      inventoryCountId: activeInventoryCount,
-      status: 'completed',
-      hasAdjustments: adjustStock
+    addMovementMutation.mutate({
+      productId: Number(movementProductId),
+      warehouseId: Number(id),
+      quantity: movementType === "IN" ? movementQuantity : -movementQuantity,
+      type: movementType,
+      reason: movementReason,
+      notes: movementNotes,
+      performedAt: movementDate ? movementDate.toISOString() : new Date().toISOString()
     });
   };
   
-  // Funktion zum Starten einer Inventur
-  const startInventoryCount = () => {
-    setIsCountInProgress(true);
-    startNewInventoryCountMutation.mutate();
-  };
-
-  // Funktion zum Abbrechen einer Inventur
-  const cancelInventoryCount = () => {
-    if (activeInventoryCount) {
-      deleteInventoryCountMutation.mutate(activeInventoryCount);
-    }
-    setIsCountInProgress(false);
-    setActiveInventoryCount(null);
-  };
-  
-  // Rendere Ladeindikator oder Fehler, wenn nötig
+  // Fehlerbehandlung
   if (warehouseLoading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2">Lade Lagerdetails...</span>
+      <div className="container py-10">
+        <div className="flex justify-center">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
       </div>
     );
   }
   
-  if (warehouseError || !warehouse) {
+  if (warehouseError) {
     return (
-      <div className="container max-w-6xl mx-auto p-4">
-        <div className="flex items-center mb-4">
-          <Button variant="ghost" onClick={() => setLocation("/warehouses")}>
-            <ChevronLeft className="mr-2 h-4 w-4" />
-            Zurück zur Übersicht
-          </Button>
-        </div>
-        
+      <div className="container py-10">
         <Alert variant="destructive">
           <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Fehler beim Laden der Daten</AlertTitle>
+          <AlertTitle>Fehler beim Laden des Lagers</AlertTitle>
           <AlertDescription>
             {warehouseError instanceof Error 
               ? warehouseError.message 
-              : "Die Lagerdetails konnten nicht geladen werden."}
+              : "Ein unbekannter Fehler ist aufgetreten."}
           </AlertDescription>
         </Alert>
+        
+        <Button
+          variant="outline"
+          className="mt-4"
+          onClick={() => setLocation("/warehouses")}
+        >
+          <ChevronLeft className="mr-2 h-4 w-4" />
+          Zurück zur Übersicht
+        </Button>
       </div>
     );
   }
   
-  // Render UI
-  return (
-    <div className="container max-w-6xl mx-auto pb-8">
-      {/* Zurück-Button und Titel */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between pt-4 pb-2">
-        <div className="flex items-center">
-          <Button variant="ghost" onClick={() => setLocation("/warehouses")} className="p-2 mr-2">
-            <ChevronLeft className="h-4 w-4" />
-            <span className="ml-1">Zurück</span>
-          </Button>
-          
-          <h1 className="text-2xl font-bold">
-            <Building2 className="inline-block mr-2 h-6 w-6" />
-            {warehouse.name}
-          </h1>
-        </div>
+  if (!warehouse || !warehouse.id) {
+    return (
+      <div className="container py-10">
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Lager nicht gefunden</AlertTitle>
+          <AlertDescription>
+            Das angeforderte Lager konnte nicht gefunden werden.
+          </AlertDescription>
+        </Alert>
         
-        <div className="flex mt-2 md:mt-0">
-          {activeTab === "inventory" && (
-            <Button
-              onClick={() => setIsAddMovementDialogOpen(true)}
-              className="ml-2"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Warenbewegung
+        <Button
+          variant="outline"
+          className="mt-4"
+          onClick={() => setLocation("/warehouses")}
+        >
+          <ChevronLeft className="mr-2 h-4 w-4" />
+          Zurück zur Übersicht
+        </Button>
+      </div>
+    );
+  }
+  
+  // Hauptkomponente rendern
+  return (
+    <div className="container py-6 space-y-6">
+      {/* Zurück-Button */}
+      <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={() => setLocation("/warehouses")}>
+          <ChevronLeft className="mr-2 h-4 w-4" />
+          Zurück zur Lagerübersicht
+        </Button>
+        
+        {!isEditMode ? (
+          <Button size="sm" onClick={handleEdit}>
+            <Edit className="mr-2 h-4 w-4" />
+            Bearbeiten
+          </Button>
+        ) : (
+          <>
+            <Button variant="outline" size="sm" onClick={handleCancelEdit}>
+              Abbrechen
             </Button>
-          )}
-          
-          {activeTab === "machines" && (
-            <Button
-              onClick={() => setIsAssignDialogOpen(true)}
-              className="ml-2"
+            <Button 
+              size="sm" 
+              onClick={handleSaveWarehouse}
+              disabled={updateWarehouseMutation.isPending}
             >
-              <Plus className="mr-2 h-4 w-4" />
-              Automat zuordnen
+              {updateWarehouseMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Speichern
             </Button>
-          )}
-          
-          {activeTab === "inventory-count" && !isCountInProgress && !activeInventoryCount && (
-            <Button
-              onClick={() => setIsCountInProgress(true)}
-              className="ml-2"
-            >
-              <ClipboardCheck className="mr-2 h-4 w-4" />
-              Neue Inventur starten
-            </Button>
-          )}
-        </div>
+          </>
+        )}
       </div>
       
-      {/* Lager-Details Card */}
-      <Card className="mb-6 shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex justify-between items-center">
-            <span>Lager-Details</span>
-            <Badge variant={warehouse.status === 'active' ? 'default' : 'secondary'}>
-              {warehouse.status === 'active' ? 'Aktiv' : warehouse.status}
-            </Badge>
-          </CardTitle>
-          <CardDescription>
-            {warehouse.description || "Keine Beschreibung verfügbar"}
-          </CardDescription>
-        </CardHeader>
-        
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <div className="flex items-start">
-                <MapPin className="h-4 w-4 mr-2 mt-0.5 text-muted-foreground" />
-                <div>
-                  <p className="font-medium">Adresse</p>
-                  <p className="text-sm text-muted-foreground">
-                    {warehouse.address || "Keine Adresse angegeben"}
-                  </p>
-  
-
-            </div>
-            
-            <div>
-              <div className="flex items-start">
-                <Phone className="h-4 w-4 mr-2 mt-0.5 text-muted-foreground" />
-                <div>
-                  <p className="font-medium">Status</p>
-                  <p className="text-sm text-muted-foreground">
-                    {warehouse.status || "Kein Status angegeben"}
-                  </p>
-  
-
-            </div>
-            
-            <div>
-              <div className="flex items-start">
-                <Mail className="h-4 w-4 mr-2 mt-0.5 text-muted-foreground" />
-                <div>
-                  <p className="font-medium">Beschreibung</p>
-                  <p className="text-sm text-muted-foreground">
-                    {warehouse.description || "Keine Beschreibung angegeben"}
-                  </p>
-  
-
+      {/* Lager-Infokarte */}
+      <Card>
+        <CardContent className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="md:col-span-2">
+              <div className="flex items-center gap-3 mb-4">
+                <Building2 className="h-8 w-8 text-primary" />
+                {isEditMode ? (
+                  <Input 
+                    value={editedWarehouse.name || ""} 
+                    onChange={(e) => setEditedWarehouse({...editedWarehouse, name: e.target.value})}
+                    className="text-2xl font-bold"
+                  />
+                ) : (
+                  <h1 className="text-2xl font-bold">{warehouse.name}</h1>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex items-start">
+                  <MapPin className="h-4 w-4 mr-2 mt-0.5 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium">Adresse</p>
+                    {isEditMode ? (
+                      <Textarea 
+                        value={editedWarehouse.address || ""} 
+                        onChange={(e) => setEditedWarehouse({...editedWarehouse, address: e.target.value})}
+                        className="text-sm"
+                      />
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        {warehouse.address || "Keine Adresse angegeben"}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="flex items-start">
+                  <User className="h-4 w-4 mr-2 mt-0.5 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium">Verantwortlicher</p>
+                    {isEditMode ? (
+                      <Input 
+                        value={editedWarehouse.manager || ""} 
+                        onChange={(e) => setEditedWarehouse({...editedWarehouse, manager: e.target.value})}
+                        className="text-sm"
+                      />
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        {warehouse.manager || "Kein Verantwortlicher angegeben"}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="flex items-start">
+                  <Phone className="h-4 w-4 mr-2 mt-0.5 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium">Telefon</p>
+                    {isEditMode ? (
+                      <Input 
+                        value={editedWarehouse.phone || ""} 
+                        onChange={(e) => setEditedWarehouse({...editedWarehouse, phone: e.target.value})}
+                        className="text-sm"
+                      />
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        {warehouse.phone || "Keine Telefonnummer angegeben"}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                
+                <div className="flex items-start">
+                  <Mail className="h-4 w-4 mr-2 mt-0.5 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium">Beschreibung</p>
+                    {isEditMode ? (
+                      <Textarea 
+                        value={editedWarehouse.description || ""} 
+                        onChange={(e) => setEditedWarehouse({...editedWarehouse, description: e.target.value})}
+                        className="text-sm"
+                      />
+                    ) : (
+                      <p className="text-sm text-muted-foreground">
+                        {warehouse.description || "Keine Beschreibung angegeben"}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -1127,7 +613,7 @@ export default function WarehouseDetail() {
               <CardContent>
                 <div className="text-2xl font-bold">
                   {Array.isArray(inventory) ? inventory.length : 0}
-  
+                </div>
               </CardContent>
             </Card>
             
@@ -1139,7 +625,7 @@ export default function WarehouseDetail() {
               <CardContent>
                 <div className="text-2xl font-bold">
                   {Array.isArray(machineAssignments) ? machineAssignments.length : 0}
-  
+                </div>
               </CardContent>
             </Card>
             
@@ -1151,7 +637,7 @@ export default function WarehouseDetail() {
               <CardContent>
                 <div className="text-2xl font-bold">
                   {Array.isArray(inventoryCounts) ? inventoryCounts.length : 0}
-  
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -1165,7 +651,7 @@ export default function WarehouseDetail() {
               {movementsLoading ? (
                 <div className="flex justify-center p-4">
                   <Loader2 className="h-6 w-6 animate-spin" />
-  
+                </div>
               ) : combinedMovements.length > 0 ? (
                 <Table>
                   <TableHeader>
@@ -1198,7 +684,7 @@ export default function WarehouseDetail() {
               ) : (
                 <div className="text-center p-4 text-muted-foreground">
                   Keine Warenbewegungen gefunden
-  
+                </div>
               )}
             </CardContent>
             <CardFooter>
@@ -1241,7 +727,7 @@ export default function WarehouseDetail() {
               {movementsLoading || refillsLoading ? (
                 <div className="flex justify-center p-8">
                   <Loader2 className="h-8 w-8 animate-spin" />
-  
+                </div>
               ) : (
                 <>
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
@@ -1262,7 +748,7 @@ export default function WarehouseDetail() {
                       >
                         <RefreshCw className="h-4 w-4" />
                       </Button>
-      
+                    </div>
                     
                     <Button
                       onClick={() => setIsAddMovementDialogOpen(true)}
@@ -1270,7 +756,7 @@ export default function WarehouseDetail() {
                       <Plus className="mr-2 h-4 w-4" />
                       Warenbewegung
                     </Button>
-    
+                  </div>
                   
                   {combinedMovements.length > 0 ? (
                     <div className="rounded-md border">
@@ -1307,7 +793,7 @@ export default function WarehouseDetail() {
                                   <div className="flex items-center">
                                     <ShoppingCart className="h-4 w-4 mr-1" />
                                     <span>{movement.machineName}</span>
-                    
+                                  </div>
                                 ) : (
                                   <span>{movement.movementType || "Manuell"}</span>
                                 )}
@@ -1321,11 +807,11 @@ export default function WarehouseDetail() {
                           ))}
                         </TableBody>
                       </Table>
-      
+                    </div>
                   ) : (
                     <div className="text-center p-8 border rounded-md">
                       <div className="text-muted-foreground">Keine Warenbewegungen gefunden</div>
-      
+                    </div>
                   )}
                 </>
               )}
@@ -1345,7 +831,7 @@ export default function WarehouseDetail() {
               {assignmentsLoading ? (
                 <div className="flex justify-center p-8">
                   <Loader2 className="h-8 w-8 animate-spin" />
-  
+                </div>
               ) : (
                 <>
                   <div className="flex justify-end mb-4">
@@ -1355,7 +841,7 @@ export default function WarehouseDetail() {
                       <Plus className="mr-2 h-4 w-4" />
                       Automat zuordnen
                     </Button>
-    
+                  </div>
                   
                   {machineAssignments.length > 0 ? (
                     <div className="rounded-md border">
@@ -1378,7 +864,7 @@ export default function WarehouseDetail() {
                                   <span>
                                     {assignment.machine?.machineName || "Unbekannter Automat"}
                                   </span>
-                  
+                                </div>
                               </TableCell>
                               <TableCell>
                                 {assignment.machine?.location || "Unbekannt"}
@@ -1417,18 +903,18 @@ export default function WarehouseDetail() {
                                   >
                                     <Trash className="h-4 w-4" />
                                   </Button>
-                  
+                                </div>
                               </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
                       </Table>
-      
+                    </div>
                   ) : (
                     <div className="text-center p-8 border rounded-md">
                       <div className="text-muted-foreground">
                         Keine Automaten diesem Lager zugewiesen
-        
+                      </div>
                       <Button
                         className="mt-4"
                         onClick={() => setIsAssignDialogOpen(true)}
@@ -1436,7 +922,7 @@ export default function WarehouseDetail() {
                         <Plus className="mr-2 h-4 w-4" />
                         Ersten Automaten zuordnen
                       </Button>
-      
+                    </div>
                   )}
                 </>
               )}
@@ -1444,6 +930,39 @@ export default function WarehouseDetail() {
           </Card>
         </TabsContent>
         
+        <TabsContent value="inventory-count">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <CardTitle>Inventurzählung</CardTitle>
+                  <CardDescription>
+                    Bestandsaufnahme und Abgleich der Lagerbestände
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <InventoryCountNew 
+                warehouseId={Number(id)}
+                inventory={inventory}
+                onComplete={() => {
+                  refetchInventory();
+                  toast({
+                    title: "Inventur abgeschlossen",
+                    description: "Die Inventur wurde erfolgreich abgeschlossen und die Bestände aktualisiert."
+                  });
+                }}
+                onCancel={() => {
+                  toast({
+                    title: "Inventur abgebrochen",
+                    description: "Die Inventur wurde abgebrochen."
+                  });
+                }}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
       
       {/* Dialog: Automaten zuordnen */}
@@ -1473,7 +992,7 @@ export default function WarehouseDetail() {
                   {machinesLoading ? (
                     <div className="flex justify-center p-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-      
+                    </div>
                   ) : machines.length > 0 ? (
                     machines.map((machine) => (
                       <SelectItem key={machine.id} value={machine.id.toString()}>
@@ -1483,7 +1002,7 @@ export default function WarehouseDetail() {
                   ) : (
                     <div className="p-2 text-sm text-muted-foreground">
                       Keine Automaten verfügbar
-      
+                    </div>
                   )}
                 </SelectContent>
               </Select>
@@ -1495,11 +1014,11 @@ export default function WarehouseDetail() {
                   id="isPrimary" 
                   checked={selectedMachine?.isPrimary} 
                   onCheckedChange={(checked) => 
-                    setSelectedMachine(prev => ({ ...prev, isPrimary: !!checked }))
+                    setSelectedMachine((prev: any) => ({ ...prev, isPrimary: !!checked }))
                   }
                 />
                 <Label htmlFor="isPrimary">Primäres Lager</Label>
-
+              </div>
               <p className="text-sm text-muted-foreground">
                 Wenn aktiviert, wird dieses Lager als Hauptquelle für den Automaten verwendet
               </p>
@@ -1536,112 +1055,10 @@ export default function WarehouseDetail() {
               }}
               disabled={!selectedMachine || assignMachineMutation.isPending}
             >
-              {assignMachineMutation.isPending && (
+              {assignMachineMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
+              ) : null}
               Zuordnen
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Dialog: Inventur Details */}
-      <Dialog open={inventoryDetailDialogOpen} onOpenChange={setInventoryDetailDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>Inventur-Details</DialogTitle>
-            <DialogDescription>
-              Details der Inventurzählung vom {selectedInventoryCount ? new Date(selectedInventoryCount.startDate).toLocaleDateString() : ''}
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedInventoryCount && (
-            <ScrollArea className="h-[60vh]">
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <h4 className="text-sm font-medium">Status</h4>
-                    <Badge variant={selectedInventoryCount.status === 'completed' ? 'default' : 'secondary'} className="mt-1">
-                      {selectedInventoryCount.status === 'completed' ? 'Abgeschlossen' : 
-                       selectedInventoryCount.status === 'in_progress' ? 'In Bearbeitung' : selectedInventoryCount.status}
-                    </Badge>
-    
-                  
-                  <div>
-                    <h4 className="text-sm font-medium">Durchgeführt von</h4>
-                    <p className="text-sm">{selectedInventoryCount.initiatedByName || "System"}</p>
-    
-                  
-                  <div>
-                    <h4 className="text-sm font-medium">Start-Datum</h4>
-                    <p className="text-sm">{new Date(selectedInventoryCount.startDate).toLocaleString()}</p>
-    
-                  
-                  <div>
-                    <h4 className="text-sm font-medium">End-Datum</h4>
-                    <p className="text-sm">
-                      {selectedInventoryCount.endDate ? 
-                        new Date(selectedInventoryCount.endDate).toLocaleString() : "Noch nicht abgeschlossen"}
-                    </p>
-    
-  
-                
-                {selectedInventoryCount.notes && (
-                  <div>
-                    <h4 className="text-sm font-medium mb-1">Anmerkungen</h4>
-                    <div className="p-3 bg-muted rounded-md text-sm">
-                      {selectedInventoryCount.notes}
-      
-    
-                )}
-                
-                <Separator />
-                
-                <div>
-                  <h4 className="text-sm font-medium mb-2">Inventurartikel</h4>
-                  
-                  {selectedInventoryCount.items && selectedInventoryCount.items.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Produkt</TableHead>
-                          <TableHead className="text-right">Systembestand</TableHead>
-                          <TableHead className="text-right">Gezählter Bestand</TableHead>
-                          <TableHead className="text-right">Differenz</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {selectedInventoryCount.items.map((item) => (
-                          <TableRow key={item.id}>
-                            <TableCell className="font-medium">{item.productName || "Unbekannt"}</TableCell>
-                            <TableCell className="text-right">{item.currentQuantity}</TableCell>
-                            <TableCell className="text-right">{item.countedQuantity}</TableCell>
-                            <TableCell 
-                              className={`text-right ${
-                                item.difference !== 0 
-                                  ? (item.difference > 0 ? 'text-green-600' : 'text-red-600') 
-                                  : ''
-                              }`}
-                            >
-                              {item.difference > 0 ? '+' : ''}{item.difference}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  ) : (
-                    <div className="text-center p-4 border rounded-md">
-                      <p className="text-sm text-muted-foreground">Keine Artikel gefunden</p>
-      
-                  )}
-  
-
-            </ScrollArea>
-          )}
-          
-          <DialogFooter>
-            <Button onClick={() => setInventoryDetailDialogOpen(false)}>
-              Schließen
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1653,112 +1070,126 @@ export default function WarehouseDetail() {
           <DialogHeader>
             <DialogTitle>Warenbewegung hinzufügen</DialogTitle>
             <DialogDescription>
-              Erfassen Sie eine neue Warenbewegung für dieses Lager
+              Erfassen Sie einen Ein- oder Ausgang von Waren
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="movementType">Bewegungstyp</Label>
-              <Select
-                value={movementType}
-                onValueChange={(value: any) => setMovementType(value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Bitte wählen Sie einen Typ" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="IN">Wareneingang</SelectItem>
-                  <SelectItem value="OUT">Warenausgang</SelectItem>
-                  <SelectItem value="TRANSFER">Umlagerung</SelectItem>
-                  <SelectItem value="ADJUSTMENT">Bestandskorrektur</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="product">Produkt</Label>
-              <Select
-                value={selectedProduct}
-                onValueChange={setSelectedProduct}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Bitte wählen Sie ein Produkt" />
-                </SelectTrigger>
-                <SelectContent>
-                  {inventoryLoading ? (
-                    <div className="flex justify-center p-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-      
-                  ) : inventory.length > 0 ? (
-                    inventory.map((item) => (
-                      <SelectItem key={item.productId} value={item.productId.toString()}>
-                        {item.productName} ({item.sku || "Keine SKU"})
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <div className="p-2 text-sm text-muted-foreground">
-                      Keine Produkte verfügbar
-      
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="quantity">Menge</Label>
-              <Input
-                id="quantity"
-                type="number"
-                min={1}
-                value={movementQuantity}
-                onChange={(e) => setMovementQuantity(parseInt(e.target.value) || 1)}
-              />
-            </div>
-            
-            {movementType === "TRANSFER" && (
+          <ScrollArea className="max-h-[60vh]">
+            <div className="space-y-4 pr-4">
               <div className="space-y-2">
-                <Label htmlFor="destinationWarehouse">Ziellager</Label>
+                <Label htmlFor="product">Produkt</Label>
                 <Select
-                  value={selectedDestinationWarehouse}
-                  onValueChange={setSelectedDestinationWarehouse}
+                  value={movementProductId}
+                  onValueChange={setMovementProductId}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Bitte wählen Sie ein Ziellager" />
+                    <SelectValue placeholder="Produkt auswählen" />
                   </SelectTrigger>
                   <SelectContent>
-                    {warehousesLoading ? (
+                    {productsLoading ? (
                       <div className="flex justify-center p-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
-        
-                    ) : warehouses.length > 0 ? (
-                      warehouses
-                        .filter((w) => w.id.toString() !== id)
-                        .map((warehouse) => (
-                          <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
-                            {warehouse.name}
-                          </SelectItem>
-                        ))
+                      </div>
+                    ) : products.length > 0 ? (
+                      products.map((product: any) => (
+                        <SelectItem key={product.id} value={product.id.toString()}>
+                          {product.name}
+                        </SelectItem>
+                      ))
                     ) : (
                       <div className="p-2 text-sm text-muted-foreground">
-                        Keine anderen Lager verfügbar
-        
+                        Keine Produkte verfügbar
+                      </div>
                     )}
                   </SelectContent>
                 </Select>
-
-            )}
-            
-            <div className="space-y-2">
-              <Label htmlFor="notes">Anmerkungen</Label>
-              <Textarea 
-                id="notes" 
-                value={movementNotes}
-                onChange={(e) => setMovementNotes(e.target.value)}
-                placeholder="Optionale Anmerkungen zur Warenbewegung"
-              />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="quantity">Menge</Label>
+                <Input 
+                  id="quantity" 
+                  type="number" 
+                  min="1"
+                  value={movementQuantity.toString()}
+                  onChange={(e) => setMovementQuantity(Number(e.target.value))}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="type">Typ</Label>
+                <Select
+                  value={movementType}
+                  onValueChange={setMovementType}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="IN">Eingang</SelectItem>
+                    <SelectItem value="OUT">Ausgang</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="reason">Grund</Label>
+                <Select
+                  value={movementReason}
+                  onValueChange={setMovementReason}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Grund auswählen (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="PURCHASE">Einkauf</SelectItem>
+                    <SelectItem value="RETURN">Rückgabe</SelectItem>
+                    <SelectItem value="TRANSFER">Umschichtung</SelectItem>
+                    <SelectItem value="ADJUSTMENT">Bestandskorrektur</SelectItem>
+                    <SelectItem value="REFILL">Auffüllung Automat</SelectItem>
+                    <SelectItem value="OTHER">Sonstiges</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="date">Datum</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      <CalendarRange className="mr-2 h-4 w-4" />
+                      {movementDate ? (
+                        format(movementDate, "dd.MM.yyyy")
+                      ) : (
+                        <span>Datum auswählen</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={movementDate}
+                      onSelect={setMovementDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="notes">Anmerkungen</Label>
+                <Textarea 
+                  id="notes" 
+                  value={movementNotes}
+                  onChange={(e) => setMovementNotes(e.target.value)}
+                  placeholder="Optionale Anmerkungen zur Warenbewegung"
+                />
+              </div>
             </div>
-          </div>
+          </ScrollArea>
           
           <DialogFooter>
             <Button 
@@ -1768,57 +1199,12 @@ export default function WarehouseDetail() {
               Abbrechen
             </Button>
             <Button
-              onClick={() => {
-                if (!selectedProduct) {
-                  toast({
-                    title: "Fehler",
-                    description: "Bitte wählen Sie ein Produkt aus.",
-                    variant: "destructive"
-                  });
-                  return;
-                }
-                
-                if (movementType === "TRANSFER" && !selectedDestinationWarehouse) {
-                  toast({
-                    title: "Fehler",
-                    description: "Bitte wählen Sie ein Ziellager aus.",
-                    variant: "destructive"
-                  });
-                  return;
-                }
-                
-                const movementData: any = {
-                  productId: Number(selectedProduct),
-                  quantity: movementQuantity,
-                  movementType: movementType,
-                  notes: movementNotes || undefined
-                };
-                
-                if (movementType === "OUT" || movementType === "ADJUSTMENT") {
-                  // Für Ausgänge und Korrekturen wird die Menge negativ
-                  movementData.quantity = -movementQuantity;
-                }
-                
-                if (movementType === "TRANSFER") {
-                  // Für Umlagerungen werden zusätzliche Felder benötigt
-                  movementData.sourceWarehouseId = Number(id);
-                  movementData.destinationWarehouseId = Number(selectedDestinationWarehouse);
-                } else {
-                  // Für normale Bewegungen nur das Lager
-                  movementData.warehouseId = Number(id);
-                }
-                
-                createMovementMutation.mutate(movementData);
-              }}
-              disabled={
-                !selectedProduct || 
-                (movementType === "TRANSFER" && !selectedDestinationWarehouse) ||
-                createMovementMutation.isPending
-              }
+              onClick={handleAddMovement}
+              disabled={!movementProductId || movementQuantity <= 0 || addMovementMutation.isPending}
             >
-              {createMovementMutation.isPending && (
+              {addMovementMutation.isPending ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              )}
+              ) : null}
               Hinzufügen
             </Button>
           </DialogFooter>
@@ -1827,38 +1213,12 @@ export default function WarehouseDetail() {
     </div>
   );
 }
-{/* Nur den relevanten Teil des Codes, der korrigiert werden soll */}
 
-        <TabsContent value="inventory-count">
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <CardTitle>Inventurzählung</CardTitle>
-                  <CardDescription>
-                    Bestandsaufnahme und Abgleich der Lagerbestände
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <InventoryCountNew 
-                warehouseId={Number(id)}
-                inventory={inventory}
-                onComplete={() => {
-                  refetchInventory();
-                  toast({
-                    title: "Inventur abgeschlossen",
-                    description: "Die Inventur wurde erfolgreich abgeschlossen und die Bestände aktualisiert."
-                  });
-                }}
-                onCancel={() => {
-                  toast({
-                    title: "Inventur abgebrochen",
-                    description: "Die Inventur wurde abgebrochen."
-                  });
-                }}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
+// Helper-Funktion zum Formatieren von Datum
+function format(date: Date, formatStr: string): string {
+  const day = date.getDate().toString().padStart(2, '0');
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const year = date.getFullYear();
+  
+  return formatStr.replace('dd', day).replace('MM', month).replace('yyyy', year);
+}
