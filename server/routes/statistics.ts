@@ -149,13 +149,13 @@ export function statisticsRoutes(app: any) {
           COALESCE(${transactions.priceVat}, 0) - 
           COALESCE((
             CASE 
-              WHEN products.depositPrice IS NOT NULL THEN products.depositPrice 
+              WHEN products.deposit_price IS NOT NULL THEN products.deposit_price 
               ELSE 0
             END
           ), 0) - 
           COALESCE((
             CASE 
-              WHEN products.costPrice IS NOT NULL THEN products.costPrice 
+              WHEN products.cost_price IS NOT NULL THEN products.cost_price 
               ELSE ${transactions.price} * 0.6 -- Fallback: Schätzung der Kosten als 60% des Verkaufspreises
             END
           ), 0)
@@ -168,13 +168,13 @@ export function statisticsRoutes(app: any) {
                 COALESCE(${transactions.priceVat}, 0) - 
                 COALESCE((
                   CASE 
-                    WHEN products.depositPrice IS NOT NULL THEN products.depositPrice 
+                    WHEN products.deposit_price IS NOT NULL THEN products.deposit_price 
                     ELSE 0
                   END
                 ), 0) - 
                 COALESCE((
                   CASE 
-                    WHEN products.costPrice IS NOT NULL THEN products.costPrice 
+                    WHEN products.cost_price IS NOT NULL THEN products.cost_price 
                     ELSE ${transactions.price} * 0.6
                   END
                 ), 0)
@@ -196,13 +196,13 @@ export function statisticsRoutes(app: any) {
         COALESCE(${transactions.priceVat}, 0) - 
         COALESCE((
           CASE 
-            WHEN products.depositPrice IS NOT NULL THEN products.depositPrice 
+            WHEN products.deposit_price IS NOT NULL THEN products.deposit_price 
             ELSE 0
           END
         ), 0) - 
         COALESCE((
           CASE 
-            WHEN products.costPrice IS NOT NULL THEN products.costPrice 
+            WHEN products.cost_price IS NOT NULL THEN products.cost_price 
             ELSE ${transactions.price} * 0.6
           END
         ), 0)
@@ -219,13 +219,13 @@ export function statisticsRoutes(app: any) {
           COALESCE(${transactions.priceVat}, 0) - 
           COALESCE((
             CASE 
-              WHEN products.depositPrice IS NOT NULL THEN products.depositPrice 
+              WHEN products.deposit_price IS NOT NULL THEN products.deposit_price 
               ELSE 0
             END
           ), 0) - 
           COALESCE((
             CASE 
-              WHEN products.costPrice IS NOT NULL THEN products.costPrice 
+              WHEN products.cost_price IS NOT NULL THEN products.cost_price 
               ELSE ${transactions.price} * 0.6
             END
           ), 0)
@@ -238,13 +238,13 @@ export function statisticsRoutes(app: any) {
                 COALESCE(${transactions.priceVat}, 0) - 
                 COALESCE((
                   CASE 
-                    WHEN products.depositPrice IS NOT NULL THEN products.depositPrice 
+                    WHEN products.deposit_price IS NOT NULL THEN products.deposit_price 
                     ELSE 0
                   END
                 ), 0) - 
                 COALESCE((
                   CASE 
-                    WHEN products.costPrice IS NOT NULL THEN products.costPrice 
+                    WHEN products.cost_price IS NOT NULL THEN products.cost_price 
                     ELSE ${transactions.price} * 0.6
                   END
                 ), 0)
@@ -266,13 +266,13 @@ export function statisticsRoutes(app: any) {
         COALESCE(${transactions.priceVat}, 0) - 
         COALESCE((
           CASE 
-            WHEN products.depositPrice IS NOT NULL THEN products.depositPrice 
+            WHEN products.deposit_price IS NOT NULL THEN products.deposit_price 
             ELSE 0
           END
         ), 0) - 
         COALESCE((
           CASE 
-            WHEN products.costPrice IS NOT NULL THEN products.costPrice 
+            WHEN products.cost_price IS NOT NULL THEN products.cost_price 
             ELSE ${transactions.price} * 0.6
           END
         ), 0)
@@ -458,9 +458,15 @@ export function statisticsRoutes(app: any) {
       return res.json(machineAnalytics);
     } catch (error) {
       console.error(`Fehler bei Automatenanalyse:`, error);
+      // Detailliertere Fehlermeldung für Debugging
+      const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+      const errorStack = error instanceof Error ? error.stack : '';
+      console.error(`Detaillierter Fehler: ${errorMessage}\nStack: ${errorStack}`);
+      
       return res.status(500).json({ 
         error: 'Fehler bei der Erstellung der Automatenanalyse',
-        message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+        message: errorMessage,
+        stack: process.env.NODE_ENV === 'development' ? errorStack : undefined
       });
     }
   });
@@ -811,14 +817,14 @@ router.get('/product-performance', async (req, res) => {
       totalRevenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`,
       totalCost: sql<number>`COALESCE(SUM(
         CASE 
-          WHEN products.costPrice IS NOT NULL THEN products.costPrice 
+          WHEN products.cost_price IS NOT NULL THEN products.cost_price 
           ELSE ${transactions.price} * 0.6 -- Fallback: Schätzung der Kosten als 60% des Verkaufspreises
         END
       ), 0)`,
       totalVat: sql<number>`COALESCE(SUM(${transactions.priceVat}), 0)`,
       totalDeposit: sql<number>`COALESCE(SUM(
         CASE 
-          WHEN products.depositPrice IS NOT NULL THEN products.depositPrice 
+          WHEN products.deposit_price IS NOT NULL THEN products.deposit_price 
           ELSE 0
         END
       ), 0)`,
@@ -827,13 +833,13 @@ router.get('/product-performance', async (req, res) => {
         COALESCE(${transactions.priceVat}, 0) - 
         COALESCE((
           CASE 
-            WHEN products.depositPrice IS NOT NULL THEN products.depositPrice 
+            WHEN products.deposit_price IS NOT NULL THEN products.deposit_price 
             ELSE 0
           END
         ), 0) - 
         COALESCE((
           CASE 
-            WHEN products.costPrice IS NOT NULL THEN products.costPrice 
+            WHEN products.cost_price IS NOT NULL THEN products.cost_price 
             ELSE ${transactions.price} * 0.6 -- Fallback: Schätzung der Kosten als 60% des Verkaufspreises
           END
         ), 0)
@@ -846,13 +852,13 @@ router.get('/product-performance', async (req, res) => {
               COALESCE(${transactions.priceVat}, 0) - 
               COALESCE((
                 CASE 
-                  WHEN products.depositPrice IS NOT NULL THEN products.depositPrice 
+                  WHEN products.deposit_price IS NOT NULL THEN products.deposit_price 
                   ELSE 0
                 END
               ), 0) - 
               COALESCE((
                 CASE 
-                  WHEN products.costPrice IS NOT NULL THEN products.costPrice 
+                  WHEN products.cost_price IS NOT NULL THEN products.cost_price 
                   ELSE ${transactions.price} * 0.6
                 END
               ), 0)
@@ -873,13 +879,13 @@ router.get('/product-performance', async (req, res) => {
       COALESCE(${transactions.priceVat}, 0) - 
       COALESCE((
         CASE 
-          WHEN products.depositPrice IS NOT NULL THEN products.depositPrice 
+          WHEN products.deposit_price IS NOT NULL THEN products.deposit_price 
           ELSE 0
         END
       ), 0) - 
       COALESCE((
         CASE 
-          WHEN products.costPrice IS NOT NULL THEN products.costPrice 
+          WHEN products.cost_price IS NOT NULL THEN products.cost_price 
           ELSE ${transactions.price} * 0.6
         END
       ), 0)
