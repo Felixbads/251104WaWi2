@@ -1379,7 +1379,9 @@ export async function getWarehouseById(warehouseId?: string): Promise<Warehouse>
 
 export async function getWarehouseInventory(warehouseId?: string): Promise<WarehouseProduct[]> {
   if (!warehouseId) throw new Error("Warehouse ID is required");
-  return apiRequest<WarehouseProduct[]>('get', `/api/inventory?warehouseId=${warehouseId}`);
+  
+  // Parameter hinzufügen, um auch Produkte mit Nullbestand abzurufen
+  return apiRequest<WarehouseProduct[]>('get', `/api/inventory?warehouseId=${warehouseId}&includeZeroStock=true`);
 }
 
 export async function updateWarehouseInventory(

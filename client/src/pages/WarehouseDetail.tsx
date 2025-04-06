@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -216,8 +216,11 @@ export default function WarehouseDetail() {
     performedAt?: string;
     movementType?: string;
     referenceType?: string;
-    referenceId?: number;
+    referenceId?: number | string;
     performedByName?: string;
+    machineId?: number;
+    machineName?: string;
+    source?: string;
   }
 
   // Inventuren abrufen
@@ -229,6 +232,37 @@ export default function WarehouseDetail() {
     enabled: !!id && activeTab === "inventory-count"
   });
   
+  // Refill-Daten definieren
+  interface RefillDetail {
+    id: number;
+    refillId: number;
+    productId: string;
+    productName: string;
+    quantity: number;
+    added: number;
+    removed: number;
+    datetime: string;
+  }
+  
+  interface Refill {
+    id: number;
+    vendonId: string;
+    machineId: number;
+    machineName: string;
+    datetime: string;
+    status: string;
+    details: RefillDetail[];
+  }
+  
+  // Refill-Daten für dieses Lager abrufen
+  const {
+    data: refills = [] as Refill[],
+    isLoading: refillsLoading
+  } = useQuery<Refill[]>({
+    queryKey: ['/api/refills', { warehouseId: Number(id) }],
+    enabled: !!id && activeTab === "movements"
+  });
+  
   // Warenbewegungen abrufen
   const {
     data: inventoryMovements = [] as InventoryMovement[],
@@ -237,6 +271,52 @@ export default function WarehouseDetail() {
     queryKey: ['/api/inventory-movements', { warehouseId: Number(id) }],
     enabled: !!id && activeTab === "movements"
   });
+  
+  // Kombinierte Warenbewegungen (Lager + Refills)
+  const combinedMovements = useMemo(() => {
+    // Basis-Bewegungen aus der Inventar-Tabelle
+    const baseMovements = [...(inventoryMovements || [])];
+    
+    // Refill-Daten umwandeln und hinzufügen
+    if (refills && refills.length > 0) {
+      const refillMovements: InventoryMovement[] = [];
+      
+      refills.forEach(refill => {
+        if (refill.details && refill.details.length > 0) {
+          refill.details.forEach(detail => {
+            if (detail.added > 0 || detail.removed > 0) {
+              refillMovements.push({
+                id: detail.id + 1000000, // Generiere eindeutige ID
+                warehouseId: Number(id),
+                productId: typeof detail.productId === 'string' ? parseInt(detail.productId, 10) || 0 : detail.productId,
+                quantity: detail.added > 0 ? detail.added : -detail.removed,
+                type: detail.added > 0 ? "IN" : "OUT",
+                movementType: "REFILL",
+                referenceType: "REFILL",
+                referenceId: refill.vendonId,
+                productName: detail.productName,
+                performedAt: refill.datetime,
+                performedByName: "Automat",
+                machineId: refill.machineId,
+                machineName: refill.machineName,
+                source: "vendon",
+                createdAt: refill.datetime, // Pflichtfeld für InventoryMovement
+              });
+            }
+          });
+        }
+      });
+      
+      // Kombiniere und sortiere nach Datum (absteigend)
+      return [...baseMovements, ...refillMovements].sort((a, b) => {
+        const dateA = a.performedAt ? new Date(a.performedAt).getTime() : 0;
+        const dateB = b.performedAt ? new Date(b.performedAt).getTime() : 0;
+        return dateB - dateA;
+      });
+    }
+    
+    return baseMovements;
+  }, [inventoryMovements, refills, id]);
   
   // Zustand für die Inventur (Inventurzählung)
   const [inventoryCountItems, setInventoryCountItems] = useState<any[]>([]);
@@ -405,26 +485,31 @@ export default function WarehouseDetail() {
 
       {/* Tabs für die verschiedenen Lageransichten */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-5 mb-8">
-          <TabsTrigger value="overview">
-            <Building2 className="h-4 w-4 mr-2" />
-            Übersicht
+        <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 mb-4 md:mb-8 overflow-auto">
+          <TabsTrigger value="overview" className="px-2 sm:px-4">
+            <Building2 className="h-4 w-4 mr-2 flex-shrink-0" />
+            <span className="hidden sm:inline">Übersicht</span>
+            <span className="sm:hidden">Info</span>
           </TabsTrigger>
-          <TabsTrigger value="machines">
-            <Truck className="h-4 w-4 mr-2" />
-            Automaten-Zuordnung
+          <TabsTrigger value="machines" className="px-2 sm:px-4">
+            <Truck className="h-4 w-4 mr-2 flex-shrink-0" />
+            <span className="hidden sm:inline">Automaten-Zuordnung</span>
+            <span className="sm:hidden">Automaten</span>
           </TabsTrigger>
-          <TabsTrigger value="inventory">
-            <Package className="h-4 w-4 mr-2" />
-            Warenbestand
+          <TabsTrigger value="inventory" className="px-2 sm:px-4">
+            <Package className="h-4 w-4 mr-2 flex-shrink-0" />
+            <span className="hidden sm:inline">Warenbestand</span>
+            <span className="sm:hidden">Bestand</span>
           </TabsTrigger>
-          <TabsTrigger value="inventory-count">
-            <ClipboardCheck className="h-4 w-4 mr-2" />
-            Inventur
+          <TabsTrigger value="inventory-count" className="px-2 sm:px-4">
+            <ClipboardCheck className="h-4 w-4 mr-2 flex-shrink-0" />
+            <span className="hidden sm:inline">Inventur</span>
+            <span className="sm:hidden">Inventur</span>
           </TabsTrigger>
-          <TabsTrigger value="movements">
-            <ArrowDownUp className="h-4 w-4 mr-2" />
-            Warenbewegung
+          <TabsTrigger value="movements" className="px-2 sm:px-4">
+            <ArrowDownUp className="h-4 w-4 mr-2 flex-shrink-0" />
+            <span className="hidden sm:inline">Warenbewegung</span>
+            <span className="sm:hidden">Bewegung</span>
           </TabsTrigger>
         </TabsList>
 
@@ -1096,12 +1181,12 @@ export default function WarehouseDetail() {
             </div>
           </div>
           
-          {movementsLoading ? (
+          {movementsLoading || refillsLoading ? (
             <div className="flex items-center justify-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               <span className="ml-2 text-lg text-muted-foreground">Warenbewegungen werden geladen...</span>
             </div>
-          ) : !Array.isArray(inventoryMovements) || inventoryMovements.length === 0 ? (
+          ) : !Array.isArray(combinedMovements) || combinedMovements.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-8">
                 <ArrowDownUp className="h-16 w-16 text-muted-foreground mb-4" />
@@ -1142,7 +1227,7 @@ export default function WarehouseDetail() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {inventoryMovements && Array.isArray(inventoryMovements) && inventoryMovements.map((movement) => (
+                    {combinedMovements && Array.isArray(combinedMovements) && combinedMovements.map((movement) => (
                       <TableRow key={movement.id}>
                         <TableCell>
                           {movement.performedAt && movement.performedAt ? new Date(movement.performedAt).toLocaleDateString() : "Unbekannt"}
