@@ -127,7 +127,7 @@ export default function WarehouseDetail() {
     refetch: refetchInventory
   } = useQuery({
     queryKey: [`/api/inventory`, { warehouseId: Number(id), includeZeroStock: true }],
-    queryFn: () => getWarehouseInventory(id),
+    queryFn: () => getWarehouseInventory(id, false),
     enabled: !!id,
     staleTime: 30000 // 30 Sekunden
   });
@@ -1044,14 +1044,7 @@ export default function WarehouseDetail() {
                 </Button>
               </div>
             </Alert>
-          ) : (!inventory || !Array.isArray(inventory)) ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-8">
-                <Loader2 className="h-16 w-16 text-muted-foreground mb-4 animate-spin" />
-                <h3 className="text-xl font-semibold mb-2">Lagerbestand wird geladen...</h3>
-              </CardContent>
-            </Card>
-          ) : (inventory.length === 0) ? (
+          ) : (Array.isArray(inventory) && inventory.length === 0) ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-8">
                 <Package className="h-16 w-16 text-muted-foreground mb-4" />
