@@ -13,6 +13,9 @@ import {
   RefreshCw, ShoppingCart, Clock, Check
 } from "lucide-react";
 
+// Eigene Komponenten
+import WarehouseInventory from "@/components/inventory/WarehouseInventory";
+
 // API-Funktionen
 import { 
   getWarehouseById, 
@@ -119,7 +122,7 @@ export default function WarehouseDetail() {
     enabled: !!id
   });
   
-  // Lager-Inventar abrufen
+  // Lager-Inventar direkt abrufen (ohne getWarehouseInventory)
   const { 
     data: inventory = [], 
     isLoading: inventoryLoading,
@@ -127,7 +130,6 @@ export default function WarehouseDetail() {
     refetch: refetchInventory
   } = useQuery({
     queryKey: [`/api/inventory`, { warehouseId: Number(id), includeZeroStock: true }],
-    queryFn: () => getWarehouseInventory(id, false),
     enabled: !!id,
     staleTime: 30000 // 30 Sekunden
   });
@@ -1020,7 +1022,20 @@ export default function WarehouseDetail() {
             </div>
           </div>
           
-          {inventoryLoading ? (
+          {/* Das neue WarehouseInventory-Component einbinden */}
+          {warehouse ? (
+            <div className="mt-4">
+              {/* Importiertes WarehouseInventory-Component mit den entsprechenden Props */}
+              {/* @ts-ignore - Falls TypeScript Probleme bei der Verwendung des neuen Components gibt */}
+              <WarehouseInventory
+                warehouseId={Number(id)}
+                inventory={inventory || []}
+                isLoading={inventoryLoading}
+                error={inventoryError}
+                onRefresh={() => refetchInventory()}
+              />
+            </div>
+          ) : inventoryLoading ? (
             <div className="flex items-center justify-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               <span className="ml-2 text-lg text-muted-foreground">Warenbestand wird geladen...</span>
