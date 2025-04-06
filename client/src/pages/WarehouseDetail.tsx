@@ -16,6 +16,9 @@ import {
 // Eigene Komponenten
 import WarehouseInventory from "@/components/inventory/WarehouseInventory";
 
+// UI Komponenten
+import { Label } from "@/components/ui/label";
+
 // API-Funktionen
 import { 
   getWarehouseById, 
@@ -102,7 +105,102 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 
-// Removed duplicate icons import
+// InventoryCount Interface definieren
+interface InventoryCount {
+  id: number;
+  warehouseId: number;
+  startDate: string;
+  endDate: string;
+  notes?: string;
+  createdBy?: number;
+  createdAt: string;
+  status?: string;
+  initiatedByName?: string;
+  itemCount?: number;
+  adjustmentCount?: number;
+  items?: Array<{
+    id: number;
+    inventoryCountId: number;
+    productId: number;
+    currentQuantity: number;
+    countedQuantity: number;
+    difference: number;
+    productName?: string;
+  }>;
+}
+
+// MachineWarehouseAssignment Typ definieren
+interface MachineWarehouseAssignment {
+  id: number;
+  machineId: number;
+  warehouseId: number;
+  isPrimary: boolean;
+  notes?: string;
+  assignedBy?: number;
+  assignedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  machine?: Machine;
+}
+
+// Machine Typ definieren
+interface Machine {
+  id: number;
+  vendonId: string;
+  machineName: string;
+  location: string;
+  status: string;
+  address?: string;
+  lastSync?: string;
+  lastSale?: string;
+  product_count?: number;
+  error_count?: number;
+}
+
+// InventoryMovement Interface definieren
+interface InventoryMovement {
+  id: number;
+  warehouseId: number;
+  productId: number;
+  quantity: number;
+  type: string;
+  reason?: string;
+  notes?: string;
+  createdBy?: number;
+  createdAt: string;
+  productName?: string;
+  productSku?: string;
+  performedAt?: string;
+  movementType?: string;
+  referenceType?: string;
+  referenceId?: number | string;
+  performedByName?: string;
+  machineId?: number;
+  machineName?: string;
+  source?: string;
+}
+
+// Refill-Daten definieren
+interface RefillDetail {
+  id: number;
+  refillId: number;
+  productId: string;
+  productName: string;
+  quantity: number;
+  added: number;
+  removed: number;
+  datetime: string;
+}
+
+interface Refill {
+  id: number;
+  vendonId: string;
+  machineId: number;
+  machineName: string;
+  datetime: string;
+  status: string;
+  details: RefillDetail[];
+}
 
 export default function WarehouseDetail() {
   const { id } = useParams<{ id: string }>();
@@ -113,8 +211,9 @@ export default function WarehouseDetail() {
   // Aktives Tab aus URL-Parameter extrahieren
   const getInitialTab = () => {
     try {
-      const url = new URL(window.location.href);
-      const tabParam = url.searchParams.get('tab');
+      // URL-Parameter direkt aus der Wouter-Location extrahieren
+      const searchParams = new URLSearchParams(window.location.search);
+      const tabParam = searchParams.get('tab');
       if (tabParam) {
         return tabParam;
       }
@@ -129,8 +228,9 @@ export default function WarehouseDetail() {
   // Inventur-ID aus URL-Parameter holen
   const getInventoryIdFromUrl = () => {
     try {
-      const url = new URL(window.location.href);
-      const inventoryId = url.searchParams.get('inventoryId');
+      // URL-Parameter direkt aus der Wouter-Location extrahieren
+      const searchParams = new URLSearchParams(window.location.search);
+      const inventoryId = searchParams.get('inventoryId');
       return inventoryId ? parseInt(inventoryId) : null;
     } catch (error) {
       console.error("Fehler beim Lesen der Inventur-ID:", error);
@@ -138,6 +238,15 @@ export default function WarehouseDetail() {
     }
   };
   
+  // Zustand für die Inventur (Inventurzählung)
+  const [inventoryCountItems, setInventoryCountItems] = useState<any[]>([]);
+  const [isCountInProgress, setIsCountInProgress] = useState(false);
+  const [inventoryCountNotes, setInventoryCountNotes] = useState("");
+  const [searchQueryInventory, setSearchQueryInventory] = useState("");
+  const [activeInventoryCount, setActiveInventoryCount] = useState<number | null>(null);
+  const [inventoryDetailDialogOpen, setInventoryDetailDialogOpen] = useState(false);
+  const [selectedInventoryCount, setSelectedInventoryCount] = useState<InventoryCount | null>(null);
+
   // URL-Parameter beim Laden auswerten
   useEffect(() => {
     const inventoryId = getInventoryIdFromUrl();
@@ -145,14 +254,8 @@ export default function WarehouseDetail() {
       // Setze das Tab auf "inventory-count" wenn ein inventoryId Parameter vorhanden ist
       setActiveTab("inventory-count");
       setActiveInventoryCount(inventoryId);
-      
-      // Lade Inventurzählung-Details, falls sie noch nicht geladen wurden
-      const selectedCount = inventoryCounts.find(count => count.id === inventoryId);
-      if (selectedCount) {
-        setSelectedInventoryCount(selectedCount);
-      }
     }
-  }, [inventoryCounts]);
+  }, []); // Einmalig beim Laden ausführen
   
   // Lager-Details abrufen
   const { 
@@ -198,34 +301,6 @@ export default function WarehouseDetail() {
     return Array.from(productMap.values());
   }, [rawInventory]);
   
-  // MachineWarehouseAssignment Typ definieren
-  interface MachineWarehouseAssignment {
-    id: number;
-    machineId: number;
-    warehouseId: number;
-    isPrimary: boolean;
-    notes?: string;
-    assignedBy?: number;
-    assignedAt?: string;
-    createdAt?: string;
-    updatedAt?: string;
-    machine?: Machine;
-  }
-
-  // Machine Typ definieren
-  interface Machine {
-    id: number;
-    vendonId: string;
-    machineName: string;
-    location: string;
-    status: string;
-    address?: string;
-    lastSync?: string;
-    lastSale?: string;
-    product_count?: number;
-    error_count?: number;
-  }
-
   // Automaten-Zuordnungen abrufen
   const { 
     data: machineAssignments = [] as MachineWarehouseAssignment[], 
@@ -246,83 +321,26 @@ export default function WarehouseDetail() {
     enabled: !!id && activeTab === "machines"
   });
   
-  // InventoryCount Interface definieren
-  interface InventoryCount {
-    id: number;
-    warehouseId: number;
-    startDate: string;
-    endDate: string;
-    notes?: string;
-    createdBy?: number;
-    createdAt: string;
-    status?: string;
-    initiatedByName?: string;
-    itemCount?: number;
-    adjustmentCount?: number;
-    items?: Array<{
-      id: number;
-      inventoryCountId: number;
-      productId: number;
-      currentQuantity: number;
-      countedQuantity: number;
-      difference: number;
-      productName?: string;
-    }>;
-  }
-
-  // InventoryMovement Interface definieren
-  interface InventoryMovement {
-    id: number;
-    warehouseId: number;
-    productId: number;
-    quantity: number;
-    type: string;
-    reason?: string;
-    notes?: string;
-    createdBy?: number;
-    createdAt: string;
-    productName?: string;
-    productSku?: string;
-    performedAt?: string;
-    movementType?: string;
-    referenceType?: string;
-    referenceId?: number | string;
-    performedByName?: string;
-    machineId?: number;
-    machineName?: string;
-    source?: string;
-  }
-
   // Inventuren abrufen
   const {
     data: inventoryCounts = [] as InventoryCount[],
     isLoading: inventoryCountsLoading
   } = useQuery<InventoryCount[]>({
     queryKey: ['/api/inventory-counts', { warehouseId: Number(id) }],
-    enabled: !!id && activeTab === "inventory-count"
+    enabled: !!id && (activeTab === "inventory-count" || getInventoryIdFromUrl() !== null)
   });
   
-  // Refill-Daten definieren
-  interface RefillDetail {
-    id: number;
-    refillId: number;
-    productId: string;
-    productName: string;
-    quantity: number;
-    added: number;
-    removed: number;
-    datetime: string;
-  }
-  
-  interface Refill {
-    id: number;
-    vendonId: string;
-    machineId: number;
-    machineName: string;
-    datetime: string;
-    status: string;
-    details: RefillDetail[];
-  }
+  // Überwache inventoryCounts und aktualisiere selectedInventoryCount, wenn die Inventurdaten geladen sind
+  useEffect(() => {
+    const inventoryId = activeInventoryCount;
+    if (inventoryId && Array.isArray(inventoryCounts) && inventoryCounts.length > 0) {
+      // Lade Inventurzählung-Details, falls sie noch nicht geladen wurden
+      const selectedCount = inventoryCounts.find(count => count.id === inventoryId);
+      if (selectedCount) {
+        setSelectedInventoryCount(selectedCount);
+      }
+    }
+  }, [inventoryCounts, activeInventoryCount]);
   
   // Refill-Daten für dieses Lager abrufen
   const [refillFilter, setRefillFilter] = useState({
@@ -365,14 +383,14 @@ export default function WarehouseDetail() {
               // Aktualisiere den Refill mit den Details
               refill.details = details;
               // Markiere als geladen
-              setLoadedRefillDetails(prev => ({...prev, [refill.id]: true}));
+              setLoadedRefillDetails((prev: any) => ({...prev, [refill.id]: true}));
             })
             .catch(err => {
               console.error(`Fehler beim Laden der Details für Refill ${refill.id}:`, err);
               // Stelle sicher, dass details zumindest ein leeres Array ist
               refill.details = [];
               // Markiere trotzdem als geladen, um weitere Versuche zu vermeiden
-              setLoadedRefillDetails(prev => ({...prev, [refill.id]: true}));
+              setLoadedRefillDetails((prev: any) => ({...prev, [refill.id]: true}));
             });
         }
       });
@@ -475,15 +493,6 @@ export default function WarehouseDetail() {
     return baseMovements;
   }, [inventoryMovements, refills, id]);
   
-  // Zustand für die Inventur (Inventurzählung)
-  const [inventoryCountItems, setInventoryCountItems] = useState<any[]>([]);
-  const [isCountInProgress, setIsCountInProgress] = useState(false);
-  const [inventoryCountNotes, setInventoryCountNotes] = useState("");
-  const [searchQueryInventory, setSearchQueryInventory] = useState("");
-  const [activeInventoryCount, setActiveInventoryCount] = useState<number | null>(null);
-  const [inventoryDetailDialogOpen, setInventoryDetailDialogOpen] = useState(false);
-  const [selectedInventoryCount, setSelectedInventoryCount] = useState<InventoryCount | null>(null);
-  
   // Mutation für das Starten einer neuen Inventur
   const startNewInventoryCountMutation = useMutation({
     mutationFn: async () => {
@@ -573,7 +582,7 @@ export default function WarehouseDetail() {
   const [movementQuantity, setMovementQuantity] = useState<number>(1);
   const [movementNotes, setMovementNotes] = useState("");
   const [selectedDestinationWarehouse, setSelectedDestinationWarehouse] = useState<string>("");
-  
+
   // Alle Lager für die Umlagerung abrufen
   const {
     data: warehouses = [] as any[],
@@ -582,85 +591,10 @@ export default function WarehouseDetail() {
     queryKey: ['/api/warehouses'],
     enabled: isAddMovementDialogOpen && movementType === "TRANSFER"
   });
-  
-  // Mutation für die Erstellung einer Inventur (abschließen)
-  const createInventoryCountMutation = useMutation({
+
+  // Mutation für das Erstellen einer Warenbewegung
+  const createMovementMutation = useMutation({
     mutationFn: async (data: any) => {
-      // API-Aufruf für das Erstellen einer neuen Inventur
-      return await fetch(`/api/inventory-counts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...data,
-          status: 'completed' // Status auf "abgeschlossen" setzen
-        }),
-      }).then(res => {
-        if (!res.ok) throw new Error('Fehler beim Erstellen der Inventur');
-        return res.json();
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/inventory-counts'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
-      toast({
-        title: "Inventur abgeschlossen",
-        description: "Die Inventur wurde erfolgreich durchgeführt und der Lagerbestand aktualisiert.",
-      });
-      setIsCountInProgress(false);
-      setInventoryCountNotes("");
-      setSearchQueryInventory("");
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Fehler bei der Inventur",
-        description: error.message || "Die Inventur konnte nicht durchgeführt werden.",
-        variant: "destructive"
-      });
-    }
-  });
-  
-  // Mutation für das Zwischenspeichern einer Inventur
-  const saveTemporaryInventoryCountMutation = useMutation({
-    mutationFn: async (data: any) => {
-      // API-Aufruf für das temporäre Speichern einer Inventur
-      return await fetch(`/api/inventory-counts`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...data,
-          status: 'in_progress' // Status auf "in Bearbeitung" setzen
-        }),
-      }).then(res => {
-        if (!res.ok) throw new Error('Fehler beim Zwischenspeichern der Inventur');
-        return res.json();
-      });
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/inventory-counts'] });
-      // Aktive Inventur setzen
-      setActiveInventoryCount(data.id);
-      toast({
-        title: "Inventur zwischengespeichert",
-        description: "Die Inventur wurde erfolgreich zwischengespeichert und kann später fortgesetzt werden.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Fehler beim Zwischenspeichern",
-        description: error.message || "Die Inventur konnte nicht zwischengespeichert werden.",
-        variant: "destructive"
-      });
-    }
-  });
-  
-  // Mutation für das Hinzufügen einer Warenbewegung
-  const createInventoryMovementMutation = useMutation({
-    mutationFn: async (data: any) => {
-      // API-Aufruf für das Erstellen einer neuen Warenbewegung
       return await fetch(`/api/inventory-movements`, {
         method: 'POST',
         headers: {
@@ -675,1333 +609,1444 @@ export default function WarehouseDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/inventory-movements'] });
       queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
-      toast({
-        title: "Warenbewegung erstellt",
-        description: "Die Warenbewegung wurde erfolgreich gespeichert.",
-      });
       
-      // Dialog schließen und Felder zurücksetzen
       setIsAddMovementDialogOpen(false);
-      setMovementType("IN");
       setSelectedProduct("");
       setMovementQuantity(1);
       setMovementNotes("");
-      setSelectedDestinationWarehouse("");
-    },
-    onError: (error: any) => {
+      setMovementType("IN");
+      
       toast({
-        title: "Fehler bei der Warenbewegung",
-        description: error.message || "Die Warenbewegung konnte nicht erstellt werden.",
+        title: "Warenbewegung erstellt",
+        description: "Die Warenbewegung wurde erfolgreich erstellt.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Fehler beim Erstellen der Warenbewegung",
+        description: error.message,
         variant: "destructive"
       });
     }
   });
   
-  // Inventurzählung abschließen
-  const handleCompleteInventoryCount = () => {
-    // Wenn eine aktive Inventur vorhanden ist, verwenden wir diese ID
-    // Andernfalls erstellen wir eine neue abgeschlossene Inventur
-    createInventoryCountMutation.mutate({
-      warehouseId: Number(id),
-      notes: inventoryCountNotes,
-      id: activeInventoryCount || undefined, // ID der aktiven Inventur, falls vorhanden
-      items: inventoryCountItems.map(item => ({
-        productId: item.productId,
-        countedQuantity: item.countedQuantity,
-        difference: item.countedQuantity - item.currentQuantity
-      }))
-    });
+  // Mutation für das Speichern eines Inventur-Items
+  const saveInventoryCountItemMutation = useMutation({
+    mutationFn: async ({ inventoryCountId, item, status = 'in_progress' }: { inventoryCountId: number, item: any, status?: string }) => {
+      // Erstelle ein neues Objekt mit nur den für die API benötigten Feldern
+      const apiItem = {
+        productId: Number(item.productId),
+        currentQuantity: Number(item.currentQuantity),
+        countedQuantity: Number(item.countedQuantity),
+        difference: Number(item.countedQuantity) - Number(item.currentQuantity)
+      };
+      
+      return await fetch(`/api/inventory-counts/${inventoryCountId}/items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: status, // Übergebe den Status
+          items: [apiItem]  // Sende nur das eine Item
+        }),
+      }).then(res => {
+        if (!res.ok) throw new Error('Fehler beim Speichern der Inventurzählung');
+        return res.json();
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory-counts'] });
+      toast({
+        title: "Artikel gespeichert",
+        description: "Der Inventurartikel wurde erfolgreich gespeichert.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Fehler beim Speichern",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Mutation für das Speichern der kompletten Inventur
+  const saveInventoryCountMutation = useMutation({
+    mutationFn: async ({ inventoryCountId, status = 'completed', hasAdjustments = false }: { inventoryCountId: number, status?: string, hasAdjustments?: boolean }) => {
+      // Erfasse alle Produkte mit einer Abweichung
+      const itemsWithDifference = inventoryCountItems.filter(item => 
+        Number(item.countedQuantity) !== Number(item.currentQuantity)
+      ).map(item => ({
+        productId: Number(item.productId),
+        currentQuantity: Number(item.currentQuantity),
+        countedQuantity: Number(item.countedQuantity),
+        difference: Number(item.countedQuantity) - Number(item.currentQuantity)
+      }));
+      
+      return await fetch(`/api/inventory-counts/${inventoryCountId}/items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: status, // Finalisieren mit Status 'completed'
+          adjustStock: hasAdjustments, // Lagerbestand anpassen falls gewünscht
+          items: itemsWithDifference // Sende nur Items mit Abweichung
+        }),
+      }).then(res => {
+        if (!res.ok) throw new Error('Fehler beim Speichern der Inventurzählung');
+        return res.json();
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory-counts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
+      
+      setIsCountInProgress(false);
+      setActiveInventoryCount(null);
+      
+      toast({
+        title: "Inventur abgeschlossen",
+        description: "Die Inventurzählung wurde erfolgreich gespeichert und abgeschlossen.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Fehler beim Speichern",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Mutation für das Löschen einer Inventur
+  const deleteInventoryCountMutation = useMutation({
+    mutationFn: async (inventoryCountId: number) => {
+      return await fetch(`/api/inventory-counts/${inventoryCountId}`, {
+        method: 'DELETE',
+      }).then(res => {
+        if (!res.ok) throw new Error('Fehler beim Löschen der Inventurzählung');
+        return res.json();
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory-counts'] });
+      setSelectedInventoryCount(null);
+      setActiveInventoryCount(null);
+      
+      toast({
+        title: "Inventur gelöscht",
+        description: "Die Inventurzählung wurde erfolgreich gelöscht.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Fehler beim Löschen",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Mutation für die Zuordnung von Automaten zu diesem Lager
+  const assignMachineMutation = useMutation({
+    mutationFn: async (data: {machineId: number, warehouseId: number, isPrimary: boolean, notes?: string}) => {
+      return await fetch(`/api/machine-warehouse-assignments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      }).then(res => {
+        if (!res.ok) throw new Error('Fehler bei der Automatenzuordnung');
+        return res.json();
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
+      setIsAssignDialogOpen(false);
+      setSelectedMachine(null);
+      setAssignNotes("");
+      
+      toast({
+        title: "Automat zugeordnet",
+        description: "Der Automat wurde erfolgreich diesem Lager zugeordnet.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Fehler bei der Zuordnung",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Mutation für das Entfernen einer Automatenzuordnung
+  const removeAssignmentMutation = useMutation({
+    mutationFn: async (assignmentId: number) => {
+      return await fetch(`/api/machine-warehouse-assignments/${assignmentId}`, {
+        method: 'DELETE',
+      }).then(res => {
+        if (!res.ok) throw new Error('Fehler beim Entfernen der Zuordnung');
+        return res.ok;
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
+      
+      toast({
+        title: "Zuordnung entfernt",
+        description: "Die Automatenzuordnung wurde erfolgreich entfernt.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Fehler beim Entfernen",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Funktion zum Ändern der Tab-Auswahl mit URL-Parameter
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    
+    // Aktualisiere URL mit Tab-Parameter aber behalte andere Parameter bei
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('tab', value);
+    
+    // Aktualisiere die URL mit Wouter ohne Seitenneuladen
+    setLocation(`${window.location.pathname}?${currentUrl.searchParams.toString()}`);
   };
   
-  // Gezählte Menge aktualisieren
-  const handleCountedQuantityChange = (productId: number, countedQuantity: number) => {
-    setInventoryCountItems(prevItems =>
-      prevItems.map(item =>
-        item.productId === productId
-          ? {
-              ...item,
-              countedQuantity,
-              difference: countedQuantity - item.currentQuantity
-            }
+  // Funktion zum Aktualisieren der gezählten Menge
+  const updateCountedQuantity = (productId: string | number, newValue: number) => {
+    setInventoryCountItems((prevItems: any) => 
+      prevItems.map((item: any) => 
+        item.productId == productId 
+          ? { 
+              ...item, 
+              countedQuantity: newValue,
+              difference: newValue - Number(item.currentQuantity)
+            } 
           : item
       )
     );
   };
   
-  // Laden-Zustand und Fehlerbehandlung
+  // Funktion zum Speichern einer einzelnen Zählung
+  const saveCountedItem = (item: any) => {
+    if (!activeInventoryCount) {
+      toast({
+        title: "Fehler",
+        description: "Keine aktive Inventurzählung gefunden.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    saveInventoryCountItemMutation.mutate({ 
+      inventoryCountId: activeInventoryCount, 
+      item 
+    });
+  };
+  
+  // Funktion zum Speichern und Beenden
+  const saveAndCompleteCount = (adjustStock: boolean = false) => {
+    if (!activeInventoryCount) {
+      toast({
+        title: "Fehler",
+        description: "Keine aktive Inventurzählung gefunden.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    saveInventoryCountMutation.mutate({
+      inventoryCountId: activeInventoryCount,
+      status: 'completed',
+      hasAdjustments: adjustStock
+    });
+  };
+  
+  // Funktion zum Starten einer Inventur
+  const startInventoryCount = () => {
+    setIsCountInProgress(true);
+    startNewInventoryCountMutation.mutate();
+  };
+
+  // Funktion zum Abbrechen einer Inventur
+  const cancelInventoryCount = () => {
+    if (activeInventoryCount) {
+      deleteInventoryCountMutation.mutate(activeInventoryCount);
+    }
+    setIsCountInProgress(false);
+    setActiveInventoryCount(null);
+  };
+  
+  // Rendere Ladeindikator oder Fehler, wenn nötig
   if (warehouseLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-lg text-muted-foreground">Lager wird geladen...</span>
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2">Lade Lagerdetails...</span>
       </div>
     );
   }
-
-  if (warehouseError) {
+  
+  if (warehouseError || !warehouse) {
     return (
-      <Alert variant="destructive" className="my-8">
-        <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>Fehler beim Laden des Lagers</AlertTitle>
-        <AlertDescription>
-          {(warehouseError as Error).message || "Bitte versuchen Sie es später erneut."}
-        </AlertDescription>
-        <div className="mt-4">
-          <Button onClick={() => setLocation("/lager")}>
+      <div className="container max-w-6xl mx-auto p-4">
+        <div className="flex items-center mb-4">
+          <Button variant="ghost" onClick={() => setLocation("/warehouses")}>
             <ChevronLeft className="mr-2 h-4 w-4" />
             Zurück zur Übersicht
           </Button>
-        </div>
-      </Alert>
-    );
-  }
-
-  // Wenn kein Lager gefunden wurde
-  if (!warehouse) {
-    return (
-      <Alert className="my-8">
-        <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>Lager nicht gefunden</AlertTitle>
-        <AlertDescription>
-          Das angeforderte Lager konnte nicht gefunden werden.
-        </AlertDescription>
-        <div className="mt-4">
-          <Button onClick={() => setLocation("/lager")}>
-            <ChevronLeft className="mr-2 h-4 w-4" />
-            Zurück zur Übersicht
-          </Button>
-        </div>
-      </Alert>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      {/* Kopfzeile mit Lagername und Zurück-Button */}
-      <div className="flex justify-between items-center">
-        <div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setLocation("/lager")}
-            className="mb-2"
-          >
-            <ChevronLeft className="mr-1 h-4 w-4" />
-            Zurück zur Übersicht
-          </Button>
-          <h1 className="text-3xl font-bold tracking-tight">{warehouse.name}</h1>
-          {warehouse.description && (
-            <p className="text-muted-foreground mt-1">{warehouse.description}</p>
-          )}
         </div>
         
-        <div className="flex items-center space-x-2">
-          {warehouse.isActive === false && (
-            <Badge variant="outline" className="bg-gray-100">Inaktiv</Badge>
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Fehler beim Laden der Daten</AlertTitle>
+          <AlertDescription>
+            {warehouseError instanceof Error 
+              ? warehouseError.message 
+              : "Die Lagerdetails konnten nicht geladen werden."}
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+  
+  // Render UI
+  return (
+    <div className="container max-w-6xl mx-auto pb-8">
+      {/* Zurück-Button und Titel */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between pt-4 pb-2">
+        <div className="flex items-center">
+          <Button variant="ghost" onClick={() => setLocation("/warehouses")} className="p-2 mr-2">
+            <ChevronLeft className="h-4 w-4" />
+            <span className="ml-1">Zurück</span>
+          </Button>
+          
+          <h1 className="text-2xl font-bold">
+            <Building2 className="inline-block mr-2 h-6 w-6" />
+            {warehouse.name}
+          </h1>
+        </div>
+        
+        <div className="flex mt-2 md:mt-0">
+          {activeTab === "inventory" && (
+            <Button
+              onClick={() => setIsAddMovementDialogOpen(true)}
+              className="ml-2"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Warenbewegung
+            </Button>
           )}
-          {/* Weitere Aktionen könnten hier hinzugefügt werden */}
+          
+          {activeTab === "machines" && (
+            <Button
+              onClick={() => setIsAssignDialogOpen(true)}
+              className="ml-2"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Automat zuordnen
+            </Button>
+          )}
+          
+          {activeTab === "inventory-count" && !isCountInProgress && !activeInventoryCount && (
+            <Button
+              onClick={() => setIsCountInProgress(true)}
+              className="ml-2"
+            >
+              <ClipboardCheck className="mr-2 h-4 w-4" />
+              Neue Inventur starten
+            </Button>
+          )}
         </div>
       </div>
-
-      {/* Tabs für die verschiedenen Lageransichten */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        {/* Verbesserte TabsList für bessere mobile Darstellung in zwei Reihen */}
-        <div className="mb-4 md:mb-8">
-          <div className="grid grid-cols-3 gap-2 mb-2 sm:hidden">
-            <TabsTrigger value="overview" className="px-3 py-2">
-              <Building2 className="h-4 w-4 mr-1 flex-shrink-0" />
-              <span className="text-xs">Übersicht</span>
-            </TabsTrigger>
-            <TabsTrigger value="machines" className="px-3 py-2">
-              <Truck className="h-4 w-4 mr-1 flex-shrink-0" />
-              <span className="text-xs">Automaten</span>
-            </TabsTrigger>
-            <TabsTrigger value="inventory" className="px-3 py-2">
-              <Package className="h-4 w-4 mr-1 flex-shrink-0" />
-              <span className="text-xs">Bestand</span>
-            </TabsTrigger>
+      
+      {/* Lager-Details Card */}
+      <Card className="mb-6 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex justify-between items-center">
+            <span>Lager-Details</span>
+            <Badge variant={warehouse.status === 'active' ? 'default' : 'secondary'}>
+              {warehouse.status === 'active' ? 'Aktiv' : warehouse.status}
+            </Badge>
+          </CardTitle>
+          <CardDescription>
+            {warehouse.description || "Keine Beschreibung verfügbar"}
+          </CardDescription>
+        </CardHeader>
+        
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <div className="flex items-start">
+                <MapPin className="h-4 w-4 mr-2 mt-0.5 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">Adresse</p>
+                  <p className="text-sm text-muted-foreground">
+                    {warehouse.address || "Keine Adresse angegeben"}
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <div className="flex items-start">
+                <Phone className="h-4 w-4 mr-2 mt-0.5 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">Status</p>
+                  <p className="text-sm text-muted-foreground">
+                    {warehouse.status || "Kein Status angegeben"}
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <div className="flex items-start">
+                <Mail className="h-4 w-4 mr-2 mt-0.5 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">Beschreibung</p>
+                  <p className="text-sm text-muted-foreground">
+                    {warehouse.description || "Keine Beschreibung angegeben"}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:hidden">
-            <TabsTrigger value="inventory-count" className="px-3 py-2">
-              <ClipboardCheck className="h-4 w-4 mr-1 flex-shrink-0" />
-              <span className="text-xs">Inventur</span>
-            </TabsTrigger>
-            <TabsTrigger value="movements" className="px-3 py-2">
-              <ArrowDownUp className="h-4 w-4 mr-1 flex-shrink-0" />
-              <span className="text-xs">Bewegungen</span>
-            </TabsTrigger>
-          </div>
-          
-          {/* Desktop-Ansicht - tabs in einer Zeile */}
-          <ScrollArea className="w-full hidden sm:block">
-            <TabsList className="flex w-auto min-w-full inline-flex">
-              <TabsTrigger value="overview" className="px-4">
-                <Building2 className="h-4 w-4 mr-2 flex-shrink-0" />
-                <span>Übersicht</span>
-              </TabsTrigger>
-              <TabsTrigger value="machines" className="px-4">
-                <Truck className="h-4 w-4 mr-2 flex-shrink-0" />
-                <span>Automaten</span>
-              </TabsTrigger>
-              <TabsTrigger value="inventory" className="px-4">
-                <Package className="h-4 w-4 mr-2 flex-shrink-0" />
-                <span>Bestand</span>
-              </TabsTrigger>
-              <TabsTrigger value="inventory-count" className="px-4">
-                <ClipboardCheck className="h-4 w-4 mr-2 flex-shrink-0" />
-                <span>Inventur</span>
-              </TabsTrigger>
-              <TabsTrigger value="movements" className="px-4">
-                <ArrowDownUp className="h-4 w-4 mr-2 flex-shrink-0" />
-                <span>Bewegungen</span>
-              </TabsTrigger>
-            </TabsList>
-          </ScrollArea>
-        </div>
-
-        {/* Tab: Übersicht */}
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Lager-Informationen */}
+        </CardContent>
+      </Card>
+      
+      {/* Tabs für verschiedene Bereiche */}
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="overview">
+            <Building2 className="h-4 w-4 mr-2" />
+            Übersicht
+          </TabsTrigger>
+          <TabsTrigger value="inventory">
+            <Package className="h-4 w-4 mr-2" />
+            Lagerbestand
+          </TabsTrigger>
+          <TabsTrigger value="movements">
+            <Truck className="h-4 w-4 mr-2" />
+            Warenbewegungen
+          </TabsTrigger>
+          <TabsTrigger value="machines">
+            <ShoppingCart className="h-4 w-4 mr-2" />
+            Automaten
+          </TabsTrigger>
+          <TabsTrigger value="inventory-count">
+            <ClipboardCheck className="h-4 w-4 mr-2" />
+            Inventur
+          </TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="overview">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <Card>
-              <CardHeader>
-                <CardTitle>Lagerinformationen</CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Produkte</CardTitle>
+                <CardDescription>Gesamtanzahl im Lager</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {/* Adresse und Kontaktdaten */}
-                {(warehouse.address || warehouse.city || warehouse.postalCode) && (
-                  <div className="flex items-start space-x-2">
-                    <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="font-medium">Adresse</p>
-                      <p className="text-sm text-muted-foreground">
-                        {warehouse.address && <>{warehouse.address}<br /></>}
-                        {warehouse.postalCode && <>{warehouse.postalCode} </>}
-                        {warehouse.city && <>{warehouse.city}</>}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Telefon */}
-                {warehouse.phone && (
-                  <div className="flex items-start space-x-2">
-                    <Phone className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="font-medium">Telefon</p>
-                      <p className="text-sm text-muted-foreground">{warehouse.phone}</p>
-                    </div>
-                  </div>
-                )}
-                
-                {/* E-Mail */}
-                {warehouse.email && (
-                  <div className="flex items-start space-x-2">
-                    <Mail className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="font-medium">E-Mail</p>
-                      <p className="text-sm text-muted-foreground">{warehouse.email}</p>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Ansprechpartner */}
-                {warehouse.contactPerson && (
-                  <div className="flex items-start space-x-2">
-                    <User className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="font-medium">Ansprechpartner</p>
-                      <p className="text-sm text-muted-foreground">{warehouse.contactPerson}</p>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Status and Type */}
-                <div className="flex items-start space-x-2">
-                  <div>
-                    <p className="font-medium">Status</p>
-                    <Badge variant={warehouse.isActive !== false ? "success" : "secondary"} className="mt-1">
-                      {warehouse.isActive !== false ? "Aktiv" : "Inaktiv"}
-                    </Badge>
-                  </div>
-                  
-                  {warehouse.type && (
-                    <div className="ml-6">
-                      <p className="font-medium">Typ</p>
-                      <Badge variant="outline" className="mt-1">
-                        {warehouse.type}
-                      </Badge>
-                    </div>
-                  )}
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {Array.isArray(inventory) ? inventory.length : 0}
                 </div>
               </CardContent>
             </Card>
             
-            {/* Lager-Statistiken */}
             <Card>
-              <CardHeader>
-                <CardTitle>Lagerstatistiken</CardTitle>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Automaten</CardTitle>
+                <CardDescription>Zugewiesene Automaten</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Automaten */}
-                  <div className="rounded-lg border p-3">
-                    <h3 className="text-sm font-medium text-muted-foreground">Automaten</h3>
-                    <p className="text-2xl font-bold">{machineAssignments?.length || 0}</p>
-                  </div>
-                  
-                  {/* Produkte */}
-                  <div className="rounded-lg border p-3">
-                    <h3 className="text-sm font-medium text-muted-foreground">Produkte</h3>
-                    <p className="text-2xl font-bold">{Array.isArray(inventory) ? inventory.length : 0}</p>
-                  </div>
-                  
-                  {/* Kritische Artikel */}
-                  <div className="rounded-lg border p-3">
-                    <h3 className="text-sm font-medium text-muted-foreground">Kritische Artikel</h3>
-                    <p className="text-2xl font-bold">
-                      {Array.isArray(inventory) 
-                        ? inventory.filter(item => item.quantity <= (item.minQuantity || 0)).length 
-                        : 0}
-                    </p>
-                  </div>
-                  
-                  {/* Letzte Inventur */}
-                  <div className="rounded-lg border p-3">
-                    <h3 className="text-sm font-medium text-muted-foreground">Letzte Inventur</h3>
-                    <p className="text-sm font-bold">
-                      {inventoryCounts && inventoryCounts.length > 0
-                        ? new Date(inventoryCounts[0].endDate).toLocaleDateString()
-                        : "Keine durchgeführt"}
-                    </p>
-                  </div>
-                </div>
-                
-                {/* Aktionen */}
-                <div className="flex space-x-2 pt-4">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setActiveTab("inventory-count")}
-                  >
-                    <ClipboardCheck className="mr-2 h-4 w-4" />
-                    Inventur durchführen
-                  </Button>
-                  
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setActiveTab("machines")}
-                  >
-                    <Truck className="mr-2 h-4 w-4" />
-                    Automaten zuordnen
-                  </Button>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {Array.isArray(machineAssignments) ? machineAssignments.length : 0}
                 </div>
               </CardContent>
             </Card>
-          </div>
-        </TabsContent>
-
-        {/* Tab: Automaten-Zuordnung */}
-        <TabsContent value="machines" className="space-y-4">
-          <div className="flex justify-between mb-4">
-            <h2 className="text-xl font-bold">Automaten-Zuordnung</h2>
-            <Button onClick={() => setIsAssignDialogOpen(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Automaten zuordnen
-            </Button>
-          </div>
-          
-          {assignmentsLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-lg text-muted-foreground">Automaten werden geladen...</span>
-            </div>
-          ) : machineAssignments.length === 0 ? (
+            
             <Card>
-              <CardContent className="flex flex-col items-center justify-center py-8">
-                <Truck className="h-16 w-16 text-muted-foreground mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Keine Automaten zugeordnet</h3>
-                <p className="text-center text-muted-foreground mb-4">
-                  Diesem Lager sind noch keine Automaten zugeordnet. Fügen Sie Automaten hinzu, 
-                  um deren Bestand aus diesem Lager zu verwalten.
-                </p>
-                <Button onClick={() => setIsAssignDialogOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Automaten zuordnen
-                </Button>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Inventuren</CardTitle>
+                <CardDescription>Durchgeführte Zählungen</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {Array.isArray(inventoryCounts) ? inventoryCounts.length : 0}
+                </div>
               </CardContent>
             </Card>
-          ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Automaten-ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Standort</TableHead>
-                    <TableHead>Zugeordnet am</TableHead>
-                    <TableHead>Notizen</TableHead>
-                    <TableHead className="text-right">Aktionen</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {machineAssignments.map((assignment) => {
-                    const machine = machines.find(m => m.id === assignment.machineId);
-                    
-                    return (
-                      <TableRow key={assignment.id}>
-                        <TableCell>{assignment.machineId}</TableCell>
-                        <TableCell className="font-medium">
-                          {machine?.machineName || "Unbekannter Automat"}
-                        </TableCell>
-                        <TableCell>
-                          {machine?.location || "Kein Standort"}
-                        </TableCell>
-                        <TableCell>
-                          {assignment.assignedAt 
-                            ? new Date(assignment.assignedAt).toLocaleDateString() 
-                            : "Unbekannt"}
-                        </TableCell>
-                        <TableCell>{assignment.notes || "-"}</TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            onClick={() => {
-                              // Dialog für die Entfernung anzeigen oder direkt entfernen
-                              toast({
-                                title: "Nicht implementiert",
-                                description: "Die Funktion zum Entfernen von Automaten ist noch nicht implementiert.",
-                                variant: "destructive"
-                              });
-                            }}
-                          >
-                            Entfernen
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-          
-          {/* Dialog für die Zuordnung von Automaten */}
-          <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Automaten zuordnen</DialogTitle>
-                <DialogDescription>
-                  Wählen Sie einen Automaten aus, der diesem Lager zugeordnet werden soll.
-                </DialogDescription>
-              </DialogHeader>
-              
-              <div className="space-y-4 py-2">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Automat</label>
-                  <Select
-                    value={selectedMachine}
-                    onValueChange={setSelectedMachine}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Automaten auswählen" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {machines
-                        .filter(machine => 
-                          !machineAssignments.some(a => a.machineId === machine.id)
-                        )
-                        .map(machine => (
-                          <SelectItem key={machine.id} value={machine.id.toString()}>
-                            {machine.machineName} {machine.location && `(${machine.location})`}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Notizen (optional)</label>
-                  <Textarea
-                    placeholder="Zusätzliche Informationen zur Zuordnung"
-                    value={assignNotes}
-                    onChange={(e) => setAssignNotes(e.target.value)}
-                  />
-                </div>
-              </div>
-              
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsAssignDialogOpen(false)}
-                >
-                  Abbrechen
-                </Button>
-                <Button
-                  onClick={() => {
-                    // Mutation für die Zuweisung von Automaten ausführen
-                    toast({
-                      title: "Zuordnung gespeichert",
-                      description: "Der Automat wurde erfolgreich diesem Lager zugeordnet.",
-                    });
-                    setIsAssignDialogOpen(false);
-                  }}
-                  disabled={!selectedMachine}
-                >
-                  Zuordnen
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </TabsContent>
-
-        {/* Tab: Warenbestand */}
-        <TabsContent value="inventory" className="space-y-4">
-          <div className="flex justify-between mb-4">
-            <h2 className="text-xl font-bold">Warenbestand im Lager</h2>
-            <div className="flex space-x-2">
-              <Button 
-                variant="outline"
-                onClick={() => {
-                  // Verwende die refetch-Funktion, um die Daten neu zu laden
-                  refetchInventory();
-                  toast({
-                    title: "Lagerbestand aktualisiert",
-                    description: "Die Lagerdaten werden neu geladen."
-                  });
-                }}
-              >
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Aktualisieren
-              </Button>
-              <Button>
-                <ShoppingCart className="mr-2 h-4 w-4" />
-                Nachbestellen
-              </Button>
-            </div>
           </div>
           
-          {/* Das neue WarehouseInventory-Component einbinden */}
-          {warehouse ? (
-            <div className="mt-4">
-              {/* Importiertes WarehouseInventory-Component mit den entsprechenden Props */}
-              {/* @ts-ignore - Falls TypeScript Probleme bei der Verwendung des neuen Components gibt */}
-              <WarehouseInventory
-                warehouseId={Number(id)}
-                inventory={inventory || []}
-                isLoading={inventoryLoading}
-                error={inventoryError}
-                onRefresh={() => refetchInventory()}
-              />
-            </div>
-          ) : inventoryLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-lg text-muted-foreground">Warenbestand wird geladen...</span>
-            </div>
-          ) : inventoryError ? (
-            <Alert variant="destructive" className="my-4">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Fehler beim Laden der Lagerbestände</AlertTitle>
-              <AlertDescription>
-                {(inventoryError as Error).message || "Ein Fehler ist beim Laden der Lagerbestände aufgetreten."}
-              </AlertDescription>
-              <div className="mt-4">
-                <Button 
-                  variant="outline"
-                  onClick={() => {
-                    queryClient.invalidateQueries({ queryKey: [`/api/inventory`, { warehouseId: Number(id), includeZeroStock: true }] });
-                  }}
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Erneut versuchen
-                </Button>
-              </div>
-            </Alert>
-          ) : (Array.isArray(inventory) && inventory.length === 0) ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-8">
-                <Package className="h-16 w-16 text-muted-foreground mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Keine Produkte im Lager</h3>
-                <p className="text-center text-muted-foreground mb-4">
-                  Dieses Lager enthält noch keine Produkte. Produkte werden automatisch hinzugefügt, 
-                  wenn sie von zugeordneten Automaten verwendet werden.
-                </p>
-                <Button 
-                  onClick={() => {
-                    // Manuellen Lagerabgleich auslösen und dann Daten neu laden
-                    toast({
-                      title: "Lagerabgleich wird durchgeführt",
-                      description: "Automatischer Abgleich der Automaten-Produkte mit diesem Lager."
-                    });
-                    
-                    fetch(`/api/warehouse-reconciliation`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ warehouseId: Number(id) })
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                      console.log("Lagerabgleich-Ergebnis:", data);
-                      refetchInventory();
-                      toast({
-                        title: "Lagerabgleich abgeschlossen",
-                        description: `${data.result.productsAdded} Produkte zum Lager hinzugefügt.`
-                      });
-                    })
-                    .catch(err => {
-                      console.error("Fehler beim Lagerabgleich:", err);
-                      toast({
-                        title: "Fehler beim Lagerabgleich",
-                        description: "Bitte versuchen Sie es später erneut.",
-                        variant: "destructive"
-                      });
-                    });
-                  }}
-                >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Lagerabgleich durchführen
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              {/* Suchleiste für Produkte */}
-              <div className="relative w-full max-w-sm mb-4">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Nach Produkten suchen..."
-                  className="pl-8 h-9 w-full"
-                />
-              </div>
-          
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Produkt</TableHead>
-                      <TableHead>Produzent</TableHead>
-                      <TableHead>Einheit</TableHead>
-                      <TableHead className="text-right">Bestand</TableHead>
-                      <TableHead className="text-right">Aktionen</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {inventory && Array.isArray(inventory) && inventory.length > 0 ? (
-                      inventory.map((item) => (
-                        <TableRow key={item.id || item.productId}>
-                          <TableCell className="font-medium">{item.productName}</TableCell>
-                          <TableCell>{item.supplierName || "-"}</TableCell>
-                          <TableCell>{item.units || "Stück"}</TableCell>
-                          <TableCell className="text-right">
-                            <Badge
-                              variant={
-                                (item.quantity || 0) <= 0
-                                  ? "destructive"
-                                  : (item.quantity || 0) <= (item.minQuantity || 5)
-                                  ? "warning"
-                                  : "success"
-                              }
-                            >
-                              {item.quantity || 0}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                // Nachbestellfunktion
-                                toast({
-                                  title: "Nicht implementiert",
-                                  description: "Die Nachbestellfunktion ist noch nicht implementiert.",
-                                });
-                              }}
-                            >
-                              Nachbestellen
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center py-4">
-                          <p className="text-muted-foreground">Keine Produkte im Lagerbestand vorhanden.</p>
-                          <Button 
-                            className="mt-4" 
-                            size="sm" 
-                            onClick={() => {
-                              // Manuellen Lagerabgleich auslösen und dann Daten neu laden
-                              toast({
-                                title: "Lagerabgleich wird durchgeführt",
-                                description: "Automatischer Abgleich der Automaten-Produkte mit diesem Lager."
-                              });
-                              
-                              fetch(`/api/warehouse-reconciliation`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ warehouseId: Number(id) })
-                              })
-                              .then(res => res.json())
-                              .then(data => {
-                                console.log("Lagerabgleich-Ergebnis:", data);
-                                refetchInventory();
-                                toast({
-                                  title: "Lagerabgleich abgeschlossen",
-                                  description: `${data.result.productsAdded} Produkte zum Lager hinzugefügt.`
-                                });
-                              })
-                              .catch(err => {
-                                console.error("Fehler beim Lagerabgleich:", err);
-                                toast({
-                                  title: "Fehler beim Lagerabgleich",
-                                  description: "Bitte versuchen Sie es später erneut.",
-                                  variant: "destructive"
-                                });
-                              });
-                            }}
-                          >
-                            <RefreshCw className="mr-2 h-4 w-4" />
-                            Lagerabgleich durchführen
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </>
-          )}
-        </TabsContent>
-
-        {/* Tab: Inventur */}
-        <TabsContent value="inventory-count" className="space-y-4">
-          <div className="flex justify-between mb-4">
-            <h2 className="text-xl font-bold">Inventur</h2>
-            {!isCountInProgress ? (
-              <Button 
-                onClick={() => {
-                  // Start der neuen Inventur mit der richtigen API-Call
-                  startNewInventoryCountMutation.mutate();
-                  setIsCountInProgress(true);
-                }}
-                disabled={startNewInventoryCountMutation.isPending}
-              >
-                {startNewInventoryCountMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <ClipboardCheck className="mr-2 h-4 w-4" />
-                )}
-                Neue Inventur starten
-              </Button>
-            ) : (
-              <div className="flex space-x-2">
-                <Button variant="outline" onClick={() => setIsCountInProgress(false)}>
-                  Abbrechen
-                </Button>
-                <Button onClick={handleCompleteInventoryCount}>
-                  <Save className="mr-2 h-4 w-4" />
-                  Inventur abschließen
-                </Button>
-              </div>
-            )}
-          </div>
-          
-          {inventoryLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-lg text-muted-foreground">Warenbestand wird geladen...</span>
-            </div>
-          ) : !isCountInProgress ? (
-            // Liste der bisherigen Inventuren
-            <>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Bisherige Inventuren</CardTitle>
-                  <CardDescription>
-                    Übersicht aller durchgeführten Inventuren für dieses Lager.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {inventoryCountsLoading ? (
-                    <div className="flex items-center justify-center h-32">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : !Array.isArray(inventoryCounts) || inventoryCounts.length === 0 ? (
-                    <div className="text-center py-4">
-                      <p className="text-muted-foreground">
-                        Für dieses Lager wurden noch keine Inventuren durchgeführt.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="rounded-md border">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Datum</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Durchgeführt von</TableHead>
-                            <TableHead>Anzahl Artikel</TableHead>
-                            <TableHead>Anpassungen</TableHead>
-                            <TableHead className="text-right">Aktionen</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {inventoryCounts.map((count) => (
-                            <TableRow key={count.id}>
-                              <TableCell>{new Date(count.endDate || count.startDate).toLocaleDateString()}</TableCell>
-                              <TableCell>
-                                <Badge
-                                  variant={
-                                    count.status === "completed"
-                                      ? "success"
-                                      : count.status === "in_progress"
-                                      ? "warning"
-                                      : count.status === "cancelled"
-                                      ? "destructive"
-                                      : "default"
-                                  }
-                                >
-                                  {count.status === "completed"
-                                    ? "Abgeschlossen"
-                                    : count.status === "in_progress"
-                                    ? "In Bearbeitung"
-                                    : count.status === "cancelled"
-                                    ? "Abgebrochen"
-                                    : count.status === "pending"
-                                    ? "Ausstehend"
-                                    : count.status}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>{count.initiatedByName || "-"}</TableCell>
-                              <TableCell>{count.itemCount || "-"}</TableCell>
-                              <TableCell>{count.adjustmentCount || "0"}</TableCell>
-                              <TableCell className="text-right">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    // Details anzeigen
-                                    toast({
-                                      title: "Nicht implementiert",
-                                      description: "Die Detailansicht ist noch nicht implementiert.",
-                                    });
-                                  }}
-                                >
-                                  Details
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </>
-          ) : (
-            // Inventur-Erfassung
-            <>
-              <Card className="mb-4">
-                <CardHeader>
-                  <CardTitle>Inventur durchführen</CardTitle>
-                  <CardDescription>
-                    Zählen Sie den tatsächlichen Bestand im Lager und erfassen Sie die Mengen.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex flex-wrap gap-4 items-center">
-                      <div className="relative flex-1 min-w-[240px]">
-                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          type="search"
-                          placeholder="Nach Produkten, Artikel-Nr. oder Lagerort suchen..."
-                          className="pl-8 h-9 w-full"
-                          value={searchQueryInventory}
-                          onChange={(e) => setSearchQueryInventory(e.target.value)}
-                        />
-                      </div>
-                      
-                      <div className="text-sm text-muted-foreground">
-                        {filteredInventoryItems.length} von {inventoryCountItems.length} Produkten
-                      </div>
-                    </div>
-                    
-                    <div className="rounded-md border">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-[40%]">Produkt</TableHead>
-                            <TableHead>Aktueller Bestand</TableHead>
-                            <TableHead>Gezählter Bestand</TableHead>
-                            <TableHead>Differenz</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {Array.isArray(filteredInventoryItems) && filteredInventoryItems.length > 0 ? (
-                            filteredInventoryItems.map((item) => (
-                              <TableRow key={item.productId}>
-                                <TableCell className="font-medium">{item.productName}</TableCell>
-                                <TableCell>{item.currentQuantity}</TableCell>
-                                <TableCell>
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    value={item.countedQuantity}
-                                    onChange={(e) => 
-                                      handleCountedQuantityChange(
-                                        item.productId, 
-                                        parseInt(e.target.value) || 0
-                                      )
-                                    }
-                                    className="w-20"
-                                  />
-                                </TableCell>
-                                <TableCell>
-                                  <Badge
-                                    variant={
-                                      item.difference === 0
-                                        ? "secondary"
-                                        : item.difference < 0
-                                        ? "destructive"
-                                        : "success"
-                                    }
-                                  >
-                                    {item.difference > 0 ? `+${item.difference}` : item.difference}
-                                  </Badge>
-                                </TableCell>
-                              </TableRow>
-                            ))
-                          ) : (
-                            <TableRow>
-                              <TableCell colSpan={4} className="text-center py-4">
-                                <p className="text-muted-foreground">Keine Produkte im Lagerbestand vorhanden.</p>
-                              </TableCell>
-                            </TableRow>
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Notizen zur Inventur</label>
-                      <Textarea
-                        placeholder="Anmerkungen zur Inventur (optional)"
-                        value={inventoryCountNotes}
-                        onChange={(e) => setInventoryCountNotes(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter className="flex justify-between">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setIsCountInProgress(false)}
-                  >
-                    Abbrechen
-                  </Button>
-                  <div className="flex space-x-2">
-                    <Button 
-                      variant="outline"
-                      onClick={() => {
-                        // Inventur zwischenspeichern
-                        saveTemporaryInventoryCountMutation.mutate({
-                          warehouseId: Number(id),
-                          notes: inventoryCountNotes,
-                          items: inventoryCountItems.map(item => ({
-                            productId: item.productId,
-                            countedQuantity: item.countedQuantity,
-                            difference: item.countedQuantity - item.currentQuantity
-                          }))
-                        });
-                      }}
-                      disabled={saveTemporaryInventoryCountMutation.isPending}
-                    >
-                      {saveTemporaryInventoryCountMutation.isPending && (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      )}
-                      Zwischenspeichern
-                    </Button>
-                    <Button 
-                      onClick={handleCompleteInventoryCount}
-                      disabled={createInventoryCountMutation.isPending}
-                    >
-                      {createInventoryCountMutation.isPending && (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      )}
-                      Inventur abschließen
-                    </Button>
-                  </div>
-                </CardFooter>
-              </Card>
-            </>
-          )}
-        </TabsContent>
-
-        {/* Tab: Warenbewegung */}
-        <TabsContent value="movements" className="space-y-4">
-          <div className="flex justify-between mb-4">
-            <h2 className="text-xl font-bold">Warenbewegungen</h2>
-            <div className="flex space-x-2">
-              <Button onClick={() => setIsAddMovementDialogOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Warenbewegung hinzufügen
-              </Button>
-            </div>
-          </div>
-          
-          {movementsLoading || refillsLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-lg text-muted-foreground">Warenbewegungen werden geladen...</span>
-            </div>
-          ) : !Array.isArray(combinedMovements) || combinedMovements.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-8">
-                <ArrowDownUp className="h-16 w-16 text-muted-foreground mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Keine Warenbewegungen</h3>
-                <p className="text-center text-muted-foreground mb-4">
-                  Für dieses Lager wurden noch keine Warenbewegungen verzeichnet.
-                </p>
-                <Button onClick={() => setIsAddMovementDialogOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Erste Warenbewegung erstellen
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              {/* Suchleiste und Filter für Warenbewegungen */}
-              <div className="flex flex-wrap gap-2 mb-4">
-                <div className="relative flex-1 min-w-[200px]">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="search"
-                    placeholder="Warenbewegungen durchsuchen..."
-                    className="pl-8 h-9 w-full"
-                  />
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Letzte Warenbewegungen</CardTitle>
+              <CardDescription>Die letzten 5 Warenbewegungen für dieses Lager</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {movementsLoading ? (
+                <div className="flex justify-center p-4">
+                  <Loader2 className="h-6 w-6 animate-spin" />
                 </div>
-                <div className="flex space-x-2 flex-wrap">
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="h-9 flex space-x-1 items-center">
-                        <CalendarRange className="h-4 w-4 mr-1" />
-                        <span>Zeitraum</span>
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="range"
-                        selected={{
-                          from: movementFilter.startDate ? new Date(movementFilter.startDate) : undefined,
-                          to: movementFilter.endDate ? new Date(movementFilter.endDate) : undefined,
-                        }}
-                        onSelect={(range: DateRange | undefined) => {
-                          setMovementFilter(prev => ({
-                            ...prev,
-                            startDate: range?.from ? range.from.toISOString() : '',
-                            endDate: range?.to ? range.to.toISOString() : ''
-                          }));
-                        }}
-                        numberOfMonths={2}
-                      />
-                      <div className="flex items-center justify-between p-3 border-t">
-                        <Button
-                          variant="ghost"
-                          onClick={() => {
-                            setMovementFilter(prev => ({
-                              ...prev,
-                              startDate: '',
-                              endDate: ''
-                            }));
-                          }}
-                        >
-                          Zurücksetzen
-                        </Button>
-                        <Button onClick={() => document.dispatchEvent(new Event('keydown'))}>
-                          Anwenden
-                        </Button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-                  
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" className="h-9 flex space-x-1 items-center">
-                        <Filter className="h-4 w-4 mr-1" />
-                        <span>Filter</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>Nach Typ filtern</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      {/* Using individual menu items instead of RadioGroup to avoid RovingFocus issues */}
-                      <DropdownMenuItem
-                        onClick={() => setMovementFilter(prev => ({...prev, movementType: ""}))}
-                      >
-                        {movementFilter.movementType === "" && <Check className="mr-2 h-4 w-4" />}
-                        <span className={movementFilter.movementType === "" ? "font-medium" : ""}>Alle</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => setMovementFilter(prev => ({...prev, movementType: "IN"}))}
-                      >
-                        {movementFilter.movementType === "IN" && <Check className="mr-2 h-4 w-4" />}
-                        <span className={movementFilter.movementType === "IN" ? "font-medium" : ""}>Eingang</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => setMovementFilter(prev => ({...prev, movementType: "OUT"}))}
-                      >
-                        {movementFilter.movementType === "OUT" && <Check className="mr-2 h-4 w-4" />}
-                        <span className={movementFilter.movementType === "OUT" ? "font-medium" : ""}>Ausgang</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => setMovementFilter(prev => ({...prev, movementType: "TRANSFER"}))}
-                      >
-                        {movementFilter.movementType === "TRANSFER" && <Check className="mr-2 h-4 w-4" />}
-                        <span className={movementFilter.movementType === "TRANSFER" ? "font-medium" : ""}>Umlagerung</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => setMovementFilter(prev => ({...prev, movementType: "ADJUSTMENT"}))}
-                      >
-                        {movementFilter.movementType === "ADJUSTMENT" && <Check className="mr-2 h-4 w-4" />}
-                        <span className={movementFilter.movementType === "ADJUSTMENT" ? "font-medium" : ""}>Anpassung</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => setMovementFilter(prev => ({...prev, movementType: "REFILL"}))}
-                      >
-                        {movementFilter.movementType === "REFILL" && <Check className="mr-2 h-4 w-4" />}
-                        <span className={movementFilter.movementType === "REFILL" ? "font-medium" : ""}>Nachfüllung</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-              
-              <div className="rounded-md border">
+              ) : combinedMovements.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Datum</TableHead>
                       <TableHead>Produkt</TableHead>
                       <TableHead>Typ</TableHead>
-                      <TableHead>Menge</TableHead>
-                      <TableHead>Referenz</TableHead>
-                      <TableHead>Durchgeführt von</TableHead>
-                      <TableHead className="text-right">Aktionen</TableHead>
+                      <TableHead className="text-right">Menge</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {combinedMovements && Array.isArray(combinedMovements) && combinedMovements.map((movement) => (
+                    {combinedMovements.slice(0, 5).map((movement) => (
                       <TableRow key={movement.id}>
-                        <TableCell>
-                          {movement.performedAt && movement.performedAt ? new Date(movement.performedAt).toLocaleDateString() : "Unbekannt"}
-                          <div className="text-xs text-muted-foreground">
-                            {movement.performedAt && movement.performedAt ? new Date(movement.performedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
-                          </div>
+                        <TableCell className="font-medium">
+                          {new Date(movement.performedAt || movement.createdAt).toLocaleDateString()}
                         </TableCell>
-                        <TableCell className="font-medium">{movement.productName || "Unbekanntes Produkt"}</TableCell>
+                        <TableCell>{movement.productName}</TableCell>
                         <TableCell>
-                          <Badge
-                            variant={
-                              movement.movementType === "IN"
-                                ? "success"
-                                : movement.movementType === "OUT"
-                                ? "destructive"
-                                : movement.movementType === "TRANSFER"
-                                ? "warning"
-                                : "secondary"
-                            }
-                          >
-                            {movement.movementType === "IN"
-                              ? "Eingang"
-                              : movement.movementType === "OUT"
-                              ? "Ausgang"
-                              : movement.movementType === "TRANSFER"
-                              ? "Umlagerung"
-                              : movement.movementType === "ADJUSTMENT"
-                              ? "Anpassung"
-                              : movement.movementType === "REFILL"
-                              ? "Automaten-Nachfüllung"
-                              : movement.movementType}
+                          <Badge variant={movement.type === 'IN' ? 'default' : 'destructive'}>
+                            {movement.type === 'IN' ? 'Eingang' : 'Ausgang'}
                           </Badge>
                         </TableCell>
-                        <TableCell>
-                          <span className={
-                            movement.movementType === "IN" || movement.movementType === "ADJUSTMENT" && movement.quantity > 0
-                              ? "text-green-600"
-                              : movement.movementType === "OUT" || movement.movementType === "REFILL" || (movement.movementType === "ADJUSTMENT" && movement.quantity < 0)
-                              ? "text-red-600"
-                              : ""
-                          }>
-                            {movement.movementType === "IN" || (movement.movementType === "ADJUSTMENT" && movement.quantity > 0)
-                              ? `+${movement.quantity}`
-                              : movement.quantity}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {movement.referenceType === "REFILL" 
-                            ? `Nachfüllung #${movement.referenceId}`
-                            : movement.referenceType === "ORDER"
-                            ? `Bestellung #${movement.referenceId}`
-                            : movement.referenceType === "INVENTORY_COUNT"
-                            ? `Inventur #${movement.referenceId}`
-                            : movement.referenceType === "MANUAL"
-                            ? "Manuelle Buchung"
-                            : movement.referenceType || "-"}
-                        </TableCell>
-                        <TableCell>{movement.performedByName || "-"}</TableCell>
                         <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              // Details anzeigen
-                              toast({
-                                title: "Nicht implementiert",
-                                description: "Die Detailansicht ist noch nicht implementiert.",
-                              });
-                            }}
-                          >
-                            Details
-                          </Button>
+                          {Math.abs(Number(movement.quantity))}
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
+              ) : (
+                <div className="text-center p-4 text-muted-foreground">
+                  Keine Warenbewegungen gefunden
+                </div>
+              )}
+            </CardContent>
+            <CardFooter>
+              <Button variant="ghost" onClick={() => handleTabChange("movements")}>
+                Alle Warenbewegungen anzeigen
+              </Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="inventory">
+          <Card>
+            <CardHeader>
+              <CardTitle>Lagerbestand</CardTitle>
+              <CardDescription>
+                Aktuelle Bestände aller Produkte in diesem Lager
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <WarehouseInventory 
+                inventory={inventory} 
+                warehouseId={Number(id)}
+                isLoading={inventoryLoading} 
+                error={inventoryError}
+                onRefresh={() => refetchInventory()}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="movements">
+          <Card>
+            <CardHeader>
+              <CardTitle>Warenbewegungen</CardTitle>
+              <CardDescription>
+                Ein- und Ausgänge sowie Anpassungen des Lagerbestands
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {movementsLoading || refillsLoading ? (
+                <div className="flex justify-center p-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+                    <div className="flex items-center">
+                      <Input
+                        placeholder="Suchen..."
+                        className="max-w-xs"
+                        value={movementFilter.productId || ''}
+                        onChange={(e) => setMovementFilter((prev: any) => ({ ...prev, productId: e.target.value }))}
+                      />
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          queryClient.invalidateQueries({ queryKey: ['/api/inventory-movements'] });
+                          queryClient.invalidateQueries({ queryKey: ['/api/refills'] });
+                        }}
+                        className="ml-2"
+                      >
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    
+                    <Button
+                      onClick={() => setIsAddMovementDialogOpen(true)}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Warenbewegung
+                    </Button>
+                  </div>
+                  
+                  {combinedMovements.length > 0 ? (
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Datum</TableHead>
+                            <TableHead>Produkt</TableHead>
+                            <TableHead>Typ</TableHead>
+                            <TableHead className="text-right">Menge</TableHead>
+                            <TableHead>Quelle</TableHead>
+                            <TableHead>Notizen</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {combinedMovements.map((movement) => (
+                            <TableRow key={movement.id}>
+                              <TableCell className="font-medium">
+                                {new Date(movement.performedAt || movement.createdAt).toLocaleDateString()}
+                                &nbsp;
+                                {new Date(movement.performedAt || movement.createdAt).toLocaleTimeString()}
+                              </TableCell>
+                              <TableCell>{movement.productName}</TableCell>
+                              <TableCell>
+                                <Badge variant={movement.type === 'IN' ? 'default' : 'destructive'}>
+                                  {movement.type === 'IN' ? 'Eingang' : 'Ausgang'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {Math.abs(Number(movement.quantity))}
+                              </TableCell>
+                              <TableCell>
+                                {movement.source === 'vendon' ? (
+                                  <div className="flex items-center">
+                                    <ShoppingCart className="h-4 w-4 mr-1" />
+                                    <span>{movement.machineName}</span>
+                                  </div>
+                                ) : (
+                                  <span>{movement.movementType || "Manuell"}</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <span className="truncate max-w-[200px] block">
+                                  {movement.notes || "-"}
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    <div className="text-center p-8 border rounded-md">
+                      <div className="text-muted-foreground">Keine Warenbewegungen gefunden</div>
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="machines">
+          <Card>
+            <CardHeader>
+              <CardTitle>Zugewiesene Automaten</CardTitle>
+              <CardDescription>
+                Automaten, die von diesem Lager beliefert werden
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {assignmentsLoading ? (
+                <div className="flex justify-center p-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-end mb-4">
+                    <Button
+                      onClick={() => setIsAssignDialogOpen(true)}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Automat zuordnen
+                    </Button>
+                  </div>
+                  
+                  {machineAssignments.length > 0 ? (
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Automat</TableHead>
+                            <TableHead>Standort</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Primäres Lager</TableHead>
+                            <TableHead>Aktionen</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {machineAssignments.map((assignment) => (
+                            <TableRow key={assignment.id}>
+                              <TableCell className="font-medium">
+                                <div className="flex items-center">
+                                  <ShoppingCart className="h-4 w-4 mr-2" />
+                                  <span>
+                                    {assignment.machine?.machineName || "Unbekannter Automat"}
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                {assignment.machine?.location || "Unbekannt"}
+                              </TableCell>
+                              <TableCell>
+                                <Badge 
+                                  variant={assignment.machine?.status === 'active' ? 'default' : 'secondary'}
+                                >
+                                  {assignment.machine?.status === 'active' ? 'Aktiv' : assignment.machine?.status || 'Unbekannt'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {assignment.isPrimary ? (
+                                  <Badge variant="default">Primär</Badge>
+                                ) : (
+                                  <Badge variant="outline">Sekundär</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => setLocation(`/machines/${assignment.machine?.id}`)}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon"
+                                    onClick={() => {
+                                      if (confirm('Möchten Sie diese Zuordnung wirklich entfernen?')) {
+                                        removeAssignmentMutation.mutate(assignment.id);
+                                      }
+                                    }}
+                                  >
+                                    <Trash className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    <div className="text-center p-8 border rounded-md">
+                      <div className="text-muted-foreground">
+                        Keine Automaten diesem Lager zugewiesen
+                      </div>
+                      <Button
+                        className="mt-4"
+                        onClick={() => setIsAssignDialogOpen(true)}
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Ersten Automaten zuordnen
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="inventory-count">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <CardTitle>Inventurzählung</CardTitle>
+                  <CardDescription>
+                    Bestandsaufnahme und Abgleich der Lagerbestände
+                  </CardDescription>
+                </div>
+                
+                {!isCountInProgress && !activeInventoryCount && (
+                  <Button
+                    onClick={() => setIsCountInProgress(true)}
+                  >
+                    <ClipboardCheck className="mr-2 h-4 w-4" />
+                    Neue Inventur starten
+                  </Button>
+                )}
               </div>
-            </>
-          )}
+            </CardHeader>
+            <CardContent>
+              {inventoryCountsLoading ? (
+                <div className="flex justify-center p-8">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              ) : isCountInProgress ? (
+                // Formular zum Starten einer neuen Inventur
+                <div className="border rounded-md p-6">
+                  <div className="space-y-4">
+                    <div className="text-lg font-medium">Neue Inventurzählung starten</div>
+                    <div className="text-sm text-muted-foreground">
+                      Starten Sie eine neue Inventurzählung, um den aktuellen Lagerbestand zu erfassen.
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="notes">Anmerkungen zur Inventur</Label>
+                      <Textarea 
+                        id="notes" 
+                        value={inventoryCountNotes}
+                        onChange={(e) => setInventoryCountNotes(e.target.value)}
+                        placeholder="Optionale Anmerkungen zur Inventur"
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-end gap-2 pt-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setIsCountInProgress(false);
+                          setInventoryCountNotes("");
+                        }}
+                      >
+                        Abbrechen
+                      </Button>
+                      <Button
+                        onClick={startInventoryCount}
+                        disabled={startNewInventoryCountMutation.isPending}
+                      >
+                        {startNewInventoryCountMutation.isPending && (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
+                        Inventur starten
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : activeInventoryCount ? (
+                // Aktive Inventurzählung anzeigen
+                <div>
+                  <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-medium mb-1">Laufende Inventurzählung</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Erfassen Sie die tatsächlichen Mengen für jeden Artikel im Lager
+                      </p>
+                    </div>
+                    
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Button 
+                        variant="outline" 
+                        onClick={cancelInventoryCount}
+                      >
+                        <Trash className="mr-2 h-4 w-4" />
+                        Abbrechen
+                      </Button>
+                      
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button>
+                            <Save className="mr-2 h-4 w-4" />
+                            Speichern
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem 
+                            onClick={() => saveAndCompleteCount(false)}
+                            disabled={saveInventoryCountMutation.isPending}
+                          >
+                            {saveInventoryCountMutation.isPending && (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            )}
+                            Speichern und abschließen
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => saveAndCompleteCount(true)}
+                            disabled={saveInventoryCountMutation.isPending}
+                          >
+                            {saveInventoryCountMutation.isPending && (
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            )}
+                            Speichern, abschließen und anpassen
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                  
+                  <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                    <div className="relative w-full max-w-sm">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Nach Produkt, Artikelnummer oder Lagerort suchen..."
+                        className="pl-8"
+                        value={searchQueryInventory}
+                        onChange={(e) => setSearchQueryInventory(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="rounded-md border">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Produkt</TableHead>
+                          <TableHead>Artikelnummer</TableHead>
+                          <TableHead className="text-right">Systembestand</TableHead>
+                          <TableHead className="text-right">Gezählter Bestand</TableHead>
+                          <TableHead className="text-right">Differenz</TableHead>
+                          <TableHead className="text-center">Aktion</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredInventoryItems.length > 0 ? (
+                          filteredInventoryItems.map((item, index) => {
+                            const difference = Number(item.countedQuantity) - Number(item.currentQuantity);
+                            return (
+                              <TableRow key={`${item.productId}-${index}`}>
+                                <TableCell className="font-medium">{item.productName}</TableCell>
+                                <TableCell>{item.sku || "-"}</TableCell>
+                                <TableCell className="text-right">{item.currentQuantity}</TableCell>
+                                <TableCell className="text-right">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={item.countedQuantity}
+                                    onChange={(e) => updateCountedQuantity(item.productId, parseInt(e.target.value) || 0)}
+                                    className="w-24 text-right inline-block"
+                                  />
+                                </TableCell>
+                                <TableCell className={`text-right ${difference !== 0 ? (difference > 0 ? 'text-green-600' : 'text-red-600') : ''}`}>
+                                  {difference > 0 ? '+' : ''}{difference}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => saveCountedItem(item)}
+                                    disabled={saveInventoryCountItemMutation.isPending}
+                                    title="Artikel speichern"
+                                  >
+                                    {saveInventoryCountItemMutation.isPending ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Check className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                        ) : (
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-center py-6">
+                              <div className="text-muted-foreground">Keine Produkte gefunden</div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              ) : (
+                // Liste aller bisherigen Inventuren
+                <div>
+                  <div className="flex justify-between items-center mb-4">
+                    <div>
+                      <h3 className="text-lg font-medium">Vergangene Inventurzählungen</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Übersicht aller durchgeführten Inventuren
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {inventoryCounts.length > 0 ? (
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Datum</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Artikel</TableHead>
+                            <TableHead className="text-right">Anpassungen</TableHead>
+                            <TableHead>Durchgeführt von</TableHead>
+                            <TableHead>Aktionen</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {inventoryCounts.map((count) => (
+                            <TableRow key={count.id}>
+                              <TableCell className="font-medium">
+                                {new Date(count.startDate).toLocaleDateString()}
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant={count.status === 'completed' ? 'default' : 'secondary'}>
+                                  {count.status === 'completed' ? 'Abgeschlossen' : 
+                                   count.status === 'in_progress' ? 'In Bearbeitung' : count.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right">{count.itemCount || 0}</TableCell>
+                              <TableCell className="text-right">{count.adjustmentCount || 0}</TableCell>
+                              <TableCell>{count.initiatedByName || "System"}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => {
+                                      setSelectedInventoryCount(count);
+                                      setInventoryDetailDialogOpen(true);
+                                    }}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                  
+                                  {count.status === 'in_progress' && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => {
+                                        setActiveInventoryCount(count.id);
+                                      }}
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                  
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => {
+                                      if (confirm('Möchten Sie diese Inventurzählung wirklich löschen?')) {
+                                        deleteInventoryCountMutation.mutate(count.id);
+                                      }
+                                    }}
+                                  >
+                                    <Trash className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    <div className="text-center p-8 border rounded-md">
+                      <div className="text-muted-foreground">
+                        Keine Inventurzählungen gefunden
+                      </div>
+                      <Button
+                        className="mt-4"
+                        onClick={() => setIsCountInProgress(true)}
+                      >
+                        <ClipboardCheck className="mr-2 h-4 w-4" />
+                        Erste Inventur starten
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
       
-      {/* Dialog zum Hinzufügen einer Warenbewegung */}
-      <Dialog open={isAddMovementDialogOpen} onOpenChange={setIsAddMovementDialogOpen}>
-        <DialogContent className="max-w-md">
+      {/* Dialog: Automaten zuordnen */}
+      <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Warenbewegung hinzufügen</DialogTitle>
+            <DialogTitle>Automat zuordnen</DialogTitle>
             <DialogDescription>
-              Erfassen Sie eine neue Warenbewegung für das Lager.
+              Weisen Sie einen Automaten diesem Lager zu
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4 py-2">
+          <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Bewegungstyp</label>
-              <div className="flex space-x-2">
-                <Button 
-                  variant={movementType === "IN" ? "default" : "outline"}
-                  size="sm" 
-                  className="flex-1"
-                  onClick={() => setMovementType("IN")}
-                >
-                  Eingang
-                </Button>
-                <Button 
-                  variant={movementType === "OUT" ? "default" : "outline"}
-                  size="sm" 
-                  className="flex-1"
-                  onClick={() => setMovementType("OUT")}
-                >
-                  Ausgang
-                </Button>
-                <Button 
-                  variant={movementType === "TRANSFER" ? "default" : "outline"}
-                  size="sm" 
-                  className="flex-1"
-                  onClick={() => setMovementType("TRANSFER")}
-                >
-                  Umlagern
-                </Button>
-                <Button 
-                  variant={movementType === "ADJUSTMENT" ? "default" : "outline"}
-                  size="sm" 
-                  className="flex-1"
-                  onClick={() => setMovementType("ADJUSTMENT")}
-                >
-                  Anpassen
-                </Button>
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Produkt</label>
-              <Select 
-                defaultValue="" 
-                value={selectedProduct}
-                onValueChange={setSelectedProduct}
+              <Label htmlFor="machine">Automat auswählen</Label>
+              <Select
+                value={selectedMachine?.id?.toString() || ""}
+                onValueChange={(value) => {
+                  const machine = machines.find(m => m.id.toString() === value);
+                  setSelectedMachine(machine || null);
+                }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Produkt auswählen" />
+                  <SelectValue placeholder="Bitte wählen Sie einen Automaten" />
                 </SelectTrigger>
                 <SelectContent>
-                  {Array.isArray(inventory) && inventory.map(item => (
-                    <SelectItem 
-                      key={item.productId} 
-                      value={String(item.productId)}
-                    >
-                      {item.productName || "Unbekanntes Produkt"} 
-                      ({item.quantity || 0} verfügbar)
-                    </SelectItem>
-                  ))}
+                  {machinesLoading ? (
+                    <div className="flex justify-center p-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    </div>
+                  ) : machines.length > 0 ? (
+                    machines.map((machine) => (
+                      <SelectItem key={machine.id} value={machine.id.toString()}>
+                        {machine.machineName} ({machine.location})
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <div className="p-2 text-sm text-muted-foreground">
+                      Keine Automaten verfügbar
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
             
             <div className="space-y-2">
-              <label className="text-sm font-medium">Menge</label>
-              <Input
-                type="number"
-                min="1"
-                value={movementQuantity}
-                onChange={(e) => setMovementQuantity(parseInt(e.target.value) || 1)}
-              />
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="isPrimary" 
+                  checked={selectedMachine?.isPrimary} 
+                  onCheckedChange={(checked) => 
+                    setSelectedMachine(prev => ({ ...prev, isPrimary: !!checked }))
+                  }
+                />
+                <Label htmlFor="isPrimary">Primäres Lager</Label>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Wenn aktiviert, wird dieses Lager als Hauptquelle für den Automaten verwendet
+              </p>
             </div>
             
             <div className="space-y-2">
-              <label className="text-sm font-medium">Notizen (optional)</label>
-              <Textarea
-                placeholder="Grund für die Warenbewegung"
-                value={movementNotes}
-                onChange={(e) => setMovementNotes(e.target.value)}
+              <Label htmlFor="assignNotes">Anmerkungen</Label>
+              <Textarea 
+                id="assignNotes" 
+                value={assignNotes}
+                onChange={(e) => setAssignNotes(e.target.value)}
+                placeholder="Optionale Anmerkungen zur Zuordnung"
               />
             </div>
           </div>
           
           <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsAssignDialogOpen(false)}
+            >
+              Abbrechen
+            </Button>
             <Button
-              variant="outline"
+              onClick={() => {
+                if (selectedMachine) {
+                  assignMachineMutation.mutate({
+                    machineId: selectedMachine.id,
+                    warehouseId: Number(id),
+                    isPrimary: !!selectedMachine.isPrimary,
+                    notes: assignNotes
+                  });
+                }
+              }}
+              disabled={!selectedMachine || assignMachineMutation.isPending}
+            >
+              {assignMachineMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Zuordnen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Dialog: Inventur Details */}
+      <Dialog open={inventoryDetailDialogOpen} onOpenChange={setInventoryDetailDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Inventur-Details</DialogTitle>
+            <DialogDescription>
+              Details der Inventurzählung vom {selectedInventoryCount ? new Date(selectedInventoryCount.startDate).toLocaleDateString() : ''}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedInventoryCount && (
+            <ScrollArea className="h-[60vh]">
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="text-sm font-medium">Status</h4>
+                    <Badge variant={selectedInventoryCount.status === 'completed' ? 'default' : 'secondary'} className="mt-1">
+                      {selectedInventoryCount.status === 'completed' ? 'Abgeschlossen' : 
+                       selectedInventoryCount.status === 'in_progress' ? 'In Bearbeitung' : selectedInventoryCount.status}
+                    </Badge>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-sm font-medium">Durchgeführt von</h4>
+                    <p className="text-sm">{selectedInventoryCount.initiatedByName || "System"}</p>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-sm font-medium">Start-Datum</h4>
+                    <p className="text-sm">{new Date(selectedInventoryCount.startDate).toLocaleString()}</p>
+                  </div>
+                  
+                  <div>
+                    <h4 className="text-sm font-medium">End-Datum</h4>
+                    <p className="text-sm">
+                      {selectedInventoryCount.endDate ? 
+                        new Date(selectedInventoryCount.endDate).toLocaleString() : "Noch nicht abgeschlossen"}
+                    </p>
+                  </div>
+                </div>
+                
+                {selectedInventoryCount.notes && (
+                  <div>
+                    <h4 className="text-sm font-medium mb-1">Anmerkungen</h4>
+                    <div className="p-3 bg-muted rounded-md text-sm">
+                      {selectedInventoryCount.notes}
+                    </div>
+                  </div>
+                )}
+                
+                <Separator />
+                
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Inventurartikel</h4>
+                  
+                  {selectedInventoryCount.items && selectedInventoryCount.items.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Produkt</TableHead>
+                          <TableHead className="text-right">Systembestand</TableHead>
+                          <TableHead className="text-right">Gezählter Bestand</TableHead>
+                          <TableHead className="text-right">Differenz</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedInventoryCount.items.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell className="font-medium">{item.productName || "Unbekannt"}</TableCell>
+                            <TableCell className="text-right">{item.currentQuantity}</TableCell>
+                            <TableCell className="text-right">{item.countedQuantity}</TableCell>
+                            <TableCell 
+                              className={`text-right ${
+                                item.difference !== 0 
+                                  ? (item.difference > 0 ? 'text-green-600' : 'text-red-600') 
+                                  : ''
+                              }`}
+                            >
+                              {item.difference > 0 ? '+' : ''}{item.difference}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <div className="text-center p-4 border rounded-md">
+                      <p className="text-sm text-muted-foreground">Keine Artikel gefunden</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </ScrollArea>
+          )}
+          
+          <DialogFooter>
+            <Button onClick={() => setInventoryDetailDialogOpen(false)}>
+              Schließen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Dialog: Warenbewegung hinzufügen */}
+      <Dialog open={isAddMovementDialogOpen} onOpenChange={setIsAddMovementDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Warenbewegung hinzufügen</DialogTitle>
+            <DialogDescription>
+              Erfassen Sie eine neue Warenbewegung für dieses Lager
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="movementType">Bewegungstyp</Label>
+              <Select
+                value={movementType}
+                onValueChange={(value: any) => setMovementType(value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Bitte wählen Sie einen Typ" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="IN">Wareneingang</SelectItem>
+                  <SelectItem value="OUT">Warenausgang</SelectItem>
+                  <SelectItem value="TRANSFER">Umlagerung</SelectItem>
+                  <SelectItem value="ADJUSTMENT">Bestandskorrektur</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="product">Produkt</Label>
+              <Select
+                value={selectedProduct}
+                onValueChange={setSelectedProduct}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Bitte wählen Sie ein Produkt" />
+                </SelectTrigger>
+                <SelectContent>
+                  {inventoryLoading ? (
+                    <div className="flex justify-center p-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    </div>
+                  ) : inventory.length > 0 ? (
+                    inventory.map((item) => (
+                      <SelectItem key={item.productId} value={item.productId.toString()}>
+                        {item.productName} ({item.sku || "Keine SKU"})
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <div className="p-2 text-sm text-muted-foreground">
+                      Keine Produkte verfügbar
+                    </div>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="quantity">Menge</Label>
+              <Input
+                id="quantity"
+                type="number"
+                min={1}
+                value={movementQuantity}
+                onChange={(e) => setMovementQuantity(parseInt(e.target.value) || 1)}
+              />
+            </div>
+            
+            {movementType === "TRANSFER" && (
+              <div className="space-y-2">
+                <Label htmlFor="destinationWarehouse">Ziellager</Label>
+                <Select
+                  value={selectedDestinationWarehouse}
+                  onValueChange={setSelectedDestinationWarehouse}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Bitte wählen Sie ein Ziellager" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {warehousesLoading ? (
+                      <div className="flex justify-center p-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      </div>
+                    ) : warehouses.length > 0 ? (
+                      warehouses
+                        .filter((w) => w.id.toString() !== id)
+                        .map((warehouse) => (
+                          <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
+                            {warehouse.name}
+                          </SelectItem>
+                        ))
+                    ) : (
+                      <div className="p-2 text-sm text-muted-foreground">
+                        Keine anderen Lager verfügbar
+                      </div>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <Label htmlFor="notes">Anmerkungen</Label>
+              <Textarea 
+                id="notes" 
+                value={movementNotes}
+                onChange={(e) => setMovementNotes(e.target.value)}
+                placeholder="Optionale Anmerkungen zur Warenbewegung"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
               onClick={() => setIsAddMovementDialogOpen(false)}
             >
               Abbrechen
             </Button>
             <Button
               onClick={() => {
-                // Warenbewegungsdaten für die API vorbereiten
-                const movementData = {
-                  warehouseId: Number(id),
-                  productId: selectedProduct ? Number(selectedProduct) : 0,
+                if (!selectedProduct) {
+                  toast({
+                    title: "Fehler",
+                    description: "Bitte wählen Sie ein Produkt aus.",
+                    variant: "destructive"
+                  });
+                  return;
+                }
+                
+                if (movementType === "TRANSFER" && !selectedDestinationWarehouse) {
+                  toast({
+                    title: "Fehler",
+                    description: "Bitte wählen Sie ein Ziellager aus.",
+                    variant: "destructive"
+                  });
+                  return;
+                }
+                
+                const movementData: any = {
+                  productId: Number(selectedProduct),
                   quantity: movementQuantity,
-                  type: movementType,
-                  notes: movementNotes,
-                  destinationWarehouseId: movementType === "TRANSFER" && selectedDestinationWarehouse 
-                    ? Number(selectedDestinationWarehouse) 
-                    : undefined
+                  movementType: movementType,
+                  notes: movementNotes || undefined
                 };
                 
-                // Mutation aufrufen, um die Warenbewegung zu erstellen
-                createInventoryMovementMutation.mutate(movementData);
+                if (movementType === "OUT" || movementType === "ADJUSTMENT") {
+                  // Für Ausgänge und Korrekturen wird die Menge negativ
+                  movementData.quantity = -movementQuantity;
+                }
+                
+                if (movementType === "TRANSFER") {
+                  // Für Umlagerungen werden zusätzliche Felder benötigt
+                  movementData.sourceWarehouseId = Number(id);
+                  movementData.destinationWarehouseId = Number(selectedDestinationWarehouse);
+                } else {
+                  // Für normale Bewegungen nur das Lager
+                  movementData.warehouseId = Number(id);
+                }
+                
+                createMovementMutation.mutate(movementData);
               }}
-              disabled={!selectedProduct || movementQuantity <= 0 || (movementType === "TRANSFER" && !selectedDestinationWarehouse)}
+              disabled={
+                !selectedProduct || 
+                (movementType === "TRANSFER" && !selectedDestinationWarehouse) ||
+                createMovementMutation.isPending
+              }
             >
-              <Save className="mr-2 h-4 w-4" />
-              {createInventoryMovementMutation.isPending ? "Speichern..." : "Speichern"}
+              {createMovementMutation.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Hinzufügen
             </Button>
           </DialogFooter>
         </DialogContent>
