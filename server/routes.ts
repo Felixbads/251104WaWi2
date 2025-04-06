@@ -276,6 +276,146 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // GET /warehouses/:id/movements - Warenbewegungen für ein bestimmtes Lager abrufen
+  app.get(`${API_PREFIX}/warehouses/:id/movements`, async (req: Request, res: Response) => {
+    try {
+      const warehouseId = parseInt(req.params.id);
+      if (isNaN(warehouseId)) {
+        return res.status(400).json({ error: "Ungültige Lager-ID" });
+      }
+      
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
+      const productId = req.query.productId ? parseInt(req.query.productId as string) : undefined;
+      const productName = req.query.productName as string | undefined;
+      const movementType = req.query.movementType as string | undefined;
+      const startDateStr = req.query.startDate as string | undefined;
+      const endDateStr = req.query.endDate as string | undefined;
+      
+      // Datum-Parameter verarbeiten
+      const startDate = startDateStr ? new Date(startDateStr) : undefined;
+      const endDate = endDateStr ? new Date(endDateStr) : undefined;
+      
+      console.log(`Warenbewegungen abfragen für Lager ${warehouseId}, ` +
+        `Zeitraum: ${startDate?.toISOString() || 'unbegrenzt'} bis ${endDate?.toISOString() || 'jetzt'}, ` + 
+        `Produkt: ${productName || productId || 'alle'}, Typ: ${movementType || 'alle'}`);
+      
+      // 1. Hole alle Warenbewegungen, bei denen dieses Lager als Quelle definiert ist
+      const sourceMovements = await storage.getInventoryMovements({
+        sourceWarehouseId: warehouseId,
+        ...(productId ? { productId } : {}),
+        ...(movementType ? { movementType } : {}),
+        ...(startDate ? { startDate } : {}),
+        ...(endDate ? { endDate } : {}),
+        limit,
+        offset
+      });
+      
+      // 2. Hole alle Warenbewegungen, bei denen dieses Lager als Ziel definiert ist
+      const destMovements = await storage.getInventoryMovements({
+        destinationWarehouseId: warehouseId,
+        ...(productId ? { productId } : {}),
+        ...(movementType ? { movementType } : {}),
+        ...(startDate ? { startDate } : {}),
+        ...(endDate ? { endDate } : {}),
+        limit,
+        offset
+      });
+      
+      // 3. Hole auch alle Refills (Auffüllungen), die mit diesem Lager verbunden sind
+      const refills = await storage.getRefills({
+        warehouseId,
+        ...(startDate ? { startDate } : {}),
+        ...(endDate ? { endDate } : {}),
+        limit,
+        offset
+      });
+      
+      // Refills in ein einheitliches Format umwandeln, das mit den Warenbewegungen kompatibel ist
+      const refillMovements = refills.map(refill => ({
+        id: refill.id,
+        productId: refill.productId, 
+        productName: refill.productName,
+        quantity: refill.quantity,
+        movementType: 'REFILL',
+        referenceType: 'refill',
+        referenceId: refill.id.toString(),
+        source: 'vendon',
+        machineId: refill.machineId,
+        machineName: refill.machineName,
+        notes: `Refill ID: ${refill.id}`,
+        createdAt: refill.createdAt,
+        performedAt: refill.datetime,
+        performedBy: null,
+        performedByName: refill.operator,
+        sourceWarehouseId: warehouseId,
+        sourceWarehouseName: null, // Könnte hier den Lagernamen abrufen, falls nötig
+        destinationWarehouseId: null,
+        destinationWarehouseName: null,
+        unit: 'Stück',
+        type: 'OUT', // Refills sind immer Ausgänge aus dem Lager
+        // Zusätzliche Refill-spezifische Informationen
+        previousStock: refill.previousStock,
+        currentStock: refill.currentStock,
+        vendonId: refill.vendonId,
+        position: refill.position
+      }));
+      
+      // Alle Bewegungen kombinieren und nach Datum sortieren (neueste zuerst)
+      const combinedMovements = [...sourceMovements, ...destMovements, ...refillMovements].sort((a, b) => {
+        const dateA = new Date(a.performedAt || a.createdAt);
+        const dateB = new Date(b.performedAt || b.createdAt);
+        return dateB.getTime() - dateA.getTime();
+      });
+      
+      // Wenn nach Produktname gefiltert wird, filtern wir die Liste
+      let filteredMovements = combinedMovements;
+      if (productName) {
+        filteredMovements = combinedMovements.filter(item => 
+          item.productName && item.productName.toLowerCase().includes(productName.toLowerCase())
+        );
+      }
+      
+      // Transformiere die Daten für die Frontendanzeige
+      const formattedMovements = filteredMovements.map(item => ({
+        id: item.id,
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        type: item.type || (item.sourceWarehouseId === warehouseId ? 'OUT' : 'IN'),
+        movementType: item.movementType,
+        referenceType: item.referenceType,
+        referenceId: item.referenceId,
+        source: item.referenceType === 'vendon' || item.source === 'vendon' ? 'vendon' : 'manual',
+        machineId: item.machineId,
+        machineName: item.machineName,
+        notes: item.notes,
+        createdAt: item.createdAt,
+        performedAt: item.performedAt,
+        performedBy: item.performedBy,
+        performedByName: item.performedByName,
+        sourceWarehouseId: item.sourceWarehouseId,
+        sourceWarehouseName: item.sourceWarehouseName,
+        destinationWarehouseId: item.destinationWarehouseId,
+        destinationWarehouseName: item.destinationWarehouseName,
+        unit: item.unit || 'Stück',
+        // Refill-spezifische Informationen, wenn vorhanden
+        previousStock: item.previousStock,
+        currentStock: item.currentStock,
+        position: item.position,
+        vendonId: item.vendonId
+      }));
+      
+      res.json(formattedMovements);
+    } catch (error) {
+      console.error(`Error fetching warehouse movements for warehouse ID ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: 'Failed to fetch warehouse movements', 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
   // GET /machine-warehouse-assignments - Automaten-Lager-Zuordnungen abrufen
   app.get(`${API_PREFIX}/machine-warehouse-assignments`, async (req: Request, res: Response) => {
     try {

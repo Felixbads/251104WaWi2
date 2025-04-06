@@ -4,7 +4,7 @@ import {
   Warehouse, Search, FilterX, 
   RefreshCw, PlusSquare, Loader2, AlertTriangle,
   Package, MapPin, Users, Phone, Mail, Plus,
-  MonitorSmartphone
+  MonitorSmartphone, Truck, RotateCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -280,7 +280,7 @@ export default function WarehouseList() {
                         <TabsList className="grid w-full grid-cols-3">
                           <TabsTrigger value="inventory">Bestand</TabsTrigger>
                           <TabsTrigger value="details">Details</TabsTrigger>
-                          <TabsTrigger value="contacts">Kontakte</TabsTrigger>
+                          <TabsTrigger value="movements">Warenbewegungen</TabsTrigger>
                         </TabsList>
                         
                         <TabsContent value="inventory" className="mt-4">
@@ -367,43 +367,34 @@ export default function WarehouseList() {
                           </Accordion>
                         </TabsContent>
                         
-                        <TabsContent value="contacts" className="mt-4">
-                          {warehouse.contacts && warehouse.contacts.length > 0 ? (
-                            <div className="space-y-4">
-                              {warehouse.contacts.map((contact: any) => (
-                                <div key={contact.id} className="border rounded-md p-3">
-                                  <div className="flex items-center gap-2">
-                                    <Users className="h-4 w-4 text-muted-foreground" />
-                                    <span className="font-medium">{contact.name}</span>
-                                  </div>
-                                  
-                                  {contact.position && (
-                                    <div className="text-sm text-muted-foreground ml-6">
-                                      {contact.position}
-                                    </div>
-                                  )}
-                                  
-                                  <div className="mt-2 ml-6 space-y-1">
-                                    {contact.phone && (
-                                      <div className="flex items-center gap-2 text-sm">
-                                        <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                                        <span>{contact.phone}</span>
-                                      </div>
-                                    )}
-                                    
-                                    {contact.email && (
-                                      <div className="flex items-center gap-2 text-sm">
-                                        <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                                        <span>{contact.email}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
+                        <TabsContent value="movements" className="mt-4">
+                          <div className="flex justify-between items-center mb-4">
+                            <h4 className="text-sm font-medium">Warenbewegungen</h4>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => window.location.href = `/lager/${warehouse.id}/bewegungen`}
+                            >
+                              <Truck className="h-3.5 w-3.5 mr-1" />
+                              Alle anzeigen
+                            </Button>
+                          </div>
+                          
+                          <div className="border rounded-md p-3">
+                            <div className="text-sm text-muted-foreground mb-2">
+                              <div className="flex justify-center">
+                                <Button 
+                                  variant="link" 
+                                  size="sm" 
+                                  className="text-xs"
+                                  onClick={() => window.location.href = `/lager/${warehouse.id}/bewegungen`}
+                                >
+                                  <RotateCw className="h-3.5 w-3.5 mr-1" />
+                                  Hier klicken, um alle Warenbewegungen zu sehen
+                                </Button>
+                              </div>
                             </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">Keine Kontakte hinterlegt.</p>
-                          )}
+                          </div>
                         </TabsContent>
                       </Tabs>
                     </div>
