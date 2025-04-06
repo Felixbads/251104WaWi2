@@ -23,7 +23,11 @@ export default function InventoryItems() {
 
   // Query für Lagerbestände
   const { data: inventoryItems, isLoading: itemsLoading, error } = useQuery({
-    queryKey: ['/api/inventory', { warehouseId: selectedWarehouse !== 'all' ? parseInt(selectedWarehouse) : undefined, critical: showCritical }],
+    queryKey: ['/api/inventory', { 
+      warehouseId: selectedWarehouse !== 'all' ? parseInt(selectedWarehouse) : undefined, 
+      critical: showCritical,
+      includeZeroStock: true // Immer alle Produkte anzeigen, auch mit Nullbestand
+    }],
     staleTime: 1000 * 30, // 30 Sekunden
   });
 

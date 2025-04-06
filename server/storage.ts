@@ -2044,8 +2044,9 @@ export class DatabaseStorage implements IStorage {
       );
     }
     
-    // Wenn includeZeroStock nicht angegeben oder false ist, zeige nur Artikel mit Bestand > 0
-    if (!params?.includeZeroStock) {
+    // Nur wenn includeZeroStock explizit auf false gesetzt ist, filtern wir nach Bestand > 0
+    // Für die allgemeine Inventaransicht setzen wir keinen Filter
+    if (params?.includeZeroStock === false) {
       conditions.push(gt(inventoryItems.quantity, 0));
     }
     
