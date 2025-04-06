@@ -147,13 +147,13 @@ export function statisticsRoutes(app: any) {
           COALESCE(${transactions.priceVat}, 0) - 
           COALESCE((
             CASE 
-              WHEN products.depositPrice IS NOT NULL THEN products.depositPrice 
+              WHEN p.deposit_price IS NOT NULL THEN p.deposit_price 
               ELSE 0
             END
           ), 0) - 
           COALESCE((
             CASE 
-              WHEN products.costPrice IS NOT NULL THEN products.costPrice 
+              WHEN p.cost_price IS NOT NULL THEN p.cost_price 
               ELSE ${transactions.price} * 0.6 -- Fallback: Schätzung der Kosten als 60% des Verkaufspreises
             END
           ), 0)
@@ -166,13 +166,13 @@ export function statisticsRoutes(app: any) {
                 COALESCE(${transactions.priceVat}, 0) - 
                 COALESCE((
                   CASE 
-                    WHEN products.depositPrice IS NOT NULL THEN products.depositPrice 
+                    WHEN p.deposit_price IS NOT NULL THEN p.deposit_price 
                     ELSE 0
                   END
                 ), 0) - 
                 COALESCE((
                   CASE 
-                    WHEN products.costPrice IS NOT NULL THEN products.costPrice 
+                    WHEN p.cost_price IS NOT NULL THEN p.cost_price 
                     ELSE ${transactions.price} * 0.6
                   END
                 ), 0)
@@ -181,7 +181,7 @@ export function statisticsRoutes(app: any) {
           END, 0)`
       })
       .from(transactions)
-      .leftJoin(products, eq(transactions.productId, products.vendonId))
+      .leftJoin(products.as('p'), eq(transactions.productId, sql`p.vendon_id`))
       .where(and(
         eq(transactions.machineId, machineId),
         sql`datetime >= ${startDateStr}`,
@@ -194,13 +194,13 @@ export function statisticsRoutes(app: any) {
         COALESCE(${transactions.priceVat}, 0) - 
         COALESCE((
           CASE 
-            WHEN products.depositPrice IS NOT NULL THEN products.depositPrice 
+            WHEN p.deposit_price IS NOT NULL THEN p.deposit_price 
             ELSE 0
           END
         ), 0) - 
         COALESCE((
           CASE 
-            WHEN products.costPrice IS NOT NULL THEN products.costPrice 
+            WHEN p.cost_price IS NOT NULL THEN p.cost_price 
             ELSE ${transactions.price} * 0.6
           END
         ), 0)
@@ -217,13 +217,13 @@ export function statisticsRoutes(app: any) {
           COALESCE(${transactions.priceVat}, 0) - 
           COALESCE((
             CASE 
-              WHEN products.depositPrice IS NOT NULL THEN products.depositPrice 
+              WHEN p.deposit_price IS NOT NULL THEN p.deposit_price 
               ELSE 0
             END
           ), 0) - 
           COALESCE((
             CASE 
-              WHEN products.costPrice IS NOT NULL THEN products.costPrice 
+              WHEN p.cost_price IS NOT NULL THEN p.cost_price 
               ELSE ${transactions.price} * 0.6
             END
           ), 0)
@@ -236,13 +236,13 @@ export function statisticsRoutes(app: any) {
                 COALESCE(${transactions.priceVat}, 0) - 
                 COALESCE((
                   CASE 
-                    WHEN products.depositPrice IS NOT NULL THEN products.depositPrice 
+                    WHEN p.deposit_price IS NOT NULL THEN p.deposit_price 
                     ELSE 0
                   END
                 ), 0) - 
                 COALESCE((
                   CASE 
-                    WHEN products.costPrice IS NOT NULL THEN products.costPrice 
+                    WHEN p.cost_price IS NOT NULL THEN p.cost_price 
                     ELSE ${transactions.price} * 0.6
                   END
                 ), 0)
@@ -251,7 +251,7 @@ export function statisticsRoutes(app: any) {
           END, 0)`
       })
       .from(transactions)
-      .leftJoin(products, eq(transactions.productId, products.vendonId))
+      .leftJoin(products.as('p'), eq(transactions.productId, sql`p.vendon_id`))
       .where(and(
         eq(transactions.machineId, machineId),
         sql`datetime >= ${startDateStr}`,
@@ -264,13 +264,13 @@ export function statisticsRoutes(app: any) {
         COALESCE(${transactions.priceVat}, 0) - 
         COALESCE((
           CASE 
-            WHEN products.depositPrice IS NOT NULL THEN products.depositPrice 
+            WHEN p.deposit_price IS NOT NULL THEN p.deposit_price 
             ELSE 0
           END
         ), 0) - 
         COALESCE((
           CASE 
-            WHEN products.costPrice IS NOT NULL THEN products.costPrice 
+            WHEN p.cost_price IS NOT NULL THEN p.cost_price 
             ELSE ${transactions.price} * 0.6
           END
         ), 0)
@@ -378,7 +378,7 @@ export function statisticsRoutes(app: any) {
       for (const refill of refillData) {
         // Suche passende Verkaufsdaten
         const matchingSales = topProductsByRevenue.find(p => 
-          refill.productName === refill.productName
+          p.productName === refill.productName
         ) || { count: 0, productName: refill.productName };
         
         // Berechne Quote
@@ -809,14 +809,14 @@ router.get('/product-performance', async (req, res) => {
       totalRevenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`,
       totalCost: sql<number>`COALESCE(SUM(
         CASE 
-          WHEN products.costPrice IS NOT NULL THEN products.costPrice 
+          WHEN p.cost_price IS NOT NULL THEN p.cost_price 
           ELSE ${transactions.price} * 0.6 -- Fallback: Schätzung der Kosten als 60% des Verkaufspreises
         END
       ), 0)`,
       totalVat: sql<number>`COALESCE(SUM(${transactions.priceVat}), 0)`,
       totalDeposit: sql<number>`COALESCE(SUM(
         CASE 
-          WHEN products.depositPrice IS NOT NULL THEN products.depositPrice 
+          WHEN p.deposit_price IS NOT NULL THEN p.deposit_price 
           ELSE 0
         END
       ), 0)`,
@@ -825,13 +825,13 @@ router.get('/product-performance', async (req, res) => {
         COALESCE(${transactions.priceVat}, 0) - 
         COALESCE((
           CASE 
-            WHEN products.depositPrice IS NOT NULL THEN products.depositPrice 
+            WHEN p.deposit_price IS NOT NULL THEN p.deposit_price 
             ELSE 0
           END
         ), 0) - 
         COALESCE((
           CASE 
-            WHEN products.costPrice IS NOT NULL THEN products.costPrice 
+            WHEN p.cost_price IS NOT NULL THEN p.cost_price 
             ELSE ${transactions.price} * 0.6 -- Fallback: Schätzung der Kosten als 60% des Verkaufspreises
           END
         ), 0)
@@ -844,13 +844,13 @@ router.get('/product-performance', async (req, res) => {
               COALESCE(${transactions.priceVat}, 0) - 
               COALESCE((
                 CASE 
-                  WHEN products.depositPrice IS NOT NULL THEN products.depositPrice 
+                  WHEN p.deposit_price IS NOT NULL THEN p.deposit_price 
                   ELSE 0
                 END
               ), 0) - 
               COALESCE((
                 CASE 
-                  WHEN products.costPrice IS NOT NULL THEN products.costPrice 
+                  WHEN p.cost_price IS NOT NULL THEN p.cost_price 
                   ELSE ${transactions.price} * 0.6
                 END
               ), 0)
@@ -859,7 +859,7 @@ router.get('/product-performance', async (req, res) => {
         END, 0)`
     })
     .from(transactions)
-    .leftJoin(products, eq(transactions.productId, products.vendonId))
+    .leftJoin(products.as('p'), eq(transactions.productId, sql`p.vendon_id`))
     .where(and(
       sql`${transactions.datetime} >= ${startDateStr}`,
       sql`${transactions.datetime} <= ${endDateStr}`,
@@ -871,13 +871,13 @@ router.get('/product-performance', async (req, res) => {
       COALESCE(${transactions.priceVat}, 0) - 
       COALESCE((
         CASE 
-          WHEN products.depositPrice IS NOT NULL THEN products.depositPrice 
+          WHEN p.deposit_price IS NOT NULL THEN p.deposit_price 
           ELSE 0
         END
       ), 0) - 
       COALESCE((
         CASE 
-          WHEN products.costPrice IS NOT NULL THEN products.costPrice 
+          WHEN p.cost_price IS NOT NULL THEN p.cost_price 
           ELSE ${transactions.price} * 0.6
         END
       ), 0)
