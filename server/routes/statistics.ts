@@ -968,12 +968,14 @@ function calculateCorrelation(x, y) {
  */
 router.get('/machines/:id/analytics', async (req, res) => {
   try {
+    console.log('Starte Automatenanalyse für Maschine ID:', req.params.id);
     const { id } = req.params;
     const { 
       period = 'month', 
       startDate: customStartDate, 
       endDate: customEndDate 
     } = req.query;
+    console.log('Parameter:', { period, customStartDate, customEndDate });
 
     if (!id) {
       return res.status(400).json({ error: 'Keine Automaten-ID angegeben' });
@@ -1027,10 +1029,10 @@ router.get('/machines/:id/analytics', async (req, res) => {
         id: machines.id,
         vendonId: machines.vendonId,
         machineName: machines.machineName,
-        location: machines.location,
+        locationId: machines.locationId,
+        locationName: machines.locationName,
         status: machines.status,
-        lastSync: machines.lastSync,
-        lastSale: machines.lastSale
+        lastSync: machines.lastSync
       })
       .from(machines)
       .where(eq(machines.id, Number(id)))
@@ -1069,14 +1071,14 @@ router.get('/machines/:id/analytics', async (req, res) => {
       // 4. Auffüllungsstatistiken
       db.select({
         count: count(),
-        lastRefill: sql<string>`MAX(${refills.date})`
+        lastRefill: sql<string>`MAX(${refills.datetime})`
       })
       .from(refills)
       .where(
         and(
           eq(refills.machineId, Number(id)),
-          gte(refills.date, startDateStr),
-          lte(refills.date, endDateStr)
+          gte(refills.datetime, startDateStr),
+          lte(refills.datetime, endDateStr)
         )
       ),
 
@@ -1133,21 +1135,21 @@ router.get('/machines/:id/analytics', async (req, res) => {
     .orderBy(asc(sql`DATE(${transactions.datetime})`));
 
     // Wetterdaten für denselben Zeitraum abrufen, falls vorhanden
-    const weatherData = await db.select({
-      date: sql<string>`DATE(${weatherData.datetime})`,
+    const weatherDataResults = await db.select({
+      date: weatherData.date,
       avgTemperature: avg(weatherData.temperature),
       precipitation: sum(weatherData.precipitation),
-      conditions: weatherData.conditions
+      conditions: weatherData.weather_main
     })
     .from(weatherData)
     .where(
       and(
-        gte(weatherData.datetime, startDateStr),
-        lte(weatherData.datetime, endDateStr)
+        gte(weatherData.timestamp, startDateStr),
+        lte(weatherData.timestamp, endDateStr)
       )
     )
-    .groupBy(sql`DATE(${weatherData.datetime})`)
-    .orderBy(asc(sql`DATE(${weatherData.datetime})`));
+    .groupBy(weatherData.date)
+    .orderBy(asc(weatherData.date));
 
     // Ergebnisse zusammenstellen
     const machineAnalytics = {
@@ -1163,7 +1165,7 @@ router.get('/machines/:id/analytics', async (req, res) => {
       productPerformance: productPerformance || [],
       paymentMethodDistribution: paymentMethodDistribution || [],
       timeSeries: timeSeriesData || [],
-      weatherData: weatherData || []
+      weatherData: weatherDataResults || []
     };
 
     return res.json(machineAnalytics);
