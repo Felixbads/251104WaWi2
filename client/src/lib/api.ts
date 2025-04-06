@@ -439,6 +439,109 @@ export async function getDatabaseStatistics(): Promise<DatabaseStatistics> {
   return apiRequest<DatabaseStatistics>('get', '/statistics/database');
 }
 
+// Interface für Automatenanalyse
+export interface MachineAnalytics {
+  machine: {
+    machineId: number;
+    period: string;
+    startDate: string;
+    endDate: string;
+    prevStartDate: string;
+    prevEndDate: string;
+  };
+  summary: {
+    currentPeriod: {
+      transactions: number;
+      revenue: number;
+      profit: number;
+    };
+    previousPeriod: {
+      transactions: number;
+      revenue: number;
+      profit: number;
+    };
+    change: {
+      transactions: number;
+      revenue: number;
+      profit: number;
+    };
+  };
+  revenueOverTime: {
+    date: string;
+    count: number;
+    revenue: number;
+    profit: number;
+  }[];
+  topProductsByRevenue: {
+    productName: string;
+    count: number;
+    revenue: number;
+    avgPrice: number;
+  }[];
+  topProductsByProfit: {
+    productName: string;
+    count: number;
+    revenue: number;
+    profit: number;
+    marginPerUnit: number;
+  }[];
+  worstProductsByProfit: {
+    productName: string;
+    count: number;
+    revenue: number;
+    profit: number;
+    marginPerUnit: number;
+  }[];
+  worstProductsByRevenue: {
+    productName: string;
+    count: number;
+    revenue: number;
+    lastSale: string;
+    daysSinceLastSale: number | null;
+  }[];
+  removalQuotas: {
+    productName: string;
+    sales: number;
+    manualRemovals: number;
+    quota: number;
+  }[];
+  outOfStockEvents: {
+    id: number;
+    eventDateTime: string;
+    name: string;
+    description: string;
+    duration: number;
+    productName: string | null;
+  }[];
+  hourlyDistribution: {
+    hour: number;
+    count: number;
+    revenue: number;
+  }[];
+  weekdayDistribution: {
+    weekday: number;
+    count: number;
+    revenue: number;
+  }[];
+  generatedAt: string;
+}
+
+// Automatenanalyse abrufen
+export async function getMachineAnalytics(
+  machineId: number, 
+  period: 'day' | 'week' | 'month' | 'year' | 'custom' = 'month',
+  startDate?: string,
+  endDate?: string
+): Promise<MachineAnalytics> {
+  let endpoint = `/machines/${machineId}/analytics?period=${period}`;
+  
+  if (period === 'custom' && startDate && endDate) {
+    endpoint += `&startDate=${startDate}&endDate=${endDate}`;
+  }
+  
+  return apiRequest<MachineAnalytics>('get', endpoint);
+}
+
 // Wetter-API-Nutzung abrufen
 export interface WeatherApiUsage {
   count: number;

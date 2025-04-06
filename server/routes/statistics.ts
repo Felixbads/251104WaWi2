@@ -2,12 +2,12 @@ import { Router } from 'express';
 import { db } from '../db';
 import { 
   transactions, orders, products, machines, suppliers, events, 
-  refills, refillDetails, weatherData 
+  refills, refillDetails, weatherData, machineStocks 
 } from '../../shared/schema';
-import { count, eq, sql, desc, and, gt, lt, gte, lte, sum, avg, asc, isNotNull } from 'drizzle-orm';
+import { count, eq, sql, desc, and, gt, lt, gte, lte, sum, avg, asc, isNotNull, not, or, inArray } from 'drizzle-orm';
 import { 
   startOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, 
-  format, parseISO, addDays 
+  format, parseISO, addDays, addMonths, subMonths, differenceInDays
 } from 'date-fns';
 
 const router = Router();
@@ -15,6 +15,453 @@ const router = Router();
 // Export a function to register the routes
 export function statisticsRoutes(app: any) {
   app.use('/api/statistics', router);
+  
+  // Machine Analytics Endpoint
+  app.get('/api/machines/:id/analytics', async (req, res) => {
+    try {
+      const machineId = parseInt(req.params.id);
+      const { period = 'month', startDate, endDate } = req.query;
+      
+      // Zeitraumfilter definieren
+      let startDateObj = new Date();
+      let endDateObj = new Date();
+      let prevStartDateObj = new Date();
+      let prevEndDateObj = new Date();
+      
+      // Zeitraum-Berechnung basierend auf Parameter
+      switch(period) {
+        case 'day':
+          startDateObj = startOfDay(startDateObj);
+          endDateObj = new Date(startDateObj);
+          endDateObj.setHours(23, 59, 59, 999);
+          prevStartDateObj = startOfDay(subDays(startDateObj, 1));
+          prevEndDateObj = subDays(endDateObj, 1);
+          break;
+        case 'week':
+          startDateObj = startOfWeek(startDateObj, { weekStartsOn: 1 });
+          endDateObj = endOfWeek(startDateObj, { weekStartsOn: 1 });
+          prevStartDateObj = startOfWeek(subDays(startDateObj, 7), { weekStartsOn: 1 });
+          prevEndDateObj = endOfWeek(prevStartDateObj, { weekStartsOn: 1 });
+          break;
+        case 'month':
+          startDateObj = startOfMonth(startDateObj);
+          endDateObj = endOfMonth(startDateObj);
+          prevStartDateObj = startOfMonth(subMonths(startDateObj, 1));
+          prevEndDateObj = endOfMonth(prevStartDateObj);
+          break;
+        case 'year':
+          startDateObj = new Date(startDateObj.getFullYear(), 0, 1);
+          endDateObj = new Date(startDateObj.getFullYear(), 11, 31, 23, 59, 59, 999);
+          prevStartDateObj = new Date(startDateObj.getFullYear() - 1, 0, 1);
+          prevEndDateObj = new Date(startDateObj.getFullYear() - 1, 11, 31, 23, 59, 59, 999);
+          break;
+        case 'custom':
+          if (startDate && endDate) {
+            startDateObj = new Date(startDate as string);
+            endDateObj = new Date(endDate as string);
+            
+            // Für Vergleichszeitraum: gleiches Zeitfenster vor dem gewählten Zeitraum
+            const dayDiff = Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24));
+            prevStartDateObj = new Date(startDateObj);
+            prevStartDateObj.setDate(prevStartDateObj.getDate() - dayDiff);
+            prevEndDateObj = new Date(endDateObj);
+            prevEndDateObj.setDate(prevEndDateObj.getDate() - dayDiff);
+          }
+          break;
+      }
+
+      // String-Formate der Daten für SQL-Vergleiche
+      const startDateStr = startDateObj.toISOString();
+      const endDateStr = endDateObj.toISOString();
+      const prevStartDateStr = prevStartDateObj.toISOString();
+      const prevEndDateStr = prevEndDateObj.toISOString();
+      
+      console.log(`Automatenanalyse für ID ${machineId} im Zeitraum ${startDateStr} bis ${endDateStr}`);
+      
+      // 1. Umsatz über die Zeit (nach Tag, Woche, Monat)
+      const revenueOverTime = await db.select({
+        date: sql<string>`DATE(datetime)`,
+        count: count(),
+        revenue: sql<number>`COALESCE(SUM(price), 0)`,
+        profit: sql<number>`COALESCE(SUM(price) * 0.4, 0)`, // Vereinfachte Gewinnberechnung (40% vom Umsatz)
+      })
+      .from(transactions)
+      .where(and(
+        eq(transactions.machineId, machineId),
+        sql`datetime >= ${startDateStr}`,
+        sql`datetime <= ${endDateStr}`
+      ))
+      .groupBy(sql`DATE(datetime)`)
+      .orderBy(sql`DATE(datetime)`);
+      
+      // 2. Vergleich mit Vorperiode
+      const prevPeriodData = await db.select({
+        totalCount: count(),
+        totalRevenue: sql<number>`COALESCE(SUM(price), 0)`,
+        totalProfit: sql<number>`COALESCE(SUM(price) * 0.4, 0)`,
+      })
+      .from(transactions)
+      .where(and(
+        eq(transactions.machineId, machineId),
+        sql`datetime >= ${prevStartDateStr}`,
+        sql`datetime <= ${prevEndDateStr}`
+      ));
+      
+      const currentPeriodData = await db.select({
+        totalCount: count(),
+        totalRevenue: sql<number>`COALESCE(SUM(price), 0)`,
+        totalProfit: sql<number>`COALESCE(SUM(price) * 0.4, 0)`,
+      })
+      .from(transactions)
+      .where(and(
+        eq(transactions.machineId, machineId),
+        sql`datetime >= ${startDateStr}`,
+        sql`datetime <= ${endDateStr}`
+      ));
+      
+      // 3. Top-Produkte nach Umsatz
+      const topProductsByRevenue = await db.select({
+        productName: transactions.productName,
+        count: count(),
+        revenue: sql<number>`COALESCE(SUM(price), 0)`,
+        avgPrice: sql<number>`COALESCE(AVG(price), 0)`,
+      })
+      .from(transactions)
+      .where(and(
+        eq(transactions.machineId, machineId),
+        sql`datetime >= ${startDateStr}`,
+        sql`datetime <= ${endDateStr}`,
+        isNotNull(transactions.productName)
+      ))
+      .groupBy(transactions.productName)
+      .orderBy(desc(sql<number>`COALESCE(SUM(price), 0)`))
+      .limit(10);
+      
+      // 4. Beste Produkte nach Marge/Ergebnis
+      const topProductsByProfit = await db.select({
+        productName: transactions.productName,
+        count: count(),
+        revenue: sql<number>`COALESCE(SUM(price), 0)`,
+        profit: sql<number>`COALESCE(SUM(
+          ${transactions.price} - 
+          COALESCE(${transactions.priceVat}, 0) - 
+          COALESCE((
+            CASE 
+              WHEN p.deposit_price IS NOT NULL THEN p.deposit_price 
+              ELSE 0
+            END
+          ), 0) - 
+          COALESCE((
+            CASE 
+              WHEN p.cost_price IS NOT NULL THEN p.cost_price 
+              ELSE ${transactions.price} * 0.6 -- Fallback: Schätzung der Kosten als 60% des Verkaufspreises
+            END
+          ), 0)
+        ), 0)`,
+        marginPerUnit: sql<number>`COALESCE(
+          CASE
+            WHEN COUNT(*) > 0 THEN
+              (SUM(
+                ${transactions.price} - 
+                COALESCE(${transactions.priceVat}, 0) - 
+                COALESCE((
+                  CASE 
+                    WHEN p.deposit_price IS NOT NULL THEN p.deposit_price 
+                    ELSE 0
+                  END
+                ), 0) - 
+                COALESCE((
+                  CASE 
+                    WHEN p.cost_price IS NOT NULL THEN p.cost_price 
+                    ELSE ${transactions.price} * 0.6
+                  END
+                ), 0)
+              ) / COUNT(*))
+            ELSE 0
+          END, 0)`
+      })
+      .from(transactions)
+      .leftJoin(products.as('p'), eq(transactions.productId, sql`p.vendon_id`))
+      .where(and(
+        eq(transactions.machineId, machineId),
+        sql`datetime >= ${startDateStr}`,
+        sql`datetime <= ${endDateStr}`,
+        isNotNull(transactions.productName)
+      ))
+      .groupBy(transactions.productName)
+      .orderBy(desc(sql<number>`COALESCE(SUM(
+        ${transactions.price} - 
+        COALESCE(${transactions.priceVat}, 0) - 
+        COALESCE((
+          CASE 
+            WHEN p.deposit_price IS NOT NULL THEN p.deposit_price 
+            ELSE 0
+          END
+        ), 0) - 
+        COALESCE((
+          CASE 
+            WHEN p.cost_price IS NOT NULL THEN p.cost_price 
+            ELSE ${transactions.price} * 0.6
+          END
+        ), 0)
+      ), 0)`))
+      .limit(10);
+      
+      // 5. Schlechteste Produkte nach Ergebnis (negatives Ergebnis)
+      const worstProductsByProfit = await db.select({
+        productName: transactions.productName,
+        count: count(),
+        revenue: sql<number>`COALESCE(SUM(price), 0)`,
+        profit: sql<number>`COALESCE(SUM(
+          ${transactions.price} - 
+          COALESCE(${transactions.priceVat}, 0) - 
+          COALESCE((
+            CASE 
+              WHEN p.deposit_price IS NOT NULL THEN p.deposit_price 
+              ELSE 0
+            END
+          ), 0) - 
+          COALESCE((
+            CASE 
+              WHEN p.cost_price IS NOT NULL THEN p.cost_price 
+              ELSE ${transactions.price} * 0.6
+            END
+          ), 0)
+        ), 0)`,
+        marginPerUnit: sql<number>`COALESCE(
+          CASE
+            WHEN COUNT(*) > 0 THEN
+              (SUM(
+                ${transactions.price} - 
+                COALESCE(${transactions.priceVat}, 0) - 
+                COALESCE((
+                  CASE 
+                    WHEN p.deposit_price IS NOT NULL THEN p.deposit_price 
+                    ELSE 0
+                  END
+                ), 0) - 
+                COALESCE((
+                  CASE 
+                    WHEN p.cost_price IS NOT NULL THEN p.cost_price 
+                    ELSE ${transactions.price} * 0.6
+                  END
+                ), 0)
+              ) / COUNT(*))
+            ELSE 0
+          END, 0)`
+      })
+      .from(transactions)
+      .leftJoin(products.as('p'), eq(transactions.productId, sql`p.vendon_id`))
+      .where(and(
+        eq(transactions.machineId, machineId),
+        sql`datetime >= ${startDateStr}`,
+        sql`datetime <= ${endDateStr}`,
+        isNotNull(transactions.productName)
+      ))
+      .groupBy(transactions.productName)
+      .orderBy(asc(sql<number>`COALESCE(SUM(
+        ${transactions.price} - 
+        COALESCE(${transactions.priceVat}, 0) - 
+        COALESCE((
+          CASE 
+            WHEN p.deposit_price IS NOT NULL THEN p.deposit_price 
+            ELSE 0
+          END
+        ), 0) - 
+        COALESCE((
+          CASE 
+            WHEN p.cost_price IS NOT NULL THEN p.cost_price 
+            ELSE ${transactions.price} * 0.6
+          END
+        ), 0)
+      ), 0)`))
+      .limit(10);
+      
+      // 6. Schlechteste Produkte nach Umsatz
+      const worstProductsByRevenue = await db.select({
+        productName: transactions.productName,
+        count: count(),
+        revenue: sql<number>`COALESCE(SUM(price), 0)`,
+        lastSale: sql<string>`MAX(datetime)`,
+      })
+      .from(transactions)
+      .where(and(
+        eq(transactions.machineId, machineId),
+        sql`datetime >= ${startDateStr}`,
+        sql`datetime <= ${endDateStr}`,
+        isNotNull(transactions.productName)
+      ))
+      .groupBy(transactions.productName)
+      .orderBy(asc(sql<number>`COALESCE(SUM(price), 0)`))
+      .limit(10);
+      
+      // 7. Entnahmequote (Verkäufe vs. manuelle Entfernung)
+      // Refill-Daten abrufen für Entnahmen vs. Verkäufe
+      const refillData = await db.select({
+        productName: refillDetails.productName,
+        added: sql<number>`SUM(COALESCE(added, 0))`,
+        removed: sql<number>`SUM(COALESCE(removed, 0))`,
+      })
+      .from(refills)
+      .leftJoin(refillDetails, eq(refills.id, refillDetails.refillId))
+      .where(and(
+        eq(refills.machineId, machineId),
+        sql`${refills.datetime} >= ${startDateStr}`,
+        sql`${refills.datetime} <= ${endDateStr}`,
+        isNotNull(refillDetails.productName)
+      ))
+      .groupBy(refillDetails.productName);
+      
+      // 8. "Produkt nicht auf Lager" Events
+      const outOfStockEvents = await db.select({
+        id: events.id,
+        eventDateTime: events.eventDatetime,
+        name: events.name,
+        description: events.description,
+        duration: events.duration,
+        productName: sql<string>`
+          CASE
+            WHEN description LIKE '%Produktfüllstand%' 
+            THEN SUBSTRING(description FROM 'Produktfüllstand ([^(]*)\\(' FOR '#')
+            ELSE NULL
+          END
+        `,
+      })
+      .from(events)
+      .where(and(
+        eq(events.machineId, machineId),
+        sql`${events.eventDatetime} >= ${startDateStr}`,
+        sql`${events.eventDatetime} <= ${endDateStr}`,
+        or(
+          sql`${events.name} LIKE '%Produktfüllstand%'`,
+          sql`${events.description} LIKE '%Produktfüllstand%'`
+        ),
+        sql`${events.description} LIKE '%minimum%'`
+      ))
+      .orderBy(desc(events.eventDatetime))
+      .limit(50);
+      
+      // 9. Zusätzliche Analyse: Verkaufszeitverteilung (Stundenbasis)
+      const hourlyDistribution = await db.select({
+        hour: sql<number>`EXTRACT(HOUR FROM datetime::timestamp)`,
+        count: count(),
+        revenue: sql<number>`COALESCE(SUM(price), 0)`,
+      })
+      .from(transactions)
+      .where(and(
+        eq(transactions.machineId, machineId),
+        sql`datetime >= ${startDateStr}`,
+        sql`datetime <= ${endDateStr}`
+      ))
+      .groupBy(sql<number>`EXTRACT(HOUR FROM datetime::timestamp)`)
+      .orderBy(sql<number>`EXTRACT(HOUR FROM datetime::timestamp)`);
+      
+      // 10. Tagebasierte Verkaufsverteilung (Wochentage)
+      const weekdayDistribution = await db.select({
+        weekday: sql<number>`EXTRACT(DOW FROM datetime::timestamp)`,
+        count: count(),
+        revenue: sql<number>`COALESCE(SUM(price), 0)`,
+      })
+      .from(transactions)
+      .where(and(
+        eq(transactions.machineId, machineId),
+        sql`datetime >= ${startDateStr}`,
+        sql`datetime <= ${endDateStr}`
+      ))
+      .groupBy(sql<number>`EXTRACT(DOW FROM datetime::timestamp)`)
+      .orderBy(sql<number>`EXTRACT(DOW FROM datetime::timestamp)`);
+      
+      // Daten für Entnahmequote kombinieren (Verkäufe mit Refill-Entnahmen)
+      const removalQuotas = [];
+      
+      // Für jedes Produkt, das aus den Refill-Daten bekannt ist
+      for (const refill of refillData) {
+        // Suche passende Verkaufsdaten
+        const matchingSales = topProductsByRevenue.find(p => 
+          p.productName === refill.productName
+        ) || { count: 0, productName: refill.productName };
+        
+        // Berechne Quote
+        const totalRemoved = Number(refill.removed) || 0;
+        const totalSold = Number(matchingSales.count) || 0;
+        const quota = totalRemoved === 0 ? 100 : (totalSold / (totalSold + totalRemoved)) * 100;
+        
+        removalQuotas.push({
+          productName: refill.productName,
+          sales: totalSold,
+          manualRemovals: totalRemoved,
+          quota: Math.round(quota * 10) / 10, // Auf eine Dezimalstelle runden
+        });
+      }
+      
+      // Berechne Tage seit letztem Verkauf für "schlechteste Produkte nach Umsatz"
+      const now = new Date();
+      const worstProductsWithDaysSinceLastSale = worstProductsByRevenue.map(product => {
+        const lastSaleDate = product.lastSale ? new Date(product.lastSale) : null;
+        const daysSinceLastSale = lastSaleDate 
+          ? differenceInDays(now, lastSaleDate) 
+          : null;
+        
+        return {
+          ...product,
+          daysSinceLastSale
+        };
+      });
+      
+      // Erstellung des vollständigen Analyseobjekts
+      const machineAnalytics = {
+        machine: {
+          machineId,
+          period,
+          startDate: startDateStr,
+          endDate: endDateStr,
+          prevStartDate: prevStartDateStr,
+          prevEndDate: prevEndDateStr,
+        },
+        summary: {
+          currentPeriod: {
+            transactions: currentPeriodData[0]?.totalCount || 0,
+            revenue: currentPeriodData[0]?.totalRevenue || 0,
+            profit: currentPeriodData[0]?.totalProfit || 0,
+          },
+          previousPeriod: {
+            transactions: prevPeriodData[0]?.totalCount || 0,
+            revenue: prevPeriodData[0]?.totalRevenue || 0,
+            profit: prevPeriodData[0]?.totalProfit || 0,
+          },
+          change: {
+            transactions: prevPeriodData[0]?.totalCount && currentPeriodData[0]?.totalCount
+              ? ((currentPeriodData[0].totalCount - prevPeriodData[0].totalCount) / prevPeriodData[0].totalCount) * 100
+              : 0,
+            revenue: prevPeriodData[0]?.totalRevenue && currentPeriodData[0]?.totalRevenue
+              ? ((currentPeriodData[0].totalRevenue - prevPeriodData[0].totalRevenue) / prevPeriodData[0].totalRevenue) * 100
+              : 0,
+            profit: prevPeriodData[0]?.totalProfit && currentPeriodData[0]?.totalProfit
+              ? ((currentPeriodData[0].totalProfit - prevPeriodData[0].totalProfit) / prevPeriodData[0].totalProfit) * 100
+              : 0,
+          }
+        },
+        revenueOverTime,
+        topProductsByRevenue,
+        topProductsByProfit,
+        worstProductsByProfit,
+        worstProductsByRevenue: worstProductsWithDaysSinceLastSale,
+        removalQuotas,
+        outOfStockEvents,
+        hourlyDistribution,
+        weekdayDistribution,
+        generatedAt: new Date().toISOString()
+      };
+      
+      return res.json(machineAnalytics);
+    } catch (error) {
+      console.error(`Fehler bei Automatenanalyse:`, error);
+      return res.status(500).json({ 
+        error: 'Fehler bei der Erstellung der Automatenanalyse',
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+      });
+    }
+  });
 }
 
 /**

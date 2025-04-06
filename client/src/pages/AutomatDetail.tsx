@@ -18,7 +18,9 @@ import {
   Download,
   Info,
   MapPin,
-  PackagePlus
+  PackagePlus,
+  LineChart,
+  BarChart3
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,6 +48,7 @@ import {
   formatDateTime
 } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
+import MachineAnalysis from "@/components/MachineAnalysis";
 
 // Erweiterte Maschinenschnittstelle mit den zusätzlichen KPIs
 interface EnhancedMachine extends Machine {
@@ -435,7 +438,7 @@ export default function AutomatDetail() {
         value={activeTab}
         onValueChange={setActiveTab}
       >
-        <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:grid-cols-none lg:flex">
+        <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:grid-cols-none lg:flex">
           <TabsTrigger value="allgemein">Allgemeine Informationen</TabsTrigger>
           <TabsTrigger value="transaktionen">Transaktionshistorie</TabsTrigger>
           <TabsTrigger value="auffullungen">
@@ -444,6 +447,10 @@ export default function AutomatDetail() {
           </TabsTrigger>
           <TabsTrigger value="fehler">Fehler & Logs</TabsTrigger>
           <TabsTrigger value="technisch">Technische Details</TabsTrigger>
+          <TabsTrigger value="analyse" className="flex items-center">
+            <LineChart className="h-4 w-4 mr-2" />
+            Analyse
+          </TabsTrigger>
         </TabsList>
         
         {/* Allgemeine Informationen Tab */}
@@ -715,6 +722,11 @@ export default function AutomatDetail() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Analyse Tab */}
+        <TabsContent value="analyse" className="mt-4">
+          {id && <MachineAnalysis machineId={id} />}
         </TabsContent>
       </Tabs>
     </div>
