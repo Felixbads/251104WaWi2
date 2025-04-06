@@ -11,8 +11,10 @@ import {
   Plus, Search, Filter, ArrowDownUp, AlertTriangle, 
   ClipboardCheck, MapPin, Phone, Mail, User, 
   Eye, Save, Trash, Edit, CalendarRange, FileText,
-  RefreshCw, ShoppingCart, Clock, Check, Beaker
+  RefreshCw, ShoppingCart, Clock, Check, Beaker,
+  ExternalLink
 } from "lucide-react";
+import { Link } from "wouter";
 
 // Eigene Komponenten
 import WarehouseInventory from "@/components/inventory/WarehouseInventory";
@@ -85,6 +87,7 @@ import { apiRequest } from "@/lib/queryClient";
 
 export default function WarehouseDetail() {
   const { id } = useParams();
+  const warehouseId = id; // Make sure we have warehouseId for the link
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -692,10 +695,22 @@ export default function WarehouseDetail() {
                 </div>
               )}
             </CardContent>
-            <CardFooter>
-              <Button variant="ghost" onClick={() => handleTabChange("movements")}>
-                Alle Warenbewegungen anzeigen
-              </Button>
+            <CardFooter className="flex justify-between">
+              <div>
+                <Button 
+                  onClick={() => setIsAddMovementDialogOpen(true)}
+                  className="mr-2"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Neue Bewegung
+                </Button>
+              </div>
+              <Link to={`/lager/${warehouseId}/warenbewegung`}>
+                <Button variant="outline">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Detaillierte Übersicht öffnen
+                </Button>
+              </Link>
             </CardFooter>
           </Card>
         </TabsContent>
@@ -821,6 +836,23 @@ export default function WarehouseDetail() {
                 </>
               )}
             </CardContent>
+            <CardFooter className="flex justify-between">
+              <div>
+                <Button 
+                  onClick={() => setIsAddMovementDialogOpen(true)}
+                  className="mr-2"
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Neue Bewegung
+                </Button>
+              </div>
+              <Link to={`/lager/${warehouseId}/warenbewegung`}>
+                <Button variant="outline">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Detaillierte Übersicht öffnen
+                </Button>
+              </Link>
+            </CardFooter>
           </Card>
         </TabsContent>
         

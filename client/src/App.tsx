@@ -70,6 +70,7 @@ import SupplierPortal from "@/pages/SupplierPortal";
 import Inventory from "@/pages/Inventory";
 import LagerPage from "@/pages/LagerPage";
 import WarehouseDetail from "@/pages/WarehouseDetail";
+import WarehouseMovements from "@/pages/WarehouseMovements";
 import WarenentnahmePage from "@/pages/WarenentnahmePage";
 import WarenentnahmeDetail from "@/pages/WarenentnahmeDetail";
 import WarenentnahmeNew from "@/pages/WarenentnahmeNew";
@@ -213,6 +214,12 @@ function AuthenticatedRouter() {
         <Route path="/lager/:id" component={props => (
           <ApprovedUserRoute>
             <WarehouseDetail {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/lager/:id/warenbewegung" component={props => (
+          <ApprovedUserRoute>
+            <WarehouseMovements {...props} />
           </ApprovedUserRoute>
         )} />
         
