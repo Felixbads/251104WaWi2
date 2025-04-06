@@ -14,8 +14,8 @@ const DropdownMenuPortal = DropdownMenuPrimitive.Portal
 
 const DropdownMenuSub = DropdownMenuPrimitive.Sub
 
-// HINWEIS: Diese Komponente verursacht React-Runtime-Fehler
-// const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup
+// Implementierung der RadioGroup mit korrekter Fokusgruppe
+const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup
 
 const DropdownMenuSubTrigger = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.SubTrigger>,
@@ -195,4 +195,5 @@ export {
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
+  DropdownMenuRadioGroup,
 }
