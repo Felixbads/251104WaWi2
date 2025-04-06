@@ -296,7 +296,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const startDate = startDateStr ? new Date(startDateStr) : undefined;
       const endDate = endDateStr ? new Date(endDateStr) : undefined;
       
-      console.log(`Warenbewegungen abfragen für Lager ${warehouseId}, ` +
+      console.log(`[DEBUG] Warenbewegungen abfragen für Lager ${warehouseId}, ` +
         `Zeitraum: ${startDate?.toISOString() || 'unbegrenzt'} bis ${endDate?.toISOString() || 'jetzt'}, ` + 
         `Produkt: ${productName || productId || 'alle'}, Typ: ${movementType || 'alle'}`);
       
@@ -311,6 +311,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         offset
       });
       
+      console.log(`[DEBUG] Gefundene Quelltransaktionen für Lager ${warehouseId}: ${sourceMovements.length}`);
+      
       // 2. Hole alle Warenbewegungen, bei denen dieses Lager als Ziel definiert ist
       const destMovements = await storage.getInventoryMovements({
         destinationWarehouseId: warehouseId,
@@ -322,8 +324,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         offset
       });
       
+      console.log(`[DEBUG] Gefundene Zieltransaktionen für Lager ${warehouseId}: ${destMovements.length}`);
+      
       // 3. Hole auch alle Refills (Auffüllungen), die mit diesem Lager verbunden sind
-      const refills = await storage.getRefills({
+      const rawRefills = await storage.getRefills({
         warehouseId,
         ...(startDate ? { startDate } : {}),
         ...(endDate ? { endDate } : {}),
@@ -331,35 +335,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
         offset
       });
       
+      console.log(`[DEBUG] Gefundene Refills für Lager ${warehouseId}: ${rawRefills.length}`);
+      
+      // Ermittle den Namen des Lagers
+      const warehouse = await storage.getWarehouseById(warehouseId);
+      const warehouseName = warehouse?.name || `Lager ${warehouseId}`;
+      
+      // Holen der Refill-Details, um die Bewegungen pro Artikel zu erfassen
+      const refillDetails = [];
+      for (const refill of rawRefills) {
+        // Hole die Details zu diesem Refill, falls es welche gibt
+        try {
+          const details = await storage.getRefillDetails(refill.id);
+          if (details && details.length > 0) {
+            console.log(`[DEBUG] Gefundene Refill-Details für Refill ${refill.id}: ${details.length}`);
+            
+            // Füge jeden Detaileintrag als separate Bewegung hinzu
+            details.forEach(detail => {
+              refillDetails.push({
+                ...refill,
+                productId: detail.productId || null, 
+                productName: detail.productName || "Unbekanntes Produkt",
+                quantity: detail.removed || 0,  // Bei Refills wird immer etwas aus dem Lager entnommen
+                previousStock: detail.previousStock,
+                currentStock: detail.currentStock,
+                position: detail.position,
+                vendonProductId: detail.vendonProductId
+              });
+            });
+          } else {
+            // Fallback, falls keine Details gefunden wurden
+            console.log(`[DEBUG] Keine Details für Refill ${refill.id} gefunden`);
+            refillDetails.push(refill);
+          }
+        } catch (error) {
+          console.error(`Fehler beim Abrufen der Refill-Details für Refill ${refill.id}:`, error);
+          refillDetails.push(refill);
+        }
+      }
+      
+      console.log(`[DEBUG] Aufgelöste Refill-Details für Lager ${warehouseId}: ${refillDetails.length}`);
+      
       // Refills in ein einheitliches Format umwandeln, das mit den Warenbewegungen kompatibel ist
-      const refillMovements = refills.map(refill => ({
-        id: refill.id,
+      const refillMovements = refillDetails.map(refill => ({
+        id: `refill-${refill.id}-${refill.vendonProductId || 'unknown'}`,
         productId: refill.productId, 
         productName: refill.productName,
-        quantity: refill.quantity,
+        quantity: refill.quantity * -1, // Negativ machen, da es sich um eine Entnahme handelt
         movementType: 'REFILL',
         referenceType: 'refill',
         referenceId: refill.id.toString(),
         source: 'vendon',
         machineId: refill.machineId,
         machineName: refill.machineName,
-        notes: `Refill ID: ${refill.id}`,
+        notes: `Auffüllung: ${refill.machineName}`,
         createdAt: refill.createdAt,
         performedAt: refill.datetime,
         performedBy: null,
         performedByName: refill.operator,
         sourceWarehouseId: warehouseId,
-        sourceWarehouseName: null, // Könnte hier den Lagernamen abrufen, falls nötig
+        sourceWarehouseName: warehouseName,
         destinationWarehouseId: null,
         destinationWarehouseName: null,
         unit: 'Stück',
         type: 'OUT', // Refills sind immer Ausgänge aus dem Lager
         // Zusätzliche Refill-spezifische Informationen
+        quantityBefore: refill.previousStock,
+        quantityAfter: refill.currentStock,
         previousStock: refill.previousStock,
         currentStock: refill.currentStock,
         vendonId: refill.vendonId,
         position: refill.position
       }));
+      
+      console.log(`[DEBUG] Erstellte Bewegungen aus Refills: ${refillMovements.length}`);
       
       // Alle Bewegungen kombinieren und nach Datum sortieren (neueste zuerst)
       const combinedMovements = [...sourceMovements, ...destMovements, ...refillMovements].sort((a, b) => {
@@ -368,6 +417,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return dateB.getTime() - dateA.getTime();
       });
       
+      console.log(`[DEBUG] Gesamtzahl kombinierter Bewegungen: ${combinedMovements.length}`);
+      
       // Wenn nach Produktname gefiltert wird, filtern wir die Liste
       let filteredMovements = combinedMovements;
       if (productName) {
@@ -375,6 +426,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           item.productName && item.productName.toLowerCase().includes(productName.toLowerCase())
         );
       }
+      
+      console.log(`[DEBUG] Gefilterte Bewegungen nach Produktname: ${filteredMovements.length}`);
       
       // Transformiere die Daten für die Frontendanzeige
       const formattedMovements = filteredMovements.map(item => ({
@@ -399,6 +452,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         destinationWarehouseId: item.destinationWarehouseId,
         destinationWarehouseName: item.destinationWarehouseName,
         unit: item.unit || 'Stück',
+        quantityBefore: item.quantityBefore || item.previousStock,
+        quantityAfter: item.quantityAfter || item.currentStock,
         // Refill-spezifische Informationen, wenn vorhanden
         previousStock: item.previousStock,
         currentStock: item.currentStock,
@@ -406,6 +461,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         vendonId: item.vendonId
       }));
       
+      console.log(`[DEBUG] Sende ${formattedMovements.length} Warenbewegungen zurück`);
+      
+      // Gesamte Ergebnismenge zurückgeben
       res.json(formattedMovements);
     } catch (error) {
       console.error(`Error fetching warehouse movements for warehouse ID ${req.params.id}:`, error);

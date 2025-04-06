@@ -705,7 +705,7 @@ export default function WarehouseDetail() {
                   Neue Bewegung
                 </Button>
               </div>
-              <Link to={`/lager/${warehouseId}/warenbewegung`}>
+              <Link to={`/warehouses/${warehouseId}/movements`}>
                 <Button variant="outline">
                   <ExternalLink className="mr-2 h-4 w-4" />
                   Detaillierte Übersicht öffnen
@@ -846,7 +846,7 @@ export default function WarehouseDetail() {
                   Neue Bewegung
                 </Button>
               </div>
-              <Link to={`/lager/${warehouseId}/warenbewegung`}>
+              <Link to={`/warehouses/${warehouseId}/movements`}>
                 <Button variant="outline">
                   <ExternalLink className="mr-2 h-4 w-4" />
                   Detaillierte Übersicht öffnen

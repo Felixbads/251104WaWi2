@@ -195,16 +195,21 @@ export default function WarehouseMovements() {
       
       console.log(`Requesting warehouse movements with params: ${queryParams.toString()}`);
       
-      const response = await fetch(`/api/warehouses/${warehouseId}/movements?${queryParams.toString()}`);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('API Error:', errorData);
-        throw new Error(`Fehler beim Laden der Warenbewegungen: ${errorData.error || response.statusText}`);
+      try {
+        const response = await fetch(`/api/warehouses/${warehouseId}/movements?${queryParams.toString()}`);
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('API Error:', errorData);
+          throw new Error(`Fehler beim Laden der Warenbewegungen: ${errorData.error || response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log(`Received ${data.length} warehouse movement records`);
+        return data;
+      } catch (error) {
+        console.error('Error fetching warehouse movements:', error);
+        throw error;
       }
-      
-      const data = await response.json();
-      console.log(`Received ${data.length} warehouse movement records`);
-      return data;
     },
     enabled: !!warehouseId
   });
@@ -239,7 +244,7 @@ export default function WarehouseMovements() {
     return (
       <div className="container py-6 space-y-6">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setLocation(`/lager/${warehouseId}`)}>
+          <Button variant="outline" size="sm" onClick={() => setLocation(`/warehouses/${warehouseId}`)}>
             <ChevronLeft className="mr-2 h-4 w-4" />
             Zurück zum Lager
           </Button>
@@ -273,7 +278,7 @@ export default function WarehouseMovements() {
     return (
       <div className="container py-6 space-y-6">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setLocation(`/lager/${warehouseId}`)}>
+          <Button variant="outline" size="sm" onClick={() => setLocation(`/warehouses/${warehouseId}`)}>
             <ChevronLeft className="mr-2 h-4 w-4" />
             Zurück zum Lager
           </Button>
@@ -297,7 +302,7 @@ export default function WarehouseMovements() {
       {/* Kopfzeile mit Navigationslinks und Filtern */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setLocation(`/lager/${warehouseId}`)}>
+          <Button variant="outline" size="sm" onClick={() => setLocation(`/warehouses/${warehouseId}`)}>
             <ChevronLeft className="mr-2 h-4 w-4" />
             Zurück zum Lager
           </Button>
@@ -480,7 +485,7 @@ export default function WarehouseMovements() {
         </CardHeader>
         
         <CardContent>
-          {paginatedMovements.length > 0 ? (
+          {combinedMovements.length > 0 ? (
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
@@ -584,7 +589,7 @@ export default function WarehouseMovements() {
           )}
           
           {/* Pagination */}
-          {paginatedMovements.length > 0 && (
+          {combinedMovements.length > 0 && (
             <Pagination className="mt-4">
               <PaginationContent>
                 <PaginationItem>
