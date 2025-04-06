@@ -126,7 +126,7 @@ export default function WarehouseDetail() {
     error: inventoryError,
     refetch: refetchInventory
   } = useQuery({
-    queryKey: [`/api/inventory`, { warehouseId: Number(id) }],
+    queryKey: [`/api/inventory`, { warehouseId: Number(id), includeZeroStock: true }],
     queryFn: () => getWarehouseInventory(id),
     enabled: !!id,
     staleTime: 30000 // 30 Sekunden
@@ -1036,7 +1036,7 @@ export default function WarehouseDetail() {
                 <Button 
                   variant="outline"
                   onClick={() => {
-                    queryClient.invalidateQueries({ queryKey: [`/api/inventory`] });
+                    queryClient.invalidateQueries({ queryKey: [`/api/inventory`, { warehouseId: Number(id), includeZeroStock: true }] });
                   }}
                 >
                   <RefreshCw className="mr-2 h-4 w-4" />
