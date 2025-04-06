@@ -593,10 +593,14 @@ export default function WarehouseDetail() {
             <Package className="h-4 w-4 mr-2" />
             Lagerbestand
           </TabsTrigger>
-          <TabsTrigger value="movements">
-            <Truck className="h-4 w-4 mr-2" />
-            Warenbewegungen
-          </TabsTrigger>
+          <Link to={`/lager/${warehouseId}/warenbewegung`}>
+            <TabsTrigger value="movements" asChild className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground hover:bg-muted">
+              <div className="flex items-center">
+                <Truck className="h-4 w-4 mr-2" />
+                Warenbewegungen
+              </div>
+            </TabsTrigger>
+          </Link>
           <TabsTrigger value="machines">
             <ShoppingCart className="h-4 w-4 mr-2" />
             Automaten

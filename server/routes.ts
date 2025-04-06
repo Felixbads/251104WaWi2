@@ -183,8 +183,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
       const warehouseId = req.query.warehouseId ? parseInt(req.query.warehouseId as string) : undefined;
       
-      const movements = await storage.getInventoryMovements({ limit, warehouseId });
-      res.json(movements);
+      // Für eine Lagerhausbewegung muss entweder das Quell- oder Ziellager das gesuchte sein
+      // Wir suchen also nach Bewegungen, die dieses Lager betreffen
+      const movements = await storage.getInventoryMovements({
+        limit,
+        ...(warehouseId ? {
+          sourceWarehouseId: warehouseId,
+          // Wir können nicht gleichzeitig sourceWarehouseId und destinationWarehouseId angeben
+          // Daher machen wir zwei Abfragen und fügen die Ergebnisse zusammen
+        } : {})
+      });
+      
+      // Wenn ein warehouseId angegeben wurde, müssen wir auch nach Bewegungen suchen,
+      // bei denen dieses Lager das Ziellager ist
+      let destMovements: any[] = [];
+      if (warehouseId) {
+        destMovements = await storage.getInventoryMovements({
+          limit,
+          destinationWarehouseId: warehouseId
+        });
+      }
+      
+      // Kombiniere beide Listen und sortiere nach Datum (neueste zuerst)
+      const combinedMovements = [...movements, ...destMovements].sort((a, b) => {
+        const dateA = new Date(a.movement.createdAt || a.movement.performedAt);
+        const dateB = new Date(b.movement.createdAt || b.movement.performedAt);
+        return dateB.getTime() - dateA.getTime();
+      });
+      
+      // Transformiere die Daten für die Frontendanzeige
+      const formattedMovements = combinedMovements.map(item => ({
+        id: item.movement.id,
+        productId: item.movement.productId,
+        productName: item.product?.productName,
+        quantity: item.movement.quantity,
+        type: item.movement.sourceWarehouseId === warehouseId ? 'OUT' : 'IN',
+        movementType: item.movement.movementType,
+        source: item.movement.referenceType === 'vendon' ? 'vendon' : 'manual',
+        machineId: item.movement.machineId,
+        machineName: item.movement.machineName,
+        notes: item.movement.notes,
+        createdAt: item.movement.createdAt,
+        performedAt: item.movement.performedAt,
+        sourceWarehouseId: item.movement.sourceWarehouseId,
+        sourceWarehouseName: item.sourceWarehouse?.name,
+        destinationWarehouseId: item.movement.destinationWarehouseId,
+        destinationWarehouseName: item.destinationWarehouse?.name
+      }));
+      
+      res.json(formattedMovements);
     } catch (error) {
       console.error("Error fetching inventory movements:", error);
       res.status(500).json({ 
