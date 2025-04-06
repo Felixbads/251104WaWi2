@@ -10,7 +10,7 @@ import {
   Plus, Search, Filter, ArrowDownUp, AlertTriangle, 
   ClipboardCheck, MapPin, Phone, Mail, User, 
   Eye, Save, Trash, Edit, CalendarRange, FileText,
-  RefreshCw, ShoppingCart, Clock
+  RefreshCw, ShoppingCart, Clock, Check
 } from "lucide-react";
 
 // API-Funktionen
@@ -98,6 +98,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 
 // Removed duplicate icons import
@@ -1337,25 +1338,46 @@ export default function WarehouseDetail() {
                         <span>Filter</span>
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent>
+                    <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Nach Typ filtern</DropdownMenuLabel>
                       <DropdownMenuSeparator />
-                      <DropdownMenuRadioGroup 
-                        value={movementFilter.movementType} 
-                        onValueChange={(value: string) => {
-                          setMovementFilter(prev => ({
-                            ...prev,
-                            movementType: value
-                          }));
-                        }}
+                      {/* Using individual menu items instead of RadioGroup to avoid RovingFocus issues */}
+                      <DropdownMenuItem
+                        onClick={() => setMovementFilter(prev => ({...prev, movementType: ""}))}
                       >
-                        <DropdownMenuRadioItem value="">Alle</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="IN">Eingang</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="OUT">Ausgang</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="TRANSFER">Umlagerung</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="ADJUSTMENT">Anpassung</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="REFILL">Nachfüllung</DropdownMenuRadioItem>
-                      </DropdownMenuRadioGroup>
+                        {movementFilter.movementType === "" && <Check className="mr-2 h-4 w-4" />}
+                        <span className={movementFilter.movementType === "" ? "font-medium" : ""}>Alle</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setMovementFilter(prev => ({...prev, movementType: "IN"}))}
+                      >
+                        {movementFilter.movementType === "IN" && <Check className="mr-2 h-4 w-4" />}
+                        <span className={movementFilter.movementType === "IN" ? "font-medium" : ""}>Eingang</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setMovementFilter(prev => ({...prev, movementType: "OUT"}))}
+                      >
+                        {movementFilter.movementType === "OUT" && <Check className="mr-2 h-4 w-4" />}
+                        <span className={movementFilter.movementType === "OUT" ? "font-medium" : ""}>Ausgang</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setMovementFilter(prev => ({...prev, movementType: "TRANSFER"}))}
+                      >
+                        {movementFilter.movementType === "TRANSFER" && <Check className="mr-2 h-4 w-4" />}
+                        <span className={movementFilter.movementType === "TRANSFER" ? "font-medium" : ""}>Umlagerung</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setMovementFilter(prev => ({...prev, movementType: "ADJUSTMENT"}))}
+                      >
+                        {movementFilter.movementType === "ADJUSTMENT" && <Check className="mr-2 h-4 w-4" />}
+                        <span className={movementFilter.movementType === "ADJUSTMENT" ? "font-medium" : ""}>Anpassung</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setMovementFilter(prev => ({...prev, movementType: "REFILL"}))}
+                      >
+                        {movementFilter.movementType === "REFILL" && <Check className="mr-2 h-4 w-4" />}
+                        <span className={movementFilter.movementType === "REFILL" ? "font-medium" : ""}>Nachfüllung</span>
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
