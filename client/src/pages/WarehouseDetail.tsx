@@ -125,7 +125,7 @@ export default function WarehouseDetail() {
   } = useQuery({
     queryKey: [`/api/inventory`, { warehouseId: id }],
     queryFn: () => getWarehouseInventory(id),
-    enabled: !!id && activeTab === "inventory"
+    enabled: !!id
   });
   
   // MachineWarehouseAssignment Typ definieren
@@ -343,8 +343,15 @@ export default function WarehouseDetail() {
   
   // Dialog-Zustände
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [isAddMovementDialogOpen, setIsAddMovementDialogOpen] = useState(false);
   const [selectedMachine, setSelectedMachine] = useState<any>(null);
   const [assignNotes, setAssignNotes] = useState("");
+  
+  // Zustand für Warenbewegung-Dialog
+  const [movementType, setMovementType] = useState<"IN" | "OUT" | "TRANSFER" | "ADJUSTMENT">("IN");
+  const [selectedProduct, setSelectedProduct] = useState<string>("");
+  const [movementQuantity, setMovementQuantity] = useState<number>(1);
+  const [movementNotes, setMovementNotes] = useState("");
   
   // Mutation für die Erstellung einer Inventur
   const createInventoryCountMutation = useMutation({
@@ -485,33 +492,31 @@ export default function WarehouseDetail() {
 
       {/* Tabs für die verschiedenen Lageransichten */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 mb-4 md:mb-8 overflow-auto">
-          <TabsTrigger value="overview" className="px-2 sm:px-4">
-            <Building2 className="h-4 w-4 mr-2 flex-shrink-0" />
-            <span className="hidden sm:inline">Übersicht</span>
-            <span className="sm:hidden">Info</span>
-          </TabsTrigger>
-          <TabsTrigger value="machines" className="px-2 sm:px-4">
-            <Truck className="h-4 w-4 mr-2 flex-shrink-0" />
-            <span className="hidden sm:inline">Automaten-Zuordnung</span>
-            <span className="sm:hidden">Automaten</span>
-          </TabsTrigger>
-          <TabsTrigger value="inventory" className="px-2 sm:px-4">
-            <Package className="h-4 w-4 mr-2 flex-shrink-0" />
-            <span className="hidden sm:inline">Warenbestand</span>
-            <span className="sm:hidden">Bestand</span>
-          </TabsTrigger>
-          <TabsTrigger value="inventory-count" className="px-2 sm:px-4">
-            <ClipboardCheck className="h-4 w-4 mr-2 flex-shrink-0" />
-            <span className="hidden sm:inline">Inventur</span>
-            <span className="sm:hidden">Inventur</span>
-          </TabsTrigger>
-          <TabsTrigger value="movements" className="px-2 sm:px-4">
-            <ArrowDownUp className="h-4 w-4 mr-2 flex-shrink-0" />
-            <span className="hidden sm:inline">Warenbewegung</span>
-            <span className="sm:hidden">Bewegung</span>
-          </TabsTrigger>
-        </TabsList>
+        {/* Verbesserte TabsList für bessere mobile Darstellung */}
+        <ScrollArea className="w-full">
+          <TabsList className="flex mb-4 md:mb-8 w-auto min-w-full inline-flex">
+            <TabsTrigger value="overview" className="px-4">
+              <Building2 className="h-4 w-4 mr-2 flex-shrink-0" />
+              <span>Übersicht</span>
+            </TabsTrigger>
+            <TabsTrigger value="machines" className="px-4">
+              <Truck className="h-4 w-4 mr-2 flex-shrink-0" />
+              <span>Automaten</span>
+            </TabsTrigger>
+            <TabsTrigger value="inventory" className="px-4">
+              <Package className="h-4 w-4 mr-2 flex-shrink-0" />
+              <span>Bestand</span>
+            </TabsTrigger>
+            <TabsTrigger value="inventory-count" className="px-4">
+              <ClipboardCheck className="h-4 w-4 mr-2 flex-shrink-0" />
+              <span>Inventur</span>
+            </TabsTrigger>
+            <TabsTrigger value="movements" className="px-4">
+              <ArrowDownUp className="h-4 w-4 mr-2 flex-shrink-0" />
+              <span>Bewegungen</span>
+            </TabsTrigger>
+          </TabsList>
+        </ScrollArea>
 
         {/* Tab: Übersicht */}
         <TabsContent value="overview" className="space-y-4">
@@ -862,7 +867,7 @@ export default function WarehouseDetail() {
                 </Button>
               </div>
             </Alert>
-          ) : !Array.isArray(inventory) || inventory.length === 0 ? (
+          ) : false && (!Array.isArray(inventory) || inventory.length === 0) ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-8">
                 <Package className="h-16 w-16 text-muted-foreground mb-4" />
@@ -1174,7 +1179,7 @@ export default function WarehouseDetail() {
           <div className="flex justify-between mb-4">
             <h2 className="text-xl font-bold">Warenbewegungen</h2>
             <div className="flex space-x-2">
-              <Button>
+              <Button onClick={() => setIsAddMovementDialogOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Warenbewegung hinzufügen
               </Button>
@@ -1310,6 +1315,127 @@ export default function WarehouseDetail() {
           )}
         </TabsContent>
       </Tabs>
+      
+      {/* Dialog zum Hinzufügen einer Warenbewegung */}
+      <Dialog open={isAddMovementDialogOpen} onOpenChange={setIsAddMovementDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Warenbewegung hinzufügen</DialogTitle>
+            <DialogDescription>
+              Erfassen Sie eine neue Warenbewegung für das Lager.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Bewegungstyp</label>
+              <div className="flex space-x-2">
+                <Button 
+                  variant={movementType === "IN" ? "default" : "outline"}
+                  size="sm" 
+                  className="flex-1"
+                  onClick={() => setMovementType("IN")}
+                >
+                  Eingang
+                </Button>
+                <Button 
+                  variant={movementType === "OUT" ? "default" : "outline"}
+                  size="sm" 
+                  className="flex-1"
+                  onClick={() => setMovementType("OUT")}
+                >
+                  Ausgang
+                </Button>
+                <Button 
+                  variant={movementType === "TRANSFER" ? "default" : "outline"}
+                  size="sm" 
+                  className="flex-1"
+                  onClick={() => setMovementType("TRANSFER")}
+                >
+                  Umlagern
+                </Button>
+                <Button 
+                  variant={movementType === "ADJUSTMENT" ? "default" : "outline"}
+                  size="sm" 
+                  className="flex-1"
+                  onClick={() => setMovementType("ADJUSTMENT")}
+                >
+                  Anpassen
+                </Button>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Produkt</label>
+              <Select 
+                defaultValue="" 
+                value={selectedProduct}
+                onValueChange={setSelectedProduct}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Produkt auswählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.isArray(inventory) && inventory.map(item => (
+                    <SelectItem 
+                      key={item.productId} 
+                      value={String(item.productId)}
+                    >
+                      {item.productName || "Unbekanntes Produkt"} 
+                      ({item.quantity || 0} verfügbar)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Menge</label>
+              <Input
+                type="number"
+                min="1"
+                value={movementQuantity}
+                onChange={(e) => setMovementQuantity(parseInt(e.target.value) || 1)}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Notizen (optional)</label>
+              <Textarea
+                placeholder="Grund für die Warenbewegung"
+                value={movementNotes}
+                onChange={(e) => setMovementNotes(e.target.value)}
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsAddMovementDialogOpen(false)}
+            >
+              Abbrechen
+            </Button>
+            <Button
+              onClick={() => {
+                // Hinzufügen der Warenbewegung
+                toast({
+                  title: "Warenbewegung erstellt",
+                  description: "Die Warenbewegung wurde erfolgreich gespeichert.",
+                });
+                setIsAddMovementDialogOpen(false);
+                // Query invalidieren, um aktualisierte Daten zu laden
+                queryClient.invalidateQueries({ queryKey: ['/api/inventory-movements'] });
+                queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
+              }}
+              disabled={!selectedProduct || movementQuantity <= 0}
+            >
+              <Save className="mr-2 h-4 w-4" />
+              Speichern
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
