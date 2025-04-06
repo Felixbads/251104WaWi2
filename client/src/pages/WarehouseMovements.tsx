@@ -1,630 +1,704 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useLocation } from 'wouter';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { format, parseISO, subDays, isAfter, isBefore, isEqual } from 'date-fns';
+import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { Calendar as CalendarIcon, ChevronLeft, Filter, Loader2, Package, RefreshCw, Search, AlertTriangle, X } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
 
-// UI Components
+// UI Komponenten
+import {
+  ChevronLeft,
+  Download,
+  Filter,
+  Truck,
+  FileDown,
+  FileUp,
+  Package,
+  RefreshCw,
+  ShoppingCart,
+  User,
+  RotateCw,
+  AlertTriangle
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { DateRange } from 'react-day-picker';
+import { Loader2 } from 'lucide-react';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 
+// Typ-Definitionen
+interface WarehouseMovement {
+  id: number;
+  productId: number;
+  productName: string;
+  quantity: number;
+  sourceWarehouseId: number | null;
+  sourceWarehouseName: string | null;
+  destinationWarehouseId: number | null;
+  destinationWarehouseName: string | null;
+  machineId: number | null;
+  machineName: string | null;
+  movementType: string;
+  referenceType: string;
+  referenceId: string | null;
+  notes: string | null;
+  performedBy: number | null;
+  performedByName: string | null;
+  performedAt: string;
+  createdAt: string;
+  unit: string | null;
+  quantityBefore: number | null;
+  quantityAfter: number | null;
+}
+
+interface Refill {
+  id: number;
+  machineId: number;
+  machineName: string;
+  productId: number;
+  productName: string;
+  quantity: number;
+  performedBy: number;
+  performedByName: string;
+  performedAt: string;
+  createdAt: string;
+  unit: string | null;
+  warehouseId: number | null;
+  warehouseName: string | null;
+  quantityBefore: number | null;
+  quantityAfter: number | null;
+}
+
+// Kombinierter Typ für die Anzeige
+type CombinedMovement = WarehouseMovement | (Refill & { type: 'REFILL' });
+
+// Hilfsfunktionen
+const formatDate = (dateString: string) => {
+  try {
+    return format(new Date(dateString), 'dd.MM.yyyy HH:mm', { locale: de });
+  } catch (error) {
+    return 'Ungültiges Datum';
+  }
+};
+
+const getMovementTypeLabel = (type: string) => {
+  switch (type) {
+    case 'IN': return 'Eingang';
+    case 'OUT': return 'Ausgang';
+    case 'TRANSFER': return 'Umlagerung';
+    case 'ADJUSTMENT': return 'Korrektur';
+    case 'REFILL': return 'Auffüllung';
+    case 'MANUAL': return 'Manuell';
+    default: return type;
+  }
+};
+
+const getMovementTypeIcon = (type: string) => {
+  switch (type) {
+    case 'IN': return <FileDown className="h-4 w-4 mr-1" />;
+    case 'OUT': return <FileUp className="h-4 w-4 mr-1" />;
+    case 'TRANSFER': return <RotateCw className="h-4 w-4 mr-1" />;
+    case 'ADJUSTMENT': return <AlertTriangle className="h-4 w-4 mr-1" />;
+    case 'REFILL': return <ShoppingCart className="h-4 w-4 mr-1" />;
+    case 'MANUAL': return <Package className="h-4 w-4 mr-1" />;
+    default: return null;
+  }
+};
+
+const getMovementBadgeVariant = (type: string) => {
+  switch (type) {
+    case 'IN': return 'default';
+    case 'OUT': return 'destructive';
+    case 'TRANSFER': return 'secondary';
+    case 'ADJUSTMENT': return 'outline';
+    case 'REFILL': return 'destructive';
+    case 'MANUAL': return 'outline';
+    default: return 'default';
+  }
+};
+
+// Hauptkomponente
 export default function WarehouseMovements() {
-  const { id } = useParams();
-  const [location, setLocation] = useLocation();
-  const { toast } = useToast();
+  const params = useParams();
+  const warehouseId = Number(params.id);
+  const [, setLocation] = useLocation();
+  
   const queryClient = useQueryClient();
   
-  // Filter state
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: subDays(new Date(), 7),
-    to: new Date()
+  // Status und Filter
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [filters, setFilters] = useState({
+    startDate: new Date(new Date().setDate(new Date().getDate() - 7)), // Letzte Woche
+    endDate: new Date(),
+    productName: '',
+    movementType: '',
+    userId: ''
   });
-  const [searchTerm, setSearchTerm] = useState('');
-  const [movementTypeFilter, setMovementTypeFilter] = useState('');
-  const [machineFilter, setMachineFilter] = useState('');
-  const [userFilter, setUserFilter] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
-  const [activeTab, setActiveTab] = useState("all");
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
-  // Load warehouse data
-  const {
-    data: warehouse = {} as Record<string, any>,
-    isLoading: warehouseLoading,
-    error: warehouseError
-  } = useQuery({
-    queryKey: ['/api/warehouses', id],
+  // Zeitraumauswahl-Status
+  const [startDateOpen, setStartDateOpen] = useState(false);
+  const [endDateOpen, setEndDateOpen] = useState(false);
+  
+  // Abfragen der Lagerdaten
+  const { data: warehouse, isLoading: warehouseLoading } = useQuery({
+    queryKey: ['/api/warehouses', warehouseId],
+    enabled: !!warehouseId
   });
-
-  // Load movement data
+  
+  // Abfragen der Warenbewegungen
   const {
     data: movements = [],
     isLoading: movementsLoading,
-    error: movementsError,
-    refetch: refetchMovements
+    error: movementsError
   } = useQuery({
-    queryKey: ['/api/inventory-movements', { 
-      warehouseId: id, 
-      startDate: dateRange?.from?.toISOString(), 
-      endDate: dateRange?.to?.toISOString()
-    }],
+    queryKey: ['/api/inventory-movements', warehouseId, filters, page, pageSize],
+    queryFn: async () => {
+      const queryParams = new URLSearchParams({
+        warehouseId: warehouseId.toString(),
+        page: page.toString(),
+        pageSize: pageSize.toString()
+      });
+      
+      if (filters.productName) queryParams.append('productName', filters.productName);
+      if (filters.movementType) queryParams.append('movementType', filters.movementType);
+      if (filters.userId) queryParams.append('userId', filters.userId);
+      
+      if (filters.startDate) {
+        queryParams.append('startDate', filters.startDate.toISOString());
+      }
+      
+      if (filters.endDate) {
+        queryParams.append('endDate', filters.endDate.toISOString());
+      }
+      
+      const response = await fetch(`/api/inventory-movements?${queryParams.toString()}`);
+      if (!response.ok) {
+        throw new Error('Fehler beim Laden der Warenbewegungen');
+      }
+      return response.json();
+    },
+    enabled: !!warehouseId
   });
-
-  // Load refills that used products from this warehouse
+  
+  // Abfragen der Auffüllungen (Refills)
   const {
     data: refills = [],
     isLoading: refillsLoading,
-    error: refillsError,
-    refetch: refetchRefills
+    error: refillsError
   } = useQuery({
-    queryKey: ['/api/refills', { 
-      warehouseId: id,
-      startDate: dateRange?.from?.toISOString(),
-      endDate: dateRange?.to?.toISOString()
-    }],
-  });
-
-  // Load products for filter dropdown
-  const {
-    data: products = [],
-    isLoading: productsLoading,
-  } = useQuery({
-    queryKey: ['/api/products'],
-  });
-
-  // Load machines assigned to this warehouse
-  const {
-    data: machineAssignments = [],
-    isLoading: machineAssignmentsLoading,
-  } = useQuery({
-    queryKey: ['/api/machine-warehouse-assignments', { warehouseId: id }],
-  });
-
-  // Load users for filter dropdown
-  const {
-    data: users = [],
-    isLoading: usersLoading,
-  } = useQuery({
-    queryKey: ['/api/users'],
-  });
-
-  // Combine movements and refills
-  const combinedMovements = useMemo(() => {
-    if (!movements || !refills) return [];
-    
-    // Convert refills to match movement format
-    const refillMovementsArray = Array.isArray(refills) 
-      ? refills.flatMap((refill: any) => {
-          if (refill.details && Array.isArray(refill.details)) {
-            return refill.details.map((detail: any) => ({
-              id: `refill-${refill.id}-${detail.id}`,
-              productId: detail.productId,
-              productName: detail.productName,
-              quantity: detail.removed * -1, // Removed items as negative
-              movementType: "REFILL",
-              type: "OUT",
-              createdAt: refill.datetime,
-              performedAt: refill.datetime,
-              source: "vendon",
-              machineId: refill.machineId,
-              machineName: refill.machineName,
-              notes: `Auffüllung von Automat ${refill.machineName}`,
-              operatorName: refill.operator || "Unbekannt",
-              // These would be used for filtering
-              referenceType: "REFILL",
-              referenceId: refill.id.toString(),
-              sourceWarehouseId: Number(id),
-              destinationWarehouseId: null,
-              unit: detail.unit || "Stk"
-            }));
-          }
-          return [];
-        })
-      : [];
-    
-    // Add unit and user info to movement data if missing
-    const enhancedMovements = Array.isArray(movements) 
-      ? movements.map((movement: any) => ({
-          ...movement,
-          unit: movement.unit || "Stk",
-          operatorName: movement.performedBy && Array.isArray(users)
-            ? users.find((u: any) => u.id === movement.performedBy)?.username || "Unbekannt"
-            : "Unbekannt"
-        }))
-      : [];
-    
-    // Combine and sort by date (newest first)
-    return [...enhancedMovements, ...refillMovementsArray].sort((a: any, b: any) => {
-      const dateA = new Date(a.performedAt || a.createdAt);
-      const dateB = new Date(b.performedAt || b.createdAt);
-      return dateB.getTime() - dateA.getTime();
-    });
-  }, [movements, refills, users, id]);
-
-  // Apply filters to combined movements
-  const filteredMovements = useMemo(() => {
-    return combinedMovements.filter((movement: any) => {
-      // Filter by search term (product name or notes)
-      const matchesSearch = !searchTerm || 
-        (movement.productName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-         movement.notes?.toLowerCase().includes(searchTerm.toLowerCase()));
+    queryKey: ['/api/refills', warehouseId, filters, page, pageSize],
+    queryFn: async () => {
+      const queryParams = new URLSearchParams({
+        warehouseId: warehouseId.toString(),
+        page: page.toString(),
+        pageSize: pageSize.toString(),
+        startDate: filters.startDate.toISOString(),
+        endDate: filters.endDate.toISOString()
+      });
       
-      // Filter by movement type
-      const matchesType = !movementTypeFilter || movement.movementType === movementTypeFilter;
+      if (filters.productName) queryParams.append('productName', filters.productName);
+      if (filters.userId) queryParams.append('userId', filters.userId);
       
-      // Filter by machine
-      const matchesMachine = !machineFilter || 
-        (movement.machineId && movement.machineId.toString() === machineFilter);
-      
-      // Filter by user
-      const matchesUser = !userFilter || 
-        (movement.performedBy && movement.performedBy.toString() === userFilter) ||
-        (movement.operatorName && movement.operatorName.toLowerCase().includes(userFilter.toLowerCase()));
-      
-      // Filter by date range
-      let matchesDateRange = true;
-      if (dateRange?.from || dateRange?.to) {
-        const movementDate = new Date(movement.performedAt || movement.createdAt);
-        
-        if (dateRange.from && dateRange.to) {
-          // Set time to beginning/end of day for proper comparison
-          const fromDate = new Date(dateRange.from);
-          fromDate.setHours(0, 0, 0, 0);
-          
-          const toDate = new Date(dateRange.to);
-          toDate.setHours(23, 59, 59, 999);
-          
-          matchesDateRange = (
-            (isAfter(movementDate, fromDate) || isEqual(movementDate, fromDate)) && 
-            (isBefore(movementDate, toDate) || isEqual(movementDate, toDate))
-          );
-        } else if (dateRange.from) {
-          const fromDate = new Date(dateRange.from);
-          fromDate.setHours(0, 0, 0, 0);
-          matchesDateRange = isAfter(movementDate, fromDate) || isEqual(movementDate, fromDate);
-        } else if (dateRange.to) {
-          const toDate = new Date(dateRange.to);
-          toDate.setHours(23, 59, 59, 999);
-          matchesDateRange = isBefore(movementDate, toDate) || isEqual(movementDate, toDate);
-        }
+      const response = await fetch(`/api/refills?${queryParams.toString()}`);
+      if (!response.ok) {
+        throw new Error('Fehler beim Laden der Auffüllungen');
       }
-      
-      // Apply tab-specific filters
-      const matchesTab = 
-        activeTab === "all" ||
-        (activeTab === "in" && movement.type === "IN") ||
-        (activeTab === "out" && movement.type === "OUT") ||
-        (activeTab === "refill" && movement.movementType === "REFILL");
-      
-      return matchesSearch && matchesType && matchesMachine && matchesUser && matchesDateRange && matchesTab;
-    });
-  }, [
-    combinedMovements, 
-    searchTerm, 
-    movementTypeFilter, 
-    machineFilter, 
-    userFilter, 
-    dateRange,
-    activeTab
-  ]);
-
-  // Reset filters
+      return response.json();
+    },
+    enabled: !!warehouseId
+  });
+  
+  // Kombinierte Bewegungen (Warenbewegungen + Refills)
+  const combinedMovements: CombinedMovement[] = [
+    ...movements,
+    ...refills.map((refill: Refill) => ({
+      ...refill,
+      type: 'REFILL',
+      sourceWarehouseId: warehouseId,
+      sourceWarehouseName: warehouse?.name || '',
+      destinationWarehouseId: null,
+      destinationWarehouseName: null,
+      movementType: 'REFILL',
+      referenceType: 'REFILL',
+      referenceId: `refill-${refill.id}`,
+      notes: `Auffüllung des Automaten ${refill.machineName}`
+    }))
+  ].sort((a, b) => {
+    const dateA = new Date(a.performedAt || a.createdAt);
+    const dateB = new Date(b.performedAt || b.createdAt);
+    return dateB.getTime() - dateA.getTime(); // Neueste zuerst
+  });
+  
+  const totalPages = Math.ceil(combinedMovements.length / pageSize);
+  
+  // Paginierte Bewegungen
+  const paginatedMovements = combinedMovements.slice(
+    (page - 1) * pageSize,
+    page * pageSize
+  );
+  
+  // Seite zurücksetzen, wenn Filter geändert werden
+  useEffect(() => {
+    setPage(1);
+  }, [filters]);
+  
+  // Filter zurücksetzen
   const resetFilters = () => {
-    setSearchTerm('');
-    setMovementTypeFilter('');
-    setMachineFilter('');
-    setUserFilter('');
-    setDateRange({
-      from: subDays(new Date(), 7),
-      to: new Date()
+    setFilters({
+      startDate: new Date(new Date().setDate(new Date().getDate() - 7)),
+      endDate: new Date(),
+      productName: '',
+      movementType: '',
+      userId: ''
     });
   };
-
-  // Handle manual refresh
-  const handleRefresh = () => {
-    refetchMovements();
-    refetchRefills();
-    toast({
-      title: "Aktualisiert",
-      description: "Die Warenbewegungen wurden aktualisiert."
-    });
-  };
-
-  // Format movement type for display
-  const formatMovementType = (type: string, movementType: string) => {
-    if (movementType === "REFILL") return "Refill";
-    
-    if (type === "IN") {
-      if (movementType === "ORDER") return "Wareneingang (Bestellung)";
-      if (movementType === "TRANSFER") return "Umlagerung";
-      if (movementType === "ADJUSTMENT") return "Bestandskorrektur";
-      if (movementType === "MANUAL") return "Manueller Eingang";
-      return "Wareneingang";
-    } else {
-      if (movementType === "TRANSFER") return "Umlagerung";
-      if (movementType === "ADJUSTMENT") return "Bestandskorrektur";
-      if (movementType === "MANUAL") return "Manuelle Entnahme";
-      return "Warenausgang";
-    }
-  };
-
-  // Error handling
-  if (warehouseLoading) {
-    return (
-      <div className="container py-10">
-        <div className="flex justify-center">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
-      </div>
-    );
-  }
   
-  if (warehouseError) {
+  // Fehlerbehandlung
+  const isError = movementsError || refillsError;
+  if (isError) {
     return (
-      <div className="container py-10">
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Fehler beim Laden des Lagers</AlertTitle>
-          <AlertDescription>
-            {warehouseError instanceof Error 
-              ? warehouseError.message 
-              : "Ein unbekannter Fehler ist aufgetreten."}
-          </AlertDescription>
-        </Alert>
-        
-        <Button
-          variant="outline"
-          className="mt-4"
-          onClick={() => setLocation(`/lager/${id}`)}
-        >
-          <ChevronLeft className="mr-2 h-4 w-4" />
-          Zurück zum Lager
-        </Button>
-      </div>
-    );
-  }
-  
-  if (!warehouse || typeof warehouse !== 'object' || !('id' in warehouse)) {
-    return (
-      <div className="container py-10">
-        <Alert>
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Lager nicht gefunden</AlertTitle>
-          <AlertDescription>
-            Das angeforderte Lager konnte nicht gefunden werden.
-          </AlertDescription>
-        </Alert>
-        
-        <Button
-          variant="outline"
-          className="mt-4"
-          onClick={() => setLocation("/lager")}
-        >
-          <ChevronLeft className="mr-2 h-4 w-4" />
-          Zurück zur Übersicht
-        </Button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="container py-6 space-y-6">
-      {/* Header with Back Button */}
-      <div className="flex items-center justify-between">
+      <div className="container py-6 space-y-6">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setLocation(`/lager/${id}`)}>
+          <Button variant="outline" size="sm" onClick={() => setLocation(`/lager/${warehouseId}`)}>
             <ChevronLeft className="mr-2 h-4 w-4" />
             Zurück zum Lager
           </Button>
         </div>
-        <h1 className="text-2xl font-bold">{warehouse && typeof warehouse === 'object' && 'name' in warehouse ? String(warehouse.name) : 'Lager'} - Warenbewegungen</h1>
-      </div>
-
-      {/* Main Content */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>Warenbewegungen</CardTitle>
-              <CardDescription>
-                Anzeige aller Zu- und Abgänge sowie Refills
-              </CardDescription>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handleRefresh}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Aktualisieren
-              </Button>
+        
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center justify-center p-6 text-center">
+              <AlertTriangle className="h-12 w-12 text-destructive mb-4" />
+              <h2 className="text-xl font-semibold mb-2">Fehler beim Laden der Daten</h2>
+              <p className="text-muted-foreground mb-4">
+                Die Warenbewegungen konnten nicht geladen werden. Bitte versuchen Sie es später erneut.
+              </p>
               <Button 
-                variant={showFilters ? "default" : "outline"} 
-                size="sm" 
-                onClick={() => setShowFilters(!showFilters)}
+                onClick={() => {
+                  queryClient.invalidateQueries({ queryKey: ['/api/inventory-movements'] });
+                  queryClient.invalidateQueries({ queryKey: ['/api/refills'] });
+                }}
               >
-                <Filter className="h-4 w-4 mr-2" />
-                Filter {showFilters ? "ausblenden" : "anzeigen"}
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Erneut versuchen
               </Button>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {/* Tabs for quick filtering */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-4">
-            <TabsList>
-              <TabsTrigger value="all">Alle</TabsTrigger>
-              <TabsTrigger value="in">Eingänge</TabsTrigger>
-              <TabsTrigger value="out">Ausgänge</TabsTrigger>
-              <TabsTrigger value="refill">Refills</TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          {/* Filters */}
-          {showFilters && (
-            <div className="mb-6 p-4 border rounded-md bg-muted/20">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-4">
-                {/* Date Range Filter */}
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Zeitraum</label>
-                  <Popover>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
+  // Lade-Indikator
+  if (warehouseLoading || (movementsLoading && refillsLoading)) {
+    return (
+      <div className="container py-6 space-y-6">
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setLocation(`/lager/${warehouseId}`)}>
+            <ChevronLeft className="mr-2 h-4 w-4" />
+            Zurück zum Lager
+          </Button>
+        </div>
+        
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center justify-center p-12">
+              <Loader2 className="h-12 w-12 animate-spin mb-4" />
+              <p className="text-muted-foreground">Lade Warenbewegungen...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
+  // Hauptansicht
+  return (
+    <div className="container py-6 space-y-6">
+      {/* Kopfzeile mit Navigationslinks und Filtern */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setLocation(`/lager/${warehouseId}`)}>
+            <ChevronLeft className="mr-2 h-4 w-4" />
+            Zurück zum Lager
+          </Button>
+          
+          <h1 className="text-xl font-semibold">
+            Warenbewegungen: {warehouse?.name || 'Lager'}
+          </h1>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Filter className="mr-2 h-4 w-4" />
+                Filter
+              </Button>
+            </SheetTrigger>
+            <SheetContent>
+              <SheetHeader>
+                <SheetTitle>Filter für Warenbewegungen</SheetTitle>
+                <SheetDescription>
+                  Schränken Sie die angezeigten Warenbewegungen nach bestimmten Kriterien ein.
+                </SheetDescription>
+              </SheetHeader>
+              
+              <div className="py-4 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="startDate">Zeitraum von</Label>
+                  <Popover open={startDateOpen} onOpenChange={setStartDateOpen}>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        className="w-full justify-start text-left font-normal"
+                        className="w-full justify-start text-left"
+                        id="startDate"
                       >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {dateRange?.from ? (
-                          dateRange.to ? (
-                            <>
-                              {format(dateRange.from, "dd.MM.yyyy")} -{" "}
-                              {format(dateRange.to, "dd.MM.yyyy")}
-                            </>
-                          ) : (
-                            format(dateRange.from, "dd.MM.yyyy")
-                          )
+                        {filters.startDate ? (
+                          format(filters.startDate, "dd.MM.yyyy", { locale: de })
                         ) : (
-                          "Zeitraum wählen"
+                          <span>Datum wählen</span>
                         )}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
+                    <PopoverContent className="w-auto p-0">
                       <Calendar
-                        mode="range"
-                        selected={dateRange}
-                        onSelect={setDateRange}
-                        locale={de}
-                        initialFocus
+                        mode="single"
+                        selected={filters.startDate}
+                        onSelect={(date) => {
+                          setFilters({ ...filters, startDate: date || new Date() });
+                          setStartDateOpen(false);
+                        }}
                       />
                     </PopoverContent>
                   </Popover>
                 </div>
-
-                {/* Article Filter */}
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Artikel</label>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="endDate">bis</Label>
+                  <Popover open={endDateOpen} onOpenChange={setEndDateOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start text-left"
+                        id="endDate"
+                      >
+                        {filters.endDate ? (
+                          format(filters.endDate, "dd.MM.yyyy", { locale: de })
+                        ) : (
+                          <span>Datum wählen</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={filters.endDate}
+                        onSelect={(date) => {
+                          setFilters({ ...filters, endDate: date || new Date() });
+                          setEndDateOpen(false);
+                        }}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="productName">Produkt</Label>
                   <Input
-                    placeholder="Artikelname suchen..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    id="productName"
+                    placeholder="Produktnamen eingeben"
+                    value={filters.productName}
+                    onChange={(e) => setFilters({ ...filters, productName: e.target.value })}
                   />
                 </div>
-
-                {/* Movement Type Filter */}
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Bewegungstyp</label>
-                  <Select value={movementTypeFilter} onValueChange={setMovementTypeFilter}>
-                    <SelectTrigger>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="movementType">Bewegungstyp</Label>
+                  <Select
+                    value={filters.movementType}
+                    onValueChange={(value) => setFilters({ ...filters, movementType: value })}
+                  >
+                    <SelectTrigger id="movementType">
                       <SelectValue placeholder="Alle Typen" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="">Alle Typen</SelectItem>
-                      <SelectItem value="IN">Wareneingang</SelectItem>
-                      <SelectItem value="OUT">Warenausgang</SelectItem>
+                      <SelectItem value="IN">Eingang</SelectItem>
+                      <SelectItem value="OUT">Ausgang</SelectItem>
                       <SelectItem value="TRANSFER">Umlagerung</SelectItem>
-                      <SelectItem value="REFILL">Refill</SelectItem>
-                      <SelectItem value="ADJUSTMENT">Bestandskorrektur</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Machine Filter */}
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Automat</label>
-                  <Select value={machineFilter} onValueChange={setMachineFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Alle Automaten" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">Alle Automaten</SelectItem>
-                      {Array.isArray(machineAssignments) ? machineAssignments.map((assignment: any) => (
-                        <SelectItem 
-                          key={assignment.machine?.id} 
-                          value={assignment.machine?.id?.toString() || ''}
-                        >
-                          {assignment.machine?.machineName || 'Unbekannter Automat'}
-                        </SelectItem>
-                      )) : null}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* User Filter */}
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Benutzer</label>
-                  <Select value={userFilter} onValueChange={setUserFilter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Alle Benutzer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">Alle Benutzer</SelectItem>
-                      {Array.isArray(users) ? users.map((user: any) => (
-                        <SelectItem 
-                          key={user.id} 
-                          value={user.id.toString()}
-                        >
-                          {user.username}
-                        </SelectItem>
-                      )) : null}
+                      <SelectItem value="ADJUSTMENT">Korrektur</SelectItem>
+                      <SelectItem value="REFILL">Auffüllung</SelectItem>
+                      <SelectItem value="MANUAL">Manuell</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-
-              <div className="flex justify-end">
-                <Button variant="outline" size="sm" onClick={resetFilters}>
-                  <X className="h-4 w-4 mr-2" />
+              
+              <SheetFooter>
+                <Button variant="outline" onClick={resetFilters}>
                   Filter zurücksetzen
                 </Button>
-              </div>
+                <SheetClose asChild>
+                  <Button onClick={() => setIsFilterSheetOpen(false)}>
+                    Anwenden
+                  </Button>
+                </SheetClose>
+              </SheetFooter>
+            </SheetContent>
+          </Sheet>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ['/api/inventory-movements'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/refills'] });
+            }}
+          >
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Aktualisieren
+          </Button>
+          
+          <Button variant="outline" size="sm" disabled>
+            <Download className="mr-2 h-4 w-4" />
+            Exportieren
+          </Button>
+        </div>
+      </div>
+      
+      {/* Hauptinhalt: Tabelle mit Warenbewegungen */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+            <div>
+              <CardTitle>Warenbewegungen</CardTitle>
+              <CardDescription>
+                Alle Ein- und Ausgänge sowie Anpassungen des Lagerbestands
+              </CardDescription>
             </div>
-          )}
-
-          {/* Loading State */}
-          {(movementsLoading || refillsLoading) ? (
-            <div className="flex justify-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin" />
+            
+            <div className="flex items-center mt-2 sm:mt-0">
+              <Label htmlFor="pageSize" className="mr-2">Einträge:</Label>
+              <Select
+                value={pageSize.toString()}
+                onValueChange={(value) => {
+                  setPageSize(Number(value));
+                  setPage(1);
+                }}
+              >
+                <SelectTrigger id="pageSize" className="w-[70px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </CardHeader>
+        
+        <CardContent>
+          {paginatedMovements.length > 0 ? (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Datum</TableHead>
+                    <TableHead>Typ</TableHead>
+                    <TableHead>Produkt</TableHead>
+                    <TableHead>Menge</TableHead>
+                    <TableHead>Quelle/Ziel</TableHead>
+                    <TableHead>Benutzer</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedMovements.map((movement) => (
+                    <TableRow key={`${movement.movementType}-${movement.id}`}>
+                      <TableCell className="font-medium">
+                        {formatDate(movement.performedAt || movement.createdAt)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getMovementBadgeVariant(movement.movementType)}>
+                          <div className="flex items-center">
+                            {getMovementTypeIcon(movement.movementType)}
+                            {getMovementTypeLabel(movement.movementType)}
+                          </div>
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{movement.productName}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span>{Math.abs(Number(movement.quantity))} {movement.unit || 'Stk.'}</span>
+                          {(movement.quantityBefore !== null && movement.quantityAfter !== null) && (
+                            <span className="text-xs text-muted-foreground">
+                              Vorher: {movement.quantityBefore} → Nachher: {movement.quantityAfter}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {movement.movementType === 'IN' && (
+                          <div className="flex flex-col">
+                            <span>Eingang → {movement.destinationWarehouseName}</span>
+                            {movement.referenceType === 'ORDER' && (
+                              <span className="text-xs text-muted-foreground">
+                                Bestellung: {movement.referenceId}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {movement.movementType === 'OUT' && (
+                          <div className="flex flex-col">
+                            <span>{movement.sourceWarehouseName} → Ausgang</span>
+                          </div>
+                        )}
+                        {movement.movementType === 'TRANSFER' && (
+                          <div className="flex flex-col">
+                            <span>{movement.sourceWarehouseName} → {movement.destinationWarehouseName}</span>
+                          </div>
+                        )}
+                        {movement.movementType === 'REFILL' && (
+                          <div className="flex flex-col">
+                            <span>{movement.sourceWarehouseName} → {movement.machineName}</span>
+                          </div>
+                        )}
+                        {movement.movementType === 'ADJUSTMENT' && (
+                          <div className="flex flex-col">
+                            <span>{Number(movement.quantity) > 0 ? 'Hinzugefügt' : 'Entfernt'}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {movement.notes || 'Manuelle Anpassung'}
+                            </span>
+                          </div>
+                        )}
+                        {movement.movementType === 'MANUAL' && (
+                          <div className="flex flex-col">
+                            <span>{movement.sourceWarehouseName ? `${movement.sourceWarehouseName} →` : ''} {movement.notes || 'Manuelle Bewegung'}</span>
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center">
+                          <User className="h-4 w-4 mr-1 text-muted-foreground" />
+                          <span>{movement.performedByName || 'System'}</span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           ) : (
-            <>
-              {/* Active Filters Display */}
-              {(searchTerm || movementTypeFilter || machineFilter || userFilter || dateRange) && (
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {searchTerm && (
-                    <Badge variant="outline" className="flex items-center gap-1">
-                      Artikel: {searchTerm}
-                      <X 
-                        className="h-3 w-3 cursor-pointer" 
-                        onClick={() => setSearchTerm('')} 
-                      />
-                    </Badge>
-                  )}
-                  {movementTypeFilter && (
-                    <Badge variant="outline" className="flex items-center gap-1">
-                      Typ: {movementTypeFilter}
-                      <X 
-                        className="h-3 w-3 cursor-pointer" 
-                        onClick={() => setMovementTypeFilter('')} 
-                      />
-                    </Badge>
-                  )}
-                  {machineFilter && (
-                    <Badge variant="outline" className="flex items-center gap-1">
-                      Automat: {Array.isArray(machineAssignments) 
-                        ? machineAssignments.find((a: any) => 
-                            a.machine?.id.toString() === machineFilter)?.machine?.machineName || machineFilter
-                        : machineFilter}
-                      <X 
-                        className="h-3 w-3 cursor-pointer" 
-                        onClick={() => setMachineFilter('')} 
-                      />
-                    </Badge>
-                  )}
-                  {userFilter && (
-                    <Badge variant="outline" className="flex items-center gap-1">
-                      Benutzer: {Array.isArray(users)
-                        ? users.find((u: any) => 
-                            u.id.toString() === userFilter)?.username || userFilter
-                        : userFilter}
-                      <X 
-                        className="h-3 w-3 cursor-pointer" 
-                        onClick={() => setUserFilter('')} 
-                      />
-                    </Badge>
-                  )}
-                  {dateRange && dateRange.from && (
-                    <Badge variant="outline" className="flex items-center gap-1">
-                      Zeitraum: {format(dateRange.from, "dd.MM.yyyy")}
-                      {dateRange.to && ` - ${format(dateRange.to, "dd.MM.yyyy")}`}
-                      <X 
-                        className="h-3 w-3 cursor-pointer" 
-                        onClick={() => setDateRange(undefined)} 
-                      />
-                    </Badge>
-                  )}
-                </div>
-              )}
-
-              {/* Results Count */}
-              <div className="text-sm text-muted-foreground mb-2">
-                {filteredMovements.length} Warenbewegungen gefunden
-              </div>
-
-              {/* Movements Table */}
-              {filteredMovements.length > 0 ? (
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Datum/Zeit</TableHead>
-                        <TableHead>Bewegungstyp</TableHead>
-                        <TableHead>Artikelname</TableHead>
-                        <TableHead className="text-center">Menge</TableHead>
-                        <TableHead>Einheit</TableHead>
-                        <TableHead>Quelle/Ziel</TableHead>
-                        <TableHead>Nutzer</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredMovements.map((movement: any) => (
-                        <TableRow key={movement.id}>
-                          <TableCell className="font-medium whitespace-nowrap">
-                            {movement && (movement.performedAt || movement.createdAt) 
-                              ? format(new Date(movement.performedAt || movement.createdAt), "dd.MM.yyyy HH:mm")
-                              : "Unbekanntes Datum"}
-                          </TableCell>
-                          <TableCell>
-                            {movement.type && (
-                              <Badge variant={movement.type === 'IN' ? 'default' : 'destructive'}>
-                                {formatMovementType(movement.type || "", movement.movementType || "")}
-                              </Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>{movement.productName}</TableCell>
-                          <TableCell className="text-center font-medium">
-                            {movement.type && movement.quantity !== undefined ? 
-                              `${movement.type === 'IN' ? '+' : '-'}${Math.abs(Number(movement.quantity))}` : 
-                              "-"}
-                          </TableCell>
-                          <TableCell>{movement.unit}</TableCell>
-                          <TableCell>
-                            {movement.movementType === "REFILL" ? (
-                              <span>Refill Automat {movement.machineName || "unbekannt"}</span>
-                            ) : movement.type === "IN" && movement.referenceType === "ORDER" ? (
-                              <span>Wareneingang Bestellung #{movement.referenceId || "?"}</span>
-                            ) : movement.type === "OUT" && movement.destinationWarehouseId ? (
-                              <span>Umlagerung nach {
-                                // This would require fetching all warehouses to display the name
-                                `Lager ${movement.destinationWarehouseId}`
-                              }</span>
-                            ) : movement.type === "IN" && movement.sourceWarehouseId ? (
-                              <span>Umlagerung von {
-                                `Lager ${movement.sourceWarehouseId}`
-                              }</span>
-                            ) : (
-                              <span>{movement.notes || "-"}</span>
-                            )}
-                          </TableCell>
-                          <TableCell>{movement.operatorName}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="text-center p-8 border rounded-md">
-                  <Package className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                  <div className="text-muted-foreground">Keine Warenbewegungen gefunden</div>
-                </div>
-              )}
-            </>
+            <div className="flex flex-col items-center justify-center p-8 text-center">
+              <Truck className="h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-2">Keine Warenbewegungen gefunden</h3>
+              <p className="text-muted-foreground max-w-md mb-6">
+                Es wurden keine Warenbewegungen für dieses Lager im angegebenen Zeitraum gefunden.
+                Versuchen Sie es mit anderen Filtereinstellungen oder einem längeren Zeitraum.
+              </p>
+              <Button variant="outline" onClick={resetFilters}>
+                Filter zurücksetzen
+              </Button>
+            </div>
+          )}
+          
+          {/* Pagination */}
+          {paginatedMovements.length > 0 && (
+            <Pagination className="mt-4">
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious 
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                  />
+                </PaginationItem>
+                
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNumber;
+                  if (totalPages <= 5) {
+                    pageNumber = i + 1;
+                  } else {
+                    if (page <= 3) {
+                      pageNumber = i + 1;
+                    } else if (page >= totalPages - 2) {
+                      pageNumber = totalPages - 4 + i;
+                    } else {
+                      pageNumber = page - 2 + i;
+                    }
+                  }
+                  
+                  return (
+                    <PaginationItem key={pageNumber}>
+                      <PaginationLink
+                        onClick={() => setPage(pageNumber)}
+                        isActive={page === pageNumber}
+                      >
+                        {pageNumber}
+                      </PaginationLink>
+                    </PaginationItem>
+                  );
+                })}
+                
+                {totalPages > 5 && page < totalPages - 2 && (
+                  <PaginationItem>
+                    <PaginationEllipsis />
+                  </PaginationItem>
+                )}
+                
+                <PaginationItem>
+                  <PaginationNext
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
           )}
         </CardContent>
       </Card>

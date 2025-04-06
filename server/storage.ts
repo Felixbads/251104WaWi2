@@ -1,4 +1,4 @@
-import { eq, desc, and, or, gte, lte, like, asc, count, aliasedTable, sql, gt, ilike, isNull, isNotNull, inArray } from "drizzle-orm";
+import { eq, desc, and, or, gte, lte, like, asc, count, aliasedTable, sql, gt, ilike, isNull, isNotNull, inArray, between } from "drizzle-orm";
 import { db, rawSql } from "./db";
 import { 
   users, type User, type InsertUser,
@@ -267,6 +267,9 @@ export interface IStorage {
     machineId?: number;
     movementType?: string;
     referenceType?: string;
+    referenceId?: string;
+    startDate?: Date;
+    endDate?: Date;
     limit?: number;
     offset?: number;
   }): Promise<InventoryMovement[]>;
@@ -2332,18 +2335,22 @@ export class DatabaseStorage implements IStorage {
     movementType?: string;
     referenceType?: string;
     referenceId?: string;
+    startDate?: Date;
+    endDate?: Date; 
     limit?: number;
     offset?: number;
   }): Promise<InventoryMovement[]> {
     // Für sourceWarehouse und destinationWarehouse müssen wir separate Aliase verwenden
     const sourceWarehouseAlias = aliasedTable(warehouses, 'source_warehouse');
     const destWarehouseAlias = aliasedTable(warehouses, 'dest_warehouse');
+    const userAlias = aliasedTable(users, 'performed_by_user');
     
     let query = db.select({
       movement: inventoryMovements,
       product: products,
       sourceWarehouse: sourceWarehouseAlias,
-      destinationWarehouse: destWarehouseAlias
+      destinationWarehouse: destWarehouseAlias,
+      user: userAlias
     })
     .from(inventoryMovements)
     .leftJoin(products, eq(inventoryMovements.productId, products.id))
@@ -2354,6 +2361,10 @@ export class DatabaseStorage implements IStorage {
     .leftJoin(
       destWarehouseAlias, 
       eq(inventoryMovements.destinationWarehouseId, destWarehouseAlias.id)
+    )
+    .leftJoin(
+      userAlias,
+      eq(inventoryMovements.performedBy, userAlias.id)
     );
     
     const conditions = [];
@@ -2386,11 +2397,24 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(inventoryMovements.referenceId, params.referenceId));
     }
     
+    // Zeitraum-Filter hinzufügen
+    if (params?.startDate) {
+      conditions.push(gte(inventoryMovements.performedAt, params.startDate));
+    }
+    
+    if (params?.endDate) {
+      conditions.push(lte(inventoryMovements.performedAt, params.endDate));
+    }
+    
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
     }
     
-    query = query.orderBy(desc(inventoryMovements.createdAt));
+    // Sortiere zuerst nach performedAt (wenn vorhanden), dann nach createdAt
+    query = query.orderBy(
+      desc(inventoryMovements.performedAt),
+      desc(inventoryMovements.createdAt)
+    );
     
     if (params?.limit) {
       query = query.limit(params.limit);
@@ -2407,7 +2431,8 @@ export class DatabaseStorage implements IStorage {
       ...row.movement,
       productName: row.product?.productName,
       sourceWarehouseName: row.sourceWarehouse?.name,
-      destinationWarehouseName: row.destinationWarehouse?.name
+      destinationWarehouseName: row.destinationWarehouse?.name,
+      performedByName: row.user ? `${row.user.username}` : null
     })) as InventoryMovement[];
   }
 

@@ -181,17 +181,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/inventory-movements`, async (req: Request, res: Response) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
       const warehouseId = req.query.warehouseId ? parseInt(req.query.warehouseId as string) : undefined;
+      const productId = req.query.productId ? parseInt(req.query.productId as string) : undefined;
+      const productName = req.query.productName as string | undefined;
+      const movementType = req.query.movementType as string | undefined;
+      const startDateStr = req.query.startDate as string | undefined;
+      const endDateStr = req.query.endDate as string | undefined;
+      
+      // Datum-Parameter verarbeiten
+      const startDate = startDateStr ? new Date(startDateStr) : undefined;
+      const endDate = endDateStr ? new Date(endDateStr) : undefined;
+      
+      console.log(`Warenbewegungen abfragen für Lager ${warehouseId || 'alle'}, ` +
+        `Zeitraum: ${startDate?.toISOString() || 'unbegrenzt'} bis ${endDate?.toISOString() || 'jetzt'}, ` + 
+        `Produkt: ${productName || productId || 'alle'}, Typ: ${movementType || 'alle'}`);
       
       // Für eine Lagerhausbewegung muss entweder das Quell- oder Ziellager das gesuchte sein
       // Wir suchen also nach Bewegungen, die dieses Lager betreffen
       const movements = await storage.getInventoryMovements({
         limit,
-        ...(warehouseId ? {
-          sourceWarehouseId: warehouseId,
-          // Wir können nicht gleichzeitig sourceWarehouseId und destinationWarehouseId angeben
-          // Daher machen wir zwei Abfragen und fügen die Ergebnisse zusammen
-        } : {})
+        offset,
+        ...(warehouseId ? { sourceWarehouseId: warehouseId } : {}),
+        ...(productId ? { productId } : {}),
+        ...(movementType ? { movementType } : {}),
+        ...(startDate ? { startDate } : {}),
+        ...(endDate ? { endDate } : {})
       });
       
       // Wenn ein warehouseId angegeben wurde, müssen wir auch nach Bewegungen suchen,
@@ -200,35 +215,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (warehouseId) {
         destMovements = await storage.getInventoryMovements({
           limit,
-          destinationWarehouseId: warehouseId
+          offset,
+          destinationWarehouseId: warehouseId,
+          ...(productId ? { productId } : {}),
+          ...(movementType ? { movementType } : {}),
+          ...(startDate ? { startDate } : {}),
+          ...(endDate ? { endDate } : {})
         });
       }
       
       // Kombiniere beide Listen und sortiere nach Datum (neueste zuerst)
       const combinedMovements = [...movements, ...destMovements].sort((a, b) => {
-        const dateA = new Date(a.movement.createdAt || a.movement.performedAt);
-        const dateB = new Date(b.movement.createdAt || b.movement.performedAt);
+        const dateA = new Date(a.performedAt || a.createdAt);
+        const dateB = new Date(b.performedAt || b.createdAt);
         return dateB.getTime() - dateA.getTime();
       });
       
+      // Wenn nach Produktname gefiltert wird, filtern wir die Liste
+      let filteredMovements = combinedMovements;
+      if (productName) {
+        filteredMovements = combinedMovements.filter(item => 
+          item.productName && item.productName.toLowerCase().includes(productName.toLowerCase())
+        );
+      }
+      
       // Transformiere die Daten für die Frontendanzeige
-      const formattedMovements = combinedMovements.map(item => ({
-        id: item.movement.id,
-        productId: item.movement.productId,
-        productName: item.product?.productName,
-        quantity: item.movement.quantity,
-        type: item.movement.sourceWarehouseId === warehouseId ? 'OUT' : 'IN',
-        movementType: item.movement.movementType,
-        source: item.movement.referenceType === 'vendon' ? 'vendon' : 'manual',
-        machineId: item.movement.machineId,
-        machineName: item.movement.machineName,
-        notes: item.movement.notes,
-        createdAt: item.movement.createdAt,
-        performedAt: item.movement.performedAt,
-        sourceWarehouseId: item.movement.sourceWarehouseId,
-        sourceWarehouseName: item.sourceWarehouse?.name,
-        destinationWarehouseId: item.movement.destinationWarehouseId,
-        destinationWarehouseName: item.destinationWarehouse?.name
+      const formattedMovements = filteredMovements.map(item => ({
+        id: item.id,
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity,
+        type: item.sourceWarehouseId === warehouseId ? 'OUT' : 'IN',
+        movementType: item.movementType,
+        referenceType: item.referenceType,
+        referenceId: item.referenceId,
+        source: item.referenceType === 'vendon' ? 'vendon' : 'manual',
+        machineId: item.machineId,
+        machineName: item.machineName,
+        notes: item.notes,
+        createdAt: item.createdAt,
+        performedAt: item.performedAt,
+        performedBy: item.performedBy,
+        performedByName: item.performedByName,
+        sourceWarehouseId: item.sourceWarehouseId,
+        sourceWarehouseName: item.sourceWarehouseName,
+        destinationWarehouseId: item.destinationWarehouseId,
+        destinationWarehouseName: item.destinationWarehouseName,
+        quantityBefore: item.quantityBefore,
+        quantityAfter: item.quantityAfter,
+        unit: item.unit
       }));
       
       res.json(formattedMovements);
