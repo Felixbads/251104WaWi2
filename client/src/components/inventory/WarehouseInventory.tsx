@@ -83,12 +83,12 @@ export default function WarehouseInventory({
   });
   
   // Lade Lagerdaten für das Dropdown
-  const { data: warehouses = [] } = useQuery({
+  const { data: warehouses = [] } = useQuery<any[]>({
     queryKey: ['/api/warehouses'],
     staleTime: 1000 * 60 * 5, // 5 Minuten
   });
   
-  const inventory = propInventory.length > 0 ? propInventory : fetchedInventory;
+  const inventory: InventoryItem[] = propInventory.length > 0 ? propInventory : (fetchedInventory as InventoryItem[]);
   const isLoading = propIsLoading || fetchIsLoading;
   const error = propError || fetchError;
 
@@ -164,8 +164,16 @@ export default function WarehouseInventory({
   }
   
   // Laden der Batches für das ausgewählte Produkt
-  const { data: productBatches = [], isLoading: isBatchesLoading } = useQuery({
-    queryKey: ['/api/product-batches/product', selectedProduct?.id, 'warehouse', selectedProduct?.warehouseId],
+  // Hook wird immer aufgerufen, aber nur aktiviert, wenn ein Produkt ausgewählt ist
+  const { data: productBatches = [], isLoading: isBatchesLoading } = useQuery<any[]>({
+    queryKey: ['/api/product-batches/product', selectedProduct?.id || 0, 'warehouse', selectedProduct?.warehouseId || 0],
+    queryFn: async ({ queryKey }) => {
+      const [_, productId, __, warehouseId] = queryKey;
+      if (!productId || !warehouseId) return [];
+      const response = await fetch(`/api/product-batches/product/${productId}/warehouse/${warehouseId}`);
+      if (!response.ok) throw new Error('Failed to fetch product batches');
+      return response.json();
+    },
     enabled: !!selectedProduct && showBatchDialog,
   });
 
