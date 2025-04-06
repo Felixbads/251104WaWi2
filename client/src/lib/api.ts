@@ -1382,7 +1382,13 @@ export async function getWarehouseById(warehouseId?: string): Promise<Warehouse>
 export async function getWarehouseInventory(warehouseId: string): Promise<WarehouseProduct[]> {
   if (!warehouseId) throw new Error("Warehouse ID is required");
 
-  // Parameter hinzufügen, um auch Produkte mit Nullbestand abzurufen
+  // Explizit Produkte mit Nullbestand einbeziehen und sicherstellen, dass der Cache korrekt ist
+  console.log(`Abrufen des Lagerbestands für Lager ID ${warehouseId}, mit includeZeroStock=true`);
+  
+  // Führe einen manuellen Lagerabgleich durch, um fehlende Produkte zu ergänzen
+  await apiRequest<any>('post', `/api/warehouse-reconciliation`, { warehouseId: Number(warehouseId) });
+  
+  // Dann hole den Lagerbestand mit allen Produkten
   return apiRequest<WarehouseProduct[]>('get', `/api/inventory?warehouseId=${Number(warehouseId)}&includeZeroStock=true`);
 }
 
