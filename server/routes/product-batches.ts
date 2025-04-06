@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import { db } from '../db';
-import { eq, and, gte, desc, asc, lt, isNull } from 'drizzle-orm';
+import { eq, and, gte, desc, asc, lt, isNull, min, sql } from 'drizzle-orm';
 import { productBatches, products, warehouses } from '@shared/schema';
 
 const router = express.Router();
@@ -38,7 +38,7 @@ router.get('/', async (req: Request, res: Response) => {
           lt(productBatches.expiryDate, expiryThreshold),
           gte(productBatches.expiryDate, currentDate),
           // Nur Batches mit einer Menge > 0
-          gte(productBatches.quantity, 1)
+          gte(productBatches.currentQuantity, 1)
         )
       );
     }
@@ -54,7 +54,8 @@ router.get('/', async (req: Request, res: Response) => {
       batchNumber: row.product_batches.batchNumber,
       productId: row.product_batches.productId,
       warehouseId: row.product_batches.warehouseId,
-      quantity: row.product_batches.quantity,
+      initialQuantity: row.product_batches.initialQuantity,
+      currentQuantity: row.product_batches.currentQuantity,
       expiryDate: row.product_batches.expiryDate,
       manufacturingDate: row.product_batches.manufacturingDate,
       notes: row.product_batches.notes,
@@ -62,7 +63,7 @@ router.get('/', async (req: Request, res: Response) => {
       status: row.product_batches.status,
       createdAt: row.product_batches.createdAt,
       updatedAt: row.product_batches.updatedAt,
-      productName: row.products?.name || null,
+      productName: row.products?.productName || null,
       warehouseName: row.warehouses?.name || null
     }));
     
@@ -96,7 +97,7 @@ router.get('/next-expiring', async (req: Request, res: Response) => {
         FROM product_batches pb
         LEFT JOIN products p ON pb.product_id = p.id
         WHERE 
-          pb.quantity > 0
+          pb.current_quantity > 0
           AND (pb.expiry_date IS NULL OR pb.expiry_date >= NOW())
           ${warehouseId ? `AND pb.warehouse_id = ${warehouseId}` : ''}
           ${productId ? `AND pb.product_id = ${productId}` : ''}
@@ -114,7 +115,8 @@ router.get('/next-expiring', async (req: Request, res: Response) => {
       batchNumber: row.batch_number,
       productId: row.product_id,
       warehouseId: row.warehouse_id,
-      quantity: row.quantity,
+      initialQuantity: row.initial_quantity,
+      currentQuantity: row.current_quantity,
       expiryDate: row.expiry_date,
       manufacturingDate: row.manufacturing_date,
       notes: row.notes,
@@ -161,7 +163,8 @@ router.get('/:id', async (req: Request, res: Response) => {
       batchNumber: batch[0].product_batches.batchNumber,
       productId: batch[0].product_batches.productId,
       warehouseId: batch[0].product_batches.warehouseId,
-      quantity: batch[0].product_batches.quantity,
+      initialQuantity: batch[0].product_batches.initialQuantity,
+      currentQuantity: batch[0].product_batches.currentQuantity,
       expiryDate: batch[0].product_batches.expiryDate,
       manufacturingDate: batch[0].product_batches.manufacturingDate,
       notes: batch[0].product_batches.notes,
@@ -169,7 +172,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       status: batch[0].product_batches.status,
       createdAt: batch[0].product_batches.createdAt,
       updatedAt: batch[0].product_batches.updatedAt,
-      productName: batch[0].products?.name || null,
+      productName: batch[0].products?.productName || null,
       warehouseName: batch[0].warehouses?.name || null
     };
     

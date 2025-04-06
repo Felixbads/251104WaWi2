@@ -2,7 +2,7 @@ import express, { Request, Response } from 'express';
 import { storage } from '../storage';
 import { db } from '../db';
 import { productBatches } from '@shared/schema';
-import { eq, and, gt, inArray, asc } from 'drizzle-orm';
+import { eq, and, gt, inArray, asc, min, sql } from 'drizzle-orm';
 
 // Definiere eine Interface für das formatierte Inventar-Item
 interface FormattedInventoryItem {
@@ -48,7 +48,7 @@ router.get('/', async (req: Request, res: Response) => {
         productId: productBatches.productId,
         warehouseId: productBatches.warehouseId,
         // Nutze das früheste Ablaufdatum
-        nextExpiryDate: db.sql`MIN(${productBatches.expiryDate})`.as('nextExpiryDate')
+        nextExpiryDate: min(productBatches.expiryDate).as('nextExpiryDate')
       })
       .from(productBatches)
       .where(
