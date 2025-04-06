@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { 
   Warehouse, Search, FilterX, 
   RefreshCw, PlusSquare, Loader2, AlertTriangle,
-  Package, MapPin, Users, Phone, Mail, Plus
+  Package, MapPin, Users, Phone, Mail, Plus,
+  MonitorSmartphone
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +44,17 @@ interface Warehouse {
 }
 
 // Lager-Übersicht Komponente
+// Interface für Automaten-Zuordnung
+interface MachineAssignment {
+  id: number;
+  machineId: number;
+  warehouseId: number;
+  isPrimary: boolean;
+  machineName?: string;
+  warehouseName?: string;
+  notes?: string | null;
+}
+
 export default function WarehouseList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedWarehouse, setExpandedWarehouse] = useState<number | null>(null);
@@ -59,8 +71,15 @@ export default function WarehouseList() {
     staleTime: 1000 * 60 * 5, // 5 Minuten
   });
 
+  // Lade Lagerstatistiken
   const { data: warehouseStats = {} as Record<string, WarehouseStatsItem> } = useQuery({
     queryKey: ['/api/warehouses/stats'],
+    staleTime: 1000 * 60 * 2, // 2 Minuten
+  });
+  
+  // Lade Automaten-Lager-Zuordnungen
+  const { data: machineAssignments = [] as MachineAssignment[] } = useQuery({
+    queryKey: ['/api/machine-warehouse-assignments'],
     staleTime: 1000 * 60 * 2, // 2 Minuten
   });
   
@@ -171,6 +190,11 @@ export default function WarehouseList() {
               totalBatches: 0
             };
             
+            // Zähle die zugeordneten Automaten für dieses Lager
+            const assignedMachines = machineAssignments.filter(
+              assignment => assignment.warehouseId === warehouse.id
+            );
+            
             const isExpanded = expandedWarehouse === warehouse.id;
             
             return (
@@ -206,7 +230,7 @@ export default function WarehouseList() {
                 </CardHeader>
                 
                 <CardContent className="pb-2">
-                  <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="grid grid-cols-4 gap-2 text-center">
                     <div>
                       <div className="text-2xl font-semibold">{stats.totalProducts}</div>
                       <div className="text-xs text-muted-foreground">Produkte</div>
@@ -224,6 +248,16 @@ export default function WarehouseList() {
                         {stats.criticalStock}
                       </div>
                       <div className="text-xs text-muted-foreground">Kritisch</div>
+                    </div>
+                    
+                    <div>
+                      <div className="text-2xl font-semibold flex justify-center">
+                        <span className="flex items-center">
+                          {assignedMachines.length}
+                          <MonitorSmartphone className="h-4 w-4 ml-1 text-muted-foreground" />
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">Automaten</div>
                     </div>
                   </div>
                   
@@ -292,13 +326,18 @@ export default function WarehouseList() {
                             <AccordionItem value="machines">
                               <AccordionTrigger>Zugeordnete Automaten</AccordionTrigger>
                               <AccordionContent>
-                                {warehouse.machines && warehouse.machines.length > 0 ? (
+                                {assignedMachines.length > 0 ? (
                                   <div className="space-y-4">
                                     <ul className="text-sm space-y-1">
-                                      {warehouse.machines.map((machine: any) => (
-                                        <li key={machine.id} className="flex items-center gap-2">
-                                          <Package className="h-3.5 w-3.5 text-muted-foreground" />
-                                          {machine.name} ({machine.location})
+                                      {assignedMachines.map((assignment) => (
+                                        <li key={assignment.id} className="flex items-center gap-2">
+                                          <MonitorSmartphone className="h-3.5 w-3.5 text-muted-foreground" />
+                                          {assignment.machineName || `Automat ID: ${assignment.machineId}`} 
+                                          {assignment.isPrimary && (
+                                            <Badge variant="outline" className="ml-2 text-xs text-blue-500 border-blue-300">
+                                              Primär
+                                            </Badge>
+                                          )}
                                         </li>
                                       ))}
                                     </ul>

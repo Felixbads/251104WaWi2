@@ -19,20 +19,20 @@ interface FormattedInventoryItem {
 
 const router = express.Router();
 
-// GET /api/inventory - Lagerbestand eines bestimmten Lagers abrufen
+// GET /api/inventory - Lagerbestand eines oder aller Lager abrufen
 router.get('/', async (req: Request, res: Response) => {
   try {
-    const warehouseId = req.query.warehouseId ? parseInt(req.query.warehouseId as string) : undefined;
+    const warehouseId = req.query.warehouseId ? 
+      isNaN(parseInt(req.query.warehouseId as string)) ? undefined : parseInt(req.query.warehouseId as string) 
+      : undefined;
     const includeZeroStock = req.query.includeZeroStock === 'true';
+    const critical = req.query.critical === 'true';
     
-    if (!warehouseId) {
-      return res.status(400).json({ error: "warehouseId is required" });
-    }
-    
-    // Lagerbestand abrufen
+    // Lagerbestand abrufen - wenn warehouseId undefined ist, werden alle Lagerbestände abgerufen
     const inventoryItems = await storage.getInventoryItems({
       warehouseId,
-      includeZeroStock
+      includeZeroStock,
+      critical
     });
     
     // Format für die Frontend-Anwendung anpassen
