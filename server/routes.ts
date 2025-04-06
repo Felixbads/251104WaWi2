@@ -13,6 +13,7 @@ import { holidayService } from './services/holidayService';
 import ordersRouter from './routes/orders';
 import holidaysRouter from './routes/holidays';
 import adminRouter from './routes/admin';
+import inventoryRouter from './routes/inventory';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -1681,7 +1682,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Registriere Bestellungs-Routen
   app.use(`${API_PREFIX}/orders`, ordersRouter);
   
-
+  // Registriere Inventar-Debug-Endpunkte
+  app.use(`${API_PREFIX}/debug`, inventoryRouter);
   
   // Registriere Export/Import-Routen
   app.use(`${API_PREFIX}`, exportImportRoutes);

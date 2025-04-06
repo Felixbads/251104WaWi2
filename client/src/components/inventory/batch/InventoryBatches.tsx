@@ -61,7 +61,7 @@ export default function InventoryBatches() {
 
   // Query für Chargen
   const { data: batches, isLoading: batchesLoading, error } = useQuery<any[]>({
-    queryKey: ['/api/inventory-batches', { 
+    queryKey: ['/api/debug/product-batches', { 
       warehouseId: selectedWarehouse !== 'all' ? parseInt(selectedWarehouse) : undefined,
       productId: selectedProduct !== 'all' ? parseInt(selectedProduct) : undefined,
       status: selectedStatus !== 'all' ? selectedStatus : undefined,
@@ -334,7 +334,7 @@ export default function InventoryBatches() {
         warehouses={Array.isArray(warehouses) ? warehouses : []}
         products={Array.isArray(products) ? products : []}
         onSuccess={() => {
-          queryClient.invalidateQueries({ queryKey: ['/api/inventory-batches'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/debug/product-batches'] });
           queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
         }}
       />

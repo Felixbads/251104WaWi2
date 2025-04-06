@@ -39,7 +39,7 @@ export default function BatchDetailDialog({
 
   // Query für Batch-Details
   const { data: batch, isLoading, error } = useQuery<any>({
-    queryKey: ['/api/inventory-batches', batchId],
+    queryKey: ['/api/debug/product-batches', batchId],
     staleTime: 1000 * 30, // 30 Sekunden
     enabled: !!batchId && open,
   });

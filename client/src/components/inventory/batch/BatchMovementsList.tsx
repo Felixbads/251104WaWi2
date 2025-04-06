@@ -15,7 +15,7 @@ type BatchMovementsListProps = {
 export default function BatchMovementsList({ batchId }: BatchMovementsListProps) {
   // Query für Batch-Bewegungen
   const { data: movements, isLoading, error } = useQuery<any[]>({
-    queryKey: ['/api/inventory-batch-movements', { batchId }],
+    queryKey: ['/api/debug/product-batches', batchId, 'movements'],
     staleTime: 1000 * 30, // 30 Sekunden
     enabled: !!batchId,
   });
