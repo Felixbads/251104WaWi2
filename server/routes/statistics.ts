@@ -19,8 +19,10 @@ export function statisticsRoutes(app: any) {
   // Machine Analytics Endpoint
   app.get('/api/machines/:id/analytics', async (req, res) => {
     try {
+      console.log('Automaten-Analyse-Anfrage erhalten');
       const machineId = parseInt(req.params.id);
       const { period = 'month', startDate, endDate } = req.query;
+      console.log(`Analyseparameter: machineId=${machineId}, period=${period}, startDate=${startDate}, endDate=${endDate}`);
       
       // Zeitraumfilter definieren
       let startDateObj = new Date();
@@ -378,7 +380,7 @@ export function statisticsRoutes(app: any) {
       for (const refill of refillData) {
         // Suche passende Verkaufsdaten
         const matchingSales = topProductsByRevenue.find(p => 
-          refill.productName === refill.productName
+          p.productName === refill.productName
         ) || { count: 0, productName: refill.productName };
         
         // Berechne Quote
