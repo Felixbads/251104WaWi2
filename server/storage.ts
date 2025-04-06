@@ -118,6 +118,10 @@ export interface IStorage {
   getTransactionByVendonId(vendonId: string): Promise<Transaction | undefined>;
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
   updateTransaction(id: number, transaction: Partial<InsertTransaction>): Promise<Transaction | undefined>;
+  
+  // Refill operations
+  getRefills(options?: { warehouseId?: number; startDate?: Date; endDate?: Date; limit?: number; }): Promise<any[]>;
+  getRefillById(refillId: number): Promise<any>;
   getTransactionsForProcessing(limit?: number, offset?: number): Promise<Transaction[]>;
   updateTransactionProcessingStatus(id: number, status: string, errorMessage?: string): Promise<void>;
   getTransactionStats(): Promise<{total: number; processed: number; pending: number; error: number}>;
@@ -1567,6 +1571,95 @@ export class DatabaseStorage implements IStorage {
     const [refill] = await db.select().from(refills).where(eq(refills.vendonId, vendonId));
     return refill;
   }
+  
+  // Hilfsmethode: Refill nach ID abrufen
+  async getRefillById(refillId: number): Promise<any> {
+    try {
+      // Hole das Refill aus der Datenbank
+      const [refill] = await db.select().from(refills).where(eq(refills.id, refillId));
+      
+      if (!refill) {
+        return null;
+      }
+      
+      // Hole zugehörige Maschine
+      const [machine] = refill.machineId ? 
+        await db.select().from(machines).where(eq(machines.id, refill.machineId)) : 
+        [];
+      
+      // Hole die Refill-Details (Produkte)
+      const details = await this.getRefillDetails(refill.id);
+      
+      return {
+        ...refill,
+        machineName: machine?.name || 'Unbekannt',
+        details
+      };
+    } catch (error) {
+      console.error(`Fehler beim Abrufen des Refills mit ID ${refillId}:`, error);
+      throw error;
+    }
+  }
+
+  // Neue Methode für das Warehouse-Movements Feature
+  async getRefills(options: { warehouseId?: number; startDate?: Date; endDate?: Date; limit?: number; }): Promise<any[]> {
+    try {
+      // Setze Standardwerte für die Optionen
+      const {
+        warehouseId,
+        startDate = new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000), // Standard: 7 Tage zurück
+        endDate = new Date(),
+        limit = 100
+      } = options;
+
+      // SQL-Abfrage für Refills
+      let sqlQuery = `
+        SELECT r.*, m.name as "machineName" 
+        FROM refills r
+        LEFT JOIN machines m ON r.machine_id = m.id
+        WHERE r.datetime >= $1 AND r.datetime <= $2
+      `;
+      
+      const queryParams: any[] = [startDate.toISOString(), endDate.toISOString()];
+      
+      // Füge Lager-Filter hinzu, wenn eine Lager-ID angegeben ist
+      if (warehouseId) {
+        sqlQuery += ` 
+          AND r.machine_id IN (
+            SELECT machine_id FROM machine_warehouse_assignments
+            WHERE warehouse_id = $3
+          )
+        `;
+        queryParams.push(warehouseId);
+      }
+      
+      sqlQuery += ` ORDER BY r.datetime DESC LIMIT $${queryParams.length + 1}`;
+      queryParams.push(limit);
+      
+      console.log(`SQL-Abfrage für Refills mit erweiterten Optionen: ${sqlQuery}`, queryParams);
+      
+      // Führe die Datenbankabfrage aus
+      const refills = await this.query(sqlQuery, queryParams);
+      
+      // Für jedes Refill die Details laden
+      const refillsWithDetails = await Promise.all(refills.map(async (refill: any) => {
+        // Lade die Refill-Details (Produkte)
+        const details = await this.getRefillDetails(refill.id);
+        
+        return {
+          ...refill,
+          details
+        };
+      }));
+      
+      return refillsWithDetails;
+    } catch (error) {
+      console.error("Fehler beim Abrufen der Refills mit erweiterten Optionen:", error);
+      throw error;
+    }
+  }
+  
+  // Diese Methode wird nicht mehr benötigt, da es bereits eine aktualisierte Version oben gibt
   
   async getRefillDetails(refillId: number): Promise<RefillDetail[]> {
     // Normale Abfrage der Refill-Details aus der Datenbank

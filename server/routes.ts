@@ -137,6 +137,7 @@ import holidaysRoutes from "./routes/holidays";
 import bulkSyncRoutes from "./routes/bulkSync";
 import dbExportRoutes from "./routes/databaseExport";
 import emailRoutes from "./routes/email";
+import refillsRoutes from "./routes/refills";
 import { WebSocketServer } from 'ws';
 
 // API route prefix
@@ -1744,6 +1745,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/bulk`, bulkSyncRoutes);
   app.use(`${API_PREFIX}/db`, dbExportRoutes);
   app.use(`${API_PREFIX}/email`, emailRoutes);
+  app.use(`${API_PREFIX}/refills`, refillsRoutes);
   app.use(`${API_PREFIX}/admin`, adminRouter);
   
   // GET /warehouses/stats - Statistiken für alle Lager
