@@ -361,17 +361,25 @@ export default function WarehouseDetail() {
   useEffect(() => {
     if (Array.isArray(inventory) && inventory.length > 0 && activeTab === "inventory-count") {
       console.log("Initialisiere Inventur mit", inventory.length, "Produkten");
-      setInventoryCountItems(
-        inventory.map(item => ({
-          productId: typeof item.productId === 'string' ? Number(item.productId) : item.productId,
-          productName: item.productName || "Unbekannt",
-          currentQuantity: item.quantity || 0,
-          countedQuantity: item.quantity || 0, // Standardmäßig aktueller Bestand
-          difference: 0
-        }))
-      );
+      try {
+        setInventoryCountItems(
+          inventory.map(item => ({
+            productId: typeof item.productId === 'string' ? Number(item.productId) : item.productId,
+            productName: item.productName || "Unbekannt",
+            currentQuantity: item.quantity || 0,
+            countedQuantity: item.quantity || 0, // Standardmäßig aktueller Bestand
+            difference: 0
+          }))
+        );
+      } catch (error) {
+        console.error("Fehler beim Initialisieren der Inventurzählung:", error);
+        // Setze einen leeren Standardwert, wenn die Verarbeitung fehlschlägt
+        setInventoryCountItems([]);
+      }
     } else if (activeTab === "inventory-count") {
       console.log("Inventory für Zählung ist leer oder kein Array", inventory);
+      // Stelle sicher, dass inventoryCountItems immer ein Array ist, auch wenn keine Daten vorhanden sind
+      setInventoryCountItems([]);
     }
   }, [inventory, activeTab]);
   
@@ -974,41 +982,49 @@ export default function WarehouseDetail() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {inventory && Array.isArray(inventory) && inventory.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-medium">{item.productName}</TableCell>
-                        <TableCell>{item.supplierName || "-"}</TableCell>
-                        <TableCell>{item.units || "Stück"}</TableCell>
-                        <TableCell className="text-right">
-                          <Badge
-                            variant={
-                              (item.quantity || 0) <= 0
-                                ? "destructive"
-                                : (item.quantity || 0) <= (item.minQuantity || 5)
-                                ? "warning"
-                                : "success"
-                            }
-                          >
-                            {item.quantity || 0}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              // Nachbestellfunktion
-                              toast({
-                                title: "Nicht implementiert",
-                                description: "Die Nachbestellfunktion ist noch nicht implementiert.",
-                              });
-                            }}
-                          >
-                            Nachbestellen
-                          </Button>
+                    {inventory && Array.isArray(inventory) && inventory.length > 0 ? (
+                      inventory.map((item) => (
+                        <TableRow key={item.id || item.productId}>
+                          <TableCell className="font-medium">{item.productName}</TableCell>
+                          <TableCell>{item.supplierName || "-"}</TableCell>
+                          <TableCell>{item.units || "Stück"}</TableCell>
+                          <TableCell className="text-right">
+                            <Badge
+                              variant={
+                                (item.quantity || 0) <= 0
+                                  ? "destructive"
+                                  : (item.quantity || 0) <= (item.minQuantity || 5)
+                                  ? "warning"
+                                  : "success"
+                              }
+                            >
+                              {item.quantity || 0}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                // Nachbestellfunktion
+                                toast({
+                                  title: "Nicht implementiert",
+                                  description: "Die Nachbestellfunktion ist noch nicht implementiert.",
+                                });
+                              }}
+                            >
+                              Nachbestellen
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-4">
+                          <p className="text-muted-foreground">Keine Produkte im Lagerbestand vorhanden.</p>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -1163,39 +1179,47 @@ export default function WarehouseDetail() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {inventoryCountItems.map((item) => (
-                            <TableRow key={item.productId}>
-                              <TableCell className="font-medium">{item.productName}</TableCell>
-                              <TableCell>{item.currentQuantity}</TableCell>
-                              <TableCell>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  value={item.countedQuantity}
-                                  onChange={(e) => 
-                                    handleCountedQuantityChange(
-                                      item.productId, 
-                                      parseInt(e.target.value) || 0
-                                    )
-                                  }
-                                  className="w-20"
-                                />
-                              </TableCell>
-                              <TableCell>
-                                <Badge
-                                  variant={
-                                    item.difference === 0
-                                      ? "secondary"
-                                      : item.difference < 0
-                                      ? "destructive"
-                                      : "success"
-                                  }
-                                >
-                                  {item.difference > 0 ? `+${item.difference}` : item.difference}
-                                </Badge>
+                          {Array.isArray(inventoryCountItems) && inventoryCountItems.length > 0 ? (
+                            inventoryCountItems.map((item) => (
+                              <TableRow key={item.productId}>
+                                <TableCell className="font-medium">{item.productName}</TableCell>
+                                <TableCell>{item.currentQuantity}</TableCell>
+                                <TableCell>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={item.countedQuantity}
+                                    onChange={(e) => 
+                                      handleCountedQuantityChange(
+                                        item.productId, 
+                                        parseInt(e.target.value) || 0
+                                      )
+                                    }
+                                    className="w-20"
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Badge
+                                    variant={
+                                      item.difference === 0
+                                        ? "secondary"
+                                        : item.difference < 0
+                                        ? "destructive"
+                                        : "success"
+                                    }
+                                  >
+                                    {item.difference > 0 ? `+${item.difference}` : item.difference}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={4} className="text-center py-4">
+                                <p className="text-muted-foreground">Keine Produkte im Lagerbestand vorhanden.</p>
                               </TableCell>
                             </TableRow>
-                          ))}
+                          )}
                         </TableBody>
                       </Table>
                     </div>
