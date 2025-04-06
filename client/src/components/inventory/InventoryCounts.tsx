@@ -96,10 +96,9 @@ export default function InventoryCounts() {
       setSelectedWarehouse('');
       setInventoryNotes('');
       
-      // Optional: Zur Detailseite des Lagers navigieren
-      if (data && data.warehouseId) {
-        window.location.href = `/inventory/warehouse/${data.warehouseId}#inventory-count`;
-      }
+      // Die Navigation zur Detailseite erfolgt nur, wenn ein warehouseId zurückgegeben wird
+      // Wir verwenden keine direkte Umleitung, da diese die aktuelle Seite neu laden würde
+      // Stattdessen lassen wir den Benutzer die Inventur in der aktuellen Ansicht verwalten
     },
     onError: (error: any) => {
       toast({
