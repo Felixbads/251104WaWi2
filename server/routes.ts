@@ -326,92 +326,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`[DEBUG] Gefundene Zieltransaktionen für Lager ${warehouseId}: ${destMovements.length}`);
       
-      // 3. Hole auch alle Refills (Auffüllungen), die mit diesem Lager verbunden sind
-      const rawRefills = await storage.getRefills({
-        warehouseId,
-        ...(startDate ? { startDate } : {}),
-        ...(endDate ? { endDate } : {}),
-        limit,
-        offset
-      });
-      
-      console.log(`[DEBUG] Gefundene Refills für Lager ${warehouseId}: ${rawRefills.length}`);
-      
       // Ermittle den Namen des Lagers
       const warehouse = await storage.getWarehouseById(warehouseId);
       const warehouseName = warehouse?.name || `Lager ${warehouseId}`;
       
-      // Holen der Refill-Details, um die Bewegungen pro Artikel zu erfassen
+      // 3. Jetzt die Automaten dieses Lagers ermitteln
+      const assignments = await storage.getMachineWarehouseAssignments({ warehouseId });
+      const machineIds = assignments.map(a => a.machineId);
+      
+      console.log(`[DEBUG] Gefundene Automaten für Lager ${warehouseId}: ${machineIds.length}`);
+      
+      // Wenn keine Automaten zugewiesen sind, können wir die leeren Ergebnisse zurückgeben
+      if (machineIds.length === 0) {
+        console.log(`[DEBUG] Keine Automaten für Lager ${warehouseId} zugewiesen.`);
+        return res.json([]);
+      }
+      
+      // 4. Für jeden zugewiesenen Automaten die Refill-Daten abrufen
       const refillDetails = [];
-      for (const refill of rawRefills) {
-        // Hole die Details zu diesem Refill, falls es welche gibt
-        try {
-          const details = await storage.getRefillDetails(refill.id);
-          if (details && details.length > 0) {
-            console.log(`[DEBUG] Gefundene Refill-Details für Refill ${refill.id}: ${details.length}`);
+      
+      // Abfragebedingung für Refills nach Datum
+      const refillQueryOptions = {
+        machineIds: machineIds, 
+        ...(startDate ? { startDate } : {}),
+        ...(endDate ? { endDate } : {}),
+        limit: 500 // Wir holen mehr Refills, um genügend Daten zu haben
+      };
+      
+      // Wir holen direkt aus der Datenbank alle Refills für die zugewiesenen Automaten
+      const refillsQuery = await rawSql`
+        SELECT r.*, m.machine_name as "machineName" 
+        FROM refills r
+        LEFT JOIN machines m ON r.machine_id = m.id
+        WHERE r.machine_id = ANY(${machineIds})
+        ${startDate ? rawSql`AND r.datetime >= ${startDate}` : rawSql``}
+        ${endDate ? rawSql`AND r.datetime <= ${endDate}` : rawSql``}
+        ORDER BY r.datetime DESC 
+        LIMIT 500
+      `;
+      
+      console.log(`[DEBUG] Gefundene Refills für Lager ${warehouseId}: ${refillsQuery.length}`);
+      
+      // Für jedes Refill die Details abrufen
+      for (const refill of refillsQuery) {
+        const details = await storage.getRefillDetails(refill.id);
+        
+        if (details && details.length > 0) {
+          console.log(`[DEBUG] Gefundene Refill-Details für Refill ${refill.id}: ${details.length}`);
+          
+          // Jedes Detail in eine Warenbewegung umwandeln
+          for (const detail of details) {
+            // Produkt filtern, wenn ein Produktname angegeben wurde
+            if (productName && 
+                !(detail.productName || "").toLowerCase().includes(productName.toLowerCase())) {
+              continue; // Dieses Produkt überspringen, wenn es nicht dem Filter entspricht
+            }
             
-            // Füge jeden Detaileintrag als separate Bewegung hinzu
-            details.forEach(detail => {
-              refillDetails.push({
-                ...refill,
-                productId: detail.productId || null, 
-                productName: detail.productName || "Unbekanntes Produkt",
-                quantity: detail.removed || 0,  // Bei Refills wird immer etwas aus dem Lager entnommen
-                previousStock: detail.previousStock,
-                currentStock: detail.currentStock,
-                position: detail.position,
-                vendonProductId: detail.vendonProductId
-              });
+            // Wenn ein Produkt zu diesem Refill existiert, fügen wir es als Bewegung hinzu
+            refillDetails.push({
+              id: `refill-${refill.id}-${detail.id}`,
+              productId: detail.productId || null,
+              productName: detail.productName || "Unbekanntes Produkt",
+              quantity: -(detail.removed || detail.quantity || 0), // Negativ für Entnahmen
+              movementType: 'REFILL',
+              referenceType: 'refill',
+              referenceId: refill.id.toString(),
+              machineId: refill.machineId,
+              machineName: refill.machineName,
+              notes: `Auffüllung ${refill.machineName}: ${detail.productName}`,
+              createdAt: refill.createdAt || refill.datetime,
+              performedAt: refill.datetime,
+              performedBy: null,
+              performedByName: refill.operator,
+              sourceWarehouseId: warehouseId,
+              sourceWarehouseName: warehouseName,
+              destinationWarehouseId: null,
+              destinationWarehouseName: null,
+              unit: 'Stück',
+              type: 'OUT', // Refills sind immer Ausgänge
+              previousStock: detail.previousStock,
+              currentStock: detail.currentStock,
+              vendonId: refill.vendonId,
+              position: detail.position
             });
-          } else {
-            // Fallback, falls keine Details gefunden wurden
-            console.log(`[DEBUG] Keine Details für Refill ${refill.id} gefunden`);
-            refillDetails.push(refill);
           }
-        } catch (error) {
-          console.error(`Fehler beim Abrufen der Refill-Details für Refill ${refill.id}:`, error);
-          refillDetails.push(refill);
+        } else {
+          console.log(`[DEBUG] Keine Details für Refill ${refill.id} gefunden`);
         }
       }
       
-      console.log(`[DEBUG] Aufgelöste Refill-Details für Lager ${warehouseId}: ${refillDetails.length}`);
-      
-      // Refills in ein einheitliches Format umwandeln, das mit den Warenbewegungen kompatibel ist
-      const refillMovements = refillDetails.map(refill => ({
-        id: `refill-${refill.id}-${refill.vendonProductId || 'unknown'}`,
-        productId: refill.productId, 
-        productName: refill.productName,
-        quantity: refill.quantity * -1, // Negativ machen, da es sich um eine Entnahme handelt
-        movementType: 'REFILL',
-        referenceType: 'refill',
-        referenceId: refill.id.toString(),
-        source: 'vendon',
-        machineId: refill.machineId,
-        machineName: refill.machineName,
-        notes: `Auffüllung: ${refill.machineName}`,
-        createdAt: refill.createdAt,
-        performedAt: refill.datetime,
-        performedBy: null,
-        performedByName: refill.operator,
-        sourceWarehouseId: warehouseId,
-        sourceWarehouseName: warehouseName,
-        destinationWarehouseId: null,
-        destinationWarehouseName: null,
-        unit: 'Stück',
-        type: 'OUT', // Refills sind immer Ausgänge aus dem Lager
-        // Zusätzliche Refill-spezifische Informationen
-        quantityBefore: refill.previousStock,
-        quantityAfter: refill.currentStock,
-        previousStock: refill.previousStock,
-        currentStock: refill.currentStock,
-        vendonId: refill.vendonId,
-        position: refill.position
-      }));
-      
-      console.log(`[DEBUG] Erstellte Bewegungen aus Refills: ${refillMovements.length}`);
+      console.log(`[DEBUG] Aufgelöste Refill-Details als Bewegungen: ${refillDetails.length}`);
       
       // Alle Bewegungen kombinieren und nach Datum sortieren (neueste zuerst)
-      const combinedMovements = [...sourceMovements, ...destMovements, ...refillMovements].sort((a, b) => {
+      const combinedMovements = [...sourceMovements, ...destMovements, ...refillDetails].sort((a, b) => {
         const dateA = new Date(a.performedAt || a.createdAt);
         const dateB = new Date(b.performedAt || b.createdAt);
         return dateB.getTime() - dateA.getTime();
@@ -419,17 +426,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`[DEBUG] Gesamtzahl kombinierter Bewegungen: ${combinedMovements.length}`);
       
-      // Wenn nach Produktname gefiltert wird, filtern wir die Liste
+      // Wenn nach Bewegungstyp gefiltert wird, filtern wir die Liste
       let filteredMovements = combinedMovements;
-      if (productName) {
+      if (movementType) {
         filteredMovements = combinedMovements.filter(item => 
-          item.productName && item.productName.toLowerCase().includes(productName.toLowerCase())
+          item.movementType === movementType
         );
+        console.log(`[DEBUG] Nach Bewegungstyp ${movementType} gefiltert: ${filteredMovements.length} Ergebnisse`);
       }
       
-      console.log(`[DEBUG] Gefilterte Bewegungen nach Produktname: ${filteredMovements.length}`);
-      
-      // Transformiere die Daten für die Frontendanzeige
+      // Transformieren für die Frontend-Anzeige
       const formattedMovements = filteredMovements.map(item => ({
         id: item.id,
         productId: item.productId,
@@ -439,7 +445,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         movementType: item.movementType,
         referenceType: item.referenceType,
         referenceId: item.referenceId,
-        source: item.referenceType === 'vendon' || item.source === 'vendon' ? 'vendon' : 'manual',
+        source: item.referenceType === 'refill' || item.source === 'vendon' ? 'vendon' : 'manual',
         machineId: item.machineId,
         machineName: item.machineName,
         notes: item.notes,
@@ -452,13 +458,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         destinationWarehouseId: item.destinationWarehouseId,
         destinationWarehouseName: item.destinationWarehouseName,
         unit: item.unit || 'Stück',
-        quantityBefore: item.quantityBefore || item.previousStock,
-        quantityAfter: item.quantityAfter || item.currentStock,
-        // Refill-spezifische Informationen, wenn vorhanden
-        previousStock: item.previousStock,
-        currentStock: item.currentStock,
-        position: item.position,
-        vendonId: item.vendonId
+        quantityBefore: item.previousStock,
+        quantityAfter: item.currentStock
       }));
       
       console.log(`[DEBUG] Sende ${formattedMovements.length} Warenbewegungen zurück`);
