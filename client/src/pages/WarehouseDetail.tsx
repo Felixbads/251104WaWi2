@@ -262,13 +262,15 @@ export default function WarehouseDetail() {
   const [refillFilter, setRefillFilter] = useState({
     startDate: '',
     endDate: '',
-    limit: 50,
+    limit: 100, // Erhöhen auf 100 für mehr Daten
     offset: 0
   });
   
   const {
     data: refills = [] as Refill[],
-    isLoading: refillsLoading
+    isLoading: refillsLoading,
+    isFetching: refillsFetching,
+    isSuccess: refillsSuccess
   } = useQuery<Refill[]>({
     queryKey: ['/api/refills', { 
       warehouseId: Number(id),
@@ -279,6 +281,37 @@ export default function WarehouseDetail() {
     }],
     enabled: !!id && activeTab === "movements"
   });
+  
+  // Details für jeden Refill laden
+  const [loadedRefillDetails, setLoadedRefillDetails] = useState<{[key: number]: boolean}>({});
+  
+  // Bei Änderungen der Refills, stelle sicher dass Details geladen werden
+  useEffect(() => {
+    if (refills && Array.isArray(refills) && refills.length > 0 && activeTab === "movements") {
+      // Überprüfe für jeden Refill, ob Details bereits geladen wurden
+      refills.forEach(refill => {
+        if (!loadedRefillDetails[refill.id] && (!refill.details || !Array.isArray(refill.details) || refill.details.length === 0)) {
+          console.log(`Lade Details für Refill ${refill.id}...`);
+          // Lade Details für diesen Refill
+          fetch(`/api/refills/${refill.id}/details`)
+            .then(res => res.json())
+            .then(details => {
+              // Aktualisiere den Refill mit den Details
+              refill.details = details;
+              // Markiere als geladen
+              setLoadedRefillDetails(prev => ({...prev, [refill.id]: true}));
+            })
+            .catch(err => {
+              console.error(`Fehler beim Laden der Details für Refill ${refill.id}:`, err);
+              // Stelle sicher, dass details zumindest ein leeres Array ist
+              refill.details = [];
+              // Markiere trotzdem als geladen, um weitere Versuche zu vermeiden
+              setLoadedRefillDetails(prev => ({...prev, [refill.id]: true}));
+            });
+        }
+      });
+    }
+  }, [refills, activeTab, loadedRefillDetails]);
   
   // Warenbewegungen abrufen
   const [movementFilter, setMovementFilter] = useState({
@@ -458,6 +491,46 @@ export default function WarehouseDetail() {
       toast({
         title: "Fehler bei der Inventur",
         description: error.message || "Die Inventur konnte nicht durchgeführt werden.",
+        variant: "destructive"
+      });
+    }
+  });
+  
+  // Mutation für das Hinzufügen einer Warenbewegung
+  const createInventoryMovementMutation = useMutation({
+    mutationFn: async (data: any) => {
+      // API-Aufruf für das Erstellen einer neuen Warenbewegung
+      return await fetch(`/api/inventory-movements`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      }).then(res => {
+        if (!res.ok) throw new Error('Fehler beim Erstellen der Warenbewegung');
+        return res.json();
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory-movements'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
+      toast({
+        title: "Warenbewegung erstellt",
+        description: "Die Warenbewegung wurde erfolgreich gespeichert.",
+      });
+      
+      // Dialog schließen und Felder zurücksetzen
+      setIsAddMovementDialogOpen(false);
+      setMovementType("IN");
+      setSelectedProduct("");
+      setMovementQuantity(1);
+      setMovementNotes("");
+      setSelectedDestinationWarehouse("");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Fehler bei der Warenbewegung",
+        description: error.message || "Die Warenbewegung konnte nicht erstellt werden.",
         variant: "destructive"
       });
     }
@@ -1319,6 +1392,10 @@ export default function WarehouseDetail() {
                 <p className="text-center text-muted-foreground mb-4">
                   Für dieses Lager wurden noch keine Warenbewegungen verzeichnet.
                 </p>
+                <Button onClick={() => setIsAddMovementDialogOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Erste Warenbewegung erstellen
+                </Button>
               </CardContent>
             </Card>
           ) : (
@@ -1629,20 +1706,25 @@ export default function WarehouseDetail() {
             </Button>
             <Button
               onClick={() => {
-                // Hinzufügen der Warenbewegung
-                toast({
-                  title: "Warenbewegung erstellt",
-                  description: "Die Warenbewegung wurde erfolgreich gespeichert.",
-                });
-                setIsAddMovementDialogOpen(false);
-                // Query invalidieren, um aktualisierte Daten zu laden
-                queryClient.invalidateQueries({ queryKey: ['/api/inventory-movements'] });
-                queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
+                // Warenbewegungsdaten für die API vorbereiten
+                const movementData = {
+                  warehouseId: Number(id),
+                  productId: selectedProduct ? Number(selectedProduct) : 0,
+                  quantity: movementQuantity,
+                  type: movementType,
+                  notes: movementNotes,
+                  destinationWarehouseId: movementType === "TRANSFER" && selectedDestinationWarehouse 
+                    ? Number(selectedDestinationWarehouse) 
+                    : undefined
+                };
+                
+                // Mutation aufrufen, um die Warenbewegung zu erstellen
+                createInventoryMovementMutation.mutate(movementData);
               }}
-              disabled={!selectedProduct || movementQuantity <= 0}
+              disabled={!selectedProduct || movementQuantity <= 0 || (movementType === "TRANSFER" && !selectedDestinationWarehouse)}
             >
               <Save className="mr-2 h-4 w-4" />
-              Speichern
+              {createInventoryMovementMutation.isPending ? "Speichern..." : "Speichern"}
             </Button>
           </DialogFooter>
         </DialogContent>
