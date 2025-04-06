@@ -1345,7 +1345,54 @@ export const insertInventoryItemSchema = createInsertSchema(inventoryItems).omit
 export type InsertInventoryItem = z.infer<typeof insertInventoryItemSchema>;
 export type InventoryItem = typeof inventoryItems.$inferSelect;
 
-// Inventory Batches table - neue Tabelle für Chargen und MHD-Verwaltung
+// Produktchargen (Product Batches) table - verbesserte Tabelle für Chargen und MHD-Verwaltung
+export const productBatches = pgTable("product_batches", {
+  id: serial("id").primaryKey(),
+  // Produkt- und Lagerinformationen
+  productId: integer("product_id").notNull().references(() => products.id),
+  warehouseId: integer("warehouse_id").notNull().references(() => warehouses.id),
+  
+  // Chargeninformationen
+  batchNumber: text("batch_number").notNull(), // Eindeutige Chargennummer innerhalb des Systems
+  supplierBatchNumber: text("supplier_batch_number"), // Chargennummer des Lieferanten (optional)
+  
+  // Mengen und Bestand
+  initialQuantity: integer("initial_quantity").notNull(), // Ursprüngliche Menge bei Eingang
+  currentQuantity: integer("current_quantity").notNull(), // Aktuelle Menge nach Entnahmen
+  
+  // Zeitliche Informationen
+  receivedDate: date("received_date").notNull().defaultNow(), // Eingangsdatum
+  expiryDate: date("expiry_date").notNull(), // Mindesthaltbarkeitsdatum
+  
+  // Zusätzliche Informationen
+  orderId: integer("order_id").references(() => orders.id), // Bestellung, durch die die Charge eingegangen ist
+  supplierId: integer("supplier_id").references(() => suppliers.id), // Lieferant
+  
+  // Status und Lagerort
+  status: text("status").default("active").notNull(), // active, consumed, expired, quarantine, reserved
+  locationInWarehouse: text("location_in_warehouse"), // Lagerort im Lager (Regal, Fach, etc.)
+  notes: text("notes"), // Anmerkungen zur Charge
+  
+  // Metadaten
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => {
+  return {
+    batchProductWarehouseIdx: unique().on(table.batchNumber, table.productId, table.warehouseId),
+  };
+});
+
+export const insertProductBatchSchema = createInsertSchema(productBatches).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertProductBatch = z.infer<typeof insertProductBatchSchema>;
+export type ProductBatch = typeof productBatches.$inferSelect;
+
+// Ursprüngliche Inventory Batches Tabelle für Kompatibilität beibehalten
 export const inventoryBatches = pgTable("inventory_batches", {
   id: serial("id").primaryKey(),
   warehouseId: integer("warehouse_id").notNull().references(() => warehouses.id),
@@ -1376,7 +1423,46 @@ export const insertInventoryBatchSchema = createInsertSchema(inventoryBatches).o
 export type InsertInventoryBatch = z.infer<typeof insertInventoryBatchSchema>;
 export type InventoryBatch = typeof inventoryBatches.$inferSelect;
 
-// Inventory Movements table
+// Verbesserte Inventory Movements Tabelle mit Unterstützung für Produktchargen und Batch-basiertes Tracking
+export const productMovements = pgTable("product_movements", {
+  id: serial("id").primaryKey(),
+  
+  // Quelle und Ziel - jetzt flexible Zuordnung zu Lager oder Automat
+  sourceType: text("source_type"), // "warehouse" oder "machine"
+  sourceId: integer("source_id"),  // ID des Quell-Lagers oder -Automaten
+  destinationType: text("destination_type"), // "warehouse" oder "machine"
+  destinationId: integer("destination_id"), // ID des Ziel-Lagers oder -Automaten
+  
+  // Produkt- und Mengeninformationen
+  productId: integer("product_id").notNull().references(() => products.id),
+  productBatchId: integer("product_batch_id").references(() => productBatches.id), // Neue Tabelle für Produktchargen
+  quantity: integer("quantity").notNull(),
+  
+  // Bewegungstyp und Referenz
+  movementType: text("movement_type").notNull(), // IN, OUT, TRANSFER, ADJUSTMENT, REFILL
+  referenceType: text("reference_type"), // ORDER, REFILL, INVENTORY_COUNT, MANUAL
+  referenceId: text("reference_id"), // ID der Bestellung, Auffüllung, etc.
+  
+  // Status und Metadaten
+  status: text("status").default("completed"),
+  notes: text("notes"),
+  performedBy: integer("performed_by").references(() => users.id),
+  performedAt: timestamp("performed_at").defaultNow(),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertProductMovementSchema = createInsertSchema(productMovements).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertProductMovement = z.infer<typeof insertProductMovementSchema>;
+export type ProductMovement = typeof productMovements.$inferSelect;
+
+// Ursprüngliche Tabelle für Kompatibilität beibehalten
 export const inventoryMovements = pgTable("inventory_movements", {
   id: serial("id").primaryKey(),
   sourceWarehouseId: integer("source_warehouse_id").references(() => warehouses.id),
@@ -1654,6 +1740,38 @@ export const purchaseConditionsRelations = relations(purchaseConditions, ({ one 
 }));
 
 // Add warehouse relations to existing relations object
+// Relationen für die neuen Chargen- und Bewegungstabellen
+export const productBatchRelations = relations(productBatches, ({ one, many }) => ({
+  product: one(products, {
+    fields: [productBatches.productId],
+    references: [products.id],
+  }),
+  warehouse: one(warehouses, {
+    fields: [productBatches.warehouseId],
+    references: [warehouses.id],
+  }),
+  supplier: one(suppliers, {
+    fields: [productBatches.supplierId],
+    references: [suppliers.id],
+  }),
+  order: one(orders, {
+    fields: [productBatches.orderId],
+    references: [orders.id],
+  }),
+  movements: many(productMovements),
+}));
+
+export const productMovementRelations = relations(productMovements, ({ one }) => ({
+  product: one(products, {
+    fields: [productMovements.productId],
+    references: [products.id],
+  }),
+  productBatch: one(productBatches, {
+    fields: [productMovements.productBatchId],
+    references: [productBatches.id],
+  }),
+}));
+
 export const allRelations = {
   orderRelations,
   orderItemRelations,
@@ -1669,4 +1787,6 @@ export const allRelations = {
   purchaseConditionsRelations,
   refillDetailsRelations,
   refillBatchMovementsRelations,
+  productBatchRelations,
+  productMovementRelations,
 };

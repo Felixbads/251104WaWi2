@@ -25,7 +25,10 @@ import {
   orders, type Order, type InsertOrder,
   orderItems, type OrderItem, type InsertOrderItem,
   purchaseConditions, type PurchaseCondition, type InsertPurchaseCondition,
-  refillBatchMovements, type RefillBatchMovement, type InsertRefillBatchMovement
+  refillBatchMovements, type RefillBatchMovement, type InsertRefillBatchMovement,
+  // Neue Tabellen für verbessertes Lagerverwaltungssystem
+  productBatches, type ProductBatch, type InsertProductBatch,
+  productMovements, type ProductMovement, type InsertProductMovement
 } from "@shared/schema";
 
 // Interface defining all storage operations
@@ -310,6 +313,42 @@ export interface IStorage {
   updateInventoryForDisposal(warehouseId: string, productId: string, quantity: number): Promise<void>;
   
   // Inventory Batch operations
+  // Product Batch operations - Neue Methoden für das verbesserte Lagerverwaltungskonzept
+  getProductBatches(params?: {
+    warehouseId?: number;
+    productId?: number;
+    supplierId?: number;
+    status?: string;
+    expiryBefore?: Date;
+    expiryAfter?: Date;
+    orderId?: number;
+  }): Promise<ProductBatch[]>;
+  getProductBatchById(id: number): Promise<ProductBatch | undefined>;
+  getProductBatchByBatchNumber(batchNumber: string, productId: number, warehouseId: number): Promise<ProductBatch | undefined>;
+  createProductBatch(batch: InsertProductBatch): Promise<ProductBatch>;
+  updateProductBatch(id: number, batch: Partial<InsertProductBatch>): Promise<ProductBatch | undefined>;
+  deleteProductBatch(id: number): Promise<boolean>;
+  
+  // Product Movement operations - Neue Methoden für das verbesserte Bewegungsmanagement
+  getProductMovements(params?: {
+    sourceType?: string;
+    sourceId?: number;
+    destinationType?: string;
+    destinationId?: number;
+    productId?: number;
+    productBatchId?: number;
+    movementType?: string;
+    referenceType?: string;
+    referenceId?: string;
+    startDate?: Date;
+    endDate?: Date;
+    limit?: number;
+    offset?: number;
+  }): Promise<ProductMovement[]>;
+  getProductMovementById(id: number): Promise<ProductMovement | undefined>;
+  createProductMovement(movement: InsertProductMovement): Promise<ProductMovement>;
+  
+  // Bestehende Methoden für Kompatibilität
   getInventoryBatches(params?: {
     warehouseId?: number;
     productId?: number;
@@ -2738,6 +2777,350 @@ export class DatabaseStorage implements IStorage {
         updatedAt: new Date()
       })
       .where(eq(inventoryItems.id, inventoryItem.id));
+  }
+  
+  // Product Batch operations - Neues Chargen-Management
+  async getProductBatches(params?: {
+    warehouseId?: number;
+    productId?: number;
+    supplierId?: number;
+    status?: string;
+    expiryBefore?: Date;
+    expiryAfter?: Date;
+    orderId?: number;
+  }): Promise<ProductBatch[]> {
+    let query = db.select({
+      batch: productBatches,
+      product: products,
+      warehouse: warehouses,
+      supplier: suppliers,
+      order: orders
+    })
+    .from(productBatches)
+    .leftJoin(products, eq(productBatches.productId, products.id))
+    .leftJoin(warehouses, eq(productBatches.warehouseId, warehouses.id))
+    .leftJoin(suppliers, eq(productBatches.supplierId, suppliers.id)) 
+    .leftJoin(orders, eq(productBatches.orderId, orders.id));
+    
+    // Filter anwenden
+    const conditions = [];
+    
+    if (params?.warehouseId !== undefined) {
+      conditions.push(eq(productBatches.warehouseId, params.warehouseId));
+    }
+    
+    if (params?.productId !== undefined) {
+      conditions.push(eq(productBatches.productId, params.productId));
+    }
+    
+    if (params?.supplierId !== undefined) {
+      conditions.push(eq(productBatches.supplierId, params.supplierId));
+    }
+    
+    if (params?.status !== undefined) {
+      conditions.push(eq(productBatches.status, params.status));
+    }
+    
+    if (params?.expiryBefore instanceof Date) {
+      conditions.push(lte(productBatches.expiryDate, params.expiryBefore));
+    }
+    
+    if (params?.expiryAfter instanceof Date) {
+      conditions.push(gte(productBatches.expiryDate, params.expiryAfter));
+    }
+    
+    if (params?.orderId !== undefined) {
+      conditions.push(eq(productBatches.orderId, params.orderId));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+    
+    // Nach Ablaufdatum sortieren (FIFO-Prinzip)
+    query = query.orderBy(asc(productBatches.expiryDate));
+    
+    const result = await query;
+    
+    // Umwandeln des Ergebnisses in das erwartete Format
+    return result.map(row => ({
+      ...row.batch,
+      productName: row.product?.productName || '',
+      warehouseName: row.warehouse?.name || '',
+      supplierName: row.supplier?.name || ''
+    }));
+  }
+  
+  async getProductBatchById(id: number): Promise<ProductBatch | undefined> {
+    const [result] = await db.select({
+      batch: productBatches,
+      product: products,
+      warehouse: warehouses,
+      supplier: suppliers,
+      order: orders
+    })
+    .from(productBatches)
+    .leftJoin(products, eq(productBatches.productId, products.id))
+    .leftJoin(warehouses, eq(productBatches.warehouseId, warehouses.id))
+    .leftJoin(suppliers, eq(productBatches.supplierId, suppliers.id))
+    .leftJoin(orders, eq(productBatches.orderId, orders.id))
+    .where(eq(productBatches.id, id));
+    
+    if (!result) return undefined;
+    
+    return {
+      ...result.batch,
+      productName: result.product?.productName || '',
+      warehouseName: result.warehouse?.name || '',
+      supplierName: result.supplier?.name || ''
+    };
+  }
+  
+  async getProductBatchByBatchNumber(
+    batchNumber: string,
+    productId: number,
+    warehouseId: number
+  ): Promise<ProductBatch | undefined> {
+    const [result] = await db.select({
+      batch: productBatches,
+      product: products,
+      warehouse: warehouses,
+      supplier: suppliers
+    })
+    .from(productBatches)
+    .leftJoin(products, eq(productBatches.productId, products.id))
+    .leftJoin(warehouses, eq(productBatches.warehouseId, warehouses.id))
+    .leftJoin(suppliers, eq(productBatches.supplierId, suppliers.id))
+    .where(
+      and(
+        eq(productBatches.batchNumber, batchNumber),
+        eq(productBatches.productId, productId),
+        eq(productBatches.warehouseId, warehouseId)
+      )
+    );
+    
+    if (!result) return undefined;
+    
+    return {
+      ...result.batch,
+      productName: result.product?.productName || '',
+      warehouseName: result.warehouse?.name || '',
+      supplierName: result.supplier?.name || ''
+    };
+  }
+  
+  async createProductBatch(data: InsertProductBatch): Promise<ProductBatch> {
+    // Datum-Formatierung für Datenbank
+    const batchData = {
+      ...data,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    const [newBatch] = await db.insert(productBatches)
+      .values(batchData)
+      .returning();
+    
+    // Produktdetails abrufen
+    const product = await this.getProduct(data.productId);
+    const warehouse = await this.getWarehouse(data.warehouseId);
+    const supplier = data.supplierId ? await this.getSupplierById(data.supplierId) : undefined;
+    
+    return {
+      ...newBatch,
+      productName: product?.productName || '',
+      warehouseName: warehouse?.name || '',
+      supplierName: supplier?.name || ''
+    };
+  }
+  
+  async updateProductBatch(id: number, data: Partial<InsertProductBatch>): Promise<ProductBatch | undefined> {
+    const [updatedBatch] = await db.update(productBatches)
+      .set({
+        ...data,
+        updatedAt: new Date()
+      })
+      .where(eq(productBatches.id, id))
+      .returning();
+    
+    if (!updatedBatch) return undefined;
+    
+    // Produktdetails abrufen
+    const product = await this.getProduct(updatedBatch.productId);
+    const warehouse = await this.getWarehouse(updatedBatch.warehouseId);
+    const supplier = updatedBatch.supplierId ? await this.getSupplierById(updatedBatch.supplierId) : undefined;
+    
+    return {
+      ...updatedBatch,
+      productName: product?.productName || '',
+      warehouseName: warehouse?.name || '',
+      supplierName: supplier?.name || ''
+    };
+  }
+  
+  async deleteProductBatch(id: number): Promise<boolean> {
+    // Prüfen, ob Bewegungen mit diesem Batch verknüpft sind
+    const movements = await this.getProductMovements({ productBatchId: id });
+    
+    if (movements.length > 0) {
+      // Es gibt verknüpfte Bewegungen - keine Löschung erlaubt
+      return false;
+    }
+    
+    const result = await db.delete(productBatches)
+      .where(eq(productBatches.id, id))
+      .returning({ id: productBatches.id });
+    
+    return result.length > 0;
+  }
+  
+  // Product Movement operations - Neues Bewegungsmanagement
+  async getProductMovements(params?: {
+    sourceType?: string;
+    sourceId?: number;
+    destinationType?: string;
+    destinationId?: number;
+    productId?: number;
+    productBatchId?: number;
+    movementType?: string;
+    referenceType?: string;
+    referenceId?: string;
+    startDate?: Date;
+    endDate?: Date;
+    limit?: number;
+    offset?: number;
+  }): Promise<ProductMovement[]> {
+    let query = db.select({
+      movement: productMovements,
+      product: products,
+      batch: productBatches
+    })
+    .from(productMovements)
+    .leftJoin(products, eq(productMovements.productId, products.id))
+    .leftJoin(productBatches, eq(productMovements.productBatchId, productBatches.id));
+    
+    // Filter anwenden
+    const conditions = [];
+    
+    if (params?.sourceType !== undefined) {
+      conditions.push(eq(productMovements.sourceType, params.sourceType));
+    }
+    
+    if (params?.sourceId !== undefined) {
+      conditions.push(eq(productMovements.sourceId, params.sourceId));
+    }
+    
+    if (params?.destinationType !== undefined) {
+      conditions.push(eq(productMovements.destinationType, params.destinationType));
+    }
+    
+    if (params?.destinationId !== undefined) {
+      conditions.push(eq(productMovements.destinationId, params.destinationId));
+    }
+    
+    if (params?.productId !== undefined) {
+      conditions.push(eq(productMovements.productId, params.productId));
+    }
+    
+    if (params?.productBatchId !== undefined) {
+      conditions.push(eq(productMovements.productBatchId, params.productBatchId));
+    }
+    
+    if (params?.movementType !== undefined) {
+      conditions.push(eq(productMovements.movementType, params.movementType));
+    }
+    
+    if (params?.referenceType !== undefined) {
+      conditions.push(eq(productMovements.referenceType, params.referenceType));
+    }
+    
+    if (params?.referenceId !== undefined) {
+      conditions.push(eq(productMovements.referenceId, params.referenceId));
+    }
+    
+    if (params?.startDate instanceof Date) {
+      conditions.push(gte(productMovements.movementDate, params.startDate));
+    }
+    
+    if (params?.endDate instanceof Date) {
+      conditions.push(lte(productMovements.movementDate, params.endDate));
+    }
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+    
+    // Nach Datum absteigend sortieren (neueste zuerst)
+    query = query.orderBy(desc(productMovements.movementDate));
+    
+    // Limit und Offset anwenden
+    if (params?.limit !== undefined) {
+      query = query.limit(params.limit);
+    }
+    
+    if (params?.offset !== undefined) {
+      query = query.offset(params.offset);
+    }
+    
+    const result = await query;
+    
+    // Umwandeln des Ergebnisses in das erwartete Format
+    return result.map(row => ({
+      ...row.movement,
+      productName: row.product?.productName || '',
+      batchNumber: row.batch?.batchNumber || '',
+      expiryDate: row.batch?.expiryDate || null
+    }));
+  }
+  
+  async getProductMovementById(id: number): Promise<ProductMovement | undefined> {
+    const [result] = await db.select({
+      movement: productMovements,
+      product: products,
+      batch: productBatches
+    })
+    .from(productMovements)
+    .leftJoin(products, eq(productMovements.productId, products.id))
+    .leftJoin(productBatches, eq(productMovements.productBatchId, productBatches.id))
+    .where(eq(productMovements.id, id));
+    
+    if (!result) return undefined;
+    
+    return {
+      ...result.movement,
+      productName: result.product?.productName || '',
+      batchNumber: result.batch?.batchNumber || '',
+      expiryDate: result.batch?.expiryDate || null
+    };
+  }
+  
+  async createProductMovement(data: InsertProductMovement): Promise<ProductMovement> {
+    // Datum-Formatierung für Datenbank und Sicherstellung, dass ein Datum vorhanden ist
+    const movementData = {
+      ...data,
+      movementDate: data.movementDate || new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    const [newMovement] = await db.insert(productMovements)
+      .values(movementData)
+      .returning();
+    
+    // Produktdetails abrufen
+    const product = await this.getProduct(data.productId);
+    let batch = undefined;
+    
+    if (data.productBatchId) {
+      batch = await this.getProductBatchById(data.productBatchId);
+    }
+    
+    return {
+      ...newMovement,
+      productName: product?.productName || '',
+      batchNumber: batch?.batchNumber || '',
+      expiryDate: batch?.expiryDate || null
+    };
   }
   
   // Implementierung der Inventory Batch Methoden

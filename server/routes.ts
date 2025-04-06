@@ -13,6 +13,7 @@ import { holidayService } from './services/holidayService';
 import ordersRouter from './routes/orders';
 import holidaysRouter from './routes/holidays';
 import adminRouter from './routes/admin';
+import inventoryRouter from './routes/inventory';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -111,7 +112,6 @@ function groupTransactionsByPeriod(transactions, period) {
 import { startAutomaticSync, stopAutomaticSync, getSchedulerStatus } from "./scheduler";
 import { z } from "zod";
 import { registerForecastRoutes } from "./routes/forecast";
-import { registerInventoryRoutes } from "./routes/inventory";
 import { statisticsRoutes } from "./routes/statistics";
 import { 
   registerUser, 
@@ -1666,7 +1666,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   registerForecastRoutes(app);
-  registerInventoryRoutes(app);
   statisticsRoutes(app);
   
   // Registriere Vendon-API-Routen
@@ -1682,6 +1681,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Registriere Bestellungs-Routen
   app.use(`${API_PREFIX}/orders`, ordersRouter);
+  
+
   
   // Registriere Export/Import-Routen
   app.use(`${API_PREFIX}`, exportImportRoutes);
