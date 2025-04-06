@@ -36,6 +36,18 @@ export default function BatchDetailDialog({
   onOpenChange
 }: BatchDetailDialogProps) {
   const [activeTab, setActiveTab] = useState('details');
+  
+  // Hilfsfunktion zum sicheren Formatieren des Ablaufdatums
+  const formatExpiryDate = (dateString?: string) => {
+    if (!dateString) return 'Unbekannt';
+    
+    try {
+      return format(parseISO(dateString), 'dd.MM.yyyy', { locale: de });
+    } catch (error) {
+      console.error("Fehler beim Formatieren des Ablaufdatums:", error);
+      return 'Ungültiges Datum';
+    }
+  };
 
   // Query für Batch-Details
   const { data: batch, isLoading, error } = useQuery<any>({
@@ -49,10 +61,18 @@ export default function BatchDetailDialog({
     if (!batchData) return null;
     
     const today = new Date();
-    const expiryDate = parseISO(batchData.expiryDate);
+    let expiryDate;
+    try {
+      // Prüfen, ob expiryDate existiert und ein gültiges Datum ist
+      expiryDate = batchData.expiryDate ? parseISO(batchData.expiryDate) : null;
+    } catch (error) {
+      console.error("Fehler beim Parsen des Ablaufdatums:", error);
+      expiryDate = null;
+    }
+    
     const thirtyDaysFromNow = addDays(today, 30);
     
-    if (batchData.status === 'expired' || isBefore(expiryDate, today)) {
+    if (batchData.status === 'expired' || (expiryDate && isBefore(expiryDate, today))) {
       return (
         <Badge variant="destructive" className="flex items-center gap-1">
           <AlertTriangle className="h-3 w-3" />
@@ -73,7 +93,7 @@ export default function BatchDetailDialog({
           Quarantäne
         </Badge>
       );
-    } else if (isBefore(expiryDate, thirtyDaysFromNow)) {
+    } else if (expiryDate && isBefore(expiryDate, thirtyDaysFromNow)) {
       return (
         <Badge variant="outline" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 flex items-center gap-1">
           <ClockIcon className="h-3 w-3" />
@@ -200,7 +220,7 @@ export default function BatchDetailDialog({
               </CardHeader>
               <CardContent>
                 <div className="font-semibold">
-                  {batch?.expiryDate ? format(parseISO(batch.expiryDate), 'dd.MM.yyyy', { locale: de }) : 'Unbekannt'}
+                  {formatExpiryDate(batch?.expiryDate)}
                 </div>
               </CardContent>
             </Card>
@@ -210,7 +230,7 @@ export default function BatchDetailDialog({
               </CardHeader>
               <CardContent>
                 <div className="font-semibold">
-                  {batch?.incomingDate ? format(parseISO(batch.incomingDate), 'dd.MM.yyyy', { locale: de }) : 'Unbekannt'}
+                  {formatExpiryDate(batch?.incomingDate)}
                 </div>
               </CardContent>
             </Card>
