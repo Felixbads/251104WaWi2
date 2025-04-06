@@ -13,7 +13,6 @@ import { holidayService } from './services/holidayService';
 import ordersRouter from './routes/orders';
 import holidaysRouter from './routes/holidays';
 import adminRouter from './routes/admin';
-import inventoryRouter from './routes/inventory';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
