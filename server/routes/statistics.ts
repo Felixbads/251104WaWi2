@@ -29,7 +29,10 @@ export function statisticsRoutes(app: any) {
       console.log(`Maschinentyp von machineId: ${typeof machineId}`);
       
       if (isNaN(machineId)) {
-        throw new Error(`Ungültige Maschinen-ID: ${req.params.id}`);
+        return res.status(400).json({ 
+          error: 'Fehler bei der Erstellung der Automatenanalyse',
+          message: `Ungültige Maschinen-ID: ${req.params.id}`
+        });
       }
       
       // Zeitraumfilter definieren
@@ -463,6 +466,18 @@ export function statisticsRoutes(app: any) {
         generatedAt: new Date().toISOString()
       };
       
+      // Zusätzlicher Validierungsschritt vor dem Senden
+      if (!machineAnalytics || !machineAnalytics.machine || !machineAnalytics.summary) {
+        console.error('Fehler: Unvollständige Analysedaten wurden generiert');
+        return res.status(500).json({
+          error: 'Fehler bei der Erstellung der Automatenanalyse',
+          message: 'Die erzeugten Analysedaten sind unvollständig'
+        });
+      }
+      
+      // Debug-Log der erfolgreichen Analyse für Troubleshooting
+      console.log(`Erfolgreiche Analyse für Automat ${machineId} generiert mit ${topProductsByRevenue.length} Top-Produkten`);
+      
       return res.json(machineAnalytics);
     } catch (error) {
       console.error(`Fehler bei Automatenanalyse:`, error);
@@ -471,9 +486,20 @@ export function statisticsRoutes(app: any) {
       const errorStack = error instanceof Error ? error.stack : '';
       console.error(`Detaillierter Fehler: ${errorMessage}\nStack: ${errorStack}`);
       
+      // Ursache präziser erfassen für bessere Fehlerbehandlung im Client
+      let errorType = 'UNKNOWN_ERROR';
+      if (errorMessage.includes('productId') || errorMessage.includes('vendonId')) {
+        errorType = 'JOIN_ERROR';
+      } else if (errorMessage.includes('undefined') || errorMessage.includes('null')) {
+        errorType = 'NULL_ERROR';
+      } else if (errorMessage.includes('database') || errorMessage.includes('SQL')) {
+        errorType = 'DATABASE_ERROR';
+      }
+      
       return res.status(500).json({ 
         error: 'Fehler bei der Erstellung der Automatenanalyse',
         message: errorMessage,
+        errorType,
         stack: process.env.NODE_ENV === 'development' ? errorStack : undefined
       });
     }
