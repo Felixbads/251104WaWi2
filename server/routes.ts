@@ -172,6 +172,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+  
+  // GET /inventory-movements - Warenbewegungen abrufen
+  app.get(`${API_PREFIX}/inventory-movements`, async (req: Request, res: Response) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const warehouseId = req.query.warehouseId ? parseInt(req.query.warehouseId as string) : undefined;
+      
+      const movements = await storage.getInventoryMovements({ limit, warehouseId });
+      res.json(movements);
+    } catch (error) {
+      console.error("Error fetching inventory movements:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch inventory movements", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // GET /machine-warehouse-assignments - Automaten-Lager-Zuordnungen abrufen
+  app.get(`${API_PREFIX}/machine-warehouse-assignments`, async (req: Request, res: Response) => {
+    try {
+      const warehouseId = req.query.warehouseId ? parseInt(req.query.warehouseId as string) : undefined;
+      const machineId = req.query.machineId ? parseInt(req.query.machineId as string) : undefined;
+      
+      const assignments = await storage.getMachineWarehouseAssignments({ warehouseId, machineId });
+      res.json(assignments);
+    } catch (error) {
+      console.error("Error fetching machine-warehouse assignments:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch machine-warehouse assignments", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
+  // GET /inventory-counts - Inventurzählungen abrufen
+  app.get(`${API_PREFIX}/inventory-counts`, async (req: Request, res: Response) => {
+    try {
+      const warehouseId = req.query.warehouseId ? parseInt(req.query.warehouseId as string) : undefined;
+      const status = req.query.status as string | undefined;
+      
+      const counts = await storage.getInventoryCounts({ warehouseId, status });
+      res.json(counts);
+    } catch (error) {
+      console.error("Error fetching inventory counts:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch inventory counts", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
   // Create HTTP server
   const httpServer = createServer(app);
   
@@ -1691,6 +1742,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/db`, dbExportRoutes);
   app.use(`${API_PREFIX}/email`, emailRoutes);
   app.use(`${API_PREFIX}/admin`, adminRouter);
+  
+  // GET /warehouses/stats - Statistiken für alle Lager
+  app.get(`${API_PREFIX}/warehouses/stats`, async (_req: Request, res: Response) => {
+    try {
+      // Hole alle Lager
+      const warehouses = await storage.getWarehouses();
+      
+      // Sammle Statistiken für jedes Lager
+      const warehouseStats = [];
+      
+      for (const warehouse of warehouses) {
+        // Hole Inventarbestand für dieses Lager
+        const inventoryItems = await storage.getInventoryItems({
+          warehouseId: warehouse.id,
+        });
+        
+        // Berechne Statistiken
+        const totalProducts = inventoryItems.length;
+        const criticalStock = inventoryItems.filter(item => 
+          (item.quantity ?? 0) <= (item.minQuantity ?? 0) && (item.minQuantity ?? 0) > 0
+        ).length;
+        
+        warehouseStats.push({
+          id: warehouse.id,
+          name: warehouse.name,
+          totalProducts,
+          criticalStock,
+          totalQuantity: inventoryItems.reduce((sum, item) => sum + (item.quantity ?? 0), 0),
+        });
+      }
+      
+      res.json(warehouseStats);
+    } catch (error) {
+      console.error("Error fetching warehouse stats:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch warehouse stats", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
   
   // Registriere Bestellungs-Routen
   app.use(`${API_PREFIX}/orders`, ordersRouter);
