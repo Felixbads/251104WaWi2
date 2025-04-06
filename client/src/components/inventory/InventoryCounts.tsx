@@ -151,7 +151,9 @@ export default function InventoryCounts() {
             <RefreshCw className="h-4 w-4" />
           </Button>
           
-          <Button>
+          <Button
+            onClick={() => window.location.href = '/inventur/neu'}
+          >
             <Plus className="h-4 w-4 mr-2" />
             Neue Inventur
           </Button>
@@ -166,7 +168,9 @@ export default function InventoryCounts() {
           <p className="text-muted-foreground mt-1 mb-4">
             Es wurden keine Inventuren für die aktuelle Filterauswahl gefunden.
           </p>
-          <Button>
+          <Button
+            onClick={() => window.location.href = '/inventur/neu'}
+          >
             <Plus className="h-4 w-4 mr-2" />
             Neue Inventur starten
           </Button>

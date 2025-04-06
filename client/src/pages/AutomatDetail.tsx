@@ -23,7 +23,9 @@ import {
   Droplet,
   Wind,
   BarChart as BarChartIcon,
-  PieChart as PieChartIcon
+  PieChart as PieChartIcon,
+  ClipboardCheck,
+  Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -479,6 +481,10 @@ export default function AutomatDetail() {
           <TabsTrigger value="auffullungen">
             <PackagePlus className="h-4 w-4 mr-2" />
             Auffüllungen
+          </TabsTrigger>
+          <TabsTrigger value="inventur">
+            <ClipboardCheck className="h-4 w-4 mr-2" />
+            Inventur
           </TabsTrigger>
           <TabsTrigger value="fehler">Fehler & Logs</TabsTrigger>
           <TabsTrigger value="technisch">Technische Details</TabsTrigger>
@@ -1042,6 +1048,43 @@ export default function AutomatDetail() {
                   <Button variant="outline" className="gap-2">
                     <FileText className="h-4 w-4" />
                     Wartungsprotokoll anzeigen
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        {/* Inventur Tab */}
+        <TabsContent value="inventur" className="mt-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-lg">Inventurbestand</CardTitle>
+                <CardDescription>Aktuelle Bestände im Automaten</CardDescription>
+              </div>
+              <Button variant="default" className="gap-2">
+                <ClipboardCheck className="h-4 w-4" />
+                Inventur starten
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-1 text-center py-6">
+                <div className="flex justify-center">
+                  <ClipboardCheck className="h-16 w-16 text-gray-300 mb-2" />
+                </div>
+                <h3 className="text-lg font-medium">Inventurbestand</h3>
+                <p className="text-gray-500 text-sm">
+                  Hier können Sie eine Inventur für diesen Automaten durchführen und den aktuellen Bestand prüfen.
+                </p>
+                <div className="pt-4">
+                  <Button variant="outline" className="mr-2">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Produkt hinzufügen
+                  </Button>
+                  <Button variant="default">
+                    <ClipboardCheck className="h-4 w-4 mr-2" />
+                    Inventur starten
                   </Button>
                 </div>
               </div>

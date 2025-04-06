@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { 
   Warehouse, Search, FilterX, 
   RefreshCw, PlusSquare, Loader2, AlertTriangle,
-  Package, MapPin, Users, Phone, Mail
+  Package, MapPin, Users, Phone, Mail, Plus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -136,7 +136,9 @@ export default function WarehouseList() {
             <RefreshCw className="h-4 w-4" />
           </Button>
           
-          <Button>
+          <Button 
+            onClick={() => window.location.href = '/lager/neu'}
+          >
             <PlusSquare className="h-4 w-4 mr-2" />
             Neues Lager
           </Button>
@@ -291,16 +293,35 @@ export default function WarehouseList() {
                               <AccordionTrigger>Zugeordnete Automaten</AccordionTrigger>
                               <AccordionContent>
                                 {warehouse.machines && warehouse.machines.length > 0 ? (
-                                  <ul className="text-sm space-y-1">
-                                    {warehouse.machines.map((machine: any) => (
-                                      <li key={machine.id} className="flex items-center gap-2">
-                                        <Package className="h-3.5 w-3.5 text-muted-foreground" />
-                                        {machine.name} ({machine.location})
-                                      </li>
-                                    ))}
-                                  </ul>
+                                  <div className="space-y-4">
+                                    <ul className="text-sm space-y-1">
+                                      {warehouse.machines.map((machine: any) => (
+                                        <li key={machine.id} className="flex items-center gap-2">
+                                          <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                                          {machine.name} ({machine.location})
+                                        </li>
+                                      ))}
+                                    </ul>
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline"
+                                      onClick={() => window.location.href = `/lager/${warehouse.id}/automaten/zuordnen`}
+                                    >
+                                      <Plus className="h-3.5 w-3.5 mr-1" />
+                                      Automaten zuordnen
+                                    </Button>
+                                  </div>
                                 ) : (
-                                  <p className="text-sm text-muted-foreground">Keine Automaten zugeordnet.</p>
+                                  <div className="space-y-4">
+                                    <p className="text-sm text-muted-foreground">Diesem Lager sind noch keine Automaten zugeordnet.</p>
+                                    <Button 
+                                      size="sm"
+                                      onClick={() => window.location.href = `/lager/${warehouse.id}/automaten/zuordnen`}
+                                    >
+                                      <Plus className="h-3.5 w-3.5 mr-1" />
+                                      Automaten zuordnen
+                                    </Button>
+                                  </div>
                                 )}
                               </AccordionContent>
                             </AccordionItem>
