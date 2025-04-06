@@ -16,20 +16,34 @@ import BatchDetailDialog from './BatchDetailDialog';
 
 // FIFO-Sortierfunktion für Chargen (älteste Charge zuerst)
 const sortBatchesByFIFO = (batches: any[]) => {
+  if (!Array.isArray(batches) || batches.length === 0) return [];
+  
   return [...batches].sort((a, b) => {
+    // Sicherstellen, dass a und b Objekte sind
+    if (!a || !b) return 0;
+    
     // Zuerst nach Ablaufdatum sortieren (ältestes zuerst)
-    const dateA = parseISO(a.expiryDate);
-    const dateB = parseISO(b.expiryDate);
+    let dateA: Date;
+    let dateB: Date;
     
-    if (isBefore(dateA, dateB)) return -1;
-    if (isAfter(dateA, dateB)) return 1;
-    
-    // Bei gleichem Ablaufdatum nach Eingangsdatum sortieren (ältestes zuerst)
-    const incomingDateA = parseISO(a.incomingDate);
-    const incomingDateB = parseISO(b.incomingDate);
-    
-    if (isBefore(incomingDateA, incomingDateB)) return -1;
-    if (isAfter(incomingDateA, incomingDateB)) return 1;
+    try {
+      dateA = a.expiryDate ? parseISO(a.expiryDate) : new Date();
+      dateB = b.expiryDate ? parseISO(b.expiryDate) : new Date();
+      
+      if (isBefore(dateA, dateB)) return -1;
+      if (isAfter(dateA, dateB)) return 1;
+      
+      // Bei gleichem Ablaufdatum nach Eingangsdatum sortieren (ältestes zuerst)
+      const incomingDateA = a.incomingDate ? parseISO(a.incomingDate) : new Date();
+      const incomingDateB = b.incomingDate ? parseISO(b.incomingDate) : new Date();
+      
+      if (isBefore(incomingDateA, incomingDateB)) return -1;
+      if (isAfter(incomingDateA, incomingDateB)) return 1;
+      
+    } catch (error) {
+      console.error("Fehler beim Sortieren von Chargen:", error);
+      return 0;
+    }
     
     return 0;
   });
@@ -96,57 +110,102 @@ export default function InventoryBatches() {
     );
   }
 
+  // Normalisiere die Chargen, um sicherzustellen, dass alle Felder korrekt vorhanden sind
+  const normalizedBatches = Array.isArray(batches) ? batches.map((batch: any) => {
+    if (!batch) return null;
+    
+    // Stelle sicher, dass Datumsfelder als ISO-String existieren
+    let expiryDate;
+    if (batch.expiryDate) {
+      expiryDate = batch.expiryDate;
+    } else if (batch.expiry_date) {
+      expiryDate = batch.expiry_date;
+    } else {
+      expiryDate = new Date().toISOString();
+    }
+    
+    let incomingDate;
+    if (batch.receivedDate) {
+      incomingDate = batch.receivedDate;
+    } else if (batch.received_date) {
+      incomingDate = batch.received_date;
+    } else {
+      incomingDate = new Date().toISOString();
+    }
+    
+    return {
+      ...batch,
+      expiryDate: typeof expiryDate === 'string' ? expiryDate : new Date(expiryDate).toISOString(),
+      incomingDate: typeof incomingDate === 'string' ? incomingDate : new Date(incomingDate).toISOString()
+    };
+  }).filter(Boolean) : [];
+
   // Filtere Chargen basierend auf der Suche
-  const filteredBatches = Array.isArray(batches) 
-    ? batches.filter((batch: any) => 
-        batch.batchNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        batch.productName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        batch.warehouseName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        batch.notes?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : [];
+  const filteredBatches = normalizedBatches.filter((batch: any) => 
+    batch.batchNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    batch.productName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    batch.warehouseName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    batch.notes?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   // Sortiere Chargen nach FIFO-Prinzip
   const sortedBatches = sortBatchesByFIFO(filteredBatches);
 
   // Status-Badge anzeigen, basierend auf Status und Ablaufdatum
   const getBatchStatusBadge = (batch: any) => {
-    const today = new Date();
-    const expiryDate = parseISO(batch.expiryDate);
-    const thirtyDaysFromNow = addDays(today, 30);
-    
-    if (batch.status === 'expired' || isBefore(expiryDate, today)) {
+    try {
+      if (!batch || !batch.expiryDate) {
+        return (
+          <Badge variant="outline" className="bg-slate-100 text-slate-800 hover:bg-slate-100">
+            Unbekannt
+          </Badge>
+        );
+      }
+      
+      const today = new Date();
+      const expiryDate = parseISO(batch.expiryDate);
+      const thirtyDaysFromNow = addDays(today, 30);
+      
+      if (batch.status === 'expired' || isBefore(expiryDate, today)) {
+        return (
+          <Badge variant="destructive" className="flex items-center gap-1">
+            <AlertTriangle className="h-3 w-3" />
+            Abgelaufen
+          </Badge>
+        );
+      } else if (batch.status === 'consumed') {
+        return (
+          <Badge variant="outline" className="bg-slate-100 text-slate-800 hover:bg-slate-100 flex items-center gap-1">
+            <History className="h-3 w-3" />
+            Verbraucht
+          </Badge>
+        );
+      } else if (batch.status === 'quarantine') {
+        return (
+          <Badge variant="outline" className="bg-amber-100 text-amber-800 hover:bg-amber-100 flex items-center gap-1">
+            <AlertTriangle className="h-3 w-3" />
+            Quarantäne
+          </Badge>
+        );
+      } else if (isBefore(expiryDate, thirtyDaysFromNow)) {
+        return (
+          <Badge variant="outline" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 flex items-center gap-1">
+            <ClockIcon className="h-3 w-3" />
+            Läuft bald ab
+          </Badge>
+        );
+      } else {
+        return (
+          <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100">
+            Aktiv
+          </Badge>
+        );
+      }
+    } catch (error) {
+      console.error("Fehler beim Anzeigen des Status-Badges:", error);
       return (
-        <Badge variant="destructive" className="flex items-center gap-1">
-          <AlertTriangle className="h-3 w-3" />
-          Abgelaufen
-        </Badge>
-      );
-    } else if (batch.status === 'consumed') {
-      return (
-        <Badge variant="outline" className="bg-slate-100 text-slate-800 hover:bg-slate-100 flex items-center gap-1">
-          <History className="h-3 w-3" />
-          Verbraucht
-        </Badge>
-      );
-    } else if (batch.status === 'quarantine') {
-      return (
-        <Badge variant="outline" className="bg-amber-100 text-amber-800 hover:bg-amber-100 flex items-center gap-1">
-          <AlertTriangle className="h-3 w-3" />
-          Quarantäne
-        </Badge>
-      );
-    } else if (isBefore(expiryDate, thirtyDaysFromNow)) {
-      return (
-        <Badge variant="outline" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 flex items-center gap-1">
-          <ClockIcon className="h-3 w-3" />
-          Läuft bald ab
-        </Badge>
-      );
-    } else {
-      return (
-        <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100">
-          Aktiv
+        <Badge variant="outline" className="bg-slate-100 text-slate-800 hover:bg-slate-100">
+          Unbekannt
         </Badge>
       );
     }
@@ -283,22 +342,56 @@ export default function InventoryBatches() {
             </TableHeader>
             <TableBody>
               {sortedBatches.map((batch: any) => (
-                <TableRow key={batch.id} className={
-                  batch.status === 'expired' || isBefore(parseISO(batch.expiryDate), new Date())
-                    ? 'bg-red-50'
-                    : isBefore(parseISO(batch.expiryDate), addDays(new Date(), 30))
-                      ? 'bg-amber-50'
-                      : ''
+                <TableRow key={batch.id} className={(() => {
+                  try {
+                    if (!batch.expiryDate) return '';
+                    const expiryDate = parseISO(batch.expiryDate);
+                    const today = new Date();
+                    const thirtyDaysFromNow = addDays(today, 30);
+                    
+                    if (batch.status === 'expired' || isBefore(expiryDate, today)) {
+                      return 'bg-red-50';
+                    } else if (isBefore(expiryDate, thirtyDaysFromNow)) {
+                      return 'bg-amber-50';
+                    }
+                    return '';
+                  } catch (error) {
+                    console.error("Fehler beim Bestimmen der Tabellenzeilen-Klasse:", error);
+                    return '';
+                  }
+                })()
                 }>
                   <TableCell className="font-medium">{batch.batchNumber}</TableCell>
                   <TableCell>{batch.productName || "Unbekanntes Produkt"}</TableCell>
                   <TableCell>{batch.warehouseName || "Unbekanntes Lager"}</TableCell>
                   <TableCell className="text-right">{batch.quantity}</TableCell>
                   <TableCell>
-                    {format(parseISO(batch.expiryDate), 'dd.MM.yyyy', { locale: de })}
+                    {batch.expiryDate ? (
+                      <span title={batch.expiryDate}>
+                        {(() => {
+                          try {
+                            return format(parseISO(batch.expiryDate), 'dd.MM.yyyy', { locale: de });
+                          } catch (error) {
+                            console.error("Fehler beim Formatieren des Ablaufdatums:", error);
+                            return "Unbekannt";
+                          }
+                        })()}
+                      </span>
+                    ) : "Kein Datum"}
                   </TableCell>
                   <TableCell>
-                    {format(parseISO(batch.incomingDate), 'dd.MM.yyyy', { locale: de })}
+                    {batch.incomingDate ? (
+                      <span title={batch.incomingDate}>
+                        {(() => {
+                          try {
+                            return format(parseISO(batch.incomingDate), 'dd.MM.yyyy', { locale: de });
+                          } catch (error) {
+                            console.error("Fehler beim Formatieren des Eingangsdatums:", error);
+                            return "Unbekannt";
+                          }
+                        })()}
+                      </span>
+                    ) : "Kein Datum"}
                   </TableCell>
                   <TableCell className="text-center">
                     {getBatchStatusBadge(batch)}
