@@ -238,6 +238,16 @@ export default function WarehouseDetail() {
     }
   };
   
+  // Hilfsfunktion: Findet eine aktive Inventur im aktuellen Lager und gibt sie zurück
+  const findActiveInventoryCount = () => {
+    if (Array.isArray(inventoryCounts)) {
+      return inventoryCounts.find(count => 
+        count.warehouseId === Number(id) && count.status === 'in_progress'
+      );
+    }
+    return null;
+  };
+  
   // Zustand für die Inventur (Inventurzählung)
   const [inventoryCountItems, setInventoryCountItems] = useState<any[]>([]);
   const [isCountInProgress, setIsCountInProgress] = useState(false);
@@ -327,20 +337,75 @@ export default function WarehouseDetail() {
     isLoading: inventoryCountsLoading
   } = useQuery<InventoryCount[]>({
     queryKey: ['/api/inventory-counts', { warehouseId: Number(id) }],
-    enabled: !!id && (activeTab === "inventory-count" || getInventoryIdFromUrl() !== null)
+    enabled: !!id // Immer aktivieren, wenn eine Warehouse-ID vorhanden ist
   });
   
   // Überwache inventoryCounts und aktualisiere selectedInventoryCount, wenn die Inventurdaten geladen sind
   useEffect(() => {
-    const inventoryId = activeInventoryCount;
+    // 1. Prüfe auf URL-Parameter
+    const inventoryIdFromUrl = getInventoryIdFromUrl();
+    if (inventoryIdFromUrl && !activeInventoryCount) {
+      console.log("Setze activeInventoryCount auf URL-Parameter:", inventoryIdFromUrl);
+      setActiveInventoryCount(inventoryIdFromUrl);
+    }
+
+    // 2. Wenn ein aktiver Inventurcount vorhanden ist, lade Details
+    const inventoryId = activeInventoryCount || inventoryIdFromUrl;
     if (inventoryId && Array.isArray(inventoryCounts) && inventoryCounts.length > 0) {
-      // Lade Inventurzählung-Details, falls sie noch nicht geladen wurden
       const selectedCount = inventoryCounts.find(count => count.id === inventoryId);
       if (selectedCount) {
+        console.log("Gefundene Inventur:", selectedCount);
         setSelectedInventoryCount(selectedCount);
+        // Wenn eine in Bearbeitung befindliche Inventur gefunden wurde, setze das Tab
+        if (selectedCount.status === 'in_progress') {
+          console.log("Aktive Inventur gefunden, wechsle zu Tab 'inventory-count'");
+          setActiveTab("inventory-count");
+        }
       }
     }
-  }, [inventoryCounts, activeInventoryCount]);
+    
+    // 3. Prüfe, ob es eine aktive (in_progress) Inventur gibt
+    const activeCount = findActiveInventoryCount();
+    
+    console.log("Aktive Inventur Prüfung:", {
+      aktiverCount: activeCount ? activeCount.id : "keine",
+      isCountInProgress,
+      activeInventoryCount
+    });
+    
+    // Logik zur Bestimmung des isCountInProgress-Status
+    // a) Wenn wir das Formular für eine neue Inventur anzeigen wollen,
+    //    sollte isCountInProgress=true sein, sonst false
+    // b) Wenn es eine aktive Inventur gibt, sollte das Formular nicht angezeigt werden
+    
+    if (activeCount) {
+      // Es gibt eine aktive Inventur
+      if (!activeInventoryCount) {
+        // Setze die aktive Inventur, wenn sie noch nicht gesetzt ist
+        console.log("Aktive Inventur gefunden, setze activeInventoryCount");
+        setActiveInventoryCount(activeCount.id);
+      }
+      
+      // Wenn eine aktive Inventur vorhanden ist und wir momentan das Formular anzeigen,
+      // sollten wir das Formular verstecken
+      if (isCountInProgress) {
+        console.log("Aktive Inventur vorhanden, aber Formular ist sichtbar, verstecke es");
+        setIsCountInProgress(false);
+      }
+    } else {
+      // Es gibt keine aktive Inventur
+      
+      // Wenn kein activeInventoryCount gesetzt ist und isCountInProgress=true,
+      // lassen wir isCountInProgress auf true, damit das Formular angezeigt wird
+      
+      // Wenn ein activeInventoryCount gesetzt ist, aber keine aktive Inventur existiert,
+      // dann müssen wir activeInventoryCount zurücksetzen
+      if (activeInventoryCount && !isCountInProgress) {
+        console.log("activeInventoryCount ist gesetzt, aber keine aktive Inventur existiert, setze zurück");
+        setActiveInventoryCount(null);
+      }
+    }
+  }, [inventoryCounts, activeInventoryCount, id, isCountInProgress]);
   
   // Refill-Daten für dieses Lager abrufen
   const [refillFilter, setRefillFilter] = useState({
@@ -1388,9 +1453,26 @@ export default function WarehouseDetail() {
                   </CardDescription>
                 </div>
                 
-                {!isCountInProgress && !activeInventoryCount && (
+                {/* Zeige "Neue Inventur starten" Button nur wenn keine aktive Inventur existiert */}
+                {!isCountInProgress && !activeInventoryCount && 
+                  !findActiveInventoryCount() && (
                   <Button
-                    onClick={() => setIsCountInProgress(true)}
+                    onClick={() => {
+                      // Prüfe, ob bereits eine aktive Inventur existiert
+                      const activeCount = findActiveInventoryCount();
+                      
+                      if (activeCount) {
+                        // Wenn es eine aktive Inventur gibt, setze sie als aktiv
+                        setActiveInventoryCount(activeCount.id);
+                        toast({
+                          title: "Aktive Inventur gefunden",
+                          description: "Es gibt bereits eine laufende Inventur, die wird nun geöffnet.",
+                        });
+                      } else {
+                        // Ansonsten starte eine neue
+                        setIsCountInProgress(true);
+                      }
+                    }}
                   >
                     <ClipboardCheck className="mr-2 h-4 w-4" />
                     Neue Inventur starten
@@ -1659,7 +1741,22 @@ export default function WarehouseDetail() {
                       </div>
                       <Button
                         className="mt-4"
-                        onClick={() => setIsCountInProgress(true)}
+                        onClick={() => {
+                          // Prüfe, ob bereits eine aktive Inventur existiert
+                          const activeCount = findActiveInventoryCount();
+                          
+                          if (activeCount) {
+                            // Wenn es eine aktive Inventur gibt, setze sie als aktiv
+                            setActiveInventoryCount(activeCount.id);
+                            toast({
+                              title: "Aktive Inventur gefunden",
+                              description: "Es gibt bereits eine laufende Inventur, die wird nun geöffnet.",
+                            });
+                          } else {
+                            // Ansonsten starte eine neue
+                            setIsCountInProgress(true);
+                          }
+                        }}
                       >
                         <ClipboardCheck className="mr-2 h-4 w-4" />
                         Erste Inventur starten
