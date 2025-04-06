@@ -1489,38 +1489,92 @@ export class DatabaseStorage implements IStorage {
     return result.map(item => item.detail);
   }
 
-  // Refill operations
-  async getRefills(limit: number = 100, offset: number = 0, startDate?: string, endDate?: string, machineId?: string): Promise<Refill[]> {
-    let query = db.select().from(refills).orderBy(desc(refills.datetime));
+  // Refill operations mit direkter SQL-Abfrage
+  async getRefills(options: {
+    limit?: number;
+    offset?: number;
+    startDate?: Date;
+    endDate?: Date;
+    machineId?: string;
+    warehouseId?: number;
+  }): Promise<Refill[]> {
+    console.log("SQL-Abfrage für Refills mit direkter SQL-Abfrage: ");
     
-    // Filter nach Zeitraum, falls angegeben
-    if (startDate && endDate) {
-      query = query.where(
-        and(
-          gte(refills.datetime, startDate),
-          lte(refills.datetime, endDate)
-        )
-      );
-    } else if (startDate) {
-      query = query.where(gte(refills.datetime, startDate));
-    } else if (endDate) {
-      query = query.where(lte(refills.datetime, endDate));
+    // Importiere die direkte SQL-Instanz
+    const { rawSql } = require('./db');
+    
+    // Defaults festlegen
+    const {
+      limit = 100,
+      offset = 0,
+      startDate,
+      endDate,
+      machineId,
+      warehouseId
+    } = options;
+    
+    try {
+      // Wenn Lager-ID angegeben ist, die entsprechende Methode aufrufen
+      if (warehouseId) {
+        return this.getRefillsForWarehouse(
+          warehouseId, 
+          limit, 
+          offset, 
+          startDate?.toISOString(), 
+          endDate?.toISOString()
+        );
+      }
+
+      // Zeitbereich für die Abfrage festlegen: standardmäßig letzte 7 Tage
+      const effectiveStartDate = startDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7 Tage zurück wenn nicht angegeben
+      const effectiveEndDate = endDate || new Date();
+      
+      console.log(`Abfrage für Zeitraum: ${effectiveStartDate.toISOString()} bis ${effectiveEndDate.toISOString()}`);
+
+      // Direkte SQL-Abfrage mit Template ausführen
+      const results = await rawSql`
+        SELECT r.*, m.machine_name as "machineName" 
+        FROM refills r
+        LEFT JOIN machines m ON r.machine_id = m.id
+        WHERE r.datetime >= ${effectiveStartDate} AND r.datetime <= ${effectiveEndDate}
+        ${machineId && !isNaN(parseInt(machineId)) ? rawSql`AND r.machine_id = ${parseInt(machineId)}` : rawSql``}
+        ORDER BY r.datetime DESC 
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+      
+      console.log("Abfrage für Refills erfolgreich mit", results.length, "Ergebnissen");
+      return results;
+    } catch (error) {
+      console.error("Fehler beim Abrufen der Refills mit erweiterten Optionen:", error);
+      throw error;
     }
-    
-    // Filter nach Automat, falls angegeben
-    if (machineId) {
-      query = query.where(eq(refills.machineId, parseInt(machineId)));
-    }
-    
-    return await query.offset(offset).limit(limit);
   }
   
-  // Refills für ein bestimmtes Lager abrufen
+  // Alte Version für Abwärtskompatibilität
+  async getRefillsLegacy(limit: number = 100, offset: number = 0, startDate?: string, endDate?: string, machineId?: string): Promise<Refill[]> {
+    return this.getRefills({
+      limit,
+      offset,
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
+      machineId
+    });
+  }
+  
+  // Refills für ein bestimmtes Lager abrufen mit Options-Objekt
   async getRefillsForWarehouse(warehouseId?: number, limit: number = 100, offset: number = 0, startDate?: string, endDate?: string): Promise<Refill[]> {
     if (!warehouseId) {
       // Wenn keine Lager-ID angegeben ist, normale Refills zurückgeben
-      return this.getRefills(limit, offset, startDate, endDate);
+      return this.getRefills({
+        limit,
+        offset,
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined
+      });
     }
+    
+    // Importiere die direkte SQL-Instanz
+    const { rawSql } = require('./db');
     
     // Zuerst alle Automaten abrufen, die diesem Lager zugeordnet sind
     const assignments = await this.getMachineWarehouseAssignments({ warehouseId });
@@ -1528,29 +1582,52 @@ export class DatabaseStorage implements IStorage {
     
     if (machineIds.length === 0) {
       // Keine Automaten dem Lager zugeordnet
+      console.log("Keine Automaten für Lager", warehouseId, "gefunden");
       return [];
     }
     
-    // Refills für diese Automaten abrufen
-    let query = db.select().from(refills)
-      .where(inArray(refills.machineId, machineIds))
-      .orderBy(desc(refills.datetime));
+    console.log(`Abfrage für Lager ${warehouseId} mit ${machineIds.length} Automaten (IDs: ${machineIds.join(', ')})`);
     
-    // Filter nach Zeitraum, falls angegeben
+    // Basisparameter für die Abfrage
+    const params = {
+      limit,
+      offset
+    };
+    
+    // Erstelle direkte SQL-Abfrage mit Parameterbindung
+    let query = rawSql`
+      SELECT r.*, m.machine_name as "machineName" 
+      FROM refills r
+      LEFT JOIN machines m ON r.machine_id = m.id
+      WHERE r.machine_id = ANY(${machineIds})
+    `;
+    
+    // Zeitraumbedingungen hinzufügen wenn vorhanden
     if (startDate && endDate) {
-      query = query.where(
-        and(
-          gte(refills.datetime, startDate),
-          lte(refills.datetime, endDate)
-        )
-      );
+      query = rawSql`${query} AND r.datetime >= ${new Date(startDate)} AND r.datetime <= ${new Date(endDate)}`;
     } else if (startDate) {
-      query = query.where(gte(refills.datetime, startDate));
+      query = rawSql`${query} AND r.datetime >= ${new Date(startDate)}`;
     } else if (endDate) {
-      query = query.where(lte(refills.datetime, endDate));
+      query = rawSql`${query} AND r.datetime <= ${new Date(endDate)}`;
     }
     
-    return await query.offset(offset).limit(limit);
+    // Sortierung und Limits hinzufügen
+    query = rawSql`
+      ${query}
+      ORDER BY r.datetime DESC 
+      LIMIT ${limit} OFFSET ${offset}
+    `;
+    
+    console.log("Abfrage für Refills im Lager wird ausgeführt");
+    
+    try {
+      const results = await query;
+      console.log(`Abfrage für Lager ${warehouseId} erfolgreich mit ${results.length} Ergebnissen`);
+      return results;
+    } catch (error) {
+      console.error("Fehler bei der Abfrage von Refills für Lager:", error);
+      throw error;
+    }
   }
 
   async getRefillsByMachine(machineId: number, limit: number = 100): Promise<Refill[]> {
@@ -1601,65 +1678,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Neue Methode für das Warehouse-Movements Feature
-  async getRefills(options: { warehouseId?: number; startDate?: Date; endDate?: Date; limit?: number; }): Promise<any[]> {
-    try {
-      // Setze Standardwerte für die Optionen
-      const {
-        warehouseId,
-        startDate = new Date(new Date().getTime() - 7 * 24 * 60 * 60 * 1000), // Standard: 7 Tage zurück
-        endDate = new Date(),
-        limit = 100
-      } = options;
-
-      // SQL-Abfrage für Refills
-      let sqlQuery = `
-        SELECT r.*, m.name as "machineName" 
-        FROM refills r
-        LEFT JOIN machines m ON r.machine_id = m.id
-        WHERE r.datetime >= $1 AND r.datetime <= $2
-      `;
-      
-      const queryParams: any[] = [startDate.toISOString(), endDate.toISOString()];
-      
-      // Füge Lager-Filter hinzu, wenn eine Lager-ID angegeben ist
-      if (warehouseId) {
-        sqlQuery += ` 
-          AND r.machine_id IN (
-            SELECT machine_id FROM machine_warehouse_assignments
-            WHERE warehouse_id = $3
-          )
-        `;
-        queryParams.push(warehouseId);
-      }
-      
-      sqlQuery += ` ORDER BY r.datetime DESC LIMIT $${queryParams.length + 1}`;
-      queryParams.push(limit);
-      
-      console.log(`SQL-Abfrage für Refills mit erweiterten Optionen: ${sqlQuery}`, queryParams);
-      
-      // Führe die Datenbankabfrage aus
-      const refills = await this.query(sqlQuery, queryParams);
-      
-      // Für jedes Refill die Details laden
-      const refillsWithDetails = await Promise.all(refills.map(async (refill: any) => {
-        // Lade die Refill-Details (Produkte)
-        const details = await this.getRefillDetails(refill.id);
-        
-        return {
-          ...refill,
-          details
-        };
-      }));
-      
-      return refillsWithDetails;
-    } catch (error) {
-      console.error("Fehler beim Abrufen der Refills mit erweiterten Optionen:", error);
-      throw error;
-    }
-  }
-  
-  // Diese Methode wird nicht mehr benötigt, da es bereits eine aktualisierte Version oben gibt
+  // Diese Methode wird verwendet von der /api/refills Route
   
   async getRefillDetails(refillId: number): Promise<RefillDetail[]> {
     // Normale Abfrage der Refill-Details aus der Datenbank

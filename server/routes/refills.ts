@@ -26,14 +26,13 @@ router.get('/', async (req: Request, res: Response) => {
     // Hier implementieren wir die tatsächliche Abfrage über unseren Speicher
     let refills = [];
     
-    if (startDate && endDate) {
-      // Verwendung der Überladung mit Datumsbereich und Lager-ID
-      refills = await storage.getRefills(limit, 0, startDate.toISOString(), endDate.toISOString(), 
-        warehouseId ? warehouseId.toString() : undefined);
-    } else {
-      // Verwendung der einfachen Überladung nur mit Limit
-      refills = await storage.getRefillsForWarehouse(warehouseId, limit);
-    }
+    // Verwende die neue getRefills Methode mit Optionen-Objekt
+    refills = await storage.getRefills({ 
+      warehouseId, 
+      startDate, 
+      endDate,
+      limit
+    });
 
     // Wenn keine Refills gefunden wurden, versuchen wir eine Synchronisierung zu starten
     if ((!refills || refills.length === 0) && startDate && endDate) {
@@ -44,13 +43,12 @@ router.get('/', async (req: Request, res: Response) => {
         await vendonSync.syncRefills(startDate, endDate);
         
         // Nach der Synchronisierung erneut abfragen
-        let updatedRefills = [];
-        if (startDate && endDate) {
-          updatedRefills = await storage.getRefills(limit, 0, startDate.toISOString(), endDate.toISOString(),
-            warehouseId ? warehouseId.toString() : undefined);
-        } else {
-          updatedRefills = await storage.getRefillsForWarehouse(warehouseId, limit);
-        }
+        let updatedRefills = await storage.getRefills({ 
+          warehouseId, 
+          startDate, 
+          endDate,
+          limit
+        });
         
         return res.json(updatedRefills || []);
       } catch (syncError) {
