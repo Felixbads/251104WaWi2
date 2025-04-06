@@ -96,9 +96,13 @@ export default function InventoryCounts() {
       setSelectedWarehouse('');
       setInventoryNotes('');
       
-      // Die Navigation zur Detailseite erfolgt nur, wenn ein warehouseId zurückgegeben wird
-      // Wir verwenden keine direkte Umleitung, da diese die aktuelle Seite neu laden würde
-      // Stattdessen lassen wir den Benutzer die Inventur in der aktuellen Ansicht verwalten
+      // Zur Lagerdetailseite mit der neu erstellten Inventur navigieren
+      if (data && data.warehouseId && data.id) {
+        window.location.href = `/inventory/warehouse/${data.warehouseId}?tab=inventory-count&inventoryId=${data.id}`;
+      } else {
+        // Inventurdaten neu laden
+        refetch();
+      }
     },
     onError: (error: any) => {
       toast({
@@ -271,8 +275,19 @@ export default function InventoryCounts() {
                   ? Math.min(100, Math.max(0, (withDifference / countedItems) * 100))
                   : 0;
                 
+                // Funktion zum Weiterleiten zur Lagerdetailseite mit aktiver Inventur
+                const navigateToInventory = () => {
+                  if (count.warehouseId) {
+                    window.location.href = `/inventory/warehouse/${count.warehouseId}?tab=inventory-count&inventoryId=${count.id}`;
+                  }
+                };
+                
                 return (
-                  <TableRow key={count.id}>
+                  <TableRow 
+                    key={count.id} 
+                    className="cursor-pointer hover:bg-muted/50" 
+                    onClick={navigateToInventory}
+                  >
                     <TableCell className="font-medium">
                       <div>
                         <div>{count.name}</div>
