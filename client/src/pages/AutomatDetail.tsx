@@ -18,7 +18,12 @@ import {
   Download,
   Info,
   MapPin,
-  PackagePlus
+  PackagePlus,
+  Filter,
+  Droplet,
+  Wind,
+  BarChart as BarChartIcon,
+  PieChart as PieChartIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,10 +40,13 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   getMachine, 
   getTransactionsByMachine,
   getRefillsByMachine,
+  getMachineAnalytics,
+  MachineAnalytics,
   Machine, 
   Transaction,
   Refill,
@@ -46,6 +54,21 @@ import {
   formatDateTime
 } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
+import { 
+  BarChart,
+  Bar,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartTooltip,
+  Legend,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell
+} from "recharts";
 
 // Erweiterte Maschinenschnittstelle mit den zusätzlichen KPIs
 interface EnhancedMachine extends Machine {
@@ -110,6 +133,17 @@ export default function AutomatDetail() {
     queryKey: ['/api/machines', id, 'refills'],
     queryFn: () => getRefillsByMachine(id, 20),
     enabled: !!id && activeTab === "auffullungen"
+  });
+  
+  // Machine Analytics abrufen
+  const {
+    data: machineAnalytics,
+    isLoading: analyticsLoading,
+    error: analyticsError
+  } = useQuery({
+    queryKey: ['/api/statistics/machines', id, 'analytics'],
+    queryFn: () => getMachineAnalytics(id),
+    enabled: !!id && activeTab === "analysen"
   });
 
   // Maschine aktualisieren
@@ -438,6 +472,10 @@ export default function AutomatDetail() {
         <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:grid-cols-none lg:flex">
           <TabsTrigger value="allgemein">Allgemeine Informationen</TabsTrigger>
           <TabsTrigger value="transaktionen">Transaktionshistorie</TabsTrigger>
+          <TabsTrigger value="analysen">
+            <FileText className="h-4 w-4 mr-2" />
+            Analysen
+          </TabsTrigger>
           <TabsTrigger value="auffullungen">
             <PackagePlus className="h-4 w-4 mr-2" />
             Auffüllungen

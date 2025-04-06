@@ -957,4 +957,223 @@ function calculateCorrelation(x, y) {
   return sumXY / Math.sqrt(sumXSquared * sumYSquared);
 }
 
+/**
+ * Endpunkt für die Analyse eines bestimmten Automaten
+ * 
+ * Parameter:
+ * - id: ID des Automaten
+ * - period: 'day', 'week', 'month', 'year', 'custom' (Standard: 'month')
+ * - startDate: (optional, für 'custom') Start-Datum im ISO-Format
+ * - endDate: (optional, für 'custom') End-Datum im ISO-Format
+ */
+router.get('/machines/:id/analytics', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+      period = 'month', 
+      startDate: customStartDate, 
+      endDate: customEndDate 
+    } = req.query;
+
+    if (!id) {
+      return res.status(400).json({ error: 'Keine Automaten-ID angegeben' });
+    }
+
+    // Zeitraum für die Analyse definieren
+    let startDate = new Date();
+    let endDate = new Date();
+    
+    // Zeitraum-Berechnung basierend auf Parameter
+    switch(String(period)) {
+      case 'day':
+        startDate = startOfDay(startDate);
+        break;
+      case 'week':
+        startDate = startOfWeek(startDate, { weekStartsOn: 1 });
+        break;
+      case 'month':
+        startDate = startOfMonth(startDate);
+        break;
+      case 'year':
+        startDate = new Date(startDate.getFullYear(), 0, 1);
+        break;
+      case 'custom':
+        if (customStartDate && customEndDate) {
+          startDate = parseISO(String(customStartDate));
+          endDate = parseISO(String(customEndDate));
+        } else {
+          return res.status(400).json({ 
+            error: 'Für den Zeitraum "custom" müssen startDate und endDate angegeben werden' 
+          });
+        }
+        break;
+    }
+
+    // Formatiere Termine als ISO-Datumsstrings für SQL-Abfragen
+    const startDateStr = format(startDate, 'yyyy-MM-dd');
+    const endDateStr = format(endDate, 'yyyy-MM-dd');
+
+    // Parallel-Abfragen für bessere Performance
+    const [
+      machineInfo,
+      transactionStats,
+      eventCounts,
+      refillStats,
+      productPerformance,
+      paymentMethodDistribution
+    ] = await Promise.all([
+      // 1. Basisinformationen über den Automaten
+      db.select({
+        id: machines.id,
+        vendonId: machines.vendonId,
+        machineName: machines.machineName,
+        location: machines.location,
+        status: machines.status,
+        lastSync: machines.lastSync,
+        lastSale: machines.lastSale
+      })
+      .from(machines)
+      .where(eq(machines.id, Number(id)))
+      .limit(1),
+
+      // 2. Transaktionsstatistiken (Anzahl, Umsatz, Durchschnittspreis)
+      db.select({
+        count: count(),
+        totalRevenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`,
+        avgPrice: sql<number>`COALESCE(AVG(${transactions.price}), 0)`
+      })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.machineId, String(id)),
+          gte(transactions.datetime, startDateStr),
+          lte(transactions.datetime, endDateStr)
+        )
+      ),
+
+      // 3. Anzahl verschiedener Ereignistypen
+      db.select({
+        eventType: events.eventType,
+        count: count()
+      })
+      .from(events)
+      .where(
+        and(
+          eq(events.machineId, String(id)),
+          gte(events.datetime, startDateStr),
+          lte(events.datetime, endDateStr)
+        )
+      )
+      .groupBy(events.eventType),
+
+      // 4. Auffüllungsstatistiken
+      db.select({
+        count: count(),
+        lastRefill: sql<string>`MAX(${refills.date})`
+      })
+      .from(refills)
+      .where(
+        and(
+          eq(refills.machineId, Number(id)),
+          gte(refills.date, startDateStr),
+          lte(refills.date, endDateStr)
+        )
+      ),
+
+      // 5. Produkt-Performance (meistverkaufte Produkte)
+      db.select({
+        productName: transactions.productName,
+        count: count(),
+        revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`
+      })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.machineId, String(id)),
+          gte(transactions.datetime, startDateStr),
+          lte(transactions.datetime, endDateStr)
+        )
+      )
+      .groupBy(transactions.productName)
+      .orderBy(desc(sql`count`))
+      .limit(5),
+
+      // 6. Verteilung der Zahlungsmethoden
+      db.select({
+        paymentMethod: transactions.paymentMethod,
+        count: count(),
+        totalAmount: sql<number>`COALESCE(SUM(${transactions.price}), 0)`
+      })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.machineId, String(id)),
+          gte(transactions.datetime, startDateStr),
+          lte(transactions.datetime, endDateStr)
+        )
+      )
+      .groupBy(transactions.paymentMethod)
+    ]);
+
+    // Zeitreihenabfrage für Transaktionen pro Tag
+    const timeSeriesData = await db.select({
+      date: sql<string>`DATE(${transactions.datetime})`,
+      count: count(),
+      revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`
+    })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.machineId, String(id)),
+        gte(transactions.datetime, startDateStr),
+        lte(transactions.datetime, endDateStr)
+      )
+    )
+    .groupBy(sql`DATE(${transactions.datetime})`)
+    .orderBy(asc(sql`DATE(${transactions.datetime})`));
+
+    // Wetterdaten für denselben Zeitraum abrufen, falls vorhanden
+    const weatherData = await db.select({
+      date: sql<string>`DATE(${weatherData.datetime})`,
+      avgTemperature: avg(weatherData.temperature),
+      precipitation: sum(weatherData.precipitation),
+      conditions: weatherData.conditions
+    })
+    .from(weatherData)
+    .where(
+      and(
+        gte(weatherData.datetime, startDateStr),
+        lte(weatherData.datetime, endDateStr)
+      )
+    )
+    .groupBy(sql`DATE(${weatherData.datetime})`)
+    .orderBy(asc(sql`DATE(${weatherData.datetime})`));
+
+    // Ergebnisse zusammenstellen
+    const machineAnalytics = {
+      machineInfo: machineInfo[0] || null,
+      periodAnalysis: {
+        period: period,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        transactionStats: transactionStats[0] || { count: 0, totalRevenue: 0, avgPrice: 0 },
+        eventCounts: eventCounts || [],
+        refillStats: refillStats[0] || { count: 0, lastRefill: null }
+      },
+      productPerformance: productPerformance || [],
+      paymentMethodDistribution: paymentMethodDistribution || [],
+      timeSeries: timeSeriesData || [],
+      weatherData: weatherData || []
+    };
+
+    return res.json(machineAnalytics);
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Automatenanalyse:', error);
+    return res.status(500).json({ 
+      error: 'Fehler beim Abrufen der Automatenanalyse', 
+      message: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    });
+  }
+});
+
 export default router;

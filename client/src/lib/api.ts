@@ -586,6 +586,75 @@ export async function getMachine(id: string): Promise<Machine> {
   return apiRequest<Machine>('get', `/machines/${id}`);
 }
 
+// Machine Analytics Interface
+export interface MachineAnalytics {
+  machineInfo: {
+    id: number;
+    vendonId: string;
+    machineName: string;
+    location: string;
+    status: string;
+    lastSync: string | null;
+    lastSale: string | null;
+  } | null;
+  periodAnalysis: {
+    period: string;
+    startDate: string;
+    endDate: string;
+    transactionStats: {
+      count: number;
+      totalRevenue: number;
+      avgPrice: number;
+    };
+    eventCounts: {
+      eventType: string;
+      count: number;
+    }[];
+    refillStats: {
+      count: number;
+      lastRefill: string | null;
+    };
+  };
+  productPerformance: {
+    productName: string;
+    count: number;
+    revenue: number;
+  }[];
+  paymentMethodDistribution: {
+    paymentMethod: string;
+    count: number;
+    totalAmount: number;
+  }[];
+  timeSeries: {
+    date: string;
+    count: number;
+    revenue: number;
+  }[];
+  weatherData: {
+    date: string;
+    avgTemperature: number | null;
+    precipitation: number | null;
+    conditions: string | null;
+  }[];
+}
+
+// Automatenanalyse abrufen
+export async function getMachineAnalytics(
+  machineId: string,
+  period: 'day' | 'week' | 'month' | 'year' | 'custom' = 'month',
+  startDate?: string,
+  endDate?: string
+): Promise<MachineAnalytics> {
+  let url = `/statistics/machines/${machineId}/analytics?period=${period}`;
+  
+  // Füge Start- und Enddatum hinzu, wenn angegeben (erforderlich für 'custom')
+  if (period === 'custom' && startDate && endDate) {
+    url += `&startDate=${startDate}&endDate=${endDate}`;
+  }
+  
+  return apiRequest<MachineAnalytics>('get', url);
+}
+
 // Produkte
 export interface ProductsResponse {
   data: Product[];
