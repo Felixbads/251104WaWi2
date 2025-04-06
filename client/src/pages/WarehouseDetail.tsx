@@ -441,6 +441,43 @@ export default function WarehouseDetail() {
   const [inventoryDetailDialogOpen, setInventoryDetailDialogOpen] = useState(false);
   const [selectedInventoryCount, setSelectedInventoryCount] = useState<InventoryCount | null>(null);
   
+  // Mutation für das Starten einer neuen Inventur
+  const startNewInventoryCountMutation = useMutation({
+    mutationFn: async () => {
+      // API-Aufruf für das Erstellen einer neuen Inventur im Status "in_progress"
+      return await fetch(`/api/inventory-counts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          warehouseId: Number(id),
+          notes: inventoryCountNotes,
+          status: 'in_progress' // Status auf "in Bearbeitung" setzen
+        }),
+      }).then(res => {
+        if (!res.ok) throw new Error('Fehler beim Starten der Inventur');
+        return res.json();
+      });
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory-counts'] });
+      setActiveInventoryCount(data.id);
+      toast({
+        title: "Inventur gestartet",
+        description: "Die Inventur wurde erfolgreich gestartet.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Fehler beim Starten der Inventur",
+        description: error.message || "Die Inventur konnte nicht gestartet werden.",
+        variant: "destructive"
+      });
+      setIsCountInProgress(false); // Zurücksetzen falls Fehler
+    }
+  });
+  
   // Initialisiere Inventurzählung mit aktuellen Beständen
   useEffect(() => {
     if (Array.isArray(inventory) && inventory.length > 0 && activeTab === "inventory-count") {
@@ -619,9 +656,12 @@ export default function WarehouseDetail() {
   
   // Inventurzählung abschließen
   const handleCompleteInventoryCount = () => {
+    // Wenn eine aktive Inventur vorhanden ist, verwenden wir diese ID
+    // Andernfalls erstellen wir eine neue abgeschlossene Inventur
     createInventoryCountMutation.mutate({
       warehouseId: Number(id),
       notes: inventoryCountNotes,
+      id: activeInventoryCount || undefined, // ID der aktiven Inventur, falls vorhanden
       items: inventoryCountItems.map(item => ({
         productId: item.productId,
         countedQuantity: item.countedQuantity,
@@ -1300,8 +1340,19 @@ export default function WarehouseDetail() {
           <div className="flex justify-between mb-4">
             <h2 className="text-xl font-bold">Inventur</h2>
             {!isCountInProgress ? (
-              <Button onClick={() => setIsCountInProgress(true)}>
-                <ClipboardCheck className="mr-2 h-4 w-4" />
+              <Button 
+                onClick={() => {
+                  // Start der neuen Inventur mit der richtigen API-Call
+                  startNewInventoryCountMutation.mutate();
+                  setIsCountInProgress(true);
+                }}
+                disabled={startNewInventoryCountMutation.isPending}
+              >
+                {startNewInventoryCountMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <ClipboardCheck className="mr-2 h-4 w-4" />
+                )}
                 Neue Inventur starten
               </Button>
             ) : (
