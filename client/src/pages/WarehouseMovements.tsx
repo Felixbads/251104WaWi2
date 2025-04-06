@@ -39,7 +39,7 @@ export default function WarehouseMovements() {
 
   // Load warehouse data
   const {
-    data: warehouse = {},
+    data: warehouse = {} as Record<string, any>,
     isLoading: warehouseLoading,
     error: warehouseError
   } = useQuery({
@@ -103,44 +103,48 @@ export default function WarehouseMovements() {
     if (!movements || !refills) return [];
     
     // Convert refills to match movement format
-    const refillMovements = refills.flatMap((refill: any) => {
-      if (refill.details && Array.isArray(refill.details)) {
-        return refill.details.map((detail: any) => ({
-          id: `refill-${refill.id}-${detail.id}`,
-          productId: detail.productId,
-          productName: detail.productName,
-          quantity: detail.removed * -1, // Removed items as negative
-          movementType: "REFILL",
-          type: "OUT",
-          createdAt: refill.datetime,
-          performedAt: refill.datetime,
-          source: "vendon",
-          machineId: refill.machineId,
-          machineName: refill.machineName,
-          notes: `Auffüllung von Automat ${refill.machineName}`,
-          operatorName: refill.operator || "Unbekannt",
-          // These would be used for filtering
-          referenceType: "REFILL",
-          referenceId: refill.id.toString(),
-          sourceWarehouseId: Number(id),
-          destinationWarehouseId: null,
-          unit: detail.unit || "Stk"
-        }));
-      }
-      return [];
-    });
+    const refillMovementsArray = Array.isArray(refills) 
+      ? refills.flatMap((refill: any) => {
+          if (refill.details && Array.isArray(refill.details)) {
+            return refill.details.map((detail: any) => ({
+              id: `refill-${refill.id}-${detail.id}`,
+              productId: detail.productId,
+              productName: detail.productName,
+              quantity: detail.removed * -1, // Removed items as negative
+              movementType: "REFILL",
+              type: "OUT",
+              createdAt: refill.datetime,
+              performedAt: refill.datetime,
+              source: "vendon",
+              machineId: refill.machineId,
+              machineName: refill.machineName,
+              notes: `Auffüllung von Automat ${refill.machineName}`,
+              operatorName: refill.operator || "Unbekannt",
+              // These would be used for filtering
+              referenceType: "REFILL",
+              referenceId: refill.id.toString(),
+              sourceWarehouseId: Number(id),
+              destinationWarehouseId: null,
+              unit: detail.unit || "Stk"
+            }));
+          }
+          return [];
+        })
+      : [];
     
     // Add unit and user info to movement data if missing
-    const enhancedMovements = movements.map((movement: any) => ({
-      ...movement,
-      unit: movement.unit || "Stk",
-      operatorName: movement.performedBy 
-        ? users.find((u: any) => u.id === movement.performedBy)?.username || "Unbekannt"
-        : "Unbekannt"
-    }));
+    const enhancedMovements = Array.isArray(movements) 
+      ? movements.map((movement: any) => ({
+          ...movement,
+          unit: movement.unit || "Stk",
+          operatorName: movement.performedBy && Array.isArray(users)
+            ? users.find((u: any) => u.id === movement.performedBy)?.username || "Unbekannt"
+            : "Unbekannt"
+        }))
+      : [];
     
     // Combine and sort by date (newest first)
-    return [...enhancedMovements, ...refillMovements].sort((a: any, b: any) => {
+    return [...enhancedMovements, ...refillMovementsArray].sort((a: any, b: any) => {
       const dateA = new Date(a.performedAt || a.createdAt);
       const dateB = new Date(b.performedAt || b.createdAt);
       return dateB.getTime() - dateA.getTime();
@@ -281,7 +285,7 @@ export default function WarehouseMovements() {
         <Button
           variant="outline"
           className="mt-4"
-          onClick={() => setLocation(`/warehouses/${id}`)}
+          onClick={() => setLocation(`/lager/${id}`)}
         >
           <ChevronLeft className="mr-2 h-4 w-4" />
           Zurück zum Lager
@@ -290,7 +294,7 @@ export default function WarehouseMovements() {
     );
   }
   
-  if (!warehouse || !warehouse.id) {
+  if (!warehouse || typeof warehouse !== 'object' || !('id' in warehouse)) {
     return (
       <div className="container py-10">
         <Alert>
@@ -304,7 +308,7 @@ export default function WarehouseMovements() {
         <Button
           variant="outline"
           className="mt-4"
-          onClick={() => setLocation("/warehouses")}
+          onClick={() => setLocation("/lager")}
         >
           <ChevronLeft className="mr-2 h-4 w-4" />
           Zurück zur Übersicht
@@ -318,12 +322,12 @@ export default function WarehouseMovements() {
       {/* Header with Back Button */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setLocation(`/warehouses/${id}`)}>
+          <Button variant="outline" size="sm" onClick={() => setLocation(`/lager/${id}`)}>
             <ChevronLeft className="mr-2 h-4 w-4" />
             Zurück zum Lager
           </Button>
         </div>
-        <h1 className="text-2xl font-bold">{warehouse.name} - Warenbewegungen</h1>
+        <h1 className="text-2xl font-bold">{warehouse && typeof warehouse === 'object' && 'name' in warehouse ? warehouse.name : 'Lager'} - Warenbewegungen</h1>
       </div>
 
       {/* Main Content */}
@@ -440,14 +444,14 @@ export default function WarehouseMovements() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="">Alle Automaten</SelectItem>
-                      {machineAssignments.map((assignment: any) => (
+                      {Array.isArray(machineAssignments) ? machineAssignments.map((assignment: any) => (
                         <SelectItem 
                           key={assignment.machine?.id} 
                           value={assignment.machine?.id?.toString() || ''}
                         >
                           {assignment.machine?.machineName || 'Unbekannter Automat'}
                         </SelectItem>
-                      ))}
+                      )) : null}
                     </SelectContent>
                   </Select>
                 </div>
@@ -461,14 +465,14 @@ export default function WarehouseMovements() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="">Alle Benutzer</SelectItem>
-                      {users.map((user: any) => (
+                      {Array.isArray(users) ? users.map((user: any) => (
                         <SelectItem 
                           key={user.id} 
                           value={user.id.toString()}
                         >
                           {user.username}
                         </SelectItem>
-                      ))}
+                      )) : null}
                     </SelectContent>
                   </Select>
                 </div>
@@ -513,8 +517,10 @@ export default function WarehouseMovements() {
                   )}
                   {machineFilter && (
                     <Badge variant="outline" className="flex items-center gap-1">
-                      Automat: {machineAssignments.find((a: any) => 
-                        a.machine?.id.toString() === machineFilter)?.machine?.machineName || machineFilter}
+                      Automat: {Array.isArray(machineAssignments) 
+                        ? machineAssignments.find((a: any) => 
+                            a.machine?.id.toString() === machineFilter)?.machine?.machineName || machineFilter
+                        : machineFilter}
                       <X 
                         className="h-3 w-3 cursor-pointer" 
                         onClick={() => setMachineFilter('')} 
@@ -523,8 +529,10 @@ export default function WarehouseMovements() {
                   )}
                   {userFilter && (
                     <Badge variant="outline" className="flex items-center gap-1">
-                      Benutzer: {users.find((u: any) => 
-                        u.id.toString() === userFilter)?.username || userFilter}
+                      Benutzer: {Array.isArray(users)
+                        ? users.find((u: any) => 
+                            u.id.toString() === userFilter)?.username || userFilter
+                        : userFilter}
                       <X 
                         className="h-3 w-3 cursor-pointer" 
                         onClick={() => setUserFilter('')} 
