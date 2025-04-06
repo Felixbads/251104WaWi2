@@ -191,7 +191,7 @@ export function statisticsRoutes(app: any) {
           END, 0)`
       })
       .from(transactions)
-      .leftJoin(products, eq(transactions.productId, products.vendonId))
+      .leftJoin(products, eq(sql`COALESCE(${transactions.productId}, "")`, sql`COALESCE(${products.vendonId}, "")`))
       .where(and(
         eq(transactions.machineId, machineId),
         sql`datetime >= ${startDateStr}`,
@@ -261,7 +261,7 @@ export function statisticsRoutes(app: any) {
           END, 0)`
       })
       .from(transactions)
-      .leftJoin(products, eq(transactions.productId, products.vendonId))
+      .leftJoin(products, eq(sql`COALESCE(${transactions.productId}, "")`, sql`COALESCE(${products.vendonId}, "")`))
       .where(and(
         eq(transactions.machineId, machineId),
         sql`datetime >= ${startDateStr}`,
@@ -875,7 +875,7 @@ router.get('/product-performance', async (req, res) => {
         END, 0)`
     })
     .from(transactions)
-    .leftJoin(products, eq(transactions.productId, products.vendonId))
+    .leftJoin(products, eq(sql`COALESCE(${transactions.productId}, "")`, sql`COALESCE(${products.vendonId}, "")`))
     .where(and(
       sql`${transactions.datetime} >= ${startDateStr}`,
       sql`${transactions.datetime} <= ${endDateStr}`,
