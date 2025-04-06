@@ -1044,7 +1044,14 @@ export default function WarehouseDetail() {
                 </Button>
               </div>
             </Alert>
-          ) : (!Array.isArray(inventory) || inventory.length === 0) ? (
+          ) : (!inventory || !Array.isArray(inventory)) ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-8">
+                <Loader2 className="h-16 w-16 text-muted-foreground mb-4 animate-spin" />
+                <h3 className="text-xl font-semibold mb-2">Lagerbestand wird geladen...</h3>
+              </CardContent>
+            </Card>
+          ) : (inventory.length === 0) ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-8">
                 <Package className="h-16 w-16 text-muted-foreground mb-4" />
@@ -1053,6 +1060,41 @@ export default function WarehouseDetail() {
                   Dieses Lager enthält noch keine Produkte. Produkte werden automatisch hinzugefügt, 
                   wenn sie von zugeordneten Automaten verwendet werden.
                 </p>
+                <Button 
+                  onClick={() => {
+                    // Manuellen Lagerabgleich auslösen und dann Daten neu laden
+                    toast({
+                      title: "Lagerabgleich wird durchgeführt",
+                      description: "Automatischer Abgleich der Automaten-Produkte mit diesem Lager."
+                    });
+                    
+                    fetch(`/api/warehouse-reconciliation`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ warehouseId: Number(id) })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                      console.log("Lagerabgleich-Ergebnis:", data);
+                      refetchInventory();
+                      toast({
+                        title: "Lagerabgleich abgeschlossen",
+                        description: `${data.result.productsAdded} Produkte zum Lager hinzugefügt.`
+                      });
+                    })
+                    .catch(err => {
+                      console.error("Fehler beim Lagerabgleich:", err);
+                      toast({
+                        title: "Fehler beim Lagerabgleich",
+                        description: "Bitte versuchen Sie es später erneut.",
+                        variant: "destructive"
+                      });
+                    });
+                  }}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Lagerabgleich durchführen
+                </Button>
               </CardContent>
             </Card>
           ) : (
@@ -1119,6 +1161,43 @@ export default function WarehouseDetail() {
                       <TableRow>
                         <TableCell colSpan={5} className="text-center py-4">
                           <p className="text-muted-foreground">Keine Produkte im Lagerbestand vorhanden.</p>
+                          <Button 
+                            className="mt-4" 
+                            size="sm" 
+                            onClick={() => {
+                              // Manuellen Lagerabgleich auslösen und dann Daten neu laden
+                              toast({
+                                title: "Lagerabgleich wird durchgeführt",
+                                description: "Automatischer Abgleich der Automaten-Produkte mit diesem Lager."
+                              });
+                              
+                              fetch(`/api/warehouse-reconciliation`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ warehouseId: Number(id) })
+                              })
+                              .then(res => res.json())
+                              .then(data => {
+                                console.log("Lagerabgleich-Ergebnis:", data);
+                                refetchInventory();
+                                toast({
+                                  title: "Lagerabgleich abgeschlossen",
+                                  description: `${data.result.productsAdded} Produkte zum Lager hinzugefügt.`
+                                });
+                              })
+                              .catch(err => {
+                                console.error("Fehler beim Lagerabgleich:", err);
+                                toast({
+                                  title: "Fehler beim Lagerabgleich",
+                                  description: "Bitte versuchen Sie es später erneut.",
+                                  variant: "destructive"
+                                });
+                              });
+                            }}
+                          >
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            Lagerabgleich durchführen
+                          </Button>
                         </TableCell>
                       </TableRow>
                     )}
