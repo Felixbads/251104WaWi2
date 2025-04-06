@@ -126,7 +126,7 @@ export default function WarehouseDetail() {
     error: inventoryError,
     refetch: refetchInventory
   } = useQuery({
-    queryKey: [`/api/inventory`, { warehouseId: id }],
+    queryKey: [`/api/inventory`, { warehouseId: Number(id) }],
     queryFn: () => getWarehouseInventory(id),
     enabled: !!id,
     staleTime: 30000 // 30 Sekunden

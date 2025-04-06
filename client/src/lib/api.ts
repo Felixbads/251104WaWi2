@@ -87,7 +87,7 @@ export async function triggerSync(type: string, options: any = {}) {
     type,
     ...options
   });
-  
+
   // Wenn die Antwort eine apiResponse enthält, extrahieren wir diese
   if (response.data && response.data.apiResponse) {
     return {
@@ -95,7 +95,7 @@ export async function triggerSync(type: string, options: any = {}) {
       apiResponse: response.data.apiResponse
     };
   }
-  
+
   return response.data;
 }
 
@@ -112,11 +112,11 @@ export interface HistoricalSyncOptions {
 // Funktion zum Starten einer historischen Synchronisierung
 export async function triggerHistoricalSync(options: HistoricalSyncOptions = {}) {
   console.log('Starte historische Synchronisierung mit Optionen:', options);
-  
+
   const response = await axios.post(`${API_BASE_URL}/vendon/historical-sync`, options);
-  
+
   console.log('Antwort von der historischen Synchronisierung:', response.data);
-  
+
   return response.data;
 }
 
@@ -129,14 +129,14 @@ export async function getAllVendonProducts(page = 0, limit = 100) {
     const batch1Response = await axios.get(`${API_BASE_URL}/vendon/stocks?page=0&limit=${limit}`);
     let allProducts = batch1Response.data;
     console.log('Erster Batch Vendon-Stock-Produkte:', allProducts.length, 'Einträge');
-    
+
     // Frage die nächsten 100 Produkte ab
     const batch2Response = await axios.get(`${API_BASE_URL}/vendon/stocks?page=1&limit=${limit}`);
     if (batch2Response.data && batch2Response.data.length > 0) {
       allProducts = [...allProducts, ...batch2Response.data];
       console.log('Zweiter Batch Vendon-Stock-Produkte:', batch2Response.data.length, 'Einträge');
     }
-    
+
     // Optional: Dritter Batch, wenn nötig
     if (batch2Response.data && batch2Response.data.length === limit) {
       const batch3Response = await axios.get(`${API_BASE_URL}/vendon/stocks?page=2&limit=${limit}`);
@@ -145,7 +145,7 @@ export async function getAllVendonProducts(page = 0, limit = 100) {
         console.log('Dritter Batch Vendon-Stock-Produkte:', batch3Response.data.length, 'Einträge');
       }
     }
-    
+
     console.log('Vendon-Stock-Produkte Struktur prüfen:', allProducts);
     console.log('Insgesamt Vendon-Stock-Produkte:', allProducts.length, 'Einträge');
     return allProducts;
@@ -158,24 +158,24 @@ export async function getAllVendonProducts(page = 0, limit = 100) {
 // Hilfsfunktionen
 export function formatDateTime(dateString: string | Date, format: 'date' | 'datetime' | 'time' = 'datetime'): string {
   const date = new Date(dateString);
-  
+
   if (isNaN(date.getTime())) {
     return '–';
   }
-  
+
   const options: Intl.DateTimeFormatOptions = {};
-  
+
   if (format === 'date' || format === 'datetime') {
     options.day = '2-digit';
     options.month = '2-digit';
     options.year = 'numeric';
   }
-  
+
   if (format === 'time' || format === 'datetime') {
     options.hour = '2-digit';
     options.minute = '2-digit';
   }
-  
+
   return date.toLocaleString('de-DE', options);
 }
 
@@ -189,38 +189,38 @@ export function formatDuration(seconds: number, short = false): string {
   if (isNaN(seconds) || seconds < 0) {
     return '–';
   }
-  
+
   const days = Math.floor(seconds / 86400);
   const hours = Math.floor((seconds % 86400) / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const remainingSeconds = Math.floor(seconds % 60);
-  
+
   const parts: string[] = [];
-  
+
   if (days > 0) {
     parts.push(short 
       ? `${days}d` 
       : `${days} ${days === 1 ? 'Tag' : 'Tage'}`);
   }
-  
+
   if (hours > 0) {
     parts.push(short 
       ? `${hours}h` 
       : `${hours} ${hours === 1 ? 'Stunde' : 'Stunden'}`);
   }
-  
+
   if (minutes > 0) {
     parts.push(short 
       ? `${minutes}m` 
       : `${minutes} ${minutes === 1 ? 'Minute' : 'Minuten'}`);
   }
-  
+
   if (remainingSeconds > 0 || parts.length === 0) {
     parts.push(short 
       ? `${remainingSeconds}s` 
       : `${remainingSeconds} ${remainingSeconds === 1 ? 'Sekunde' : 'Sekunden'}`);
   }
-  
+
   return parts.join(short ? ' ' : ', ');
 }
 
@@ -458,7 +458,7 @@ export async function syncWeatherData(
   options: any = {}
 ): Promise<any> {
   let endpoint = '';
-  
+
   switch (syncType) {
     case 'forecast':
       endpoint = '/weather/forecast/sync';
@@ -475,7 +475,7 @@ export async function syncWeatherData(
     default:
       throw new Error('Ungültiger Synchronisationstyp');
   }
-  
+
   return apiRequest<any>('post', endpoint, options);
 }
 
@@ -485,7 +485,7 @@ export async function syncHolidays(
   options: any = {}
 ): Promise<any> {
   let endpoint = '';
-  
+
   switch (syncType) {
     case 'holidays':
       endpoint = '/holidays/sync';
@@ -499,7 +499,7 @@ export async function syncHolidays(
     default:
       throw new Error('Ungültiger Feiertagstyp');
   }
-  
+
   return apiRequest<any>('post', endpoint, options);
 }
 
@@ -517,32 +517,32 @@ export async function getTransactionsByDateRange(
 // Transaktionen als Excel-Datei exportieren
 export async function exportTransactionsToExcel(startDate?: string, endDate?: string, limit?: number) {
   const params: Record<string, string> = {};
-  
+
   if (startDate) params.startDate = startDate;
   if (endDate) params.endDate = endDate;
   if (limit) params.limit = limit.toString();
-  
+
   // Direkten Download mit axios als Blob anfordern
   const response = await axios.get(`${API_BASE_URL}/export/transactions`, {
     params,
     responseType: 'blob'
   });
-  
+
   // Datei herunterladen
   const url = window.URL.createObjectURL(new Blob([response.data]));
   const link = document.createElement('a');
-  
+
   // Dateinamen erstellen
   const filename = startDate && endDate 
     ? `transactions_${startDate.split('T')[0]}_to_${endDate.split('T')[0]}.xlsx`
     : `transactions_export_${new Date().toISOString().split('T')[0]}.xlsx`;
-  
+
   link.href = url;
   link.setAttribute('download', filename);
   document.body.appendChild(link);
   link.click();
   link.remove();
-  
+
   return { success: true, filename };
 }
 
@@ -550,7 +550,7 @@ export async function exportTransactionsToExcel(startDate?: string, endDate?: st
 export async function importTransactionsFromExcel(file: File, onProgress?: (progress: number) => void) {
   const formData = new FormData();
   formData.append('file', file);
-  
+
   const response = await axios.post(`${API_BASE_URL}/import/transactions`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data'
@@ -562,7 +562,7 @@ export async function importTransactionsFromExcel(file: File, onProgress?: (prog
       }
     }
   });
-  
+
   return response.data;
 }
 
@@ -608,7 +608,7 @@ export async function getProducts(params?: {
   supplierId?: number;
 }): Promise<ProductsResponse> {
   const queryParams = new URLSearchParams();
-  
+
   if (params) {
     if (params.limit) queryParams.append('limit', params.limit.toString());
     if (params.offset) queryParams.append('offset', params.offset.toString());
@@ -616,10 +616,10 @@ export async function getProducts(params?: {
     if (params.search) queryParams.append('search', params.search);
     if (params.supplierId) queryParams.append('supplierId', params.supplierId.toString());
   }
-  
+
   const queryString = queryParams.toString();
   const url = `/products${queryString ? '?' + queryString : ''}`;
-  
+
   return apiRequest<ProductsResponse>('get', url);
 }
 
@@ -686,13 +686,13 @@ export async function importProductsFromExcel(file: File): Promise<{success: boo
   try {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     const response = await axios.post(`${API_BASE_URL}/products/import`, formData, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
     });
-    
+
     return response.data;
   } catch (error) {
     console.error('Fehler beim Importieren der Produktdaten:', error);
@@ -761,20 +761,20 @@ export async function startSync(syncType: string, options?: {
 }): Promise<any> {
   try {
     console.log(`Sende Synchronisierungsanfrage für '${syncType}' mit Optionen:`, options);
-    
+
     // Sende die Anfrage an den korrekten Endpunkt /vendon/sync und übergebe den syncType als Teil des Payloads
     const response = await apiRequest<any>('post', `/vendon/sync`, { 
       type: syncType, 
       ...options 
     });
-    
+
     console.log(`Synchronisierungsantwort erhalten:`, response);
-    
+
     // Prüfe auf leere Objekte oder fehlende syncLogId
     if (!response || Object.keys(response).length === 0) {
       throw new Error('Server hat eine leere Antwort zurückgegeben.');
     }
-    
+
     return response;
   } catch (error) {
     console.error(`Fehler bei der Synchronisierung (${syncType}):`, error);
@@ -880,12 +880,12 @@ export async function getSuppliers(params?: {
   search?: string;
 }): Promise<SupplierResponse> {
   const queryParams = new URLSearchParams();
-  
+
   if (params?.limit) queryParams.append('limit', params.limit.toString());
   if (params?.offset) queryParams.append('offset', params.offset.toString());
   if (params?.status) queryParams.append('status', params.status);
   if (params?.search) queryParams.append('search', params.search);
-  
+
   const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
   return apiRequest<SupplierResponse>('get', `/suppliers${queryString}`);
 }
@@ -1049,7 +1049,7 @@ export async function getOrders(params?: {
   search?: string;
 }): Promise<OrderResponse> {
   const queryParams = new URLSearchParams();
-  
+
   if (params?.limit) queryParams.append('limit', params.limit.toString());
   if (params?.offset) queryParams.append('offset', params.offset.toString());
   if (params?.status) queryParams.append('status', params.status);
@@ -1058,7 +1058,7 @@ export async function getOrders(params?: {
   if (params?.dateFrom) queryParams.append('dateFrom', params.dateFrom);
   if (params?.dateTo) queryParams.append('dateTo', params.dateTo);
   if (params?.search) queryParams.append('search', params.search);
-  
+
   const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
   return apiRequest<OrderResponse>('get', `/orders${queryString}`);
 }
@@ -1155,23 +1155,23 @@ export async function getMachineStocksByLocation(locationId: number): Promise<Ma
   // Diese Funktion holt alle Maschinenbestände für einen bestimmten Standort,
   // indem sie zuerst alle Maschinen für diesen Standort abruft und dann
   // für jede Maschine die Bestände abfragt
-  
+
   // Schritt 1: Alle Maschinen mit dem angegebenen locationId abrufen
   const machines = await getMachines();
   const locationMachines = machines.filter(machine => 
     machine.location && machine.location.toString().includes(locationId.toString()));
-  
+
   if (locationMachines.length === 0) {
     return [];
   }
-  
+
   // Schritt 2: Für jede Maschine die Bestände abrufen und zusammenführen
   const machineStocksPromises = locationMachines.map(machine => 
     getMachineStocks(Number(machine.id)));
-  
+
   // Warten auf alle Anfragen und die Ergebnisse zusammenführen
   const machineStocksResults = await Promise.all(machineStocksPromises);
-  
+
   // Alle Ergebnisse in einem Array zusammenführen
   return machineStocksResults.flat();
 }
@@ -1296,7 +1296,7 @@ export async function getRefills(params?: {
   warehouseId?: number;
 }): Promise<RefillsResponse> {
   const queryParams = new URLSearchParams();
-  
+
   if (params) {
     if (params.limit) queryParams.append('limit', params.limit.toString());
     if (params.offset) queryParams.append('offset', params.offset.toString());
@@ -1307,10 +1307,10 @@ export async function getRefills(params?: {
   } else {
     queryParams.append('limit', '50');
   }
-  
+
   const queryString = queryParams.toString();
   const url = `/refills${queryString ? '?' + queryString : ''}`;
-  
+
   return apiRequest<RefillsResponse>('get', url);
 }
 
@@ -1379,11 +1379,11 @@ export async function getWarehouseById(warehouseId?: string): Promise<Warehouse>
   return apiRequest<Warehouse>('get', `/warehouses/${warehouseId}`);
 }
 
-export async function getWarehouseInventory(warehouseId?: string): Promise<WarehouseProduct[]> {
+export async function getWarehouseInventory(warehouseId: string): Promise<WarehouseProduct[]> {
   if (!warehouseId) throw new Error("Warehouse ID is required");
-  
+
   // Parameter hinzufügen, um auch Produkte mit Nullbestand abzurufen
-  return apiRequest<WarehouseProduct[]>('get', `/api/inventory?warehouseId=${warehouseId}&includeZeroStock=true`);
+  return apiRequest<WarehouseProduct[]>('get', `/api/inventory?warehouseId=${Number(warehouseId)}&includeZeroStock=true`);
 }
 
 export async function updateWarehouseInventory(
@@ -1410,12 +1410,12 @@ export async function getProductDisposals(params: {
   offset?: number;
 } = {}): Promise<ProductDisposal[]> {
   const queryParams = new URLSearchParams();
-  
+
   if (params.warehouseId) queryParams.append('warehouseId', params.warehouseId);
   if (params.status) queryParams.append('status', params.status);
   if (params.limit) queryParams.append('limit', params.limit.toString());
   if (params.offset) queryParams.append('offset', params.offset.toString());
-  
+
   const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
   return apiRequest<ProductDisposal[]>('get', `/product-disposals${queryString}`);
 }
@@ -1447,7 +1447,7 @@ export async function getUpcomingHolidays(days = 7): Promise<Holiday[]> {
   const today = new Date();
   const endDate = new Date();
   endDate.setDate(today.getDate() + days);
-  
+
   return apiRequest<Holiday[]>('get', `/holidays/by-date-range?startDate=${formatDateISO(today)}&endDate=${formatDateISO(endDate)}`);
 }
 
@@ -1456,7 +1456,7 @@ export async function getRevenueForecast(days = 7): Promise<RevenueForecast[]> {
   const today = new Date();
   const endDate = new Date();
   endDate.setDate(today.getDate() + days);
-  
+
   return apiRequest<RevenueForecast[]>('get', `/forecast/revenue?startDate=${formatDateISO(today)}&endDate=${formatDateISO(endDate)}`);
 }
 
@@ -1468,19 +1468,19 @@ export async function getProductDemandForecast(params: {
   endDate?: Date;
 } = {}): Promise<ProductDemandForecast[]> {
   const queryParams = new URLSearchParams();
-  
+
   if (params.machineId) queryParams.append('machineId', params.machineId.toString());
   if (params.productId) queryParams.append('productId', params.productId.toString());
-  
+
   const startDate = params.startDate || new Date();
   const endDate = params.endDate || new Date();
   if (params.endDate === undefined) {
     endDate.setDate(startDate.getDate() + 7);
   }
-  
+
   queryParams.append('startDate', formatDateISO(startDate));
   queryParams.append('endDate', formatDateISO(endDate));
-  
+
   return apiRequest<ProductDemandForecast[]>('get', `/forecast/demand?${queryParams.toString()}`);
 }
 
@@ -1526,7 +1526,7 @@ export async function initializeDefaultForecastModel() {
       trainingPeriodStart?: string;
       trainingPeriodEnd?: string;
     }>('post', '/forecast/auto-train');
-    
+
     if (response && response.success) {
       return { 
         success: true, 
@@ -1550,3 +1550,7 @@ export async function initializeDefaultForecastModel() {
     };
   }
 }
+
+export const getWarehouseInventory = async (warehouseId: string) => {
+  return apiRequest('get', `/api/inventory?warehouseId=${Number(warehouseId)}`);
+};
