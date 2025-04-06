@@ -92,27 +92,6 @@ interface WarehouseMovement {
   quantityAfter: number | null;
 }
 
-interface Refill {
-  id: number;
-  machineId: number;
-  machineName: string;
-  productId: number;
-  productName: string;
-  quantity: number;
-  performedBy: number;
-  performedByName: string;
-  performedAt: string;
-  createdAt: string;
-  unit: string | null;
-  warehouseId: number | null;
-  warehouseName: string | null;
-  quantityBefore: number | null;
-  quantityAfter: number | null;
-}
-
-// Kombinierter Typ für die Anzeige
-type CombinedMovement = WarehouseMovement | (Refill & { type: 'REFILL' });
-
 // Hilfsfunktionen
 const formatDate = (dateString: string) => {
   try {
@@ -188,18 +167,18 @@ export default function WarehouseMovements() {
     enabled: !!warehouseId
   });
   
-  // Abfragen der Warenbewegungen
+  // Abfragen aller Warenbewegungen über die neue konsolidierte API-Route
   const {
-    data: movements = [],
+    data: combinedMovements = [],
     isLoading: movementsLoading,
-    error: movementsError
+    error: movementsError,
+    refetch: refetchMovements
   } = useQuery({
-    queryKey: ['/api/inventory-movements', warehouseId, filters, page, pageSize],
+    queryKey: ['/api/warehouses', warehouseId, 'movements', filters, page, pageSize],
     queryFn: async () => {
       const queryParams = new URLSearchParams({
-        warehouseId: warehouseId.toString(),
-        page: page.toString(),
-        pageSize: pageSize.toString()
+        limit: pageSize.toString(),
+        offset: ((page - 1) * pageSize).toString()
       });
       
       if (filters.productName) queryParams.append('productName', filters.productName);
@@ -214,62 +193,20 @@ export default function WarehouseMovements() {
         queryParams.append('endDate', filters.endDate.toISOString());
       }
       
-      const response = await fetch(`/api/inventory-movements?${queryParams.toString()}`);
+      console.log(`Requesting warehouse movements with params: ${queryParams.toString()}`);
+      
+      const response = await fetch(`/api/warehouses/${warehouseId}/movements?${queryParams.toString()}`);
       if (!response.ok) {
-        throw new Error('Fehler beim Laden der Warenbewegungen');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('API Error:', errorData);
+        throw new Error(`Fehler beim Laden der Warenbewegungen: ${errorData.error || response.statusText}`);
       }
-      return response.json();
+      
+      const data = await response.json();
+      console.log(`Received ${data.length} warehouse movement records`);
+      return data;
     },
     enabled: !!warehouseId
-  });
-  
-  // Abfragen der Auffüllungen (Refills)
-  const {
-    data: refills = [],
-    isLoading: refillsLoading,
-    error: refillsError
-  } = useQuery({
-    queryKey: ['/api/refills', warehouseId, filters, page, pageSize],
-    queryFn: async () => {
-      const queryParams = new URLSearchParams({
-        warehouseId: warehouseId.toString(),
-        page: page.toString(),
-        pageSize: pageSize.toString(),
-        startDate: filters.startDate.toISOString(),
-        endDate: filters.endDate.toISOString()
-      });
-      
-      if (filters.productName) queryParams.append('productName', filters.productName);
-      if (filters.userId) queryParams.append('userId', filters.userId);
-      
-      const response = await fetch(`/api/refills?${queryParams.toString()}`);
-      if (!response.ok) {
-        throw new Error('Fehler beim Laden der Auffüllungen');
-      }
-      return response.json();
-    },
-    enabled: !!warehouseId
-  });
-  
-  // Kombinierte Bewegungen (Warenbewegungen + Refills)
-  const combinedMovements: CombinedMovement[] = [
-    ...movements,
-    ...refills.map((refill: Refill) => ({
-      ...refill,
-      type: 'REFILL',
-      sourceWarehouseId: warehouseId,
-      sourceWarehouseName: warehouse?.name || '',
-      destinationWarehouseId: null,
-      destinationWarehouseName: null,
-      movementType: 'REFILL',
-      referenceType: 'REFILL',
-      referenceId: `refill-${refill.id}`,
-      notes: `Auffüllung des Automaten ${refill.machineName}`
-    }))
-  ].sort((a, b) => {
-    const dateA = new Date(a.performedAt || a.createdAt);
-    const dateB = new Date(b.performedAt || b.createdAt);
-    return dateB.getTime() - dateA.getTime(); // Neueste zuerst
   });
   
   const totalPages = Math.ceil(combinedMovements.length / pageSize);
@@ -297,7 +234,7 @@ export default function WarehouseMovements() {
   };
   
   // Fehlerbehandlung
-  const isError = movementsError || refillsError;
+  const isError = movementsError;
   if (isError) {
     return (
       <div className="container py-6 space-y-6">
@@ -318,8 +255,7 @@ export default function WarehouseMovements() {
               </p>
               <Button 
                 onClick={() => {
-                  queryClient.invalidateQueries({ queryKey: ['/api/inventory-movements'] });
-                  queryClient.invalidateQueries({ queryKey: ['/api/refills'] });
+                  queryClient.invalidateQueries({ queryKey: ['/api/warehouses', warehouseId, 'movements'] });
                 }}
               >
                 <RefreshCw className="mr-2 h-4 w-4" />
@@ -333,7 +269,7 @@ export default function WarehouseMovements() {
   }
   
   // Lade-Indikator
-  if (warehouseLoading || (movementsLoading && refillsLoading)) {
+  if (warehouseLoading || movementsLoading) {
     return (
       <div className="container py-6 space-y-6">
         <div className="flex items-center gap-2">
@@ -495,8 +431,7 @@ export default function WarehouseMovements() {
             variant="outline"
             size="sm"
             onClick={() => {
-              queryClient.invalidateQueries({ queryKey: ['/api/inventory-movements'] });
-              queryClient.invalidateQueries({ queryKey: ['/api/refills'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/warehouses', warehouseId, 'movements'] });
             }}
           >
             <RefreshCw className="mr-2 h-4 w-4" />
