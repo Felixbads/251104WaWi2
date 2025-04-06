@@ -625,6 +625,300 @@ export default function AutomatDetail() {
           </Card>
         </TabsContent>
         
+        {/* Analysen Tab */}
+        <TabsContent value="analysen" className="mt-4">
+          {analyticsLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+            </div>
+          ) : analyticsError ? (
+            <Card className="bg-red-50 border-red-200">
+              <CardContent className="pt-6">
+                <div className="flex items-center text-red-600">
+                  <AlertTriangle className="h-5 w-5 mr-2" />
+                  <p>Fehler beim Laden der Analysen: {String(analyticsError)}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* KPI-Übersicht */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center text-lg">
+                    <BarChartIcon className="h-5 w-5 mr-2" />
+                    Leistungskennzahlen
+                  </CardTitle>
+                  <CardDescription>Wichtige Kennzahlen auf einen Blick</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-muted rounded-lg p-4">
+                      <div className="text-sm text-muted-foreground mb-1">Gesamt-Verkäufe</div>
+                      <div className="text-2xl font-medium">{machineAnalytics?.periodAnalysis?.transactionStats.count || 0}</div>
+                    </div>
+                    <div className="bg-muted rounded-lg p-4">
+                      <div className="text-sm text-muted-foreground mb-1">Umsatz</div>
+                      <div className="text-2xl font-medium">{(machineAnalytics?.periodAnalysis?.transactionStats.totalRevenue || 0).toFixed(2)} €</div>
+                    </div>
+                    <div className="bg-muted rounded-lg p-4">
+                      <div className="text-sm text-muted-foreground mb-1">Auffüllungen</div>
+                      <div className="text-2xl font-medium">{machineAnalytics?.periodAnalysis?.refillStats.count || 0}</div>
+                    </div>
+                    <div className="bg-muted rounded-lg p-4">
+                      <div className="text-sm text-muted-foreground mb-1">Durchschnittlicher Verkauf</div>
+                      <div className="text-2xl font-medium">{(machineAnalytics?.periodAnalysis?.transactionStats.avgPrice || 0).toFixed(2)} €</div>
+                    </div>
+                  </div>
+                </CardContent>
+                <CardFooter className="text-xs text-muted-foreground">
+                  Zeitraum: {machineAnalytics?.periodAnalysis.startDate ? formatDateTime(machineAnalytics.periodAnalysis.startDate, 'date') : ''} - {machineAnalytics?.periodAnalysis.endDate ? formatDateTime(machineAnalytics.periodAnalysis.endDate, 'date') : ''}
+                </CardFooter>
+              </Card>
+
+              {/* Verkaufstrend */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center text-lg">
+                    <LineChart className="h-5 w-5 mr-2" />
+                    Verkaufstrend
+                  </CardTitle>
+                  <CardDescription>Entwicklung der Verkäufe im Zeitverlauf</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={machineAnalytics?.timeSeries || []}
+                        margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="date" 
+                          tickFormatter={(date) => new Date(date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
+                        />
+                        <YAxis />
+                        <RechartTooltip 
+                          formatter={(value: any, name: any) => {
+                            if (name === 'revenue') return [`${value.toFixed(2)} €`, 'Umsatz'];
+                            if (name === 'count') return [value, 'Anzahl'];
+                            return [value, name];
+                          }}
+                          labelFormatter={(label) => new Date(label).toLocaleDateString('de-DE')}
+                        />
+                        <Legend payload={[
+                          { value: 'Anzahl', type: 'line', color: '#8884d8' },
+                          { value: 'Umsatz (€)', type: 'line', color: '#82ca9d' }
+                        ]} />
+                        <Line type="monotone" dataKey="count" stroke="#8884d8" activeDot={{ r: 8 }} name="count" />
+                        <Line type="monotone" dataKey="revenue" stroke="#82ca9d" name="revenue" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Top Produkte */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center text-lg">
+                    <ShoppingCart className="h-5 w-5 mr-2" />
+                    Top Produkte
+                  </CardTitle>
+                  <CardDescription>Die beliebtesten Produkte nach Verkaufsvolumen</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={machineAnalytics?.productPerformance || []}
+                        margin={{ top: 5, right: 30, left: 20, bottom: 60 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis
+                          dataKey="productName"
+                          angle={-45}
+                          textAnchor="end"
+                          height={70}
+                          interval={0}
+                          tick={{ fontSize: 10 }}
+                        />
+                        <YAxis />
+                        <RechartTooltip 
+                          formatter={(value: any, name: any) => {
+                            if (name === 'revenue') return [`${value.toFixed(2)} €`, 'Umsatz'];
+                            if (name === 'count') return [value, 'Anzahl'];
+                            return [value, name];
+                          }}
+                        />
+                        <Legend payload={[
+                          { value: 'Anzahl', type: 'rect', color: '#8884d8' },
+                          { value: 'Umsatz (€)', type: 'rect', color: '#82ca9d' }
+                        ]} />
+                        <Bar dataKey="count" fill="#8884d8" name="count" />
+                        <Bar dataKey="revenue" fill="#82ca9d" name="revenue" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Zahlungsmethoden */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center text-lg">
+                    <CreditCard className="h-5 w-5 mr-2" />
+                    Zahlungsmethoden
+                  </CardTitle>
+                  <CardDescription>Verteilung der verwendeten Zahlungsmethoden</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={machineAnalytics?.paymentMethodDistribution.map(pm => ({
+                            name: pm.paymentMethod,
+                            value: pm.count
+                          })) || []}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                          nameKey="name"
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {machineAnalytics?.paymentMethodDistribution.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A4DE6C'][index % 5]} />
+                          ))}
+                        </Pie>
+                        <RechartTooltip formatter={(value) => [value, 'Transaktionen']} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Wetter-Korrelation, falls Daten vorhanden */}
+              {machineAnalytics?.weatherData && machineAnalytics.weatherData.length > 0 && (
+                <Card className="col-span-1 lg:col-span-2">
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-lg">
+                      <Droplet className="h-5 w-5 mr-2" />
+                      Wetter & Verkäufe
+                    </CardTitle>
+                    <CardDescription>Korrelation zwischen Wetter und Verkäufen</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart
+                          data={machineAnalytics.timeSeries.map(ts => {
+                            const weatherForDay = machineAnalytics.weatherData.find(
+                              w => new Date(w.date).toISOString().split('T')[0] === new Date(ts.date).toISOString().split('T')[0]
+                            );
+                            return {
+                              date: ts.date,
+                              sales: ts.count,
+                              revenue: ts.revenue,
+                              temperature: weatherForDay?.avgTemperature || null,
+                              conditions: weatherForDay?.conditions || null
+                            };
+                          }).filter(d => d.temperature !== null)}
+                          margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis 
+                            dataKey="date" 
+                            tickFormatter={(date) => new Date(date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}
+                          />
+                          <YAxis yAxisId="left" orientation="left" />
+                          <YAxis yAxisId="right" orientation="right" domain={[0, 40]} />
+                          <RechartTooltip 
+                            formatter={(value: any, name: any) => {
+                              if (name === 'revenue') return [`${value.toFixed(2)} €`, 'Umsatz'];
+                              if (name === 'sales') return [value, 'Verkäufe'];
+                              if (name === 'temperature') return [`${value.toFixed(1)} °C`, 'Temperatur'];
+                              return [value, name];
+                            }}
+                            labelFormatter={(label) => new Date(label).toLocaleDateString('de-DE')}
+                          />
+                          <Legend />
+                          <Line yAxisId="left" type="monotone" dataKey="sales" stroke="#8884d8" name="Verkäufe" />
+                          <Line yAxisId="right" type="monotone" dataKey="temperature" stroke="#ff7300" name="Temperatur (°C)" />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Ereignis-Analyse */}
+              <Card className="col-span-1 lg:col-span-2">
+                <CardHeader>
+                  <CardTitle className="flex items-center text-lg">
+                    <AlertTriangle className="h-5 w-5 mr-2" />
+                    Ereignis-Analyse
+                  </CardTitle>
+                  <CardDescription>Verteilung der Ereignistypen und Häufigkeit</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={machineAnalytics?.periodAnalysis.eventCounts.map(event => ({
+                              name: event.eventType,
+                              value: event.count
+                            })) || []}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            outerRadius={80}
+                            fill="#8884d8"
+                            dataKey="value"
+                            nameKey="name"
+                            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          >
+                            {machineAnalytics?.periodAnalysis.eventCounts.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A4DE6C'][index % 5]} />
+                            ))}
+                          </Pie>
+                          <RechartTooltip formatter={(value) => [value, 'Ereignisse']} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Ereignisübersicht</h4>
+                      <div className="space-y-2">
+                        {machineAnalytics?.periodAnalysis.eventCounts.length === 0 ? (
+                          <p className="text-muted-foreground text-sm">Keine Ereignisse im gewählten Zeitraum.</p>
+                        ) : (
+                          machineAnalytics?.periodAnalysis.eventCounts.map((event, index) => (
+                            <div key={index} className="flex justify-between items-center p-2 bg-muted rounded">
+                              <span>{event.eventType}</span>
+                              <Badge variant={
+                                event.eventType.toLowerCase().includes('error') ? 'destructive' : 
+                                event.eventType.toLowerCase().includes('warning') ? 'warning' : 
+                                'secondary'
+                              }>
+                                {event.count}
+                              </Badge>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </TabsContent>
+        
         {/* Auffüllungen Tab */}
         <TabsContent value="auffullungen" className="mt-4">
           <Card>
