@@ -204,6 +204,8 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
                 locationInWarehouse: 'Automatischer Abgleich'
               };
               
+              console.log(`Creating batch for product ${parsedProductId} in warehouse ${parsedWarehouseId}`);
+              
               try {
                 // Erstelle die Batch über die Storage-Schnittstelle
                 const newBatch = await storage.createProductBatch(newBatchData);
