@@ -1,5 +1,5 @@
 import { eq, desc, and, or, gte, lte, like, asc, count, aliasedTable, sql, gt, ilike, isNull, isNotNull, inArray } from "drizzle-orm";
-import { db } from "./db";
+import { db, rawSql } from "./db";
 import { 
   users, type User, type InsertUser,
   machines, type Machine, type InsertMachine,
@@ -1500,8 +1500,8 @@ export class DatabaseStorage implements IStorage {
   }): Promise<Refill[]> {
     console.log("SQL-Abfrage für Refills mit direkter SQL-Abfrage: ");
     
-    // Importiere die direkte SQL-Instanz
-    const { rawSql } = require('./db');
+    // Importiere die SQL-Instanz aus der Modulebene
+    // Wir nutzen die bereits importierte SQL-Instanz
     
     // Defaults festlegen
     const {
@@ -1573,8 +1573,7 @@ export class DatabaseStorage implements IStorage {
       });
     }
     
-    // Importiere die direkte SQL-Instanz
-    const { rawSql } = require('./db');
+    // Wir nutzen die bereits importierte SQL-Instanz
     
     // Zuerst alle Automaten abrufen, die diesem Lager zugeordnet sind
     const assignments = await this.getMachineWarehouseAssignments({ warehouseId });
