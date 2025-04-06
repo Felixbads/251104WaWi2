@@ -1,0 +1,61 @@
+Analysiere zunächst das Gesamtkonzept sowie die vorhandenen und verfügbaren Datenbankstrukturen – dazu gehören insbesondere folgende Tabellen und deren Abhängigkeiten:
+
+Datenbankstruktur und Abhängigkeiten:
+	•	warehouses (Lager)
+	•	Felder: id (PK), name, description, locationId (FK zu locations)
+	•	Verknüpfungen: inventoryItems, inventoryBatches, machine_warehouse_assignments
+	•	products (Produkte)
+	•	Felder: id (PK), name, warehouseId (FK zu warehouses)
+	•	Verknüpfung: Ordnet das Produkt einem Lager zu
+	•	machine_warehouse_assignments (Maschinen-Lager-Zuordnungen)
+	•	Felder: id (PK), machineId (FK zu machines), warehouseId (FK zu warehouses), isPrimary
+	•	Ziel: Bestimmt, welche Maschine welches Lager beliefert
+	•	inventoryItems (Warenbestände)
+	•	Felder: id (PK), warehouseId (FK zu warehouses), productId (FK zu products), quantity
+	•	Funktion: Aggregierter Gesamtbestand eines Produkts im Lager (über alle Chargen)
+	•	inventoryBatches (Chargen)
+	•	Felder: id (PK), inventoryItemId (FK zu inventoryItems), quantity, expiryDate (MHD), batchCode (optional), createdAt, updatedAt
+	•	Funktion: Jede Charge wird mit einem bestimmten MHD erstellt und ist einem Produkt in einem Lager zugeordnet; wird im Wareneingang angelegt
+	•	transactions (Warenbewegungen)
+	•	Felder: id (PK), productId (FK zu products), warehouseId (FK zu warehouses), quantity, type (ENUM: Wareneingang, Refill, Inventur, Umlagerung, Verlust, Rücklauf), sourceWarehouseId (bei Umlagerungen), targetWarehouseId (bei Umlagerungen), machineId (bei Refill), timestamp
+	•	Funktion: Dokumentiert sämtliche Bestandsänderungen inklusive Wareneingang, Refill-Prozesse, Umlagerungen und Inventurkorrekturen
+
+⸻
+
+Entwickle anschließend einen umfassenden Umsetzungsplan, der sämtliche Funktionalitäten abdeckt. Dieser Plan muss folgende Prozesse und Funktionen beinhalten:
+	1.	Wareneingang mit Batch-Verarbeitung:
+	•	Erfassung von Produkt, Menge, MHD (expiryDate) und optional Chargencode.
+	•	Erstellung eines neuen inventoryBatches, der mit dem entsprechenden inventoryItem (über warehouseId und productId) verknüpft wird.
+	•	Erhöhung des aggregierten Lagerbestands in inventoryItems um die eingegebene Menge.
+	•	Protokollierung der Änderung durch einen Transaction-Eintrag (Typ: Wareneingang).
+	2.	Refill-Prozess (Automatenbefüllung) unter Einhaltung des FIFO-Prinzips:
+	•	Maschinen, die über machine_warehouse_assignments einem Lager zugeordnet sind, entnehmen Produkte zur Automatenbefüllung.
+	•	Die Entnahme erfolgt batchgenau – es wird immer der älteste Batch (mit dem frühesten MHD) verwendet.
+	•	Reduktion der Menge im entsprechenden inventoryBatch sowie im aggregierten inventoryItems.
+	•	Erstellung eines Transaction-Eintrags mit Typ: Refill und Verknüpfung zur entsprechenden Maschine (machineId).
+	3.	Umlagerung zwischen Lagern:
+	•	Auswahl des Produkts, der Menge, des Quelllagers und des Ziellagers.
+	•	Entnahme aus einem oder mehreren Batches im Quelllager (ggf. auch unter Anwendung der FIFO-Logik).
+	•	Erstellung neuer oder Anpassung bestehender Batch-Einträge im Ziellager.
+	•	Erzeugung von zwei Transaction-Einträgen: einer für die Reduktion im Quelllager (negativ) und einer für die Erhöhung im Ziellager (positiv).
+	4.	Inventurprozess:
+	•	Initiierung einer neuen Inventur über einen Button „Neue Inventur starten“ (pro Lager darf jeweils nur eine Inventur offen sein).
+	•	Erfassung des Benutzers, des Startzeitpunkts und des Lagerbezugs.
+	•	Anzeige einer Inventurtabelle, in der für jedes Produkt:
+	•	Der Systembestand (aggregiert aus inventoryItems und den zugehörigen inventoryBatches) dargestellt wird.
+	•	Eine leere Eingabezelle für den manuell gezählten Ist-Bestand vorhanden ist.
+	•	Zwei Funktionen: „Zwischenspeichern“ (zum Fortsetzen der Inventur) und „Speichern und abschließen“.
+	•	Nach Abschluss: Vergleich von Soll- und Ist-Bestand, Erfassung der Differenz als Inventurkorrektur in einem Transaction-Eintrag und Aktualisierung der Bestände (sowohl aggregiert als auch batchbezogen).
+	5.	Anzeige und Historie im Frontend:
+	•	Lagerübersicht (Tab „Bestand“): Auflistung aller Produkte mit aggregiertem Lagerbestand und einem Button „Details anzeigen“.
+	•	Produktdetailansicht: Darstellung aller aktiven Chargen (inventoryBatches) mit Menge, MHD und optionalem Chargencode; visuelle Warnungen bei nahendem Ablaufdatum.
+	•	Grafische und tabellarische Bestandsentwicklung: Darstellung aller Transaction-Einträge mit Datum, Zeit, Bewegungstyp, Mengenänderung und Batch-Informationen.
+	•	FIFO-Visualisierung: Nachvollziehbare Darstellung, welche Chargen (Batches) entnommen wurden.
+
+⸻
+
+Auf Basis dieses Umsetzungsplans soll eine neue Seite “Lagerhaltung” aufgebaut werden, die alle geforderten Funktionen und Darstellungen implementiert:
+	•	Die neue Seite “Lagerhaltung” integriert alle oben beschriebenen Prozesse (Wareneingang, Refill, Umlagerung, Inventur) und die zugehörigen Auswertungen.
+	•	Dabei bleiben alle bestehenden Funktionen und die bisherige Seite “Lager” unverändert.
+
+Setze das entsprechend um.
