@@ -34,6 +34,38 @@ export interface MachineStock {
   updatedAt?: string;
 }
 
+// Interface für die vereinfachte Maschinenanalyse
+export interface MachineAnalytics {
+  machine: {
+    machineId: number;
+    period: string;
+    startDate: string;
+    endDate: string;
+  };
+  summary: {
+    transactions: number;
+    revenue: number;
+    profit: number;
+  };
+  revenueOverTime: {
+    date: string;
+    count: number;
+    revenue: number;
+    profit: number;
+  }[];
+  topProducts?: {
+    productName: string;
+    count: number;
+    revenue: number;
+  }[];
+  worstProducts?: {
+    productName: string;
+    count: number;
+    revenue: number;
+  }[];
+  generatedAt: string;
+}
+
 // Interface für Standorte (Location)
 export interface Location {
   id: number;
@@ -439,8 +471,8 @@ export async function getDatabaseStatistics(): Promise<DatabaseStatistics> {
   return apiRequest<DatabaseStatistics>('get', '/statistics/database');
 }
 
-// Interface für Automatenanalyse
-export interface MachineAnalytics {
+// Interface für vollständige Automatenanalyse
+export interface MachineAnalyticsFull {
   machine: {
     machineId: number;
     period: string;
@@ -526,7 +558,7 @@ export interface MachineAnalytics {
   generatedAt: string;
 }
 
-// Automatenanalyse abrufen
+// Automatenanalyse abrufen (vereinfachte Version)
 export async function getMachineAnalytics(
   machineId: number, 
   period: 'day' | 'week' | 'month' | 'year' | 'custom' = 'month',

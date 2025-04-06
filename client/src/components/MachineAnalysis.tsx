@@ -26,7 +26,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { DatePickerWithRange } from "@/components/ui/date-range-picker";
 import { AlertTriangle, BarChart3, LineChart as LineChartIcon, ChevronDown, Clock, Download, Eye, FileText, HelpCircle, LifeBuoy, Percent, PieChart, Plus, RefreshCw, TrendingDown, TrendingUp, Calendar } from "lucide-react";
-import { getMachineAnalytics, MachineAnalytics } from "@/lib/api";
+import { getMachineAnalytics, MachineAnalytics, MachineAnalyticsFull } from "@/lib/api";
 import { format, parseISO, isValid } from "date-fns";
 import { de } from "date-fns/locale";
 import html2canvas from "html2canvas";
