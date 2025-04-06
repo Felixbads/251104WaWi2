@@ -159,6 +159,19 @@ export function sendWebSocketMessage(type: string, data: any) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // GET /warehouses - Liste aller Lager
+  app.get(`${API_PREFIX}/warehouses`, async (_req: Request, res: Response) => {
+    try {
+      const warehouses = await storage.getWarehouses();
+      res.json(warehouses);
+    } catch (error) {
+      console.error("Error fetching warehouses:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch warehouses", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
   // Create HTTP server
   const httpServer = createServer(app);
   
