@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   RefreshCw, Package, Search, FilterX, AlertTriangle, 
-  CircleAlert, Loader2, Warehouse as WarehouseIcon 
+  CircleAlert, Loader2, Warehouse as WarehouseIcon,
+  Calendar, Clock 
 } from 'lucide-react';
 import { 
   Table, TableBody, TableCaption, TableCell, 
@@ -18,6 +19,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Label } from '@/components/ui/label';
+import { 
+  Dialog,
+  DialogContent, 
+  DialogHeader,
+  DialogTitle,
+  DialogDescription 
+} from '@/components/ui/dialog';
 
 interface InventoryItem {
   id: number;
@@ -31,6 +39,7 @@ interface InventoryItem {
   status?: string | null;
   notes?: string | null;
   lastUpdated?: string | null;
+  nextExpiryDate?: string | null; // Das früheste MHD der Batches dieses Produkts
 }
 
 interface WarehouseInventoryProps {
@@ -52,6 +61,8 @@ export default function WarehouseInventory({
   const [warehouseFilter, setWarehouseFilter] = useState(warehouseId === 0 ? '' : warehouseId.toString());
   const [showCriticalOnly, setShowCriticalOnly] = useState(false);
   const [showZeroStock, setShowZeroStock] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<{ id: number, warehouseId: number, name: string } | null>(null);
+  const [showBatchDialog, setShowBatchDialog] = useState(false);
   
   const queryClient = useQueryClient();
   
@@ -152,8 +163,100 @@ export default function WarehouseInventory({
     );
   }
   
+  // Laden der Batches für das ausgewählte Produkt
+  const { data: productBatches = [], isLoading: isBatchesLoading } = useQuery({
+    queryKey: ['/api/product-batches/product', selectedProduct?.id, 'warehouse', selectedProduct?.warehouseId],
+    enabled: !!selectedProduct && showBatchDialog,
+  });
+
   return (
     <div>
+      {/* Batch Dialog */}
+      <Dialog open={showBatchDialog} onOpenChange={setShowBatchDialog}>
+        <DialogContent className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Chargen für {selectedProduct?.name}</DialogTitle>
+            <DialogDescription>
+              Übersicht aller Chargen im Lager mit Ablaufdaten (MHD)
+            </DialogDescription>
+          </DialogHeader>
+          
+          {isBatchesLoading ? (
+            <div className="py-6 flex items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : productBatches.length === 0 ? (
+            <div className="text-center py-8">
+              <Package className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
+              <h3 className="text-lg font-medium mb-1">Keine Chargen gefunden</h3>
+              <p className="text-muted-foreground text-sm">
+                Für dieses Produkt sind keine Chargen im Lager vorhanden.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-md border mt-2">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Chargen-Nr.</TableHead>
+                    <TableHead>Eingangsdatum</TableHead>
+                    <TableHead>MHD</TableHead>
+                    <TableHead className="text-right">Menge</TableHead>
+                    <TableHead className="text-right">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {productBatches.map((batch: any) => {
+                    const isExpired = new Date(batch.expiryDate) < new Date();
+                    const isExpiringSoon = !isExpired && 
+                      new Date(batch.expiryDate) < new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+                    
+                    return (
+                      <TableRow key={batch.id}>
+                        <TableCell className="font-medium">{batch.batchNumber}</TableCell>
+                        <TableCell>
+                          {batch.receivedDate ? (
+                            <div className="flex items-center">
+                              <Clock className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                              <span>{new Date(batch.receivedDate).toLocaleDateString('de-DE')}</span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">Unbekannt</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center">
+                            <Calendar className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                            <span className={
+                              isExpired ? 'text-destructive font-medium' :
+                              isExpiringSoon ? 'text-amber-500 font-medium' : ''
+                            }>
+                              {new Date(batch.expiryDate).toLocaleDateString('de-DE')}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {batch.currentQuantity}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {isExpired ? (
+                            <Badge variant="destructive">Abgelaufen</Badge>
+                          ) : isExpiringSoon ? (
+                            <Badge variant="warning">Bald ablaufend</Badge>
+                          ) : (
+                            <Badge variant="outline">OK</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      
       {/* Filter und Suchleiste */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
         <div className="relative flex-grow">
@@ -238,7 +341,7 @@ export default function WarehouseInventory({
             <TableRow>
               <TableHead>Produkt</TableHead>
               {!warehouseFilter && <TableHead>Lager</TableHead>}
-              <TableHead>Lagerort</TableHead>
+              <TableHead>MHD</TableHead>
               <TableHead className="text-right">Bestand</TableHead>
               <TableHead className="text-right">Min/Max</TableHead>
               <TableHead className="text-right">Status</TableHead>
@@ -271,7 +374,18 @@ export default function WarehouseInventory({
                 
                 return (
                   <TableRow key={item.id}>
-                    <TableCell className="font-medium">
+                    <TableCell 
+                      className="font-medium cursor-pointer hover:text-primary hover:underline"
+                      onClick={() => {
+                        // Zeige Batches für dieses Produkt an
+                        setSelectedProduct({
+                          id: item.productId,
+                          warehouseId: item.warehouseId,
+                          name: item.productName || 'Unbekanntes Produkt'
+                        });
+                        setShowBatchDialog(true);
+                      }}
+                    >
                       {item.productName}
                     </TableCell>
                     
@@ -285,7 +399,17 @@ export default function WarehouseInventory({
                     )}
                     
                     <TableCell>
-                      {item.locationInWarehouse || <span className="text-muted-foreground">--</span>}
+                      {item.nextExpiryDate ? (
+                        <span className={
+                          new Date(item.nextExpiryDate) < new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) 
+                          ? 'text-destructive font-medium' 
+                          : ''
+                        }>
+                          {new Date(item.nextExpiryDate).toLocaleDateString('de-DE')}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">--</span>
+                      )}
                     </TableCell>
                     
                     <TableCell className="text-right">

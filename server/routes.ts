@@ -16,6 +16,7 @@ import adminRouter from './routes/admin';
 import inventoryRouter from './routes/inventory';
 import warehouseInventoryRouter from './routes/warehouse-inventory';
 import machineWarehouseAssignmentsRouter from './routes/machine-warehouse-assignments';
+import productBatchesRouter from './routes/product-batches';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -1792,6 +1793,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/inventory`, warehouseInventoryRouter); // Nutze den neuen warehouseInventoryRouter für /api/inventory
   app.use(`${API_PREFIX}/debug`, inventoryRouter);
   app.use(`${API_PREFIX}/machine-warehouse-assignments`, machineWarehouseAssignmentsRouter);
+  app.use(`${API_PREFIX}/product-batches`, productBatchesRouter);
   
   // Registriere Export/Import-Routen
   app.use(`${API_PREFIX}`, exportImportRoutes);

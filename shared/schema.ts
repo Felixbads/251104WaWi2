@@ -1362,6 +1362,7 @@ export const productBatches = pgTable("product_batches", {
   
   // Zeitliche Informationen
   receivedDate: date("received_date").notNull().defaultNow(), // Eingangsdatum
+  manufacturingDate: date("manufacturing_date"), // Herstellungsdatum
   expiryDate: date("expiry_date").notNull(), // Mindesthaltbarkeitsdatum
   
   // Zusätzliche Informationen
