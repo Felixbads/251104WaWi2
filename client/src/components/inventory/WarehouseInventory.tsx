@@ -329,7 +329,7 @@ export default function WarehouseInventory({
                               ? 'text-amber-500 font-medium' 
                               : ''
                         }>
-                          {item.quantity}
+                          {item.quantity !== null && item.quantity !== undefined ? item.quantity : '--'}
                         </span>
                         <Progress value={fillPercentage} className="w-24 h-1.5 mt-1" />
                       </div>
