@@ -593,7 +593,7 @@ export default function WarehouseDetail() {
             <Package className="h-4 w-4 mr-2" />
             Lagerbestand
           </TabsTrigger>
-          <TabsTrigger value="movements">
+          <TabsTrigger value="movements" onClick={() => setLocation(`/lager/${id}/warenbewegung`)}>
             <Truck className="h-4 w-4 mr-2" />
             Warenbewegungen
           </TabsTrigger>

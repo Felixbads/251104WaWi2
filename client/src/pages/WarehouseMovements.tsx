@@ -27,7 +27,7 @@ export default function WarehouseMovements() {
   
   // Filter state
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: subDays(new Date(), 30),
+    from: subDays(new Date(), 7),
     to: new Date()
   });
   const [searchTerm, setSearchTerm] = useState('');
@@ -225,7 +225,7 @@ export default function WarehouseMovements() {
     setMachineFilter('');
     setUserFilter('');
     setDateRange({
-      from: subDays(new Date(), 30),
+      from: subDays(new Date(), 7),
       to: new Date()
     });
   };
