@@ -124,7 +124,7 @@ export default function WarehouseDetail() {
   
   // Lager-Inventar direkt abrufen (ohne getWarehouseInventory)
   const { 
-    data: inventory = [], 
+    data: rawInventory = [], 
     isLoading: inventoryLoading,
     error: inventoryError,
     refetch: refetchInventory
@@ -133,6 +133,27 @@ export default function WarehouseDetail() {
     enabled: !!id,
     staleTime: 30000 // 30 Sekunden
   });
+  
+  // Deduplizieren des Inventars basierend auf der Produkt-ID
+  const inventory = useMemo(() => {
+    if (!rawInventory || !Array.isArray(rawInventory)) return [];
+    
+    // Verwende eine Map, um Elemente nach Produkt-ID zu gruppieren und dabei nur das neueste zu behalten
+    const productMap = new Map();
+    
+    rawInventory.forEach(item => {
+      const productId = Number(item.productId);
+      
+      if (!productMap.has(productId) || 
+          (productMap.has(productId) && 
+           Number(item.id) > Number(productMap.get(productId).id))) {
+        productMap.set(productId, item);
+      }
+    });
+    
+    // Konvertiere die Map zurück in ein Array
+    return Array.from(productMap.values());
+  }, [rawInventory]);
   
   // MachineWarehouseAssignment Typ definieren
   interface MachineWarehouseAssignment {
