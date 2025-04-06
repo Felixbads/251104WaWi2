@@ -316,28 +316,52 @@ export default function WarehouseDetail() {
       const refillMovements: InventoryMovement[] = [];
       
       refills.forEach(refill => {
-        if (refill.details && refill.details.length > 0) {
-          refill.details.forEach(detail => {
-            if (detail.added > 0 || detail.removed > 0) {
-              refillMovements.push({
-                id: detail.id + 1000000, // Generiere eindeutige ID
-                warehouseId: Number(id),
-                productId: typeof detail.productId === 'string' ? parseInt(detail.productId, 10) || 0 : detail.productId,
-                quantity: detail.added > 0 ? detail.added : -detail.removed,
-                type: detail.added > 0 ? "IN" : "OUT",
-                movementType: "REFILL",
-                referenceType: "REFILL",
-                referenceId: refill.vendonId,
-                productName: detail.productName,
-                performedAt: refill.datetime,
-                performedByName: "Automat",
-                machineId: refill.machineId,
-                machineName: refill.machineName,
-                source: "vendon",
-                createdAt: refill.datetime, // Pflichtfeld für InventoryMovement
-              });
-            }
-          });
+        // Sicherstellen, dass refill ein gültiges Objekt ist
+        if (refill && typeof refill === 'object') {
+          // Sicherstellen, dass details ein Array ist
+          const details = Array.isArray(refill.details) ? refill.details : [];
+          
+          if (details.length > 0) {
+            details.forEach(detail => {
+              // Sicherstellen, dass detail ein gültiges Objekt ist
+              if (detail && typeof detail === 'object') {
+                // Sichere Zugriffe auf Eigenschaften mit Fallbacks
+                const added = typeof detail.added === 'number' ? detail.added : 0;
+                const removed = typeof detail.removed === 'number' ? detail.removed : 0;
+                
+                if (added > 0 || removed > 0) {
+                  // Eindeutige ID für diesen Eintrag generieren
+                  const uniqueId = (detail.id || Math.floor(Math.random() * 1000000)) + 1000000;
+                  
+                  // Sichere Konvertierung von productId
+                  let productId = 0;
+                  if (typeof detail.productId === 'string') {
+                    productId = parseInt(detail.productId, 10) || 0;
+                  } else if (typeof detail.productId === 'number') {
+                    productId = detail.productId;
+                  }
+                  
+                  refillMovements.push({
+                    id: uniqueId,
+                    warehouseId: Number(id),
+                    productId: productId,
+                    quantity: added > 0 ? added : -removed,
+                    type: added > 0 ? "IN" : "OUT",
+                    movementType: "REFILL",
+                    referenceType: "REFILL",
+                    referenceId: refill.vendonId || "",
+                    productName: detail.productName || "Unbekanntes Produkt",
+                    performedAt: refill.datetime || new Date().toISOString(),
+                    performedByName: "Automat",
+                    machineId: refill.machineId || 0,
+                    machineName: refill.machineName || "Unbekannter Automat",
+                    source: "vendon",
+                    createdAt: refill.datetime || new Date().toISOString(),
+                  });
+                }
+              }
+            });
+          }
         }
       });
       

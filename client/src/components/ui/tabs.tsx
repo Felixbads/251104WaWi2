@@ -3,7 +3,22 @@ import * as TabsPrimitive from "@radix-ui/react-tabs"
 
 import { cn } from "@/lib/utils"
 
-const Tabs = TabsPrimitive.Root
+// Fix für das RovingFocusGroup Problem
+// Wir deaktivieren die Roving Focus Funktion in den Tabs, indem wir eine angepasste Root-Komponente verwenden
+
+const Tabs = React.forwardRef<
+  React.ElementRef<typeof TabsPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.Root>
+>(({ className, ...props }, ref) => (
+  <TabsPrimitive.Root
+    ref={ref}
+    orientation="horizontal"
+    activationMode="automatic"
+    className={cn("", className)}
+    {...props}
+  />
+))
+Tabs.displayName = TabsPrimitive.Root.displayName
 
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
@@ -15,11 +30,13 @@ const TabsList = React.forwardRef<
       "inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground",
       className
     )}
+    loop={false}
     {...props}
   />
 ))
 TabsList.displayName = TabsPrimitive.List.displayName
 
+// Angepasste TabsTrigger Komponente ohne Roving Focus
 const TabsTrigger = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
