@@ -24,6 +24,7 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
   productsFound: number;
   productsAdded: number;
   errors: number;
+  skippedDuplicates: number;
 }> {
   console.log("Starte automatischen Lagerabgleich...", 
               specificWarehouseId ? `für Lager ${specificWarehouseId}` : "für alle Lager");
@@ -34,6 +35,7 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
   let productsFound = 0;
   let productsAdded = 0;
   let errors = 0;
+  let skippedDuplicates = 0;
   
   try {
     // 1. Lager-Automaten-Zuordnungen abrufen (gefiltert oder alle)
@@ -49,8 +51,14 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
       console.log(`${machineWarehouseAssignments.length} Maschinen-Lager-Zuordnungen gefunden`);
     }
     
-    // Manuelles Mapping für Lager zu Produkt-IDs
-    const warehouseToProducts: Record<number, Set<number>> = {};
+    // Verbessertes Mapping für Lager zu Produkt-IDs mit zusätzlichen Informationen
+    interface ProductInfo {
+      id: number;
+      name: string;
+      found: boolean; // Flag, um zu markieren, dass das Produkt bereits verarbeitet wurde
+    }
+    
+    const warehouseToProducts: Record<number, Map<number, ProductInfo>> = {};
     
     // Für jede Maschinen-Lager-Zuordnung
     for (const assignment of machineWarehouseAssignments) {
@@ -64,29 +72,35 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
       
       machinesChecked++;
       
-      // Initialisiere Set für dieses Lager, falls noch nicht vorhanden
+      // Initialisiere Map für dieses Lager, falls noch nicht vorhanden
       if (!warehouseToProducts[warehouseId]) {
-        warehouseToProducts[warehouseId] = new Set<number>();
+        warehouseToProducts[warehouseId] = new Map<number, ProductInfo>();
         warehousesChecked++;
       }
       
       try {
-        // Hole alle Transaktionen für diese Maschine
-        const transactions = await storage.getTransactionsByMachine(machineId, 500);
+        // Hole alle Transaktionen für diese Maschine mit einem Limit von 250 (reduziert, um Überlastung zu vermeiden)
+        const transactions = await storage.getTransactionsByMachine(machineId, 250);
         
         // Extrahiere eindeutige Produkt-IDs aus den Transaktionen
         for (const transaction of transactions) {
           try {
             if (transaction.productId && typeof transaction.productId === 'number') {
-              // Füge Produkt-ID zum entsprechenden Lager hinzu
-              warehouseToProducts[warehouseId].add(transaction.productId);
-              productsFound++;
+              // Füge Produkt-ID zum entsprechenden Lager hinzu, wenn es noch nicht dort ist
+              if (!warehouseToProducts[warehouseId].has(transaction.productId)) {
+                warehouseToProducts[warehouseId].set(transaction.productId, {
+                  id: transaction.productId,
+                  name: transaction.name || 'Unbekanntes Produkt',
+                  found: false
+                });
+                productsFound++;
+              }
             }
             // Wenn keine Produkt-ID gesetzt ist, versuche das Produkt über den Namen zu finden
-            else if (transaction.productName) {
-              const productName = transaction.productName;
+            else if (transaction.name) {
+              const productName = transaction.name;
+              console.log(`Produktname direkt aus transaction.name: "${productName}"`);
               
-              // Suche das Produkt in der Datenbank anhand des Namens
               if (productName) {
                 // Suche das Produkt in der Datenbank anhand des Namens
                 const productsResult = await storage.getProducts({
@@ -99,9 +113,19 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
                 if (products.length > 0) {
                   const product = products[0];
                   if (product && product.id) {
-                    warehouseToProducts[warehouseId].add(product.id);
-                    productsFound++;
-                    console.log(`Produkt "${productName}" über Namen gefunden und für Lager ${warehouseId} vorgemerkt`);
+                    // Nur wenn dieses Produkt noch nicht im Set ist
+                    if (!warehouseToProducts[warehouseId].has(product.id)) {
+                      warehouseToProducts[warehouseId].set(product.id, {
+                        id: product.id,
+                        name: product.productName || productName,
+                        found: false
+                      });
+                      productsFound++;
+                      console.log(`Produkt "${productName}" über Namen gefunden und für Lager ${warehouseId} vorgemerkt`);
+                    } else {
+                      // Produkt bereits gefunden, nicht doppelt zählen
+                      console.log(`Produkt "${productName}" bereits für Lager ${warehouseId} vorgemerkt`);
+                    }
                   }
                 }
               }
@@ -116,12 +140,12 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
       }
     }
     
-    // Verarbeite jedes Lager und seine Produkte
+    // Verarbeite jedes Lager und seine Produkte - mit Batching, um die Datenbank zu entlasten
     for (const warehouseId of Object.keys(warehouseToProducts).map(Number)) {
-      const productIdsSet = warehouseToProducts[warehouseId];
-      const productIds = Array.from(productIdsSet);
+      const productInfoMap = warehouseToProducts[warehouseId];
+      const productCount = productInfoMap.size;
       
-      console.log(`Verarbeite Lager ID ${warehouseId} mit ${productIds.length} eindeutigen Produkten`);
+      console.log(`Verarbeite Lager ID ${warehouseId} mit ${productCount} eindeutigen Produkten`);
       
       // Hole alle bereits im Lager vorhandenen Produkte
       const existingItems = await storage.getInventoryItemsByWarehouse(warehouseId);
@@ -129,13 +153,17 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
       
       console.log(`Lager ${warehouseId} hat bereits ${existingProductIds.size} Produkte`);
       
-      // Identifiziere fehlende Produkte
-      const missingProductIds = productIds.filter(id => !existingProductIds.has(id));
+      // Batch-Verarbeitung - maximal 50 Produkte auf einmal
+      const BATCH_SIZE = 50;
+      let processedCount = 0;
       
-      console.log(`${missingProductIds.length} fehlende Produkte in Lager ${warehouseId} identifiziert (IDs: ${missingProductIds.join(', ')})`);
-      
-      // Füge fehlende Produkte dem Lager hinzu
-      for (const productId of missingProductIds) {
+      for (const [productId, productInfo] of productInfoMap.entries()) {
+        // Überprüfe, ob das Produkt bereits im Lager existiert
+        if (existingProductIds.has(productId)) {
+          skippedDuplicates++;
+          continue;
+        }
+        
         try {
           if (typeof productId !== 'number') {
             console.warn(`Ungültige Produkt-ID: ${productId}`);
@@ -153,14 +181,6 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
               
               console.log(`Füge Produkt ${parsedProductId} (${product.productName}) zu Lager ${parsedWarehouseId} hinzu...`);
               
-              // Direkt prüfen, ob das Produkt bereits im Lager vorhanden ist
-              const existingItems = await storage.getInventoryItemsByWarehouseAndProduct(parsedWarehouseId, parsedProductId);
-              
-              if (existingItems && existingItems.length > 0) {
-                console.log(`Produkt ${parsedProductId} (${product.productName}) existiert bereits in Lager ${parsedWarehouseId}, überspringe...`);
-                continue;
-              }
-              
               // Erstelle neuen Inventareintrag
               const inventoryItem: InsertInventoryItem = {
                 warehouseId: parsedWarehouseId,
@@ -172,24 +192,41 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
                 lastCountDate: new Date()
               };
               
-              // Direkte ORM-Methode zum Einfügen
-              const newItem = await storage.createInventoryItem(inventoryItem);
-              
-              if (newItem && newItem.id) {
-                productsAdded++;
-                console.log(`✅ Produkt ${parsedProductId} (${product.productName}) erfolgreich zu Lager ${parsedWarehouseId} hinzugefügt mit ID ${newItem.id}`);
-              } else {
-                console.error(`❌ Fehler beim Erstellen des Inventareintrags für Produkt ${parsedProductId} in Lager ${parsedWarehouseId}: Kein Ergebnis zurückgegeben`);
-                errors++;
+              try {
+                // Verwende try-catch mit dem Unique-Constraint, der jetzt auf DB-Ebene existiert
+                const newItem = await storage.createInventoryItem(inventoryItem);
+                
+                if (newItem && newItem.id) {
+                  productsAdded++;
+                  console.log(`✅ Produkt ${parsedProductId} (${product.productName}) erfolgreich zu Lager ${parsedWarehouseId} hinzugefügt mit ID ${newItem.id}`);
+                  
+                  // Eintrag für Warenbewegung hinzufügen - wichtig für Nachverfolgung
+                  await storage.createInventoryMovement({
+                    inventoryItemId: newItem.id,
+                    quantity: 0,
+                    movementType: "initial",
+                    referenceType: "warehouse_reconciliation",
+                    referenceId: `reconcile_${startTime}`,
+                    notes: `Initiale Anlage durch automatischen Lagerabgleich`,
+                    createdBy: null,
+                    createdAt: new Date()
+                  });
+                } else {
+                  console.error(`❌ Fehler beim Erstellen des Inventareintrags für Produkt ${parsedProductId} in Lager ${parsedWarehouseId}: Kein Ergebnis zurückgegeben`);
+                  errors++;
+                }
+              } catch (createError: any) {
+                // Behandle Unique-Constraint-Fehler
+                if (createError.message && createError.message.includes('unique constraint')) {
+                  console.log(`Produkt ${parsedProductId} (${product.productName}) ist bereits in Lager ${parsedWarehouseId} vorhanden (DB-Constraint)`);
+                  skippedDuplicates++;
+                } else {
+                  throw createError; // Andere Fehler weiterwerfen
+                }
               }
             } catch (innerError: any) {
-              // Prüfe, ob es sich um einen Fehler wegen Duplikat handelt
-              if (innerError.message && innerError.message.includes('unique constraint')) {
-                console.log(`Produkt ${productId} (${product.productName}) ist bereits in Lager ${warehouseId} vorhanden (Constraint-Fehler)`);
-              } else {
-                console.error(`❌ Fehler beim Hinzufügen von Produkt ${productId} zum Lager ${warehouseId}:`, innerError);
-                errors++;
-              }
+              console.error(`❌ Fehler beim Hinzufügen von Produkt ${productId} zum Lager ${warehouseId}:`, innerError);
+              errors++;
             }
           } else {
             console.warn(`⚠️ Produkt mit ID ${productId} existiert nicht in der Datenbank`);
@@ -198,13 +235,19 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
           console.error(`❌ Fehler beim Hinzufügen von Produkt ${productId} zum Lager ${warehouseId}:`, error);
           errors++;
         }
+        
+        // Batch-Fortschritt überwachen
+        processedCount++;
+        if (processedCount % BATCH_SIZE === 0 || processedCount === productCount) {
+          console.log(`Fortschritt: ${processedCount}/${productCount} Produkte verarbeitet für Lager ${warehouseId}`);
+        }
       }
     }
     
     const endTime = Date.now();
     const processingTime = endTime - startTime;
     
-    console.log(`Lagerabgleich abgeschlossen - Zeit: ${processingTime}ms, Fehler: ${errors}, Hinzugefügte Produkte: ${productsAdded}`);
+    console.log(`Lagerabgleich abgeschlossen - Zeit: ${processingTime}ms, Fehler: ${errors}, Hinzugefügte Produkte: ${productsAdded}, Übersprungene Duplikate: ${skippedDuplicates}`);
     
     return {
       processingTime,
@@ -212,7 +255,8 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
       machinesChecked,
       productsFound,
       productsAdded,
-      errors
+      errors,
+      skippedDuplicates
     };
   } catch (error) {
     console.error("Kritischer Fehler beim Lagerabgleich:", error);
@@ -223,7 +267,8 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
       machinesChecked,
       productsFound,
       productsAdded,
-      errors: errors + 1
+      errors: errors + 1,
+      skippedDuplicates
     };
   }
 }
