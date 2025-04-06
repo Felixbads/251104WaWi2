@@ -16,6 +16,8 @@ import {
 
 // Import des Lagerabgleich-Services
 import { reconcileWarehouseProducts } from "../services/warehouseReconciliation";
+// Import der neuen Inventory-API-Routen
+import inventoryApiRoutes from "./inventory-api";
 
 // Hilfstypen für Validierung
 const idParamSchema = z.object({
@@ -43,6 +45,9 @@ const refillMovementSchema = z.object({
  */
 export function registerInventoryRoutes(app: Express) {
   const apiPrefix = "/api";
+  
+  // Die neuen Inventory-API-Routen registrieren
+  app.use(`${apiPrefix}/inventory`, inventoryApiRoutes(storage));
   
   // Automatischer Lagerabgleich Route
   app.post(`${apiPrefix}/warehouse-reconciliation`, async (req: Request, res: Response) => {
@@ -82,6 +87,66 @@ export function registerInventoryRoutes(app: Express) {
     } catch (error: any) {
       console.error("Fehler beim Abrufen der Lager:", error);
       res.status(500).json({ error: error.message || "Fehler beim Abrufen der Lager" });
+    }
+  });
+  
+  // Lager-Statistiken
+  app.get(`${apiPrefix}/warehouses/stats`, async (req: Request, res: Response) => {
+    try {
+      const warehouses = await storage.getWarehouses();
+      const warehouseStats = {};
+      
+      // Für jedes Lager Statistiken sammeln
+      for (const warehouse of warehouses) {
+        const inventoryItems = await storage.getInventoryItemsByWarehouse(warehouse.id);
+        
+        // Sammeln aller Batch-IDs für dieses Lager
+        const inventoryBatches = await storage.getInventoryBatches({
+          warehouseId: warehouse.id
+        });
+        
+        // Statistiken berechnen
+        const totalProducts = new Set(inventoryItems.map((item: any) => item.productId)).size;
+        const totalItems = inventoryItems.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
+        
+        // Kritische Bestände
+        const criticalStock = inventoryItems.filter((item: any) => 
+          (item.quantity ?? 0) <= (item.minQuantity ?? 0) && (item.minQuantity ?? 0) > 0
+        ).length;
+        
+        // Niedrige Bestände (unter 25% des Sollbestands)
+        const lowStock = inventoryItems.filter((item: any) => {
+          const quantity = item.quantity ?? 0;
+          const targetQuantity = item.targetQuantity ?? 0;
+          return targetQuantity > 0 && quantity > 0 && quantity < (targetQuantity * 0.25);
+        }).length;
+        
+        // Ablaufende Chargen
+        const today = new Date();
+        const thirtyDaysFromNow = new Date(today);
+        thirtyDaysFromNow.setDate(today.getDate() + 30);
+        
+        const expiringBatches = inventoryBatches.filter((batch: any) => {
+          if (!batch.expiryDate || batch.quantity <= 0) return false;
+          const expiryDate = new Date(batch.expiryDate);
+          return expiryDate <= thirtyDaysFromNow && expiryDate >= today;
+        }).length;
+        
+        // Speichern der Statistiken
+        warehouseStats[warehouse.id] = {
+          totalProducts,
+          totalItems,
+          lowStock,
+          criticalStock,
+          expiringBatches,
+          totalBatches: inventoryBatches.length
+        };
+      }
+      
+      res.json(warehouseStats);
+    } catch (error: any) {
+      console.error("Fehler beim Abrufen der Lager-Statistiken:", error);
+      res.status(500).json({ error: error.message || "Fehler beim Abrufen der Lager-Statistiken" });
     }
   });
 

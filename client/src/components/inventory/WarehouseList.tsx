@@ -1,305 +1,371 @@
 import { useState } from 'react';
-import { useLocation } from 'wouter';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
+import { 
+  Warehouse, Search, FilterX, 
+  RefreshCw, PlusSquare, Loader2, AlertTriangle,
+  Package, MapPin, Users, Phone, Mail
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { CircleAlert, Building2, PlusCircle, Edit, Trash, BarChart3, Package2, Truck } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useToast } from '@/hooks/use-toast';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { apiRequest } from '@/lib/queryClient';
-import { WarehouseFormDialog } from './WarehouseFormDialog';
-import { z } from 'zod';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import WarehouseInventory from './WarehouseInventory';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+interface WarehouseStatsItem {
+  totalProducts: number;
+  totalItems: number;
+  lowStock: number;
+  criticalStock: number;
+  expiringBatches: number;
+  totalBatches: number;
+}
+
+interface Warehouse {
+  id: number;
+  name: string;
+  description?: string | null;
+  address?: string | null;
+  city?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+  contactPerson?: string | null;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  notes?: string | null;
+  status?: string | null;
+}
+
+// Lager-Übersicht Komponente
 export default function WarehouseList() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [, setLocation] = useLocation();
-  const [selectedWarehouse, setSelectedWarehouse] = useState<any>(null);
-  const [isNewWarehouseDialogOpen, setIsNewWarehouseDialogOpen] = useState(false);
-  const [isEditWarehouseDialogOpen, setIsEditWarehouseDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-
-  // Abfrage der Lager
-  const { data: warehouses, isLoading, error } = useQuery({
+  const [searchTerm, setSearchTerm] = useState('');
+  const [expandedWarehouse, setExpandedWarehouse] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("inventory");
+  
+  // Lade Lagerdaten
+  const {
+    data: warehouses = [] as Warehouse[],
+    isLoading,
+    error,
+    refetch
+  } = useQuery({
     queryKey: ['/api/warehouses'],
-    staleTime: 1000 * 60, // 1 Minute
+    staleTime: 1000 * 60 * 5, // 5 Minuten
   });
 
-  // Abfrage aller Inventar-Items für die KPIs
-  const { data: inventoryItems } = useQuery({
-    queryKey: ['/api/inventory'],
-    staleTime: 1000 * 60, // 1 Minute
+  const { data: warehouseStats = {} as Record<string, WarehouseStatsItem> } = useQuery({
+    queryKey: ['/api/warehouses/stats'],
+    staleTime: 1000 * 60 * 2, // 2 Minuten
   });
+  
+  // Suche und Filterung
+  const filteredWarehouses = Array.isArray(warehouses) ? warehouses.filter(warehouse => {
+    return !searchTerm || 
+      warehouse.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      warehouse.location?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      warehouse.description?.toLowerCase().includes(searchTerm.toLowerCase());
+  }) : [];
 
-  // Abfrage aller Maschinen-Lager-Zuordnungen für die KPIs
-  const { data: machineAssignments } = useQuery({
-    queryKey: ['/api/machine-warehouse-assignments'],
-    staleTime: 1000 * 60, // 1 Minute
-  });
-
-  // Berechnung der KPIs pro Lager
-  const getWarehouseMetrics = (warehouseId: number) => {
-    // Lagerbestände für dieses Lager
-    const warehouseItems = inventoryItems?.filter((item: any) => item.warehouseId === warehouseId) || [];
-    const totalItems = warehouseItems.length;
-    const totalStock = warehouseItems.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0);
-    const criticalItems = warehouseItems.filter((item: any) => 
-      item.quantity !== null && item.minQuantity !== null && item.quantity <= item.minQuantity
-    ).length;
-
-    // Zugeordnete Automaten für dieses Lager
-    const warehouseAssignments = machineAssignments?.filter((a: any) => a.warehouseId === warehouseId) || [];
-    const totalMachines = warehouseAssignments.length;
-    const primaryMachines = warehouseAssignments.filter((a: any) => a.isPrimary).length;
-
-    return {
-      totalItems,
-      totalStock,
-      criticalItems,
-      totalMachines,
-      primaryMachines
-    };
-  };
-
-  // Mutation für das Löschen eines Lagers
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      return await apiRequest(`/api/warehouses/${id}`, {
-        method: 'DELETE'
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/warehouses'] });
-      toast({
-        title: 'Lager gelöscht',
-        description: `Das Lager "${selectedWarehouse?.name}" wurde erfolgreich gelöscht.`,
-      });
-      setSelectedWarehouse(null);
-      setIsDeleteDialogOpen(false);
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Fehler beim Löschen',
-        description: error.message || 'Das Lager konnte nicht gelöscht werden.',
-        variant: 'destructive'
-      });
-    }
-  });
-
-  // Lager-Bearbeiten-Handler
-  const handleEditWarehouse = (e: React.MouseEvent, warehouse: any) => {
-    e.stopPropagation(); // Verhindert, dass die Lagerdetail-Seite geöffnet wird
-    setSelectedWarehouse(warehouse);
-    setIsEditWarehouseDialogOpen(true);
-  };
-
-  // Lager-Löschen-Handler
-  const handleDeleteWarehouse = (e: React.MouseEvent, warehouse: any) => {
-    e.stopPropagation(); // Verhindert, dass die Lagerdetail-Seite geöffnet wird
-    setSelectedWarehouse(warehouse);
-    setIsDeleteDialogOpen(true);
-  };
-
-  // Lager-Details-Handler
-  const handleWarehouseClick = (warehouseId: number) => {
-    setLocation(`/lager/${warehouseId}`);
-  };
-
-  // Rendering bei Ladevorgang
+  // Lade-Animation
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {[1, 2, 3].map(i => (
-          <Skeleton key={i} className="h-[250px] w-full" />
-        ))}
+      <div className="flex flex-col items-center justify-center py-10">
+        <Loader2 className="h-10 w-10 text-primary animate-spin mb-4" />
+        <p className="text-muted-foreground">Lagerdaten werden geladen...</p>
       </div>
     );
   }
-
-  // Rendering bei Fehler
+  
+  // Fehlerbehandlung
   if (error) {
     return (
-      <div className="rounded-md bg-destructive/15 p-4 text-center">
-        <CircleAlert className="h-6 w-6 mx-auto mb-2 text-destructive" />
-        <h3 className="font-medium text-destructive">Fehler beim Laden der Lager</h3>
-        <p className="text-sm text-muted-foreground mt-1">
-          {(error as Error)?.message || 'Beim Abrufen der Lager ist ein Fehler aufgetreten.'}
+      <div className="rounded-md bg-destructive/15 p-8 text-center">
+        <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-destructive" />
+        <h3 className="text-lg font-medium text-destructive">Fehler beim Laden der Lager</h3>
+        <p className="text-muted-foreground mt-1">
+          {(error as any).message || 'Unbekannter Fehler'}
         </p>
-      </div>
-    );
-  }
-
-  // Leeres Raster, wenn keine Lager vorhanden sind
-  if (!warehouses || !Array.isArray(warehouses) || warehouses.length === 0) {
-    return (
-      <div className="text-center p-8 border rounded-lg">
-        <Building2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-        <h3 className="text-lg font-medium mb-2">Keine Lager vorhanden</h3>
-        <p className="text-muted-foreground mb-4">
-          Sie haben noch keine Lager angelegt. Erstellen Sie Ihr erstes Lager, um Ihre Bestände zu verwalten.
-        </p>
-        <Button onClick={() => setIsNewWarehouseDialogOpen(true)}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Erstes Lager erstellen
+        <Button 
+          variant="outline" 
+          className="mt-4"
+          onClick={() => refetch()}
+        >
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Erneut versuchen
         </Button>
-        
-        {/* Dialog für neues Lager */}
-        <WarehouseFormDialog 
-          open={isNewWarehouseDialogOpen} 
-          onOpenChange={setIsNewWarehouseDialogOpen}
-          warehouse={null}
-          isNew={true}
-        />
       </div>
     );
   }
-
+  
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button onClick={() => setIsNewWarehouseDialogOpen(true)}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Neues Lager
-        </Button>
+    <div>
+      {/* Filter und Suchleiste */}
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <div className="relative flex-grow">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Lager suchen..."
+            className="pl-9"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          {searchTerm && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="absolute right-1 top-1/2 transform -translate-y-1/2 h-7 w-7"
+              onClick={() => setSearchTerm('')}
+            >
+              <FilterX className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="icon"
+            onClick={() => refetch()}
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+          
+          <Button>
+            <PlusSquare className="h-4 w-4 mr-2" />
+            Neues Lager
+          </Button>
+        </div>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {Array.isArray(warehouses) && warehouses.map((warehouse: any) => {
-          const metrics = getWarehouseMetrics(warehouse.id);
-          
-          return (
-            <Card 
-              key={warehouse.id} 
-              className={`${warehouse.isActive ? '' : 'opacity-60'} cursor-pointer hover:border-primary/50 transition-colors`}
-              onClick={() => handleWarehouseClick(warehouse.id)}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-start">
-                  <CardTitle className="text-lg">{warehouse.name}</CardTitle>
-                  {!warehouse.isActive && (
-                    <Badge variant="outline" className="bg-muted">Inaktiv</Badge>
-                  )}
-                </div>
-                {(warehouse.city || warehouse.address) && (
-                  <CardDescription>
-                    {[warehouse.address, `${warehouse.postalCode || ''} ${warehouse.city || ''}`]
-                      .filter(Boolean)
-                      .join(', ')}
-                  </CardDescription>
-                )}
-              </CardHeader>
-              
-              <CardContent className="pb-0">
-                {/* KPIs */}
-                <div className="grid grid-cols-3 gap-2 mb-3">
-                  <div className="flex flex-col items-center p-2 rounded-md bg-muted/40">
-                    <Package2 className="h-4 w-4 text-primary mb-1" />
-                    <span className="text-lg font-bold">{metrics.totalItems}</span>
-                    <span className="text-xs text-muted-foreground">Artikel</span>
-                  </div>
-                  <div className="flex flex-col items-center p-2 rounded-md bg-muted/40">
-                    <BarChart3 className="h-4 w-4 text-primary mb-1" />
-                    <span className="text-lg font-bold">{metrics.totalStock}</span>
-                    <span className="text-xs text-muted-foreground">Bestand</span>
-                  </div>
-                  <div className="flex flex-col items-center p-2 rounded-md bg-muted/40">
-                    <Truck className="h-4 w-4 text-primary mb-1" />
-                    <span className="text-lg font-bold">{metrics.totalMachines}</span>
-                    <span className="text-xs text-muted-foreground">Automaten</span>
-                  </div>
-                </div>
-                
-                {/* Beschreibung */}
-                {warehouse.description ? (
-                  <p className="text-sm text-muted-foreground line-clamp-2">{warehouse.description}</p>
-                ) : (
-                  <p className="text-sm text-muted-foreground italic">Keine Beschreibung vorhanden</p>
-                )}
-                
-                {/* Kritische Bestände */}
-                {metrics.criticalItems > 0 && (
-                  <div className="mt-2">
-                    <Badge variant="outline" className="text-destructive border-destructive/20 bg-destructive/10">
-                      {metrics.criticalItems} {metrics.criticalItems === 1 ? 'kritischer Artikel' : 'kritische Artikel'}
+      {/* Lagerliste */}
+      {filteredWarehouses.length === 0 ? (
+        <div className="rounded-md bg-muted/50 p-8 text-center">
+          <Warehouse className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+          <h3 className="text-lg font-medium">Keine Lager gefunden</h3>
+          <p className="text-muted-foreground mt-1 mb-4">
+            Es wurden keine Lager für die aktuelle Filterauswahl gefunden.
+          </p>
+          <Button>
+            <PlusSquare className="h-4 w-4 mr-2" />
+            Neues Lager anlegen
+          </Button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filteredWarehouses.map((warehouse: any) => {
+            // Statistiken für dieses Lager
+            const stats = warehouseStats[warehouse.id] || {
+              totalProducts: 0,
+              totalItems: 0,
+              lowStock: 0,
+              criticalStock: 0,
+              expiringBatches: 0,
+              totalBatches: 0
+            };
+            
+            const isExpanded = expandedWarehouse === warehouse.id;
+            
+            return (
+              <Card 
+                key={warehouse.id} 
+                className={`overflow-hidden transition-all ${
+                  isExpanded ? 'col-span-full' : ''
+                }`}
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <Warehouse className="h-5 w-5 text-primary" />
+                        {warehouse.name}
+                      </CardTitle>
+                      
+                      <CardDescription className="mt-1">
+                        <div className="flex items-center gap-1 text-sm">
+                          <MapPin className="h-3.5 w-3.5" />
+                          {warehouse.location || 'Kein Standort angegeben'}
+                        </div>
+                      </CardDescription>
+                    </div>
+                    
+                    <Badge 
+                      variant={warehouse.isActive ? 'outline' : 'secondary'}
+                      className={warehouse.isActive ? 'text-emerald-500 border-emerald-300' : ''}
+                    >
+                      {warehouse.isActive ? 'Aktiv' : 'Inaktiv'}
                     </Badge>
                   </div>
-                )}
-              </CardContent>
-              
-              <CardFooter className="pt-3">
-                <div className="flex space-x-2">
+                </CardHeader>
+                
+                <CardContent className="pb-2">
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <div className="text-2xl font-semibold">{stats.totalProducts}</div>
+                      <div className="text-xs text-muted-foreground">Produkte</div>
+                    </div>
+                    
+                    <div>
+                      <div className="text-2xl font-semibold">{stats.totalItems}</div>
+                      <div className="text-xs text-muted-foreground">Artikel</div>
+                    </div>
+                    
+                    <div>
+                      <div className={`text-2xl font-semibold ${
+                        stats.criticalStock > 0 ? 'text-destructive' : ''
+                      }`}>
+                        {stats.criticalStock}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Kritisch</div>
+                    </div>
+                  </div>
+                  
+                  {warehouse.description && (
+                    <div className="mt-2 text-sm text-muted-foreground">
+                      {warehouse.description.length > 100 
+                        ? `${warehouse.description.substring(0, 100)}...` 
+                        : warehouse.description}
+                    </div>
+                  )}
+                  
+                  {isExpanded && (
+                    <div className="mt-6">
+                      <Tabs 
+                        defaultValue="inventory" 
+                        className="w-full" 
+                        value={activeTab}
+                        onValueChange={setActiveTab}
+                      >
+                        <TabsList className="grid w-full grid-cols-3">
+                          <TabsTrigger value="inventory">Bestand</TabsTrigger>
+                          <TabsTrigger value="details">Details</TabsTrigger>
+                          <TabsTrigger value="contacts">Kontakte</TabsTrigger>
+                        </TabsList>
+                        
+                        <TabsContent value="inventory" className="mt-4">
+                          <WarehouseInventory 
+                            warehouseId={warehouse.id}
+                            inventory={[]}
+                            isLoading={false}
+                            error={null}
+                            onRefresh={() => {}}
+                          />
+                        </TabsContent>
+                        
+                        <TabsContent value="details" className="mt-4">
+                          <Accordion type="single" collapsible>
+                            <AccordionItem value="description">
+                              <AccordionTrigger>Beschreibung</AccordionTrigger>
+                              <AccordionContent>
+                                <div className="text-sm">
+                                  {warehouse.description || 'Keine Beschreibung vorhanden.'}
+                                </div>
+                              </AccordionContent>
+                            </AccordionItem>
+                            
+                            <AccordionItem value="address">
+                              <AccordionTrigger>Adresse</AccordionTrigger>
+                              <AccordionContent>
+                                <div className="text-sm">
+                                  <div className="flex items-start gap-2">
+                                    <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                                    <div>
+                                      <p>{warehouse.address1 || warehouse.location || '-'}</p>
+                                      {warehouse.address2 && <p>{warehouse.address2}</p>}
+                                      {warehouse.zipCode && warehouse.city && (
+                                        <p>{warehouse.zipCode} {warehouse.city}</p>
+                                      )}
+                                      {warehouse.country && <p>{warehouse.country}</p>}
+                                    </div>
+                                  </div>
+                                </div>
+                              </AccordionContent>
+                            </AccordionItem>
+                            
+                            <AccordionItem value="machines">
+                              <AccordionTrigger>Zugeordnete Automaten</AccordionTrigger>
+                              <AccordionContent>
+                                {warehouse.machines && warehouse.machines.length > 0 ? (
+                                  <ul className="text-sm space-y-1">
+                                    {warehouse.machines.map((machine: any) => (
+                                      <li key={machine.id} className="flex items-center gap-2">
+                                        <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                                        {machine.name} ({machine.location})
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground">Keine Automaten zugeordnet.</p>
+                                )}
+                              </AccordionContent>
+                            </AccordionItem>
+                          </Accordion>
+                        </TabsContent>
+                        
+                        <TabsContent value="contacts" className="mt-4">
+                          {warehouse.contacts && warehouse.contacts.length > 0 ? (
+                            <div className="space-y-4">
+                              {warehouse.contacts.map((contact: any) => (
+                                <div key={contact.id} className="border rounded-md p-3">
+                                  <div className="flex items-center gap-2">
+                                    <Users className="h-4 w-4 text-muted-foreground" />
+                                    <span className="font-medium">{contact.name}</span>
+                                  </div>
+                                  
+                                  {contact.position && (
+                                    <div className="text-sm text-muted-foreground ml-6">
+                                      {contact.position}
+                                    </div>
+                                  )}
+                                  
+                                  <div className="mt-2 ml-6 space-y-1">
+                                    {contact.phone && (
+                                      <div className="flex items-center gap-2 text-sm">
+                                        <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <span>{contact.phone}</span>
+                                      </div>
+                                    )}
+                                    
+                                    {contact.email && (
+                                      <div className="flex items-center gap-2 text-sm">
+                                        <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <span>{contact.email}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">Keine Kontakte hinterlegt.</p>
+                          )}
+                        </TabsContent>
+                      </Tabs>
+                    </div>
+                  )}
+                </CardContent>
+                
+                <CardFooter className="flex justify-end pt-2">
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={(e) => handleEditWarehouse(e, warehouse)}
+                    onClick={() => setExpandedWarehouse(
+                      isExpanded ? null : warehouse.id
+                    )}
                   >
-                    <Edit className="h-3.5 w-3.5 mr-1" />
-                    Bearbeiten
+                    {isExpanded ? 'Weniger anzeigen' : 'Details anzeigen'}
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                    onClick={(e) => handleDeleteWarehouse(e, warehouse)}
-                  >
-                    <Trash className="h-3.5 w-3.5 mr-1" />
-                    Löschen
-                  </Button>
-                </div>
-              </CardFooter>
-            </Card>
-          );
-        })}
-      </div>
-      
-      {/* Dialog für neues Lager */}
-      <WarehouseFormDialog 
-        open={isNewWarehouseDialogOpen} 
-        onOpenChange={setIsNewWarehouseDialogOpen}
-        warehouse={null}
-        isNew={true}
-      />
-      
-      {/* Dialog für Lager bearbeiten */}
-      {selectedWarehouse && (
-        <WarehouseFormDialog 
-          warehouse={selectedWarehouse}
-          open={isEditWarehouseDialogOpen} 
-          onOpenChange={setIsEditWarehouseDialogOpen} 
-          isNew={false}
-        />
+                </CardFooter>
+              </Card>
+            );
+          })}
+        </div>
       )}
-      
-      {/* Dialog für Lager löschen */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Lager löschen</DialogTitle>
-            <DialogDescription>
-              Sind Sie sicher, dass Sie das Lager "{selectedWarehouse?.name}" löschen möchten?
-              Diese Aktion kann nicht rückgängig gemacht werden.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => setIsDeleteDialogOpen(false)}
-              disabled={deleteMutation.isPending}
-            >
-              Abbrechen
-            </Button>
-            <Button 
-              variant="destructive"
-              onClick={() => deleteMutation.mutate(selectedWarehouse?.id)}
-              disabled={deleteMutation.isPending}
-            >
-              {deleteMutation.isPending ? 'Wird gelöscht...' : 'Löschen'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
