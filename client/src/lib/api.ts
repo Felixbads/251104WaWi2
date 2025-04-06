@@ -1551,6 +1551,5 @@ export async function initializeDefaultForecastModel() {
   }
 }
 
-export const getWarehouseInventory = async (warehouseId: string) => {
-  return apiRequest('get', `/api/inventory?warehouseId=${Number(warehouseId)}`);
-};
+// This was a duplicate of the function defined above
+// The version that includes includeZeroStock=true is kept

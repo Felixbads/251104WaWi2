@@ -242,6 +242,7 @@ export interface IStorage {
     warehouseId?: number;
     productId?: number;
     critical?: boolean;
+    includeZeroStock?: boolean;
   }): Promise<InventoryItem[]>;
   getInventoryItem(id: number): Promise<InventoryItem | undefined>;
   getInventoryItemsByWarehouse(warehouseId: number): Promise<InventoryItem[]>;
@@ -2013,6 +2014,7 @@ export class DatabaseStorage implements IStorage {
     warehouseId?: number;
     productId?: number;
     critical?: boolean;
+    includeZeroStock?: boolean;
   }): Promise<InventoryItem[]> {
     let query = db.select({
       inventory: inventoryItems,
@@ -2040,6 +2042,11 @@ export class DatabaseStorage implements IStorage {
           gte(inventoryItems.minQuantity, 1) // Nur Items mit einem Mindestbestand > 0
         )
       );
+    }
+    
+    // Wenn includeZeroStock nicht angegeben oder false ist, zeige nur Artikel mit Bestand > 0
+    if (!params?.includeZeroStock) {
+      conditions.push(gt(inventoryItems.quantity, 0));
     }
     
     if (conditions.length > 0) {

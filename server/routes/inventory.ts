@@ -242,11 +242,15 @@ export function registerInventoryRoutes(app: Express) {
       const warehouseId = req.query.warehouseId ? Number(req.query.warehouseId) : undefined;
       const productId = req.query.productId ? Number(req.query.productId) : undefined;
       const critical = req.query.critical === 'true' ? true : undefined;
+      const includeZeroStock = req.query.includeZeroStock === 'true' ? true : undefined;
+      
+      console.log(`Inventory request with warehouseId=${warehouseId}, includeZeroStock=${includeZeroStock}`);
       
       const inventoryItems = await storage.getInventoryItems({
         warehouseId,
         productId,
-        critical
+        critical,
+        includeZeroStock
       });
       
       res.json(inventoryItems);
