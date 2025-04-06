@@ -11,12 +11,13 @@ import {
   Plus, Search, Filter, ArrowDownUp, AlertTriangle, 
   ClipboardCheck, MapPin, Phone, Mail, User, 
   Eye, Save, Trash, Edit, CalendarRange, FileText,
-  RefreshCw, ShoppingCart, Clock, Check
+  RefreshCw, ShoppingCart, Clock, Check, Beaker
 } from "lucide-react";
 
 // Eigene Komponenten
 import WarehouseInventory from "@/components/inventory/WarehouseInventory";
 import InventoryCountNew from "@/components/inventory/InventoryCountNew";
+import DemoBatchesCreator from "@/components/inventory/demo/DemoBatchesCreator";
 
 // UI-Komponenten
 import { Label } from "@/components/ui/label";
@@ -601,6 +602,10 @@ export default function WarehouseDetail() {
             <ClipboardCheck className="h-4 w-4 mr-2" />
             Inventur
           </TabsTrigger>
+          <TabsTrigger value="demo">
+            <Beaker className="h-4 w-4 mr-2" />
+            Demo-Daten
+          </TabsTrigger>
         </TabsList>
         
         <TabsContent value="overview">
@@ -960,6 +965,22 @@ export default function WarehouseDetail() {
                   });
                 }}
               />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="demo">
+          <Card>
+            <CardHeader>
+              <CardTitle>Demo-Daten Generator</CardTitle>
+              <CardDescription>
+                Erstellen Sie Demo-Daten für Batches und Warenbewegungen zum Testen
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <React.Suspense fallback={<div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
+                <DemoBatchesCreator />
+              </React.Suspense>
             </CardContent>
           </Card>
         </TabsContent>

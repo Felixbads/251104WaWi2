@@ -211,11 +211,13 @@ router.post('/seed', async (req: Request, res: Response) => {
         batchNumber: `B${Math.floor(Math.random() * 10000)}`,
         productId: product.id,
         warehouseId: randomWarehouse.id,
-        quantity: Math.floor(Math.random() * 50) + 1,
-        expiryDate: soonExpiryDate,
-        manufacturingDate: new Date(soonExpiryDate.getTime() - 90 * 24 * 60 * 60 * 1000), // 90 Tage vor Ablauf
+        initialQuantity: Math.floor(Math.random() * 50) + 1,
+        currentQuantity: Math.floor(Math.random() * 50) + 1,
+        receivedDate: new Date(currentDate.getTime() - (Math.floor(Math.random() * 30) + 1) * 24 * 60 * 60 * 1000).toISOString(),
+        expiryDate: soonExpiryDate.toISOString(),
+        manufacturingDate: new Date(soonExpiryDate.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString(), // 90 Tage vor Ablauf
         locationInWarehouse: `Regal ${String.fromCharCode(65 + Math.floor(Math.random() * 10))}-${Math.floor(Math.random() * 10) + 1}`,
-        status: 'aktiv',
+        status: 'active',
         notes: Math.random() > 0.7 ? 'Besondere Anweisungen für diesen Batch' : null
       });
       
@@ -227,11 +229,13 @@ router.post('/seed', async (req: Request, res: Response) => {
         batchNumber: `B${Math.floor(Math.random() * 10000)}`,
         productId: product.id,
         warehouseId: randomWarehouse.id,
-        quantity: Math.floor(Math.random() * 100) + 20,
-        expiryDate: normalExpiryDate,
-        manufacturingDate: new Date(normalExpiryDate.getTime() - 120 * 24 * 60 * 60 * 1000), // 120 Tage vor Ablauf
+        initialQuantity: Math.floor(Math.random() * 100) + 20,
+        currentQuantity: Math.floor(Math.random() * 100) + 20,
+        receivedDate: new Date(currentDate.getTime() - (Math.floor(Math.random() * 30) + 1) * 24 * 60 * 60 * 1000).toISOString(),
+        expiryDate: normalExpiryDate.toISOString(),
+        manufacturingDate: new Date(normalExpiryDate.getTime() - 120 * 24 * 60 * 60 * 1000).toISOString(), // 120 Tage vor Ablauf
         locationInWarehouse: `Regal ${String.fromCharCode(65 + Math.floor(Math.random() * 10))}-${Math.floor(Math.random() * 10) + 1}`,
-        status: 'aktiv',
+        status: 'active',
         notes: null
       });
     }
@@ -248,6 +252,72 @@ router.post('/seed', async (req: Request, res: Response) => {
     res.status(500).json({ 
       error: 'Fehler beim Erstellen von Beispiel-Batches',
       details: (error as Error).message 
+    });
+  }
+});
+
+// POST /api/product-batches/create-demo-movements - Erstellt Demo-Warenbewegungen für vorhandene Batches
+router.post('/create-demo-movements', async (req: Request, res: Response) => {
+  try {
+    // Vorhandene Batches abrufen
+    const existingBatches = await db.select()
+      .from(productBatches)
+      .where(gte(productBatches.currentQuantity, 5)); // Nur Batches mit genügend Bestand
+    
+    if (existingBatches.length === 0) {
+      return res.status(400).json({ error: 'Keine Batches mit ausreichendem Bestand gefunden' });
+    }
+    
+    const movements = [];
+    const currentDate = new Date();
+    
+    // Für jeden Batch einige Warenbewegungen erstellen
+    for (const batch of existingBatches.slice(0, 10)) { // Begrenze auf 10 Batches
+      const movementTypes = ['Wareneingang', 'Warenausgang', 'Inventur', 'Rücksendung', 'Umbuchung'];
+      const numMovements = Math.floor(Math.random() * 3) + 1; // 1-3 Bewegungen pro Batch
+      
+      for (let i = 0; i < numMovements; i++) {
+        const movementType = movementTypes[Math.floor(Math.random() * movementTypes.length)];
+        const quantity = Math.floor(Math.random() * 5) + 1; // 1-5 Einheiten
+        const movementDate = new Date(currentDate.getTime() - (Math.floor(Math.random() * 30) + 1) * 24 * 60 * 60 * 1000);
+        
+        // Batch-Bestand aktualisieren
+        let newQuantity = batch.currentQuantity;
+        if (movementType === 'Wareneingang' || movementType === 'Rücksendung') {
+          newQuantity += quantity;
+        } else if (movementType === 'Warenausgang') {
+          newQuantity = Math.max(0, newQuantity - quantity);
+        }
+        
+        // Batches aktualisieren
+        await db.update(productBatches)
+          .set({ 
+            currentQuantity: newQuantity,
+            updatedAt: new Date()
+          })
+          .where(eq(productBatches.id, batch.id));
+        
+        movements.push({
+          batchId: batch.id,
+          productId: batch.productId,
+          warehouseId: batch.warehouseId,
+          movementType,
+          quantity,
+          movementDate: movementDate.toISOString(),
+          notes: Math.random() > 0.7 ? `Demo ${movementType} für Batch ${batch.batchNumber}` : null
+        });
+      }
+    }
+    
+    res.status(200).json({
+      message: `${movements.length} Demo-Warenbewegungen erfolgreich erstellt`,
+      movements
+    });
+  } catch (error) {
+    console.error('Fehler beim Erstellen von Demo-Warenbewegungen:', error);
+    res.status(500).json({
+      error: 'Fehler beim Erstellen von Demo-Warenbewegungen',
+      details: (error as Error).message
     });
   }
 });
