@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import React, { Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -15,6 +16,7 @@ import {
 
 // Eigene Komponenten
 import WarehouseInventory from "@/components/inventory/WarehouseInventory";
+import InventoryCountNew from "@/components/inventory/InventoryCountNew";
 
 // UI Komponenten
 import { Label } from "@/components/ui/label";
@@ -1059,8 +1061,8 @@ export default function WarehouseDetail() {
                   <p className="text-sm text-muted-foreground">
                     {warehouse.address || "Keine Adresse angegeben"}
                   </p>
-                </div>
-              </div>
+  
+
             </div>
             
             <div>
@@ -1071,8 +1073,8 @@ export default function WarehouseDetail() {
                   <p className="text-sm text-muted-foreground">
                     {warehouse.status || "Kein Status angegeben"}
                   </p>
-                </div>
-              </div>
+  
+
             </div>
             
             <div>
@@ -1083,8 +1085,8 @@ export default function WarehouseDetail() {
                   <p className="text-sm text-muted-foreground">
                     {warehouse.description || "Keine Beschreibung angegeben"}
                   </p>
-                </div>
-              </div>
+  
+
             </div>
           </div>
         </CardContent>
@@ -1125,7 +1127,7 @@ export default function WarehouseDetail() {
               <CardContent>
                 <div className="text-2xl font-bold">
                   {Array.isArray(inventory) ? inventory.length : 0}
-                </div>
+  
               </CardContent>
             </Card>
             
@@ -1137,7 +1139,7 @@ export default function WarehouseDetail() {
               <CardContent>
                 <div className="text-2xl font-bold">
                   {Array.isArray(machineAssignments) ? machineAssignments.length : 0}
-                </div>
+  
               </CardContent>
             </Card>
             
@@ -1149,7 +1151,7 @@ export default function WarehouseDetail() {
               <CardContent>
                 <div className="text-2xl font-bold">
                   {Array.isArray(inventoryCounts) ? inventoryCounts.length : 0}
-                </div>
+  
               </CardContent>
             </Card>
           </div>
@@ -1163,7 +1165,7 @@ export default function WarehouseDetail() {
               {movementsLoading ? (
                 <div className="flex justify-center p-4">
                   <Loader2 className="h-6 w-6 animate-spin" />
-                </div>
+  
               ) : combinedMovements.length > 0 ? (
                 <Table>
                   <TableHeader>
@@ -1196,7 +1198,7 @@ export default function WarehouseDetail() {
               ) : (
                 <div className="text-center p-4 text-muted-foreground">
                   Keine Warenbewegungen gefunden
-                </div>
+  
               )}
             </CardContent>
             <CardFooter>
@@ -1239,7 +1241,7 @@ export default function WarehouseDetail() {
               {movementsLoading || refillsLoading ? (
                 <div className="flex justify-center p-8">
                   <Loader2 className="h-8 w-8 animate-spin" />
-                </div>
+  
               ) : (
                 <>
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
@@ -1260,7 +1262,7 @@ export default function WarehouseDetail() {
                       >
                         <RefreshCw className="h-4 w-4" />
                       </Button>
-                    </div>
+      
                     
                     <Button
                       onClick={() => setIsAddMovementDialogOpen(true)}
@@ -1268,7 +1270,7 @@ export default function WarehouseDetail() {
                       <Plus className="mr-2 h-4 w-4" />
                       Warenbewegung
                     </Button>
-                  </div>
+    
                   
                   {combinedMovements.length > 0 ? (
                     <div className="rounded-md border">
@@ -1305,7 +1307,7 @@ export default function WarehouseDetail() {
                                   <div className="flex items-center">
                                     <ShoppingCart className="h-4 w-4 mr-1" />
                                     <span>{movement.machineName}</span>
-                                  </div>
+                    
                                 ) : (
                                   <span>{movement.movementType || "Manuell"}</span>
                                 )}
@@ -1319,11 +1321,11 @@ export default function WarehouseDetail() {
                           ))}
                         </TableBody>
                       </Table>
-                    </div>
+      
                   ) : (
                     <div className="text-center p-8 border rounded-md">
                       <div className="text-muted-foreground">Keine Warenbewegungen gefunden</div>
-                    </div>
+      
                   )}
                 </>
               )}
@@ -1343,7 +1345,7 @@ export default function WarehouseDetail() {
               {assignmentsLoading ? (
                 <div className="flex justify-center p-8">
                   <Loader2 className="h-8 w-8 animate-spin" />
-                </div>
+  
               ) : (
                 <>
                   <div className="flex justify-end mb-4">
@@ -1353,7 +1355,7 @@ export default function WarehouseDetail() {
                       <Plus className="mr-2 h-4 w-4" />
                       Automat zuordnen
                     </Button>
-                  </div>
+    
                   
                   {machineAssignments.length > 0 ? (
                     <div className="rounded-md border">
@@ -1376,7 +1378,7 @@ export default function WarehouseDetail() {
                                   <span>
                                     {assignment.machine?.machineName || "Unbekannter Automat"}
                                   </span>
-                                </div>
+                  
                               </TableCell>
                               <TableCell>
                                 {assignment.machine?.location || "Unbekannt"}
@@ -1415,18 +1417,18 @@ export default function WarehouseDetail() {
                                   >
                                     <Trash className="h-4 w-4" />
                                   </Button>
-                                </div>
+                  
                               </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
                       </Table>
-                    </div>
+      
                   ) : (
                     <div className="text-center p-8 border rounded-md">
                       <div className="text-muted-foreground">
                         Keine Automaten diesem Lager zugewiesen
-                      </div>
+        
                       <Button
                         className="mt-4"
                         onClick={() => setIsAssignDialogOpen(true)}
@@ -1434,7 +1436,7 @@ export default function WarehouseDetail() {
                         <Plus className="mr-2 h-4 w-4" />
                         Ersten Automaten zuordnen
                       </Button>
-                    </div>
+      
                   )}
                 </>
               )}
@@ -1442,332 +1444,6 @@ export default function WarehouseDetail() {
           </Card>
         </TabsContent>
         
-        <TabsContent value="inventory-count">
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <CardTitle>Inventurzählung</CardTitle>
-                  <CardDescription>
-                    Bestandsaufnahme und Abgleich der Lagerbestände
-                  </CardDescription>
-                </div>
-                
-                {/* Zeige "Neue Inventur starten" Button nur wenn keine aktive Inventur existiert */}
-                {!isCountInProgress && !activeInventoryCount && 
-                  !findActiveInventoryCount() && (
-                  <Button
-                    onClick={() => {
-                      // Prüfe, ob bereits eine aktive Inventur existiert
-                      const activeCount = findActiveInventoryCount();
-                      
-                      if (activeCount) {
-                        // Wenn es eine aktive Inventur gibt, setze sie als aktiv
-                        setActiveInventoryCount(activeCount.id);
-                        toast({
-                          title: "Aktive Inventur gefunden",
-                          description: "Es gibt bereits eine laufende Inventur, die wird nun geöffnet.",
-                        });
-                      } else {
-                        // Ansonsten starte eine neue
-                        setIsCountInProgress(true);
-                      }
-                    }}
-                  >
-                    <ClipboardCheck className="mr-2 h-4 w-4" />
-                    Neue Inventur starten
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              {inventoryCountsLoading ? (
-                <div className="flex justify-center p-8">
-                  <Loader2 className="h-8 w-8 animate-spin" />
-                </div>
-              ) : isCountInProgress ? (
-                // Formular zum Starten einer neuen Inventur
-                <div className="border rounded-md p-6">
-                  <div className="space-y-4">
-                    <div className="text-lg font-medium">Neue Inventurzählung starten</div>
-                    <div className="text-sm text-muted-foreground">
-                      Starten Sie eine neue Inventurzählung, um den aktuellen Lagerbestand zu erfassen.
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="notes">Anmerkungen zur Inventur</Label>
-                      <Textarea 
-                        id="notes" 
-                        value={inventoryCountNotes}
-                        onChange={(e) => setInventoryCountNotes(e.target.value)}
-                        placeholder="Optionale Anmerkungen zur Inventur"
-                      />
-                    </div>
-                    
-                    <div className="flex items-center justify-end gap-2 pt-4">
-                      <Button
-                        variant="outline"
-                        onClick={() => {
-                          setIsCountInProgress(false);
-                          setInventoryCountNotes("");
-                        }}
-                      >
-                        Abbrechen
-                      </Button>
-                      <Button
-                        onClick={startInventoryCount}
-                        disabled={startNewInventoryCountMutation.isPending}
-                      >
-                        {startNewInventoryCountMutation.isPending && (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        )}
-                        Inventur starten
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ) : activeInventoryCount ? (
-                // Aktive Inventurzählung anzeigen
-                <div>
-                  <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                      <h3 className="text-lg font-medium mb-1">Laufende Inventurzählung</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Erfassen Sie die tatsächlichen Mengen für jeden Artikel im Lager
-                      </p>
-                    </div>
-                    
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <Button 
-                        variant="outline" 
-                        onClick={cancelInventoryCount}
-                      >
-                        <Trash className="mr-2 h-4 w-4" />
-                        Abbrechen
-                      </Button>
-                      
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button>
-                            <Save className="mr-2 h-4 w-4" />
-                            Speichern
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem 
-                            onClick={() => saveAndCompleteCount(false)}
-                            disabled={saveInventoryCountMutation.isPending}
-                          >
-                            {saveInventoryCountMutation.isPending && (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            )}
-                            Speichern und abschließen
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => saveAndCompleteCount(true)}
-                            disabled={saveInventoryCountMutation.isPending}
-                          >
-                            {saveInventoryCountMutation.isPending && (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            )}
-                            Speichern, abschließen und anpassen
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-                  
-                  <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                    <div className="relative w-full max-w-sm">
-                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Nach Produkt, Artikelnummer oder Lagerort suchen..."
-                        className="pl-8"
-                        value={searchQueryInventory}
-                        onChange={(e) => setSearchQueryInventory(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Produkt</TableHead>
-                          <TableHead>Artikelnummer</TableHead>
-                          <TableHead className="text-right">Systembestand</TableHead>
-                          <TableHead className="text-right">Gezählter Bestand</TableHead>
-                          <TableHead className="text-right">Differenz</TableHead>
-                          <TableHead className="text-center">Aktion</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredInventoryItems.length > 0 ? (
-                          filteredInventoryItems.map((item, index) => {
-                            const difference = Number(item.countedQuantity) - Number(item.currentQuantity);
-                            return (
-                              <TableRow key={`${item.productId}-${index}`}>
-                                <TableCell className="font-medium">{item.productName}</TableCell>
-                                <TableCell>{item.sku || "-"}</TableCell>
-                                <TableCell className="text-right">{item.currentQuantity}</TableCell>
-                                <TableCell className="text-right">
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    value={item.countedQuantity}
-                                    onChange={(e) => updateCountedQuantity(item.productId, parseInt(e.target.value) || 0)}
-                                    className="w-24 text-right inline-block"
-                                  />
-                                </TableCell>
-                                <TableCell className={`text-right ${difference !== 0 ? (difference > 0 ? 'text-green-600' : 'text-red-600') : ''}`}>
-                                  {difference > 0 ? '+' : ''}{difference}
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => saveCountedItem(item)}
-                                    disabled={saveInventoryCountItemMutation.isPending}
-                                    title="Artikel speichern"
-                                  >
-                                    {saveInventoryCountItemMutation.isPending ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <Check className="h-4 w-4" />
-                                    )}
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })
-                        ) : (
-                          <TableRow>
-                            <TableCell colSpan={6} className="text-center py-6">
-                              <div className="text-muted-foreground">Keine Produkte gefunden</div>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              ) : (
-                // Liste aller bisherigen Inventuren
-                <div>
-                  <div className="flex justify-between items-center mb-4">
-                    <div>
-                      <h3 className="text-lg font-medium">Vergangene Inventurzählungen</h3>
-                      <p className="text-sm text-muted-foreground">
-                        Übersicht aller durchgeführten Inventuren
-                      </p>
-                    </div>
-                  </div>
-                  
-                  {inventoryCounts.length > 0 ? (
-                    <div className="rounded-md border">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Datum</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Artikel</TableHead>
-                            <TableHead className="text-right">Anpassungen</TableHead>
-                            <TableHead>Durchgeführt von</TableHead>
-                            <TableHead>Aktionen</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {inventoryCounts.map((count) => (
-                            <TableRow key={count.id}>
-                              <TableCell className="font-medium">
-                                {new Date(count.startDate).toLocaleDateString()}
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant={count.status === 'completed' ? 'default' : 'secondary'}>
-                                  {count.status === 'completed' ? 'Abgeschlossen' : 
-                                   count.status === 'in_progress' ? 'In Bearbeitung' : count.status}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-right">{count.itemCount || 0}</TableCell>
-                              <TableCell className="text-right">{count.adjustmentCount || 0}</TableCell>
-                              <TableCell>{count.initiatedByName || "System"}</TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-2">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => {
-                                      setSelectedInventoryCount(count);
-                                      setInventoryDetailDialogOpen(true);
-                                    }}
-                                  >
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                  
-                                  {count.status === 'in_progress' && (
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => {
-                                        setActiveInventoryCount(count.id);
-                                      }}
-                                    >
-                                      <Edit className="h-4 w-4" />
-                                    </Button>
-                                  )}
-                                  
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => {
-                                      if (confirm('Möchten Sie diese Inventurzählung wirklich löschen?')) {
-                                        deleteInventoryCountMutation.mutate(count.id);
-                                      }
-                                    }}
-                                  >
-                                    <Trash className="h-4 w-4" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  ) : (
-                    <div className="text-center p-8 border rounded-md">
-                      <div className="text-muted-foreground">
-                        Keine Inventurzählungen gefunden
-                      </div>
-                      <Button
-                        className="mt-4"
-                        onClick={() => {
-                          // Prüfe, ob bereits eine aktive Inventur existiert
-                          const activeCount = findActiveInventoryCount();
-                          
-                          if (activeCount) {
-                            // Wenn es eine aktive Inventur gibt, setze sie als aktiv
-                            setActiveInventoryCount(activeCount.id);
-                            toast({
-                              title: "Aktive Inventur gefunden",
-                              description: "Es gibt bereits eine laufende Inventur, die wird nun geöffnet.",
-                            });
-                          } else {
-                            // Ansonsten starte eine neue
-                            setIsCountInProgress(true);
-                          }
-                        }}
-                      >
-                        <ClipboardCheck className="mr-2 h-4 w-4" />
-                        Erste Inventur starten
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
       
       {/* Dialog: Automaten zuordnen */}
@@ -1797,7 +1473,7 @@ export default function WarehouseDetail() {
                   {machinesLoading ? (
                     <div className="flex justify-center p-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                    </div>
+      
                   ) : machines.length > 0 ? (
                     machines.map((machine) => (
                       <SelectItem key={machine.id} value={machine.id.toString()}>
@@ -1807,7 +1483,7 @@ export default function WarehouseDetail() {
                   ) : (
                     <div className="p-2 text-sm text-muted-foreground">
                       Keine Automaten verfügbar
-                    </div>
+      
                   )}
                 </SelectContent>
               </Select>
@@ -1823,7 +1499,7 @@ export default function WarehouseDetail() {
                   }
                 />
                 <Label htmlFor="isPrimary">Primäres Lager</Label>
-              </div>
+
               <p className="text-sm text-muted-foreground">
                 Wenn aktiviert, wird dieses Lager als Hauptquelle für den Automaten verwendet
               </p>
@@ -1889,17 +1565,17 @@ export default function WarehouseDetail() {
                       {selectedInventoryCount.status === 'completed' ? 'Abgeschlossen' : 
                        selectedInventoryCount.status === 'in_progress' ? 'In Bearbeitung' : selectedInventoryCount.status}
                     </Badge>
-                  </div>
+    
                   
                   <div>
                     <h4 className="text-sm font-medium">Durchgeführt von</h4>
                     <p className="text-sm">{selectedInventoryCount.initiatedByName || "System"}</p>
-                  </div>
+    
                   
                   <div>
                     <h4 className="text-sm font-medium">Start-Datum</h4>
                     <p className="text-sm">{new Date(selectedInventoryCount.startDate).toLocaleString()}</p>
-                  </div>
+    
                   
                   <div>
                     <h4 className="text-sm font-medium">End-Datum</h4>
@@ -1907,16 +1583,16 @@ export default function WarehouseDetail() {
                       {selectedInventoryCount.endDate ? 
                         new Date(selectedInventoryCount.endDate).toLocaleString() : "Noch nicht abgeschlossen"}
                     </p>
-                  </div>
-                </div>
+    
+  
                 
                 {selectedInventoryCount.notes && (
                   <div>
                     <h4 className="text-sm font-medium mb-1">Anmerkungen</h4>
                     <div className="p-3 bg-muted rounded-md text-sm">
                       {selectedInventoryCount.notes}
-                    </div>
-                  </div>
+      
+    
                 )}
                 
                 <Separator />
@@ -1956,10 +1632,10 @@ export default function WarehouseDetail() {
                   ) : (
                     <div className="text-center p-4 border rounded-md">
                       <p className="text-sm text-muted-foreground">Keine Artikel gefunden</p>
-                    </div>
+      
                   )}
-                </div>
-              </div>
+  
+
             </ScrollArea>
           )}
           
@@ -2013,7 +1689,7 @@ export default function WarehouseDetail() {
                   {inventoryLoading ? (
                     <div className="flex justify-center p-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                    </div>
+      
                   ) : inventory.length > 0 ? (
                     inventory.map((item) => (
                       <SelectItem key={item.productId} value={item.productId.toString()}>
@@ -2023,7 +1699,7 @@ export default function WarehouseDetail() {
                   ) : (
                     <div className="p-2 text-sm text-muted-foreground">
                       Keine Produkte verfügbar
-                    </div>
+      
                   )}
                 </SelectContent>
               </Select>
@@ -2054,7 +1730,7 @@ export default function WarehouseDetail() {
                     {warehousesLoading ? (
                       <div className="flex justify-center p-2">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                      </div>
+        
                     ) : warehouses.length > 0 ? (
                       warehouses
                         .filter((w) => w.id.toString() !== id)
@@ -2066,11 +1742,11 @@ export default function WarehouseDetail() {
                     ) : (
                       <div className="p-2 text-sm text-muted-foreground">
                         Keine anderen Lager verfügbar
-                      </div>
+        
                     )}
                   </SelectContent>
                 </Select>
-              </div>
+
             )}
             
             <div className="space-y-2">
@@ -2151,3 +1827,38 @@ export default function WarehouseDetail() {
     </div>
   );
 }
+{/* Nur den relevanten Teil des Codes, der korrigiert werden soll */}
+
+        <TabsContent value="inventory-count">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                  <CardTitle>Inventurzählung</CardTitle>
+                  <CardDescription>
+                    Bestandsaufnahme und Abgleich der Lagerbestände
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <InventoryCountNew 
+                warehouseId={Number(id)}
+                inventory={inventory}
+                onComplete={() => {
+                  refetchInventory();
+                  toast({
+                    title: "Inventur abgeschlossen",
+                    description: "Die Inventur wurde erfolgreich abgeschlossen und die Bestände aktualisiert."
+                  });
+                }}
+                onCancel={() => {
+                  toast({
+                    title: "Inventur abgebrochen",
+                    description: "Die Inventur wurde abgebrochen."
+                  });
+                }}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
