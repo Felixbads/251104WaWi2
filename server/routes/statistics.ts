@@ -24,6 +24,14 @@ export function statisticsRoutes(app: any) {
       const { period = 'month', startDate, endDate } = req.query;
       console.log(`Analyseparameter: machineId=${machineId}, period=${period}, startDate=${startDate}, endDate=${endDate}`);
       
+      // Zusätzliche Debug-Ausgaben
+      console.log(`Vollständige Anfrageparameter:`, req.query);
+      console.log(`Maschinentyp von machineId: ${typeof machineId}`);
+      
+      if (isNaN(machineId)) {
+        throw new Error(`Ungültige Maschinen-ID: ${req.params.id}`);
+      }
+      
       // Zeitraumfilter definieren
       let startDateObj = new Date();
       let endDateObj = new Date();
@@ -84,8 +92,8 @@ export function statisticsRoutes(app: any) {
       const revenueOverTime = await db.select({
         date: sql<string>`DATE(datetime)`,
         count: count(),
-        revenue: sql<number>`COALESCE(SUM(price), 0)`,
-        profit: sql<number>`COALESCE(SUM(price) * 0.4, 0)`, // Vereinfachte Gewinnberechnung (40% vom Umsatz)
+        revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`,
+        profit: sql<number>`COALESCE(SUM(${transactions.price}) * 0.4, 0)`, // Vereinfachte Gewinnberechnung (40% vom Umsatz)
       })
       .from(transactions)
       .where(and(
@@ -99,8 +107,8 @@ export function statisticsRoutes(app: any) {
       // 2. Vergleich mit Vorperiode
       const prevPeriodData = await db.select({
         totalCount: count(),
-        totalRevenue: sql<number>`COALESCE(SUM(price), 0)`,
-        totalProfit: sql<number>`COALESCE(SUM(price) * 0.4, 0)`,
+        totalRevenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`,
+        totalProfit: sql<number>`COALESCE(SUM(${transactions.price}) * 0.4, 0)`,
       })
       .from(transactions)
       .where(and(
@@ -111,8 +119,8 @@ export function statisticsRoutes(app: any) {
       
       const currentPeriodData = await db.select({
         totalCount: count(),
-        totalRevenue: sql<number>`COALESCE(SUM(price), 0)`,
-        totalProfit: sql<number>`COALESCE(SUM(price) * 0.4, 0)`,
+        totalRevenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`,
+        totalProfit: sql<number>`COALESCE(SUM(${transactions.price}) * 0.4, 0)`,
       })
       .from(transactions)
       .where(and(
@@ -125,8 +133,8 @@ export function statisticsRoutes(app: any) {
       const topProductsByRevenue = await db.select({
         productName: transactions.productName,
         count: count(),
-        revenue: sql<number>`COALESCE(SUM(price), 0)`,
-        avgPrice: sql<number>`COALESCE(AVG(price), 0)`,
+        revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`,
+        avgPrice: sql<number>`COALESCE(AVG(${transactions.price}), 0)`,
       })
       .from(transactions)
       .where(and(
@@ -136,14 +144,14 @@ export function statisticsRoutes(app: any) {
         isNotNull(transactions.productName)
       ))
       .groupBy(transactions.productName)
-      .orderBy(desc(sql<number>`COALESCE(SUM(price), 0)`))
+      .orderBy(desc(sql<number>`COALESCE(SUM(${transactions.price}), 0)`))
       .limit(10);
       
       // 4. Beste Produkte nach Marge/Ergebnis
       const topProductsByProfit = await db.select({
         productName: transactions.productName,
         count: count(),
-        revenue: sql<number>`COALESCE(SUM(price), 0)`,
+        revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`,
         profit: sql<number>`COALESCE(SUM(
           ${transactions.price} - 
           COALESCE(${transactions.priceVat}, 0) - 
@@ -213,7 +221,7 @@ export function statisticsRoutes(app: any) {
       const worstProductsByProfit = await db.select({
         productName: transactions.productName,
         count: count(),
-        revenue: sql<number>`COALESCE(SUM(price), 0)`,
+        revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`,
         profit: sql<number>`COALESCE(SUM(
           ${transactions.price} - 
           COALESCE(${transactions.priceVat}, 0) - 
@@ -283,7 +291,7 @@ export function statisticsRoutes(app: any) {
       const worstProductsByRevenue = await db.select({
         productName: transactions.productName,
         count: count(),
-        revenue: sql<number>`COALESCE(SUM(price), 0)`,
+        revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`,
         lastSale: sql<string>`MAX(datetime)`,
       })
       .from(transactions)
@@ -294,7 +302,7 @@ export function statisticsRoutes(app: any) {
         isNotNull(transactions.productName)
       ))
       .groupBy(transactions.productName)
-      .orderBy(asc(sql<number>`COALESCE(SUM(price), 0)`))
+      .orderBy(asc(sql<number>`COALESCE(SUM(${transactions.price}), 0)`))
       .limit(10);
       
       // 7. Entnahmequote (Verkäufe vs. manuelle Entfernung)
@@ -347,7 +355,7 @@ export function statisticsRoutes(app: any) {
       const hourlyDistribution = await db.select({
         hour: sql<number>`EXTRACT(HOUR FROM datetime::timestamp)`,
         count: count(),
-        revenue: sql<number>`COALESCE(SUM(price), 0)`,
+        revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`,
       })
       .from(transactions)
       .where(and(
@@ -362,7 +370,7 @@ export function statisticsRoutes(app: any) {
       const weekdayDistribution = await db.select({
         weekday: sql<number>`EXTRACT(DOW FROM datetime::timestamp)`,
         count: count(),
-        revenue: sql<number>`COALESCE(SUM(price), 0)`,
+        revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`,
       })
       .from(transactions)
       .where(and(
@@ -605,7 +613,7 @@ router.get('/sales', async (req, res) => {
       // Aktuelle Periode: Anzahl und Summe der Transaktionen
       db.select({
         count: count(),
-        revenue: sql<number>`COALESCE(SUM(price), 0)`,
+        revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`,
         avgValue: sql<number>`COALESCE(AVG(price), 0)`
       }).from(transactions)
         .where(and(
@@ -616,7 +624,7 @@ router.get('/sales', async (req, res) => {
       // Vorherige Periode: Anzahl und Summe der Transaktionen
       db.select({
         count: count(),
-        revenue: sql<number>`COALESCE(SUM(price), 0)`,
+        revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`,
         avgValue: sql<number>`COALESCE(AVG(price), 0)`
       }).from(transactions)
         .where(and(
@@ -629,7 +637,7 @@ router.get('/sales', async (req, res) => {
         machineId: transactions.machineId,
         machineName: transactions.machineName,
         count: count(),
-        revenue: sql<number>`COALESCE(SUM(price), 0)`,
+        revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`,
         avgValue: sql<number>`COALESCE(AVG(price), 0)`
       }).from(transactions)
         .where(and(
@@ -637,28 +645,28 @@ router.get('/sales', async (req, res) => {
           sql`datetime <= ${endDateStr}`
         ))
         .groupBy(transactions.machineId, transactions.machineName)
-        .orderBy(desc(sql<number>`COALESCE(SUM(price), 0)`))
+        .orderBy(desc(sql<number>`COALESCE(SUM(${transactions.price}), 0)`))
         .limit(5),
       
       // Top 5 Produkte nach Umsatz in der aktuellen Periode
       db.select({
         productName: transactions.productName,
         count: count(),
-        revenue: sql<number>`COALESCE(SUM(price), 0)`
+        revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`
       }).from(transactions)
         .where(and(
           sql`datetime >= ${startDateStr}`,
           sql`datetime <= ${endDateStr}`
         ))
         .groupBy(transactions.productName)
-        .orderBy(desc(sql<number>`COALESCE(SUM(price), 0)`))
+        .orderBy(desc(sql<number>`COALESCE(SUM(${transactions.price}), 0)`))
         .limit(5),
       
       // Zahlungsmethoden-Verteilung
       db.select({
         paymentMethod: transactions.paymentMethod,
         count: count(),
-        revenue: sql<number>`COALESCE(SUM(price), 0)`
+        revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`
       }).from(transactions)
         .where(and(
           sql`datetime >= ${startDateStr}`,
@@ -670,7 +678,7 @@ router.get('/sales', async (req, res) => {
       db.select({
         hour: sql<number>`EXTRACT(HOUR FROM datetime::timestamp)`,
         count: count(),
-        revenue: sql<number>`COALESCE(SUM(price), 0)`
+        revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`
       }).from(transactions)
         .where(and(
           sql`datetime >= ${startDateStr}`,
