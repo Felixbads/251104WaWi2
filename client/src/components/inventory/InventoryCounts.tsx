@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 import { 
   ClipboardCheck, Search, FilterX, 
   Plus, RefreshCw, Calendar, Loader2, AlertTriangle, Save
@@ -33,6 +34,7 @@ import { Textarea } from '@/components/ui/textarea';
 export default function InventoryCounts() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState('');
@@ -98,7 +100,7 @@ export default function InventoryCounts() {
       
       // Zur Lagerdetailseite mit der neu erstellten Inventur navigieren
       if (data && data.warehouseId && data.id) {
-        window.location.href = `/inventory/warehouse/${data.warehouseId}?tab=inventory-count&inventoryId=${data.id}`;
+        setLocation(`/inventory/warehouse/${data.warehouseId}?tab=inventory-count&inventoryId=${data.id}`);
       } else {
         // Inventurdaten neu laden
         refetch();
@@ -278,7 +280,7 @@ export default function InventoryCounts() {
                 // Funktion zum Weiterleiten zur Lagerdetailseite mit aktiver Inventur
                 const navigateToInventory = () => {
                   if (count.warehouseId) {
-                    window.location.href = `/inventory/warehouse/${count.warehouseId}?tab=inventory-count&inventoryId=${count.id}`;
+                    setLocation(`/inventory/warehouse/${count.warehouseId}?tab=inventory-count&inventoryId=${count.id}`);
                   }
                 };
                 

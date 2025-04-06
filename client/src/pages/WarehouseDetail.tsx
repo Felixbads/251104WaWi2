@@ -106,10 +106,53 @@ import {
 
 export default function WarehouseDetail() {
   const { id } = useParams<{ id: string }>();
-  const [, setLocation] = useLocation();
+  const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("overview");
+  
+  // Aktives Tab aus URL-Parameter extrahieren
+  const getInitialTab = () => {
+    try {
+      const url = new URL(window.location.href);
+      const tabParam = url.searchParams.get('tab');
+      if (tabParam) {
+        return tabParam;
+      }
+    } catch (error) {
+      console.error("Fehler beim Lesen der URL-Parameter:", error);
+    }
+    return "overview";
+  };
+  
+  const [activeTab, setActiveTab] = useState(getInitialTab());
+  
+  // Inventur-ID aus URL-Parameter holen
+  const getInventoryIdFromUrl = () => {
+    try {
+      const url = new URL(window.location.href);
+      const inventoryId = url.searchParams.get('inventoryId');
+      return inventoryId ? parseInt(inventoryId) : null;
+    } catch (error) {
+      console.error("Fehler beim Lesen der Inventur-ID:", error);
+      return null;
+    }
+  };
+  
+  // URL-Parameter beim Laden auswerten
+  useEffect(() => {
+    const inventoryId = getInventoryIdFromUrl();
+    if (inventoryId) {
+      // Setze das Tab auf "inventory-count" wenn ein inventoryId Parameter vorhanden ist
+      setActiveTab("inventory-count");
+      setActiveInventoryCount(inventoryId);
+      
+      // Lade Inventurzählung-Details, falls sie noch nicht geladen wurden
+      const selectedCount = inventoryCounts.find(count => count.id === inventoryId);
+      if (selectedCount) {
+        setSelectedInventoryCount(selectedCount);
+      }
+    }
+  }, [inventoryCounts]);
   
   // Lager-Details abrufen
   const { 
