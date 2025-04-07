@@ -7,6 +7,7 @@ interface Request extends ExpressRequest {
 }
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { db, rawSql } from "./db";
 import { vendonSync } from "./services/vendonSync";
 import { syncWeatherForecast } from './services/openWeatherService';
 import { holidayService } from './services/holidayService';

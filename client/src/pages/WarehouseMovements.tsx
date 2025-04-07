@@ -244,7 +244,7 @@ export default function WarehouseMovements() {
     return (
       <div className="container py-6 space-y-6">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setLocation(`/warehouses/${warehouseId}`)}>
+          <Button variant="outline" size="sm" onClick={() => setLocation(`/lager/${warehouseId}`)}>
             <ChevronLeft className="mr-2 h-4 w-4" />
             Zurück zum Lager
           </Button>
@@ -278,7 +278,7 @@ export default function WarehouseMovements() {
     return (
       <div className="container py-6 space-y-6">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setLocation(`/warehouses/${warehouseId}`)}>
+          <Button variant="outline" size="sm" onClick={() => setLocation(`/lager/${warehouseId}`)}>
             <ChevronLeft className="mr-2 h-4 w-4" />
             Zurück zum Lager
           </Button>
@@ -302,7 +302,7 @@ export default function WarehouseMovements() {
       {/* Kopfzeile mit Navigationslinks und Filtern */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setLocation(`/warehouses/${warehouseId}`)}>
+          <Button variant="outline" size="sm" onClick={() => setLocation(`/lager/${warehouseId}`)}>
             <ChevronLeft className="mr-2 h-4 w-4" />
             Zurück zum Lager
           </Button>

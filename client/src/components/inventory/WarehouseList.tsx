@@ -387,7 +387,7 @@ export default function WarehouseList() {
                                   variant="link" 
                                   size="sm" 
                                   className="text-xs"
-                                  onClick={() => window.location.href = `/lager/${warehouse.id}/bewegungen`}
+                                  onClick={() => window.location.href = `/lager/${warehouse.id}/warenbewegung`}
                                 >
                                   <RotateCw className="h-3.5 w-3.5 mr-1" />
                                   Hier klicken, um alle Warenbewegungen zu sehen
