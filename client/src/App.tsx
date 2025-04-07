@@ -76,6 +76,8 @@ import WarenentnahmeDetail from "@/pages/WarenentnahmeDetail";
 import WarenentnahmeNew from "@/pages/WarenentnahmeNew";
 import InventoryMovementNew from "@/pages/InventoryMovementNew";
 import UserManagement from "@/pages/UserManagement";
+import InventurPage from "@/pages/InventurPage";
+import InventurDetailPage from "@/pages/InventurDetailPage";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -245,6 +247,19 @@ function AuthenticatedRouter() {
         <Route path="/warenentnahme/:id" component={props => (
           <ApprovedUserRoute>
             <WarenentnahmeDetail {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        {/* Inventur-Seiten */}
+        <Route path="/inventur" component={props => (
+          <ApprovedUserRoute>
+            <InventurPage {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/inventur/:id" component={props => (
+          <ApprovedUserRoute>
+            <InventurDetailPage {...props} />
           </ApprovedUserRoute>
         )} />
         

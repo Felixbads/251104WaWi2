@@ -6,7 +6,8 @@ import MobileMenu from "./MobileMenu";
 import { 
   LogOut, Users, Home, Package, ShoppingBag, Truck, FileText, 
   ShoppingCart, Building2, TrashIcon, BarChart2, RefreshCw, 
-  Clock, Settings, LineChart, Database, PieChart, BarChart4 
+  Clock, Settings, LineChart, Database, PieChart, BarChart4,
+  ClipboardCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -24,6 +25,7 @@ export const menuItems = {
   management: [
     { title: 'Bestellungen', icon: <ShoppingCart className="h-5 w-5 mr-3" />, path: '/bestellungen' },
     { title: 'Lager', icon: <Building2 className="h-5 w-5 mr-3" />, path: '/lager' },
+    { title: 'Inventur', icon: <ClipboardCheck className="h-5 w-5 mr-3" />, path: '/inventur' },
     { title: 'Warenentnahme', icon: <TrashIcon className="h-5 w-5 mr-3" />, path: '/warenentnahme' },
     { title: 'Prognosen', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/forecast' },
     { title: 'Prognoseanalyse', icon: <LineChart className="h-5 w-5 mr-3" />, path: '/forecast-evaluation' },
@@ -92,6 +94,9 @@ export default function AppShell({ children }: AppShellProps) {
     } else if (location.startsWith("/bestellungen")) {
       if (location === "/bestellungen") return "Bestellungen";
       return "Neue Bestellung";
+    } else if (location.startsWith("/inventur")) {
+      if (location === "/inventur") return "Inventur";
+      return "Inventur Details";
     }
     
     switch (location) {
