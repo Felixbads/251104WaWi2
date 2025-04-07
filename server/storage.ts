@@ -2656,12 +2656,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createInventoryCount(count: InsertInventoryCount): Promise<InventoryCount> {
+    console.log(`Storage: Erstelle neue Inventurzählung für Lager ${count.warehouseId}`);
+    
+    // Prüfen, ob das Lager existiert
+    const warehouse = await this.getWarehouse(count.warehouseId);
+    if (!warehouse) {
+      console.error(`Storage: Lager mit ID ${count.warehouseId} existiert nicht!`);
+      throw new Error(`Warehouse with ID ${count.warehouseId} does not exist`);
+    }
+    
+    console.log(`Storage: Lager gefunden: ${warehouse.name} (ID: ${warehouse.id})`);
+    
     const [newCount] = await db.insert(inventoryCounts).values({
       ...count,
       createdAt: new Date()
     }).returning();
     
-    return newCount;
+    // Füge Lagernamen hinzu
+    return {
+      ...newCount,
+      warehouseName: warehouse.name
+    };
   }
 
   async updateInventoryCount(

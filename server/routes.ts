@@ -515,6 +515,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { warehouseId, notes, status } = req.body;
       
+      console.log(`Erstelle neue Inventurzählung für Lager ${warehouseId} mit Status ${status || 'pending'}`);
+      
       if (!warehouseId) {
         return res.status(400).json({ error: "Warehouse ID is required" });
       }
@@ -522,8 +524,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validiere warehouseId
       const warehouse = await storage.getWarehouse(warehouseId);
       if (!warehouse) {
+        console.error(`Lager mit ID ${warehouseId} nicht gefunden!`);
         return res.status(404).json({ error: "Warehouse not found" });
       }
+      
+      console.log(`Lager gefunden: ${warehouse.name} (ID: ${warehouse.id})`);
       
       // Erstelle neue Inventurzählung
       const inventoryCount = await storage.createInventoryCount({
@@ -533,7 +538,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         startDate: new Date()
       });
       
-      console.log(`Neue Inventurzählung erstellt: ID ${inventoryCount.id} für Lager ${warehouseId}`);
+      console.log(`Neue Inventurzählung erstellt: ID ${inventoryCount.id} für Lager ${warehouse.name} (${warehouseId})`);
+      console.log(`Warehouse Name in Response: ${inventoryCount.warehouseName || 'Nicht gesetzt'}`);
+      
       res.status(201).json(inventoryCount);
     } catch (error) {
       console.error("Error creating inventory count:", error);
