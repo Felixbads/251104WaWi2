@@ -518,10 +518,16 @@ export default function WarehouseMovements() {
                           <span className={Number(movement.quantity) < 0 ? "text-destructive" : "text-emerald-600"}>
                             {Number(movement.quantity) < 0 ? "-" : "+"}{Math.abs(Number(movement.quantity))} {movement.unit || 'Stk.'}
                           </span>
-                          {(movement.quantityBefore !== undefined || movement.quantityAfter !== undefined) && (
+                          {(movement.quantityBefore !== undefined || movement.quantityAfter !== undefined || movement.movementType === 'REFILL') && (
                             <span className="text-xs text-muted-foreground">
-                              Vorher: {movement.quantityBefore ?? '?'} → Nachher: {movement.quantityAfter ?? '?'}
-                              {movement.quantityBefore === 0 && movement.quantityAfter === 0 && ' (Bestand 0)'}
+                              {movement.movementType === 'REFILL' ? (
+                                <>Bestand aktualisiert</>
+                              ) : (
+                                <>
+                                  Vorher: {movement.quantityBefore !== undefined ? movement.quantityBefore : '?'} 
+                                  → Nachher: {movement.quantityAfter !== undefined ? movement.quantityAfter : '?'}
+                                </>
+                              )}
                             </span>
                           )}
                         </div>

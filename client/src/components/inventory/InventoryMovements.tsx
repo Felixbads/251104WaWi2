@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 import { 
   ArrowLeftRight, SearchIcon, FilterX, 
-  ArrowRight, ArrowLeft, RefreshCw, Loader2, AlertTriangle 
+  ArrowRight, ArrowLeft, RefreshCw, Loader2, AlertTriangle,
+  Plus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -157,8 +159,10 @@ export default function InventoryMovements() {
             <RefreshCw className="h-4 w-4" />
           </Button>
           
-          <Button>
-            <ArrowLeftRight className="h-4 w-4 mr-2" />
+          <Button
+            onClick={() => window.location.href = '/inventory/movements/new'}
+          >
+            <Plus className="h-4 w-4 mr-2" />
             Neue Bewegung
           </Button>
         </div>

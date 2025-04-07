@@ -102,15 +102,17 @@ export default function WarenentnahmeNew() {
 
   // Wenn Inventar geladen wird, setze die verfügbaren Produkte
   useEffect(() => {
-    if (inventory) {
+    if (inventory && Array.isArray(inventory)) {
       setAvailableProducts(inventory);
     }
   }, [inventory]);
 
   // Gefilterte Produkte für die Suche
-  const filteredProducts = availableProducts.filter(product => 
-    product.productName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredProducts = Array.isArray(availableProducts) 
+    ? availableProducts.filter(product => 
+        product.productName.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : [];
 
   // Mutation zum Erstellen einer neuen Warenentnahme
   const createDisposalMutation = useMutation({
