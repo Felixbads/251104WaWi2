@@ -312,10 +312,10 @@ export default function MachineAssignments() {
                 <SelectValue placeholder="Alle Automaten" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Alle Automaten</SelectItem>
+                <SelectItem key="all" value="all">Alle Automaten</SelectItem>
                 {Array.isArray(machines) ? machines.map((machine: any) => (
-                  <SelectItem key={machine.id} value={machine.id.toString()}>
-                    {machine.machineName || machine.name}
+                  <SelectItem key={machine.id} value={machine.id.toString() || 'unknown'}>
+                    {machine.machineName || machine.name || 'Unbekannter Automat'}
                   </SelectItem>
                 )) : null}
               </SelectContent>
@@ -361,8 +361,8 @@ export default function MachineAssignments() {
                         );
                       })
                       .map((machine: any) => (
-                        <SelectItem key={machine.id} value={machine.id.toString()}>
-                          {machine.machineName || machine.name}
+                        <SelectItem key={machine.id} value={machine.id.toString() || 'unknown'}>
+                          {machine.machineName || machine.name || 'Unbekannter Automat'}
                         </SelectItem>
                       ))
                      : null}
@@ -383,8 +383,8 @@ export default function MachineAssignments() {
                     {Array.isArray(warehouses) ? warehouses
                       .filter((warehouse: any) => warehouse.isActive)
                       .map((warehouse: any) => (
-                        <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
-                          {warehouse.name}
+                        <SelectItem key={warehouse.id} value={warehouse.id.toString() || 'unknown'}>
+                          {warehouse.name || 'Unbekanntes Lager'}
                         </SelectItem>
                       ))
                      : null}

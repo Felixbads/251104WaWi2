@@ -36,19 +36,19 @@ interface InventoryItem {
 }
 
 interface WarehouseInventoryProps {
-  warehouseId: number;
-  inventory: InventoryItem[];
-  isLoading: boolean;
-  error: any;
-  onRefresh: () => void;
+  warehouseId?: number;
+  inventory?: InventoryItem[];
+  isLoading?: boolean;
+  error?: any;
+  onRefresh?: () => void;
 }
 
 export default function WarehouseInventory({
-  warehouseId,
-  inventory: propInventory,
-  isLoading: propIsLoading,
-  error: propError,
-  onRefresh
+  warehouseId = 0,
+  inventory: propInventory = [],
+  isLoading: propIsLoading = false,
+  error: propError = null,
+  onRefresh = () => {}
 }: WarehouseInventoryProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [warehouseFilter, setWarehouseFilter] = useState(warehouseId === 0 ? '' : warehouseId.toString());
@@ -194,10 +194,10 @@ export default function WarehouseInventory({
                 <SelectValue placeholder="Alle Lager" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Alle Lager</SelectItem>
+                <SelectItem key="all" value="">Alle Lager</SelectItem>
                 {warehouses.map((warehouse: any) => (
-                  <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
-                    {warehouse.name}
+                  <SelectItem key={warehouse.id} value={warehouse.id.toString() || 'unknown'}>
+                    {warehouse.name || 'Unbekanntes Lager'}
                   </SelectItem>
                 ))}
               </SelectContent>

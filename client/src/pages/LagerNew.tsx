@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,11 @@ import {
   PlusCircle, 
   Building2, 
   Package, 
-  ArrowDownUp
+  ArrowDownUp,
+  AlertCircle,
+  ShoppingCart,
+  Truck,
+  BarChart4
 } from 'lucide-react';
 
 // Import der Lagerkomponenten
@@ -21,6 +26,40 @@ export default function LagerNew() {
     const savedTab = localStorage.getItem('lager-active-tab');
     return savedTab || 'warehouses';
   });
+  
+  // Lager zählen
+  const { data: warehouses = [] } = useQuery<any[]>({
+    queryKey: ['/api/warehouses'],
+    staleTime: 1000 * 60 * 5, // 5 Minuten
+  });
+  
+  // Maschinenzuordnungen zählen
+  const { data: assignments = [] } = useQuery<any[]>({
+    queryKey: ['/api/machine-warehouse-assignments'],
+    staleTime: 1000 * 60 * 5, // 5 Minuten
+  });
+  
+  // Inventardaten laden
+  const { data: inventory = [] } = useQuery<any[]>({
+    queryKey: ['/api/inventory'],
+    staleTime: 1000 * 60 * 5, // 5 Minuten
+  });
+  
+  // Warenbewegungen zählen
+  const { data: movements = [] } = useQuery<any[]>({
+    queryKey: ['/api/inventory-movements'],
+    staleTime: 1000 * 60 * 5, // 5 Minuten
+  });
+  
+  // Werte für Übersichtskacheln berechnen
+  const totalWarehouses = warehouses?.length || 0;
+  const totalAssignments = assignments?.length || 0;
+  const totalProducts = inventory?.length || 0;
+  
+  // Kritische Produkte (Menge <= Mindestmenge) zählen
+  const criticalProducts = inventory?.filter((item: any) => 
+    (item.quantity ?? 0) <= (item.minQuantity ?? 0) && (item.minQuantity ?? 0) > 0
+  )?.length || 0;
   
   // Bei Tab-Wechsel in localStorage speichern
   const handleTabChange = (value: string) => {
@@ -38,6 +77,57 @@ export default function LagerNew() {
         </Button>
       </div>
       
+      {/* Übersichtskacheln */}
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Lager</CardTitle>
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalWarehouses}</div>
+            <p className="text-xs text-muted-foreground">Aktive Lagerstandorte</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Automaten-Zuordnungen</CardTitle>
+            <Truck className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalAssignments}</div>
+            <p className="text-xs text-muted-foreground">Automaten-Lager-Zuweisungen</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Produkte</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalProducts}</div>
+            <p className="text-xs text-muted-foreground">Produkte im Lagerbestand</p>
+          </CardContent>
+        </Card>
+        
+        <Card className={criticalProducts > 0 ? "border-destructive" : ""}>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className={`text-sm font-medium ${criticalProducts > 0 ? "text-destructive" : ""}`}>
+              Kritische Produkte
+            </CardTitle>
+            <AlertCircle className={`h-4 w-4 ${criticalProducts > 0 ? "text-destructive" : "text-muted-foreground"}`} />
+          </CardHeader>
+          <CardContent>
+            <div className={`text-2xl font-bold ${criticalProducts > 0 ? "text-destructive" : ""}`}>
+              {criticalProducts}
+            </div>
+            <p className="text-xs text-muted-foreground">Produkte unter Mindestbestand</p>
+          </CardContent>
+        </Card>
+      </div>
+      
       {/* Tabs für die verschiedenen Bestandsansichten */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
         <TabsList className="w-full justify-start overflow-x-auto py-1">
@@ -46,7 +136,7 @@ export default function LagerNew() {
             Lager
           </TabsTrigger>
           <TabsTrigger value="assignments" className="flex items-center">
-            <PlusCircle className="mr-2 h-4 w-4" />
+            <Truck className="mr-2 h-4 w-4" />
             Automaten-Zuordnungen
           </TabsTrigger>
           <TabsTrigger value="inventory" className="flex items-center">
@@ -89,13 +179,7 @@ export default function LagerNew() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <WarehouseInventory 
-                warehouseId={0} 
-                inventory={[]} 
-                isLoading={false}
-                error={null}
-                onRefresh={() => {}}
-              />
+              <WarehouseInventory />
             </CardContent>
           </Card>
         </TabsContent>
