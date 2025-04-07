@@ -81,13 +81,8 @@ app.use((req, res, next) => {
     log('Initialisiere automatisches Synchronisierungssystem...');
     startAutomaticSync();
     
-    // Führe automatischen Lagerabgleich durch
-    log('Starte automatischen Lagerabgleich...');
-    try {
-      const result = await reconcileWarehouseProducts();
-      log(`Lagerabgleich abgeschlossen - ${result.productsAdded} Produkte zu ${result.warehousesChecked} Lagern hinzugefügt`);
-    } catch (error) {
-      console.error('Fehler beim automatischen Lagerabgleich:', error);
-    }
+    // Kein automatischer Lagerabgleich mehr beim Serverstart, dieser wird nur noch
+    // beim Erstellen einer neuen Automaten-Lager-Zuordnung ausgeführt
+    log('Automatischer Lagerabgleich beim Serverstart deaktiviert, wird nur noch bei Bedarf ausgeführt.');
   });
 })();

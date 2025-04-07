@@ -21,9 +21,11 @@ export const menuItems = {
     { title: 'Produkte', icon: <ShoppingBag className="h-5 w-5 mr-3" />, path: '/produkte' },
     { title: 'Lieferanten', icon: <Truck className="h-5 w-5 mr-3" />, path: '/lieferanten' },
     { title: 'Transaktionen', icon: <FileText className="h-5 w-5 mr-3" />, path: '/transactions' },
+    { title: 'Lagerhaltung', icon: <Building2 className="h-5 w-5 mr-3" />, path: '/lagerhaltung' },
   ],
   management: [
     { title: 'Bestellungen', icon: <ShoppingCart className="h-5 w-5 mr-3" />, path: '/bestellungen' },
+    { title: 'Lager (Neu)', icon: <Building2 className="h-5 w-5 mr-3" />, path: '/lager-neu' },
     { title: 'Lager', icon: <Building2 className="h-5 w-5 mr-3" />, path: '/lager' },
     { title: 'Inventur', icon: <ClipboardCheck className="h-5 w-5 mr-3" />, path: '/inventur' },
     { title: 'Warenentnahme', icon: <TrashIcon className="h-5 w-5 mr-3" />, path: '/warenentnahme' },
@@ -108,6 +110,10 @@ export default function AppShell({ children }: AppShellProps) {
         return "Maschinen";
       case "/lager":
         return "Lager";
+      case "/lager-neu":
+        return "Lager (Neu)";
+      case "/lagerhaltung":
+        return "Lagerhaltung";
       case "/auswertungen":
         return "Auswertungen";
       case "/erweiterte-analyse":

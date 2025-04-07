@@ -69,6 +69,8 @@ import OrderReceipt from "@/pages/OrderReceipt";
 import SupplierPortal from "@/pages/SupplierPortal";
 import Inventory from "@/pages/Inventory";
 import LagerPage from "@/pages/LagerPage";
+import Lagerhaltung from "@/pages/Lagerhaltung";
+import LagerNew from "@/pages/LagerNew";
 import WarehouseDetail from "@/pages/WarehouseDetail";
 import WarehouseMovements from "@/pages/WarehouseMovements";
 import WarenentnahmePage from "@/pages/WarenentnahmePage";
@@ -205,6 +207,18 @@ function AuthenticatedRouter() {
         <Route path="/lager" component={props => (
           <ApprovedUserRoute>
             <LagerPage {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/lager-neu" component={props => (
+          <ApprovedUserRoute>
+            <LagerNew {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/lagerhaltung" component={props => (
+          <ApprovedUserRoute>
+            <Lagerhaltung {...props} />
           </ApprovedUserRoute>
         )} />
         

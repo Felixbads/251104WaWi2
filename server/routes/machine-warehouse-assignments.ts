@@ -1,7 +1,8 @@
 import express, { Request, Response } from 'express';
 import { db } from '../db';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { machineWarehouseAssignments } from '@shared/schema';
+import { reconcileWarehouseProducts } from '../services/warehouseReconciliation';
 
 const router = express.Router();
 
@@ -135,6 +136,17 @@ router.post('/', async (req: Request, res: Response) => {
         notes: notes || null
       })
       .returning();
+    
+    // Starte Lagerabgleich für das neu zugeordnete Lager
+    // Dies fügt automatisch alle Produkte aus dem Automaten zum Lager hinzu
+    console.log(`Starte Lagerabgleich für neu zugeordneten Automaten ${machineId} zum Lager ${warehouseId}`);
+    try {
+      const reconcileResult = await reconcileWarehouseProducts(Number(warehouseId));
+      console.log(`Lagerabgleich abgeschlossen: ${reconcileResult.productsAdded} neue Produkte hinzugefügt`);
+    } catch (reconcileError) {
+      console.error('Fehler beim Lagerabgleich nach Automaten-Zuordnung:', reconcileError);
+      // Wir werfen hier keinen Fehler, damit die Zuordnung trotzdem erstellt werden kann
+    }
     
     res.status(201).json(newAssignment[0]);
   } catch (error) {

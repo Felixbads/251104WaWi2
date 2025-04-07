@@ -9,6 +9,7 @@
 import { vendonSync } from './services/vendonSync';
 import { syncWeatherForecast, syncHistoricalWeatherBatch } from './services/openWeatherService';
 import { syncMissingHolidays } from './services/holidayService';
+import { reconcileWarehouseProducts } from './services/warehouseReconciliation';
 
 // Speichern der Timeout-IDs zur späteren Verwaltung
 const timers: Record<string, NodeJS.Timeout> = {};
@@ -29,7 +30,7 @@ const syncConfig = {
   },
   slow: {
     interval: 24 * 60 * 60 * 1000, // 24 Stunden
-    syncTypes: ['holidays', 'weather_historical_batch'] // 'weather_historical_batch' hierher verschoben
+    syncTypes: ['holidays', 'weather_historical_batch', 'warehouse_reconciliation'] // Täglicher Lagerabgleich hinzugefügt
   },
   historical: {
     interval: 6 * 60 * 60 * 1000, // 6 Stunden (erhöht von 2 Stunden)
@@ -100,6 +101,12 @@ async function performSync(syncType: string): Promise<void> {
         // Synchronisiere fehlende Feiertage für die nächsten 2 Jahre
         const currentYear = new Date().getFullYear();
         result = await syncMissingHolidays(currentYear, currentYear + 1, undefined, true);
+        break;
+      case 'warehouse_reconciliation':
+        // Führe täglichen Lagerabgleich durch, um neue Produkte in Automaten zu erkennen
+        console.log('Starte täglichen Lagerabgleich für alle Automaten-Lager-Kombinationen...');
+        result = await reconcileWarehouseProducts();
+        console.log(`Täglicher Lagerabgleich abgeschlossen: ${result.productsAdded} neue Produkte zu ${result.warehousesChecked} Lagern hinzugefügt.`);
         break;
       case 'all':
         result = await vendonSync.syncAll();
