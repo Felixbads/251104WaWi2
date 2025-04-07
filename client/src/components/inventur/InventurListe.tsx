@@ -17,6 +17,26 @@ import {
   TableHeader, TableRow
 } from '@/components/ui/table';
 
+// Typ-Definitionen für bessere Type-Safety
+interface Warehouse {
+  id: number;
+  name: string;
+}
+
+interface InventoryCount {
+  id: number;
+  warehouseId: number;
+  warehouseName?: string;
+  warehouse?: {
+    name: string;
+  };
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  startDate: string | null;
+  endDate: string | null;
+  itemCount: number;
+  notes?: string;
+}
+
 // Definiere Status-Typen für Inventuren
 const statusTypes = {
   pending: { label: 'Geplant', color: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200', icon: ClockIcon },
@@ -41,19 +61,19 @@ export default function InventurListe() {
   const [warehouseFilter, setWarehouseFilter] = useState<string>('all');
 
   // Lade Inventurdaten
-  const { data: inventurDaten = [], isLoading: isLoadingInventur } = useQuery({
+  const { data: inventurDaten = [], isLoading: isLoadingInventur } = useQuery<InventoryCount[]>({
     queryKey: ['/api/inventory-counts'],
     staleTime: 60 * 1000, // 1 Minute Cache
   });
 
   // Lade verfügbare Lager
-  const { data: warehouses = [], isLoading: isLoadingWarehouses } = useQuery({
+  const { data: warehouses = [], isLoading: isLoadingWarehouses } = useQuery<Warehouse[]>({
     queryKey: ['/api/warehouses'],
     staleTime: 5 * 60 * 1000, // 5 Minuten Cache
   });
 
   // Filtere Inventuren nach ausgewähltem Lager
-  const filteredInventuren = inventurDaten.filter((inventur: any) => {
+  const filteredInventuren = inventurDaten.filter((inventur) => {
     if (warehouseFilter === 'all') {
       return true;
     }
@@ -85,7 +105,7 @@ export default function InventurListe() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Alle Lager</SelectItem>
-              {warehouses.map((warehouse: any) => (
+              {warehouses.map((warehouse) => (
                 <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
                   {warehouse.name}
                 </SelectItem>
@@ -115,7 +135,7 @@ export default function InventurListe() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredInventuren.map((inventur: any) => {
+                filteredInventuren.map((inventur) => {
                   const StatusIcon = statusTypes[inventur.status as keyof typeof statusTypes]?.icon || ClockIcon;
                   const statusLabel = statusTypes[inventur.status as keyof typeof statusTypes]?.label || 'Unbekannt';
                   const statusColor = statusTypes[inventur.status as keyof typeof statusTypes]?.color || 'bg-gray-100 text-gray-800 hover:bg-gray-200';
@@ -123,7 +143,7 @@ export default function InventurListe() {
                   return (
                     <TableRow key={inventur.id}>
                       <TableCell className="font-medium">{inventur.id}</TableCell>
-                      <TableCell>{inventur.warehouse?.name || 'Unbekanntes Lager'}</TableCell>
+                      <TableCell>{inventur.warehouseName || inventur.warehouse?.name || 'Unbekanntes Lager'}</TableCell>
                       <TableCell>
                         <Badge className={statusColor} variant="outline">
                           <StatusIcon className="h-3.5 w-3.5 mr-1" />
