@@ -30,13 +30,18 @@ export default function ProductBatchDialog({
   const { data: productBatches = [], isLoading: isBatchesLoading } = useQuery<any[]>({
     queryKey: ['/api/product-batches/product', product?.id || 0, 'warehouse', product?.warehouseId || 0],
     queryFn: async ({ queryKey }) => {
-      const [_, productId, __, warehouseId] = queryKey;
-      if (!productId || !warehouseId) return [];
-      const response = await fetch(`/api/product-batches/product/${productId}/warehouse/${warehouseId}`);
-      if (!response.ok) throw new Error('Failed to fetch product batches');
-      return response.json();
+      try {
+        const [_, productId, __, warehouseId] = queryKey;
+        if (!productId || productId === 0 || !warehouseId || warehouseId === 0) return [];
+        const response = await fetch(`/api/product-batches/product/${productId}/warehouse/${warehouseId}`);
+        if (!response.ok) return [];
+        return response.json();
+      } catch (error) {
+        console.error("Fehler beim Laden der Produkt-Chargen:", error);
+        return [];
+      }
     },
-    enabled: !!product && open,
+    enabled: !!product && !!product.id && !!product.warehouseId && open,
   });
 
   return (

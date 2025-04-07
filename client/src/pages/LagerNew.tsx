@@ -71,7 +71,13 @@ export default function LagerNew() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold tracking-tight">Lager</h1>
-        <Button onClick={() => window.location.href = '/warehouses/neu'}>
+        <Button onClick={() => {
+          try {
+            window.location.href = '/warehouses/neu';
+          } catch (error) {
+            console.error("Navigation error:", error);
+          }
+        }}>
           <PlusCircle className="mr-2 h-4 w-4" />
           Neues Lager anlegen
         </Button>
