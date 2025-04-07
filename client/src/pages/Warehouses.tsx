@@ -249,7 +249,7 @@ export default function Warehouses() {
               <Card 
                 key={warehouse.id} 
                 className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => setLocation(`/lager/${warehouse.id}`)}
+                onClick={() => setLocation(`/warehouses/${warehouse.id}`)}
               >
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-start">
@@ -333,7 +333,7 @@ export default function Warehouses() {
                 <div 
                   key={warehouse.id}
                   className="grid grid-cols-12 p-3 text-sm items-center border-t hover:bg-muted/50 cursor-pointer"
-                  onClick={() => setLocation(`/lager/${warehouse.id}`)}
+                  onClick={() => setLocation(`/warehouses/${warehouse.id}`)}
                 >
                   <div className="col-span-4 font-medium">
                     {warehouse.name}

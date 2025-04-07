@@ -598,29 +598,19 @@ export default function WarehouseMovements() {
                 <PaginationItem>
                   <PaginationPrevious 
                     onClick={() => setPage(p => Math.max(1, p - 1))}
-                    disabled={page === 1}
+                    aria-disabled={page === 1}
+                    tabIndex={page === 1 ? -1 : undefined}
+                    className={page === 1 ? "pointer-events-none opacity-50" : ""}
                   />
                 </PaginationItem>
                 
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNumber;
-                  if (totalPages <= 5) {
-                    pageNumber = i + 1;
-                  } else {
-                    if (page <= 3) {
-                      pageNumber = i + 1;
-                    } else if (page >= totalPages - 2) {
-                      pageNumber = totalPages - 4 + i;
-                    } else {
-                      pageNumber = page - 2 + i;
-                    }
-                  }
-                  
+                  const pageNumber = i + 1;
                   return (
                     <PaginationItem key={pageNumber}>
                       <PaginationLink
+                        isActive={pageNumber === page}
                         onClick={() => setPage(pageNumber)}
-                        isActive={page === pageNumber}
                       >
                         {pageNumber}
                       </PaginationLink>
@@ -634,10 +624,22 @@ export default function WarehouseMovements() {
                   </PaginationItem>
                 )}
                 
+                {totalPages > 5 && page < totalPages && (
+                  <PaginationItem>
+                    <PaginationLink
+                      onClick={() => setPage(totalPages)}
+                    >
+                      {totalPages}
+                    </PaginationLink>
+                  </PaginationItem>
+                )}
+                
                 <PaginationItem>
                   <PaginationNext
                     onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                    disabled={page === totalPages}
+                    aria-disabled={page === totalPages}
+                    tabIndex={page === totalPages ? -1 : undefined}
+                    className={page === totalPages ? "pointer-events-none opacity-50" : ""}
                   />
                 </PaginationItem>
               </PaginationContent>

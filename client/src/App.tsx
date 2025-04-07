@@ -211,13 +211,13 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
         
-        <Route path="/lager/:id" component={props => (
+        <Route path="/warehouses/:id" component={props => (
           <ApprovedUserRoute>
             <WarehouseDetail {...props} />
           </ApprovedUserRoute>
         )} />
         
-        <Route path="/lager/:id/warenbewegung" component={props => (
+        <Route path="/warehouses/:id/warenbewegung" component={props => (
           <ApprovedUserRoute>
             <WarehouseMovements {...props} />
           </ApprovedUserRoute>

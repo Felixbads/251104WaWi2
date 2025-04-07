@@ -1070,7 +1070,7 @@ Nationalpark Zentrum`);
                         asChild
                       >
                         <a 
-                          href={`/lager/${order.warehouseId}`}
+                          href={`/warehouses/${order.warehouseId}`}
                           className="flex items-center"
                         >
                           Details anzeigen

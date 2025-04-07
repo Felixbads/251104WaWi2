@@ -156,7 +156,7 @@ export default function WarehouseList() {
           </Button>
           
           <Button 
-            onClick={() => window.location.href = '/lager/neu'}
+            onClick={() => window.location.href = '/warehouses/neu'}
           >
             <PlusSquare className="h-4 w-4 mr-2" />
             Neues Lager
@@ -344,7 +344,7 @@ export default function WarehouseList() {
                                     <Button 
                                       size="sm" 
                                       variant="outline"
-                                      onClick={() => window.location.href = `/lager/${warehouse.id}/automaten/zuordnen`}
+                                      onClick={() => window.location.href = `/warehouses/${warehouse.id}/automaten/zuordnen`}
                                     >
                                       <Plus className="h-3.5 w-3.5 mr-1" />
                                       Automaten zuordnen
@@ -355,7 +355,7 @@ export default function WarehouseList() {
                                     <p className="text-sm text-muted-foreground">Diesem Lager sind noch keine Automaten zugeordnet.</p>
                                     <Button 
                                       size="sm"
-                                      onClick={() => window.location.href = `/lager/${warehouse.id}/automaten/zuordnen`}
+                                      onClick={() => window.location.href = `/warehouses/${warehouse.id}/automaten/zuordnen`}
                                     >
                                       <Plus className="h-3.5 w-3.5 mr-1" />
                                       Automaten zuordnen
@@ -373,7 +373,7 @@ export default function WarehouseList() {
                             <Button 
                               variant="outline" 
                               size="sm"
-                              onClick={() => window.location.href = `/lager/${warehouse.id}/bewegungen`}
+                              onClick={() => window.location.href = `/warehouses/${warehouse.id}/bewegungen`}
                             >
                               <Truck className="h-3.5 w-3.5 mr-1" />
                               Alle anzeigen
@@ -387,7 +387,7 @@ export default function WarehouseList() {
                                   variant="link" 
                                   size="sm" 
                                   className="text-xs"
-                                  onClick={() => window.location.href = `/lager/${warehouse.id}/warenbewegung`}
+                                  onClick={() => window.location.href = `/warehouses/${warehouse.id}/warenbewegung`}
                                 >
                                   <RotateCw className="h-3.5 w-3.5 mr-1" />
                                   Hier klicken, um alle Warenbewegungen zu sehen
