@@ -276,6 +276,48 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
       });
     },
   });
+  
+  // Mutation zum automatischen Hinzufügen aller Lagerprodukte
+  const addAllProductsMutation = useMutation({
+    mutationFn: async () => {
+      try {
+        const response = await fetch(`/api/inventory-counts/${id}/add-all-products`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({}),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Fehler beim Hinzufügen aller Produkte: ${response.status}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Fehler beim Hinzufügen aller Lagerprodukte:', error);
+        throw error;
+      }
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}/items`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}/available-items`] });
+      
+      toast({
+        title: "Alle Produkte hinzugefügt",
+        description: `${data.addedItems} Produkte wurden zur Inventur hinzugefügt.`,
+      });
+    },
+    onError: (error) => {
+      console.error('Fehler beim Hinzufügen aller Produkte:', error);
+      toast({
+        title: "Fehler",
+        description: "Die Produkte konnten nicht hinzugefügt werden.",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Mutation zum Abschließen der Inventur
   const completeInventurMutation = useMutation({
@@ -641,14 +683,32 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
 
   // Status-bezogene Anzeigeelemente
   const StatusControls = () => {
+    // TypeScript Interface für Aktionen
+    interface StatusAction {
+      label: string;
+      icon: React.ReactNode;
+      action: () => void;
+      style: string;
+      disabled?: boolean;
+      loading?: boolean;
+    }
+    
     // Status-spezifische Aktionen
-    const statusActions = {
+    const statusActions: Record<string, StatusAction[]> = {
       pending: [
         { 
           label: 'Inventur starten',
           icon: <RefreshCw className="h-4 w-4 mr-2" />, 
           action: () => updateStatusMutation.mutate('in_progress'), 
           style: 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+        },
+        { 
+          label: 'Alle Produkte hinzufügen',
+          icon: <Package className="h-4 w-4 mr-2" />, 
+          action: () => addAllProductsMutation.mutate(), 
+          style: 'bg-green-50 text-green-700 hover:bg-green-100',
+          disabled: addAllProductsMutation.isPending,
+          loading: addAllProductsMutation.isPending
         },
         { 
           label: 'Abbrechen', 
@@ -699,9 +759,13 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
             variant="outline" 
             className={action.style}
             onClick={action.action}
-            disabled={updateStatusMutation.isPending}
+            disabled={action.disabled || updateStatusMutation.isPending}
           >
-            {action.icon}
+            {action.loading ? (
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              action.icon
+            )}
             {action.label}
           </Button>
         ))}

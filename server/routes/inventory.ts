@@ -77,6 +77,78 @@ router.get('/inventory-counts/:id/items', async (req: Request, res: Response) =>
   }
 });
 
+// GET /inventory-counts/:id/available-items - Abfragen aller verfügbaren Lagerprodukte für eine Inventur
+router.get('/inventory-counts/:id/available-items', async (req: Request, res: Response) => {
+  try {
+    const inventoryCountId = parseInt(req.params.id);
+    
+    if (isNaN(inventoryCountId)) {
+      return res.status(400).json({ error: "Ungültige Inventurzählungs-ID" });
+    }
+    
+    // Zuerst die Inventurzählung abrufen, um die warehouseId zu erhalten
+    const inventoryCount = await storage.getInventoryCount(inventoryCountId);
+    
+    if (!inventoryCount) {
+      return res.status(404).json({ error: "Inventurzählung nicht gefunden" });
+    }
+    
+    const warehouseId = inventoryCount.warehouseId;
+    
+    // Alle Produkte des Lagers abrufen
+    const warehouseInventory = await storage.getInventoryItems({ 
+      warehouseId: warehouseId
+    });
+    
+    // Bestehende Items dieser Inventur abrufen, um zu wissen, was bereits gezählt wurde
+    const existingItems = await storage.getInventoryCountItems(inventoryCountId);
+    const existingProductIds = new Set(existingItems.map(item => item.productId));
+    
+    // Hole den Lagernamen über Storage
+    const warehouse = await storage.getWarehouse(warehouseId);
+    
+    // Hole die Produktinformationen für alle Inventarelemente
+    const productInfos = await Promise.all(
+      warehouseInventory.map(async (item) => {
+        const product = await storage.getProduct(item.productId);
+        return {
+          inventoryItem: item,
+          product: product
+        };
+      })
+    );
+    
+    // Strukturierte Antwort mit allen notwendigen Informationen
+    const response = {
+      warehouseId,
+      warehouseName: warehouse?.name || "Unbekanntes Lager",
+      existingItems,
+      availableProducts: productInfos.map(info => {
+        const item = info.inventoryItem;
+        const product = info.product;
+        
+        return {
+          id: item.productId,
+          sku: product?.sku || '',
+          name: product?.productName || 'Unbenanntes Produkt',
+          currentQuantity: item.quantity || 0,
+          minQuantity: item.minQuantity || 0,
+          maxQuantity: item.maxQuantity || 0,
+          alreadyInCount: existingProductIds.has(item.productId || 0)
+        };
+      })
+    };
+    
+    res.json(response);
+  } catch (error) {
+    console.error(`Error fetching available items for inventory count ID ${req.params.id}:`, error);
+    res.status(500).json({ 
+      error: "Failed to fetch available items for inventory count", 
+      details: error instanceof Error ? error.message : String(error) 
+    });
+  }
+});
+
 // Debug-Routes für Batch-Funktionalität
 router.get('/product-batches', async (req: Request, res: Response) => {
   try {

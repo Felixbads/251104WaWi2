@@ -688,6 +688,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+  
+  // POST /inventory-counts/:id/add-all-products - Fügt automatisch alle Lagerprodukte zur Inventur hinzu
+  app.post(`${API_PREFIX}/inventory-counts/:id/add-all-products`, async (req: Request, res: Response) => {
+    try {
+      const inventoryCountId = parseInt(req.params.id);
+      
+      if (!inventoryCountId) {
+        return res.status(400).json({ error: "Inventory Count ID is required" });
+      }
+      
+      // Überprüfe, ob die Inventurzählung existiert
+      const count = await storage.getInventoryCount(inventoryCountId);
+      if (!count) {
+        return res.status(404).json({ error: "Inventory Count not found" });
+      }
+      
+      // Hole alle Inventurelemente des Lagers
+      const warehouseId = count.warehouseId;
+      const inventoryItems = await storage.getInventoryItems({ warehouseId });
+      
+      if (!inventoryItems || inventoryItems.length === 0) {
+        return res.status(404).json({ 
+          error: "No inventory items found for this warehouse",
+          warehouseId 
+        });
+      }
+      
+      // Überprüfe, ob bereits Elemente für diese Inventurzählung existieren
+      const existingItems = await storage.getInventoryCountItems(inventoryCountId);
+      const existingProductIds = new Set(existingItems.map(item => item.productId));
+      
+      // Speichere nur die Produkte, die noch nicht hinzugefügt wurden
+      const savedItems = [];
+      let skippedItems = 0;
+      
+      for (const item of inventoryItems) {
+        // Überspringe, wenn das Produkt bereits in der Inventur ist
+        if (existingProductIds.has(item.productId || 0)) {
+          skippedItems++;
+          continue;
+        }
+        
+        const savedItem = await storage.createInventoryCountItem({
+          inventoryCountId,
+          productId: item.productId || 0,
+          expectedQuantity: item.quantity || 0,
+          // Initially, we set countedQuantity to null to indicate it hasn't been counted
+          actualQuantity: null,
+          status: 'pending'
+        });
+        
+        savedItems.push(savedItem);
+      }
+      
+      console.log(`${savedItems.length} neue Inventurelemente für ID ${inventoryCountId} gespeichert, ${skippedItems} übersprungen`);
+      
+      res.status(201).json({
+        success: true,
+        addedItems: savedItems.length,
+        skippedItems,
+        totalItems: savedItems.length + skippedItems
+      });
+    } catch (error) {
+      console.error("Error adding all products to inventory count:", error);
+      res.status(500).json({ 
+        error: "Failed to add all products to inventory count", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
 
   // Create HTTP server
   const httpServer = createServer(app);
