@@ -179,7 +179,10 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
   } = useQuery<InventoryCountItem[]>({
     queryKey: [`/api/inventory-counts/${id}/items`],
     staleTime: 5 * 1000, // 5 Sekunden Cache
-    enabled: !!id
+    enabled: !!id,
+    onSuccess: (data) => {
+      console.log(`Inventurelemente geladen: ${data?.length || 0} Produkte`);
+    }
   });
 
   // Lade verfügbare Lagerprodukte für Hinzufügung
@@ -459,20 +462,40 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
 
   // Gefilterte Inventurpositionen basierend auf Suchbegriff
   const filteredItems = useMemo(() => {
-    if (!searchTerm.trim() || !inventurItems || inventurItems.length === 0) {
-      return inventurItems;
+    if (!inventurItems || inventurItems.length === 0) {
+      console.log("Keine Inventurelemente vorhanden oder leere Liste");
+      return [];
+    }
+    
+    // Protokolliere alle vorhandenen Elemente zur Fehlersuche
+    console.log(`Inventurelemente vor der Filterung: ${inventurItems.length}`, 
+      inventurItems.map(item => ({
+        id: item.id,
+        productName: item.productName || 'kein Name',
+        expectedQuantity: item.expectedQuantity || 0
+      }))
+    );
+    
+    // Wenn kein Suchbegriff vorhanden ist, gib alle Elemente zurück, aber sortiert
+    if (!searchTerm.trim()) {
+      return [...inventurItems].sort((a: any, b: any) => {
+        return (a.productName || '').localeCompare(b.productName || '');
+      });
     }
     
     const searchLower = searchTerm.toLowerCase();
     return inventurItems.filter((item: any) => {
       return (
         (item.product?.name && item.product.name.toLowerCase().includes(searchLower)) ||
+        (item.productName && item.productName.toLowerCase().includes(searchLower)) ||
         (item.product?.productName && item.product.productName.toLowerCase().includes(searchLower)) ||
         (item.product?.sku && item.product.sku.toLowerCase().includes(searchLower))
       );
     }).sort((a: any, b: any) => {
-      // Sortiere nach Produktname
-      return a.product?.productName?.localeCompare(b.product?.productName || '');
+      // Sortiere nach Produktname (entweder direkt oder aus product-Objekt)
+      const nameA = a.productName || a.product?.productName || '';
+      const nameB = b.productName || b.product?.productName || '';
+      return nameA.localeCompare(nameB);
     });
   }, [inventurItems, searchTerm]);
 

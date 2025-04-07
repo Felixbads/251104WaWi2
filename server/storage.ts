@@ -1302,6 +1302,13 @@ export class DatabaseStorage implements IStorage {
     return product;
   }
 
+  async getProductByName(productName: string): Promise<Product | undefined> {
+    const [product] = await db.select()
+      .from(products)
+      .where(eq(products.productName, productName));
+    return product;
+  }
+
   async createProduct(product: InsertProduct): Promise<Product> {
     // Add timestamps to ensure consistent data
     const [newProduct] = await db.insert(products).values({
@@ -2512,6 +2519,83 @@ export class DatabaseStorage implements IStorage {
     return assignment;
   }
 
+  // Funktion zum Hinzufügen von Produkten in ein Lager, wenn sie in einem Automaten vorhanden sind, aber noch nicht im Lager
+  async syncMachineProductsToWarehouse(machineId: number, warehouseId: number): Promise<{
+    added: number,
+    existing: number,
+    error?: any
+  }> {
+    try {
+      console.log(`Synchronisiere Produkte von Automat ${machineId} mit Lager ${warehouseId}...`);
+      
+      // Produkte des Automaten abrufen
+      const machineProducts = await this.getMachineProducts(machineId);
+      if (!machineProducts.length) {
+        console.log(`Keine Produkte in Automat ${machineId} gefunden.`);
+        return { added: 0, existing: 0 };
+      }
+      
+      console.log(`Gefundene Produkte in Automat ${machineId}: ${machineProducts.length}`);
+      
+      // Existierende Lagerbestände abrufen
+      const warehouseInventory = await this.getInventoryItems({ warehouseId });
+      const existingProductNames = new Set(
+        warehouseInventory.map(item => item.productName).filter(Boolean)
+      );
+      
+      console.log(`Existierende Produkte im Lager ${warehouseId}: ${existingProductNames.size}`);
+      
+      let added = 0;
+      let existing = 0;
+      
+      // Für jedes Produkt im Automaten:
+      for (const machineProduct of machineProducts) {
+        if (!machineProduct.productName) continue;
+        
+        // Prüfen, ob das Produkt bereits im Lager existiert
+        if (existingProductNames.has(machineProduct.productName)) {
+          console.log(`Produkt "${machineProduct.productName}" bereits im Lager ${warehouseId} vorhanden`);
+          existing++;
+          continue;
+        }
+        
+        // Produkt im System suchen oder erstellen
+        let product = await this.getProductByName(machineProduct.productName);
+        
+        if (!product) {
+          console.log(`Produkt "${machineProduct.productName}" nicht in der Datenbank gefunden, erstelle es...`);
+          // Produkt erstellen, wenn es noch nicht existiert
+          product = await this.createProduct({
+            productName: machineProduct.productName,
+            vendonId: "", // Leere Vendon-ID, kann später aktualisiert werden
+            price: machineProduct.price || 0,
+            status: "active",
+            category: "Automatisch hinzugefügt"
+          });
+          console.log(`Neues Produkt erstellt: ${product.id} - ${product.productName}`);
+        }
+        
+        // Produkt zum Lagerbestand hinzufügen
+        const newInventoryItem = await this.createInventoryItem({
+          warehouseId,
+          productId: product.id,
+          quantity: 0, // Anfangsbestand ist 0
+          minQuantity: 0, // Standardwert
+          status: "active",
+          locationInWarehouse: "Automatisch hinzugefügt"
+        });
+        
+        console.log(`Produkt "${machineProduct.productName}" zu Lager ${warehouseId} hinzugefügt`);
+        added++;
+      }
+      
+      return { added, existing };
+    } catch (error) {
+      console.error("Fehler beim Synchronisieren von Produkten zum Lager:", error);
+      return { added: 0, existing: 0, error };
+    }
+  }
+
   async createMachineWarehouseAssignment(
     assignment: InsertMachineWarehouseAssignment
   ): Promise<MachineWarehouseAssignment> {
@@ -2519,6 +2603,16 @@ export class DatabaseStorage implements IStorage {
       ...assignment,
       createdAt: new Date()
     }).returning();
+    
+    // Nach dem Erstellen der Zuweisung synchronisieren wir die Produkte des Automaten mit dem Lager
+    if (newAssignment) {
+      try {
+        await this.syncMachineProductsToWarehouse(newAssignment.machineId, newAssignment.warehouseId);
+      } catch (syncError) {
+        console.error("Fehler beim Synchronisieren von Produkten nach Automaten-Zuordnung:", syncError);
+        // Wir lassen den Fehler nicht hochbubbling, da die Zuordnung trotzdem erfolgreich erstellt wurde
+      }
+    }
     
     return newAssignment;
   }
