@@ -81,15 +81,37 @@ const InventoryCountNew = ({
   const [showStartForm, setShowStartForm] = useState(false);
   const [countNotes, setCountNotes] = useState('');
 
-  // Abfrage für eine spezifische Inventur, wenn inventoryId vorhanden ist
-  const {
-    data: specificInventoryCount,
-    isLoading: specificInventoryLoading,
-  } = useQuery({
-    queryKey: ['/api/inventory-counts', inventoryId],
-    enabled: !!inventoryId,
-    staleTime: 30000, // 30 Sekunden Caching
-  });
+  // Interne Zustände für manuellen Abruf der Inventur
+  const [specificInventoryCount, setSpecificInventoryCount] = useState<InventoryCount | null>(null);
+  const [specificInventoryLoading, setSpecificInventoryLoading] = useState<boolean>(false);
+  
+  // Manueller Abruf der spezifischen Inventurzählung, wenn inventoryId vorhanden ist
+  useEffect(() => {
+    if (inventoryId) {
+      setSpecificInventoryLoading(true);
+      
+      // Lade alle Inventurzählungen und filtere nach der gesuchten ID
+      fetch('/api/inventory-counts')
+        .then(res => res.json())
+        .then(allCounts => {
+          console.log("Alle Inventurzählungen:", allCounts);
+          // Finde die Inventurzählung mit der entsprechenden ID
+          const foundCount = Array.isArray(allCounts) 
+            ? allCounts.find((count: any) => count.id === parseInt(inventoryId))
+            : null;
+          
+          if (foundCount) {
+            console.log("Gefundene Inventurzählung:", foundCount);
+            setSpecificInventoryCount(foundCount as InventoryCount);
+          }
+          setSpecificInventoryLoading(false);
+        })
+        .catch(error => {
+          console.error("Fehler beim Laden der Inventurzählung:", error);
+          setSpecificInventoryLoading(false);
+        });
+    }
+  }, [inventoryId]);
 
   // Abfrage der aktiven Inventuren für dieses Lager, wenn keine spezifische ID angegeben ist
   const {
