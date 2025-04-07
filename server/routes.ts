@@ -835,7 +835,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`Lager gefunden: ${warehouse.name} (ID: ${warehouseId})`);
       
-      const inventoryItems = await storage.getInventoryItems({ warehouseId });
+      const inventoryItems = await storage.getInventoryItems({ 
+        warehouseId,
+        includeZeroStock: true // Wichtig: Auch Produkte mit Bestand 0 einschließen
+      });
       console.log(`${inventoryItems.length} Lagerprodukte gefunden`);
       
       if (!inventoryItems || inventoryItems.length === 0) {
