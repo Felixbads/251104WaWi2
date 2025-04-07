@@ -1,0 +1,43 @@
+Prompt für die Neuentwicklung einer Lagerverwaltungsseite (Lager 3)
+
+Du hattest den Auftrag, eine neue Lagerverwaltungsseite zu bauen. Was du jedoch geliefert hast, ist lediglich eine Kopie der bereits bestehenden, nicht funktionierenden Seite.
+
+Ich bitte dich daher eindringlich, den gesamten Ablauf und Prozess der Lagerhaltung detailliert zu analysieren und anschließend eine vollständig neue Lagerseite („Lager 3“) zu entwickeln, die folgende Anforderungen erfüllt:
+
+Ziel:
+
+Ein stabil funktionierendes Lagerhaltungssystem, bei dem:
+	•	neue Lager angelegt werden können,
+	•	Automaten einem Lager zugeordnet werden können,
+	•	die Produkte der Automaten automatisch im zugeordneten Lager auftauchen,
+	•	über die Inventur jedem Produkt ein Warenbestand zugewiesen werden kann,
+	•	Refills der Automaten den Lagerbestand korrekt reduzieren,
+	•	Wareneingänge (z. B. aus Bestellungen) den Bestand im Lager korrekt erhöhen,
+	•	Warenabgänge (z. B. Verluste, Ablauf etc.) den Bestand korrekt reduzieren,
+	•	Umbuchungen zwischen Lagern möglich sind und den Bestand korrekt anpassen.
+
+Zentrales Thema – Warenbestandsverfolgung:
+
+Das größte Problem der bisherigen Lösung war die nicht funktionierende, unzuverlässige Verfolgung des Warenbestands. Deine wichtigste Aufgabe ist es, hier eine perfekte und transparente Verfolgung aller Warenbewegungen zu realisieren. Dazu zählen:
+	•	Bestände vor und nach einem Refill,
+	•	Umbuchungen zwischen Lagern,
+	•	Wareneingänge durch Bestellungen,
+	•	manuelle Abgänge (z. B. Schwund, MHD),
+	•	automatische Reduktion durch Verkauf oder Entnahme.
+
+Jede Veränderung des Warenbestands muss nachvollziehbar und historisch einsehbar sein.
+
+Anforderung an die Architektur:
+	•	Zentrale Datenbankstruktur pro Lager, die Folgendes abbildet:
+	•	Produkte (inkl. Zuordnung zum Lieferanten),
+	•	Warenbestand je Produkt,
+	•	Batches je Produkt mit MHD,
+	•	lückenlose Historie aller Warenbewegungen (Einlagerung, Auslagerung, Umbuchung, Refill etc.),
+	•	klare Verknüpfung zu Automaten und deren Füllständen.
+
+Erwartung:
+	•	Denk dir ein neues, robusteres System aus als das bisherige.
+	•	Kein Kopieren oder Anpassen der alten Seite, sondern ein echtes Re-Design.
+	•	Überlege dir auch, wie du das Frontend strukturierst, damit die Nutzerführung klar, einfach und funktional ist.
+	•	Achte auf eine klare Trennung von Frontend, Backend und Datenlogik, sodass die Seite zuverlässig und erweiterbar ist.
+	•	Entwickle ein aussagekräftiges Protokoll aller Warenbewegungen, mit Zeitstempel, Nutzerinfo und Grund der Änderung.
