@@ -92,6 +92,9 @@ export default function WarehouseDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
+  // URL-Parameter verarbeiten
+  const [inventoryIdParam, setInventoryIdParam] = useState<string | null>(null);
+  
   // Zustandsvariablen
   const [activeTab, setActiveTab] = useState("overview");
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
@@ -225,6 +228,28 @@ export default function WarehouseDetail() {
       setEditedWarehouse({ ...warehouse });
     }
   }, [warehouse]);
+  
+  // Effekt: URL-Parameter überprüfen und verarbeiten
+  useEffect(() => {
+    // Überprüfe URL-Parameter
+    if (location) {
+      const urlParams = new URLSearchParams(location.split('?')[1]);
+      const tabParam = urlParams.get('tab');
+      const inventoryIdParam = urlParams.get('inventoryId');
+      
+      console.log('URL-Parameter gefunden:', { tabParam, inventoryIdParam });
+      
+      // Tab-Parameter setzen, falls vorhanden
+      if (tabParam) {
+        setActiveTab(tabParam);
+      }
+      
+      // Inventur-ID-Parameter setzen, falls vorhanden
+      if (inventoryIdParam) {
+        setInventoryIdParam(inventoryIdParam);
+      }
+    }
+  }, [location]);
   
   // Handler: Tab-Wechsel
   const handleTabChange = (tab: string) => {
@@ -983,6 +1008,7 @@ export default function WarehouseDetail() {
               <InventoryCountNew 
                 warehouseId={Number(id)}
                 inventory={inventory}
+                inventoryId={inventoryIdParam}
                 onComplete={() => {
                   refetchInventory();
                   toast({

@@ -60,12 +60,14 @@ const InventoryCountNew = ({
   warehouseId,
   inventory = [],
   onComplete,
-  onCancel
+  onCancel,
+  inventoryId
 }: {
   warehouseId: number;
   inventory: any[];
   onComplete?: () => void;
   onCancel?: () => void;
+  inventoryId?: string | null;
 }) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -79,7 +81,17 @@ const InventoryCountNew = ({
   const [showStartForm, setShowStartForm] = useState(false);
   const [countNotes, setCountNotes] = useState('');
 
-  // Abfrage der aktiven Inventuren für dieses Lager
+  // Abfrage für eine spezifische Inventur, wenn inventoryId vorhanden ist
+  const {
+    data: specificInventoryCount,
+    isLoading: specificInventoryLoading,
+  } = useQuery({
+    queryKey: ['/api/inventory-counts', inventoryId],
+    enabled: !!inventoryId,
+    staleTime: 30000, // 30 Sekunden Caching
+  });
+
+  // Abfrage der aktiven Inventuren für dieses Lager, wenn keine spezifische ID angegeben ist
   const {
     data: inventoryCounts = [],
     isLoading: countsLoading,
@@ -89,30 +101,52 @@ const InventoryCountNew = ({
       warehouseId: warehouseId,
       status: 'in_progress' 
     }],
+    enabled: !inventoryId, // Nur abfragen, wenn keine spezifische ID angegeben ist
     staleTime: 30000, // 30 Sekunden Caching
   });
 
-  // Initialisierung - Prüfe auf aktive Inventuren
+  // Verarbeitung der spezifischen Inventur, wenn inventoryId vorhanden ist
   useEffect(() => {
-    if (Array.isArray(inventoryCounts) && inventoryCounts.length > 0) {
-      // Setze die erste aktive Inventur als aktuell aktiv
-      setActiveCount(inventoryCounts[0]);
-      console.log('Aktive Inventur gefunden:', inventoryCounts[0]);
+    if (specificInventoryCount) {
+      console.log('Spezifische Inventur geladen:', specificInventoryCount);
+      setActiveCount(specificInventoryCount);
       
       // Wenn die Inventur bereits Elemente hat, verwende diese
-      if (inventoryCounts[0].items && inventoryCounts[0].items.length > 0) {
-        setInventoryItems(inventoryCounts[0].items);
+      if (specificInventoryCount.items && specificInventoryCount.items.length > 0) {
+        setInventoryItems(specificInventoryCount.items);
       } else {
         // Ansonsten initialisiere mit dem aktuellen Inventar
         initializeItemsFromInventory();
       }
-    } else {
-      // Es gibt keine aktive Inventur
-      setActiveCount(null);
-      // In diesem Fall können wir die Formularansicht anzeigen
-      setShowStartForm(true);
+      
+      // Formularansicht ausblenden, da wir eine vorhandene Inventur anzeigen
+      setShowStartForm(false);
     }
-  }, [inventoryCounts, warehouseId]);
+  }, [specificInventoryCount]);
+
+  // Initialisierung - Prüfe auf aktive Inventuren (wenn keine spezifische ID angegeben ist)
+  useEffect(() => {
+    if (!inventoryId) { // Nur ausführen, wenn keine spezifische ID übergeben wurde
+      if (Array.isArray(inventoryCounts) && inventoryCounts.length > 0) {
+        // Setze die erste aktive Inventur als aktuell aktiv
+        setActiveCount(inventoryCounts[0]);
+        console.log('Aktive Inventur gefunden:', inventoryCounts[0]);
+        
+        // Wenn die Inventur bereits Elemente hat, verwende diese
+        if (inventoryCounts[0].items && inventoryCounts[0].items.length > 0) {
+          setInventoryItems(inventoryCounts[0].items);
+        } else {
+          // Ansonsten initialisiere mit dem aktuellen Inventar
+          initializeItemsFromInventory();
+        }
+      } else {
+        // Es gibt keine aktive Inventur
+        setActiveCount(null);
+        // In diesem Fall können wir die Formularansicht anzeigen
+        setShowStartForm(true);
+      }
+    }
+  }, [inventoryCounts, warehouseId, inventoryId]);
 
   // Initialisierung der Inventurzählung mit aktuellen Bestandsdaten
   const initializeItemsFromInventory = () => {
@@ -386,7 +420,7 @@ const InventoryCountNew = ({
   const differencePercentage = totalItems > 0 ? (itemsWithDifference / totalItems) * 100 : 0;
 
   // Wenn Daten geladen werden
-  if (countsLoading) {
+  if (countsLoading || specificInventoryLoading) {
     return (
       <div className="flex justify-center p-8">
         <Loader2 className="h-8 w-8 animate-spin" />
