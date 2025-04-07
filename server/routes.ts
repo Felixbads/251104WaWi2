@@ -520,7 +520,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Validiere warehouseId
-      const warehouse = await storage.getWarehouseById(warehouseId);
+      const warehouse = await storage.getWarehouse(warehouseId);
       if (!warehouse) {
         return res.status(404).json({ error: "Warehouse not found" });
       }
@@ -559,7 +559,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Überprüfe, ob die Inventurzählung existiert
-      const count = await storage.getInventoryCountById(inventoryCountId);
+      const count = await storage.getInventoryCount(inventoryCountId);
       if (!count) {
         return res.status(404).json({ error: "Inventory Count not found" });
       }
@@ -599,7 +599,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Überprüfe, ob die Inventurzählung existiert
-      const count = await storage.getInventoryCountById(inventoryCountId);
+      const count = await storage.getInventoryCount(inventoryCountId);
       if (!count) {
         return res.status(404).json({ error: "Inventory Count not found" });
       }
@@ -667,7 +667,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Überprüfe, ob die Inventurzählung existiert
-      const count = await storage.getInventoryCountById(inventoryCountId);
+      const count = await storage.getInventoryCount(inventoryCountId);
       if (!count) {
         return res.status(404).json({ error: "Inventory Count not found" });
       }
