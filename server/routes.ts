@@ -2479,7 +2479,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/machine-warehouse-assignments`, machineWarehouseAssignmentsRouter);
   app.use(`${API_PREFIX}/product-batches`, productBatchesRouter);
   app.use(`${API_PREFIX}/warehouse3`, warehouse3Router); // Bestehende Implementierung
-  app.use(`${API_PREFIX}/warehouse3/api`, warehouse3ApiRouter); // Neue Lagerverwaltung API (Version 3)
+  app.use(`${API_PREFIX}/warehouse3-api`, warehouse3ApiRouter); // Neue Lagerverwaltung API (Version 3)
   
   // Registriere Export/Import-Routen
   app.use(`${API_PREFIX}`, exportImportRoutes);

@@ -42,7 +42,7 @@ export default function WarehouseList() {
   
   // Abrufen aller Lager
   const { data: warehouses, isLoading, isError, error } = useQuery({
-    queryKey: ['/api/warehouse3/warehouses'],
+    queryKey: ['/api/warehouse3-api/warehouses'],
     retry: 1,
   });
 
@@ -56,12 +56,12 @@ export default function WarehouseList() {
   // Funktion zur Erstellung eines neuen Lagers
   const handleCreateWarehouse = async (warehouseData: any) => {
     try {
-      await apiRequest('/api/warehouse3/warehouses', {
+      await apiRequest('/api/warehouse3-api/warehouses', {
         method: 'POST',
         data: warehouseData,
       });
       
-      queryClient.invalidateQueries({ queryKey: ['/api/warehouse3/warehouses'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/warehouse3-api/warehouses'] });
       setIsCreateDialogOpen(false);
       toast({
         title: "Lager erstellt",
@@ -169,7 +169,7 @@ export default function WarehouseList() {
                 {(error as Error)?.message || "Es ist ein unbekannter Fehler aufgetreten."}
               </p>
               <Button 
-                onClick={() => queryClient.invalidateQueries({ queryKey: ['/api/warehouse3/warehouses'] })}
+                onClick={() => queryClient.invalidateQueries({ queryKey: ['/api/warehouse3-api/warehouses'] })}
                 variant="outline"
               >
                 Erneut versuchen

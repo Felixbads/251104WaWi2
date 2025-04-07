@@ -47,14 +47,14 @@ export default function WarehouseDetail() {
   
   // Lager-Daten abrufen
   const { data: warehouse, isLoading, isError, error } = useQuery({
-    queryKey: ['/api/warehouse3/warehouses', warehouseId],
+    queryKey: ['/api/warehouse3-api/warehouses', warehouseId],
     retry: 1,
     enabled: !isNaN(warehouseId),
   });
 
   // Zusammenfassende Statistiken abrufen
   const { data: stats, isLoading: isLoadingStats } = useQuery({
-    queryKey: ['/api/warehouse3/warehouses', warehouseId, 'stats'],
+    queryKey: ['/api/warehouse3-api/warehouses', warehouseId, 'stats'],
     retry: 1,
     enabled: !isNaN(warehouseId) && !!warehouse,
   });
@@ -62,12 +62,12 @@ export default function WarehouseDetail() {
   // Funktion zur Aktualisierung eines Lagers
   const handleUpdateWarehouse = async (warehouseData: any) => {
     try {
-      await apiRequest(`/api/warehouse3/warehouses/${warehouseId}`, {
+      await apiRequest(`/api/warehouse3-api/warehouses/${warehouseId}`, {
         method: 'PATCH',
         data: warehouseData,
       });
       
-      queryClient.invalidateQueries({ queryKey: ['/api/warehouse3/warehouses', warehouseId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/warehouse3-api/warehouses', warehouseId] });
       setIsEditDialogOpen(false);
       toast({
         title: "Lager aktualisiert",
@@ -188,7 +188,7 @@ export default function WarehouseDetail() {
                 {(error as Error)?.message || `Das Lager mit der ID ${warehouseId} wurde nicht gefunden.`}
               </p>
               <Button 
-                onClick={() => queryClient.invalidateQueries({ queryKey: ['/api/warehouse3/warehouses', warehouseId] })}
+                onClick={() => queryClient.invalidateQueries({ queryKey: ['/api/warehouse3-api/warehouses', warehouseId] })}
                 variant="outline"
                 className="mr-2"
               >
