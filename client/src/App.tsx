@@ -74,6 +74,7 @@ import WarehouseMovements from "@/pages/WarehouseMovements";
 import WarenentnahmePage from "@/pages/WarenentnahmePage";
 import WarenentnahmeDetail from "@/pages/WarenentnahmeDetail";
 import WarenentnahmeNew from "@/pages/WarenentnahmeNew";
+import InventoryMovementNew from "@/pages/InventoryMovementNew";
 import UserManagement from "@/pages/UserManagement";
 
 // Authentifizierte und nicht-authentifizierte Router
@@ -208,6 +209,12 @@ function AuthenticatedRouter() {
         <Route path="/inventory" component={props => (
           <ApprovedUserRoute>
             <Inventory {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/inventory/movements/new" component={props => (
+          <ApprovedUserRoute>
+            <InventoryMovementNew {...props} />
           </ApprovedUserRoute>
         )} />
         
