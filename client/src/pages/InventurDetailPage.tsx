@@ -175,12 +175,13 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
   // Lade Inventurelemente
   const {
     data: inventurItems = [] as InventoryCountItem[],
-    isLoading: isLoadingItems
+    isLoading: isLoadingItems,
+    refetch: refetchInventurItems
   } = useQuery<InventoryCountItem[]>({
     queryKey: [`/api/inventory-counts/${id}/items`],
     staleTime: 5 * 1000, // 5 Sekunden Cache
     enabled: !!id,
-    onSuccess: (data) => {
+    onSuccess: (data: InventoryCountItem[]) => {
       console.log(`Inventurelemente geladen: ${data?.length || 0} Produkte`);
     }
   });

@@ -835,11 +835,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`Lager gefunden: ${warehouse.name} (ID: ${warehouseId})`);
       
+      // Synchronisiere zuerst alle Automatenprodukte mit dem Lager
+      console.log(`Synchronisiere alle Automaten-Produkte mit Lager ${warehouseId} vor dem Hinzufügen zur Inventur...`);
+      await storage.reconcileWarehouseProducts(warehouseId);
+      
+      // Jetzt holen wir die aktualisierten Lagerprodukte
       const inventoryItems = await storage.getInventoryItems({ 
         warehouseId,
         includeZeroStock: true // Wichtig: Auch Produkte mit Bestand 0 einschließen
       });
-      console.log(`${inventoryItems.length} Lagerprodukte gefunden`);
+      console.log(`${inventoryItems.length} Lagerprodukte gefunden nach Synchronisierung`);
       
       if (!inventoryItems || inventoryItems.length === 0) {
         console.warn(`Keine Lagerprodukte für Lager ${warehouseId} gefunden!`);
