@@ -24,6 +24,7 @@ interface InventoryCount {
   updatedAt?: string;
   items?: InventoryCountItem[];
   warehouse?: Warehouse;
+  warehouseName?: string; // Name des Lagers, der vom API zurückgegeben wird
 }
 
 interface InventoryCountItem {
@@ -879,7 +880,7 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
             ) : (
               <div className="flex items-center gap-2">
                 <Package className="h-5 w-5 text-muted-foreground" />
-                <span className="text-lg font-semibold">{inventurData.warehouseName || 'Unbekanntes Lager'}</span>
+                <span className="text-lg font-semibold">{warehouseData?.name || inventurData.warehouseName || 'Unbekanntes Lager'}</span>
               </div>
             )}
           </CardContent>

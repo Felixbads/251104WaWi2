@@ -510,6 +510,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /inventory-counts/:id - Einzelne Inventurzählung abrufen
+  app.get(`${API_PREFIX}/inventory-counts/:id`, async (req: Request, res: Response) => {
+    try {
+      const inventoryCountId = parseInt(req.params.id);
+      
+      if (!inventoryCountId) {
+        return res.status(400).json({ error: "Inventory Count ID is required" });
+      }
+      
+      const count = await storage.getInventoryCount(inventoryCountId);
+      
+      if (!count) {
+        return res.status(404).json({ error: "Inventory Count not found" });
+      }
+      
+      // Hole auch zusätzliche Informationen zum zugehörigen Lager
+      const warehouse = await storage.getWarehouse(count.warehouseId);
+      
+      // Füge Lagername zur Antwort hinzu
+      const result = {
+        ...count,
+        warehouseName: warehouse?.name
+      };
+      
+      res.status(200).json(result);
+    } catch (error) {
+      console.error("Fehler beim Abrufen der Inventurzählung:", error);
+      res.status(500).json({ error: "Failed to retrieve inventory count" });
+    }
+  });
+
+  // GET /inventory-counts/:id/items - Inventurzählungselemente abrufen
+  app.get(`${API_PREFIX}/inventory-counts/:id/items`, async (req: Request, res: Response) => {
+    try {
+      const inventoryCountId = parseInt(req.params.id);
+      
+      if (!inventoryCountId) {
+        return res.status(400).json({ error: "Inventory Count ID is required" });
+      }
+      
+      const items = await storage.getInventoryCountItems(inventoryCountId);
+      
+      // Hole detaillierte Produktinformationen für jedes Item
+      const enrichedItems = await Promise.all(items.map(async (item) => {
+        const product = await storage.getProduct(item.productId);
+        return {
+          ...item,
+          product
+        };
+      }));
+      
+      res.status(200).json(enrichedItems);
+    } catch (error) {
+      console.error("Fehler beim Abrufen der Inventurzählungselemente:", error);
+      res.status(500).json({ error: "Failed to retrieve inventory count items" });
+    }
+  });
+
+  // GET /inventory-counts/:id/available-items - Verfügbare Produkte für Inventurzählung abrufen
+  app.get(`${API_PREFIX}/inventory-counts/:id/available-items`, async (req: Request, res: Response) => {
+    try {
+      const inventoryCountId = parseInt(req.params.id);
+      
+      if (!inventoryCountId) {
+        return res.status(400).json({ error: "Inventory Count ID is required" });
+      }
+      
+      // Überprüfe, ob die Inventurzählung existiert
+      const count = await storage.getInventoryCount(inventoryCountId);
+      if (!count) {
+        return res.status(404).json({ error: "Inventory Count not found" });
+      }
+      
+      // Hole das Lager ID von der Inventurzählung
+      const warehouseId = count.warehouseId;
+      
+      // Hole alle Produkte im Lager
+      const inventoryItems = await storage.getInventoryItems({ 
+        warehouseId,
+        includeZeroStock: true // Wichtig: Auch Produkte mit Bestand 0 einschließen
+      });
+      
+      // Hole bereits in der Inventur existierende Elemente
+      const existingItems = await storage.getInventoryCountItems(inventoryCountId);
+      const existingProductIds = new Set(existingItems.map(item => item.productId));
+      
+      // Filtere nur die Produkte, die noch nicht in der Inventur sind
+      const availableItems = inventoryItems.filter(item => !existingProductIds.has(item.productId || 0));
+      
+      // Hole detaillierte Produktinformationen
+      const productsWithDetails = await Promise.all(availableItems.map(async (item) => {
+        const product = await storage.getProduct(item.productId || 0);
+        return {
+          ...item,
+          product
+        };
+      }));
+      
+      res.status(200).json({
+        items: productsWithDetails,
+        total: productsWithDetails.length
+      });
+    } catch (error) {
+      console.error("Fehler beim Abrufen der verfügbaren Produkte:", error);
+      res.status(500).json({ error: "Failed to retrieve available items" });
+    }
+  });
+
   // POST /inventory-counts - Neue Inventurzählung erstellen
   app.post(`${API_PREFIX}/inventory-counts`, async (req: Request, res: Response) => {
     try {
