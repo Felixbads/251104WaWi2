@@ -360,8 +360,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         FROM refills r
         LEFT JOIN machines m ON r.machine_id = m.id
         WHERE r.machine_id = ANY(${machineIds})
-        ${startDate ? rawSql`AND r.datetime >= ${startDate}` : rawSql``}
-        ${endDate ? rawSql`AND r.datetime <= ${endDate}` : rawSql``}
+        ${startDate ? rawSql`AND r.datetime >= ${startDate.toISOString()}` : rawSql``}
+        ${endDate ? rawSql`AND r.datetime <= ${endDate.toISOString()}` : rawSql``}
         ORDER BY r.datetime DESC 
         LIMIT 500
       `;
