@@ -6,8 +6,80 @@ import { useToast } from '@/hooks/use-toast';
 import {
   ArrowLeft, Save, ClipboardCheck, Calendar, CheckCircle2, XCircle,
   Pencil, AlertTriangle, Package, Search, Plus, Minus, RefreshCw,
-  MoreHorizontal, Ban, ClockIcon
+  MoreHorizontal, Ban, ClockIcon, TrendingUp, TrendingDown, Equal
 } from 'lucide-react';
+
+// Interface-Definitionen für die Datentypen
+interface InventoryCount {
+  id: number;
+  warehouseId: number;
+  status: string;
+  scheduledDate?: string;
+  startDate?: string;
+  endDate?: string;
+  notes?: string;
+  initiatedBy?: number;
+  completedBy?: number;
+  createdAt: string;
+  updatedAt?: string;
+  items?: InventoryCountItem[];
+  warehouse?: Warehouse;
+}
+
+interface InventoryCountItem {
+  id: number;
+  inventoryCountId: number;
+  productId: number;
+  expectedQuantity: number;
+  actualQuantity?: number;
+  countedQuantity?: number | null;
+  difference?: number;
+  notes?: string;
+  status: string;
+  countedBy?: number;
+  countedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+  product?: Product;
+}
+
+interface Product {
+  id: number;
+  sku?: string;
+  name?: string;
+  productName: string;
+  description?: string;
+  unit?: string;
+  currentStock?: number;
+  minStock?: number;
+  maxStock?: number;
+  vendonId?: string;
+  archived?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface Warehouse {
+  id: number;
+  name: string;
+  location?: string;
+  description?: string;
+  archived?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface InventoryItems {
+  products: Product[];
+}
+
+interface ItemStats {
+  total: number;
+  counted: number;
+  increased: number;
+  decreased: number;
+  unchanged: number;
+}
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -81,9 +153,9 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
 
   // Lade Inventurinformationen
   const { 
-    data: inventurData = {}, 
+    data: inventurData = {} as InventoryCount, 
     isLoading: isLoadingInventur 
-  } = useQuery({
+  } = useQuery<InventoryCount>({
     queryKey: [`/api/inventory-counts/${id}`],
     staleTime: 10 * 1000, // 10 Sekunden Cache
     enabled: !isNaN(id)
@@ -91,19 +163,19 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
 
   // Lade Lagerdaten für Kontext
   const {
-    data: warehouseData = {},
+    data: warehouseData = {} as Warehouse,
     isLoading: isLoadingWarehouse
-  } = useQuery({
-    queryKey: [`/api/warehouses/${inventurData.warehouseId}`],
+  } = useQuery<Warehouse>({
+    queryKey: [`/api/warehouses/${inventurData?.warehouseId}`],
     staleTime: 60 * 1000, // 1 Minute Cache
-    enabled: !!inventurData.warehouseId
+    enabled: !!inventurData?.warehouseId
   });
 
   // Lade Inventurelemente
   const {
-    data: inventurItems = [],
+    data: inventurItems = [] as InventoryCountItem[],
     isLoading: isLoadingItems
-  } = useQuery({
+  } = useQuery<InventoryCountItem[]>({
     queryKey: [`/api/inventory-counts/${id}/items`],
     staleTime: 5 * 1000, // 5 Sekunden Cache
     enabled: !isNaN(id)
@@ -111,9 +183,9 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
 
   // Lade verfügbare Lagerprodukte für Hinzufügung
   const {
-    data: inventoryItems = {},
+    data: inventoryItems = {} as InventoryItems,
     isLoading: isLoadingInventoryItems
-  } = useQuery({
+  } = useQuery<InventoryItems>({
     queryKey: [`/api/inventory-counts/${id}/available-items`],
     staleTime: 30 * 1000, // 30 Sekunden Cache
     enabled: !isNaN(id) && showAddDialog
@@ -122,7 +194,25 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
   // Mutation zum Aktualisieren eines Zählerstands
   const updateCountMutation = useMutation({
     mutationFn: async (data: { id: number; countedQuantity: number | null }) => {
-      return await apiRequest(`/api/inventory-count-items/${data.id}`, 'PATCH', data);
+      try {
+        // Direkte Verwendung von fetch statt apiRequest für bessere Typisierung
+        const response = await fetch(`/api/inventory-count-items/${data.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Fehler beim Aktualisieren: ${response.status}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Fehler beim Aktualisieren des Zählerstands:', error);
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}/items`] });
@@ -146,7 +236,24 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
   // Mutation zum Hinzufügen neuer Produkte zur Inventur
   const addItemsMutation = useMutation({
     mutationFn: async (data: { items: any[] }) => {
-      return await apiRequest(`/api/inventory-counts/${id}/add-items`, 'POST', data);
+      try {
+        const response = await fetch(`/api/inventory-counts/${id}/add-items`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Fehler beim Hinzufügen: ${response.status}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Fehler beim Hinzufügen von Produkten:', error);
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}/items`] });
@@ -173,7 +280,24 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
   // Mutation zum Abschließen der Inventur
   const completeInventurMutation = useMutation({
     mutationFn: async (data: { notes?: string }) => {
-      return await apiRequest(`/api/inventory-counts/${id}/complete`, 'POST', data);
+      try {
+        const response = await fetch(`/api/inventory-counts/${id}/complete`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Fehler beim Abschließen: ${response.status}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Fehler beim Abschließen der Inventur:', error);
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}`] });
@@ -199,7 +323,24 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
   // Mutation zum Aktualisieren des Inventur-Status
   const updateStatusMutation = useMutation({
     mutationFn: async (status: string) => {
-      return await apiRequest(`/api/inventory-counts/${id}/status`, 'PATCH', { status });
+      try {
+        const response = await fetch(`/api/inventory-counts/${id}/status`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ status }),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Fehler beim Statusupdate: ${response.status}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Fehler beim Aktualisieren des Status:', error);
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}`] });

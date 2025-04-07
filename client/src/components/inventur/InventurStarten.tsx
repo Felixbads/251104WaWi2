@@ -28,8 +28,17 @@ export default function InventurStarten({ onInventurGestartet }: InventurStarten
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   
+  // Interface für Warehouse
+  interface Warehouse {
+    id: number;
+    name: string;
+    location?: string;
+    description?: string;
+    archived?: boolean;
+  }
+
   // Lade verfügbare Lager
-  const { data: warehouses = [], isLoading: isLoadingWarehouses } = useQuery({
+  const { data: warehouses = [] as Warehouse[], isLoading: isLoadingWarehouses } = useQuery<Warehouse[]>({
     queryKey: ['/api/warehouses'],
     staleTime: 5 * 60 * 1000, // 5 Minuten Cache
   });
@@ -37,7 +46,30 @@ export default function InventurStarten({ onInventurGestartet }: InventurStarten
   // Mutation zum Starten einer neuen Inventur
   const startInventurMutation = useMutation({
     mutationFn: async (data: { warehouseId: number, notes: string }) => {
-      return await apiRequest('/api/inventory-counts', 'POST', data);
+      try {
+        // Direkte Verwendung von fetch statt apiRequest für bessere Fehlerbehandlung
+        const response = await fetch('/api/inventory-counts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...data,
+            status: 'in_progress' // Status explizit auf "in_progress" setzen
+          }),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Server response:', errorData);
+          throw new Error(errorData.error || 'Fehler beim Starten der Inventur');
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Fehler beim Starten der Inventur:', error);
+        throw error; // Wichtig: Fehler weitergeben für die onError-Funktion
+      }
     },
     onSuccess: (data) => {
       // Invalidiere Inventur-Liste, um die neue Inventur anzuzeigen
@@ -51,18 +83,18 @@ export default function InventurStarten({ onInventurGestartet }: InventurStarten
       // Benachrichtige die übergeordnete Komponente
       onInventurGestartet();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('Fehler beim Starten der Inventur:', error);
       toast({
         title: "Fehler beim Starten der Inventur",
-        description: "Bitte versuchen Sie es später erneut.",
+        description: error.message || "Bitte versuchen Sie es später erneut.",
         variant: "destructive",
       });
     },
   });
   
   // Aktive (nicht archivierte) Lager filtern
-  const activeWarehouses = warehouses.filter((warehouse: any) => !warehouse.archived);
+  const activeWarehouses = warehouses.filter((warehouse: Warehouse) => !warehouse.archived);
   
   // Handler für das Starten einer Inventur
   const handleStartInventur = () => {
@@ -107,7 +139,7 @@ export default function InventurStarten({ onInventurGestartet }: InventurStarten
                 {activeWarehouses.length === 0 ? (
                   <SelectItem value="" disabled>Keine Lager verfügbar</SelectItem>
                 ) : (
-                  activeWarehouses.map((warehouse: any) => (
+                  activeWarehouses.map((warehouse: Warehouse) => (
                     <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
                       <div className="flex items-center">
                         <Warehouse className="h-4 w-4 mr-2" />
