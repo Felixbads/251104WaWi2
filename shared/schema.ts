@@ -1444,6 +1444,10 @@ export const productMovements = pgTable("product_movements", {
   referenceType: text("reference_type"), // ORDER, REFILL, INVENTORY_COUNT, MANUAL
   referenceId: text("reference_id"), // ID der Bestellung, Auffüllung, etc.
   
+  // Bestandsdokumentation für Audit-Trail
+  previousStock: integer("previous_stock"), // Vorheriger Lagerbestand
+  currentStock: integer("current_stock"), // Aktueller Lagerbestand nach der Entnahme
+  
   // Status und Metadaten
   status: text("status").default("completed"),
   notes: text("notes"),

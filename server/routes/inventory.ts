@@ -3,7 +3,7 @@ import { storage } from '../storage';
 
 const router = express.Router();
 
-// GET /inventory-count-detail?id=1 - Abrufen einer spezifischen Inventurzählung nach ID
+// GET /inventory-count-detail?id=1 - Abrufen einer spezifischen Inventurzählung nach ID (Legacy)
 router.get('/inventory-count-detail', async (req: Request, res: Response) => {
   try {
     const inventoryCountId = req.query.id ? parseInt(req.query.id as string) : null;
@@ -21,9 +21,57 @@ router.get('/inventory-count-detail', async (req: Request, res: Response) => {
     
     res.json(count);
   } catch (error) {
+    console.error(`Error fetching inventory count with ID ${req.query.id}:`, error);
+    res.status(500).json({ 
+      error: "Failed to fetch inventory count", 
+      details: error instanceof Error ? error.message : String(error) 
+    });
+  }
+});
+
+// GET /inventory-counts/:id - Abrufen einer spezifischen Inventurzählung nach ID (RESTful)
+router.get('/inventory-counts/:id', async (req: Request, res: Response) => {
+  try {
+    const inventoryCountId = parseInt(req.params.id);
+    
+    if (isNaN(inventoryCountId)) {
+      return res.status(400).json({ error: "Ungültige Inventurzählungs-ID" });
+    }
+    
+    // Verwende getInventoryCountById, um die Inventurzählung mit allen Details abzurufen
+    const count = await storage.getInventoryCountById(inventoryCountId);
+    
+    if (!count) {
+      return res.status(404).json({ error: "Inventurzählung nicht gefunden" });
+    }
+    
+    res.json(count);
+  } catch (error) {
     console.error(`Error fetching inventory count with ID ${req.params.id}:`, error);
     res.status(500).json({ 
       error: "Failed to fetch inventory count", 
+      details: error instanceof Error ? error.message : String(error) 
+    });
+  }
+});
+
+// GET /inventory-counts/:id/items - Abrufen aller Elemente einer Inventurzählung
+router.get('/inventory-counts/:id/items', async (req: Request, res: Response) => {
+  try {
+    const inventoryCountId = parseInt(req.params.id);
+    
+    if (isNaN(inventoryCountId)) {
+      return res.status(400).json({ error: "Ungültige Inventurzählungs-ID" });
+    }
+    
+    // Abrufen aller Items für diese Inventurzählung
+    const items = await storage.getInventoryCountItems(inventoryCountId);
+    
+    res.json(items);
+  } catch (error) {
+    console.error(`Error fetching inventory count items for count ID ${req.params.id}:`, error);
+    res.status(500).json({ 
+      error: "Failed to fetch inventory count items", 
       details: error instanceof Error ? error.message : String(error) 
     });
   }
@@ -254,6 +302,50 @@ router.post('/product-movement', async (req: Request, res: Response) => {
     }
     if (reason) movementData.reason = reason;
     if (notes) movementData.notes = notes;
+    
+    // Bei Lagerbewegungen aktuellen Lagerbestand ermitteln und dokumentieren
+    if (
+      (movementData.sourceType === 'warehouse' || movementData.destinationType === 'warehouse') && 
+      (movementData.previousStock === undefined || movementData.currentStock === undefined)
+    ) {
+      let warehouseId: number | null = null;
+      
+      if (movementData.sourceType === 'warehouse' && movementData.sourceId) {
+        warehouseId = movementData.sourceId;
+      } else if (movementData.destinationType === 'warehouse' && movementData.destinationId) {
+        warehouseId = movementData.destinationId;
+      }
+      
+      if (warehouseId && movementData.productId) {
+        try {
+          // Aktuellen Bestand ermitteln
+          const inventoryItem = await storage.getInventoryItemByProductAndWarehouse(
+            movementData.productId,
+            warehouseId
+          );
+          
+          if (inventoryItem) {
+            // Vorherigen Bestand dokumentieren
+            movementData.previousStock = inventoryItem.quantity || 0;
+            
+            // Neuen Bestand berechnen und dokumentieren
+            const isOutbound = 
+              (movementData.sourceType === 'warehouse' && movementData.sourceId === warehouseId) || 
+              movementData.movementType.includes("OUT");
+              
+            const newQuantity = isOutbound
+              ? (inventoryItem.quantity || 0) - movementData.quantity
+              : (inventoryItem.quantity || 0) + movementData.quantity;
+              
+            movementData.currentStock = newQuantity;
+            console.log(`Bestandsänderung dokumentiert: Vorher ${movementData.previousStock}, Nachher ${movementData.currentStock}`);
+          }
+        } catch (err) {
+          console.error("Fehler beim Abrufen des aktuellen Bestands:", err);
+          // Wir lassen die Bewegung trotzdem zu, auch wenn wir den Bestand nicht dokumentieren können
+        }
+      }
+    }
     
     const movement = await storage.createProductMovement(movementData);
     

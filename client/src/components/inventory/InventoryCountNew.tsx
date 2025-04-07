@@ -90,25 +90,44 @@ const InventoryCountNew = ({
     if (inventoryId) {
       setSpecificInventoryLoading(true);
       
-      // Lade alle Inventurzählungen und filtere nach der gesuchten ID
-      fetch('/api/inventory-counts')
-        .then(res => res.json())
-        .then(allCounts => {
-          console.log("Alle Inventurzählungen:", allCounts);
-          // Finde die Inventurzählung mit der entsprechenden ID
-          const foundCount = Array.isArray(allCounts) 
-            ? allCounts.find((count: any) => count.id === parseInt(inventoryId))
-            : null;
+      // Direkter Abruf der spezifischen Inventurzählung
+      fetch(`/api/inventory-counts/${inventoryId}`)
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`HTTP Fehler: ${res.status}`);
+          }
+          return res.json();
+        })
+        .then(data => {
+          console.log("Spezifische Inventurzählung geladen:", data);
+          setSpecificInventoryCount(data as InventoryCount);
           
-          if (foundCount) {
-            console.log("Gefundene Inventurzählung:", foundCount);
-            setSpecificInventoryCount(foundCount as InventoryCount);
+          // Wenn Items-Endpoint verfügbar ist, Elemente abrufen
+          return fetch(`/api/inventory-counts/${inventoryId}/items`);
+        })
+        .then(res => {
+          if (!res.ok) {
+            console.log("Keine Items gefunden für Inventur:", inventoryId);
+            return null;
+          }
+          return res.json();
+        })
+        .then(items => {
+          if (items && Array.isArray(items)) {
+            console.log("Inventurelemente geladen:", items);
+            // Aktualisiere die Inventurzählung mit den geladenen Elementen
+            setSpecificInventoryCount(prev => prev ? {...prev, items} : null);
           }
           setSpecificInventoryLoading(false);
         })
         .catch(error => {
           console.error("Fehler beim Laden der Inventurzählung:", error);
           setSpecificInventoryLoading(false);
+          toast({
+            title: 'Fehler beim Laden der Inventurzählung',
+            description: error.message || 'Die Inventurzählung konnte nicht geladen werden.',
+            variant: 'destructive'
+          });
         });
     }
   }, [inventoryId]);
@@ -139,6 +158,11 @@ const InventoryCountNew = ({
       } else {
         // Ansonsten initialisiere mit dem aktuellen Inventar
         initializeItemsFromInventory();
+      }
+      
+      // Setze Notizen aus der geladenen Inventur
+      if (specificInventoryCount.notes) {
+        setCountNotes(specificInventoryCount.notes);
       }
       
       // Formularansicht ausblenden, da wir eine vorhandene Inventur anzeigen
