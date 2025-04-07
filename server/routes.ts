@@ -846,7 +846,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         warehouseId,
         includeZeroStock: true // Wichtig: Auch Produkte mit Bestand 0 einschließen
       });
+      
       console.log(`${inventoryItems.length} Lagerprodukte gefunden nach Synchronisierung`);
+      
+      // Extra Debugging der gefundenen Produkte
+      for (const item of inventoryItems) {
+        console.log(`Lagerprodukt für Hinzufügung zur Inventur: ${item.productName} (ID: ${item.productId}), Bestand: ${item.quantity}`);
+      }
       
       if (!inventoryItems || inventoryItems.length === 0) {
         console.warn(`Keine Lagerprodukte für Lager ${warehouseId} gefunden!`);
