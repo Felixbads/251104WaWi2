@@ -2636,6 +2636,24 @@ export class DatabaseStorage implements IStorage {
       warehouseName: count.warehouse?.name
     } as InventoryCount;
   }
+  
+  // Alias für getInventoryCount mit Items
+  async getInventoryCountById(id: number): Promise<InventoryCount | undefined> {
+    // Rufe die Basisinformationen der Inventurzählung ab
+    const count = await this.getInventoryCount(id);
+    if (!count) return undefined;
+    
+    // Rufe die zugehörigen Items ab
+    const items = await this.getInventoryCountItems(id);
+    
+    // Füge die Items zum Ergebnis hinzu
+    return {
+      ...count,
+      items,
+      itemCount: items.length,
+      adjustmentCount: items.filter(item => item.difference !== 0).length
+    };
+  }
 
   async createInventoryCount(count: InsertInventoryCount): Promise<InventoryCount> {
     const [newCount] = await db.insert(inventoryCounts).values({

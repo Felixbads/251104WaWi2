@@ -509,6 +509,186 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+
+  // POST /inventory-counts - Neue Inventurzählung erstellen
+  app.post(`${API_PREFIX}/inventory-counts`, async (req: Request, res: Response) => {
+    try {
+      const { warehouseId, notes, status } = req.body;
+      
+      if (!warehouseId) {
+        return res.status(400).json({ error: "Warehouse ID is required" });
+      }
+      
+      // Validiere warehouseId
+      const warehouse = await storage.getWarehouseById(warehouseId);
+      if (!warehouse) {
+        return res.status(404).json({ error: "Warehouse not found" });
+      }
+      
+      // Erstelle neue Inventurzählung
+      const inventoryCount = await storage.createInventoryCount({
+        warehouseId,
+        notes,
+        status: status || 'pending',
+        startDate: new Date()
+      });
+      
+      console.log(`Neue Inventurzählung erstellt: ID ${inventoryCount.id} für Lager ${warehouseId}`);
+      res.status(201).json(inventoryCount);
+    } catch (error) {
+      console.error("Error creating inventory count:", error);
+      res.status(500).json({ 
+        error: "Failed to create inventory count", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
+  // POST /inventory-counts/:id/items - Inventurzählungselemente hinzufügen
+  app.post(`${API_PREFIX}/inventory-counts/:id/items`, async (req: Request, res: Response) => {
+    try {
+      const inventoryCountId = parseInt(req.params.id);
+      const { items } = req.body;
+      
+      if (!inventoryCountId) {
+        return res.status(400).json({ error: "Inventory Count ID is required" });
+      }
+      
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: "Items array is required and must not be empty" });
+      }
+      
+      // Überprüfe, ob die Inventurzählung existiert
+      const count = await storage.getInventoryCountById(inventoryCountId);
+      if (!count) {
+        return res.status(404).json({ error: "Inventory Count not found" });
+      }
+      
+      // Speichere alle Items
+      const savedItems = [];
+      for (const item of items) {
+        const savedItem = await storage.createInventoryCountItem({
+          inventoryCountId,
+          productId: item.productId,
+          expectedQuantity: item.currentQuantity || 0,
+          actualQuantity: item.countedQuantity || 0,
+          difference: (item.countedQuantity || 0) - (item.currentQuantity || 0),
+          status: 'counted'
+        });
+        savedItems.push(savedItem);
+      }
+      
+      console.log(`${savedItems.length} Inventurzählungselemente für ID ${inventoryCountId} gespeichert`);
+      res.status(201).json(savedItems);
+    } catch (error) {
+      console.error("Error saving inventory count items:", error);
+      res.status(500).json({ 
+        error: "Failed to save inventory count items", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
+  // POST /inventory-counts/:id/complete - Inventurzählung abschließen
+  app.post(`${API_PREFIX}/inventory-counts/:id/complete`, async (req: Request, res: Response) => {
+    try {
+      const inventoryCountId = parseInt(req.params.id);
+      
+      if (!inventoryCountId) {
+        return res.status(400).json({ error: "Inventory Count ID is required" });
+      }
+      
+      // Überprüfe, ob die Inventurzählung existiert
+      const count = await storage.getInventoryCountById(inventoryCountId);
+      if (!count) {
+        return res.status(404).json({ error: "Inventory Count not found" });
+      }
+      
+      // Hole alle Zählungselemente
+      const items = await storage.getInventoryCountItems(inventoryCountId);
+      
+      // Aktualisiere den Bestand basierend auf den Zählungsergebnissen
+      for (const item of items) {
+        if (item.actualQuantity !== undefined && item.productId) {
+          // Hole aktuellen Bestand
+          const inventoryItem = await storage.getInventoryItemByProductAndWarehouse(
+            item.productId, 
+            count.warehouseId
+          );
+          
+          if (inventoryItem) {
+            // Berechne die Differenz
+            const difference = item.actualQuantity - (inventoryItem.quantity || 0);
+            
+            // Erstelle eine Bewegung für die Inventuranpassung
+            await storage.createInventoryMovement({
+              productId: item.productId,
+              warehouseId: count.warehouseId,
+              quantity: difference,
+              type: difference >= 0 ? 'ADJUSTMENT_IN' : 'ADJUSTMENT_OUT',
+              reason: 'INVENTORY_COUNT',
+              notes: `Inventuranpassung aus Zählung #${inventoryCountId}`,
+              previousStock: inventoryItem.quantity || 0,
+              currentStock: item.actualQuantity,
+            });
+            
+            // Aktualisiere den Bestand
+            await storage.updateInventoryItem(inventoryItem.id, {
+              quantity: item.actualQuantity
+            });
+          }
+        }
+      }
+      
+      // Aktualisiere den Status der Inventurzählung
+      const updatedCount = await storage.updateInventoryCount(inventoryCountId, {
+        status: 'completed',
+        endDate: new Date()
+      });
+      
+      console.log(`Inventurzählung ${inventoryCountId} abgeschlossen`);
+      res.json(updatedCount);
+    } catch (error) {
+      console.error("Error completing inventory count:", error);
+      res.status(500).json({ 
+        error: "Failed to complete inventory count", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
+  // POST /inventory-counts/:id/cancel - Inventurzählung abbrechen
+  app.post(`${API_PREFIX}/inventory-counts/:id/cancel`, async (req: Request, res: Response) => {
+    try {
+      const inventoryCountId = parseInt(req.params.id);
+      
+      if (!inventoryCountId) {
+        return res.status(400).json({ error: "Inventory Count ID is required" });
+      }
+      
+      // Überprüfe, ob die Inventurzählung existiert
+      const count = await storage.getInventoryCountById(inventoryCountId);
+      if (!count) {
+        return res.status(404).json({ error: "Inventory Count not found" });
+      }
+      
+      // Aktualisiere den Status der Inventurzählung
+      const updatedCount = await storage.updateInventoryCount(inventoryCountId, {
+        status: 'cancelled',
+        endDate: new Date()
+      });
+      
+      console.log(`Inventurzählung ${inventoryCountId} abgebrochen`);
+      res.json(updatedCount);
+    } catch (error) {
+      console.error("Error cancelling inventory count:", error);
+      res.status(500).json({ 
+        error: "Failed to cancel inventory count", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
   // Create HTTP server
   const httpServer = createServer(app);
   
