@@ -19,6 +19,7 @@ import warehouseInventoryRouter from './routes/warehouse-inventory';
 import machineWarehouseAssignmentsRouter from './routes/machine-warehouse-assignments';
 import productBatchesRouter from './routes/product-batches';
 import warehouse3Router from './routes/warehouse3.routes';
+import warehouse3ApiRouter from './routes/warehouse3.api';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -2477,7 +2478,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/debug`, inventoryRouter);
   app.use(`${API_PREFIX}/machine-warehouse-assignments`, machineWarehouseAssignmentsRouter);
   app.use(`${API_PREFIX}/product-batches`, productBatchesRouter);
-  app.use(`${API_PREFIX}/warehouse3`, warehouse3Router); // Neue Lagerverwaltung (Version 3)
+  app.use(`${API_PREFIX}/warehouse3`, warehouse3Router); // Bestehende Implementierung
+  app.use(`${API_PREFIX}/warehouse3/api`, warehouse3ApiRouter); // Neue Lagerverwaltung API (Version 3)
   
   // Registriere Export/Import-Routen
   app.use(`${API_PREFIX}`, exportImportRoutes);
