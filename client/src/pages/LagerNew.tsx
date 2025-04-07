@@ -185,7 +185,8 @@ export default function LagerNew() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <WarehouseInventory warehouseId={0} inventory={[]} isLoading={false} error={null} onRefresh={() => {}} />
+              {/* Die WarehouseInventory-Komponente ohne Vorübergabe von Daten, sie holt sich die Daten selbst */}
+              <WarehouseInventory />
             </CardContent>
           </Card>
         </TabsContent>

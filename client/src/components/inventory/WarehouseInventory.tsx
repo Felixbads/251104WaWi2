@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   RefreshCw, Package, Search, FilterX, AlertTriangle, 
@@ -20,13 +20,17 @@ import { Progress } from '@/components/ui/progress';
 import { Label } from '@/components/ui/label';
 import ProductBatchDialog from './batch/ProductBatchDialog';
 
+// Sicherer Typ für Inventory Items
 interface InventoryItem {
   id: number;
   warehouseId: number;
   productId: number;
   productName?: string;
+  warehouseName?: string;
   quantity: number | null;
   minQuantity?: number | null;
+  maxQuantity?: number | null;
+  reorderPoint?: number | null;
   targetQuantity?: number | null;
   locationInWarehouse?: string | null;
   status?: string | null;
@@ -51,13 +55,20 @@ export default function WarehouseInventory({
   onRefresh = () => {}
 }: WarehouseInventoryProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [warehouseFilter, setWarehouseFilter] = useState(warehouseId === 0 ? '' : warehouseId.toString());
+  const [warehouseFilter, setWarehouseFilter] = useState('');
   const [showCriticalOnly, setShowCriticalOnly] = useState(false);
   const [showZeroStock, setShowZeroStock] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<{ id: number, warehouseId: number, name: string } | null>(null);
   const [showBatchDialog, setShowBatchDialog] = useState(false);
   
   const queryClient = useQueryClient();
+
+  // Setze den Lagerfilter, wenn warehouseId übergeben wird
+  useEffect(() => {
+    if (warehouseId > 0) {
+      setWarehouseFilter(warehouseId.toString());
+    }
+  }, [warehouseId]);
   
   // Lade Inventardaten, falls sie nicht als Prop übergeben wurden
   const {
@@ -65,51 +76,116 @@ export default function WarehouseInventory({
     isLoading: fetchIsLoading,
     error: fetchError,
     refetch
-  } = useQuery({
+  } = useQuery<InventoryItem[]>({
     queryKey: ['/api/inventory', { 
       warehouseId: warehouseFilter ? parseInt(warehouseFilter) : undefined,
       critical: showCriticalOnly,
       includeZeroStock: showZeroStock
     }],
-    enabled: !propInventory || propInventory.length === 0,
+    queryFn: async ({ queryKey }) => {
+      try {
+        // Sicherere API-Anfrage mit Fehlerbehandlung
+        let url = '/api/inventory';
+        const params: string[] = [];
+        
+        if (warehouseFilter) {
+          params.push(`warehouseId=${warehouseFilter}`);
+        }
+        
+        if (showCriticalOnly) {
+          params.push('critical=true');
+        }
+        
+        if (showZeroStock) {
+          params.push('includeZeroStock=true');
+        }
+        
+        if (params.length > 0) {
+          url += `?${params.join('&')}`;
+        }
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Fehler beim Laden der Inventardaten: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error("Fehler beim Laden der Inventardaten:", error);
+        return [];
+      }
+    },
+    enabled: (!propInventory || propInventory.length === 0) && typeof window !== 'undefined',
     staleTime: 1000 * 60, // 1 Minute
   });
   
   // Lade Lagerdaten für das Dropdown
-  const { data: warehouses = [] } = useQuery<any[]>({
+  const {
+    data: warehouses = [],
+    isLoading: warehousesLoading
+  } = useQuery<any[]>({
     queryKey: ['/api/warehouses'],
+    queryFn: async () => {
+      try {
+        const response = await fetch('/api/warehouses');
+        if (!response.ok) {
+          return [];
+        }
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
+      } catch (error) {
+        console.error("Fehler beim Laden der Lagerdaten:", error);
+        return [];
+      }
+    },
     staleTime: 1000 * 60 * 5, // 5 Minuten
   });
   
-  const inventory: InventoryItem[] = propInventory && propInventory.length > 0 ? propInventory : (fetchedInventory as InventoryItem[]);
-  const isLoading = propIsLoading || fetchIsLoading;
+  // Sicheres Zusammenführen der Daten
+  const inventory: InventoryItem[] = Array.isArray(propInventory) && propInventory.length > 0 
+    ? propInventory 
+    : (Array.isArray(fetchedInventory) ? fetchedInventory : []);
+  
+  const isLoading = propIsLoading || fetchIsLoading || warehousesLoading;
   const error = propError || fetchError;
 
-  // Suche und Filterung
-  const filteredInventory = inventory.filter((item: InventoryItem) => {
-    const matchesSearch = !searchTerm || 
-      (item.productName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       item.locationInWarehouse?.toLowerCase().includes(searchTerm.toLowerCase()));
-       
-    const matchesWarehouse = !warehouseFilter || item.warehouseId === parseInt(warehouseFilter);
-    const matchesCritical = !showCriticalOnly || 
-      ((item.quantity ?? 0) <= (item.minQuantity ?? 0) && (item.minQuantity ?? 0) > 0);
-    const matchesZero = showZeroStock || (item.quantity ?? 0) > 0;
-    
-    return matchesSearch && matchesWarehouse && matchesCritical && matchesZero;
-  });
+  // Sichere Suche und Filterung
+  const filteredInventory = Array.isArray(inventory) 
+    ? inventory.filter((item: InventoryItem) => {
+        if (!item) return false;
+        
+        const matchesSearch = !searchTerm || 
+          ((item.productName ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+           (item.locationInWarehouse ?? '').toLowerCase().includes(searchTerm.toLowerCase()));
+           
+        const matchesWarehouse = !warehouseFilter || 
+          (item.warehouseId === parseInt(warehouseFilter));
+        
+        const matchesCritical = !showCriticalOnly || 
+          ((item.quantity ?? 0) <= (item.minQuantity ?? 0) && (item.minQuantity ?? 0) > 0);
+        
+        const matchesZero = showZeroStock || (item.quantity ?? 0) > 0;
+        
+        return matchesSearch && matchesWarehouse && matchesCritical && matchesZero;
+      })
+    : [];
 
-  // Lagerbestand aktualisieren
+  // Lagerbestand aktualisieren mit Fehlerbehandlung
   const handleRefresh = () => {
-    if (onRefresh) {
-      onRefresh();
-    } else {
-      refetch();
+    try {
+      if (typeof onRefresh === 'function') {
+        onRefresh();
+      } else {
+        refetch();
+      }
+      
+      // Invalidiere den Cache für Statistiken
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory/alerts'] });
+    } catch (error) {
+      console.error("Fehler beim Aktualisieren des Lagerbestands:", error);
     }
-    
-    // Invalidiere den Cache für Statistiken
-    queryClient.invalidateQueries({ queryKey: ['/api/inventory/stats'] });
-    queryClient.invalidateQueries({ queryKey: ['/api/inventory/alerts'] });
   };
   
   // Lade-Animation
@@ -129,7 +205,7 @@ export default function WarehouseInventory({
         <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-destructive" />
         <h3 className="text-lg font-medium text-destructive">Fehler beim Laden der Lagerbestände</h3>
         <p className="text-muted-foreground mt-1">
-          {error.message || 'Unbekannter Fehler'}
+          {typeof error === 'object' && error?.message ? error.message : 'Unbekannter Fehler'}
         </p>
         <Button 
           variant="outline" 
@@ -144,7 +220,7 @@ export default function WarehouseInventory({
   }
   
   // Leerer Zustand
-  if (!inventory || inventory.length === 0) {
+  if (!Array.isArray(inventory) || inventory.length === 0) {
     return (
       <div className="rounded-md bg-muted/50 p-8 text-center">
         <Package className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
@@ -159,11 +235,13 @@ export default function WarehouseInventory({
   return (
     <div>
       {/* Batch Dialog als separate Komponente */}
-      <ProductBatchDialog 
-        open={showBatchDialog} 
-        onOpenChange={setShowBatchDialog}
-        product={selectedProduct}
-      />
+      {selectedProduct && (
+        <ProductBatchDialog 
+          open={showBatchDialog} 
+          onOpenChange={setShowBatchDialog}
+          product={selectedProduct}
+        />
+      )}
       
       {/* Filter und Suchleiste */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -195,9 +273,12 @@ export default function WarehouseInventory({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem key="all" value="">Alle Lager</SelectItem>
-                {warehouses.map((warehouse: any) => (
-                  <SelectItem key={warehouse.id} value={warehouse.id.toString() || 'unknown'}>
-                    {warehouse.name || 'Unbekanntes Lager'}
+                {Array.isArray(warehouses) && warehouses.map((warehouse: any) => (
+                  <SelectItem 
+                    key={warehouse?.id || 'unknown'} 
+                    value={warehouse?.id?.toString() || 'unknown'}
+                  >
+                    {warehouse?.name || 'Unbekanntes Lager'}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -268,16 +349,24 @@ export default function WarehouseInventory({
                 </TableCell>
               </TableRow>
             ) : (
-              filteredInventory.map((item: any) => {
-                const isCritical = (item.quantity ?? 0) <= (item.minQuantity ?? 0) && (item.minQuantity ?? 0) > 0;
-                const isLow = (item.quantity ?? 0) <= (item.reorderPoint ?? 0) && !isCritical;
+              filteredInventory.map((item: InventoryItem) => {
+                if (!item) return null;
                 
-                // Berechne Füllstand in Prozent
+                // Sicherheitsabfragen für alle Werte
+                const quantity = item.quantity ?? 0;
+                const minQuantity = item.minQuantity ?? 0;
+                const maxQuantity = item.maxQuantity ?? 100;
+                const reorderPoint = item.reorderPoint ?? 0;
+                
+                const isCritical = quantity <= minQuantity && minQuantity > 0;
+                const isLow = quantity <= reorderPoint && !isCritical;
+                
+                // Berechne Füllstand in Prozent mit Sicherheitsabfragen
                 let fillPercentage = 0;
-                if (item.maxQuantity) {
-                  fillPercentage = Math.min(100, Math.max(0, (item.quantity / item.maxQuantity) * 100));
+                if (maxQuantity > 0) {
+                  fillPercentage = Math.min(100, Math.max(0, (quantity / maxQuantity) * 100));
                 } else {
-                  fillPercentage = item.quantity > 0 ? 50 : 0; // Default, wenn kein Maximum angegeben ist
+                  fillPercentage = quantity > 0 ? 50 : 0; // Default, wenn kein Maximum angegeben ist
                 }
                 
                 return (
@@ -285,23 +374,27 @@ export default function WarehouseInventory({
                     <TableCell 
                       className="font-medium cursor-pointer hover:text-primary hover:underline"
                       onClick={() => {
-                        // Zeige Batches für dieses Produkt an
-                        setSelectedProduct({
-                          id: item.productId,
-                          warehouseId: item.warehouseId,
-                          name: item.productName || 'Unbekanntes Produkt'
-                        });
-                        setShowBatchDialog(true);
+                        try {
+                          // Zeige Batches für dieses Produkt an
+                          setSelectedProduct({
+                            id: item.productId,
+                            warehouseId: item.warehouseId,
+                            name: item.productName || 'Unbekanntes Produkt'
+                          });
+                          setShowBatchDialog(true);
+                        } catch (error) {
+                          console.error("Fehler beim Öffnen des Batch-Dialogs:", error);
+                        }
                       }}
                     >
-                      {item.productName}
+                      {item.productName || 'Unbekanntes Produkt'}
                     </TableCell>
                     
                     {!warehouseFilter && (
                       <TableCell>
                         <div className="flex items-center">
                           <WarehouseIcon className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                          <span>{item.warehouseName}</span>
+                          <span>{item.warehouseName || 'Unbekanntes Lager'}</span>
                         </div>
                       </TableCell>
                     )}
@@ -329,7 +422,7 @@ export default function WarehouseInventory({
                               ? 'text-amber-500 font-medium' 
                               : ''
                         }>
-                          {item.quantity !== null && item.quantity !== undefined ? item.quantity : '--'}
+                          {quantity}
                         </span>
                         <Progress value={fillPercentage} className="w-24 h-1.5 mt-1" />
                       </div>
@@ -337,8 +430,8 @@ export default function WarehouseInventory({
                     
                     <TableCell className="text-right space-x-1">
                       <span className="text-muted-foreground">
-                        {item.minQuantity !== null ? item.minQuantity : '--'}/
-                        {item.maxQuantity !== null ? item.maxQuantity : '--'}
+                        {minQuantity}/
+                        {maxQuantity}
                       </span>
                     </TableCell>
                     
@@ -362,7 +455,7 @@ export default function WarehouseInventory({
                         </Badge>
                       )}
                       
-                      {!isCritical && !isLow && item.status === 'active' && (
+                      {!isCritical && !isLow && (!item.status || item.status === 'active') && (
                         <Badge variant="outline" className="text-muted-foreground ml-auto">
                           OK
                         </Badge>
