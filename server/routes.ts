@@ -328,7 +328,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[DEBUG] Gefundene Zieltransaktionen für Lager ${warehouseId}: ${destMovements.length}`);
       
       // Ermittle den Namen des Lagers
-      const warehouse = await storage.getWarehouseById(warehouseId);
+      const warehouse = await storage.getWarehouse(warehouseId);
       const warehouseName = warehouse?.name || `Lager ${warehouseId}`;
       
       // 3. Jetzt die Automaten dieses Lagers ermitteln
