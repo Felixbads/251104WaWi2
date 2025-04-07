@@ -698,17 +698,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Inventory Count ID is required" });
       }
       
+      console.log(`Füge automatisch alle Produkte für Inventur ${inventoryCountId} hinzu...`);
+      
       // Überprüfe, ob die Inventurzählung existiert
       const count = await storage.getInventoryCount(inventoryCountId);
       if (!count) {
+        console.error(`Inventurzählung ${inventoryCountId} nicht gefunden!`);
         return res.status(404).json({ error: "Inventory Count not found" });
       }
       
       // Hole alle Inventurelemente des Lagers
       const warehouseId = count.warehouseId;
+      console.log(`Lager-ID aus Inventurzählung: ${warehouseId}`);
+      
+      // Hole Lagerinformation zur Überprüfung
+      const warehouse = await storage.getWarehouse(warehouseId);
+      if (!warehouse) {
+        console.error(`Lager mit ID ${warehouseId} existiert nicht!`);
+        return res.status(404).json({ error: "Warehouse not found" });
+      }
+      
+      console.log(`Lager gefunden: ${warehouse.name} (ID: ${warehouseId})`);
+      
       const inventoryItems = await storage.getInventoryItems({ warehouseId });
+      console.log(`${inventoryItems.length} Lagerprodukte gefunden`);
       
       if (!inventoryItems || inventoryItems.length === 0) {
+        console.warn(`Keine Lagerprodukte für Lager ${warehouseId} gefunden!`);
         return res.status(404).json({ 
           error: "No inventory items found for this warehouse",
           warehouseId 
@@ -718,6 +734,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Überprüfe, ob bereits Elemente für diese Inventurzählung existieren
       const existingItems = await storage.getInventoryCountItems(inventoryCountId);
       const existingProductIds = new Set(existingItems.map(item => item.productId));
+      console.log(`${existingItems.length} Produkte bereits in der Inventur`);
       
       // Speichere nur die Produkte, die noch nicht hinzugefügt wurden
       const savedItems = [];

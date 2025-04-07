@@ -47,6 +47,8 @@ export default function InventurStarten({ onInventurGestartet }: InventurStarten
   const startInventurMutation = useMutation({
     mutationFn: async (data: { warehouseId: number, notes: string }) => {
       try {
+        console.log('Starte Inventur mit Daten:', data); // Debug-Logging
+
         // Direkte Verwendung von fetch statt apiRequest für bessere Fehlerbehandlung
         const response = await fetch('/api/inventory-counts', {
           method: 'POST',
@@ -55,7 +57,7 @@ export default function InventurStarten({ onInventurGestartet }: InventurStarten
           },
           body: JSON.stringify({
             ...data,
-            status: 'in_progress' // Status explizit auf "in_progress" setzen
+            status: 'pending' // Status explizit auf "pending" setzen, damit "Alle Produkte hinzufügen" Button verfügbar ist
           }),
         });
         
@@ -65,7 +67,9 @@ export default function InventurStarten({ onInventurGestartet }: InventurStarten
           throw new Error(errorData.error || 'Fehler beim Starten der Inventur');
         }
         
-        return await response.json();
+        const result = await response.json();
+        console.log('Inventur erfolgreich gestartet:', result); // Debug-Logging
+        return result;
       } catch (error) {
         console.error('Fehler beim Starten der Inventur:', error);
         throw error; // Wichtig: Fehler weitergeben für die onError-Funktion
@@ -107,8 +111,13 @@ export default function InventurStarten({ onInventurGestartet }: InventurStarten
       return;
     }
     
+    const warehouseIdNum = parseInt(selectedWarehouse);
+    console.log(`Starte Inventur für Lager-ID: ${warehouseIdNum}, Name: ${
+      activeWarehouses.find(w => w.id === warehouseIdNum)?.name || 'Unbekannt'
+    }`);
+    
     startInventurMutation.mutate({
-      warehouseId: parseInt(selectedWarehouse),
+      warehouseId: warehouseIdNum,
       notes: notes
     });
   };
