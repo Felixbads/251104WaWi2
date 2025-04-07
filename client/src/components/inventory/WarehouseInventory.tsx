@@ -81,7 +81,7 @@ export default function WarehouseInventory({
     staleTime: 1000 * 60 * 5, // 5 Minuten
   });
   
-  const inventory: InventoryItem[] = propInventory.length > 0 ? propInventory : (fetchedInventory as InventoryItem[]);
+  const inventory: InventoryItem[] = propInventory && propInventory.length > 0 ? propInventory : (fetchedInventory as InventoryItem[]);
   const isLoading = propIsLoading || fetchIsLoading;
   const error = propError || fetchError;
 

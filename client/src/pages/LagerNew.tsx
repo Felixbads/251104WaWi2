@@ -179,7 +179,7 @@ export default function LagerNew() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <WarehouseInventory />
+              <WarehouseInventory warehouseId={0} inventory={[]} isLoading={false} error={null} onRefresh={() => {}} />
             </CardContent>
           </Card>
         </TabsContent>
@@ -194,7 +194,7 @@ export default function LagerNew() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <InventoryMovements />
+              <InventoryMovements key="movements" />
             </CardContent>
           </Card>
         </TabsContent>
