@@ -1,0 +1,48 @@
+Hier ist der daraus formulierte Prompt für die Umsetzung:
+
+⸻
+
+Prompt für die Entwicklung (Lagerhaltung / Automatisierung der Lagerzuweisung)
+	1.	Ziel: Automatisierte und optimierte Lagerverwaltung bei Automatenzuordnung
+
+	•	Überprüfe zunächst kritisch die aktuelle Funktionalität, bei der bei jedem Start des Projekts eine Abfrage läuft, um Produkte für Lager vorzumerken.
+	•	Frage: Ist diese Abfrage beim Start überhaupt noch erforderlich?
+	•	Wunsch: Diese Abfrage soll nicht mehr bei jedem Projektstart ausgeführt werden müssen.
+
+	2.	Neue Logik für Lagerzuordnung von Automaten:
+
+	•	Wenn ein Automat zu einem Lager hinzugefügt wird, sollen automatisch alle Produkte dieses Automaten dem Lager zugewiesen werden.
+	•	Vor dem Hinzufügen soll überprüft werden, ob das Produkt bereits im Lager vorhanden ist.
+	•	Keine doppelten Einträge.
+	•	Zusätzlich soll einmal täglich eine Überprüfung stattfinden, ob in den Automaten neue Produkte hinzugekommen sind, und diese ggf. dem Lager hinzugefügt werden.
+	•	Diese tägliche Prüfung ersetzt die wiederkehrende Prüfung bei Projektstart.
+
+⸻
+
+	3.	Neuer Menüpunkt im Hauptmenü: „Lagerhaltung“
+
+	•	Dieser neue Bereich erscheint links im Hauptmenü (nicht unter einem bestehenden Punkt).
+	•	Innerhalb des Bereichs „Lagerhaltung“ wird eine neue Seite mit dem Namen „Lager“ erstellt (bitte keine bestehende Seite wiederverwenden).
+
+⸻
+
+	4.	Seite „Lager“ – Seitenstruktur & Funktionen:
+
+	•	Zwei Hauptfunktionen innerhalb der Seite:
+	1.	Automaten zu Lagern kombinieren
+– wie bisher bekannt und verwendet.
+	2.	Warenbestand pro Lager anzeigen
+– für jedes Lager, das in einem Kachelmenü oben angezeigt wird, kann der zugehörige Warenbestand eingesehen werden.
+– Nutze hierfür die neue Funktion, bei der der Warenbestand des Automaten bei der Zuordnung ins Lager übernommen wird.
+
+⸻
+
+	5.	Erweiterung der Seite „Lager“: Tab für „Warenstandsbewegung“
+
+	•	Zu jedem Lager gibt es zusätzlich zum aktuellen Warenbestand einen zweiten Tab mit dem Titel „Warenstandsbewegung“.
+	•	Dieser Tab zeigt alle Bewegungen und Änderungen des Warenbestands an.
+	•	Die Informationen, die bisher auf separaten Seiten pro Lager dargestellt wurden, sollen zentral in diesem Tab sichtbar sein.
+
+⸻
+
+Wenn du möchtest, kann ich dir auch direkt die technischen Anforderungen oder ein UI-Mockup für diese Umsetzung skizzieren.
