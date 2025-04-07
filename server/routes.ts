@@ -837,7 +837,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Synchronisiere zuerst alle Automatenprodukte mit dem Lager
       console.log(`Synchronisiere alle Automaten-Produkte mit Lager ${warehouseId} vor dem Hinzufügen zur Inventur...`);
-      await storage.reconcileWarehouseProducts(warehouseId);
+      // Verwende den Service statt der nicht existierenden Methode in storage
+      const { reconcileWarehouseProducts } = require('./services/warehouseReconciliation');
+      await reconcileWarehouseProducts(warehouseId);
       
       // Jetzt holen wir die aktualisierten Lagerprodukte
       const inventoryItems = await storage.getInventoryItems({ 
