@@ -1,153 +1,26 @@
 import express from 'express';
 import { db } from '../db';
+import { logDebug, logError, logQuery } from '../utils/bugTracker';
+import { 
+  getWarehouseStatistics,
+  getWarehouseInventory,
+  getWarehouseMovements,
+  syncMachineWithWarehouse
+} from '../services/newWarehouseInventory';
 
-// Funktion für die Synchronisierung von Automaten-Beständen mit dem Lager
+/**
+ * Synchronize machine inventory with warehouse
+ * Uses the improved implementation in newWarehouseInventory service
+ */
 async function syncMachineInventoryWithWarehouse(machineId: number) {
-  console.log(`Synchronisiere Automaten ${machineId} mit Warenbestand...`);
+  logDebug('SyncFunction', `Initiating sync for machine ${machineId} using improved implementation`);
   
   try {
-    // 1. Zugewiesenes Lager für die Maschine ermitteln
-    const assignmentQuery = `
-      SELECT warehouse_id FROM machine_warehouse_assignments 
-      WHERE machine_id = $1 AND is_active = true
-      LIMIT 1
-    `;
-    const assignmentResult = await db.query(assignmentQuery, [machineId]);
-    
-    if (assignmentResult.rows.length === 0) {
-      throw new Error(`Keine aktive Lager-Zuweisung für Automaten ${machineId} gefunden`);
-    }
-    
-    const warehouseId = assignmentResult.rows[0].warehouse_id;
-    console.log(`Automat ${machineId} ist Lager ${warehouseId} zugewiesen`);
-    
-    // 2. Aktuelle Bestandsdaten des Automaten abrufen
-    const machineStockQuery = `
-      SELECT 
-        ms.product_id,
-        p.product_name as product_name,
-        ms.quantity as machine_quantity,
-        COALESCE(i.quantity, 0) as warehouse_quantity
-      FROM 
-        machine_stock ms
-      JOIN 
-        products p ON ms.product_id = p.id
-      LEFT JOIN 
-        inventory_items i ON ms.product_id = i.product_id AND i.warehouse_id = $1
-      WHERE 
-        ms.machine_id = $2
-    `;
-    
-    const stockResult = await db.query(machineStockQuery, [warehouseId, machineId]);
-    console.log(`${stockResult.rows.length} Produkte im Automaten gefunden`);
-    
-    // 3. Für jedes Produkt abgleichen und Warenbewegungen erzeugen
-    const results = {
-      updatedProducts: 0,
-      newProducts: 0,
-      movements: 0,
-      errors: 0,
-      details: [] as any[]
-    };
-    
-    for (const item of stockResult.rows) {
-      try {
-        // Bestandskorrektur - Maschine wird als "korrekt" angesehen
-        // Lagerbestand wird entsprechend der Differenz angepasst
-        const machineQty = parseInt(item.machine_quantity);
-        const warehouseQty = parseInt(item.warehouse_quantity);
-        
-        // Inventareintrag für das Produkt suchen oder erstellen
-        let inventoryItem = await db.query(
-          `SELECT id FROM inventory_items WHERE warehouse_id = $1 AND product_id = $2`,
-          [warehouseId, item.product_id]
-        );
-        
-        if (inventoryItem.rows.length === 0) {
-          // Neuen Inventareintrag erstellen
-          await db.query(
-            `INSERT INTO inventory_items (warehouse_id, product_id, quantity, min_quantity) 
-             VALUES ($1, $2, 0, 0)`,
-            [warehouseId, item.product_id]
-          );
-          
-          inventoryItem = await db.query(
-            `SELECT id FROM inventory_items WHERE warehouse_id = $1 AND product_id = $2`,
-            [warehouseId, item.product_id]
-          );
-          
-          results.newProducts++;
-          console.log(`Neuer Lagerbestandseintrag für Produkt ${item.product_id} (${item.product_name}) erstellt`);
-        }
-        
-        // Bewegung erstellen und Bestand aktualisieren
-        const movementType = machineQty > warehouseQty ? 'OUT' : 'IN';
-        const diffQuantity = Math.abs(machineQty - warehouseQty);
-        
-        // Nur Bewegung erstellen, wenn tatsächlich eine Differenz besteht
-        if (diffQuantity > 0) {
-          // Warenbewegung eintragen
-          await db.query(
-            `INSERT INTO inventory_movements (
-              product_id, quantity, movement_type, 
-              source_type, source_id, 
-              destination_type, destination_id,
-              reference_type, reference_id, 
-              reason, performed_at, notes
-            ) VALUES (
-              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), $11
-            )`,
-            [
-              item.product_id, 
-              diffQuantity, 
-              movementType,
-              movementType === 'OUT' ? 'warehouse' : 'machine',
-              movementType === 'OUT' ? warehouseId : machineId,
-              movementType === 'OUT' ? 'machine' : 'warehouse',
-              movementType === 'OUT' ? machineId : warehouseId,
-              'SYNC', 
-              `machine-${machineId}`,
-              'Bestandskorrektur durch Automatenabgleich',
-              `Automatenabgleich: Bestandsdifferenz von ${diffQuantity} für ${item.product_name}`
-            ]
-          );
-          
-          // Lagerbestand aktualisieren
-          await db.query(
-            `UPDATE inventory_items 
-             SET quantity = $1, updated_at = NOW()
-             WHERE warehouse_id = $2 AND product_id = $3`,
-            [machineQty, warehouseId, item.product_id]
-          );
-          
-          results.movements++;
-          results.updatedProducts++;
-          
-          // Details zur Bewegung erfassen
-          results.details.push({
-            productId: item.product_id,
-            productName: item.product_name,
-            machineQuantity: machineQty,
-            prevWarehouseQuantity: warehouseQty,
-            newWarehouseQuantity: machineQty,
-            movementType,
-            diffQuantity
-          });
-          
-          console.log(
-            `Bestandskorrektur für ${item.product_name}: ${warehouseQty} -> ${machineQty} (${movementType} ${diffQuantity})`
-          );
-        }
-      } catch (error) {
-        results.errors++;
-        console.error(`Fehler beim Abgleich von Produkt ${item.product_id}:`, error);
-      }
-    }
-    
-    console.log(`Automatenabgleich abgeschlossen: ${results.updatedProducts} Produkte aktualisiert, ${results.movements} Bewegungen erstellt`);
-    return results;
+    // Use the new implementation which handles all the needed steps
+    const result = await syncMachineWithWarehouse(machineId);
+    return result;
   } catch (error) {
-    console.error(`Fehler beim Automatenabgleich:`, error);
+    logError('SyncFunction', `Error in machine sync process for machine ${machineId}`, error);
     throw error;
   }
 }
@@ -555,75 +428,18 @@ router.get('/api/inventory/warehouse/:id/stats', asyncHandler(async (req: any, r
   }
 
   try {
-    // Mehr Debug-Logs für bessere Diagnose
-    console.log(`Fetching stats for warehouse ID: ${warehouseId}`);
-
-    // Direkte SQL-Abfrage mit mehreren Schritten für bessere Nachvollziehbarkeit
-    const query = `
-      WITH inventory_stats AS (
-        SELECT 
-          COUNT(DISTINCT i.product_id) as product_count,
-          COUNT(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) AND i.product_id IS NOT NULL THEN 1 END) as critical_item_count,
-          COALESCE(SUM(i.quantity * COALESCE(p.price, 0)), 0) as inventory_value
-        FROM 
-          inventory_items i
-        LEFT JOIN
-          products p ON i.product_id = p.id
-        WHERE 
-          i.warehouse_id = $1
-      ),
-      machine_count AS (
-        SELECT 
-          COUNT(DISTINCT machine_id) as machine_count
-        FROM 
-          machine_warehouse_assignments
-        WHERE 
-          warehouse_id = $1
-      )
-      SELECT 
-        COALESCE(i.product_count, 0) as product_count,
-        COALESCE(i.critical_item_count, 0) as critical_item_count,
-        COALESCE(i.inventory_value, 0) as inventory_value,
-        COALESCE(m.machine_count, 0) as machine_count
-      FROM 
-        (SELECT 1) dummy
-      LEFT JOIN inventory_stats i ON true
-      LEFT JOIN machine_count m ON true
-    `;
-
-    console.log(`Executing warehouse stats query for ID ${warehouseId}`);
-    const result = await db.query(query, [warehouseId]);
-    console.log(`Warehouse stats query result for ID ${warehouseId}:`, result.rows[0]);
+    // Verwende den neuen verbesserten Service für die Lagerstatistik
+    logDebug('WarehouseStatsAPI', `Fetching statistics for warehouse ${warehouseId} using new service`);
+    const formattedStats = await getWarehouseStatistics(warehouseId);
     
-    // Fallback-Werte, falls keine Daten vorhanden sind
-    const defaultStats = {
-      productCount: 0,
-      criticalItemCount: 0,
-      inventoryValue: 0,
-      machineCount: 0
-    };
+    // Protokollierung für Diagnose
+    logDebug('WarehouseStatsAPI', `Statistics data for warehouse ${warehouseId}:`, formattedStats);
     
-    if (!result.rows || result.rows.length === 0) {
-      console.log(`No stats found for warehouse ID: ${warehouseId}, returning defaults`);
-      return res.json(defaultStats);
-    }
-
-    const stats = result.rows[0];
-    
-    // Sicherstellen, dass wir immer gültige Zahlen zurückgeben, auch wenn NULL-Werte kommen
-    const formattedStats = {
-      productCount: stats.product_count !== null ? parseInt(stats.product_count) : 0,
-      criticalItemCount: stats.critical_item_count !== null ? parseInt(stats.critical_item_count) : 0,
-      inventoryValue: stats.inventory_value !== null ? parseFloat(stats.inventory_value) : 0,
-      machineCount: stats.machine_count !== null ? parseInt(stats.machine_count) : 0
-    };
-    
-    console.log(`Returning formatted stats for warehouse ${warehouseId}:`, formattedStats);
     return res.json(formattedStats);
   } catch (error) {
-    console.error(`Error fetching warehouse stats for ID ${warehouseId}:`, error);
+    logError('WarehouseStatsAPI', `Error fetching stats for warehouse ${warehouseId}`, error);
     return res.status(500).json({ 
-      error: 'Fehler beim Abrufen der Lagerstatistik',
+      error: 'Fehler beim Abrufen der Lagerstatistiken',
       details: (error as Error).message
     });
   }
@@ -639,30 +455,29 @@ router.get('/api/inventory/warehouse/:id', asyncHandler(async (req: any, res: an
     return res.status(400).json({ message: 'Ungültige Lager-ID' });
   }
 
-  const query = `
-    SELECT 
-      i.id,
-      i.product_id,
-      p.product_name as product_name,
-      p.sku,
-      p.category,
-      i.quantity,
-      i.min_quantity,
-      (SELECT COUNT(*) FROM product_batches WHERE product_id = i.product_id AND warehouse_id = i.warehouse_id) as batch_count,
-      p.price,
-      i.updated_at
-    FROM 
-      inventory_items i
-    JOIN
-      products p ON i.product_id = p.id
-    WHERE 
-      i.warehouse_id = $1
-    ORDER BY
-      p.product_name ASC
-  `;
+  // Detaillierte Protokollierung hinzufügen
+  logDebug('InventoryAPI', `Bestandsabfrage für Lager ID ${warehouseId} mit neuem Service`);
 
-  const result = await db.query(query, [warehouseId]);
-  res.json(result.rows);
+  try {
+    // Verwende den neuen verbesserten Service für den Lagerbestand
+    const inventory = await getWarehouseInventory(warehouseId);
+    
+    // Protokollierung für Diagnose
+    logDebug('InventoryAPI', `Lagerbestand für Lager ${warehouseId} geladen: ${inventory.length} Einträge gefunden`);
+    
+    if (inventory.length > 0) {
+      logDebug('InventoryAPI', `Beispiel-Eintrag:`, inventory[0]);
+    }
+    
+    return res.json(inventory);
+  } catch (error) {
+    logError('InventoryAPI', `Fehler beim Abrufen des Lagerbestands (ID: ${warehouseId})`, error);
+    return res.status(500).json({ 
+      error: 'Fehler beim Abrufen des Lagerbestands',
+      details: (error as Error).message,
+      warehouseId
+    });
+  }
 }));
 
 /**
@@ -678,51 +493,27 @@ router.get('/api/inventory/warehouse/:id/movements', asyncHandler(async (req: an
   const limit = parseInt(req.query.limit) || 50;
   const offset = parseInt(req.query.offset) || 0;
 
-  console.log(`Fetching movements for warehouse ID ${warehouseId}, limit ${limit}, offset ${offset}`);
-
-  const query = `
-    SELECT 
-      m.id,
-      m.product_id,
-      p.product_name as product_name,
-      m.quantity,
-      m.movement_type,
-      m.source_type,
-      m.source_id,
-      m.destination_type,
-      m.destination_id,
-      m.reference_type,
-      m.reference_id,
-      m.reason,
-      m.performed_at,
-      m.performed_by,
-      m.notes,
-      CASE
-        WHEN m.source_type = 'warehouse' AND m.source_id = $1 THEN 'OUT'
-        WHEN m.destination_type = 'warehouse' AND m.destination_id = $1 THEN 'IN'
-        ELSE 'OTHER'
-      END as direction
-    FROM 
-      inventory_movements m
-    JOIN
-      products p ON m.product_id = p.id
-    WHERE 
-      (m.source_type = 'warehouse' AND m.source_id = $1) OR
-      (m.destination_type = 'warehouse' AND m.destination_id = $1)
-    ORDER BY
-      m.performed_at DESC
-    LIMIT $2 OFFSET $3
-  `;
+  // Detaillierte Protokollierung hinzufügen
+  logDebug('MovementsAPI', `Warenbewegungen für Lager ID ${warehouseId} abrufen mit neuem Service, Limit: ${limit}, Offset: ${offset}`);
 
   try {
-    const result = await db.query(query, [warehouseId, limit, offset]);
-    console.log(`Found ${result.rows.length} movements for warehouse ID ${warehouseId}`);
-    res.json(result.rows);
+    // Verwende den neuen verbesserten Service für Warenbewegungen
+    const movements = await getWarehouseMovements(warehouseId, limit, offset);
+    
+    // Protokollierung für Diagnose
+    logDebug('MovementsAPI', `Warenbewegungen für Lager ${warehouseId} geladen: ${movements.length} Einträge gefunden`);
+    
+    if (movements.length > 0) {
+      logDebug('MovementsAPI', `Beispiel-Eintrag:`, movements[0]);
+    }
+    
+    return res.json(movements);
   } catch (error) {
-    console.error(`Error fetching warehouse movements for ID ${warehouseId}:`, error);
-    res.status(500).json({ 
+    logError('MovementsAPI', `Fehler beim Abrufen der Warenbewegungen (ID: ${warehouseId})`, error);
+    return res.status(500).json({ 
       error: 'Fehler beim Abrufen der Warenbewegungen',
-      details: (error as Error).message
+      details: (error as Error).message,
+      warehouseId
     });
   }
 }));
@@ -734,24 +525,38 @@ router.get('/api/inventory/warehouse/:id/movements', asyncHandler(async (req: an
 router.post('/api/inventory/sync-machine/:id', asyncHandler(async (req: any, res: any) => {
   const machineId = parseInt(req.params.id);
   if (isNaN(machineId)) {
+    logError('SyncAPI', `Ungültige Automaten-ID angegeben: ${req.params.id}`, new Error('Invalid machine ID'));
     return res.status(400).json({ message: 'Ungültige Automaten-ID' });
   }
 
+  // Detaillierte Protokollierung hinzufügen
+  logDebug('SyncAPI', `Bestandsabgleich für Automaten ID ${machineId} gestartet mit verbessertem Service`);
+
   try {
-    const result = await syncMachineInventoryWithWarehouse(machineId);
+    // Startzeit für Performance-Messung
+    const startTime = Date.now();
     
-    res.json({
+    logDebug('SyncAPI', `Führe Synchronisierungsprozess mit neuem Service für Automat ${machineId} aus`);
+    const result = await syncMachineWithWarehouse(machineId);
+    
+    const duration = Date.now() - startTime;
+    logDebug('SyncAPI', `Abgleich abgeschlossen in ${duration}ms`);
+    logDebug('SyncAPI', `Ergebnis:`, result);
+    
+    return res.json({
       success: true,
       machineId,
       message: 'Bestandsabgleich erfolgreich durchgeführt',
-      details: result
+      details: result,
+      duration: `${duration}ms`
     });
   } catch (error: any) {
-    console.error('Fehler beim Bestandsabgleich:', error);
-    res.status(500).json({ 
+    logError('SyncAPI', `Fehler beim Bestandsabgleich (Automat ID: ${machineId})`, error);
+    return res.status(500).json({ 
       success: false,
       message: 'Fehler beim Bestandsabgleich', 
-      error: error.message 
+      error: error.message,
+      machineId
     });
   }
 }));
