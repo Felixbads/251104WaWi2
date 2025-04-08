@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib";
+import WarehouseSidebar from "./WarehouseSidebar";
 
 // Verwenden wir die wouter Link-Komponente für korrekte Navigation
 const NavItem = ({ href, icon, children, isActive, disabled = false }: { 
@@ -136,10 +137,13 @@ export default function Sidebar() {
             <NavItem 
               href="/lager" 
               icon={<Building2 className="h-5 w-5 mr-3" />}
-              isActive={isActive("/lager")}
+              isActive={isActive("/lager") || isActive("/warehouse/")}
             >
               Lager
             </NavItem>
+            {/* Dynamische Warehouse-Untermenüs */}
+            {isActive("/warehouse/") || isActive("/lager") ? <WarehouseSidebar /> : null}
+            
             <NavItem 
               href="/warenentnahme" 
               icon={<TrashIcon className="h-5 w-5 mr-3" />}

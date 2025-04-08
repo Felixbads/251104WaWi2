@@ -72,6 +72,7 @@ import LagerPage from "@/pages/LagerPage";
 import Lagerhaltung from "@/pages/Lagerhaltung";
 import LagerNew from "@/pages/LagerNew";
 import WarehouseDetail from "@/pages/WarehouseDetail";
+import WarehouseDetailPage from "@/pages/WarehouseDetailPage";
 import WarehouseMovements from "@/pages/WarehouseMovements";
 import WarenentnahmePage from "@/pages/WarenentnahmePage";
 import WarenentnahmeDetail from "@/pages/WarenentnahmeDetail";
@@ -237,6 +238,12 @@ function AuthenticatedRouter() {
         <Route path="/warehouses/:id" component={props => (
           <ApprovedUserRoute>
             <WarehouseDetail {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/warehouse/:id" component={props => (
+          <ApprovedUserRoute>
+            <WarehouseDetailPage {...props} />
           </ApprovedUserRoute>
         )} />
         

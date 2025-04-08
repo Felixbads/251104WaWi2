@@ -1,11 +1,14 @@
 import { Router } from "express";
 import { warehouseStorage } from "../warehouse3.storage";
+import { db } from "../db";
 import { z } from "zod";
 import { insertWarehouseSchema, insertMachineWarehouseAssignmentSchema, 
          insertProductInventorySchema, insertProductBatchSchema, 
          insertInventoryMovementSchema, insertInventoryCountSchema,
          insertInventoryCountItemSchema, insertRefillTrackingSchema, 
          insertRefillTrackingItemSchema } from "../../shared/warehouse3.schema";
+import { products } from "../../shared/schema";
+import { eq } from "drizzle-orm";
 
 const router = Router();
 
@@ -242,8 +245,22 @@ router.get("/warehouses/:warehouseId/inventory", async (req, res) => {
     if (req.query.lowStock === "true") filters.lowStock = true;
     
     const inventory = await warehouseStorage.getProductInventory(warehouseId, filters);
+
+    // Produkt-Details hinzufügen
+    const inventoryWithProducts = await Promise.all(inventory.map(async (item) => {
+      // Produktinformationen abrufen
+      const [product] = await db
+        .select()
+        .from(products)
+        .where(eq(products.id, item.productId));
+      
+      return {
+        ...item,
+        product
+      };
+    }));
     
-    return res.json(inventory);
+    return res.json(inventoryWithProducts);
   } catch (error) {
     return handleServerError(error, res);
   }
