@@ -55,7 +55,7 @@ export default function WarehouseInventory({
   onRefresh = () => {}
 }: WarehouseInventoryProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [warehouseFilter, setWarehouseFilter] = useState('');
+  const [warehouseFilter, setWarehouseFilter] = useState('all');
   const [showCriticalOnly, setShowCriticalOnly] = useState(false);
   const [showZeroStock, setShowZeroStock] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<{ id: number, warehouseId: number, name: string } | null>(null);
@@ -272,7 +272,7 @@ export default function WarehouseInventory({
                 <SelectValue placeholder="Alle Lager" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem key="all" value="">Alle Lager</SelectItem>
+                <SelectItem key="all" value="all">Alle Lager</SelectItem>
                 {Array.isArray(warehouses) && warehouses.map((warehouse: any) => (
                   <SelectItem 
                     key={warehouse?.id || 'unknown'} 

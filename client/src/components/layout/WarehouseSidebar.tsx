@@ -23,6 +23,9 @@ export default function WarehouseSidebar() {
   const isActive = (path: string) => {
     return location === path;
   };
+  
+  // Debug-Informationen anzeigen
+  console.log("WarehouseSidebar wird gerendert. Warehouses:", warehouses);
 
   if (isLoading) {
     return (
