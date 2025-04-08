@@ -41,8 +41,8 @@ const handleServerError = (error: any, res: express.Response) => {
 // GET /api/warehouse3/warehouses - Alle Lager abrufen
 router.get("/warehouses", async (req, res) => {
   try {
-    const allWarehouses = await db.select().from(warehouses).orderBy(warehouses.name);
-    return res.json(allWarehouses);
+    const result = await db.query(`SELECT * FROM warehouses ORDER BY name`);
+    return res.json(result.rows);
   } catch (error) {
     return handleServerError(error, res);
   }
@@ -82,13 +82,13 @@ router.get("/warehouses/:id", async (req, res) => {
       return res.status(400).json({ success: false, message: "Ungültige Lager-ID" });
     }
     
-    const warehouse = await db.select().from(warehouses).where(eq(warehouses.id, warehouseId)).limit(1);
+    const result = await db.query(`SELECT * FROM warehouses WHERE id = $1 LIMIT 1`, [warehouseId]);
     
-    if (warehouse.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ success: false, message: "Lager nicht gefunden" });
     }
     
-    return res.json(warehouse[0]);
+    return res.json(result.rows[0]);
   } catch (error) {
     return handleServerError(error, res);
   }
@@ -103,22 +103,42 @@ router.patch("/warehouses/:id", async (req, res) => {
     }
     
     // Prüfen, ob das Lager existiert
-    const existingWarehouse = await db.select().from(warehouses).where(eq(warehouses.id, warehouseId)).limit(1);
-    if (existingWarehouse.length === 0) {
+    const existingWarehouseResult = await db.query(`SELECT * FROM warehouses WHERE id = $1 LIMIT 1`, [warehouseId]);
+    if (existingWarehouseResult.rows.length === 0) {
       return res.status(404).json({ success: false, message: "Lager nicht gefunden" });
     }
     
     // Daten validieren
     const validatedData = insertWarehouseSchema.partial().parse(req.body);
     
-    // Lager aktualisieren
-    const [updatedWarehouse] = await db.update(warehouses)
-      .set({
-        ...validatedData,
-        updatedAt: new Date(),
-      })
-      .where(eq(warehouses.id, warehouseId))
-      .returning();
+    // SQL-Update-Anweisung und Parameter erstellen
+    const updateFields = [];
+    const updateValues = [warehouseId]; // Erste Parameter-Position ist für die ID
+    let paramPosition = 2; // Beginne mit Position 2 für die Update-Werte
+    
+    for (const [key, value] of Object.entries(validatedData)) {
+      if (value !== undefined) {
+        updateFields.push(`${snakeCaseKey(key)} = $${paramPosition}`);
+        updateValues.push(value);
+        paramPosition++;
+      }
+    }
+    
+    // Immer updatedAt aktualisieren
+    updateFields.push(`updated_at = $${paramPosition}`);
+    updateValues.push(new Date());
+    
+    if (updateFields.length === 0) {
+      return res.status(400).json({ success: false, message: "Keine Felder zum Aktualisieren angegeben" });
+    }
+    
+    // SQL-Abfrage ausführen
+    const updateResult = await db.query(
+      `UPDATE warehouses SET ${updateFields.join(', ')} WHERE id = $1 RETURNING *`,
+      updateValues
+    );
+    
+    const updatedWarehouse = updateResult.rows[0];
     
     return res.json({
       success: true,
@@ -133,6 +153,11 @@ router.patch("/warehouses/:id", async (req, res) => {
   }
 });
 
+// Hilfsfunktion zur Umwandlung von camelCase zu snake_case
+function snakeCaseKey(key) {
+  return key.replace(/([A-Z])/g, '_$1').toLowerCase();
+}
+
 // DELETE /api/warehouse3/warehouses/:id - Lager löschen
 router.delete("/warehouses/:id", async (req, res) => {
   try {
@@ -142,8 +167,8 @@ router.delete("/warehouses/:id", async (req, res) => {
     }
     
     // Prüfen, ob das Lager existiert
-    const existingWarehouse = await db.select().from(warehouses).where(eq(warehouses.id, warehouseId)).limit(1);
-    if (existingWarehouse.length === 0) {
+    const existingWarehouseResult = await db.query(`SELECT * FROM warehouses WHERE id = $1 LIMIT 1`, [warehouseId]);
+    if (existingWarehouseResult.rows.length === 0) {
       return res.status(404).json({ success: false, message: "Lager nicht gefunden" });
     }
     
@@ -151,7 +176,7 @@ router.delete("/warehouses/:id", async (req, res) => {
     // Hier könnte man prüfen, ob es Produkte oder Bewegungen gibt, die auf dieses Lager verweisen
     
     // Lager löschen
-    await db.delete(warehouses).where(eq(warehouses.id, warehouseId));
+    await db.query(`DELETE FROM warehouses WHERE id = $1`, [warehouseId]);
     
     return res.json({
       success: true,
@@ -171,52 +196,58 @@ router.get("/warehouses/:id/stats", async (req, res) => {
     }
     
     // Produkte im Lager zählen
-    const productCount = await db.select({ count: sql<number>`count(*)` })
-      .from(productInventory)
-      .where(eq(productInventory.warehouseId, warehouseId));
+    const productCountResult = await db.query(
+      `SELECT COUNT(*) FROM product_inventory WHERE warehouse_id = $1`,
+      [warehouseId]
+    );
+    const productCount = parseInt(productCountResult.rows[0]?.count) || 0;
       
     // Produkte mit niedrigem Bestand zählen
-    const lowStockCount = await db.select({ count: sql<number>`count(*)` })
-      .from(productInventory)
-      .where(and(
-        eq(productInventory.warehouseId, warehouseId),
-        sql`${productInventory.currentStock} < ${productInventory.minimumStock}`
-      ));
+    const lowStockCountResult = await db.query(
+      `SELECT COUNT(*) FROM product_inventory 
+       WHERE warehouse_id = $1 AND current_stock < minimum_stock`,
+      [warehouseId]
+    );
+    const lowStockCount = parseInt(lowStockCountResult.rows[0]?.count) || 0;
     
     // Zugewiesene Automaten zählen
-    const machineCount = await db.select({ count: sql<number>`count(*)` })
-      .from(machineWarehouseAssignments)
-      .where(eq(machineWarehouseAssignments.warehouseId, warehouseId));
+    const machineCountResult = await db.query(
+      `SELECT COUNT(*) FROM machine_warehouse_assignments 
+       WHERE warehouse_id = $1`,
+      [warehouseId]
+    );
+    const machineCount = parseInt(machineCountResult.rows[0]?.count) || 0;
     
     // Datum der letzten Inventur
-    const lastInventory = await db.select()
-      .from(inventoryCounts)
-      .where(eq(inventoryCounts.warehouseId, warehouseId))
-      .orderBy(desc(inventoryCounts.endDate))
-      .limit(1);
+    const lastInventoryResult = await db.query(
+      `SELECT end_date FROM inventory_counts 
+       WHERE warehouse_id = $1 
+       ORDER BY end_date DESC 
+       LIMIT 1`,
+      [warehouseId]
+    );
+    const lastInventoryDate = lastInventoryResult.rows.length > 0 ? lastInventoryResult.rows[0].end_date : null;
     
     // Bewegungen der letzten 30 Tage zählen
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
-    const movementCount30Days = await db.select({ count: sql<number>`count(*)` })
-      .from(inventoryMovements)
-      .where(and(
-        sql`${inventoryMovements.sourceType} = 'warehouse' AND ${inventoryMovements.sourceId} = ${warehouseId}`,
-        sql`${inventoryMovements.performedAt} >= ${thirtyDaysAgo}`
-      ))
-      .orWhere(and(
-        sql`${inventoryMovements.destinationType} = 'warehouse' AND ${inventoryMovements.destinationId} = ${warehouseId}`,
-        sql`${inventoryMovements.performedAt} >= ${thirtyDaysAgo}`
-      ));
+    const movementCount30DaysResult = await db.query(
+      `SELECT COUNT(*) FROM inventory_movements 
+       WHERE ((source_type = 'warehouse' AND source_id = $1) 
+              OR (destination_type = 'warehouse' AND destination_id = $1))
+             AND performed_at >= $2`,
+      [warehouseId, thirtyDaysAgo]
+    );
+    const movementCount30Days = parseInt(movementCount30DaysResult.rows[0]?.count) || 0;
     
     // Statistiken zusammenstellen
     const stats = {
-      productCount: productCount[0]?.count || 0,
-      lowStockCount: lowStockCount[0]?.count || 0,
-      machineCount: machineCount[0]?.count || 0,
-      lastInventoryDate: lastInventory.length > 0 ? lastInventory[0].endDate : null,
-      movementCount30Days: movementCount30Days[0]?.count || 0,
+      productCount,
+      lowStockCount,
+      machineCount,
+      lastInventoryDate,
+      movementCount30Days,
     };
     
     return res.json(stats);
@@ -246,87 +277,85 @@ router.get("/warehouses/:id/inventory", async (req, res) => {
     const sortOrder = req.query.sortOrder as string === 'desc' ? 'desc' : 'asc';
     const lowStock = req.query.lowStock === 'true';
     
-    // Basisabfrage
-    let query = db.select({
-      id: productInventory.id,
-      productId: productInventory.productId,
-      currentStock: productInventory.currentStock,
-      minimumStock: productInventory.minimumStock,
-      location: productInventory.location,
-      lastCountDate: productInventory.lastCountDate,
-      // TODO: Join mit der products-Tabelle, um Produktdaten zu erhalten
-      productName: sql<string>`'Produktname'`, // Platzhalter
-      category: sql<string>`'Kategorie'`, // Platzhalter
-      // Zusätzliche Felder aus der Batch-Tabelle
-      batchId: sql<number>`null`, // Platzhalter
-      batchNumber: sql<string>`null`, // Platzhalter
-      expiryDate: sql<string>`null`, // Platzhalter
-      daysUntilExpiry: sql<number>`null`, // Platzhalter
-    })
-    .from(productInventory)
-    .where(eq(productInventory.warehouseId, warehouseId));
+    // Basis-SQL erstellen
+    let sqlQuery = `
+      SELECT 
+        pi.id,
+        pi.product_id as "productId",
+        pi.current_stock as "currentStock",
+        pi.minimum_stock as "minimumStock",
+        pi.location,
+        pi.last_count_date as "lastCountDate",
+        'Produktname' as "productName",
+        'Kategorie' as "category",
+        null as "batchId",
+        null as "batchNumber",
+        null as "expiryDate",
+        null as "daysUntilExpiry"
+      FROM product_inventory pi
+      WHERE pi.warehouse_id = $1
+    `;
+    
+    const queryParams = [warehouseId];
+    let paramIndex = 2;
     
     // Suchfilter anwenden
     if (search) {
       // TODO: Hier müsste man eigentlich mit der products-Tabelle joinen
-      // query = query.where(like(products.productName, `%${search}%`));
+      // sqlQuery += ` AND p.name ILIKE $${paramIndex}`;
+      // queryParams.push(`%${search}%`);
+      // paramIndex++;
     }
     
     // Kategoriefilter anwenden
     if (category) {
       // TODO: Hier müsste man eigentlich mit der products-Tabelle joinen
-      // query = query.where(eq(products.category, category));
+      // sqlQuery += ` AND p.category = $${paramIndex}`;
+      // queryParams.push(category);
+      // paramIndex++;
     }
     
     // Filter für niedrigen Bestand
     if (lowStock) {
-      query = query.where(sql`${productInventory.currentStock} < ${productInventory.minimumStock}`);
+      sqlQuery += ` AND pi.current_stock < pi.minimum_stock`;
     }
     
     // Sortierung anwenden
-    // TODO: Hier müsste man die richtige Sortierung basierend auf den Joins implementieren
-    if (sortOrder === 'desc') {
-      if (sortBy === 'currentStock') {
-        query = query.orderBy(desc(productInventory.currentStock));
-      } else if (sortBy === 'location') {
-        query = query.orderBy(desc(productInventory.location));
-      } else if (sortBy === 'expiryDate') {
-        // query = query.orderBy(desc(productBatches.expiryDate));
-      } else {
-        // Default: nach Produktname sortieren
-        // query = query.orderBy(desc(products.productName));
-      }
+    if (sortBy === 'currentStock') {
+      sqlQuery += ` ORDER BY pi.current_stock ${sortOrder === 'desc' ? 'DESC' : 'ASC'}`;
+    } else if (sortBy === 'location') {
+      sqlQuery += ` ORDER BY pi.location ${sortOrder === 'desc' ? 'DESC' : 'ASC'}`;
+    } else if (sortBy === 'expiryDate') {
+      // Für ein Feld, das wir nicht haben, nutzen wir einen Default
+      sqlQuery += ` ORDER BY pi.id ${sortOrder === 'desc' ? 'DESC' : 'ASC'}`;
     } else {
-      if (sortBy === 'currentStock') {
-        query = query.orderBy(asc(productInventory.currentStock));
-      } else if (sortBy === 'location') {
-        query = query.orderBy(asc(productInventory.location));
-      } else if (sortBy === 'expiryDate') {
-        // query = query.orderBy(asc(productBatches.expiryDate));
-      } else {
-        // Default: nach Produktname sortieren
-        // query = query.orderBy(asc(products.productName));
-      }
+      // Default: nach ID sortieren
+      sqlQuery += ` ORDER BY pi.id ${sortOrder === 'desc' ? 'DESC' : 'ASC'}`;
     }
     
     // Gesamtanzahl der Einträge ermitteln
-    const countResult = await db.select({ count: sql<number>`count(*)` })
-      .from(productInventory)
-      .where(eq(productInventory.warehouseId, warehouseId));
+    const countResult = await db.query(
+      `SELECT COUNT(*) FROM product_inventory WHERE warehouse_id = $1`,
+      [warehouseId]
+    );
+    const total = parseInt(countResult.rows[0]?.count) || 0;
     
     // Limit und Offset für Paginierung anwenden
-    query = query.limit(limit).offset(offset);
+    sqlQuery += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    queryParams.push(limit);
+    queryParams.push(offset);
     
     // Abfrage ausführen
-    const items = await query;
+    const result = await db.query(sqlQuery, queryParams);
+    const items = result.rows;
     
     // Ergebnis zurückgeben
     return res.json({
       items,
-      total: countResult[0]?.count || 0,
+      total,
       page,
       limit,
-      totalPages: Math.ceil((countResult[0]?.count || 0) / limit),
+      totalPages: Math.ceil(total / limit),
     });
   } catch (error) {
     return handleServerError(error, res);
@@ -355,114 +384,109 @@ router.get("/warehouses/:id/movements", async (req, res) => {
     const sortBy = req.query.sortBy as string || 'performedAt';
     const sortOrder = req.query.sortOrder as string === 'asc' ? 'asc' : 'desc';
     
-    // Basisabfrage für Bewegungen, die dieses Lager betreffen
-    let query = db.select({
-      id: inventoryMovements.id,
-      productId: inventoryMovements.productId,
-      quantity: inventoryMovements.quantity,
-      movementType: inventoryMovements.movementType,
-      sourceType: inventoryMovements.sourceType,
-      sourceId: inventoryMovements.sourceId,
-      destinationType: inventoryMovements.destinationType,
-      destinationId: inventoryMovements.destinationId,
-      status: inventoryMovements.status,
-      performedAt: inventoryMovements.performedAt,
-      createdAt: inventoryMovements.createdAt,
-      previousStock: inventoryMovements.previousStock,
-      currentStock: inventoryMovements.currentStock,
-      batchId: inventoryMovements.batchId,
-      referenceType: inventoryMovements.referenceType,
-      referenceId: inventoryMovements.referenceId,
-      reason: inventoryMovements.reason,
-      notes: inventoryMovements.notes,
-      // Platzhalter für verknüpfte Daten
-      productName: sql<string>`'Produktname'`, // Platzhalter
-      batchNumber: sql<string>`null`, // Platzhalter
-      machineName: sql<string>`null`, // Platzhalter
-      performedByName: sql<string>`null`, // Platzhalter
-      sourceName: sql<string>`null`, // Platzhalter
-      destinationName: sql<string>`null`, // Platzhalter
-    })
-    .from(inventoryMovements)
-    .where(
-      sql`(
-        (${inventoryMovements.sourceType} = 'warehouse' AND ${inventoryMovements.sourceId} = ${warehouseId})
-        OR
-        (${inventoryMovements.destinationType} = 'warehouse' AND ${inventoryMovements.destinationId} = ${warehouseId})
-      )`
-    );
+    // Basis-SQL erstellen
+    let sqlQuery = `
+      SELECT 
+        im.id,
+        im.product_id as "productId",
+        im.quantity,
+        im.movement_type as "movementType",
+        im.source_type as "sourceType",
+        im.source_id as "sourceId",
+        im.destination_type as "destinationType",
+        im.destination_id as "destinationId",
+        im.status,
+        im.performed_at as "performedAt",
+        im.created_at as "createdAt",
+        im.previous_stock as "previousStock",
+        im.current_stock as "currentStock",
+        im.batch_id as "batchId",
+        im.reference_type as "referenceType",
+        im.reference_id as "referenceId", 
+        im.reason,
+        im.notes,
+        'Produktname' as "productName",
+        null as "batchNumber",
+        null as "machineName",
+        null as "performedByName",
+        null as "sourceName",
+        null as "destinationName"
+      FROM inventory_movements im
+      WHERE ((im.source_type = 'warehouse' AND im.source_id = $1)
+           OR (im.destination_type = 'warehouse' AND im.destination_id = $1))
+    `;
+    
+    const queryParams = [warehouseId];
+    let paramIndex = 2;
     
     // Suchfilter anwenden
     if (search) {
       // TODO: Hier müsste man eigentlich mit der products-Tabelle joinen für Produktnamen
+      // sqlQuery += ` AND p.name ILIKE $${paramIndex}`;
+      // queryParams.push(`%${search}%`);
+      // paramIndex++;
     }
     
     // Bewegungstyp-Filter anwenden
     if (movementType) {
-      query = query.where(eq(inventoryMovements.movementType, movementType));
+      sqlQuery += ` AND im.movement_type = $${paramIndex}`;
+      queryParams.push(movementType);
+      paramIndex++;
     }
     
     // Datumsfilter anwenden
     if (startDate) {
-      query = query.where(gte(inventoryMovements.performedAt, startDate));
+      sqlQuery += ` AND im.performed_at >= $${paramIndex}`;
+      queryParams.push(startDate);
+      paramIndex++;
     }
     
     if (endDate) {
       // Setze das Ende des Tages für den Enddate-Filter
       const endOfDay = new Date(endDate);
       endOfDay.setHours(23, 59, 59, 999);
-      query = query.where(lte(inventoryMovements.performedAt, endOfDay));
+      sqlQuery += ` AND im.performed_at <= $${paramIndex}`;
+      queryParams.push(endOfDay);
+      paramIndex++;
     }
     
     // Sortierung anwenden
-    if (sortOrder === 'desc') {
-      if (sortBy === 'performedAt') {
-        query = query.orderBy(desc(inventoryMovements.performedAt));
-      } else if (sortBy === 'quantity') {
-        query = query.orderBy(desc(inventoryMovements.quantity));
-      } else if (sortBy === 'movementType') {
-        query = query.orderBy(desc(inventoryMovements.movementType));
-      } else {
-        // Default: nach Datum sortieren
-        query = query.orderBy(desc(inventoryMovements.performedAt));
-      }
+    if (sortBy === 'performedAt') {
+      sqlQuery += ` ORDER BY im.performed_at ${sortOrder === 'desc' ? 'DESC' : 'ASC'}`;
+    } else if (sortBy === 'quantity') {
+      sqlQuery += ` ORDER BY im.quantity ${sortOrder === 'desc' ? 'DESC' : 'ASC'}`;
+    } else if (sortBy === 'movementType') {
+      sqlQuery += ` ORDER BY im.movement_type ${sortOrder === 'desc' ? 'DESC' : 'ASC'}`;
     } else {
-      if (sortBy === 'performedAt') {
-        query = query.orderBy(asc(inventoryMovements.performedAt));
-      } else if (sortBy === 'quantity') {
-        query = query.orderBy(asc(inventoryMovements.quantity));
-      } else if (sortBy === 'movementType') {
-        query = query.orderBy(asc(inventoryMovements.movementType));
-      } else {
-        // Default: nach Datum sortieren
-        query = query.orderBy(asc(inventoryMovements.performedAt));
-      }
+      // Default: nach Datum sortieren
+      sqlQuery += ` ORDER BY im.performed_at ${sortOrder === 'desc' ? 'DESC' : 'ASC'}`;
     }
     
     // Gesamtanzahl der Einträge ermitteln
-    const countResult = await db.select({ count: sql<number>`count(*)` })
-      .from(inventoryMovements)
-      .where(
-        sql`(
-          (${inventoryMovements.sourceType} = 'warehouse' AND ${inventoryMovements.sourceId} = ${warehouseId})
-          OR
-          (${inventoryMovements.destinationType} = 'warehouse' AND ${inventoryMovements.destinationId} = ${warehouseId})
-        )`
-      );
+    const countResult = await db.query(
+      `SELECT COUNT(*) FROM inventory_movements im
+       WHERE ((im.source_type = 'warehouse' AND im.source_id = $1)
+              OR (im.destination_type = 'warehouse' AND im.destination_id = $1))`,
+      [warehouseId]
+    );
+    const total = parseInt(countResult.rows[0]?.count) || 0;
     
     // Limit und Offset für Paginierung anwenden
-    query = query.limit(limit).offset(offset);
+    sqlQuery += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    queryParams.push(limit);
+    queryParams.push(offset);
     
     // Abfrage ausführen
-    const items = await query;
+    const result = await db.query(sqlQuery, queryParams);
+    const items = result.rows;
     
     // Ergebnis zurückgeben
     return res.json({
       items,
-      total: countResult[0]?.count || 0,
+      total,
       page,
       limit,
-      totalPages: Math.ceil((countResult[0]?.count || 0) / limit),
+      totalPages: Math.ceil(total / limit),
     });
   } catch (error) {
     return handleServerError(error, res);

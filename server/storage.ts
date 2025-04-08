@@ -1893,9 +1893,9 @@ export class DatabaseStorage implements IStorage {
 
   async createSyncLog(log: InsertSyncLog): Promise<SyncLog> {
     // Add timestamps to ensure consistent data if not already set
-    const createdAt = log.createdAt || new Date();
     const result = await db.query(
-      `INSERT INTO sync_logs (sync_type, start_date, end_date, additional_data, errors, warnings, processed_items, sync_status, items_affected, items_skipped, sync_source, creator) 
+      `INSERT INTO sync_logs (sync_type, start_date, end_date, additional_data, errors, 
+         items_found, items_saved, items_updated, sync_status, duplicates, duration_seconds, error_message) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
        RETURNING *`, 
       [
@@ -1903,14 +1903,14 @@ export class DatabaseStorage implements IStorage {
         log.startDate, 
         log.endDate, 
         log.additionalData, 
-        log.errors,
-        log.warnings,
-        log.processedItems,
-        log.syncStatus,
-        log.itemsAffected,
-        log.itemsSkipped,
-        log.syncSource,
-        log.creator
+        log.errors || 0,
+        log.itemsFound || 0,
+        log.itemsSaved || 0,
+        log.itemsUpdated || 0,
+        log.syncStatus || 'started',
+        log.duplicates || 0,
+        log.durationSeconds || 0,
+        log.errorMessage || null
       ]
     );
     
@@ -1918,9 +1918,6 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateSyncLog(id: number, log: Partial<InsertSyncLog>): Promise<SyncLog | undefined> {
-    // Add updatedAt timestamp for tracking
-    const updatedAt = new Date();
-    
     // Construct the set clause for the update
     let setClauses = [];
     const params = [id]; // First parameter is always the ID
@@ -1957,15 +1954,21 @@ export class DatabaseStorage implements IStorage {
       paramIndex++;
     }
     
-    if (log.warnings !== undefined) {
-      setClauses.push(`warnings = $${paramIndex}`);
-      params.push(log.warnings);
+    if (log.itemsFound !== undefined) {
+      setClauses.push(`items_found = $${paramIndex}`);
+      params.push(log.itemsFound);
       paramIndex++;
     }
     
-    if (log.processedItems !== undefined) {
-      setClauses.push(`processed_items = $${paramIndex}`);
-      params.push(log.processedItems);
+    if (log.itemsSaved !== undefined) {
+      setClauses.push(`items_saved = $${paramIndex}`);
+      params.push(log.itemsSaved);
+      paramIndex++;
+    }
+    
+    if (log.itemsUpdated !== undefined) {
+      setClauses.push(`items_updated = $${paramIndex}`);
+      params.push(log.itemsUpdated);
       paramIndex++;
     }
     
@@ -1975,33 +1978,23 @@ export class DatabaseStorage implements IStorage {
       paramIndex++;
     }
     
-    if (log.itemsAffected !== undefined) {
-      setClauses.push(`items_affected = $${paramIndex}`);
-      params.push(log.itemsAffected);
+    if (log.duplicates !== undefined) {
+      setClauses.push(`duplicates = $${paramIndex}`);
+      params.push(log.duplicates);
       paramIndex++;
     }
     
-    if (log.itemsSkipped !== undefined) {
-      setClauses.push(`items_skipped = $${paramIndex}`);
-      params.push(log.itemsSkipped);
+    if (log.durationSeconds !== undefined) {
+      setClauses.push(`duration_seconds = $${paramIndex}`);
+      params.push(log.durationSeconds);
       paramIndex++;
     }
     
-    if (log.syncSource !== undefined) {
-      setClauses.push(`sync_source = $${paramIndex}`);
-      params.push(log.syncSource);
+    if (log.errorMessage !== undefined) {
+      setClauses.push(`error_message = $${paramIndex}`);
+      params.push(log.errorMessage);
       paramIndex++;
     }
-    
-    if (log.creator !== undefined) {
-      setClauses.push(`creator = $${paramIndex}`);
-      params.push(log.creator);
-      paramIndex++;
-    }
-    
-    // Always update the updated_at timestamp
-    setClauses.push(`updated_at = $${paramIndex}`);
-    params.push(updatedAt);
     
     // Execute the update query
     const setClause = setClauses.join(', ');
