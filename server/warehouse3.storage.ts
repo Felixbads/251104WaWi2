@@ -290,71 +290,81 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
   }
   
   async getWarehouse(id: number): Promise<any | null> {
-    const [result] = await db
-      .select()
-      .from(warehouses)
-      .where(eq(warehouses.id, id));
-    
-    if (!result) return null;
-    
-    // Optimierte Abfrage für Produkte im Lager - zählt alle Produkte, unabhängig vom Bestand
-    const [inventoryCount] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(inventoryItems)
-      .where(eq(inventoryItems.warehouseId, id));
-    
-    // Zählt alle Produkte aus Batches, auch mit Bestand 0 (für bessere Übersicht)
-    const [batchesCount] = await db
-      .select({ 
-        count: sql<number>`COUNT(DISTINCT ${productBatches.productId})` 
-      })
-      .from(productBatches)
-      .where(
-        eq(productBatches.warehouseId, id)
-        // Bedingung für currentQuantity > 0 entfernt, um alle Produkte zu zählen
-      );
-    
-    // Eindeutige Produktzählung über UNION ALL und DISTINCT
-    // Dies löst das Problem der möglichen Doppelzählung von Produkten
-    const [uniqueProductCount] = await db
-      .select({
-        count: sql<number>`COUNT(DISTINCT product_id)`
-      })
-      .from(
-        sql`(
-          SELECT product_id FROM inventory_items WHERE warehouse_id = ${id}
-          UNION
-          SELECT product_id FROM product_batches WHERE warehouse_id = ${id}
-        ) AS combined_products`
-      );
-    
-    // Kritische Artikel (niedrigerer Bestand als Mindestbestand)
-    const [criticalCount] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(inventoryItems)
-      .where(and(
-        eq(inventoryItems.warehouseId, id),
-        sql`${inventoryItems.quantity} <= ${inventoryItems.minQuantity}`,
-        sql`${inventoryItems.minQuantity} > 0` // Nur wenn ein Mindestbestand gesetzt ist
-      ));
-    
-    // Anzahl der zugeordneten Automaten
-    const [machineCount] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(machineWarehouseAssignments)
-      .where(eq(machineWarehouseAssignments.warehouseId, id));
-    
-    // Nutze die eindeutige Produktzählung statt der Summe
-    const totalProductCount = uniqueProductCount?.count || 0;
-    
-    console.log(`Lagerdetails für ID ${id}: Produkte in inventory_items=${inventoryCount?.count || 0}, in Batches=${batchesCount?.count || 0}, Eindeutige Produkte=${totalProductCount}`);
-    
-    return {
-      ...result,
-      productCount: totalProductCount,
-      criticalItemCount: criticalCount?.count || 0,
-      machineCount: machineCount?.count || 0
-    };
+    try {
+      const [result] = await db
+        .select()
+        .from(warehouses)
+        .where(eq(warehouses.id, id));
+      
+      if (!result) return null;
+      
+      // Direktabfrage für Produkte im Lager mit SQL-Abfrage für bessere Kompatibilität
+      const [inventoryCount] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(sql`inventory_items`)
+        .where(sql`warehouse_id = ${id}`);
+      
+      // Zählt alle Produkte aus Batches
+      const [batchesCount] = await db
+        .select({ 
+          count: sql<number>`COUNT(DISTINCT product_id)` 
+        })
+        .from(sql`product_batches`)
+        .where(sql`warehouse_id = ${id}`);
+      
+      // Eindeutige Produktzählung mit SQL-Direktabfrage
+      const [uniqueProductCount] = await db
+        .select({
+          count: sql<number>`COUNT(DISTINCT product_id)`
+        })
+        .from(
+          sql`(
+            SELECT product_id FROM inventory_items WHERE warehouse_id = ${id}
+            UNION
+            SELECT product_id FROM product_batches WHERE warehouse_id = ${id}
+          ) AS combined_products`
+        );
+      
+      // Kritische Artikel (Bestand <= Mindestbestand)
+      const [criticalCount] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(sql`inventory_items`)
+        .where(sql`
+          warehouse_id = ${id} AND
+          quantity <= min_quantity AND
+          min_quantity > 0
+        `);
+      
+      // Anzahl der zugeordneten Automaten
+      const [machineCount] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(machineWarehouseAssignments)
+        .where(eq(machineWarehouseAssignments.warehouseId, id));
+      
+      // Verwende die eindeutige Produktzählung
+      const productCountValue = uniqueProductCount?.count || 0;
+      
+      console.log(`Lagerdetails für ID ${id}: Produkte in inventory_items=${inventoryCount?.count || 0}, in Batches=${batchesCount?.count || 0}, Eindeutige Produkte=${productCountValue}`);
+      
+      return {
+        ...result,
+        productCount: productCountValue,
+        criticalItemCount: criticalCount?.count || 0,
+        machineCount: machineCount?.count || 0
+      };
+    } catch (error) {
+      console.error(`Fehler beim Abrufen der Lagerinformationen für ID ${id}:`, error);
+      // Rückgabe mit Standardwerten im Fehlerfall
+      return { 
+        id: id,
+        name: "Fehler beim Laden",
+        status: "error",
+        productCount: 0, 
+        criticalItemCount: 0, 
+        machineCount: 0, 
+        error: true 
+      };
+    }
   }
   
   async createWarehouse(data: InsertWarehouse): Promise<any> {
@@ -562,15 +572,15 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
   }
   
   async createProductInventory(data: any): Promise<any> {
-    // Anpassung der Felder aus dem Schema an die tatsächliche Tabelle
+    // Anpassung der Felder für das Drizzle-Schema (sie werden automatisch auf DB-Felder gemappt)
     const mappedData: any = {
-      warehouse_id: data.warehouseId,
-      product_id: data.productId,
+      warehouseId: data.warehouseId,
+      productId: data.productId,
       quantity: data.quantity || 0,
-      min_quantity: data.minQuantity || 0,
+      minQuantity: data.minQuantity || 0,
       status: "active",
       notes: data.notes || "",
-      last_count_date: data.lastCountDate || new Date()
+      lastCountDate: data.lastCountDate || new Date()
     };
     
     const [result] = await db.insert(inventoryItems).values(mappedData).returning();
@@ -598,17 +608,18 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       ));
     
     if (!currentInventory) {
-      // Wenn kein Eintrag existiert, einen neuen erstellen mit korrekten DB-Feldnamen
+      // Wenn kein Eintrag existiert, einen neuen erstellen mit Drizzle-Schema-Feldnamen
+      // dann werden sie korrekt auf die DB-Feldnamen gemappt
       const [newInventory] = await db
         .insert(inventoryItems)
         .values({
-          warehouse_id: warehouseId,
-          product_id: productId,
+          warehouseId: warehouseId,
+          productId: productId,
           quantity: Math.max(0, quantityChange), // Bestand darf nicht negativ sein
-          min_quantity: 0, // Standardwert für Mindestbestand
-          last_count_date: new Date(),
-          created_at: new Date(),
-          updated_at: new Date()
+          minQuantity: 0, // Standardwert für Mindestbestand
+          lastCountDate: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date()
         })
         .returning();
       
@@ -623,7 +634,7 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       .update(inventoryItems)
       .set({
         quantity: newStock,
-        updated_at: new Date()
+        updatedAt: new Date()
       })
       .where(and(
         eq(inventoryItems.warehouseId, warehouseId),
