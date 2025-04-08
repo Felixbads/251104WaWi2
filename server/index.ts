@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startAutomaticSync } from "./scheduler";
 import { reconcileWarehouseProducts } from "./services/warehouseReconciliation";
+import { warehouseStorage } from "./warehouse3.storage";
 import fileUpload from "express-fileupload";
 import WebSocket from 'ws';
 import http from 'http';
@@ -84,5 +85,38 @@ app.use((req, res, next) => {
     // Kein automatischer Lagerabgleich mehr beim Serverstart, dieser wird nur noch
     // beim Erstellen einer neuen Automaten-Lager-Zuordnung ausgeführt
     log('Automatischer Lagerabgleich beim Serverstart deaktiviert, wird nur noch bei Bedarf ausgeführt.');
+
+    // Automatische Prüfung auf abgelaufene Chargen alle 24 Stunden
+    log('Starte automatische Prüfung für abgelaufene Chargen...');
+    // Prüfe direkt beim Start
+    try {
+      const expiredBatches = await warehouseStorage.getExpiredBatches();
+      if (expiredBatches.length > 0) {
+        log(`${expiredBatches.length} abgelaufene Chargen gefunden, starte Ausbuchung...`);
+        await warehouseStorage.removeExpiredBatches();
+        log('Ausbuchung abgelaufener Chargen erfolgreich abgeschlossen.');
+      } else {
+        log('Keine abgelaufenen Chargen gefunden.');
+      }
+    } catch (error) {
+      console.error('Fehler bei der Prüfung abgelaufener Chargen:', error);
+    }
+    
+    // Schedule für regelmäßige Überprüfung (alle 24 Stunden)
+    setInterval(async () => {
+      log('Starte geplante Prüfung auf abgelaufene Chargen...');
+      try {
+        const expiredBatches = await warehouseStorage.getExpiredBatches();
+        if (expiredBatches.length > 0) {
+          log(`${expiredBatches.length} abgelaufene Chargen gefunden, starte Ausbuchung...`);
+          await warehouseStorage.removeExpiredBatches();
+          log('Ausbuchung abgelaufener Chargen erfolgreich abgeschlossen.');
+        } else {
+          log('Keine abgelaufenen Chargen gefunden.');
+        }
+      } catch (error) {
+        console.error('Fehler bei der geplanten Prüfung abgelaufener Chargen:', error);
+      }
+    }, 24 * 60 * 60 * 1000); // 24 Stunden
   });
 })();

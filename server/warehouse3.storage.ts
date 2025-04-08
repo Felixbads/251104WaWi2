@@ -51,6 +51,8 @@ export interface WarehouseStorage {
   createProductBatch(data: InsertProductBatch): Promise<any>;
   updateProductBatch(id: number, data: Partial<InsertProductBatch>): Promise<any>;
   updateBatchStock(batchId: number, quantityChange: number): Promise<any>;
+  getExpiredBatches(): Promise<any[]>;
+  removeExpiredBatches(): Promise<void>;
   
   // Inventory Movements
   createInventoryMovement(data: InsertInventoryMovement): Promise<any>;
@@ -564,6 +566,94 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     await this.updateProductStock(batch.warehouseId, batch.productId, quantityChange);
     
     return updatedBatch;
+  }
+  
+  // Holt die Chargen, die bereits abgelaufen sind
+  async getExpiredBatches(): Promise<any[]> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Setze auf Beginn des Tages
+    
+    // Hole alle Chargen, deren Ablaufdatum vor dem heutigen Tag liegt und die noch Bestand haben
+    const expiredBatches = await db
+      .select({
+        batch: productBatches,
+        product: products,
+        warehouse: warehouses
+      })
+      .from(productBatches)
+      .leftJoin(products, eq(productBatches.productId, products.id))
+      .leftJoin(warehouses, eq(productBatches.warehouseId, warehouses.id))
+      .where(and(
+        // Ablaufdatum ist in der Vergangenheit
+        sql`${productBatches.expiryDate} <= ${today.toISOString().substring(0, 10)}`,
+        // Charge hat noch Bestand
+        sql`${productBatches.currentQuantity} > 0`
+      ))
+      .orderBy(desc(productBatches.expiryDate));
+    
+    return expiredBatches.map(({ batch, product, warehouse }) => ({
+      ...batch,
+      productName: product?.productName || 'Unbekanntes Produkt',
+      warehouseName: warehouse?.name || 'Unbekanntes Lager',
+      category: product?.category || '',
+      sku: product?.sku || ''
+    }));
+  }
+  
+  // Automatisches Ausbuchen abgelaufener Chargen
+  async removeExpiredBatches(): Promise<void> {
+    try {
+      // Hole abgelaufene Chargen
+      const expiredBatches = await this.getExpiredBatches();
+      
+      if (expiredBatches.length === 0) {
+        console.log("Keine abgelaufenen Chargen gefunden.");
+        return;
+      }
+      
+      console.log(`${expiredBatches.length} abgelaufene Chargen werden ausgebucht...`);
+      
+      // Buche jede abgelaufene Charge aus
+      for (const batch of expiredBatches) {
+        try {
+          // Erstelle eine Ausgangs-Bewegung für die abgelaufene Charge
+          await this.createInventoryMovement({
+            sourceType: "warehouse",
+            sourceId: batch.warehouseId,
+            destinationType: "disposal",
+            destinationId: null,
+            productId: batch.productId,
+            batchId: batch.id,
+            quantity: batch.currentQuantity,
+            previousStock: null, // Wird automatisch im Movement-Handler gesetzt
+            currentStock: null,  // Wird automatisch im Movement-Handler gesetzt
+            movementType: "OUT",
+            referenceType: "EXPIRY",
+            referenceId: `batch-${batch.id}`,
+            reason: "Ablaufdatum erreicht",
+            notes: `Automatisch ausgebucht wegen Ablaufdatum (${new Date(batch.expiryDate).toLocaleDateString('de-DE')})`,
+            performedBy: null
+          });
+          
+          // Aktualisiere den Batch auf Menge 0
+          await db
+            .update(productBatches)
+            .set({
+              currentQuantity: 0,
+              updatedAt: new Date()
+            })
+            .where(eq(productBatches.id, batch.id));
+          
+          console.log(`Charge #${batch.id} (${batch.productName}, Menge: ${batch.currentQuantity}) erfolgreich ausgebucht.`);
+        } catch (error) {
+          console.error(`Fehler beim Ausbuchen der Charge #${batch.id}:`, error);
+        }
+      }
+      
+      console.log("Ausbuchen abgelaufener Chargen abgeschlossen.");
+    } catch (error) {
+      console.error("Fehler beim Ausbuchen abgelaufener Chargen:", error);
+    }
   }
   
   // ---- INVENTORY MOVEMENTS ----

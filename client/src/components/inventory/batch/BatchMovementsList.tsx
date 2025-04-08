@@ -15,7 +15,15 @@ type BatchMovementsListProps = {
 export default function BatchMovementsList({ batchId }: BatchMovementsListProps) {
   // Query für Batch-Bewegungen
   const { data: movements, isLoading, error } = useQuery<any[]>({
-    queryKey: ['/api/debug/product-batches', batchId, 'movements'],
+    queryKey: ['/api/inventory/movements', batchId],
+    queryFn: async () => {
+      const response = await fetch(`/api/inventory/movements?batchId=${batchId}`);
+      if (!response.ok) {
+        throw new Error(`Fehler beim Laden der Batch-Bewegungen: ${response.status}`);
+      }
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    },
     staleTime: 1000 * 30, // 30 Sekunden
     enabled: !!batchId,
   });
@@ -58,18 +66,18 @@ export default function BatchMovementsList({ batchId }: BatchMovementsListProps)
   // Hilfsfunktion zum Anzeigen des Bewegungstyps
   const getMovementTypeBadge = (type: string) => {
     switch (type.toUpperCase()) {
-      case 'INCOMING':
+      case 'IN':
         return (
           <Badge variant="outline" className="bg-green-100 text-green-800 hover:bg-green-100 flex items-center gap-1">
             <ArrowDown className="h-3 w-3" />
             Eingang
           </Badge>
         );
-      case 'REFILL':
+      case 'OUT':
         return (
           <Badge variant="outline" className="bg-blue-100 text-blue-800 hover:bg-blue-100 flex items-center gap-1">
             <ArrowUp className="h-3 w-3" />
-            Nachfüllung
+            Ausgang
           </Badge>
         );
       case 'TRANSFER':
@@ -79,11 +87,11 @@ export default function BatchMovementsList({ batchId }: BatchMovementsListProps)
             Transfer
           </Badge>
         );
-      case 'DISPOSAL':
+      case 'EXPIRY':
         return (
           <Badge variant="outline" className="bg-amber-100 text-amber-800 hover:bg-amber-100 flex items-center gap-1">
             <ArrowUp className="h-3 w-3" />
-            Entsorgung
+            Ablaufdatum
           </Badge>
         );
       default:
@@ -119,9 +127,9 @@ export default function BatchMovementsList({ batchId }: BatchMovementsListProps)
               <TableCell>{getMovementTypeBadge(movement.movementType)}</TableCell>
               <TableCell>{movement.referenceType}/{movement.referenceId}</TableCell>
               <TableCell className="text-right">{movement.quantity}</TableCell>
-              <TableCell>{movement.sourceWarehouseName || "-"}</TableCell>
-              <TableCell>{movement.destinationWarehouseName || "-"}</TableCell>
-              <TableCell>{movement.performedByName || "System"}</TableCell>
+              <TableCell>{movement.sourceName || "-"}</TableCell>
+              <TableCell>{movement.destinationName || "-"}</TableCell>
+              <TableCell>{movement.performedBy || "System"}</TableCell>
               <TableCell className="max-w-[200px] truncate" title={movement.notes || ""}>
                 {movement.notes || "-"}
               </TableCell>

@@ -189,6 +189,21 @@ export default function WarehouseInventory({
     }
   };
   
+  // Warenbewegungen für einen Batch laden
+  const getBatchMovements = async (batchId: number) => {
+    try {
+      const response = await fetch(`/api/inventory/movements?batchId=${batchId}`);
+      if (!response.ok) {
+        throw new Error(`Fehler beim Laden der Batch-Warenbewegungen: ${response.status}`);
+      }
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error("Fehler beim Laden der Batch-Warenbewegungen:", error);
+      return [];
+    }
+  };
+  
   // Toggle für expandierte Zeilen
   const toggleRowExpansion = async (item: InventoryItem) => {
     const itemId = item.id;

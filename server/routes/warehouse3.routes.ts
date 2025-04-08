@@ -534,6 +534,35 @@ router.put("/warehouses/:warehouseId/batches/:batchId", async (req, res) => {
 // ---- INVENTORY MOVEMENT ROUTES ----
 
 // Warenbewegungen eines Lagers abrufen
+// Warenbewegungen für ein bestimmtes Produkt abrufen
+router.get("/inventory/movements", async (req, res) => {
+  try {
+    const productId = req.query.productId ? parseInt(req.query.productId.toString()) : undefined;
+    const warehouseId = req.query.warehouseId ? parseInt(req.query.warehouseId.toString()) : undefined;
+    
+    if ((productId && isNaN(productId)) || (warehouseId && isNaN(warehouseId))) {
+      return res.status(400).json({ success: false, message: "Ungültige Produkt-ID oder Lager-ID" });
+    }
+    
+    // Filter für die Abfrage
+    const filters: any = {};
+    if (productId) filters.productId = productId;
+    if (warehouseId) filters.warehouseId = warehouseId;
+    if (req.query.batchId) filters.batchId = parseInt(req.query.batchId.toString());
+    if (req.query.startDate) filters.startDate = new Date(req.query.startDate.toString());
+    if (req.query.endDate) filters.endDate = new Date(req.query.endDate.toString());
+    if (req.query.type) filters.movementType = req.query.type.toString();
+    
+    // Abrufen der Warenbewegungen mit detaillierten Informationen
+    const movements = await warehouseStorage.getInventoryMovements(filters);
+    
+    return res.json(movements);
+  } catch (error) {
+    return handleServerError(error, res);
+  }
+});
+
+// Alle Warenbewegungen eines Lagers abrufen
 router.get("/warehouses/:warehouseId/movements", async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.warehouseId);
