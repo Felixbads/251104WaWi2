@@ -2479,6 +2479,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/machine-warehouse-assignments`, machineWarehouseAssignmentsRouter);
   app.use(`${API_PREFIX}/product-batches`, productBatchesRouter);
   app.use(`${API_PREFIX}/warehouse3`, warehouse3Router); // Bestehende Implementierung
+  
+  // Route für manuellen Lagerabgleich
+  app.post(`${API_PREFIX}/warehouse-reconciliation`, async (req: Request, res: Response) => {
+    try {
+      const { warehouseId } = req.body;
+      
+      if (!warehouseId) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Lager-ID ist erforderlich" 
+        });
+      }
+      
+      console.log(`Manueller Lagerabgleich für Lager ${warehouseId} gestartet...`);
+      // Import mit ES Module Syntax statt require
+      const { reconcileWarehouseProducts } = await import('./services/warehouseReconciliation');
+      const result = await reconcileWarehouseProducts(Number(warehouseId));
+      
+      return res.json({
+        success: true,
+        message: `Lagerabgleich abgeschlossen: ${result.productsAdded} neue Produkte hinzugefügt`,
+        result
+      });
+    } catch (error) {
+      console.error("Fehler beim manuellen Lagerabgleich:", error);
+      return res.status(500).json({ 
+        success: false, 
+        message: "Lagerabgleich fehlgeschlagen", 
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
   app.use(`${API_PREFIX}/warehouse3-api`, warehouse3ApiRouter); // Neue Lagerverwaltung API (Version 3)
   
   // Registriere Export/Import-Routen

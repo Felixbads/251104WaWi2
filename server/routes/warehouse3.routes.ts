@@ -1111,19 +1111,18 @@ router.get("/warehouses/expired-products", async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    try {
-      // Bedingungen für die Abfrage erstellen
-      const conditions = [
-        // Bestandsmenge ist 0 (ausgebucht)
-        eq(productBatches.currentQuantity, 0),
-        // Ablaufdatum ist in der Vergangenheit
-        sql`${productBatches.expiryDate} <= ${today.toISOString().substring(0, 10)}`
-      ];
-      
-      // Wenn eine Lager-ID angegeben wurde, diese Bedingung hinzufügen
-      if (warehouseId) {
-        conditions.push(eq(productBatches.warehouseId, warehouseId));
-      }
+    // Bedingungen für die Abfrage erstellen
+    const conditions = [
+      // Bestandsmenge ist 0 (ausgebucht)
+      eq(productBatches.currentQuantity, 0),
+      // Ablaufdatum ist in der Vergangenheit
+      sql`${productBatches.expiryDate} <= ${today.toISOString().substring(0, 10)}`
+    ];
+    
+    // Wenn eine Lager-ID angegeben wurde, diese Bedingung hinzufügen
+    if (warehouseId) {
+      conditions.push(eq(productBatches.warehouseId, warehouseId));
+    }
       
       // Abfrage mit allen Bedingungen ausführen
       const expiredBatches = await db.select({

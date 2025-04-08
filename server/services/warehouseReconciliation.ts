@@ -7,6 +7,7 @@
  */
 
 import { storage } from "../storage";
+import { normalizeProductName } from "../utils/stringUtils";
 import { InsertInventoryItem, InsertProductBatch } from "@shared/schema";
 import type { MachineWarehouseAssignment, Transaction } from "@shared/schema";
 
@@ -98,20 +99,16 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
             }
             // Wenn keine Produkt-ID gesetzt ist, versuche das Produkt über den Namen zu finden
             else if (transaction.productName) {
-              const productName = transaction.productName;
-              console.log(`Produktname direkt aus transaction.productName: "${productName}"`);
+              const rawProductName = transaction.productName;
+              console.log(`Produktname direkt aus transaction.productName: "${rawProductName}"`);
               
-              if (productName) {
-                // Suche das Produkt in der Datenbank anhand des Namens
-                const productsResult = await storage.getProducts({
-                  search: productName,
-                  limit: 1
-                });
-                
-                const products = Array.isArray(productsResult) ? productsResult : productsResult.data;
-                
-                if (products.length > 0) {
-                  const product = products[0];
+              if (rawProductName) {
+                try {
+                  // Normalisiere den Produktnamen für die Suche
+                  const productName = normalizeProductName(rawProductName);
+                  console.log(`Suche Produkt mit normalisiertem Namen: "${productName}" (Original: "${rawProductName}")`);
+                  const product = await storage.getProductByNormalizedName(productName);
+                  
                   if (product && product.id) {
                     // Nur wenn dieses Produkt noch nicht im Set ist
                     if (!warehouseToProducts[warehouseId].has(product.id)) {
@@ -121,12 +118,40 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
                         found: false
                       });
                       productsFound++;
-                      console.log(`Produkt "${productName}" über Namen gefunden und für Lager ${warehouseId} vorgemerkt`);
+                      console.log(`Produkt "${productName}" über normalisierten Namen gefunden und für Lager ${warehouseId} vorgemerkt`);
                     } else {
                       // Produkt bereits gefunden, nicht doppelt zählen
                       console.log(`Produkt "${productName}" bereits für Lager ${warehouseId} vorgemerkt`);
                     }
+                  } else {
+                    console.log(`Keine exakte Übereinstimmung für "${productName}" gefunden, versuche allgemeine Suche...`);
+                    
+                    // Wenn keine exakte Übereinstimmung gefunden wurde, versuche die Standardsuche
+                    const productsResult = await storage.getProducts({
+                      search: productName,
+                      limit: 5 // Erhöhe auf 5, um bessere Trefferchancen zu haben
+                    });
+                    
+                    const products = Array.isArray(productsResult) ? productsResult : productsResult.data;
+                    
+                    if (products.length > 0) {
+                      const matchedProduct = products[0]; // Verwende das erste Ergebnis
+                      if (matchedProduct && matchedProduct.id) {
+                        // Nur wenn dieses Produkt noch nicht im Set ist
+                        if (!warehouseToProducts[warehouseId].has(matchedProduct.id)) {
+                          warehouseToProducts[warehouseId].set(matchedProduct.id, {
+                            id: matchedProduct.id,
+                            name: matchedProduct.productName || rawProductName,
+                            found: false
+                          });
+                          productsFound++;
+                          console.log(`Produkt "${rawProductName}" über allgemeine Suche gefunden (${matchedProduct.productName}) und für Lager ${warehouseId} vorgemerkt`);
+                        }
+                      }
+                    }
                   }
+                } catch (searchError) {
+                  console.error(`Fehler bei der Produktsuche für "${rawProductName}":`, searchError);
                 }
               }
             }

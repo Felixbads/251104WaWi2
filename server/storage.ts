@@ -1,5 +1,6 @@
 import { eq, desc, and, or, gte, lte, like, asc, count, aliasedTable, sql, gt, ilike, isNull, isNotNull, inArray, between } from "drizzle-orm";
 import { db, rawSql } from "./db";
+import { normalizeProductName } from "./utils/stringUtils";
 import { 
   users, type User, type InsertUser,
   machines, type Machine, type InsertMachine,
@@ -1107,14 +1108,33 @@ export class DatabaseStorage implements IStorage {
     }
   }
   
-  async getTransactionsForProcessing(limit: number = 100, offset: number = 0): Promise<Transaction[]> {
-    return await db
-      .select()
-      .from(transactions)
-      .where(eq(transactions.processingStatus, 'pending'))
-      .orderBy(transactions.id)
-      .limit(limit)
-      .offset(offset);
+  /**
+   * Holt Transaktionen zur Verarbeitung aus der Datenbank
+   * Mit einem erhöhten Standardlimit von 1000 Transaktionen, um sicherzustellen, 
+   * dass alle notwendigen Daten verarbeitet werden.
+   * 
+   * @param limit Maximale Anzahl der Transaktionen (Standard: 1000)
+   * @param offset Offset für Paginierung (Standard: 0)
+   * @returns Liste der zu verarbeitenden Transaktionen
+   */
+  async getTransactionsForProcessing(limit: number = 1000, offset: number = 0): Promise<Transaction[]> {
+    try {
+      console.log(`Hole bis zu ${limit} Transaktionen zur Verarbeitung ab Offset ${offset}...`);
+      
+      const result = await db
+        .select()
+        .from(transactions)
+        .where(eq(transactions.processingStatus, 'pending'))
+        .orderBy(transactions.id)
+        .limit(limit)
+        .offset(offset);
+        
+      console.log(`${result.length} Transaktionen zum Verarbeiten gefunden`);
+      return result;
+    } catch (error) {
+      console.error("Fehler beim Abrufen von Transaktionen zur Verarbeitung:", error);
+      throw error;
+    }
   }
   
   async updateTransactionProcessingStatus(
@@ -1302,11 +1322,56 @@ export class DatabaseStorage implements IStorage {
     return product;
   }
 
+  /**
+   * Sucht ein Produkt anhand des exakten Namens
+   * @deprecated Verwende stattdessen getProductByNormalizedName für bessere Matching-Ergebnisse
+   */
   async getProductByName(productName: string): Promise<Product | undefined> {
     const [product] = await db.select()
       .from(products)
       .where(eq(products.productName, productName));
     return product;
+  }
+  
+  /**
+   * Sucht ein Produkt anhand des normalisierten Namens.
+   * Diese Methode berücksichtigt Unterschiede in Groß-/Kleinschreibung und Leerzeichen.
+   * 
+   * @param productName Der zu suchende Produktname
+   * @returns Das gefundene Produkt oder undefined
+   */
+  async getProductByNormalizedName(productName: string): Promise<Product | undefined> {
+    if (!productName) return undefined;
+    
+    const normalizedName = normalizeProductName(productName);
+    
+    // Verwende SQL-Funktionen, um Namen zu normalisieren und zu vergleichen
+    const result = await db.select()
+      .from(products)
+      .where(
+        sql`LOWER(TRIM(${products.productName})) = ${normalizedName}`
+      );
+      
+    if (result.length === 0) {
+      // Wenn kein exakter Match gefunden wurde, versuche eine Teilübereinstimmung
+      // mit mindestens 80% Ähnlichkeit (nur wenn der Name mindestens 4 Zeichen hat)
+      if (normalizedName.length >= 4) {
+        const fuzzyMatches = await db.select()
+          .from(products)
+          .where(
+            sql`LOWER(TRIM(${products.productName})) LIKE ${'%' + normalizedName + '%'}`
+          )
+          .limit(5);
+          
+        // Wähle den besten Match (hier einfach den ersten)
+        if (fuzzyMatches.length > 0) {
+          return fuzzyMatches[0];
+        }
+      }
+      return undefined;
+    }
+    
+    return result[0];
   }
 
   async createProduct(product: InsertProduct): Promise<Product> {
@@ -2539,11 +2604,19 @@ export class DatabaseStorage implements IStorage {
       
       // Existierende Lagerbestände abrufen
       const warehouseInventory = await this.getInventoryItems({ warehouseId });
-      const existingProductNames = new Set(
-        warehouseInventory.map(item => item.productName).filter(Boolean)
-      );
       
-      console.log(`Existierende Produkte im Lager ${warehouseId}: ${existingProductNames.size}`);
+      // Normalisierte Produktnamen für bessere Duplikatserkennung
+      const normalizedExistingProductNames = new Map();
+      
+      // Erstelle Map aus normalisierten Namen zu existierenden Produkten
+      warehouseInventory
+        .filter(item => item.productName)
+        .forEach(item => {
+          const normalizedName = normalizeProductName(item.productName!);
+          normalizedExistingProductNames.set(normalizedName, item);
+        });
+      
+      console.log(`Existierende Produkte im Lager ${warehouseId}: ${normalizedExistingProductNames.size}`);
       
       let added = 0;
       let existing = 0;
@@ -2552,15 +2625,18 @@ export class DatabaseStorage implements IStorage {
       for (const machineProduct of machineProducts) {
         if (!machineProduct.productName) continue;
         
-        // Prüfen, ob das Produkt bereits im Lager existiert
-        if (existingProductNames.has(machineProduct.productName)) {
-          console.log(`Produkt "${machineProduct.productName}" bereits im Lager ${warehouseId} vorhanden`);
+        // Normalisiere den Produktnamen für Vergleiche
+        const normalizedName = normalizeProductName(machineProduct.productName);
+        
+        // Prüfen, ob das Produkt bereits im Lager existiert (mit normalisiertem Namen)
+        if (normalizedExistingProductNames.has(normalizedName)) {
+          console.log(`Produkt "${machineProduct.productName}" (normalisiert: "${normalizedName}") bereits im Lager ${warehouseId} vorhanden`);
           existing++;
           continue;
         }
         
-        // Produkt im System suchen oder erstellen
-        let product = await this.getProductByName(machineProduct.productName);
+        // Produkt im System suchen mit normalisiertem Namen für bessere Trefferquote
+        let product = await this.getProductByNormalizedName(machineProduct.productName);
         
         if (!product) {
           console.log(`Produkt "${machineProduct.productName}" nicht in der Datenbank gefunden, erstelle es...`);
