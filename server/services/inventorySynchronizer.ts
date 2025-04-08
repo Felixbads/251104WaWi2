@@ -15,13 +15,11 @@ export async function syncMachineInventoryWithWarehouse(machineId: number) {
   // Startzeit für Performance-Messung
   const startTime = Date.now();
   
-  // Transaktion starten um Datenintegrität zu gewährleisten
-  const client = await db.getClient();
-  
   try {
-    await client.query('BEGIN');
+    // 1. Transaktion starten
+    await db.query('BEGIN');
     
-    // 1. Zugewiesenes Lager für diesen Automaten finden
+    // 2. Zugewiesenes Lager für diesen Automaten finden
     const assignmentQuery = `
       SELECT 
         warehouse_id 
@@ -32,7 +30,7 @@ export async function syncMachineInventoryWithWarehouse(machineId: number) {
       LIMIT 1
     `;
     
-    const assignmentResult = await client.query(assignmentQuery, [machineId]);
+    const assignmentResult = await db.query(assignmentQuery, [machineId]);
     
     if (assignmentResult.rows.length === 0) {
       throw new Error(`Kein Lager für Automat mit ID ${machineId} zugewiesen`);
@@ -40,11 +38,11 @@ export async function syncMachineInventoryWithWarehouse(machineId: number) {
     
     const warehouseId = assignmentResult.rows[0].warehouse_id;
     
-    // 2. Aktuelle Bestände im Automaten ermitteln
+    // 3. Aktuelle Bestände im Automaten ermitteln
     const machineInventoryQuery = `
       SELECT 
         m.id as machine_id,
-        m.name as machine_name,
+        m.machine_name,
         p.id as product_id,
         p.name as product_name,
         ms.slot_number,
@@ -61,10 +59,10 @@ export async function syncMachineInventoryWithWarehouse(machineId: number) {
         ms.machine_id = $1
     `;
     
-    const machineInventoryResult = await client.query(machineInventoryQuery, [machineId]);
+    const machineInventoryResult = await db.query(machineInventoryQuery, [machineId]);
     const machineItems = machineInventoryResult.rows;
     
-    // 3. Für jedes Produkt im Automaten den Lagerbestand prüfen und ggf. anpassen
+    // 4. Für jedes Produkt im Automaten den Lagerbestand prüfen und ggf. anpassen
     const syncResults = [];
     
     for (const item of machineItems) {
@@ -81,7 +79,7 @@ export async function syncMachineInventoryWithWarehouse(machineId: number) {
         LIMIT 1
       `;
       
-      const warehouseInventoryResult = await client.query(warehouseInventoryQuery, [
+      const warehouseInventoryResult = await db.query(warehouseInventoryQuery, [
         warehouseId, 
         item.product_id
       ]);
@@ -97,7 +95,7 @@ export async function syncMachineInventoryWithWarehouse(machineId: number) {
           ) RETURNING id
         `;
         
-        const createResult = await client.query(createInventoryQuery, [
+        const createResult = await db.query(createInventoryQuery, [
           warehouseId, 
           item.product_id
         ]);
@@ -117,7 +115,7 @@ export async function syncMachineInventoryWithWarehouse(machineId: number) {
       
       const inventoryItem = warehouseInventoryResult.rows[0];
       
-      // 4. Bestandsbewegung für die Synchronisierung erfassen
+      // 5. Bestandsbewegung für die Synchronisierung erfassen
       const movementQuery = `
         INSERT INTO inventory_movements (
           product_id, 
@@ -142,7 +140,7 @@ export async function syncMachineInventoryWithWarehouse(machineId: number) {
       const syncNotes = `Automatische Synchronisierung zwischen Automat ${item.machine_name} und Lager (ID: ${warehouseId})`;
       
       // Bewegung erfassen
-      const movementResult = await client.query(movementQuery, [
+      const movementResult = await db.query(movementQuery, [
         item.product_id,
         item.machine_quantity,
         'sync',
@@ -167,10 +165,10 @@ export async function syncMachineInventoryWithWarehouse(machineId: number) {
       });
     }
     
-    // Transaktion abschließen
-    await client.query('COMMIT');
+    // 6. Transaktion abschließen
+    await db.query('COMMIT');
     
-    // Gesamtergebnis zurückgeben
+    // 7. Gesamtergebnis zurückgeben
     return {
       success: true,
       machineId,
@@ -182,13 +180,9 @@ export async function syncMachineInventoryWithWarehouse(machineId: number) {
     
   } catch (error: any) {
     // Bei Fehler Transaktion zurückrollen
-    await client.query('ROLLBACK');
+    await db.query('ROLLBACK');
     
     console.error('Fehler bei der Synchronisierung:', error);
     throw new Error(`Synchronisierungsfehler: ${error.message}`);
-    
-  } finally {
-    // Client wieder freigeben
-    client.release();
   }
 }

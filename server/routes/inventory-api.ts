@@ -21,30 +21,41 @@ router.get('/api/inventory/warehouse/:id/info', asyncHandler(async (req: any, re
     return res.status(400).json({ message: 'Ungültige Lager-ID' });
   }
 
-  const query = `
-    SELECT 
-      w.id, 
-      w.name, 
-      w.address, 
-      w.postal_code, 
-      w.city, 
-      w.description,
-      w.is_active,
-      w.created_at,
-      w.updated_at
-    FROM 
-      warehouses w
-    WHERE 
-      w.id = $1
-  `;
+  try {
+    // Logging zur Fehlersuche
+    console.log(`Fetching warehouse info for ID: ${warehouseId}`);
 
-  const result = await db.query(query, [warehouseId]);
-  
-  if (result.rows.length === 0) {
-    return res.status(404).json({ message: 'Lager nicht gefunden' });
+    const query = `
+      SELECT 
+        w.id, 
+        w.name, 
+        w.address, 
+        w.postal_code, 
+        w.city, 
+        w.description,
+        w.is_active,
+        w.created_at,
+        w.updated_at
+      FROM 
+        warehouses w
+      WHERE 
+        w.id = $1
+    `;
+
+    const result = await db.query(query, [warehouseId]);
+    
+    console.log(`Warehouse query result:`, result.rows);
+    
+    if (result.rows.length === 0) {
+      console.log(`No warehouse found with ID: ${warehouseId}`);
+      return res.status(404).json({ message: 'Lager nicht gefunden' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error fetching warehouse info:', error);
+    return res.status(500).json({ message: 'Fehler beim Abrufen der Lagerinformationen', error: (error as Error).message });
   }
-
-  res.json(result.rows[0]);
 }));
 
 /**
@@ -52,61 +63,76 @@ router.get('/api/inventory/warehouse/:id/info', asyncHandler(async (req: any, re
  * GET /api/inventory/stats
  */
 router.get('/api/inventory/stats', asyncHandler(async (req: any, res: any) => {
-  const query = `
-    WITH inventory_stats AS (
+  // Debug-Ausgabe für unsere Diagnose
+  console.log("Executing inventory stats query...");
+  
+  try {
+    const query = `
+      WITH inventory_stats AS (
+        SELECT 
+          i.warehouse_id,
+          COUNT(DISTINCT i.product_id) as product_count,
+          SUM(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) THEN 1 ELSE 0 END) as critical_item_count,
+          SUM(i.quantity * COALESCE(p.price, 0)) as inventory_value
+        FROM 
+          inventory_items i
+        LEFT JOIN
+          products p ON i.product_id = p.id
+        GROUP BY
+          i.warehouse_id
+      ),
+      machine_counts AS (
+        SELECT 
+          warehouse_id,
+          COUNT(DISTINCT machine_id) as machine_count
+        FROM 
+          machine_warehouse_assignments
+        GROUP BY
+          warehouse_id
+      )
       SELECT 
-        i.warehouse_id,
-        COUNT(DISTINCT i.product_id) as product_count,
-        SUM(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) THEN 1 ELSE 0 END) as critical_item_count,
-        SUM(i.quantity * COALESCE(p.price, 0)) as inventory_value
+        w.id as warehouse_id,
+        w.name as warehouse_name,
+        COALESCE(i.product_count, 0) as product_count,
+        COALESCE(i.critical_item_count, 0) as critical_item_count,
+        COALESCE(i.inventory_value, 0) as inventory_value,
+        COALESCE(m.machine_count, 0) as machine_count
       FROM 
-        inventory_items i
+        warehouses w
       LEFT JOIN
-        products p ON i.product_id = p.id
-      GROUP BY
-        i.warehouse_id
-    ),
-    machine_counts AS (
-      SELECT 
-        warehouse_id,
-        COUNT(DISTINCT machine_id) as machine_count
-      FROM 
-        machine_warehouse_assignments
-      GROUP BY
-        warehouse_id
-    )
-    SELECT 
-      w.id as warehouse_id,
-      w.name as warehouse_name,
-      COALESCE(i.product_count, 0) as product_count,
-      COALESCE(i.critical_item_count, 0) as critical_item_count,
-      COALESCE(i.inventory_value, 0) as inventory_value,
-      COALESCE(m.machine_count, 0) as machine_count
-    FROM 
-      warehouses w
-    LEFT JOIN
-      inventory_stats i ON w.id = i.warehouse_id
-    LEFT JOIN
-      machine_counts m ON w.id = m.warehouse_id
-    WHERE
-      w.is_active = true
-    ORDER BY
-      w.name
-  `;
+        inventory_stats i ON w.id = i.warehouse_id
+      LEFT JOIN
+        machine_counts m ON w.id = m.warehouse_id
+      WHERE
+        w.is_active = true
+      ORDER BY
+        w.name
+    `;
 
-  const result = await db.query(query);
-  
-  // Normalisiere die Daten in das gewünschte Format für das Frontend
-  const stats = result.rows.map((row: any) => ({
-    warehouseId: parseInt(row.warehouse_id),
-    warehouseName: row.warehouse_name,
-    productCount: parseInt(row.product_count) || 0,
-    criticalItemCount: parseInt(row.critical_item_count) || 0,
-    inventoryValue: parseFloat(row.inventory_value) || 0,
-    machineCount: parseInt(row.machine_count) || 0
-  }));
-  
-  res.json(stats);
+    const result = await db.query(query);
+    console.log(`Stats query returned ${result.rows.length} rows`);
+    
+    // Normalisiere die Daten in das gewünschte Format für das Frontend
+    const stats = result.rows.map((row: any) => ({
+      warehouseId: parseInt(row.warehouse_id),
+      warehouseName: row.warehouse_name,
+      productCount: parseInt(row.product_count) || 0,
+      criticalItemCount: parseInt(row.critical_item_count) || 0,
+      inventoryValue: parseFloat(row.inventory_value) || 0,
+      machineCount: parseInt(row.machine_count) || 0
+    }));
+    
+    // Für Debug-Zwecke
+    console.log("Returning stats data:", stats);
+    
+    return res.json(stats);
+  } catch (error) {
+    console.error("Error in inventory stats API:", error);
+    return res.status(500).json({ 
+      error: 'Fehler beim Abrufen der Statistikdaten',
+      details: (error as Error).message
+    });
+  }
 }));
 
 /**
@@ -119,55 +145,75 @@ router.get('/api/inventory/warehouse/:id/stats', asyncHandler(async (req: any, r
     return res.status(400).json({ message: 'Ungültige Lager-ID' });
   }
 
-  const query = `
-    WITH inventory_stats AS (
-      SELECT 
-        COUNT(DISTINCT i.product_id) as product_count,
-        SUM(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) THEN 1 ELSE 0 END) as critical_item_count,
-        SUM(i.quantity * COALESCE(p.price, 0)) as inventory_value
-      FROM 
-        inventory_items i
-      LEFT JOIN
-        products p ON i.product_id = p.id
-      WHERE 
-        i.warehouse_id = $1
-    ),
-    machine_count AS (
-      SELECT 
-        COUNT(DISTINCT machine_id) as machine_count
-      FROM 
-        machine_warehouse_assignments
-      WHERE 
-        warehouse_id = $1
-    )
-    SELECT 
-      i.product_count,
-      i.critical_item_count,
-      i.inventory_value,
-      m.machine_count
-    FROM 
-      inventory_stats i, machine_count m
-  `;
+  try {
+    // Debug-Log für Diagnose
+    console.log(`Fetching stats for warehouse ID: ${warehouseId}`);
 
-  const result = await db.query(query, [warehouseId]);
-  
-  if (result.rows.length === 0) {
-    return res.json({
+    const query = `
+      WITH inventory_stats AS (
+        SELECT 
+          COUNT(DISTINCT i.product_id) as product_count,
+          SUM(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) THEN 1 ELSE 0 END) as critical_item_count,
+          SUM(i.quantity * COALESCE(p.price, 0)) as inventory_value
+        FROM 
+          inventory_items i
+        LEFT JOIN
+          products p ON i.product_id = p.id
+        WHERE 
+          i.warehouse_id = $1
+      ),
+      machine_count AS (
+        SELECT 
+          COUNT(DISTINCT machine_id) as machine_count
+        FROM 
+          machine_warehouse_assignments
+        WHERE 
+          warehouse_id = $1
+      )
+      SELECT 
+        COALESCE(i.product_count, 0) as product_count,
+        COALESCE(i.critical_item_count, 0) as critical_item_count,
+        COALESCE(i.inventory_value, 0) as inventory_value,
+        COALESCE(m.machine_count, 0) as machine_count
+      FROM 
+        (SELECT 1) dummy
+      LEFT JOIN inventory_stats i ON true
+      LEFT JOIN machine_count m ON true
+    `;
+
+    const result = await db.query(query, [warehouseId]);
+    console.log(`Warehouse stats query result:`, result.rows[0]);
+    
+    const defaultStats = {
       productCount: 0,
       criticalItemCount: 0,
       inventoryValue: 0,
       machineCount: 0
+    };
+    
+    if (result.rows.length === 0) {
+      console.log(`No stats found for warehouse ID: ${warehouseId}, returning defaults`);
+      return res.json(defaultStats);
+    }
+
+    const stats = result.rows[0];
+    
+    const formattedStats = {
+      productCount: parseInt(stats.product_count) || 0,
+      criticalItemCount: parseInt(stats.critical_item_count) || 0,
+      inventoryValue: parseFloat(stats.inventory_value) || 0,
+      machineCount: parseInt(stats.machine_count) || 0
+    };
+    
+    console.log(`Returning formatted stats:`, formattedStats);
+    return res.json(formattedStats);
+  } catch (error) {
+    console.error(`Error fetching warehouse stats for ID ${warehouseId}:`, error);
+    return res.status(500).json({ 
+      error: 'Fehler beim Abrufen der Lagerstatistik',
+      details: (error as Error).message
     });
   }
-
-  const stats = result.rows[0];
-  
-  res.json({
-    productCount: parseInt(stats.product_count) || 0,
-    criticalItemCount: parseInt(stats.critical_item_count) || 0,
-    inventoryValue: parseFloat(stats.inventory_value) || 0,
-    machineCount: parseInt(stats.machine_count) || 0
-  });
 }));
 
 /**

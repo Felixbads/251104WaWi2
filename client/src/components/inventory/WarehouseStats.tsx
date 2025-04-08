@@ -13,11 +13,22 @@ interface WarehouseStatsProps {
   warehouseId: number;
 }
 
+// Definiere einen Typen für die erwartete Antwort von der API
+interface WarehouseStats {
+  productCount: number;
+  criticalItemCount: number;
+  machineCount: number;
+  inventoryValue: number;
+}
+
 const WarehouseStats: React.FC<WarehouseStatsProps> = ({ warehouseId }) => {
-  const { data: stats = {}, isLoading, error } = useQuery({
+  const { data: stats, isLoading, error } = useQuery<WarehouseStats>({
     queryKey: [`/api/inventory/warehouse/${warehouseId}/stats`],
     refetchInterval: 60000, // Aktualisiere alle 60 Sekunden
   });
+
+  // Debug-Ausgabe der empfangenen Daten
+  console.log("Received warehouse stats:", stats);
 
   if (isLoading) {
     return (
@@ -42,7 +53,15 @@ const WarehouseStats: React.FC<WarehouseStatsProps> = ({ warehouseId }) => {
     );
   }
 
-  const { productCount, criticalItemCount, machineCount, inventoryValue } = stats;
+  // Fallback für den Fall, dass stats undefined ist
+  const defaultStats: WarehouseStats = {
+    productCount: 0,
+    criticalItemCount: 0,
+    machineCount: 0,
+    inventoryValue: 0
+  };
+
+  const { productCount, criticalItemCount, machineCount, inventoryValue } = stats || defaultStats;
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4 my-4">

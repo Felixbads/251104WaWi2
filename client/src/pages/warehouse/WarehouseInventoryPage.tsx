@@ -17,15 +17,31 @@ import WarehouseStats from '../../components/inventory/WarehouseStats';
 import WarehouseInventoryTable from '../../components/inventory/WarehouseInventoryTable';
 import WarehouseMovementsTable from '../../components/inventory/WarehouseMovementsTable';
 
+// Typdefinition für die Warehouse-Info
+interface WarehouseInfo {
+  id: number;
+  name: string;
+  address?: string;
+  postal_code?: string;
+  city?: string;
+  description?: string;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export default function WarehouseInventoryPage() {
   const { id } = useParams();
   const warehouseId = parseInt(id || '0');
   const [activeTab, setActiveTab] = useState('inventory');
   
-  // Lade die Grundinformationen des Lagers
-  const { data: warehouse = {}, isLoading, error } = useQuery({
+  // Lade die Grundinformationen des Lagers mit Typisierung
+  const { data: warehouse, isLoading, error } = useQuery<WarehouseInfo>({
     queryKey: [`/api/inventory/warehouse/${warehouseId}/info`],
   });
+  
+  // Debug-Ausgabe
+  console.log("Warehouse info loaded:", warehouse);
 
   // Formatiert einen Zeitstempel als relatives Datum (vor X Tagen)
   const formatRelativeDate = (dateString: string) => {
