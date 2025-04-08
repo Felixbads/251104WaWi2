@@ -240,11 +240,11 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     
     // Erweiterte Informationen (Produktzahlen, etc.) hinzufügen
     const warehousesWithDetails = await Promise.all(result.map(async (warehouse) => {
-      // 1. Produkte aus productInventory zählen
+      // 1. Produkte aus inventory_items zählen
       const [inventoryCount] = await db
         .select({ count: sql<number>`count(*)` })
-        .from(productInventory)
-        .where(eq(productInventory.warehouseId, warehouse.id));
+        .from(inventoryItems)
+        .where(eq(inventoryItems.warehouseId, warehouse.id));
       
       // 2. Produkte aus productBatches zählen (mit Gruppierung nach Produkt-ID)
       const [batchesCount] = await db
@@ -262,11 +262,11 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       
       const [criticalCount] = await db
         .select({ count: sql<number>`count(*)` })
-        .from(productInventory)
+        .from(inventoryItems)
         .where(and(
-          eq(productInventory.warehouseId, warehouse.id),
-          sql`${productInventory.quantity} <= ${productInventory.minQuantity}`,
-          sql`${productInventory.minQuantity} > 0` // Nur wenn ein Mindestbestand gesetzt ist
+          eq(inventoryItems.warehouseId, warehouse.id),
+          sql`${inventoryItems.quantity} <= ${inventoryItems.minQuantity}`,
+          sql`${inventoryItems.minQuantity} > 0` // Nur wenn ein Mindestbestand gesetzt ist
         ));
       
       // Gesamtzahl der Produkte berechnen (aus beiden Quellen)
@@ -290,11 +290,11 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     
     if (!result) return null;
     
-    // 1. Produkte aus productInventory/inventory_items zählen
+    // 1. Produkte aus inventory_items zählen
     const [inventoryCount] = await db
       .select({ count: sql<number>`count(*)` })
-      .from(productInventory)
-      .where(eq(productInventory.warehouseId, id));
+      .from(inventoryItems)
+      .where(eq(inventoryItems.warehouseId, id));
     
     // 2. Produkte aus productBatches zählen (mit Gruppierung nach Produkt-ID)
     const [batchesCount] = await db
@@ -312,11 +312,11 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     // Kritische Artikel (niedrigerer Bestand als Mindestbestand)
     const [criticalCount] = await db
       .select({ count: sql<number>`count(*)` })
-      .from(productInventory)
+      .from(inventoryItems)
       .where(and(
-        eq(productInventory.warehouseId, id),
-        sql`${productInventory.quantity} <= ${productInventory.minQuantity}`,
-        sql`${productInventory.minQuantity} > 0` // Nur wenn ein Mindestbestand gesetzt ist
+        eq(inventoryItems.warehouseId, id),
+        sql`${inventoryItems.quantity} <= ${inventoryItems.minQuantity}`,
+        sql`${inventoryItems.minQuantity} > 0` // Nur wenn ein Mindestbestand gesetzt ist
       ));
     
     // Anzahl der zugeordneten Automaten
@@ -330,7 +330,7 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     // die exakte Zählung verwenden, aber für diese Korrektur reicht eine einfache Summe
     const totalProductCount = (inventoryCount?.count || 0) + (batchesCount?.count || 0);
     
-    console.log(`Lagerdetails für ID ${id}: Produkte in productInventory=${inventoryCount?.count || 0}, in Batches=${batchesCount?.count || 0}, Gesamtzahl=${totalProductCount}`);
+    console.log(`Lagerdetails für ID ${id}: Produkte in inventory_items=${inventoryCount?.count || 0}, in Batches=${batchesCount?.count || 0}, Gesamtzahl=${totalProductCount}`);
     
     return {
       ...result,
@@ -445,23 +445,23 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
   
   async getProductInventory(warehouseId: number, filters?: any): Promise<any[]> {
     // Definiere die Filter für die Basisabfrage
-    const baseConditions = [eq(productInventory.warehouseId, warehouseId)];
+    const baseConditions = [eq(inventoryItems.warehouseId, warehouseId)];
     
     // Erweitere die Bedingungen basierend auf Filtern
     if (filters) {
       if (filters.lowStock) {
-        baseConditions.push(sql`${productInventory.quantity} <= ${productInventory.minQuantity}`);
+        baseConditions.push(sql`${inventoryItems.quantity} <= ${inventoryItems.minQuantity}`);
       }
     }
     
     // Basisabfrage mit allen Bedingungen
     let query = db
       .select({
-        inventory: productInventory,
+        inventory: inventoryItems,
         product: products
       })
-      .from(productInventory)
-      .leftJoin(products, eq(productInventory.productId, products.id))
+      .from(inventoryItems)
+      .leftJoin(products, eq(inventoryItems.productId, products.id))
       .where(and(...baseConditions));
     
     // Weitere Filter, die separate Abfragen erfordern
@@ -511,14 +511,14 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
   async getProductInventoryItem(warehouseId: number, productId: number): Promise<any | null> {
     const [inventoryItem] = await db
       .select({
-        inventory: productInventory,
+        inventory: inventoryItems,
         product: products
       })
-      .from(productInventory)
-      .leftJoin(products, eq(productInventory.productId, products.id))
+      .from(inventoryItems)
+      .leftJoin(products, eq(inventoryItems.productId, products.id))
       .where(and(
-        eq(productInventory.warehouseId, warehouseId),
-        eq(productInventory.productId, productId)
+        eq(inventoryItems.warehouseId, warehouseId),
+        eq(inventoryItems.productId, productId)
       ));
     
     if (!inventoryItem) return null;
@@ -545,15 +545,15 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
   }
   
   async createProductInventory(data: InsertProductInventory): Promise<any> {
-    const [result] = await db.insert(productInventory).values(data).returning();
+    const [result] = await db.insert(inventoryItems).values(data).returning();
     return result;
   }
   
   async updateProductInventory(id: number, data: Partial<InsertProductInventory>): Promise<any> {
     const [result] = await db
-      .update(productInventory)
+      .update(inventoryItems)
       .set({ ...data, updatedAt: new Date() })
-      .where(eq(productInventory.id, id))
+      .where(eq(inventoryItems.id, id))
       .returning();
     
     return result;
@@ -563,16 +563,16 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     // Aktuellen Bestand holen
     const [currentInventory] = await db
       .select()
-      .from(productInventory)
+      .from(inventoryItems)
       .where(and(
-        eq(productInventory.warehouseId, warehouseId),
-        eq(productInventory.productId, productId)
+        eq(inventoryItems.warehouseId, warehouseId),
+        eq(inventoryItems.productId, productId)
       ));
     
     if (!currentInventory) {
       // Wenn kein Eintrag existiert, einen neuen erstellen
       const [newInventory] = await db
-        .insert(productInventory)
+        .insert(inventoryItems)
         .values({
           warehouseId: warehouseId,
           productId: productId,
@@ -591,14 +591,14 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     const newStock = Math.max(0, currentStock + quantityChange);
     
     const [updatedInventory] = await db
-      .update(productInventory)
+      .update(inventoryItems)
       .set({
         quantity: newStock,
         updatedAt: new Date()
       })
       .where(and(
-        eq(productInventory.warehouseId, warehouseId),
-        eq(productInventory.productId, productId)
+        eq(inventoryItems.warehouseId, warehouseId),
+        eq(inventoryItems.productId, productId)
       ))
       .returning();
     
@@ -875,10 +875,10 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
         // Aktuellen Bestand ermitteln
         const [inventoryItem] = await db
           .select()
-          .from(productInventory)
+          .from(inventoryItems)
           .where(and(
-            eq(productInventory.warehouseId, warehouseId),
-            eq(productInventory.productId, data.productId)
+            eq(inventoryItems.warehouseId, warehouseId),
+            eq(inventoryItems.productId, data.productId)
           ));
         
         if (inventoryItem) {
@@ -1225,10 +1225,10 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       // Warenbewegung für die Inventuranpassung erstellen
       const [inventoryItem] = await db
         .select()
-        .from(productInventory)
+        .from(inventoryItems)
         .where(and(
-          eq(productInventory.warehouseId, countInfo.warehouseId),
-          eq(productInventory.productId, data.productId)
+          eq(inventoryItems.warehouseId, countInfo.warehouseId),
+          eq(inventoryItems.productId, data.productId)
         ));
       
       if (inventoryItem) {
@@ -1437,10 +1437,10 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     // Lagerbestand vor der Entnahme abrufen
     const [inventory] = await db
       .select()
-      .from(productInventory)
+      .from(inventoryItems)
       .where(and(
-        eq(productInventory.warehouseId, refill.warehouseId),
-        eq(productInventory.productId, data.productId)
+        eq(inventoryItems.warehouseId, refill.warehouseId),
+        eq(inventoryItems.productId, data.productId)
       ));
     
     const stockBefore = inventory?.quantity || 0;
