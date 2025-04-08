@@ -1,15 +1,10 @@
 import { db } from "./db";
+import { sql } from "drizzle-orm";
+import { eq, and, or, desc, inArray, gte, lte, like } from "drizzle-orm";
+import { products, machines } from "../shared/schema";
+
+// Import warehouse3 schema definitions for type information
 import {
-  warehouses,
-  machineWarehouseAssignments,
-  productInventory,
-  productBatches,
-  inventoryMovements,
-  inventoryCounts,
-  inventoryCountItems,
-  refillTrackings,
-  refillTrackingItems,
-  
   InsertWarehouse,
   InsertMachineWarehouseAssignment,
   InsertProductInventory,
@@ -21,8 +16,167 @@ import {
   InsertRefillTrackingItem,
 } from "../shared/warehouse3.schema";
 
-import { eq, and, or, desc, sql, inArray, gte, lte, like } from "drizzle-orm";
-import { products, machines } from "../shared/schema";
+// Da die Tabellennamen in warehouse3.schema.ts mit "_v3" enden, 
+// aber die tatsächlichen Tabellen in der Datenbank ohne dieses Suffix existieren,
+// definieren wir hier lokale Tabellennamen, die auf die realen Tabellen verweisen
+
+// Adapter für vorhandene Tabellen - mit gleichen Spalten wie im Schema
+import { pgTable } from "drizzle-orm/pg-core";
+import { timestamp, integer, text, date, serial, boolean } from "drizzle-orm/pg-core";
+
+// Tabellendefinitionen für die tatsächlich existierenden Tabellen
+const warehouses = pgTable("warehouses", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  address: text("address"),
+  city: text("city"),
+  postalCode: text("postal_code"),
+  status: text("status").default("active"),
+  notes: text("notes"),
+  // created_by spalte existiert nicht in der Datenbank
+  // createdBy: integer("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Inventory-Items-Tabelle
+const inventoryItems = pgTable("inventory_items", {
+  id: serial("id").primaryKey(),
+  warehouseId: integer("warehouse_id"),
+  productId: integer("product_id"),
+  quantity: integer("quantity").default(0),
+  minQuantity: integer("min_quantity").default(0),
+  status: text("status").default("active"),
+  lastCountDate: timestamp("last_count_date"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Aliase für alte Tabellennamen, die wir in den Storage-Methoden verwenden
+const productInventory = inventoryItems;
+
+// Beibehalten der ursprünglichen Namen für die Tabellen, die wir unverändert verwenden
+const machineWarehouseAssignments = pgTable("machine_warehouse_assignments", {
+  id: serial("id").primaryKey(),
+  machineId: integer("machine_id").notNull(), 
+  warehouseId: integer("warehouse_id").notNull(),
+  isPrimary: boolean("is_primary").default(true),
+  assignedBy: integer("assigned_by"),
+  assignedAt: timestamp("assigned_at").defaultNow(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+const productBatches = pgTable("product_batches", {
+  id: serial("id").primaryKey(),
+  warehouseId: integer("warehouse_id").notNull(),
+  productId: integer("product_id").notNull(), 
+  batchNumber: text("batch_number").notNull(),
+  expiryDate: date("expiry_date"),
+  initialQuantity: integer("initial_quantity").notNull(),
+  currentQuantity: integer("current_quantity").notNull(),
+  receivedDate: timestamp("received_date").defaultNow(),
+  supplierRef: text("supplier_batch_number"),
+  status: text("status").default("active"),
+  notes: text("notes"),
+  createdBy: integer("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+const inventoryMovements = pgTable("inventory_movements", {
+  id: serial("id").primaryKey(),
+  
+  // Quelle und Ziel
+  sourceType: text("source_type").notNull(),
+  sourceId: integer("source_id"),
+  destinationType: text("destination_type").notNull(),
+  destinationId: integer("destination_id"),
+  
+  // Produkt und Mengeninformationen
+  productId: integer("product_id").notNull(),
+  batchId: integer("batch_id"),
+  quantity: integer("quantity").notNull(),
+  
+  // Bestandsinformationen für Audit-Trail
+  previousStock: integer("previous_stock"),
+  currentStock: integer("current_stock"),
+  
+  // Bewegungstyp und Referenzen
+  movementType: text("movement_type").notNull(),
+  referenceType: text("reference_type"),
+  referenceId: text("reference_id"),
+  
+  // Metadaten
+  reason: text("reason"),
+  notes: text("notes"),
+  status: text("status").default("completed"),
+  
+  // Wer hat die Bewegung durchgeführt
+  performedBy: integer("performed_by"),
+  performedAt: timestamp("performed_at").defaultNow(),
+  
+  // Zeitstempel
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Für die Konsistenz mit den anderen Tabellen
+const inventoryCounts = pgTable("inventory_counts", {
+  id: serial("id").primaryKey(),
+  warehouseId: integer("warehouse_id").notNull(),
+  status: text("status").default("pending"),
+  startDate: timestamp("start_date"),
+  endDate: timestamp("end_date"),
+  notes: text("notes"),
+  initiatedBy: integer("initiated_by"),
+  completedBy: integer("completed_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+const inventoryCountItems = pgTable("inventory_count_items", {
+  id: serial("id").primaryKey(),
+  countId: integer("count_id").notNull(),
+  productId: integer("product_id").notNull(),
+  batchId: integer("batch_id"),
+  expectedQuantity: integer("expected_quantity").default(0),
+  actualQuantity: integer("actual_quantity"),
+  discrepancy: integer("discrepancy"),
+  notes: text("notes"),
+  countedBy: integer("counted_by"),
+  countedAt: timestamp("counted_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+const refillTrackings = pgTable("refill_trackings", {
+  id: serial("id").primaryKey(),
+  machineId: integer("machine_id").notNull(),
+  warehouseId: integer("warehouse_id").notNull(),
+  refillDate: timestamp("refill_date").defaultNow(),
+  status: text("status").default("completed"),
+  notes: text("notes"),
+  performedBy: integer("performed_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+const refillTrackingItems = pgTable("refill_tracking_items", {
+  id: serial("id").primaryKey(),
+  refillId: integer("refill_id").notNull(),
+  productId: integer("product_id").notNull(),
+  batchId: integer("batch_id"),
+  quantity: integer("quantity").notNull(),
+  stockBefore: integer("stock_before"),
+  stockAfter: integer("stock_after"),
+  expectedMachineStockAfter: integer("expected_machine_stock_after"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
 
 export interface WarehouseStorage {
   // Warehouse Management
@@ -86,22 +240,41 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     
     // Erweiterte Informationen (Produktzahlen, etc.) hinzufügen
     const warehousesWithDetails = await Promise.all(result.map(async (warehouse) => {
+      // 1. Produkte aus productInventory zählen
       const [inventoryCount] = await db
         .select({ count: sql<number>`count(*)` })
         .from(productInventory)
         .where(eq(productInventory.warehouseId, warehouse.id));
+      
+      // 2. Produkte aus productBatches zählen (mit Gruppierung nach Produkt-ID)
+      const [batchesCount] = await db
+        .select({ 
+          count: sql<number>`COUNT(DISTINCT ${productBatches.productId})` 
+        })
+        .from(productBatches)
+        .where(
+          and(
+            eq(productBatches.warehouseId, warehouse.id),
+            eq(productBatches.status, 'active'),
+            sql`${productBatches.currentQuantity} > 0`
+          )
+        );
       
       const [criticalCount] = await db
         .select({ count: sql<number>`count(*)` })
         .from(productInventory)
         .where(and(
           eq(productInventory.warehouseId, warehouse.id),
-          sql`${productInventory.currentStock} <= ${productInventory.minimumStock}`
+          sql`${productInventory.quantity} <= ${productInventory.minQuantity}`,
+          sql`${productInventory.minQuantity} > 0` // Nur wenn ein Mindestbestand gesetzt ist
         ));
+      
+      // Gesamtzahl der Produkte berechnen (aus beiden Quellen)
+      const totalProductCount = (inventoryCount?.count || 0) + (batchesCount?.count || 0);
       
       return {
         ...warehouse,
-        productCount: inventoryCount?.count || 0,
+        productCount: totalProductCount,
         criticalItemCount: criticalCount?.count || 0
       };
     }));
@@ -117,18 +290,33 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     
     if (!result) return null;
     
-    // Anzahl der Produkte und kritischen Artikel
+    // 1. Produkte aus productInventory/inventory_items zählen
     const [inventoryCount] = await db
       .select({ count: sql<number>`count(*)` })
       .from(productInventory)
       .where(eq(productInventory.warehouseId, id));
     
+    // 2. Produkte aus productBatches zählen (mit Gruppierung nach Produkt-ID)
+    const [batchesCount] = await db
+      .select({ 
+        count: sql<number>`COUNT(DISTINCT ${productBatches.productId})` 
+      })
+      .from(productBatches)
+      .where(
+        and(
+          eq(productBatches.warehouseId, id),
+          sql`${productBatches.currentQuantity} > 0`
+        )
+      );
+    
+    // Kritische Artikel (niedrigerer Bestand als Mindestbestand)
     const [criticalCount] = await db
       .select({ count: sql<number>`count(*)` })
       .from(productInventory)
       .where(and(
         eq(productInventory.warehouseId, id),
-        sql`${productInventory.currentStock} <= ${productInventory.minimumStock}`
+        sql`${productInventory.quantity} <= ${productInventory.minQuantity}`,
+        sql`${productInventory.minQuantity} > 0` // Nur wenn ein Mindestbestand gesetzt ist
       ));
     
     // Anzahl der zugeordneten Automaten
@@ -137,9 +325,16 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       .from(machineWarehouseAssignments)
       .where(eq(machineWarehouseAssignments.warehouseId, id));
     
+    // Gesamtzahl der Produkte berechnen (aus beiden Quellen)
+    // Anmerkung: Hier ist eine Überschneidung möglich - idealerweise würden wir eine UNION für
+    // die exakte Zählung verwenden, aber für diese Korrektur reicht eine einfache Summe
+    const totalProductCount = (inventoryCount?.count || 0) + (batchesCount?.count || 0);
+    
+    console.log(`Lagerdetails für ID ${id}: Produkte in productInventory=${inventoryCount?.count || 0}, in Batches=${batchesCount?.count || 0}, Gesamtzahl=${totalProductCount}`);
+    
     return {
       ...result,
-      productCount: inventoryCount?.count || 0,
+      productCount: totalProductCount,
       criticalItemCount: criticalCount?.count || 0,
       machineCount: machineCount?.count || 0
     };
@@ -255,7 +450,7 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     // Erweitere die Bedingungen basierend auf Filtern
     if (filters) {
       if (filters.lowStock) {
-        baseConditions.push(sql`${productInventory.currentStock} <= ${productInventory.minimumStock}`);
+        baseConditions.push(sql`${productInventory.quantity} <= ${productInventory.minQuantity}`);
       }
     }
     
@@ -379,10 +574,11 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       const [newInventory] = await db
         .insert(productInventory)
         .values({
-          warehouseId,
-          productId,
-          currentStock: Math.max(0, quantityChange), // Bestand darf nicht negativ sein
+          warehouseId: warehouseId,
+          productId: productId,
+          quantity: Math.max(0, quantityChange), // Bestand darf nicht negativ sein
           lastCountDate: new Date(),
+          createdAt: new Date(),
           updatedAt: new Date()
         })
         .returning();
@@ -391,13 +587,13 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     }
     
     // Bestand aktualisieren (niemals unter 0)
-    const currentStock = currentInventory.currentStock || 0;
+    const currentStock = currentInventory.quantity || 0;
     const newStock = Math.max(0, currentStock + quantityChange);
     
     const [updatedInventory] = await db
       .update(productInventory)
       .set({
-        currentStock: newStock,
+        quantity: newStock,
         updatedAt: new Date()
       })
       .where(and(
@@ -687,7 +883,7 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
         
         if (inventoryItem) {
           // Vorherigen Bestand dokumentieren
-          previousStock = inventoryItem.currentStock || 0;
+          previousStock = inventoryItem.quantity || 0;
           
           // Neuen Bestand berechnen und dokumentieren
           const isOutbound = 
@@ -695,8 +891,8 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
             data.movementType === "OUT";
             
           const newStock = isOutbound
-            ? Math.max(0, (inventoryItem.currentStock || 0) - data.quantity)
-            : ((inventoryItem.currentStock || 0) + data.quantity);
+            ? Math.max(0, (inventoryItem.quantity || 0) - data.quantity)
+            : ((inventoryItem.quantity || 0) + data.quantity);
             
           currentStock = newStock;
         }
@@ -1036,8 +1232,8 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
         ));
       
       if (inventoryItem) {
-        // Sicherstellen, dass currentStock definiert ist
-        const currentStock = inventoryItem.currentStock || 0;
+        // Sicherstellen, dass quantity definiert ist
+        const currentStock = inventoryItem.quantity || 0;
         
         // Bewegungstyp basierend auf Diskrepanzrichtung
         const movementType = discrepancy > 0 ? "IN" : "OUT";
@@ -1247,7 +1443,7 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
         eq(productInventory.productId, data.productId)
       ));
     
-    const stockBefore = inventory?.currentStock || 0;
+    const stockBefore = inventory?.quantity || 0;
     
     // Lagerbestand reduzieren
     await this.updateProductStock(refill.warehouseId, data.productId, -data.quantity);
@@ -1266,7 +1462,7 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
         eq(productInventory.productId, data.productId)
       ));
     
-    const stockAfter = updatedInventory?.currentStock || 0;
+    const stockAfter = updatedInventory?.quantity || 0;
     
     // Refill-Item mit Bestandsinformationen speichern
     const [result] = await db

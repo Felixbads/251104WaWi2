@@ -1,0 +1,27 @@
+ habe ich folgende Frage gestellt:
+„Warum zeigt die Lager-Detailansicht für ‘Bahnhof Bad Schandau’ in der KPI-Leiste 0 Produkte bzw. 0 Artikel an, obwohl in der Tabelle darunter tatsächlich Produkte erscheinen – wenn auch unvollständig und mit Duplikaten? Und werden dabei tatsächlich die korrekten Datenquellen abgerufen?“
+
+Eure Antwort zusammengefasst:
+	•	Die Daten werden aus mehreren Tabellen abgerufen: warehouses, productInventory, productBatches, inventoryMovements und machineWarehouseAssignments.
+	•	Der KPI-Wert wird über den Endpunkt /api/inventory?warehouseId=XYZ ermittelt, während die detaillierte Tabelle die Liste der Produkte anzeigt.
+	•	Es wurde ein Limit von 250 Transaktionen berücksichtigt, und es fehlt aktuell eine Normalisierung der Produktnamen, was zu Duplikaten führt.
+
+Meine Aufforderung an euch:
+	1.	Bitte überprüft, ob der Endpunkt für die KPI-Anzeige tatsächlich alle relevanten Daten aus den korrekten Tabellen (insbesondere productInventory, productBatches und inventoryMovements) abruft.
+	2.	Stellt sicher, dass keine Filter oder Joins (z. B. ein zusätzlicher Statusfilter) dafür verantwortlich sind, dass zwar Produkte in der detaillierten Liste erscheinen, aber nicht in der Zusammenfassung.
+	3.	Untersucht bitte auch, ob das Transaktions-Limit bzw. fehlende Normalisierung der Produktnamen zu unvollständigen bzw. doppelten Einträgen führt.
+	4.	Gebt bitte konkrete Empfehlungen, wie der KPI-Wert (Produktanzahl) mit den richtigen und vollständig abgerufenen Daten in Einklang gebracht werden kann.
+
+Vielen Dank im Voraus für die Klärung und die Vorschläge zur Optimierung!
+
+⸻
+
+3. Noch einmal zur Prüfung der abgerufenen Datenbanken
+	•	Relevante Tabellen für den aktuellen Bestand:
+	•	productInventory: Enthält den aktuellen Lagerbestand je Produkt.
+	•	productBatches: Dokumentiert Chargen mit Mengen und Verfallsdaten – wichtig für FEFO und MHD-bezogene Berechnungen.
+	•	inventoryMovements: Protokolliert alle Warenbewegungen, was für nachvollziehbare Bestandsveränderungen sorgt.
+	•	Fragestellung:
+Es ist wichtig, zu klären, ob bei der Berechnung der KPI-Zahlen (z. B. inventory.length) alle oben genannten Tabellen in die Logik einfließen oder ob nur eine Teildatenquelle (z. B. ausschließlich productInventory) abgefragt wird. Insbesondere sollten die in productBatches enthaltenen Informationen nicht verloren gehen, wenn sie Teil des aktuellen Bestands sind.
+
+Mein Vorschlag zielt also genau darauf ab, in der Abfrage sowohl die zusammengefassten Werte für die KPI-Leiste als auch die detaillierten Daten in der Tabelle korrekt und vollständig zu erfassen, um die Diskrepanz zu beheben.
