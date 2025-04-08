@@ -2252,12 +2252,13 @@ export class DatabaseStorage implements IStorage {
   
   // Warehouse operations
   async getWarehouses(): Promise<Warehouse[]> {
-    return await db.select().from(warehouses).orderBy(warehouses.name);
+    const result = await db.query(`SELECT * FROM warehouses ORDER BY name`);
+    return result.rows;
   }
 
   async getWarehouse(id: number): Promise<Warehouse | undefined> {
-    const [warehouse] = await db.select().from(warehouses).where(eq(warehouses.id, id));
-    return warehouse;
+    const result = await db.query(`SELECT * FROM warehouses WHERE id = $1`, [id]);
+    return result.rows.length > 0 ? result.rows[0] : undefined;
   }
 
   async createWarehouse(warehouse: InsertWarehouse): Promise<Warehouse> {
