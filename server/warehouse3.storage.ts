@@ -55,7 +55,7 @@ const inventoryItems = pgTable("inventory_items", {
 });
 
 // Aliase für alte Tabellennamen, die wir in den Storage-Methoden verwenden
-const productInventory = inventoryItems;
+// Dieser Alias wurde entfernt, da wir direkt auf inventoryItems zugreifen
 
 // Beibehalten der ursprünglichen Namen für die Tabellen, die wir unverändert verwenden
 const machineWarehouseAssignments = pgTable("machine_warehouse_assignments", {
@@ -1456,10 +1456,10 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     // Aktuellen Bestand nach der Änderung abrufen
     const [updatedInventory] = await db
       .select()
-      .from(productInventory)
+      .from(inventoryItems)
       .where(and(
-        eq(productInventory.warehouseId, refill.warehouseId),
-        eq(productInventory.productId, data.productId)
+        eq(inventoryItems.warehouseId, refill.warehouseId),
+        eq(inventoryItems.productId, data.productId)
       ));
     
     const stockAfter = updatedInventory?.quantity || 0;
