@@ -978,8 +978,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getMachineByVendonId(vendonId: string): Promise<Machine | undefined> {
-    const [machine] = await db.select().from(machines).where(eq(machines.vendonId, vendonId));
-    return machine;
+    const query = `
+      SELECT * FROM machines 
+      WHERE vendon_id = $1
+      LIMIT 1
+    `;
+    const result = await db.query(query, [vendonId]);
+    return result.rows.length > 0 ? result.rows[0] : undefined;
   }
 
   async createMachine(machine: InsertMachine): Promise<Machine> {
