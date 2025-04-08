@@ -87,7 +87,7 @@ export default function WarehouseList() {
   const filteredWarehouses = Array.isArray(warehouses) ? warehouses.filter(warehouse => {
     return !searchTerm || 
       warehouse.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      warehouse.location?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      warehouse.city?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       warehouse.description?.toLowerCase().includes(searchTerm.toLowerCase());
   }) : [];
 
@@ -215,7 +215,7 @@ export default function WarehouseList() {
                       <CardDescription className="mt-1">
                         <div className="flex items-center gap-1 text-sm">
                           <MapPin className="h-3.5 w-3.5" />
-                          {warehouse.location || 'Kein Standort angegeben'}
+                          {warehouse.city || warehouse.address || 'Kein Standort angegeben'}
                         </div>
                       </CardDescription>
                     </div>
@@ -311,10 +311,10 @@ export default function WarehouseList() {
                                   <div className="flex items-start gap-2">
                                     <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
                                     <div>
-                                      <p>{warehouse.address1 || warehouse.location || '-'}</p>
-                                      {warehouse.address2 && <p>{warehouse.address2}</p>}
-                                      {warehouse.zipCode && warehouse.city && (
-                                        <p>{warehouse.zipCode} {warehouse.city}</p>
+                                      <p>{warehouse.address || warehouse.city || '-'}</p>
+                                      
+                                      {warehouse.postalCode && warehouse.city && (
+                                        <p>{warehouse.postalCode} {warehouse.city}</p>
                                       )}
                                       {warehouse.country && <p>{warehouse.country}</p>}
                                     </div>

@@ -29,7 +29,7 @@ export default function Lagerhaltung() {
   });
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("alle");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   
   // Bei Tab-Wechsel in localStorage speichern
   const handleTabChange = (value: string) => {
@@ -63,7 +63,7 @@ export default function Lagerhaltung() {
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="alle">Alle Status</SelectItem>
+              <SelectItem value="all">Alle Status</SelectItem>
               <SelectItem value="active">Aktiv</SelectItem>
               <SelectItem value="inactive">Inaktiv</SelectItem>
             </SelectContent>

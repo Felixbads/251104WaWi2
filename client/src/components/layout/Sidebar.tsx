@@ -141,8 +141,8 @@ export default function Sidebar() {
             >
               Lager
             </NavItem>
-            {/* Dynamische Warehouse-Untermenüs */}
-            {isActive("/warehouse/") || isActive("/lager") ? <WarehouseSidebar /> : null}
+            {/* Dynamische Warehouse-Untermenüs - immer anzeigen */}
+            <WarehouseSidebar />
             
             <NavItem 
               href="/warenentnahme" 
