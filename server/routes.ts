@@ -2496,6 +2496,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Warehouse stats API endpoint
+  app.get(`${API_PREFIX}/warehouses/stats`, async (req: Request, res: Response) => {
+    try {
+      // Hole alle Lager zum Berechnen der Statistiken
+      const warehousesQuery = `SELECT * FROM warehouses WHERE is_active = true ORDER BY name ASC`;
+      const warehousesResult = await db.query(warehousesQuery);
+      const warehouses = warehousesResult.rows;
+      
+      console.log(`Berechne Statistiken für ${warehouses.length} Lager...`);
+      
+      // Erzeuge Statistik-Objekt
+      const warehouseStats: Record<string, any> = {};
+      
+      for (const warehouse of warehouses) {
+        // Hole Inventardaten für dieses Lager
+        const inventoryQuery = `
+          SELECT 
+            i.*, 
+            p.name as product_name,
+            p.min_quantity as product_min_quantity
+          FROM 
+            inventory_items i
+          JOIN 
+            products p ON i.product_id = p.id
+          WHERE 
+            i.warehouse_id = $1
+        `;
+        const inventoryResult = await db.query(inventoryQuery, [warehouse.id]);
+        const inventoryItems = inventoryResult.rows;
+        
+        // Berechne Statistiken
+        const totalItems = inventoryItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+        const totalProducts = inventoryItems.length;
+        const criticalStock = inventoryItems.filter(item => 
+          (item.quantity || 0) <= (item.product_min_quantity || 0) && (item.product_min_quantity || 0) > 0
+        ).length;
+        
+        // Speichere Statistiken
+        warehouseStats[warehouse.id] = {
+          totalProducts,
+          totalItems,
+          lowStock: 0, // Für Abwärtskompatibilität
+          criticalStock,
+          expiringBatches: 0, // Diese müssten aus den Chargen berechnet werden
+          totalBatches: 0
+        };
+      }
+      
+      res.json(warehouseStats);
+    } catch (error) {
+      console.error("Error fetching warehouse stats:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch warehouse stats", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
   // Einzelnes Lager anhand der ID abrufen
   app.get(`${API_PREFIX}/warehouses/:id`, async (req: Request, res: Response) => {
     try {
