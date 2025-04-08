@@ -555,15 +555,16 @@ router.get('/api/inventory/warehouse/:id/stats', asyncHandler(async (req: any, r
   }
 
   try {
-    // Debug-Log für Diagnose
+    // Mehr Debug-Logs für bessere Diagnose
     console.log(`Fetching stats for warehouse ID: ${warehouseId}`);
 
+    // Direkte SQL-Abfrage mit mehreren Schritten für bessere Nachvollziehbarkeit
     const query = `
       WITH inventory_stats AS (
         SELECT 
           COUNT(DISTINCT i.product_id) as product_count,
-          SUM(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) THEN 1 ELSE 0 END) as critical_item_count,
-          SUM(i.quantity * COALESCE(p.price, 0)) as inventory_value
+          COUNT(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) AND i.product_id IS NOT NULL THEN 1 END) as critical_item_count,
+          COALESCE(SUM(i.quantity * COALESCE(p.price, 0)), 0) as inventory_value
         FROM 
           inventory_items i
         LEFT JOIN
@@ -590,9 +591,11 @@ router.get('/api/inventory/warehouse/:id/stats', asyncHandler(async (req: any, r
       LEFT JOIN machine_count m ON true
     `;
 
+    console.log(`Executing warehouse stats query for ID ${warehouseId}`);
     const result = await db.query(query, [warehouseId]);
-    console.log(`Warehouse stats query result:`, result.rows[0]);
+    console.log(`Warehouse stats query result for ID ${warehouseId}:`, result.rows[0]);
     
+    // Fallback-Werte, falls keine Daten vorhanden sind
     const defaultStats = {
       productCount: 0,
       criticalItemCount: 0,
@@ -600,21 +603,22 @@ router.get('/api/inventory/warehouse/:id/stats', asyncHandler(async (req: any, r
       machineCount: 0
     };
     
-    if (result.rows.length === 0) {
+    if (!result.rows || result.rows.length === 0) {
       console.log(`No stats found for warehouse ID: ${warehouseId}, returning defaults`);
       return res.json(defaultStats);
     }
 
     const stats = result.rows[0];
     
+    // Sicherstellen, dass wir immer gültige Zahlen zurückgeben, auch wenn NULL-Werte kommen
     const formattedStats = {
-      productCount: parseInt(stats.product_count) || 0,
-      criticalItemCount: parseInt(stats.critical_item_count) || 0,
-      inventoryValue: parseFloat(stats.inventory_value) || 0,
-      machineCount: parseInt(stats.machine_count) || 0
+      productCount: stats.product_count !== null ? parseInt(stats.product_count) : 0,
+      criticalItemCount: stats.critical_item_count !== null ? parseInt(stats.critical_item_count) : 0,
+      inventoryValue: stats.inventory_value !== null ? parseFloat(stats.inventory_value) : 0,
+      machineCount: stats.machine_count !== null ? parseInt(stats.machine_count) : 0
     };
     
-    console.log(`Returning formatted stats:`, formattedStats);
+    console.log(`Returning formatted stats for warehouse ${warehouseId}:`, formattedStats);
     return res.json(formattedStats);
   } catch (error) {
     console.error(`Error fetching warehouse stats for ID ${warehouseId}:`, error);
@@ -674,6 +678,8 @@ router.get('/api/inventory/warehouse/:id/movements', asyncHandler(async (req: an
   const limit = parseInt(req.query.limit) || 50;
   const offset = parseInt(req.query.offset) || 0;
 
+  console.log(`Fetching movements for warehouse ID ${warehouseId}, limit ${limit}, offset ${offset}`);
+
   const query = `
     SELECT 
       m.id,
@@ -690,7 +696,12 @@ router.get('/api/inventory/warehouse/:id/movements', asyncHandler(async (req: an
       m.reason,
       m.performed_at,
       m.performed_by,
-      m.notes
+      m.notes,
+      CASE
+        WHEN m.source_type = 'warehouse' AND m.source_id = $1 THEN 'OUT'
+        WHEN m.destination_type = 'warehouse' AND m.destination_id = $1 THEN 'IN'
+        ELSE 'OTHER'
+      END as direction
     FROM 
       inventory_movements m
     JOIN
@@ -703,8 +714,17 @@ router.get('/api/inventory/warehouse/:id/movements', asyncHandler(async (req: an
     LIMIT $2 OFFSET $3
   `;
 
-  const result = await db.query(query, [warehouseId, limit, offset]);
-  res.json(result.rows);
+  try {
+    const result = await db.query(query, [warehouseId, limit, offset]);
+    console.log(`Found ${result.rows.length} movements for warehouse ID ${warehouseId}`);
+    res.json(result.rows);
+  } catch (error) {
+    console.error(`Error fetching warehouse movements for ID ${warehouseId}:`, error);
+    res.status(500).json({ 
+      error: 'Fehler beim Abrufen der Warenbewegungen',
+      details: (error as Error).message
+    });
+  }
 }));
 
 /**

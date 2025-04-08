@@ -44,7 +44,7 @@ export async function syncMachineInventoryWithWarehouse(machineId: number) {
         m.id as machine_id,
         m.machine_name,
         p.id as product_id,
-        p.name as product_name,
+        p.product_name as product_name,
         ms.slot_number,
         ms.quantity as machine_quantity,
         ms.max_capacity,
