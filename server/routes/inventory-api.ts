@@ -48,6 +48,68 @@ router.get('/api/inventory/warehouse/:id/info', asyncHandler(async (req: any, re
 }));
 
 /**
+ * API-Route für die Gesamtstatistik über alle Lager
+ * GET /api/inventory/stats
+ */
+router.get('/api/inventory/stats', asyncHandler(async (req: any, res: any) => {
+  const query = `
+    WITH inventory_stats AS (
+      SELECT 
+        i.warehouse_id,
+        COUNT(DISTINCT i.product_id) as product_count,
+        SUM(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) THEN 1 ELSE 0 END) as critical_item_count,
+        SUM(i.quantity * COALESCE(p.price, 0)) as inventory_value
+      FROM 
+        inventory_items i
+      LEFT JOIN
+        products p ON i.product_id = p.id
+      GROUP BY
+        i.warehouse_id
+    ),
+    machine_counts AS (
+      SELECT 
+        warehouse_id,
+        COUNT(DISTINCT machine_id) as machine_count
+      FROM 
+        machine_warehouse_assignments
+      GROUP BY
+        warehouse_id
+    )
+    SELECT 
+      w.id as warehouse_id,
+      w.name as warehouse_name,
+      COALESCE(i.product_count, 0) as product_count,
+      COALESCE(i.critical_item_count, 0) as critical_item_count,
+      COALESCE(i.inventory_value, 0) as inventory_value,
+      COALESCE(m.machine_count, 0) as machine_count
+    FROM 
+      warehouses w
+    LEFT JOIN
+      inventory_stats i ON w.id = i.warehouse_id
+    LEFT JOIN
+      machine_counts m ON w.id = m.warehouse_id
+    WHERE
+      w.is_active = true
+    ORDER BY
+      w.name
+  `;
+
+  const result = await db.query(query);
+  
+  // Normalisiere die Daten in das gewünschte Format für das Frontend
+  const stats = result.rows.map((row: any) => ({
+    warehouseId: parseInt(row.warehouse_id),
+    warehouseName: row.warehouse_name,
+    productCount: parseInt(row.product_count) || 0,
+    criticalItemCount: parseInt(row.critical_item_count) || 0,
+    inventoryValue: parseFloat(row.inventory_value) || 0,
+    machineCount: parseInt(row.machine_count) || 0
+  }));
+  
+  res.json(stats);
+}));
+
+/**
  * API-Route für Lagerstatistik
  * GET /api/inventory/warehouse/:id/stats
  */

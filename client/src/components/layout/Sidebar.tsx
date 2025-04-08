@@ -141,6 +141,13 @@ export default function Sidebar() {
             >
               Lager-Übersicht
             </NavItem>
+            <NavItem 
+              href="/lagerbestand" 
+              icon={<Package className="h-5 w-5 mr-3" />}
+              isActive={isActive("/lagerbestand")}
+            >
+              Lagerbestand
+            </NavItem>
             
             <NavItem 
               href="/warenentnahme" 

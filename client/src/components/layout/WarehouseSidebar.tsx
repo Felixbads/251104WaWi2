@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
-import { Building2 } from 'lucide-react';
+import { Building2, Package, BarChart2 } from 'lucide-react';
 import { Link } from 'wouter';
 
 type Warehouse = {
@@ -60,11 +60,26 @@ export default function WarehouseSidebar() {
 
   return (
     <div className="py-1">
+      {/* Überblicksseite für alle Lager */}
+      <Link href="/lagerbestand">
+        <div
+          className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
+            isActive(`/lagerbestand`)
+              ? "text-primary-600 bg-primary-50"
+              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+          }`}
+        >
+          <BarChart2 className="h-4 w-4 mr-3" />
+          <span className="truncate">Lagerbestand Übersicht</span>
+        </div>
+      </Link>
+      
+      {/* Liste aller einzelnen Lager */}
       {activeWarehouses.map((warehouse: Warehouse) => (
-        <Link key={warehouse.id} href={`/warehouse/${warehouse.id}`}>
+        <Link key={warehouse.id} href={`/lagerbestand/${warehouse.id}`}>
           <div
             className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
-              isActive(`/warehouse/${warehouse.id}`)
+              isActive(`/lagerbestand/${warehouse.id}`)
                 ? "text-primary-600 bg-primary-50"
                 : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
             }`}

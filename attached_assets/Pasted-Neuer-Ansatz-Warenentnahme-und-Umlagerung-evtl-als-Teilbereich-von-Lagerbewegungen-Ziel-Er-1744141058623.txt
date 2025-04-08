@@ -1,0 +1,29 @@
+Neuer Ansatz: “Warenentnahme und Umlagerung” (evtl. als Teilbereich von “Lagerbewegungen”)
+
+Ziel:
+Erstelle eine komplett neue Seite (bzw. einen neuen Funktionsbereich), der folgende Prozesse abbildet:
+	1.	Warenentnahme:
+	•	Anwendungsfall: Ein Artikel wird aus dem Lager entnommen, weil er beschädigt, abgelaufen, qualitativ nicht mehr akzeptabel oder anderweitig verbraucht wurde.
+	•	Ablauf:
+	1.	Der Benutzer wählt zunächst die Funktion “Warenentnahme” aus.
+	2.	Anschließend wählt er das entsprechende Lager aus (zum Beispiel “Bahnhof Bad Schandau”).
+	3.	Das System zeigt eine Übersicht aller im Lager vorhandenen Produkte inklusive aktueller Bestände.
+	4.	Der Benutzer wählt eines oder mehrere Produkte aus und gibt jeweils die Menge an, die entnommen werden soll.
+	5.	Ähnlich einem Warenkorb werden alle entnommenen Produkte gesammelt und dem Benutzer zur Übersicht angezeigt.
+	6.	Nach Abschluss der Auswahl bestätigt der Benutzer den Vorgang.
+	7.	Das System reduziert den Lagerbestand entsprechend und dokumentiert die Bestandsänderung (z. B. als „OUT“-Bewegung, inklusive Grund der Entnahme).
+	2.	Umlagerung:
+	•	Anwendungsfall: Es sollen Waren von einem Lager in ein anderes umgeschlagen werden, beispielsweise um Restbestände zu verteilen oder Kapazitäten auszugleichen.
+	•	Ablauf:
+	1.	Der Benutzer wählt die Funktion “Umlagerung” aus.
+	2.	Zunächst wählt er das Quell-Lager, in dem sich der Artikel aktuell befindet.
+	3.	Das System zeigt die Liste der vorhandenen Produkte im Quell-Lager an.
+	4.	Der Benutzer wählt die Produkte aus, die umgelagert werden sollen, und gibt jeweils die Menge an.
+	5.	Parallel dazu wählt er das Ziel-Lager aus, in das die Waren übertragen werden sollen.
+	6.	Eine “Warenkorb”-Funktion sammelt alle gewählten Produkte und zeigt an, wie sich der Bestand im Quell- sowie im Ziel-Lager verändern wird.
+	7.	Nach Bestätigung wird der Bestand im Quell-Lager reduziert und im Ziel-Lager erhöht. Auch dieser Transfer wird in den entsprechenden Bewegungs-Tabellen (z. B. als “TRANSFER” oder “MOVE”) dokumentiert.
+
+Ergebnis:
+	•	Der Lagerbestand wird nach jeder Entnahme oder Umlagerung sofort korrekt und nachvollziehbar aktualisiert.
+	•	Alle Bestandsänderungen (ob Entnahme, Transfer oder andere Bewegungen) werden in einer transparenten Liste oder einem Bewegungsprotokoll dargestellt.
+	•	Der gesamte Ablauf soll benutzerfreundlich sein – mit klar strukturierten Schritten, einer Übersicht (ähnlich einem Warenkorb) und direkten Bestätigungsaktionen.
