@@ -38,13 +38,11 @@ interface InventoryMovement {
   productName: string;
   quantity: number;
   movementType: string;
-  sourceType: string | null;
-  sourceId: number | null;
-  destinationType: string | null;
-  destinationId: number | null;
+  sourceWarehouseId: number | null;
+  destinationWarehouseId: number | null;
+  machineId: number | null;
   referenceType: string | null;
-  referenceId: number | null;
-  reason: string | null;
+  referenceId: string | null;
   notes: string | null;
   performedAt: string;
   performedBy: string | null;
@@ -142,8 +140,8 @@ export async function getWarehouseInventory(warehouseId: number): Promise<Invent
           WHERE pb.product_id = i.product_id AND pb.warehouse_id = i.warehouse_id) as batch_count,
         (SELECT MAX(im.performed_at) FROM inventory_movements im 
           WHERE im.product_id = i.product_id AND 
-            ((im.source_type = 'warehouse' AND im.source_id = i.warehouse_id) OR 
-            (im.destination_type = 'warehouse' AND im.destination_id = i.warehouse_id))) as last_movement_date,
+            (im.source_warehouse_id = i.warehouse_id OR 
+             im.destination_warehouse_id = i.warehouse_id)) as last_movement_date,
         CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) THEN true ELSE false END as is_critical
       FROM 
         inventory_items i
@@ -193,13 +191,11 @@ export async function getWarehouseMovements(warehouseId: number, limit: number =
         p.product_name,
         im.quantity,
         im.movement_type,
-        im.source_type,
-        im.source_id,
-        im.destination_type,
-        im.destination_id,
+        im.source_warehouse_id,
+        im.destination_warehouse_id,
+        im.machine_id,
         im.reference_type,
         im.reference_id,
-        im.reason,
         im.notes,
         im.performed_at,
         im.performed_by
@@ -208,8 +204,8 @@ export async function getWarehouseMovements(warehouseId: number, limit: number =
       JOIN 
         products p ON im.product_id = p.id
       WHERE 
-        (im.source_type = 'warehouse' AND im.source_id = $1) OR
-        (im.destination_type = 'warehouse' AND im.destination_id = $1)
+        (im.source_warehouse_id = $1) OR
+        (im.destination_warehouse_id = $1)
       ORDER BY 
         im.performed_at DESC
       LIMIT $2 OFFSET $3
@@ -224,13 +220,11 @@ export async function getWarehouseMovements(warehouseId: number, limit: number =
       productName: row.product_name,
       quantity: parseInt(row.quantity) || 0,
       movementType: row.movement_type,
-      sourceType: row.source_type,
-      sourceId: row.source_id !== null ? parseInt(row.source_id) : null,
-      destinationType: row.destination_type,
-      destinationId: row.destination_id !== null ? parseInt(row.destination_id) : null,
+      sourceWarehouseId: row.source_warehouse_id !== null ? parseInt(row.source_warehouse_id) : null,
+      destinationWarehouseId: row.destination_warehouse_id !== null ? parseInt(row.destination_warehouse_id) : null,
+      machineId: row.machine_id !== null ? parseInt(row.machine_id) : null,
       referenceType: row.reference_type,
-      referenceId: row.reference_id !== null ? parseInt(row.reference_id) : null,
-      reason: row.reason,
+      referenceId: row.reference_id,
       notes: row.notes,
       performedAt: row.performed_at,
       performedBy: row.performed_by
@@ -424,30 +418,45 @@ async function recordSyncMovement(
   machineName: string,
   notes: string
 ): Promise<number> {
+  // Determine the appropriate warehouse_id and machine_id fields based on source and destination types
+  let sourceWarehouseId = null;
+  let destinationWarehouseId = null;
+  let machineId = null;
+  
+  if (sourceType === 'warehouse') {
+    sourceWarehouseId = sourceId;
+  } else if (sourceType === 'machine') {
+    machineId = sourceId;
+  }
+  
+  if (destinationType === 'warehouse') {
+    destinationWarehouseId = destinationId;
+  } else if (destinationType === 'machine') {
+    machineId = destinationId;
+  }
+  
   const movementQuery = `
     INSERT INTO inventory_movements (
       product_id, quantity, movement_type, 
-      source_type, source_id, 
-      destination_type, destination_id, 
-      reference_type, reference_id, 
-      reason, notes, performed_at, performed_by
+      source_warehouse_id, destination_warehouse_id, 
+      machine_id, reference_type, reference_id, 
+      notes, performed_at, performed_by
     ) VALUES (
       $1, $2, 'sync', 
       $3, $4, 
-      $5, $6, 
-      'machine_sync', $7, 
-      'Machine Synchronization', $8, NOW(), 'system'
+      $5, 'machine_sync', $6, 
+      $7, NOW(), 'system'
     ) RETURNING id
   `;
   
   logQuery('recordSyncMovement', movementQuery, [
-    productId, quantity, sourceType, sourceId, 
-    destinationType, destinationId, referenceId, notes
+    productId, quantity, sourceWarehouseId, destinationWarehouseId, 
+    machineId, referenceId, notes
   ]);
   
   const result = await db.query(movementQuery, [
-    productId, quantity, sourceType, sourceId, 
-    destinationType, destinationId, referenceId, notes
+    productId, quantity, sourceWarehouseId, destinationWarehouseId, 
+    machineId, referenceId, notes
   ]);
   
   return result.rows[0].id;
