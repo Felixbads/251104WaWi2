@@ -1,0 +1,26 @@
+Hallo Replit-Team,
+
+in unserem bisherigen Austausch habe ich folgende Frage gestellt:
+„Erkläre mir nochmals, welche Datenbank für den Warenbestand (Lager „Bahnhof Bad Schandau“) abgefragt wird und wie sich die angezeigten Kennzahlen (Produkte, Artikel, Kritisch, Automaten) berechnen.“
+
+Eure Antwort fasste zusammen, dass:
+	•	Die Daten aus einer PostgreSQL-Datenbank stammen und über diverse API-Endpunkte abgerufen werden (z. B. /api/warehouses/${id}, /api/inventory?warehouseId=${id}, /api/machine-warehouse-assignments?warehouseId=${id}).
+	•	Die Kennzahlen werden in der getWarehouse-Methode berechnet, indem u. a. Produkte sowohl aus einer Tabelle product_inventory als auch aus product_batches gezählt werden.
+	•	Das Lager „Bahnhof Bad Schandau“ zeige 0 Produkte (und kritische Artikel), da aktuell keine Produkte erfasst sind – obwohl 9 Automaten zugeordnet sind.
+
+Meine neuen Erkenntnisse lauten wie folgt:
+	•	Es existiert offenbar keine Tabelle product_inventory in unserer Datenbank.
+	•	Stattdessen sehe ich in der angebundenen Datenbank (die offenbar eine NeonDB ist, basierend auf PostgreSQL) folgende Tabellen:
+	•	Inventory-Tabellen: inventory_batches, inventory_count_items, inventory_counts, inventory_items, inventory_movements
+	•	Product-Tabellen: product_batches, product_disposal_items, product_disposals, product_movements
+	•	Es stellt sich nun die Frage, ob eventuell eine falsche Datenbank oder ein falscher Schema-Name für den Inventory-Bereich abgefragt wird.
+
+Meine Aufforderung an euch lautet daher:
+	1.	Überprüft bitte, ob tatsächlich die korrekte Datenbank abgefragt wird.
+	•	Wir gehen davon aus, dass NeonDB als PostgreSQL-Variante genutzt wird, aber die erwarteten Tabellen (wie product_inventory) existieren nicht.
+	•	Bitte klärt, ob hier eventuell ein falscher Schema-Name oder eine falsche Datenbank-Konfiguration vorliegt, die dafür sorgt, dass die Inventory-Daten nicht vollständig abgerufen werden.
+	2.	Klärt, wie sich die Kennzahlen (Produkte, Artikel, Kritisch, Automaten) aus den vorhandenen Tabellen berechnen lassen sollten.
+	•	Müssen hier die Tabellen inventory_items und product_batches anstelle der nicht vorhandenen product_inventory herangezogen werden?
+	3.	Erarbeitet bitte konkrete Lösungsvorschläge:
+	•	Wie kann gewährleistet werden, dass alle relevanten Inventory-Daten (und deren Kennzahlen) aus den tatsächlichen Tabellen (z. B. inventory_items, inventory_movements, etc.) korrekt zusammengeführt werden?
+	•	Muss dabei die API-Logik angepasst werden, sodass sie mit dem aktuellen Schema in NeonDB konform geht?
