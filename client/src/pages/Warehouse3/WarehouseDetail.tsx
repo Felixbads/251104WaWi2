@@ -37,6 +37,7 @@ import MovementsTab from "@/components/warehouse3/MovementsTab";
 import MachinesTab from "@/components/warehouse3/MachinesTab";
 import RefillsTab from "@/components/warehouse3/RefillsTab";
 import InventoryCountTab from "@/components/warehouse3/InventoryCountTab";
+import ExpiredProductsList from "@/components/inventory/ExpiredProductsList";
 
 export default function WarehouseDetail() {
   const { id } = useParams<{ id: string }>();
@@ -389,6 +390,9 @@ export default function WarehouseDetail() {
           <TabsTrigger value="inventuren" className="flex items-center gap-1">
             <Clipboard className="h-4 w-4" /> Inventuren
           </TabsTrigger>
+          <TabsTrigger value="abgelaufene-produkte" className="flex items-center gap-1">
+            <Calendar className="h-4 w-4" /> Abgelaufene Produkte
+          </TabsTrigger>
         </TabsList>
         
         <TabsContent value="übersicht" className="space-y-6">
@@ -575,6 +579,10 @@ export default function WarehouseDetail() {
         
         <TabsContent value="inventuren">
           <InventoryCountTab warehouseId={warehouseId} />
+        </TabsContent>
+        
+        <TabsContent value="abgelaufene-produkte">
+          <ExpiredProductsList warehouseId={warehouseId} />
         </TabsContent>
       </Tabs>
     </div>

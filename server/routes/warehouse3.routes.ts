@@ -8,7 +8,8 @@ import { insertWarehouseSchema, insertMachineWarehouseAssignmentSchema,
          insertInventoryCountItemSchema, insertRefillTrackingSchema, 
          insertRefillTrackingItemSchema } from "../../shared/warehouse3.schema";
 import { products } from "../../shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
+import { productBatches, inventoryMovements, warehouses } from "../../shared/warehouse3.schema";
 
 const router = Router();
 
@@ -1088,6 +1089,86 @@ router.post("/warehouses/:warehouseId/refills/:refillId/items", async (req, res)
     if (error instanceof z.ZodError) {
       return handleValidationError(error, res);
     }
+    return handleServerError(error, res);
+  }
+});
+
+// ---- EXPIRED PRODUCTS ROUTES ----
+
+// Abgelaufene Produkte/Chargen für alle oder ein bestimmtes Lager abrufen
+router.get("/warehouses/expired-products", async (req, res) => {
+  try {
+    // Optional: Filterung nach Lager
+    let warehouseId: number | undefined;
+    if (req.query.warehouseId) {
+      warehouseId = parseInt(req.query.warehouseId.toString());
+      if (isNaN(warehouseId)) {
+        return res.status(400).json({ success: false, message: "Ungültige Lager-ID" });
+      }
+    }
+
+    // Aktuelles Datum zur Filterung der abgelaufenen Chargen
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    try {
+      // Bedingungen für die Abfrage erstellen
+      const conditions = [
+        // Bestandsmenge ist 0 (ausgebucht)
+        eq(productBatches.currentQuantity, 0),
+        // Ablaufdatum ist in der Vergangenheit
+        sql`${productBatches.expiryDate} <= ${today.toISOString().substring(0, 10)}`
+      ];
+      
+      // Wenn eine Lager-ID angegeben wurde, diese Bedingung hinzufügen
+      if (warehouseId) {
+        conditions.push(eq(productBatches.warehouseId, warehouseId));
+      }
+      
+      // Abfrage mit allen Bedingungen ausführen
+      const expiredBatches = await db.select({
+        batch: productBatches,
+        warehouse: warehouses,
+        product: products
+      })
+      .from(productBatches)
+      .leftJoin(warehouses, eq(productBatches.warehouseId, warehouses.id))
+      .leftJoin(products, eq(productBatches.productId, products.id))
+      .where(and(...conditions))
+      .orderBy(desc(productBatches.expiryDate));
+      
+      // Bewegungen für die Ausbuchungen abfragen
+      const expiredBatchesWithMovements = await Promise.all(
+        expiredBatches.map(async ({ batch, warehouse, product }) => {
+        // Suche nach der Ausbuchungsbewegung
+        const movements = await db
+          .select()
+          .from(inventoryMovements)
+          .where(and(
+            eq(inventoryMovements.batchId, batch.id),
+            eq(inventoryMovements.referenceType, "EXPIRY")
+          ))
+          .orderBy(desc(inventoryMovements.performedAt))
+          .limit(1);
+
+        // Originalbestand vor der Ausbuchung finden
+        const originalQuantity = movements.length > 0 ? movements[0].quantity : 0;
+        const removedAt = movements.length > 0 ? movements[0].performedAt : null;
+
+        return {
+          ...batch,
+          warehouseName: warehouse?.name || 'Unbekanntes Lager',
+          productName: product?.productName || 'Unbekanntes Produkt',
+          sku: product?.sku || '',
+          category: product?.category || '',
+          originalQuantity,
+          removedAt
+        };
+      })
+    );
+
+    return res.json(expiredBatchesWithMovements);
+  } catch (error) {
     return handleServerError(error, res);
   }
 });
