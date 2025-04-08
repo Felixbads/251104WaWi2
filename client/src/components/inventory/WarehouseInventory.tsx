@@ -2,12 +2,20 @@ import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   RefreshCw, Package, Search, FilterX, AlertTriangle, 
-  CircleAlert, Loader2, Warehouse as WarehouseIcon
+  CircleAlert, Loader2, Warehouse as WarehouseIcon,
+  ChevronDown, ChevronRight, CornerDownRight
 } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import { de } from 'date-fns/locale';
 import { 
   Table, TableBody, TableCaption, TableCell, 
   TableHead, TableHeader, TableRow 
 } from '@/components/ui/table';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger
+} from "@/components/ui/collapsible";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
@@ -19,6 +27,28 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Label } from '@/components/ui/label';
 import ProductBatchDialog from './batch/ProductBatchDialog';
+
+// Typ für Inventar-Bewegungen
+interface InventoryMovement {
+  id: number;
+  productId: number;
+  sourceType: string; // Quelle: 'warehouse', 'supplier', etc.
+  sourceId?: number;
+  destinationType: string; // Ziel: 'warehouse', 'machine', etc.
+  destinationId?: number;
+  quantity: number;
+  movementType: 'IN' | 'OUT' | 'TRANSFER';
+  performedAt: string;
+  reason?: string;
+  notes?: string;
+  previousStock?: number;
+  currentStock?: number;
+  sourceName?: string;
+  destinationName?: string;
+  batchId?: number;
+  batchNumber?: string;
+  expiryDate?: string;
+}
 
 // Sicherer Typ für Inventory Items
 interface InventoryItem {
@@ -37,6 +67,7 @@ interface InventoryItem {
   notes?: string | null;
   lastUpdated?: string | null;
   nextExpiryDate?: string | null; // Das früheste MHD der Batches dieses Produkts
+  movements?: InventoryMovement[]; // Warenbewegungen für dieses Produkt
 }
 
 interface WarehouseInventoryProps {
@@ -60,7 +91,8 @@ export default function WarehouseInventory({
   const [showZeroStock, setShowZeroStock] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<{ id: number, warehouseId: number, name: string } | null>(null);
   const [showBatchDialog, setShowBatchDialog] = useState(false);
-  
+  const [expandedRows, setExpandedRows] = useState<number[]>([]);
+
   const queryClient = useQueryClient();
 
   // Setze den Lagerfilter, wenn warehouseId übergeben wird
@@ -141,6 +173,50 @@ export default function WarehouseInventory({
     },
     staleTime: 1000 * 60 * 5, // 5 Minuten
   });
+  
+  // Warenbewegungen für ein Produkt laden
+  const getProductMovements = async (productId: number, warehouseId: number) => {
+    try {
+      const response = await fetch(`/api/inventory/movements?productId=${productId}&warehouseId=${warehouseId}`);
+      if (!response.ok) {
+        throw new Error(`Fehler beim Laden der Warenbewegungen: ${response.status}`);
+      }
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error("Fehler beim Laden der Warenbewegungen:", error);
+      return [];
+    }
+  };
+  
+  // Toggle für expandierte Zeilen
+  const toggleRowExpansion = async (item: InventoryItem) => {
+    const itemId = item.id;
+    if (expandedRows.includes(itemId)) {
+      // Wenn die Zeile bereits expandiert ist, schließen
+      setExpandedRows(expandedRows.filter(id => id !== itemId));
+    } else {
+      // Wenn die Zeile noch nicht expandiert ist, öffnen und Bewegungen laden
+      setExpandedRows([...expandedRows, itemId]);
+      
+      // Warenbewegungen nur laden, wenn sie noch nicht vorhanden sind
+      if (!item.movements || item.movements.length === 0) {
+        const movements = await getProductMovements(item.productId, item.warehouseId);
+        
+        // Inventar-Item mit den Bewegungen aktualisieren
+        const updatedInventory = inventory.map(invItem => 
+          invItem.id === itemId ? { ...invItem, movements } : invItem
+        );
+        
+        // Cache aktualisieren
+        queryClient.setQueryData(['/api/inventory', { 
+          warehouseId: warehouseFilter ? parseInt(warehouseFilter) : undefined,
+          critical: showCriticalOnly,
+          includeZeroStock: showZeroStock
+        }], updatedInventory);
+      }
+    }
+  };
   
   // Sicheres Zusammenführen der Daten
   const inventory: InventoryItem[] = Array.isArray(propInventory) && propInventory.length > 0 
@@ -369,99 +445,214 @@ export default function WarehouseInventory({
                   fillPercentage = quantity > 0 ? 50 : 0; // Default, wenn kein Maximum angegeben ist
                 }
                 
+                // Ist die Zeile expandiert?
+                const isExpanded = expandedRows.includes(item.id);
+                
                 return (
-                  <TableRow key={item.id}>
-                    <TableCell 
-                      className="font-medium cursor-pointer hover:text-primary hover:underline"
-                      onClick={() => {
-                        try {
-                          // Zeige Batches für dieses Produkt an
-                          setSelectedProduct({
-                            id: item.productId,
-                            warehouseId: item.warehouseId,
-                            name: item.productName || 'Unbekanntes Produkt'
-                          });
-                          setShowBatchDialog(true);
-                        } catch (error) {
-                          console.error("Fehler beim Öffnen des Batch-Dialogs:", error);
-                        }
-                      }}
-                    >
-                      {item.productName || 'Unbekanntes Produkt'}
-                    </TableCell>
-                    
-                    {!warehouseFilter && (
+                  <Collapsible 
+                    key={item.id}
+                    open={isExpanded}
+                    onOpenChange={() => {}}
+                    className="w-full"
+                  >
+                    <TableRow className="group">
                       <TableCell>
-                        <div className="flex items-center">
-                          <WarehouseIcon className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
-                          <span>{item.warehouseName || 'Unbekanntes Lager'}</span>
+                        <div className="flex items-center gap-2">
+                          <CollapsibleTrigger asChild onClick={() => toggleRowExpansion(item)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 p-0">
+                              {isExpanded ? 
+                                <ChevronDown className="h-4 w-4 text-muted-foreground" /> : 
+                                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                              }
+                            </Button>
+                          </CollapsibleTrigger>
+                          <span 
+                            className="font-medium cursor-pointer hover:text-primary hover:underline"
+                            onClick={() => {
+                              try {
+                                // Zeige Batches für dieses Produkt an
+                                setSelectedProduct({
+                                  id: item.productId,
+                                  warehouseId: item.warehouseId,
+                                  name: item.productName || 'Unbekanntes Produkt'
+                                });
+                                setShowBatchDialog(true);
+                              } catch (error) {
+                                console.error("Fehler beim Öffnen des Batch-Dialogs:", error);
+                              }
+                            }}
+                          >
+                            {item.productName || 'Unbekanntes Produkt'}
+                          </span>
                         </div>
                       </TableCell>
-                    )}
-                    
-                    <TableCell>
-                      {item.nextExpiryDate ? (
-                        <span className={
-                          new Date(item.nextExpiryDate) < new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) 
-                          ? 'text-destructive font-medium' 
-                          : ''
-                        }>
-                          {new Date(item.nextExpiryDate).toLocaleDateString('de-DE')}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">--</span>
+                      
+                      {!warehouseFilter && (
+                        <TableCell>
+                          <div className="flex items-center">
+                            <WarehouseIcon className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
+                            <span>{item.warehouseName || 'Unbekanntes Lager'}</span>
+                          </div>
+                        </TableCell>
                       )}
-                    </TableCell>
-                    
-                    <TableCell className="text-right">
-                      <div className="flex flex-col items-end">
-                        <span className={
-                          isCritical 
+                      
+                      <TableCell>
+                        {item.nextExpiryDate ? (
+                          <span className={
+                            new Date(item.nextExpiryDate) < new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) 
                             ? 'text-destructive font-medium' 
-                            : isLow 
-                              ? 'text-amber-500 font-medium' 
-                              : ''
-                        }>
-                          {quantity}
+                            : ''
+                          }>
+                            {new Date(item.nextExpiryDate).toLocaleDateString('de-DE')}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">--</span>
+                        )}
+                      </TableCell>
+                      
+                      <TableCell className="text-right">
+                        <div className="flex flex-col items-end">
+                          <span className={
+                            isCritical 
+                              ? 'text-destructive font-medium' 
+                              : isLow 
+                                ? 'text-amber-500 font-medium' 
+                                : ''
+                          }>
+                            {quantity}
+                          </span>
+                          <Progress value={fillPercentage} className="w-24 h-1.5 mt-1" />
+                        </div>
+                      </TableCell>
+                      
+                      <TableCell className="text-right space-x-1">
+                        <span className="text-muted-foreground">
+                          {minQuantity}/
+                          {maxQuantity}
                         </span>
-                        <Progress value={fillPercentage} className="w-24 h-1.5 mt-1" />
-                      </div>
-                    </TableCell>
-                    
-                    <TableCell className="text-right space-x-1">
-                      <span className="text-muted-foreground">
-                        {minQuantity}/
-                        {maxQuantity}
-                      </span>
-                    </TableCell>
-                    
-                    <TableCell className="text-right">
-                      {isCritical && (
-                        <Badge variant="destructive" className="ml-auto">
-                          <CircleAlert className="h-3 w-3 mr-1" />
-                          Kritisch
-                        </Badge>
-                      )}
+                      </TableCell>
                       
-                      {isLow && (
-                        <Badge variant="warning" className="ml-auto">
-                          Niedrig
-                        </Badge>
-                      )}
+                      <TableCell className="text-right">
+                        {isCritical && (
+                          <Badge variant="destructive" className="ml-auto">
+                            <CircleAlert className="h-3 w-3 mr-1" />
+                            Kritisch
+                          </Badge>
+                        )}
+                        
+                        {isLow && (
+                          <Badge variant="warning" className="ml-auto">
+                            Niedrig
+                          </Badge>
+                        )}
+                        
+                        {item.status && item.status !== 'active' && (
+                          <Badge variant="secondary" className="ml-auto">
+                            {item.status === 'inactive' ? 'Inaktiv' : item.status}
+                          </Badge>
+                        )}
+                        
+                        {!isCritical && !isLow && (!item.status || item.status === 'active') && (
+                          <Badge variant="outline" className="text-muted-foreground ml-auto">
+                            OK
+                          </Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
                       
-                      {item.status && item.status !== 'active' && (
-                        <Badge variant="secondary" className="ml-auto">
-                          {item.status === 'inactive' ? 'Inaktiv' : item.status}
-                        </Badge>
-                      )}
-                      
-                      {!isCritical && !isLow && (!item.status || item.status === 'active') && (
-                        <Badge variant="outline" className="text-muted-foreground ml-auto">
-                          OK
-                        </Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                    {/* Warenbewegungen-Detailzeile */}
+                    <CollapsibleContent>
+                      <TableRow className="bg-muted/50 hover:bg-muted">
+                        <TableCell colSpan={warehouseFilter ? 5 : 6}>
+                          <div className="py-2 pl-8">
+                            <h4 className="text-sm font-medium mb-2">Warenbewegungen</h4>
+                            
+                            {(!item.movements || item.movements.length === 0) ? (
+                              <div className="text-sm text-muted-foreground italic">
+                                Keine Warenbewegungen für dieses Produkt vorhanden.
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {item.movements.map((movement, index) => {
+                                  // Bewegungstyp-Anzeige
+                                  let typeLabel = '';
+                                  let typeDetails = '';
+                                  let stockDetails = '';
+                                  
+                                  // Format für Datum
+                                  const formattedDate = movement.performedAt ? 
+                                    format(parseISO(movement.performedAt), 'dd.MM.yyyy HH:mm', {locale: de}) : '--';
+                                  
+                                  // Bestandsänderung formatieren
+                                  if (movement.previousStock !== undefined && movement.currentStock !== undefined) {
+                                    stockDetails = `${movement.previousStock} → ${movement.currentStock}`;
+                                  }
+                                  
+                                  if (movement.movementType === 'IN') {
+                                    if (movement.sourceType === 'supplier') {
+                                      typeLabel = 'Wareneingang';
+                                      typeDetails = `von ${movement.sourceName || 'Lieferant'}`;
+                                      if (movement.batchNumber) {
+                                        typeDetails += `, Ch.-Nr. ${movement.batchNumber}`;
+                                      }
+                                      if (movement.expiryDate) {
+                                        typeDetails += `, MHD ${format(parseISO(movement.expiryDate), 'dd.MM.yyyy', {locale: de})}`;
+                                      }
+                                    } else {
+                                      typeLabel = 'Einlagerung';
+                                      typeDetails = movement.reason || '';
+                                    }
+                                  } else if (movement.movementType === 'OUT') {
+                                    if (movement.destinationType === 'machine') {
+                                      typeLabel = 'Refill';
+                                      typeDetails = `in ${movement.destinationName || 'Automat'}`;
+                                    } else {
+                                      typeLabel = 'Auslagerung';
+                                      typeDetails = movement.reason || '';
+                                    }
+                                  } else if (movement.movementType === 'TRANSFER') {
+                                    typeLabel = 'Umlagerung';
+                                    if (movement.destinationType === 'warehouse') {
+                                      typeDetails = `in Lager ${movement.destinationName || ''}`;
+                                    } else {
+                                      typeDetails = `von ${movement.sourceName || ''} nach ${movement.destinationName || ''}`;
+                                    }
+                                  }
+                                  
+                                  return (
+                                    <div key={movement.id} className="flex items-start text-sm border-l-2 border-muted pl-3">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-1.5">
+                                          <CornerDownRight className="h-3.5 w-3.5 text-muted-foreground" />
+                                          <span className="font-medium">{typeLabel}</span>
+                                          <span className="text-muted-foreground text-xs">
+                                            {formattedDate}
+                                          </span>
+                                        </div>
+                                        <div className="ml-5 text-sm">
+                                          <span>{movement.quantity} Stück, {typeDetails}</span>
+                                          {stockDetails && (
+                                            <span className="text-xs text-muted-foreground ml-1">
+                                              (Bestand: {stockDetails})
+                                            </span>
+                                          )}
+                                          {movement.notes && (
+                                            <p className="text-xs text-muted-foreground mt-0.5">
+                                              Notiz: {movement.notes}
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    </CollapsibleContent>
+                  </Collapsible>
                 );
               })
             )}
