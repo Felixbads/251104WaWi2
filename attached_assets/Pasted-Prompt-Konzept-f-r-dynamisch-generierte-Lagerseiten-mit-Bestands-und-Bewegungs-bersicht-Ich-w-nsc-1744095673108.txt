@@ -1,0 +1,44 @@
+Prompt: Konzept für dynamisch generierte Lagerseiten mit Bestands- und Bewegungsübersicht
+
+Ich wünsche mir eine neue Navigation innerhalb der Warenwirtschaft, bei der jedes Lager im Menü auf der linken Seite eine eigene Unterseite bekommt. Diese Unterseiten sollen im Menü automatisch generiert werden, sobald ein neues Lager angelegt wird.
+
+Menüstruktur:
+	•	Unterhalb von „Lager“ erscheint eine eingerückte Liste aller vorhandenen Lager (z. B. „Lager A“, „Lager B“, „Kühlhaus“ etc.).
+	•	Die Namen der Lager stammen aus der Datenbanktabelle der Lager.
+	•	Schriftgröße leicht verkleinert und optisch eingerückt, damit erkennbar ist, dass es sich um Unterseiten handelt.
+	•	Beim Klick auf ein Lager wird die jeweilige Detailseite geladen.
+
+⸻
+
+Ziel der Einzelseite pro Lager:
+
+Die Seite soll eine kompakte und intuitive Übersicht über den aktuellen Lagerbestand bieten, inklusive folgender Informationen:
+
+1. Bestandsübersicht (First In – First Out)
+	•	Auflistung aller Produkte in diesem Lager.
+	•	Unter jedem Produkt:
+	•	Liste der vorhandenen Batches (Chargen), jeweils mit:
+	•	MHD (Mindesthaltbarkeitsdatum)
+	•	aktueller Bestand
+	•	Einlagerungsdatum
+	•	Sortierung: Älteste Charge zuerst (FIFO)
+
+2. Warenbewegungen (Ein- und Ausgänge)
+	•	Für jedes Produkt soll eine einblendbare Sektion oder ein Tab verfügbar sein mit:
+	•	Chronologische Liste der Warenbewegungen
+	•	Angaben je Bewegung:
+	•	Datum/Zeit
+	•	Typ (Zugang / Abgang)
+	•	Menge
+	•	Benutzer oder Prozess (z. B. “Bestellung #1023”, “Inventur”, “Automat X befüllt”)
+	•	Verknüpfung zur Quelle (z. B. zur Bestellung oder zum Automaten)
+
+⸻
+
+Weitere Anforderungen:
+	•	Die Seite soll schnell ladbar und auch auf mobilen Geräten gut nutzbar sein.
+	•	Es sollte einen Mechanismus geben, der automatisch bei jeder Neuerstellung eines Lagers:
+	•	Einen Menüeintrag erzeugt
+	•	Die zugehörige Detailseite bereitstellt
+	•	Optional: Ein Button zum Exportieren der Lagerdaten als CSV/XLS
+	•	Optional: Eine kleine Info-Anzeige für Gesamtsumme des Bestandes je Produkt (über alle Batches hinweg)
