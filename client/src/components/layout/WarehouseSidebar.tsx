@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
-import { Building2, ChevronRight } from 'lucide-react';
+import { Building2 } from 'lucide-react';
 import { Link } from 'wouter';
 
 type Warehouse = {
@@ -63,13 +63,13 @@ export default function WarehouseSidebar() {
       {activeWarehouses.map((warehouse: Warehouse) => (
         <Link key={warehouse.id} href={`/warehouse/${warehouse.id}`}>
           <div
-            className={`flex items-center px-9 py-1.5 text-sm font-medium cursor-pointer ${
+            className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
               isActive(`/warehouse/${warehouse.id}`)
                 ? "text-primary-600 bg-primary-50"
                 : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
             }`}
           >
-            <ChevronRight className="h-3 w-3 mr-2" />
+            <Building2 className="h-4 w-4 mr-3" />
             <span className="truncate">{warehouse.name}</span>
           </div>
         </Link>

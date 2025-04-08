@@ -139,10 +139,8 @@ export default function Sidebar() {
               icon={<Building2 className="h-5 w-5 mr-3" />}
               isActive={isActive("/lager") || isActive("/warehouse/")}
             >
-              Lager
+              Lager-Übersicht
             </NavItem>
-            {/* Dynamische Warehouse-Untermenüs - immer anzeigen */}
-            <WarehouseSidebar />
             
             <NavItem 
               href="/warenentnahme" 
@@ -188,6 +186,16 @@ export default function Sidebar() {
           </nav>
         </div>
 
+        {/* Nav Section: Lager - NEU */}
+        <div className="py-4 border-b border-gray-200 bg-white">
+          <h3 className="px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+            LAGER
+          </h3>
+          <nav>
+            <WarehouseSidebar />
+          </nav>
+        </div>
+        
         {/* Nav Section: System */}
         <div className="py-4 border-b border-gray-200 bg-white">
           <h3 className="px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
