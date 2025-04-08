@@ -1172,4 +1172,36 @@ router.get("/warehouses/expired-products", async (req, res) => {
   }
 });
 
+// ---- WAREHOUSE RECONCILIATION ----
+
+/**
+ * Route zum manuellen Synchronisieren der Produkte von zugeordneten Automaten mit einem Lager
+ * Dies fügt automatisch alle Produkte der Automaten dem Lager hinzu, wenn sie nicht bereits existieren
+ */
+router.post("/warehouses/:warehouseId/reconcile", async (req, res) => {
+  try {
+    const warehouseId = parseInt(req.params.warehouseId);
+    if (isNaN(warehouseId)) {
+      return res.status(400).json({ success: false, message: "Ungültige Lager-ID" });
+    }
+    
+    // Überprüfen, ob das Lager existiert
+    const warehouse = await warehouseStorage.getWarehouse(warehouseId);
+    if (!warehouse) {
+      return res.status(404).json({ success: false, message: "Lager nicht gefunden" });
+    }
+    
+    // Synchronisierung durchführen
+    const result = await warehouseStorage.syncAllMachinesForWarehouse(warehouseId);
+    
+    return res.json({
+      success: true,
+      message: `Synchronisierung abgeschlossen: ${result.totalProductsAdded} Produkte von ${result.machineCount} Automaten hinzugefügt`,
+      result
+    });
+  } catch (error) {
+    return handleServerError(error, res);
+  }
+});
+
 export default router;

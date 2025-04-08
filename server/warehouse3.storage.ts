@@ -178,6 +178,19 @@ const refillTrackingItems = pgTable("refill_tracking_items", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Definition für die machineProducts-Tabelle
+const machineProducts = pgTable("machine_products", {
+  id: serial("id").primaryKey(),
+  machineId: integer("machine_id").notNull(),
+  productId: integer("product_id").notNull(),
+  slotNumber: integer("slot_number"),
+  maxCapacity: integer("max_capacity"),
+  currentStock: integer("current_stock").default(0),
+  status: text("status").default("active"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export interface WarehouseStorage {
   // Warehouse Management
   getWarehouses(): Promise<any[]>;
@@ -240,26 +253,20 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     
     // Erweiterte Informationen (Produktzahlen, etc.) hinzufügen
     const warehousesWithDetails = await Promise.all(result.map(async (warehouse) => {
-      // 1. Produkte aus inventory_items zählen
-      const [inventoryCount] = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(inventoryItems)
-        .where(eq(inventoryItems.warehouseId, warehouse.id));
-      
-      // 2. Produkte aus productBatches zählen (mit Gruppierung nach Produkt-ID)
-      const [batchesCount] = await db
-        .select({ 
-          count: sql<number>`COUNT(DISTINCT ${productBatches.productId})` 
+      // Eindeutige Produktzählung über UNION ALL und DISTINCT für alle Lager
+      const [uniqueProductCount] = await db
+        .select({
+          count: sql<number>`COUNT(DISTINCT product_id)`
         })
-        .from(productBatches)
-        .where(
-          and(
-            eq(productBatches.warehouseId, warehouse.id),
-            eq(productBatches.status, 'active'),
-            sql`${productBatches.currentQuantity} > 0`
-          )
+        .from(
+          sql`(
+            SELECT product_id FROM inventory_items WHERE warehouse_id = ${warehouse.id}
+            UNION
+            SELECT product_id FROM product_batches WHERE warehouse_id = ${warehouse.id}
+          ) AS combined_products`
         );
       
+      // Kritische Artikel (niedrigerer Bestand als Mindestbestand)
       const [criticalCount] = await db
         .select({ count: sql<number>`count(*)` })
         .from(inventoryItems)
@@ -269,8 +276,8 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
           sql`${inventoryItems.minQuantity} > 0` // Nur wenn ein Mindestbestand gesetzt ist
         ));
       
-      // Gesamtzahl der Produkte berechnen (aus beiden Quellen)
-      const totalProductCount = (inventoryCount?.count || 0) + (batchesCount?.count || 0);
+      // Verwende die genaue Zählung unique Produkte
+      const totalProductCount = uniqueProductCount?.count || 0;
       
       return {
         ...warehouse,
@@ -290,23 +297,35 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     
     if (!result) return null;
     
-    // 1. Produkte aus inventory_items zählen
+    // Optimierte Abfrage für Produkte im Lager - zählt alle Produkte, unabhängig vom Bestand
     const [inventoryCount] = await db
       .select({ count: sql<number>`count(*)` })
       .from(inventoryItems)
       .where(eq(inventoryItems.warehouseId, id));
     
-    // 2. Produkte aus productBatches zählen (mit Gruppierung nach Produkt-ID)
+    // Zählt alle Produkte aus Batches, auch mit Bestand 0 (für bessere Übersicht)
     const [batchesCount] = await db
       .select({ 
         count: sql<number>`COUNT(DISTINCT ${productBatches.productId})` 
       })
       .from(productBatches)
       .where(
-        and(
-          eq(productBatches.warehouseId, id),
-          sql`${productBatches.currentQuantity} > 0`
-        )
+        eq(productBatches.warehouseId, id)
+        // Bedingung für currentQuantity > 0 entfernt, um alle Produkte zu zählen
+      );
+    
+    // Eindeutige Produktzählung über UNION ALL und DISTINCT
+    // Dies löst das Problem der möglichen Doppelzählung von Produkten
+    const [uniqueProductCount] = await db
+      .select({
+        count: sql<number>`COUNT(DISTINCT product_id)`
+      })
+      .from(
+        sql`(
+          SELECT product_id FROM inventory_items WHERE warehouse_id = ${id}
+          UNION
+          SELECT product_id FROM product_batches WHERE warehouse_id = ${id}
+        ) AS combined_products`
       );
     
     // Kritische Artikel (niedrigerer Bestand als Mindestbestand)
@@ -325,12 +344,10 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       .from(machineWarehouseAssignments)
       .where(eq(machineWarehouseAssignments.warehouseId, id));
     
-    // Gesamtzahl der Produkte berechnen (aus beiden Quellen)
-    // Anmerkung: Hier ist eine Überschneidung möglich - idealerweise würden wir eine UNION für
-    // die exakte Zählung verwenden, aber für diese Korrektur reicht eine einfache Summe
-    const totalProductCount = (inventoryCount?.count || 0) + (batchesCount?.count || 0);
+    // Nutze die eindeutige Produktzählung statt der Summe
+    const totalProductCount = uniqueProductCount?.count || 0;
     
-    console.log(`Lagerdetails für ID ${id}: Produkte in inventory_items=${inventoryCount?.count || 0}, in Batches=${batchesCount?.count || 0}, Gesamtzahl=${totalProductCount}`);
+    console.log(`Lagerdetails für ID ${id}: Produkte in inventory_items=${inventoryCount?.count || 0}, in Batches=${batchesCount?.count || 0}, Eindeutige Produkte=${totalProductCount}`);
     
     return {
       ...result,
@@ -544,8 +561,19 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
     };
   }
   
-  async createProductInventory(data: InsertProductInventory): Promise<any> {
-    const [result] = await db.insert(inventoryItems).values(data).returning();
+  async createProductInventory(data: any): Promise<any> {
+    // Anpassung der Felder aus dem Schema an die tatsächliche Tabelle
+    const mappedData: any = {
+      warehouse_id: data.warehouseId,
+      product_id: data.productId,
+      quantity: data.quantity || 0,
+      min_quantity: data.minQuantity || 0,
+      status: "active",
+      notes: data.notes || "",
+      last_count_date: data.lastCountDate || new Date()
+    };
+    
+    const [result] = await db.insert(inventoryItems).values(mappedData).returning();
     return result;
   }
   
@@ -570,16 +598,17 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       ));
     
     if (!currentInventory) {
-      // Wenn kein Eintrag existiert, einen neuen erstellen
+      // Wenn kein Eintrag existiert, einen neuen erstellen mit korrekten DB-Feldnamen
       const [newInventory] = await db
         .insert(inventoryItems)
         .values({
-          warehouseId: warehouseId,
-          productId: productId,
+          warehouse_id: warehouseId,
+          product_id: productId,
           quantity: Math.max(0, quantityChange), // Bestand darf nicht negativ sein
-          lastCountDate: new Date(),
-          createdAt: new Date(),
-          updatedAt: new Date()
+          min_quantity: 0, // Standardwert für Mindestbestand
+          last_count_date: new Date(),
+          created_at: new Date(),
+          updated_at: new Date()
         })
         .returning();
       
@@ -594,7 +623,7 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       .update(inventoryItems)
       .set({
         quantity: newStock,
-        updatedAt: new Date()
+        updated_at: new Date()
       })
       .where(and(
         eq(inventoryItems.warehouseId, warehouseId),
@@ -1517,6 +1546,162 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       batchNumber: batch?.batchNumber || null,
       expiryDate: batch?.expiryDate || null
     }));
+  }
+  
+  // ---- WAREHOUSE RECONCILIATION ----
+  
+  /**
+   * Synchronisiert Produkte von einem Automaten zu einem Lager
+   * Diese Methode stellt sicher, dass alle Produkte eines Automaten auch im zugehörigen Lager vorhanden sind
+   */
+  async syncMachineProductsToWarehouse(machineId: number, warehouseId: number): Promise<{
+    added: number,
+    existing: number,
+    error?: any
+  }> {
+    try {
+      console.log(`Synchronisiere Produkte von Automat ${machineId} mit Lager ${warehouseId}...`);
+      
+      // Verwende die vorhandene Hilfsmethode, um Produkte des Automaten abzurufen
+      const machineProductItems = await this.getMachineProducts(machineId);
+      
+      if (!machineProductItems.length) {
+        console.log(`Keine Produkte in Automat ${machineId} gefunden.`);
+        return { added: 0, existing: 0 };
+      }
+      
+      console.log(`Gefundene Produkte in Automat ${machineId}: ${machineProductItems.length}`);
+      
+      // Existierende Lagerbestände abrufen (Optimiert: direkte Produktabfrage statt Inventory-Items)
+      // Hier verwenden wir eine direkte Abfrage mit UNION für alle Produkte im Lager
+      const [existingProducts] = await db
+        .select({
+          productIds: sql<number[]>`ARRAY_AGG(DISTINCT product_id)`
+        })
+        .from(
+          sql`(
+            SELECT product_id FROM inventory_items WHERE warehouse_id = ${warehouseId}
+            UNION
+            SELECT product_id FROM product_batches WHERE warehouse_id = ${warehouseId}
+          ) AS combined_products`
+        );
+      
+      const existingProductIds = new Set(existingProducts?.productIds || []);
+      console.log(`Existierende Produkt-IDs im Lager ${warehouseId}: ${existingProductIds.size}`);
+      
+      let added = 0;
+      let existing = 0;
+      
+      // Für jedes Produkt im Automaten:
+      for (const machineProduct of machineProductItems) {
+        // Überspringe Produkte ohne Namen oder ID
+        if (!machineProduct.productId || !machineProduct.productName) continue;
+        
+        // Prüfen, ob das Produkt bereits im Lager existiert (mit Produkt-ID)
+        if (existingProductIds.has(machineProduct.productId)) {
+          console.log(`Produkt "${machineProduct.productName}" (ID: ${machineProduct.productId}) bereits im Lager ${warehouseId} vorhanden`);
+          existing++;
+          continue;
+        }
+        
+        // Produkt zum Lagerbestand hinzufügen
+        console.log(`Füge Produkt "${machineProduct.productName}" (ID: ${machineProduct.productId}) zu Lager ${warehouseId} hinzu...`);
+        
+        // Anpassen der Parameter für die inventory_items Tabelle statt product_inventory_v3
+        const newInventoryItem = await this.createProductInventory({
+          warehouseId,
+          productId: machineProduct.productId,
+          // Anpassung für die inventory_items Tabelle (statt minimumStock und currentStock)
+          minQuantity: 0, // Standardwert für Mindestbestand
+          quantity: 0, // Anfangsbestand ist 0
+          notes: "Automatisch von Automat synchronisiert"
+        });
+        
+        console.log(`Produkt "${machineProduct.productName}" zu Lager ${warehouseId} hinzugefügt`);
+        added++;
+      }
+      
+      return { added, existing };
+    } catch (error) {
+      console.error("Fehler beim Synchronisieren von Produkten zum Lager:", error);
+      return { added: 0, existing: 0, error };
+    }
+  }
+  
+  /**
+   * Hilfsmethode zum Abrufen aller Produkte eines Automaten
+   */
+  private async getMachineProducts(machineId: number): Promise<any[]> {
+    try {
+      // Abfrage der Produkte aus der machine_products Tabelle
+      const machineProductsResult = await db
+        .select({
+          machineProduct: machineProducts,
+          product: products
+        })
+        .from(machineProducts)
+        .leftJoin(products, eq(machineProducts.productId, products.id))
+        .where(eq(machineProducts.machineId, machineId));
+      
+      // Typen-sicheres Mapping der Ergebnisse
+      return machineProductsResult.map((row: any) => ({
+        ...row.machineProduct,
+        productName: row.product?.productName || null
+      }));
+    } catch (error) {
+      console.error(`Fehler beim Abrufen der Produkte für Automat ${machineId}:`, error);
+      return [];
+    }
+  }
+  
+  /**
+   * Synchronisiert alle Automaten, die einem Lager zugeordnet sind
+   */
+  async syncAllMachinesForWarehouse(warehouseId: number): Promise<{
+    machineCount: number,
+    totalProductsAdded: number,
+    errors: any[]
+  }> {
+    try {
+      // Alle Automaten abrufen, die diesem Lager zugeordnet sind
+      const assignments = await this.getWarehouseAssignments(warehouseId);
+      console.log(`${assignments.length} Automaten sind dem Lager ${warehouseId} zugeordnet.`);
+      
+      let totalProductsAdded = 0;
+      const errors = [];
+      
+      // Für jeden Automaten Synchronisierung durchführen
+      for (const assignment of assignments) {
+        try {
+          console.log(`Synchronisiere Automat ${assignment.machineId} mit Lager ${warehouseId}...`);
+          const result = await this.syncMachineProductsToWarehouse(assignment.machineId, warehouseId);
+          
+          console.log(`Synchronisierung für Automat ${assignment.machineId} abgeschlossen. ` +
+                     `${result.added} Produkte hinzugefügt, ${result.existing} bereits vorhanden.`);
+          
+          totalProductsAdded += result.added;
+        } catch (error) {
+          console.error(`Fehler bei der Synchronisierung von Automat ${assignment.machineId}:`, error);
+          errors.push({
+            machineId: assignment.machineId,
+            error: error.message || 'Unbekannter Fehler'
+          });
+        }
+      }
+      
+      return {
+        machineCount: assignments.length,
+        totalProductsAdded,
+        errors
+      };
+    } catch (error) {
+      console.error(`Fehler bei der Synchronisierung des Lagers ${warehouseId}:`, error);
+      return {
+        machineCount: 0,
+        totalProductsAdded: 0,
+        errors: [error]
+      };
+    }
   }
 }
 

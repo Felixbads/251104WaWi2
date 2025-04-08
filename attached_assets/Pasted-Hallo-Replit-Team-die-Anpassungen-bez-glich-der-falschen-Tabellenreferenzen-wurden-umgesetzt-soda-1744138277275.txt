@@ -1,0 +1,23 @@
+Hallo Replit-Team,
+
+die Anpassungen bezüglich der falschen Tabellenreferenzen wurden umgesetzt, sodass in der getWarehouse-Methode jetzt korrekt die Tabelle inventory_items abgefragt wird. Allerdings besteht weiterhin folgendes Problem:
+	•	Kennzahlen-Diskrepanz: In der Lager-Detailansicht (z. B. “Bahnhof Bad Schandau”) werden weiterhin 0 Produkte und 0 kritische Artikel angezeigt, obwohl in der detaillierten Inventartabelle Produkte gelistet sind.
+	•	Maschinensynchronisation: Die Produkte, die in den zugeordneten Automaten vorhanden sein sollen, werden offenbar nicht vollständig in den Lagerbestand übernommen.
+
+Meine Fragen und Anforderungen:
+	1.	Überprüfung der Reconciliation-Logik:
+	•	Funktioniert der Prozess syncMachineProductsToWarehouse bzw. reconcileWarehouseProducts so, dass alle in den Automaten vorhandenen Produkte korrekt in die Tabelle inventory_items übernommen werden?
+	•	Gibt es eventuell Logikfehler oder zusätzliche Filter/Restriktionen in den Queries, die dazu führen, dass maschinenspezifische Produkte aus der KPI-Berechnung ausgeschlossen werden?
+	2.	Abgleich und KPI-Berechnung:
+	•	Wie werden die Kennzahlen (Produkte, kritische Artikel) in der getWarehouse-Methode berechnet? Werden hier ausschließlich Einträge aus inventory_items herangezogen oder fehlen ergänzende Daten aus dem Maschinen-Sync?
+	•	Sollten die KPI-Queries so angepasst werden, dass auch noch nicht synchronisierte Maschinenprodukte mit einbezogen werden?
+	3.	Datenfluss und Verzögerung:
+	•	Könnte es ein zeitliches Synchronisierungsproblem geben, sodass die Maschinenprodukte noch nicht zum Zeitpunkt der KPI-Berechnung in inventory_items angekommen sind?
+	•	Wie lässt sich sicherstellen, dass der gesamte Datenfluss vom Maschinen-Sync über die Reconciliation bis zur endgültigen KPI-Berechnung vollständig und aktuell ist?
+
+Ziel:
+Wir möchten sicherstellen, dass der Lagerbestand (sowohl in den Kennzahlen als auch in der detaillierten Tabelle) den tatsächlichen Inhalt der zugeordneten Automaten widerspiegelt.
+
+Bitte analysiert den kompletten Datenfluss – von der Synchronisierung der Maschinenprodukte über den Reconciliation-Prozess bis hin zur KPI-Berechnung – und schlagt konkrete Änderungen vor, um sicherzustellen, dass alle relevanten Produkte korrekt im Lagerbestand erfasst und ausgewertet werden.
+
+Vielen Dank für eure Unterstützung und euer Feedback!
