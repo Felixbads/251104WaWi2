@@ -1,0 +1,27 @@
+Hallo Replit-Team,
+
+trotz mehrerer Anpassungen und Verbesserungsversuche funktioniert der Reconciliation-Prozess (also die Zusammenstellung der Lagerprodukte aus den Automaten) immer noch nicht korrekt. Offenbar greifen wir immer wieder auf dieselben, fehlerhaften Skripte zurück, was zu inkonsistenten Ergebnissen führt.
+
+Mein Auftrag an euch lautet daher:
+Bitte entwickelt komplett neu eine Lösung für die Darstellung des Lagerbestandes. Dabei sollt ihr folgende Anforderungen berücksichtigen:
+	1.	Neue Benutzeroberfläche (UI):
+	•	Erstelle eine völlig neue Seite, die den aktuellen Warenbestand eines Lagers anzeigt – inklusive aller Produkte und einer transparenten Darstellung der Bestandsänderungen (Inventarbewegungen).
+	•	Die Seite soll alle relevanten Informationen enthalten, wie z. B. aktuelle Bestände, Bewegungsprotokolle und KPI-Werte (wie Produkte, kritische Artikel, Maschinen).
+	2.	Frischer Ansatz in der Implementierung:
+	•	Ignoriert alle alten Skripte und bisherigen Implementierungen (sowohl für die Reconciliation als auch für die Lagerbestandsabfrage).
+	•	Denkt komplett neu: Definiert neue, klare und konsistente Datenbank-Abfragen, API-Endpoints und UI-Logik, die den tatsächlichen, aktuellen Bestand widerspiegeln.
+	•	Nutzt die tatsächlichen und vorhandenen Tabellen in der NeonDB (z. B. inventory_items, inventory_batches, inventory_movements etc.) und baut eine neue Logik für die Zusammenführung dieser Daten, ohne alte Namenskonventionen wie product_inventory zu verwenden.
+	3.	Klarheit und Nachvollziehbarkeit:
+	•	Die neue Implementierung soll den gesamten Datenfluss (vom Maschinen-Sync über die Datenbank bis zur UI) transparent darstellen.
+	•	Alle Bestandsänderungen sollen nachvollziehbar protokolliert und aggregiert werden, sodass jederzeit klar ist, welche Bestandsänderungen stattgefunden haben.
+	4.	Flexibilität und Zukunftssicherheit:
+	•	Das neue System soll so aufgebaut sein, dass zukünftige Erweiterungen (z. B. weitere Datenquellen oder zusätzliche KPI-Berechnungen) einfach integriert werden können.
+
+Ziel:
+Wir benötigen eine gänzlich neue Seite und einen neuen Backend-Datenabrufmechanismus, der uns zuverlässig den aktuellen Warenbestand inklusive aller Bestandsänderungen anzeigt – ohne Rückgriff auf die bisherigen, fehlerhaften Skripte.
+
+Bitte führt diesen Auftrag komplett von Grund auf neu aus – „out of the box“ – und dokumentiert kurz den neuen Ansatz, damit wir nachvollziehen können, wie eure Lösung aufgebaut ist.
+
+Vielen Dank und ich freue mich auf eure neue, frische Umsetzung!
+
+⸻

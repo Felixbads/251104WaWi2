@@ -7,6 +7,7 @@ import { warehouseStorage } from "./warehouse3.storage";
 import fileUpload from "express-fileupload";
 import WebSocket from 'ws';
 import http from 'http';
+import inventoryApiRouter from './routes/inventory-api';
 
 const app = express();
 app.use(express.json());
@@ -47,6 +48,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Die neuen Inventory-API-Routen hinzufügen
+  app.use(inventoryApiRouter);
+  
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
