@@ -1,5 +1,7 @@
 import { eq, desc, and, or, gte, lte, like, asc, count, aliasedTable, sql, gt, ilike, isNull, isNotNull, inArray, between } from "drizzle-orm";
-import { db, rawSql } from "./db";
+import { db } from "./db";
+// Define rawSql as a local alias for sql
+const rawSql = sql;
 import { normalizeProductName } from "./utils/stringUtils";
 import { 
   users, type User, type InsertUser,
@@ -1891,24 +1893,124 @@ export class DatabaseStorage implements IStorage {
 
   async createSyncLog(log: InsertSyncLog): Promise<SyncLog> {
     // Add timestamps to ensure consistent data if not already set
-    const [newLog] = await db.insert(syncLogs).values({
-      ...log,
-      createdAt: log.createdAt || new Date()
-    }).returning();
-    return newLog;
+    const createdAt = log.createdAt || new Date();
+    const result = await db.query(
+      `INSERT INTO sync_logs (sync_type, start_date, end_date, additional_data, errors, warnings, processed_items, sync_status, items_affected, items_skipped, sync_source, creator) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+       RETURNING *`, 
+      [
+        log.syncType, 
+        log.startDate, 
+        log.endDate, 
+        log.additionalData, 
+        log.errors,
+        log.warnings,
+        log.processedItems,
+        log.syncStatus,
+        log.itemsAffected,
+        log.itemsSkipped,
+        log.syncSource,
+        log.creator
+      ]
+    );
+    
+    return result.rows[0];
   }
 
   async updateSyncLog(id: number, log: Partial<InsertSyncLog>): Promise<SyncLog | undefined> {
     // Add updatedAt timestamp for tracking
-    const [updatedLog] = await db
-      .update(syncLogs)
-      .set({
-        ...log,
-        updatedAt: new Date()
-      })
-      .where(eq(syncLogs.id, id))
-      .returning();
-    return updatedLog;
+    const updatedAt = new Date();
+    
+    // Construct the set clause for the update
+    let setClauses = [];
+    const params = [id]; // First parameter is always the ID
+    let paramIndex = 2; // Start with $2 since $1 is the ID
+    
+    // Add each field from the log object to the SET clause
+    if (log.syncType) {
+      setClauses.push(`sync_type = $${paramIndex}`);
+      params.push(log.syncType);
+      paramIndex++;
+    }
+    
+    if (log.startDate !== undefined) {
+      setClauses.push(`start_date = $${paramIndex}`);
+      params.push(log.startDate);
+      paramIndex++;
+    }
+    
+    if (log.endDate !== undefined) {
+      setClauses.push(`end_date = $${paramIndex}`);
+      params.push(log.endDate);
+      paramIndex++;
+    }
+    
+    if (log.additionalData !== undefined) {
+      setClauses.push(`additional_data = $${paramIndex}`);
+      params.push(log.additionalData);
+      paramIndex++;
+    }
+    
+    if (log.errors !== undefined) {
+      setClauses.push(`errors = $${paramIndex}`);
+      params.push(log.errors);
+      paramIndex++;
+    }
+    
+    if (log.warnings !== undefined) {
+      setClauses.push(`warnings = $${paramIndex}`);
+      params.push(log.warnings);
+      paramIndex++;
+    }
+    
+    if (log.processedItems !== undefined) {
+      setClauses.push(`processed_items = $${paramIndex}`);
+      params.push(log.processedItems);
+      paramIndex++;
+    }
+    
+    if (log.syncStatus !== undefined) {
+      setClauses.push(`sync_status = $${paramIndex}`);
+      params.push(log.syncStatus);
+      paramIndex++;
+    }
+    
+    if (log.itemsAffected !== undefined) {
+      setClauses.push(`items_affected = $${paramIndex}`);
+      params.push(log.itemsAffected);
+      paramIndex++;
+    }
+    
+    if (log.itemsSkipped !== undefined) {
+      setClauses.push(`items_skipped = $${paramIndex}`);
+      params.push(log.itemsSkipped);
+      paramIndex++;
+    }
+    
+    if (log.syncSource !== undefined) {
+      setClauses.push(`sync_source = $${paramIndex}`);
+      params.push(log.syncSource);
+      paramIndex++;
+    }
+    
+    if (log.creator !== undefined) {
+      setClauses.push(`creator = $${paramIndex}`);
+      params.push(log.creator);
+      paramIndex++;
+    }
+    
+    // Always update the updated_at timestamp
+    setClauses.push(`updated_at = $${paramIndex}`);
+    params.push(updatedAt);
+    
+    // Execute the update query
+    const setClause = setClauses.join(', ');
+    const result = await db.query(
+      `UPDATE sync_logs SET ${setClause} WHERE id = $1 RETURNING *`,
+      params
+    );
+    
+    return result.rows[0];
   }
 
   async getLatestSyncLog(syncType: string): Promise<SyncLog | undefined> {
