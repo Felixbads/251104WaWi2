@@ -25,7 +25,7 @@ async function syncMachineInventoryWithWarehouse(machineId: number) {
     const machineStockQuery = `
       SELECT 
         ms.product_id,
-        p.name as product_name,
+        p.product_name as product_name,
         ms.quantity as machine_quantity,
         COALESCE(i.quantity, 0) as warehouse_quantity
       FROM 
@@ -408,7 +408,7 @@ router.get('/api/inventory/alerts', asyncHandler(async (req: any, res: any) => {
       SELECT 
         i.id as item_id,
         i.product_id,
-        p.name as product_name,
+        p.product_name as product_name,
         i.quantity,
         i.min_quantity,
         i.warehouse_id,
@@ -429,7 +429,7 @@ router.get('/api/inventory/alerts', asyncHandler(async (req: any, res: any) => {
       SELECT 
         pb.id as batch_id,
         pb.product_id,
-        p.name as product_name,
+        p.product_name as product_name,
         pb.batch_number,
         pb.expiry_date,
         pb.current_quantity as remaining_quantity,
@@ -452,7 +452,7 @@ router.get('/api/inventory/alerts', asyncHandler(async (req: any, res: any) => {
       SELECT 
         pb.id as batch_id,
         pb.product_id,
-        p.name as product_name,
+        p.product_name as product_name,
         pb.batch_number,
         pb.expiry_date,
         pb.current_quantity as remaining_quantity,
@@ -639,7 +639,7 @@ router.get('/api/inventory/warehouse/:id', asyncHandler(async (req: any, res: an
     SELECT 
       i.id,
       i.product_id,
-      p.name as product_name,
+      p.product_name as product_name,
       p.sku,
       p.category,
       i.quantity,
@@ -654,7 +654,7 @@ router.get('/api/inventory/warehouse/:id', asyncHandler(async (req: any, res: an
     WHERE 
       i.warehouse_id = $1
     ORDER BY
-      p.name ASC
+      p.product_name ASC
   `;
 
   const result = await db.query(query, [warehouseId]);
@@ -678,7 +678,7 @@ router.get('/api/inventory/warehouse/:id/movements', asyncHandler(async (req: an
     SELECT 
       m.id,
       m.product_id,
-      p.name as product_name,
+      p.product_name as product_name,
       m.quantity,
       m.movement_type,
       m.source_type,
