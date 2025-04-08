@@ -12,11 +12,13 @@ import {
   AlertCircle, Save, RefreshCw, Database, Key, 
   Bell, User, Clock, Shield, Cog
 } from "lucide-react";
+import DatabaseViewer from "@/components/settings/DatabaseViewer";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Settings() {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState("api");
   
   // API Connection Settings (these would normally come from API/storage)
   const [apiSettings, setApiSettings] = useState({
@@ -163,8 +165,8 @@ export default function Settings() {
 
       <Card>
         <CardContent className="pt-6">
-          <Tabs defaultValue="api" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-3">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value)} className="space-y-4">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="api" className="flex items-center">
                 <Key className="h-4 w-4 mr-2" />
                 API-Verbindung
@@ -176,6 +178,10 @@ export default function Settings() {
               <TabsTrigger value="notifications" className="flex items-center">
                 <Bell className="h-4 w-4 mr-2" />
                 Benachrichtigungen
+              </TabsTrigger>
+              <TabsTrigger value="database" className="flex items-center">
+                <Database className="h-4 w-4 mr-2" />
+                Datenbank-Viewer
               </TabsTrigger>
             </TabsList>
 
@@ -450,6 +456,11 @@ export default function Settings() {
                   </div>
                 )}
               </div>
+            </TabsContent>
+
+            {/* Database Viewer Tab */}
+            <TabsContent value="database" className="space-y-4">
+              <DatabaseViewer />
             </TabsContent>
           </Tabs>
         </CardContent>
