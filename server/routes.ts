@@ -2576,6 +2576,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   app.use(`${API_PREFIX}/warehouse3-api`, warehouse3ApiRouter); // Neue Lagerverwaltung API (Version 3)
   
+  // Lagerplätze API einbinden
+  app.use(`${API_PREFIX}`, warehouseLocationsRouter);
+  
   // Registriere Export/Import-Routen
   app.use(`${API_PREFIX}`, exportImportRoutes);
 

@@ -107,33 +107,40 @@ export default function InternalMovement({ warehouseId, onSuccess }: InternalMov
   useEffect(() => {
     const fetchLocations = async () => {
       try {
-        const response = await fetch(`/api/warehouses/${warehouseId}/locations`);
+        // Verwenden der neuen API-Route für Lagerplätze
+        const response = await fetch(`/api/warehouse-locations/${warehouseId}`);
         
         if (response.ok) {
           const data = await response.json();
-          setLocations(data);
+          // Transformieren der Daten in das erwartete Format
+          const formattedLocations = data.map(loc => ({
+            id: loc.name,
+            name: loc.name
+          }));
+          
+          setLocations(formattedLocations);
           
           // Wenn wir Lagerplätze haben, setzen wir den ersten als Standard
-          if (data.length > 0) {
-            form.setValue('sourceLocation', data[0].id);
-            form.setValue('destinationLocation', data[0].id);
+          if (formattedLocations.length > 0) {
+            form.setValue('sourceLocation', formattedLocations[0].id);
+            // Wenn mehr als ein Lagerplatz vorhanden ist, setzen wir den zweiten als Ziel
+            // sonst den ersten
+            const destinationIndex = formattedLocations.length > 1 ? 1 : 0;
+            form.setValue('destinationLocation', formattedLocations[destinationIndex].id);
           }
         } else {
           console.error('Fehler beim Laden der Lagerplätze:', await response.text());
           
-          // Fallback: Erstelle Dummy-Lagerplätze, wenn API nicht funktioniert
-          const dummyLocations = [
-            { id: 'regal_a', name: 'Regal A' },
-            { id: 'regal_b', name: 'Regal B' },
-            { id: 'kuehlraum', name: 'Kühlraum' },
-            { id: 'eingang', name: 'Eingangsbereich' },
-            { id: 'theke', name: 'Theke' },
+          // Standard-Lagerplätze für den Fall, dass keine vorhanden sind
+          const standardLocations = [
+            { id: 'Hauptlager', name: 'Hauptlager' },
+            { id: 'Verkaufsbereich', name: 'Verkaufsbereich' }
           ];
-          setLocations(dummyLocations);
+          setLocations(standardLocations);
           
-          if (dummyLocations.length > 0) {
-            form.setValue('sourceLocation', dummyLocations[0].id);
-            form.setValue('destinationLocation', dummyLocations[1].id);
+          if (standardLocations.length > 0) {
+            form.setValue('sourceLocation', standardLocations[0].id);
+            form.setValue('destinationLocation', standardLocations[1].id);
           }
         }
       } catch (error) {

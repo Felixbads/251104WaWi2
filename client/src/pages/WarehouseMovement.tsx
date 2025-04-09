@@ -28,6 +28,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
 import {
   Table,
   TableBody,
@@ -43,6 +44,7 @@ export default function WarehouseMovement() {
   const warehouseId = Number(params.id);
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   // Abfragen der Lagerdaten
   const { data: warehouse, isLoading: warehouseLoading } = useQuery({
@@ -254,7 +256,16 @@ export default function WarehouseMovement() {
             </CardHeader>
             <CardContent>
               <div className="flex justify-end mb-4">
-                <Button variant="default">
+                <Button 
+                  variant="default" 
+                  onClick={() => {
+                    // Hier könnte der Code für einen neuen Ausgang eingefügt werden
+                    toast({
+                      title: "Hinweis",
+                      description: "Funktion 'Neuen Ausgang erfassen' wird noch implementiert.",
+                    });
+                  }}
+                >
                   <FileDown className="mr-2 h-4 w-4" />
                   Neuen Ausgang erfassen
                 </Button>
