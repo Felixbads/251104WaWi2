@@ -410,7 +410,32 @@ export class DrizzleWarehouseStorage implements WarehouseStorage {
       .values(data)
       .returning();
     
-    return result;
+    try {
+      // Automatisch Produkte aus dem Automaten ins Lager synchronisieren
+      console.log(`Führe automatischen Produkt-Import für Automat ${data.machineId} in Lager ${data.warehouseId} durch...`);
+      const syncResult = await this.syncMachineProductsToWarehouse(data.machineId, data.warehouseId);
+      console.log(`Automatischer Produkt-Import abgeschlossen: ${syncResult.added} Produkte hinzugefügt, ${syncResult.existing} bereits vorhanden.`);
+      
+      // Ergebnis um Synchronisierungsinformationen erweitern
+      return {
+        ...result,
+        syncResult: {
+          productsAdded: syncResult.added,
+          productsExisting: syncResult.existing
+        }
+      };
+    } catch (error) {
+      console.error(`Fehler beim automatischen Produkt-Import von Automat ${data.machineId} zu Lager ${data.warehouseId}:`, error);
+      // Die Zuordnung wurde trotzdem erstellt, also geben wir das Ergebnis zurück
+      return {
+        ...result,
+        syncResult: {
+          productsAdded: 0,
+          productsExisting: 0,
+          error: error.message || 'Unbekannter Fehler bei der Produktsynchronisierung'
+        }
+      };
+    }
   }
   
   async unassignMachineFromWarehouse(machineId: number, warehouseId: number): Promise<boolean> {

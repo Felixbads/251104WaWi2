@@ -84,11 +84,18 @@ app.use((req, res, next) => {
     log('Initialisiere automatisches Synchronisierungssystem...');
     startAutomaticSync();
     
-    // Kein automatischer Lagerabgleich mehr beim Serverstart, dieser wird nur noch
-    // beim Erstellen einer neuen Automaten-Lager-Zuordnung ausgeführt
-    log('Automatischer Lagerabgleich beim Serverstart deaktiviert, wird nur noch bei Bedarf ausgeführt.');
-
-    // Automatische Prüfung auf abgelaufene Chargen deaktiviert für Debugging-Zwecke
-    log('Automatische Prüfung für abgelaufene Chargen deaktiviert während der Fehlerbehebung.');
+    // Führen wir einen initialen Lagerabgleich beim Start durch
+    try {
+      log('Starte initialen Lagerabgleich beim Serverstart...');
+      reconcileWarehouseProducts().then(result => {
+        log(`Initialer Lagerabgleich abgeschlossen: ${result.productsAdded} neue Produkte zu ${result.warehousesChecked} Lagern hinzugefügt.`);
+      }).catch(error => {
+        log(`Fehler beim initialen Lagerabgleich: ${error.message}`);
+      });
+    } catch (error) {
+      log(`Fehler beim Starten des initialen Lagerabgleichs: ${error.message}`);
+    }
+    
+    log('Automatischer täglicher Lagerabgleich ist aktiviert und erfolgt alle 24 Stunden.');
   });
 })();
