@@ -30,7 +30,7 @@ const WarehouseMovementsTable: React.FC<WarehouseMovementsTableProps> = ({
   limit = 50
 }) => {
   const { data: movements = [], isLoading, error } = useQuery({
-    queryKey: [`/api/inventory/warehouse/${warehouseId}/movements`, { limit }],
+    queryKey: [`/api/warehouses/${warehouseId}/movements`, { limit }],
   });
 
   // Formatiert ein Datum im deutschen Format

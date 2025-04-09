@@ -363,16 +363,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       // Wir holen direkt aus der Datenbank alle Refills für die zugewiesenen Automaten
-      const refillsQuery = await rawSql`
+      const refillQuery = `
         SELECT r.*, m.machine_name as "machineName" 
         FROM refills r
         LEFT JOIN machines m ON r.machine_id = m.id
-        WHERE r.machine_id = ANY(${machineIds})
-        ${startDate ? rawSql`AND r.datetime >= ${startDate.toISOString()}` : rawSql``}
-        ${endDate ? rawSql`AND r.datetime <= ${endDate.toISOString()}` : rawSql``}
+        WHERE r.machine_id = ANY($1)
+        ${startDate ? `AND r.datetime >= $2` : ''}
+        ${endDate ? `AND r.datetime <= ${startDate ? '$3' : '$2'}` : ''}
         ORDER BY r.datetime DESC 
         LIMIT 500
       `;
+      
+      // Parameter für die Abfrage vorbereiten
+      const queryParams = [machineIds];
+      if (startDate) queryParams.push(startDate.toISOString());
+      if (endDate) queryParams.push(endDate.toISOString());
+      
+      // Ausführung der Abfrage
+      const refillsResult = await rawDb.query(refillQuery, queryParams);
+      const refillsQuery = refillsResult.rows;
       
       console.log(`[DEBUG] Gefundene Refills für Lager ${warehouseId}: ${refillsQuery.length}`);
       
