@@ -153,17 +153,13 @@ export default function WarehouseMovement() {
             <Truck className="h-4 w-4" />
             <span>Alle Bewegungen</span>
           </TabsTrigger>
-          <TabsTrigger value="transfer" className="flex items-center gap-2">
-            <RotateCw className="h-4 w-4" />
-            <span>Transfer</span>
-          </TabsTrigger>
           <TabsTrigger value="out" className="flex items-center gap-2">
             <FileDown className="h-4 w-4" />
             <span>Ausgang</span>
           </TabsTrigger>
           <TabsTrigger value="internal" className="flex items-center gap-2">
             <ArrowRightLeft className="h-4 w-4" />
-            <span>Umlagerung</span>
+            <span>Interne Umlagerung</span>
           </TabsTrigger>
         </TabsList>
         
@@ -245,75 +241,7 @@ export default function WarehouseMovement() {
           </Card>
         </TabsContent>
         
-        {/* Tab: Transfer */}
-        <TabsContent value="transfer">
-          <Card>
-            <CardHeader>
-              <CardTitle>Transfers zwischen Lagern</CardTitle>
-              <CardDescription>
-                Bewegungen von Produkten zwischen zwei verschiedenen Lagern
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex justify-end mb-4">
-                <Button variant="default">
-                  <RotateCw className="mr-2 h-4 w-4" />
-                  Neuen Transfer anlegen
-                </Button>
-              </div>
-              
-              {movements.filter((m: any) => m.movementType === 'TRANSFER').length > 0 ? (
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[150px]">Datum</TableHead>
-                        <TableHead>Produkt</TableHead>
-                        <TableHead className="w-[150px]">Menge</TableHead>
-                        <TableHead>Von → Nach</TableHead>
-                        <TableHead className="w-[150px]">Durchgeführt von</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {movements
-                        .filter((m: any) => m.movementType === 'TRANSFER')
-                        .map((movement: any) => (
-                          <TableRow key={`transfer-${movement.id}`}>
-                            <TableCell className="font-medium">
-                              {formatDate(movement.performedAt || movement.createdAt)}
-                            </TableCell>
-                            <TableCell>{movement.productName}</TableCell>
-                            <TableCell>
-                              <span className="text-emerald-600">
-                                {Math.abs(Number(movement.quantity))} {movement.unit || 'Stk.'}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <span>{movement.sourceWarehouseName} → {movement.destinationWarehouseName}</span>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center">
-                                <User className="h-4 w-4 mr-1 text-muted-foreground" />
-                                <span>{movement.performedByName || 'System'}</span>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center p-8 text-center">
-                  <RotateCw className="h-12 w-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium mb-2">Keine Transfers gefunden</h3>
-                  <p className="text-muted-foreground max-w-md mb-6">
-                    Es wurden keine Transfers zwischen Lagern gefunden.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+
         
         {/* Tab: Ausgang */}
         <TabsContent value="out">
