@@ -67,6 +67,29 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
           </nav>
         </div>
 
+        {/* Mobile Nav - LAGER */}
+        <div className="py-4 border-b border-red-700">
+          <h3 className="px-6 text-xs font-semibold text-white uppercase tracking-wider mb-2">
+            LAGER
+          </h3>
+          <nav>
+            {menuItems.storage.map((item, index) => (
+              <Link href={item.path} onClick={handleLinkClick} key={index}>
+                <div
+                  className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
+                    isActive(item.path)
+                      ? "text-white bg-red-700"
+                      : "text-white hover:bg-red-700"
+                  }`}
+                >
+                  {item.icon}
+                  {item.title}
+                </div>
+              </Link>
+            ))}
+          </nav>
+        </div>
+
         {/* Mobile Nav - Verwaltung */}
         <div className="py-4 border-b border-red-700">
           <h3 className="px-6 text-xs font-semibold text-white uppercase tracking-wider mb-2">
@@ -89,11 +112,34 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
             ))}
           </nav>
         </div>
+        
+        {/* Mobile Nav - ANALYSE */}
+        <div className="py-4 border-b border-red-700">
+          <h3 className="px-6 text-xs font-semibold text-white uppercase tracking-wider mb-2">
+            ANALYSE
+          </h3>
+          <nav>
+            {menuItems.analysis.map((item, index) => (
+              <Link href={item.path} onClick={handleLinkClick} key={index}>
+                <div
+                  className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
+                    isActive(item.path)
+                      ? "text-white bg-red-700"
+                      : "text-white hover:bg-red-700"
+                  }`}
+                >
+                  {item.icon}
+                  {item.title}
+                </div>
+              </Link>
+            ))}
+          </nav>
+        </div>
 
         {/* Mobile System Nav */}
         <div className="py-4 border-b border-red-700">
           <h3 className="px-6 text-xs font-semibold text-white uppercase tracking-wider mb-2">
-            System
+            SYSTEM
           </h3>
           <nav>
             {menuItems.system.map((item, index) => (

@@ -36,9 +36,9 @@ export default function MobileFooter() {
   const footerItems = [
     menuItems.overview[0], // Dashboard
     menuItems.overview[1], // Automaten
-    menuItems.management[0], // Bestellungen
-    menuItems.management[1], // Lager
-    menuItems.management[2], // Warenentnahme
+    menuItems.storage[2], // Bestellungen
+    menuItems.storage[0], // Lagerbestand
+    menuItems.management[0], // Warenentnahme
   ];
 
   return (

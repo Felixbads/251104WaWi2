@@ -21,26 +21,27 @@ export const menuItems = {
     { title: 'Produkte', icon: <ShoppingBag className="h-5 w-5 mr-3" />, path: '/produkte' },
     { title: 'Lieferanten', icon: <Truck className="h-5 w-5 mr-3" />, path: '/lieferanten' },
     { title: 'Transaktionen', icon: <FileText className="h-5 w-5 mr-3" />, path: '/transactions' },
-    { title: 'Lagerhaltung', icon: <Building2 className="h-5 w-5 mr-3" />, path: '/lagerhaltung' },
   ],
   management: [
-    { title: 'Bestellungen', icon: <ShoppingCart className="h-5 w-5 mr-3" />, path: '/bestellungen' },
-    { title: 'Lager (Neu)', icon: <Building2 className="h-5 w-5 mr-3" />, path: '/lager-neu' },
-    { title: 'Lager', icon: <Building2 className="h-5 w-5 mr-3" />, path: '/lager' },
-    { title: 'Inventur', icon: <ClipboardCheck className="h-5 w-5 mr-3" />, path: '/inventur' },
     { title: 'Warenentnahme', icon: <TrashIcon className="h-5 w-5 mr-3" />, path: '/warenentnahme' },
-    { title: 'Prognosen', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/forecast' },
+  ],
+  storage: [
+    { title: 'Lagerbestand', icon: <Building2 className="h-5 w-5 mr-3" />, path: '/lagerbestand' },
+    { title: 'Inventur', icon: <ClipboardCheck className="h-5 w-5 mr-3" />, path: '/inventur' },
+    { title: 'Bestellungen', icon: <ShoppingCart className="h-5 w-5 mr-3" />, path: '/bestellungen' },
+  ],
+  analysis: [
+    { title: 'Auswertung', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/auswertungen' },
+    { title: 'Erweiterte Auswertung', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/erweiterte-analyse' },
+    { title: 'Prognose', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/forecast' },
     { title: 'Prognoseanalyse', icon: <LineChart className="h-5 w-5 mr-3" />, path: '/forecast-evaluation' },
-    { title: 'Auswertungen', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/auswertungen' },
-    { title: 'Erweiterte Analyse', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/erweiterte-analyse' },
-    { title: 'Datenverfügbarkeit', icon: <Database className="h-5 w-5 mr-3" />, path: '/datenverfuegbarkeit' },
-    { title: 'Lieferanten-Portal', icon: <Truck className="h-5 w-5 mr-3" />, path: '/lieferantenportal' },
   ],
   system: [
     { title: 'Synchronisierung', icon: <RefreshCw className="h-5 w-5 mr-3" />, path: '/synchronization' },
     { title: 'Sync-Verlauf', icon: <Clock className="h-5 w-5 mr-3" />, path: '/sync-history' },
-    { title: 'Einstellungen', icon: <Settings className="h-5 w-5 mr-3" />, path: '/settings' },
+    { title: 'Datenverfügbarkeit', icon: <Database className="h-5 w-5 mr-3" />, path: '/datenverfuegbarkeit' },
     { title: 'Benutzer', icon: <Users className="h-5 w-5 mr-3" />, path: '/benutzer' },
+    { title: 'Einstellungen', icon: <Settings className="h-5 w-5 mr-3" />, path: '/settings' },
   ]
 };
 
@@ -180,6 +181,25 @@ export default function AppShell({ children }: AppShellProps) {
             </nav>
           </div>
 
+          {/* Nav Section: LAGER */}
+          <div className="py-4 border-b border-red-700">
+            <h3 className="px-6 text-xs font-semibold text-white uppercase tracking-wider mb-2">
+              LAGER
+            </h3>
+            <nav>
+              {menuItems.storage.map((item, index) => (
+                <NavItem
+                  key={index}
+                  href={item.path}
+                  icon={item.icon}
+                  isActive={isActive(item.path)}
+                >
+                  {item.title}
+                </NavItem>
+              ))}
+            </nav>
+          </div>
+
           {/* Nav Section: Verwaltung */}
           <div className="py-4 border-b border-red-700">
             <h3 className="px-6 text-xs font-semibold text-white uppercase tracking-wider mb-2">
@@ -198,11 +218,30 @@ export default function AppShell({ children }: AppShellProps) {
               ))}
             </nav>
           </div>
-
-          {/* Nav Section: System */}
+          
+          {/* Nav Section: ANALYSE */}
           <div className="py-4 border-b border-red-700">
             <h3 className="px-6 text-xs font-semibold text-white uppercase tracking-wider mb-2">
-              System
+              ANALYSE
+            </h3>
+            <nav>
+              {menuItems.analysis.map((item, index) => (
+                <NavItem
+                  key={index}
+                  href={item.path}
+                  icon={item.icon}
+                  isActive={isActive(item.path)}
+                >
+                  {item.title}
+                </NavItem>
+              ))}
+            </nav>
+          </div>
+
+          {/* Nav Section: SYSTEM */}
+          <div className="py-4 border-b border-red-700">
+            <h3 className="px-6 text-xs font-semibold text-white uppercase tracking-wider mb-2">
+              SYSTEM
             </h3>
             <nav>
               {menuItems.system.map((item, index) => (
