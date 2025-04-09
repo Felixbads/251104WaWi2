@@ -173,10 +173,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get(`${API_PREFIX}/warehouses`, async (_req: Request, res: Response) => {
     try {
       console.log("Versuche, Warehouses abzurufen...");
-      // Verwende direkte SQL-Abfrage anstatt storage.getWarehouses
-      const result = await rawDb.query(`SELECT id, name, description, status FROM warehouses ORDER BY name`);
-      console.log("Warehouses erfolgreich abgerufen:", result.rows.length);
-      res.json(result.rows);
+      // Verwende storage.getWarehouses statt direkter SQL-Abfrage
+      const warehouses = await storage.getWarehouses();
+      console.log("Warehouses erfolgreich abgerufen:", warehouses.length);
+      res.json(warehouses);
     } catch (error) {
       console.error("Error fetching warehouses:", error);
       res.status(500).json({ 
@@ -2434,40 +2434,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/database-viewer`, databaseViewerRoutes);
   app.use(`${API_PREFIX}/admin`, adminRouter);
   
-  // GET /warehouses/stats - Statistiken für alle Lager
-  app.get(`${API_PREFIX}/warehouses/stats`, async (_req: Request, res: Response) => {
-    try {
-      console.log("Versuche, Warehouse-Statistiken abzurufen...");
-      // Da die ORM-Funktionen nicht verfügbar sind, verwenden wir direkte Queries
-      // Hole alle Lager
-      const warehousesResult = await rawDb.query(`SELECT id FROM warehouses`);
-      const warehouses = warehousesResult.rows;
-      
-      // Sammle Statistiken für jedes Lager
-      const warehouseStats = {};
-      
-      for (const warehouse of warehouses) {
-        // Erstelle Standard-Statistiken für jedes Lager
-        // Setze Standard-Statistiken, da storage.getInventoryItems problematisch ist
-        warehouseStats[warehouse.id] = {
-          totalProducts: 0,
-          totalItems: 0,
-          lowStock: 0,
-          criticalStock: 0,
-          expiringBatches: 0,
-          totalBatches: 0
-        };
-      }
-      
-      res.json(warehouseStats);
-    } catch (error) {
-      console.error("Error fetching warehouse stats:", error);
-      res.status(500).json({ 
-        error: "Failed to fetch warehouse stats", 
-        details: error instanceof Error ? error.message : String(error) 
-      });
-    }
-  });
+  // Erste Version der Warehouse-Stats-API entfernt, um Duplikate zu vermeiden.
+  // Die unten definierte Version (Zeile 2483) wird stattdessen verwendet.
   
   // Registriere Bestellungs-Routen
   app.use(`${API_PREFIX}/orders`, ordersRouter);
