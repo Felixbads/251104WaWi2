@@ -52,6 +52,8 @@ const WarehouseMovementsTable: React.FC<WarehouseMovementsTableProps> = ({
         return <Badge variant="outline" className="bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100">Ausgang</Badge>;
       case 'TRANSFER':
         return <Badge variant="outline" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100">Transfer</Badge>;
+      case 'REFILL':
+        return <Badge variant="outline" className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-100">Befüllung</Badge>;
       default:
         return <Badge variant="outline">{movementType}</Badge>;
     }
@@ -59,38 +61,46 @@ const WarehouseMovementsTable: React.FC<WarehouseMovementsTableProps> = ({
 
   // Gibt eine Kurzbeschreibung für die Bewegung zurück
   const getMovementDescription = (movement: any) => {
-    const { source_type, destination_type, movement_type, reference_type, reason } = movement;
+    const { sourceType, destinationType, movementType, referenceType, reason, machineName, sourceWarehouseName, destinationWarehouseName } = movement;
     
     // Basis der Beschreibung ist der Grund, falls vorhanden
     if (reason) return reason;
     
     // Ansonsten bauen wir eine Beschreibung basierend auf den Typen
-    if (movement_type === 'IN') {
-      if (source_type === 'supplier' && destination_type === 'warehouse') {
+    if (movementType === 'IN') {
+      if (sourceType === 'supplier' && destinationType === 'warehouse') {
         return 'Wareneingang von Lieferant';
-      } else if (source_type === 'machine' && destination_type === 'warehouse') {
-        return 'Rücknahme von Automat';
-      } else if (reference_type === 'order') {
+      } else if (sourceType === 'machine' && destinationType === 'warehouse') {
+        return `Rücknahme von Automat ${machineName ? `(${machineName})` : ''}`;
+      } else if (referenceType === 'order') {
         return 'Bestellung eingegangen';
-      } else if (reference_type === 'return') {
+      } else if (referenceType === 'return') {
         return 'Retoure';
       }
       return 'Eingang';
-    } else if (movement_type === 'OUT') {
-      if (source_type === 'warehouse' && destination_type === 'machine') {
-        return 'Befüllung Automat';
-      } else if (source_type === 'warehouse' && destination_type === 'disposal') {
+    } else if (movementType === 'OUT') {
+      if (sourceType === 'warehouse' && destinationType === 'machine') {
+        return `Befüllung Automat ${machineName ? `(${machineName})` : ''}`;
+      } else if (sourceType === 'warehouse' && destinationType === 'disposal') {
         return 'Entsorgung';
-      } else if (reference_type === 'expiry') {
+      } else if (referenceType === 'expiry') {
         return 'Ablauf';
-      } else if (reference_type === 'damage') {
+      } else if (referenceType === 'damage') {
         return 'Beschädigung';
-      } else if (reference_type === 'reconciliation') {
+      } else if (referenceType === 'reconciliation') {
         return 'Bestandsabgleich';
       }
       return 'Ausgang';
-    } else if (movement_type === 'TRANSFER') {
+    } else if (movementType === 'TRANSFER') {
+      if (sourceWarehouseName && destinationWarehouseName) {
+        return `Transfer: ${sourceWarehouseName} → ${destinationWarehouseName}`;
+      }
       return 'Transfer zwischen Lagern';
+    } else if (movementType === 'REFILL') {
+      if (destinationType === 'machine' && machineName) {
+        return `Befüllung Automat ${machineName}`;
+      }
+      return 'Befüllung von Automat';
     }
     
     return 'Bestandsbewegung';
@@ -170,8 +180,10 @@ const WarehouseMovementsTable: React.FC<WarehouseMovementsTableProps> = ({
                       {getMovementDescription(movement)}
                     </TableCell>
                     <TableCell className="text-right font-mono flex items-center justify-end">
-                      {movement.type === 'IN' && <MoveDown className="h-4 w-4 mr-1 text-green-600" />}
-                      {movement.type === 'OUT' && <MoveUp className="h-4 w-4 mr-1 text-red-600" />}
+                      {movement.movementType === 'IN' && <MoveDown className="h-4 w-4 mr-1 text-green-600" />}
+                      {movement.movementType === 'OUT' && <MoveUp className="h-4 w-4 mr-1 text-red-600" />}
+                      {movement.movementType === 'TRANSFER' && <MoveUp className="h-4 w-4 mr-1 text-blue-600" />}
+                      {movement.movementType === 'REFILL' && <MoveUp className="h-4 w-4 mr-1 text-purple-600" />}
                       {movement.quantity}
                     </TableCell>
                   </TableRow>
