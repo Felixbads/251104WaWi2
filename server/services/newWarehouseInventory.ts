@@ -5,7 +5,7 @@
  * with a consistent approach to inventory management and synchronization.
  */
 
-import { db } from '../db';
+import { rawDb as db } from '../db';
 import { logDebug, logError, logQuery } from '../utils/bugTracker';
 
 /**

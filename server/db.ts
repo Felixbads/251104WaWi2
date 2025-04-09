@@ -1,12 +1,18 @@
 // Verwende commonjs-Import für postgres-Modul
 import pg from 'pg';
 const { Pool } = pg;
+import { drizzle } from 'drizzle-orm/node-postgres';
+import * as schema from '../shared/schema';
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL
 });
 
-export const db = {
+// Exportiere das Drizzle-Objekt für ORM-Zugriff
+export const db = drizzle(pool, { schema });
+
+// Auch Raw-Query-Zugriff bereitstellen
+export const rawDb = {
   query: (text: string, params?: any[]) => pool.query(text, params)
 };
 

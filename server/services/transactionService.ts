@@ -1,4 +1,4 @@
-import { db } from "../db";
+import { db, rawDb } from "../db";
 import { transactions, dataCoverage, insertDataCoverageSchema } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 import { format, sub, eachMonthOfInterval } from "date-fns";

@@ -1,5 +1,5 @@
 import express from 'express';
-import { db } from '../db';
+import { db, rawDb } from '../db';
 import { logDebug, logError, logQuery } from '../utils/bugTracker';
 import { 
   getWarehouseStatistics,
@@ -65,7 +65,7 @@ router.get('/api/inventory/warehouse/:id/info', asyncHandler(async (req: any, re
         w.id = $1
     `;
 
-    const result = await db.query(query, [warehouseId]);
+    const result = await rawDb.query(query, [warehouseId]);
     
     console.log(`Warehouse query result:`, result.rows);
     
@@ -132,7 +132,7 @@ router.get('/api/inventory/warehouses/stats', asyncHandler(async (req: any, res:
         w.name
     `;
 
-    const result = await db.query(query);
+    const result = await rawDb.query(query);
     console.log(`Warehouse stats query returned ${result.rows.length} rows`);
     
     // Normalisiere die Daten in das gewünschte Format für das Frontend
@@ -229,11 +229,11 @@ router.get('/api/inventory/stats', asyncHandler(async (req: any, res: any) => {
     
     // Parallele Ausführung aller Abfragen
     const [totalItemsResult, batchesResult, criticalStockResult, openCountsResult, totalAlertsResult] = await Promise.all([
-      db.query(totalItemsQuery),
-      db.query(batchesQuery),
-      db.query(criticalStockQuery),
-      db.query(openCountsQuery),
-      db.query(totalAlertsQuery)
+      rawDb.query(totalItemsQuery),
+      rawDb.query(batchesQuery),
+      rawDb.query(criticalStockQuery),
+      rawDb.query(openCountsQuery),
+      rawDb.query(totalAlertsQuery)
     ]);
     
     // Extrahiere die Werte und setze Defaults für NULL-Werte
@@ -344,9 +344,9 @@ router.get('/api/inventory/alerts', asyncHandler(async (req: any, res: any) => {
     
     // Parallele Ausführung aller Abfragen
     const [criticalStockResult, expiringBatchesResult, expiredBatchesResult] = await Promise.all([
-      db.query(criticalStockQuery),
-      db.query(expiringBatchesQuery),
-      db.query(expiredBatchesQuery)
+      rawDb.query(criticalStockQuery),
+      rawDb.query(expiringBatchesQuery),
+      rawDb.query(expiredBatchesQuery)
     ]);
     
     // Alerts aus kritischen Beständen erstellen
