@@ -7,7 +7,7 @@ import {
   LogOut, Users, Home, Package, ShoppingBag, Truck, FileText, 
   ShoppingCart, Building2, TrashIcon, BarChart2, RefreshCw, 
   Clock, Settings, LineChart, Database, PieChart, BarChart4,
-  ClipboardCheck
+  ClipboardCheck, MoveHorizontal
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -27,6 +27,7 @@ export const menuItems = {
   ],
   storage: [
     { title: 'Lagerbestand', icon: <Building2 className="h-5 w-5 mr-3" />, path: '/lagerbestand' },
+    { title: 'Warenbewegung', icon: <MoveHorizontal className="h-5 w-5 mr-3" />, path: '/warenbewegung' },
     { title: 'Inventur', icon: <ClipboardCheck className="h-5 w-5 mr-3" />, path: '/inventur' },
     { title: 'Bestellungen', icon: <ShoppingCart className="h-5 w-5 mr-3" />, path: '/bestellungen' },
   ],
@@ -115,6 +116,8 @@ export default function AppShell({ children }: AppShellProps) {
         return "Lager (Neu)";
       case "/lagerhaltung":
         return "Lagerhaltung";
+      case "/warenbewegung":
+        return "Warenbewegung";
       case "/auswertungen":
         return "Auswertungen";
       case "/erweiterte-analyse":

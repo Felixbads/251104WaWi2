@@ -1,0 +1,33 @@
+ich möchte eine neue Seite für die Warenbewegung in unserem Lagerverwaltungssystem implementieren. Diese Seite soll zwei zentrale Funktionalitäten bieten:
+
+A) Umbuchung von Waren zwischen Lagern:
+	•	Funktionalität:
+	•	Der Benutzer wählt das Quell-Lager und das Ziel-Lager aus.
+	•	Es wird eine Liste aller Produkte im Quell-Lager angezeigt, aus der der Benutzer einzelne Produkte auswählen und Mengenangaben machen kann.
+	•	Die ausgewählten Produkte werden in einer Warenkorb-Ansicht zusammengefasst, in der der aktuelle Bestand im Quell-Lager sowie der erwartete Bestand im Ziel-Lager angezeigt wird.
+	•	Nach Abschluss der Auswahl bestätigt der Benutzer die Umbuchung.
+	•	Die Umbuchung wird in der Datenbank dokumentiert, indem der Bestand im Quell-Lager um den entsprechenden Betrag reduziert und im Ziel-Lager erhöht wird.
+	•	Es soll auch nachvollziehbar protokolliert werden, welcher Benutzer zu welchem Zeitpunkt den Transfer durchgeführt hat (Movement Type: TRANSFER).
+
+B) Warenentnahme aus einem Lager:
+	•	Funktionalität:
+	•	Der Benutzer wählt das Lager aus, aus dem Waren entnommen werden sollen.
+	•	Eine Liste der verfügbaren Produkte wird angezeigt.
+	•	Der Benutzer wählt Produkte aus und gibt jeweils die Menge an, die entnommen werden soll.
+	•	Zusätzlich wählt der Benutzer einen Grund für die Entnahme aus (Auswahlmöglichkeiten: Verkauf, Privat, Qualitätsmängel, Verlust).
+	•	Die gewählten Artikel werden in einer Warenkorb-Ansicht zusammengefasst und es wird angezeigt, wie sich der Lagerbestand vor und nach der Entnahme verändert.
+	•	Nach Bestätigung wird der Lagerbestand entsprechend angepasst und die Bewegung als “OUT” dokumentiert.
+	•	Auch hier wird protokolliert, welcher Benutzer die Entnahme durchgeführt hat, zu welchem Zeitpunkt und mit welchem Grund.
+
+Anforderungen und Datenquellen:
+	•	Nutzt bitte die vorhandenen Datenbanktabellen (z. B. inventory_items, inventory_batches, inventory_movements, etc.)
+	•	Die API-Endpoints sollen so gestaltet werden, dass sie die neuen Bewegungsprozesse abbilden und die korrekten Bestände sowie Bewegungsprotokolle aktualisieren.
+	•	Die Benutzeroberfläche soll intuitiv und responsiv sein, einschließlich einer Warenkorb-Funktion, um die ausgewählten Produkte und Mengen anzuzeigen.
+	•	Bitte stellt sicher, dass alle Bewegungen (Umbuchung oder Entnahme) korrekt dokumentiert und nachverfolgbar sind.
+
+Ziel:
+Ich benötige eine vollständig neue Implementierung dieser Seite, die den aktuellen Stand im Lager (vor und nach der Bewegung) anzeigt und es erlaubt, Ware zielgerichtet umzubuchen bzw. zu entnehmen – unabhängig von den bisherigen, fehlerhaften Ansätzen.
+
+Bitte stellt einen Lösungsvorschlag inklusive eines groben UI-Flussdiagramms und der API-Struktur zur Verfügung.
+
+Vielen Dank für die Unterstützung und ich freue mich auf eure frische Umsetzung!
