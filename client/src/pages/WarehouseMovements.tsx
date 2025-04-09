@@ -4,6 +4,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 
+// Importiere die interne Umlagerungskomponente
+import InternalMovement from '@/components/inventory/InternalMovement';
+
 // UI Komponenten
 import {
   ChevronLeft,
@@ -17,7 +20,8 @@ import {
   ShoppingCart,
   User,
   RotateCw,
-  AlertTriangle
+  AlertTriangle,
+  ArrowRightLeft
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';

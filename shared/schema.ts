@@ -1474,7 +1474,8 @@ export const inventoryMovements = pgTable("inventory_movements", {
   destinationWarehouseId: integer("destination_warehouse_id").references(() => warehouses.id),
   productId: integer("product_id").notNull().references(() => products.id),
   quantity: integer("quantity").notNull(),
-  movementType: text("movement_type").notNull(), // IN, OUT, TRANSFER, ADJUSTMENT, REFILL
+  movementType: text("movement_type").notNull(), // IN, OUT, TRANSFER, ADJUSTMENT, REFILL, INTERNAL
+  direction: text("direction"), // IN, OUT, INTERNAL
   referenceType: text("reference_type"), // ORDER, REFILL, INVENTORY_COUNT, MANUAL
   referenceId: text("reference_id"), // ID of the order, refill, etc.
   status: text("status").default("completed"),
@@ -1487,6 +1488,12 @@ export const inventoryMovements = pgTable("inventory_movements", {
   batchId: integer("batch_id").references(() => inventoryBatches.id),
   batchNumber: text("batch_number"), // Kopie der Chargen-Nummer für einfache Abfragen
   expiryDate: date("expiry_date"),   // MHD-Datum für diese Bewegung
+  
+  // Neue Felder für interne Umlagerungen
+  locationFrom: text("location_from"), // Ursprünglicher Lagerplatz innerhalb des Lagers
+  locationTo: text("location_to"),     // Ziel-Lagerplatz innerhalb des Lagers
+  previousStock: integer("previous_stock"), // Bestand vor der Bewegung
+  currentStock: integer("current_stock"),   // Bestand nach der Bewegung
   
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

@@ -1,494 +1,518 @@
-import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { z } from "zod";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { 
+import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { apiRequest } from '@/lib/queryClient';
+import { format } from 'date-fns';
+import { de } from 'date-fns/locale';
+import { useToast } from '@/hooks/use-toast';
+import {
   Form,
   FormControl,
   FormDescription,
   FormField,
   FormItem,
   FormLabel,
-  FormMessage 
-} from "@/components/ui/form";
-import { 
+  FormMessage,
+} from '@/components/ui/form';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle,
-  CardFooter,
-  CardDescription 
-} from "@/components/ui/card";
+} from '@/components/ui/select';
 import {
   Table,
   TableBody,
+  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
-import { 
-  ArrowRight, 
-  Check,
-  LoaderCircle,
-  Package,
-  Plus,
-  Trash2,
-  Send,
-  ArrowUpDown,
-  PlusCircle,
-  MinusCircle
-} from "lucide-react";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+} from '@/components/ui/table';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
+import {
+  ArrowRightLeft,
+  Warehouse,
+  Truck,
+  ShoppingCart,
+  RotateCcw,
+  Search,
+  Info,
+  Loader2,
+  ChevronsUpDown,
+} from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
-// Definieren der Validierungsregeln für die interne Lagerbewegung
+// Schema für die interne Umlagerung
 const internalMovementSchema = z.object({
-  warehouseId: z.string().min(1, { message: "Bitte Lager wählen" }),
-  productId: z.string().min(1, { message: "Bitte Produkt wählen" }),
-  quantity: z.number().min(1, { message: "Menge muss größer als 0 sein" }),
-  movementType: z.enum(["ADD", "REMOVE", "MOVE"], { 
-    required_error: "Bitte Bewegungstyp wählen" 
-  }),
-  reason: z.string().min(1, { message: "Bitte Grund angeben" }),
-  newLocation: z.string().optional(),
+  sourceLocation: z.string().min(1, "Quelllagerplatz ist erforderlich"),
+  destinationLocation: z.string().min(1, "Ziellagerplatz ist erforderlich"),
+  productId: z.number().min(1, "Produkt ist erforderlich"),
+  quantity: z.number().min(1, "Menge muss mindestens 1 sein"),
   notes: z.string().optional(),
 });
 
 type InternalMovementFormValues = z.infer<typeof internalMovementSchema>;
 
-// Interface für Warehouse
-interface Warehouse {
-  id: number;
-  name: string;
-  description?: string;
-  address?: string;
-  postal_code?: string;
-  city?: string;
-  is_active?: boolean;
-}
-
-// Interface für Inventory Item
-interface InventoryItem {
-  id: number;
-  product_id: number;
-  productId: number;
-  productName: string;
+interface InternalMovementProps {
   warehouseId: number;
-  quantity: number;
-  minimum_stock?: number;
-  min_quantity?: number;
-  minQuantity?: number;
-  current_stock?: number;
-  currentStock?: number;
-  location?: string;
-  status?: string;
-  batch_count?: number;
-  category?: string;
-  sku?: string;
+  onSuccess?: () => void;
 }
 
-export default function InternalMovement() {
+export default function InternalMovement({ warehouseId, onSuccess }: InternalMovementProps) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
+  const [locations, setLocations] = useState<{id: string, name: string}[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const { toast } = useToast();
-  const [selectedWarehouse, setSelectedWarehouse] = useState<string>("");
-  
-  // Abrufen aller Lager
-  const { data: warehouses, isLoading: warehousesLoading } = useQuery({
-    queryKey: ['/api/warehouses'],
-    queryFn: () => apiRequest('/api/warehouses'),
-  });
+  const queryClient = useQueryClient();
 
-  // Produkte im ausgewählten Lager abrufen
-  const { data: warehouseProducts, isLoading: productsLoading } = useQuery({
-    queryKey: ['/api/inventory/warehouse', selectedWarehouse],
-    queryFn: () => selectedWarehouse 
-      ? apiRequest(`/api/inventory/warehouse/${selectedWarehouse}`) 
-      : Promise.resolve([]),
-    enabled: !!selectedWarehouse,
-  });
-
+  // Form definition
   const form = useForm<InternalMovementFormValues>({
     resolver: zodResolver(internalMovementSchema),
     defaultValues: {
-      warehouseId: "",
-      productId: "",
+      sourceLocation: '',
+      destinationLocation: '',
+      productId: 0,
       quantity: 1,
-      movementType: "ADD",
-      reason: "",
-      newLocation: "",
-      notes: "",
+      notes: '',
     },
   });
 
-  // Wenn sich das Lager ändert, aktualisieren wir das Formular
+  // Lagerplätze beim Laden abrufen
   useEffect(() => {
-    if (selectedWarehouse !== form.getValues().warehouseId) {
-      form.setValue("warehouseId", selectedWarehouse);
-      form.setValue("productId", "");
-    }
-  }, [selectedWarehouse, form]);
-
-  const isSubmitting = form.formState.isSubmitting;
-
-  const handleWarehouseChange = (value: string) => {
-    setSelectedWarehouse(value);
-    form.setValue("productId", "");
-  };
-
-  // Details zu einem ausgewählten Produkt abrufen
-  const getSelectedProduct = () => {
-    const productId = form.getValues().productId;
-    if (!productId || !warehouseProducts) return null;
-    
-    return warehouseProducts.find((p: InventoryItem) => 
-      p.productId.toString() === productId || p.product_id?.toString() === productId
-    );
-  };
-
-  // Formular absenden
-  const onSubmit = async (values: InternalMovementFormValues) => {
-    try {
-      // Bestimme API-Endpunkt und passende Datenstruktur basierend auf der Bewegungsart
-      let endpoint = '/api/inventory/movements';
-      let payload: any = {
-        quantity: values.quantity,
-        movementType: values.movementType === "ADD" ? "IN" : (values.movementType === "REMOVE" ? "OUT" : "TRANSFER"),
-        reason: values.reason,
-        notes: values.notes,
-      };
-      
-      // Produktdetails
-      const product = getSelectedProduct();
-      if (!product) {
+    const fetchLocations = async () => {
+      try {
+        const response = await fetch(`/api/warehouses/${warehouseId}/locations`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          setLocations(data);
+          
+          // Wenn wir Lagerplätze haben, setzen wir den ersten als Standard
+          if (data.length > 0) {
+            form.setValue('sourceLocation', data[0].id);
+            form.setValue('destinationLocation', data[0].id);
+          }
+        } else {
+          console.error('Fehler beim Laden der Lagerplätze:', await response.text());
+          
+          // Fallback: Erstelle Dummy-Lagerplätze, wenn API nicht funktioniert
+          const dummyLocations = [
+            { id: 'regal_a', name: 'Regal A' },
+            { id: 'regal_b', name: 'Regal B' },
+            { id: 'kuehlraum', name: 'Kühlraum' },
+            { id: 'eingang', name: 'Eingangsbereich' },
+            { id: 'theke', name: 'Theke' },
+          ];
+          setLocations(dummyLocations);
+          
+          if (dummyLocations.length > 0) {
+            form.setValue('sourceLocation', dummyLocations[0].id);
+            form.setValue('destinationLocation', dummyLocations[1].id);
+          }
+        }
+      } catch (error) {
+        console.error('Fehler beim Laden der Lagerplätze:', error);
         toast({
           title: "Fehler",
-          description: "Produkt konnte nicht gefunden werden.",
+          description: "Lagerplätze konnten nicht geladen werden. Standard-Lagerplätze werden verwendet.",
           variant: "destructive",
         });
-        return;
+        
+        // Fallback: Erstelle Dummy-Lagerplätze bei Fehlern
+        const dummyLocations = [
+          { id: 'regal_a', name: 'Regal A' },
+          { id: 'regal_b', name: 'Regal B' },
+          { id: 'kuehlraum', name: 'Kühlraum' },
+          { id: 'eingang', name: 'Eingangsbereich' },
+          { id: 'theke', name: 'Theke' },
+        ];
+        setLocations(dummyLocations);
+        
+        if (dummyLocations.length > 0) {
+          form.setValue('sourceLocation', dummyLocations[0].id);
+          form.setValue('destinationLocation', dummyLocations[1].id);
+        }
       }
+    };
+
+    fetchLocations();
+  }, [warehouseId, form]);
+
+  // Produkte nach Eingabe suchen
+  const searchProducts = async () => {
+    if (!searchTerm || searchTerm.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const response = await fetch(`/api/warehouses/${warehouseId}/inventory/search?query=${encodeURIComponent(searchTerm)}`);
       
-      // Grundlegende Daten
-      payload.productId = parseInt(values.productId);
-      
-      switch (values.movementType) {
-        case "ADD":
-          // Wareneingang in das Lager
-          payload.destinationType = "warehouse";
-          payload.destinationId = parseInt(values.warehouseId);
-          payload.sourceType = "manual";
-          payload.sourceId = null;
-          break;
-          
-        case "REMOVE":
-          // Warenausgang aus dem Lager
-          payload.sourceType = "warehouse";
-          payload.sourceId = parseInt(values.warehouseId);
-          payload.destinationType = "manual";
-          payload.destinationId = null;
-          break;
-          
-        case "MOVE":
-          // Umlagerung innerhalb des Lagers (nur Positionsänderung)
-          payload.sourceType = "warehouse";
-          payload.sourceId = parseInt(values.warehouseId);
-          payload.destinationType = "warehouse";
-          payload.destinationId = parseInt(values.warehouseId);
-          
-          // Bei Umlagerung, aktualisiere auch die Lagerposition
-          if (values.newLocation) {
-            // Zusätzlichen API-Aufruf machen, um die Lagerposition zu aktualisieren
-            await apiRequest(`/api/inventory/warehouse/${values.warehouseId}/product/${values.productId}/location`, {
-              method: 'PATCH',
-              body: JSON.stringify({ location: values.newLocation }),
-            });
-          }
-          break;
+      if (response.ok) {
+        const data = await response.json();
+        setSearchResults(data);
+      } else {
+        console.error('Fehler bei der Produktsuche:', await response.text());
+        setSearchResults([]);
+        toast({
+          title: "Suchfehler",
+          description: "Produkte konnten nicht durchsucht werden.",
+          variant: "destructive",
+        });
       }
-      
-      // Anfrage zum Erstellen der Warenbewegung senden
-      const response = await apiRequest(endpoint, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      
-      // Inventardaten aktualisieren
-      queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/inventory/warehouse', selectedWarehouse] });
-      
-      // Erfolgsmeldung anzeigen
-      toast({
-        title: "Warenbewegung erfolgreich",
-        description: `${values.quantity} Einheiten von ${product.productName} wurden 
-          ${values.movementType === "ADD" ? "dem Lager hinzugefügt" : 
-           values.movementType === "REMOVE" ? "aus dem Lager entnommen" : 
-           "im Lager umgelagert"}.`,
-      });
-      
-      // Formular zurücksetzen, aber Lager beibehalten
-      form.reset({
-        warehouseId: selectedWarehouse,
-        productId: "",
-        quantity: 1,
-        movementType: form.getValues().movementType,
-        reason: "",
-        newLocation: "",
-        notes: "",
-      });
     } catch (error) {
-      console.error("Fehler bei der Warenbewegung:", error);
+      console.error('Fehler bei der Produktsuche:', error);
+      setSearchResults([]);
       toast({
-        title: "Fehler",
-        description: "Die Warenbewegung konnte nicht verarbeitet werden. Bitte versuchen Sie es erneut.",
+        title: "Suchfehler",
+        description: "Verbindungsproblem bei der Produktsuche.",
         variant: "destructive",
       });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Produkt auswählen
+  const selectProduct = (product: any) => {
+    setSelectedProduct(product);
+    form.setValue('productId', product.productId);
+    setSearchTerm(product.productName);
+    setSearchResults([]);
+    
+    // Setze die Menge auf einen sinnvollen Default-Wert (z.B. 1 oder max. 10% des Bestands)
+    const maxQuantity = product.quantity || 0;
+    const defaultQuantity = Math.max(1, Math.min(10, Math.floor(maxQuantity * 0.1)));
+    form.setValue('quantity', defaultQuantity);
+  };
+
+  // Formular abschicken
+  const onSubmit = async (data: InternalMovementFormValues) => {
+    if (!selectedProduct) {
+      toast({
+        title: "Produktauswahl fehlt",
+        description: "Bitte wählen Sie ein Produkt aus der Liste aus.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (data.sourceLocation === data.destinationLocation) {
+      toast({
+        title: "Identische Lagerplätze",
+        description: "Quell- und Ziellagerplatz dürfen nicht identisch sein.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    
+    try {
+      const movement = {
+        warehouseId,
+        productId: data.productId,
+        quantity: data.quantity,
+        sourceLocation: data.sourceLocation,
+        destinationLocation: data.destinationLocation,
+        movementType: 'INTERNAL',
+        notes: data.notes || `Interne Umlagerung von ${locations.find(l => l.id === data.sourceLocation)?.name || data.sourceLocation} nach ${locations.find(l => l.id === data.destinationLocation)?.name || data.destinationLocation}`,
+      };
+
+      const response = await apiRequest('/api/warehouses/movements/internal', {
+        method: 'POST',
+        data: movement,
+      });
+
+      toast({
+        title: "Umlagerung erfolgreich",
+        description: `${data.quantity} × ${selectedProduct.productName} erfolgreich umgelagert.`,
+      });
+
+      // Formular zurücksetzen
+      form.reset({
+        sourceLocation: data.sourceLocation,
+        destinationLocation: data.destinationLocation,
+        productId: 0,
+        quantity: 1,
+        notes: '',
+      });
+      
+      setSelectedProduct(null);
+      setSearchTerm('');
+
+      // Cache invalidieren
+      queryClient.invalidateQueries({ queryKey: ['/api/warehouses', warehouseId, 'movements'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/warehouses', warehouseId, 'inventory'] });
+      
+      // Callback aufrufen, wenn vorhanden
+      if (onSuccess) {
+        onSuccess();
+      }
+    } catch (error: any) {
+      console.error('Fehler bei der Umlagerung:', error);
+      toast({
+        title: "Umlagerung fehlgeschlagen",
+        description: error.message || "Die Warenbewegung konnte nicht durchgeführt werden.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Lagerauswahl */}
-          <FormField
-            control={form.control}
-            name="warehouseId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Lager</FormLabel>
-                <Select
-                  disabled={isSubmitting}
-                  onValueChange={(value) => {
-                    field.onChange(value);
-                    handleWarehouseChange(value);
-                  }}
-                  value={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Lager auswählen" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {warehouses?.map((warehouse: Warehouse) => (
-                      <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
-                        {warehouse.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          
-          {/* Produktauswahl */}
-          <FormField
-            control={form.control}
-            name="productId"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Produkt</FormLabel>
-                <Select
-                  disabled={isSubmitting || !selectedWarehouse}
-                  onValueChange={field.onChange}
-                  value={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Produkt auswählen" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {warehouseProducts?.map((product: InventoryItem) => (
-                      <SelectItem 
-                        key={product.productId} 
-                        value={product.productId ? product.productId.toString() : product.product_id.toString()}
-                      >
-                        {product.productName} ({product.quantity || 0} verfügbar)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-        
-        {/* Bewegungsart */}
-        <FormField
-          control={form.control}
-          name="movementType"
-          render={({ field }) => (
-            <FormItem className="space-y-3">
-              <FormLabel>Art der Bewegung</FormLabel>
-              <FormControl>
-                <RadioGroup
-                  onValueChange={field.onChange}
-                  value={field.value}
-                  className="flex flex-col space-y-1"
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="ADD" id="add" />
-                    <FormLabel htmlFor="add" className="flex items-center font-normal cursor-pointer">
-                      <PlusCircle className="h-4 w-4 mr-2 text-green-500" />
-                      Bestand erhöhen (Wareneingang)
-                    </FormLabel>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="REMOVE" id="remove" />
-                    <FormLabel htmlFor="remove" className="flex items-center font-normal cursor-pointer">
-                      <MinusCircle className="h-4 w-4 mr-2 text-red-500" />
-                      Bestand verringern (Warenentnahme)
-                    </FormLabel>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="MOVE" id="move" />
-                    <FormLabel htmlFor="move" className="flex items-center font-normal cursor-pointer">
-                      <ArrowUpDown className="h-4 w-4 mr-2 text-blue-500" />
-                      Lagerplatz ändern (Umlagerung)
-                    </FormLabel>
-                  </div>
-                </RadioGroup>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        {/* Menge */}
-        <FormField
-          control={form.control}
-          name="quantity"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Menge</FormLabel>
-              <FormControl>
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ArrowRightLeft className="h-5 w-5 text-muted-foreground" />
+          Interne Umlagerung
+        </CardTitle>
+        <CardDescription>
+          Produkte innerhalb des Lagers zwischen verschiedenen Lagerplätzen umlagern
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            {/* Produkt-Auswahl */}
+            <div className="space-y-4">
+              <Label htmlFor="productSearch">Produkt</Label>
+              <div className="flex gap-2">
                 <Input
-                  type="number"
-                  min={1}
-                  disabled={isSubmitting}
-                  placeholder="Menge eingeben"
-                  {...field}
-                  onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                  id="productSearch"
+                  placeholder="Produktname eingeben..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      searchProducts();
+                    }
+                  }}
+                  className="flex-1"
                 />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        {/* Neuer Lagerplatz (nur bei Typ "MOVE") */}
-        {form.watch("movementType") === "MOVE" && (
-          <FormField
-            control={form.control}
-            name="newLocation"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Neuer Lagerplatz</FormLabel>
-                <FormControl>
-                  <Input
-                    type="text"
-                    disabled={isSubmitting}
-                    placeholder="z.B. Regal A, Fach 3"
-                    {...field}
-                  />
-                </FormControl>
-                <FormDescription>
-                  Geben Sie die neue Position im Lager an
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
-        
-        {/* Grund der Bewegung */}
-        <FormField
-          control={form.control}
-          name="reason"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Grund</FormLabel>
-              <Select
-                disabled={isSubmitting}
-                onValueChange={field.onChange}
-                value={field.value}
+                <Button 
+                  type="button" 
+                  onClick={searchProducts}
+                  variant="outline"
+                  disabled={isSearching || searchTerm.length < 2}
+                >
+                  {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                </Button>
+              </div>
+
+              {/* Suchergebnisse */}
+              {searchResults.length > 0 && (
+                <div className="border rounded-md">
+                  <ScrollArea className="h-40">
+                    <div className="p-1">
+                      {searchResults.map((product) => (
+                        <div
+                          key={product.productId}
+                          className="flex items-center justify-between p-2 hover:bg-accent rounded-sm cursor-pointer"
+                          onClick={() => selectProduct(product)}
+                        >
+                          <div className="flex-1">
+                            <div className="font-medium">{product.productName}</div>
+                            <div className="text-xs text-muted-foreground">
+                              Bestand: {product.quantity} · {product.nextExpiryDate && `MHD: ${format(new Date(product.nextExpiryDate), 'dd.MM.yyyy', { locale: de })}`}
+                            </div>
+                          </div>
+                          <Badge variant="outline">{product.productId}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
+              )}
+
+              {/* Ausgewähltes Produkt */}
+              {selectedProduct && (
+                <div className="p-3 border rounded-md bg-muted/30">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="font-medium">{selectedProduct.productName}</h4>
+                      <p className="text-sm text-muted-foreground">ID: {selectedProduct.productId}</p>
+                    </div>
+                    <Badge variant={selectedProduct.quantity > 0 ? "default" : "destructive"}>
+                      Bestand: {selectedProduct.quantity}
+                    </Badge>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Quelllagerplatz */}
+              <FormField
+                control={form.control}
+                name="sourceLocation"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Quelllagerplatz</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                      value={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Lagerplatz auswählen" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {locations.map(location => (
+                          <SelectItem key={location.id} value={location.id}>
+                            {location.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      Der aktuelle Lagerplatz des Produkts
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Ziellagerplatz */}
+              <FormField
+                control={form.control}
+                name="destinationLocation"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Ziellagerplatz</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                      value={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Lagerplatz auswählen" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {locations.map(location => (
+                          <SelectItem key={location.id} value={location.id}>
+                            {location.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>
+                      Der neue Lagerplatz für das Produkt
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Menge */}
+            <FormField
+              control={form.control}
+              name="quantity"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Menge</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      {...field}
+                      onChange={(e) => field.onChange(parseInt(e.target.value, 10) || 0)}
+                      min={1}
+                      max={selectedProduct?.quantity || 9999}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    {selectedProduct && `Verfügbar: ${selectedProduct.quantity} Einheiten`}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Notizen */}
+            <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notizen (optional)</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Gründe für die Umlagerung oder sonstige Notizen"
+                      {...field}
+                      rows={3}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Submit-Button */}
+            <div className="flex justify-end">
+              <Button 
+                type="submit" 
+                disabled={isSubmitting || !selectedProduct}
+                className="w-full md:w-auto"
               >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Grund der Bewegung wählen" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="restock">Nachschub / Wareneingang</SelectItem>
-                  <SelectItem value="correction">Inventurkorrektur</SelectItem>
-                  <SelectItem value="damaged">Beschädigte Ware</SelectItem>
-                  <SelectItem value="expired">Abgelaufene Ware</SelectItem>
-                  <SelectItem value="reorganization">Lagerreorganisation</SelectItem>
-                  <SelectItem value="consumption">Interne Verwendung</SelectItem>
-                  <SelectItem value="other">Sonstiger Grund</SelectItem>
-                </SelectContent>
-              </Select>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        {/* Notizen */}
-        <FormField
-          control={form.control}
-          name="notes"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Notizen (optional)</FormLabel>
-              <FormControl>
-                <Textarea
-                  placeholder="Zusätzliche Informationen zur Warenbewegung"
-                  disabled={isSubmitting}
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        {/* Absenden-Button */}
-        <Button 
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full md:w-auto"
-        >
-          {isSubmitting ? (
-            <>
-              <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-              Wird verarbeitet...
-            </>
-          ) : (
-            <>
-              <Send className="mr-2 h-4 w-4" />
-              Warenbewegung registrieren
-            </>
-          )}
-        </Button>
-      </form>
-    </Form>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Wird umgelagert...
+                  </>
+                ) : (
+                  <>
+                    <ArrowRightLeft className="mr-2 h-4 w-4" />
+                    Produkt umlagern
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </CardContent>
+      <CardFooter className="flex flex-col items-start">
+        <div className="flex items-start gap-2 text-sm text-muted-foreground">
+          <Info className="h-4 w-4 mt-0.5" />
+          <p>
+            Die interne Umlagerung verändert nicht die Gesamtbestandsmenge im Lager, 
+            sondern dokumentiert nur die Verschiebung zwischen verschiedenen Lagerplätzen.
+          </p>
+        </div>
+      </CardFooter>
+    </Card>
   );
 }
