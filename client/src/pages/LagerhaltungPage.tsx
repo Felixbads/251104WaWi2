@@ -5,7 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 // Lucide Icons
 import { 
   Package, Truck, ClipboardCheck, ArrowLeftRight, 
-  PackageOpen, CircleAlert, Layers 
+  PackageOpen, CircleAlert, Layers, MonitorSmartphone
 } from 'lucide-react';
 
 // UI-Komponenten
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 
 // Eigene Komponenten für die verschiedenen Funktionen
 import WarehouseInventory from '@/components/inventory/WarehouseInventory';
@@ -24,6 +25,7 @@ import InventoryBatches from '@/components/inventory/batch/InventoryBatches';
 import InventoryMovements from '@/components/inventory/InventoryMovements';
 import InventoryCounts from '@/components/inventory/InventoryCounts';
 import WarehouseList from '@/components/inventory/WarehouseList';
+import MachineAssignments from '@/components/inventory/MachineAssignments';
 
 export default function LagerhaltungPage() {
   const [activeTab, setActiveTab] = useState<string>('uebersicht');
@@ -229,7 +231,7 @@ export default function LagerhaltungPage() {
       <h1 className="text-2xl font-bold mb-6">Lagerhaltung</h1>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="uebersicht">
             <Package className="h-4 w-4 mr-2" />
             Übersicht
@@ -249,6 +251,10 @@ export default function LagerhaltungPage() {
           <TabsTrigger value="inventur">
             <ClipboardCheck className="h-4 w-4 mr-2" />
             Inventur
+          </TabsTrigger>
+          <TabsTrigger value="automaten">
+            <MonitorSmartphone className="h-4 w-4 mr-2" />
+            Automaten
           </TabsTrigger>
         </TabsList>
 
@@ -341,6 +347,74 @@ export default function LagerhaltungPage() {
             </CardHeader>
             <CardContent>
               <InventoryCounts />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Automaten - Zuordnung von Automaten zu Lagern */}
+        <TabsContent value="automaten" className="space-y-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div>
+                <CardTitle>Automaten-Lager-Zuordnung</CardTitle>
+                <CardDescription>
+                  Verwaltung der Zuordnungen zwischen Automaten und Lagern
+                </CardDescription>
+              </div>
+              <Button 
+                variant="destructive"
+                onClick={async () => {
+                  if (!confirm("ACHTUNG: Diese Aktion wird alle Lagerbestände zurücksetzen und neu mit den Produkten aus dem Produktkatalog befüllen. Fortfahren?")) {
+                    return;
+                  }
+                  
+                  try {
+                    const response = await fetch('/api/reset-warehouse-inventory', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({ warehouseId: 0 }), // 0 bedeutet alle Lager
+                    });
+                    
+                    if (!response.ok) {
+                      throw new Error(`Fehler ${response.status}: ${await response.text()}`);
+                    }
+                    
+                    const result = await response.json();
+                    console.log('Zurücksetzen erfolgreich:', result);
+                    
+                    toast({
+                      title: 'Lagerbestände zurückgesetzt',
+                      description: 'Alle Lagerbestände wurden erfolgreich zurückgesetzt und neu initialisiert.',
+                    });
+                    
+                    // Alle relevanten Daten invalidieren
+                    const queryClient = (window as any).__TANSTACK_QUERY_CLIENT__;
+                    if (queryClient) {
+                      queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
+                      queryClient.invalidateQueries({ queryKey: ['/api/warehouse-inventory'] });
+                      queryClient.invalidateQueries({ queryKey: ['/api/inventory/stats'] });
+                      queryClient.invalidateQueries({ queryKey: ['/api/inventory/alerts'] });
+                      queryClient.invalidateQueries({ queryKey: ['/api/warehouses'] });
+                      queryClient.invalidateQueries({ queryKey: ['/api/warehouses/stats'] });
+                    }
+                  } catch (error) {
+                    console.error('Fehler beim Zurücksetzen der Lagerbestände:', error);
+                    toast({
+                      title: 'Fehler',
+                      description: error instanceof Error ? error.message : 'Beim Zurücksetzen der Lagerbestände ist ein Fehler aufgetreten.',
+                      variant: 'destructive',
+                    });
+                  }
+                }}
+              >
+                <CircleAlert className="h-4 w-4 mr-2" />
+                Lagerbestände zurücksetzen
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <MachineAssignments />
             </CardContent>
           </Card>
         </TabsContent>

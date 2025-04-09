@@ -2545,6 +2545,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.use(`${API_PREFIX}/warehouse3`, warehouse3Router); // Bestehende Implementierung
   
+  // Route zum Zurücksetzen des Lagerinventars
+  app.post(`${API_PREFIX}/reset-warehouse-inventory`, async (req: Request, res: Response) => {
+    try {
+      const { warehouseId = 0 } = req.body; // 0 bedeutet alle Lager
+      
+      // SQL-Abfrage zum Löschen der Inventareinträge
+      let deleteInventoryQuery;
+      let queryParams = [];
+      
+      if (warehouseId === 0) {
+        console.log('Lösche Inventareinträge aus ALLEN Lagern...');
+        deleteInventoryQuery = `DELETE FROM inventory_items`;
+      } else {
+        console.log(`Lösche Inventareinträge aus Lager ${warehouseId}...`);
+        deleteInventoryQuery = `DELETE FROM inventory_items WHERE warehouse_id = $1`;
+        queryParams.push(warehouseId);
+      }
+      
+      // Führe die Löschung aus
+      await rawDb.query(deleteInventoryQuery, queryParams);
+      
+      // Optional: Lösche auch die Batch-Einträge
+      let deleteBatchesQuery;
+      let batchParams = [];
+      
+      if (warehouseId === 0) {
+        deleteBatchesQuery = `DELETE FROM product_batches`;
+      } else {
+        deleteBatchesQuery = `DELETE FROM product_batches WHERE warehouse_id = $1`;
+        batchParams.push(warehouseId);
+      }
+      
+      await rawDb.query(deleteBatchesQuery, batchParams);
+      
+      // Starte den Lagerabgleich, um alle Produkte neu zu laden
+      const { reconcileWarehouseProducts } = await import('./services/warehouseReconciliation');
+      
+      let result;
+      if (warehouseId === 0) {
+        // Abfrage ohne ORM, da wir in server/routes.ts keine vollständige Importstruktur haben
+        const warehousesResult = await rawDb.query(
+          'SELECT * FROM warehouses WHERE is_active = true',
+          []
+        );
+        
+        console.log(`Starte Lagerabgleich für ${warehousesResult.rows.length} aktive Lager...`);
+        const results = [];
+        
+        for (const warehouse of warehousesResult.rows) {
+          const warehouseResult = await reconcileWarehouseProducts(warehouse.id, true);
+          results.push({ warehouseId: warehouse.id, ...warehouseResult });
+        }
+        
+        result = { warehouseResults: results };
+      } else {
+        result = await reconcileWarehouseProducts(Number(warehouseId), true);
+      }
+      
+      return res.json({
+        success: true,
+        message: `Lagerbestand erfolgreich zurückgesetzt und neu initialisiert`,
+        result
+      });
+    } catch (error) {
+      console.error("Fehler beim Zurücksetzen des Lagerinventars:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Fehler beim Zurücksetzen des Lagerinventars",
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  
   // Route für manuellen Lagerabgleich
   app.post(`${API_PREFIX}/warehouse-reconciliation`, async (req: Request, res: Response) => {
     try {
