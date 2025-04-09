@@ -18,6 +18,7 @@ import inventoryRouter from './routes/inventory';
 import warehouseInventoryRouter from './routes/warehouse-inventory';
 import machineWarehouseAssignmentsRouter from './routes/machine-warehouse-assignments';
 import productBatchesRouter from './routes/product-batches';
+import inventoryBatchesRouter from './routes/inventory-batches';
 import warehouse3Router from './routes/warehouse3.routes';
 import warehouse3ApiRouter from './routes/warehouse3.api';
 import warehouseMovementsRouter from './routes/warehouse-movements';
@@ -2457,6 +2458,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/debug`, inventoryRouter);
   app.use(`${API_PREFIX}/machine-warehouse-assignments`, machineWarehouseAssignmentsRouter);
   app.use(`${API_PREFIX}/product-batches`, productBatchesRouter);
+  app.use(`${API_PREFIX}/inventory-batches`, inventoryBatchesRouter);
   app.use(`${API_PREFIX}/warehouse-movements`, warehouseMovementsRouter);
   app.use(`${API_PREFIX}`, warehouseLocationsRouter);
   // Diese Route ist doppelt definiert und bereits oben implementiert
