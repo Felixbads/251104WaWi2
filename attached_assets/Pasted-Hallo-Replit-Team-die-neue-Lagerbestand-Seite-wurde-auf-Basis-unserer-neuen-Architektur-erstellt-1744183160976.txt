@@ -1,0 +1,24 @@
+Hallo Replit-Team,
+
+die neue „Lagerbestand“-Seite wurde auf Basis unserer neuen Architektur erstellt – mit den Komponenten WarehouseOverviewPage, WarehouseInventory, WarehouseInventoryTable, InventoryMovements und WarehouseStats. Leider lädt die Seite nicht richtig. Ich möchte, dass ihr systematisch den Fehler untersucht. Bitte prüft dabei folgende Punkte:
+	1.	API-Integration und Datenabruf:
+	•	Werden alle API-Endpunkte korrekt aufgerufen? Insbesondere:
+	•	/api/inventory/stats
+	•	/api/inventory/warehouse/:id
+	•	/warehouses/:warehouseId/counts
+	•	Welche Daten werden von diesen Endpunkten zurückgegeben? Gibt es Fehler oder unerwartete Response-Codes (z. B. 500, 404) in den Netzwerkanfragen?
+	•	Werden die richtigen Daten aus der PostgreSQL-Datenbank (insbesondere aus Tabellen wie inventory_items, inventory_batches, inventory_movements etc.) abgerufen?
+	2.	Frontend-Komponenten und React Query:
+	•	Werden die Daten aus den API-Aufrufen korrekt in den React Query Hooks verarbeitet? Gibt es Hinweise (über die Entwicklerkonsole oder Logs), dass es Probleme bei der Datenverarbeitung oder -aktualisierung gibt?
+	•	Werden eventuell Caching-Probleme, Filterfehler oder Sortierfehler in den Komponenten (z. B. in WarehouseInventoryTable oder WarehouseStats) festgestellt?
+	3.	Fehlermeldungen und Log-Ausgaben:
+	•	Welche konkreten Fehlermeldungen oder Warnungen werden in der Konsole und im Netzwerk-Tab (Browser-Entwickler-Tools) angezeigt?
+	•	Gibt es spezifische Hinweise in den Log-Ausgaben im Backend (z. B. aus warehouse3.routes.ts oder inventory.ts), die auf fehlerhafte Abfragen oder Verarbeitungen hindeuten?
+	4.	Datenfluss und Synchronisation:
+	•	Stimmt der Datenfluss vom Backend (Datenbank) bis ins Frontend? Werden alle relevanten Daten aktuell und vollständig geladen – oder fehlen kritische Datensätze, die den Seitenaufbau beeinträchtigen?
+	•	Ist der Aggregationsmechanismus in getWarehouseStatistics (und ggf. in anderen relevanten Funktionen) korrekt implementiert, sodass die KPIs und Detailansichten übereinstimmen?
+
+Zielsetzung:
+Ich möchte herausfinden, warum die „Lagerbestand“-Seite nicht vollständig lädt und welche Komponente oder welcher API-Aufruf fehlerhafte oder unvollständige Daten zurückliefert. Bitte gebt mir eine detaillierte Analyse der Fehlerquelle sowie konkrete Empfehlungen, welche nächsten Schritte oder Code-Anpassungen notwendig sind, um den Fehler zu beheben.
+
+Vielen Dank für eure Unterstützung!
