@@ -36,10 +36,11 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
     
     return inventory.filter((item: any) => {
       const searchTermLower = searchTerm.toLowerCase();
+      const productName = item.productName || item.product_name || '';
       return (
-        item.product_name?.toLowerCase().includes(searchTermLower) ||
-        item.category?.toLowerCase().includes(searchTermLower) ||
-        item.sku?.toLowerCase().includes(searchTermLower)
+        productName.toLowerCase().includes(searchTermLower) ||
+        (item.category || '').toLowerCase().includes(searchTermLower) ||
+        (item.sku || '').toLowerCase().includes(searchTermLower)
       );
     });
   }, [inventory, searchTerm]);
@@ -50,7 +51,8 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
       return <Badge variant="destructive">Nicht auf Lager</Badge>;
     }
     
-    if (item.min_quantity > 0 && item.quantity <= item.min_quantity) {
+    const minQuantity = item.minQuantity || item.min_quantity || 0;
+    if (minQuantity > 0 && item.quantity <= minQuantity) {
       return <Badge variant="warning" className="bg-amber-500">Kritisch</Badge>;
     }
     
@@ -126,12 +128,12 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
               {filteredInventory.length > 0 ? (
                 filteredInventory.map((item: any) => (
                   <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.product_name}</TableCell>
+                    <TableCell className="font-medium">{item.productName || item.product_name || '-'}</TableCell>
                     <TableCell>{item.category || '-'}</TableCell>
                     <TableCell>{item.sku || '-'}</TableCell>
-                    <TableCell className="text-right">{item.batch_count || 0}</TableCell>
+                    <TableCell className="text-right">{item.batchCount || item.batch_count || 0}</TableCell>
                     <TableCell className="text-right">{item.quantity}</TableCell>
-                    <TableCell className="text-right">{item.min_quantity || 0}</TableCell>
+                    <TableCell className="text-right">{item.minQuantity || item.min_quantity || 0}</TableCell>
                     <TableCell className="text-center">
                       {getStockStatusBadge(item)}
                     </TableCell>
