@@ -157,21 +157,21 @@ const WarehouseMovementsTable: React.FC<WarehouseMovementsTableProps> = ({
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <CalendarRange className="h-4 w-4 text-muted-foreground" />
-                        {formatDate(movement.performed_at)}
+                        {formatDate(movement.performedAt)}
                       </div>
                     </TableCell>
                     <TableCell className="font-medium">
-                      {movement.product_name}
+                      {movement.productName}
                     </TableCell>
                     <TableCell className="text-center">
-                      {getMovementTypeBadge(movement.movement_type)}
+                      {getMovementTypeBadge(movement.movementType)}
                     </TableCell>
                     <TableCell>
                       {getMovementDescription(movement)}
                     </TableCell>
                     <TableCell className="text-right font-mono flex items-center justify-end">
-                      {movement.movement_type === 'IN' && <MoveDown className="h-4 w-4 mr-1 text-green-600" />}
-                      {movement.movement_type === 'OUT' && <MoveUp className="h-4 w-4 mr-1 text-red-600" />}
+                      {movement.type === 'IN' && <MoveDown className="h-4 w-4 mr-1 text-green-600" />}
+                      {movement.type === 'OUT' && <MoveUp className="h-4 w-4 mr-1 text-red-600" />}
                       {movement.quantity}
                     </TableCell>
                   </TableRow>

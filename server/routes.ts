@@ -363,6 +363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       // Wir holen direkt aus der Datenbank alle Refills für die zugewiesenen Automaten
+      // Limit auf 50 reduziert, um die Ladezeit zu verbessern
       const refillQuery = `
         SELECT r.*, m.machine_name as "machineName" 
         FROM refills r
@@ -371,7 +372,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ${startDate ? `AND r.datetime >= $2` : ''}
         ${endDate ? `AND r.datetime <= ${startDate ? '$3' : '$2'}` : ''}
         ORDER BY r.datetime DESC 
-        LIMIT 500
+        LIMIT 50
       `;
       
       // Parameter für die Abfrage vorbereiten
