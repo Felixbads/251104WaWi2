@@ -1,0 +1,22 @@
+Ich möchte mehr über die Implementierung des Warenbewegungsmoduls in unserem System erfahren. Mein Ziel ist es, den gesamten Verlauf der Bestandsveränderungen (zum Beispiel bei Refill, Zugang, Abgang und Umlagerungen) transparent darzustellen. Daher meine Fragen:
+
+1. Bestehende Implementierung:
+	•	Wie genau ist die Funktionalität der Warenbewegung aktuell umgesetzt?
+	•	Welche API-Endpunkte werden für die Abfrage der Warenbewegungen verwendet (z. B. /api/inventory/movements oder ähnliche)?
+	•	Welche Datenbanktabelle(n) werden genutzt, um die Bewegungsdaten zu speichern? Ist dies die Tabelle inventory_movements oder werden weitere Tabellen (wie inventory_counts oder refill_trackings) ebenfalls herangezogen?
+	•	Wie wird der Datenfluss vom Backend ins Frontend realisiert?
+	•	Werden die Bewegungsdaten über React Query abgerufen und in welchen Komponenten (z. B. in InventoryMovements) dargestellt?
+
+2. Detaillierte Fragen zur Funktionalität:
+	•	Datensätze und Felder:
+	•	Welche Schlüsselattribute (z. B. product_id, quantity, previous_stock, current_stock, movement_type, performed_at) werden in den Bewegungsdatensätzen erfasst?
+	•	Werden alle Arten von Bewegungen (REFILL, IN, OUT, TRANSFER) einheitlich und vollständig dokumentiert?
+	•	Datenaggregation und KPIs:
+	•	Wie werden die aggregierten Kennzahlen (wie Anzahl der Refills, kritische Bestände etc.) berechnet? Werden diese aus den Bewegungsdaten abgeleitet?
+	•	Synchronisation und Aktualisierung:
+	•	Wie wird sichergestellt, dass nach einer neuen Warenbewegung (zum Beispiel nach einer Refill-Aktion) der aktuelle Bestand und die Bewegungs-Historie in Echtzeit aktualisiert werden? Gibt es hier zeitliche Verzögerungen oder Caching-Probleme?
+	•	Fehlerbehandlung und Logs:
+	•	Welche Fehlermeldungen oder Logs erscheinen, wenn es bei der Abfrage oder Darstellung der Bewegungsdaten zu Problemen kommt?
+
+Zielsetzung:
+Ich benötige eine vollständige Übersicht darüber, wie die Warenbewegungsfunktion aktuell implementiert ist, um zu verstehen, wo mögliche Diskrepanzen oder Fehlerursachen liegen. Auf Basis dieser Informationen werde ich anschließend konkrete Anforderungen formulieren, um das System weiter zu optimieren und die Darstellung der Bestandsveränderungen zu verbessern.

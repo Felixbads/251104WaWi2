@@ -7,7 +7,7 @@ interface Request extends ExpressRequest {
 }
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { db, rawDb, rawSql } from "./db";
+import { db, rawSql } from "./db";
 import { vendonSync } from "./services/vendonSync";
 import { syncWeatherForecast } from './services/openWeatherService';
 import { holidayService } from './services/holidayService';
@@ -174,7 +174,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log("Versuche, Warehouses abzurufen...");
       // Verwende direkte SQL-Abfrage anstatt storage.getWarehouses
-      const result = await rawDb.query(`SELECT id, name, description, status FROM warehouses ORDER BY name`);
+      const result = await db.query(`SELECT id, name, description, status FROM warehouses ORDER BY name`);
       console.log("Warehouses erfolgreich abgerufen:", result.rows.length);
       res.json(result.rows);
     } catch (error) {
@@ -917,7 +917,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // WebSocket wurde deaktiviert, um Verbindungsprobleme zu vermeiden
   // Wir verwenden stattdessen einen normalen Polling-Ansatz für Updates
-  // WebSocket wurde deaktiviert, um Verbindungsprobleme zu vermeiden
+  console.log('WebSocket-Server wird nicht initialisiert - Polling-Modus aktiviert');
 
   // API Health Check
   app.get(`${API_PREFIX}/health`, (_req: Request, res: Response) => {
@@ -2440,7 +2440,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("Versuche, Warehouse-Statistiken abzurufen...");
       // Da die ORM-Funktionen nicht verfügbar sind, verwenden wir direkte Queries
       // Hole alle Lager
-      const warehousesResult = await rawDb.query(`SELECT id FROM warehouses`);
+      const warehousesResult = await db.query(`SELECT id FROM warehouses`);
       const warehouses = warehousesResult.rows;
       
       // Sammle Statistiken für jedes Lager
@@ -2484,7 +2484,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Hole alle Lager zum Berechnen der Statistiken
       const warehousesQuery = `SELECT * FROM warehouses WHERE is_active = true ORDER BY name ASC`;
-      const warehousesResult = await rawDb.query(warehousesQuery);
+      const warehousesResult = await db.query(warehousesQuery);
       const warehouses = warehousesResult.rows;
       
       console.log(`Berechne Statistiken für ${warehouses.length} Lager...`);
@@ -2506,7 +2506,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           WHERE 
             i.warehouse_id = $1
         `;
-        const inventoryResult = await rawDb.query(inventoryQuery, [warehouse.id]);
+        const inventoryResult = await db.query(inventoryQuery, [warehouse.id]);
         const inventoryItems = inventoryResult.rows;
         
         // Berechne Statistiken
@@ -2542,7 +2542,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { id } = req.params;
       const query = `SELECT * FROM warehouses WHERE id = $1`;
-      const result = await rawDb.query(query, [id]);
+      const result = await db.query(query, [id]);
       
       if (result.rows.length === 0) {
         return res.status(404).json({ error: "Warehouse not found" });

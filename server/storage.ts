@@ -1,5 +1,5 @@
 import { eq, desc, and, or, gte, lte, like, asc, count, aliasedTable, sql, gt, ilike, isNull, isNotNull, inArray, between } from "drizzle-orm";
-import { db } from "./db";
+import { db, rawDb } from "./db";
 // Define rawSql as a local alias for sql
 const rawSql = sql;
 import { normalizeProductName } from "./utils/stringUtils";
@@ -983,7 +983,7 @@ export class DatabaseStorage implements IStorage {
       WHERE vendon_id = $1
       LIMIT 1
     `;
-    const result = await db.query(query, [vendonId]);
+    const result = await rawDb.query(query, [vendonId]);
     return result.rows.length > 0 ? result.rows[0] : undefined;
   }
 
@@ -1898,7 +1898,7 @@ export class DatabaseStorage implements IStorage {
 
   async createSyncLog(log: InsertSyncLog): Promise<SyncLog> {
     // Add timestamps to ensure consistent data if not already set
-    const result = await db.query(
+    const result = await rawDb.query(
       `INSERT INTO sync_logs (sync_type, start_date, end_date, additional_data, errors, 
          items_found, items_saved, items_updated, sync_status, duplicates, duration_seconds, error_message) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
@@ -2003,7 +2003,7 @@ export class DatabaseStorage implements IStorage {
     
     // Execute the update query
     const setClause = setClauses.join(', ');
-    const result = await db.query(
+    const result = await rawDb.query(
       `UPDATE sync_logs SET ${setClause} WHERE id = $1 RETURNING *`,
       params
     );
@@ -2257,12 +2257,12 @@ export class DatabaseStorage implements IStorage {
   
   // Warehouse operations
   async getWarehouses(): Promise<Warehouse[]> {
-    const result = await db.query(`SELECT * FROM warehouses ORDER BY name`);
+    const result = await rawDb.query(`SELECT * FROM warehouses ORDER BY name`);
     return result.rows;
   }
 
   async getWarehouse(id: number): Promise<Warehouse | undefined> {
-    const result = await db.query(`SELECT * FROM warehouses WHERE id = $1`, [id]);
+    const result = await rawDb.query(`SELECT * FROM warehouses WHERE id = $1`, [id]);
     return result.rows.length > 0 ? result.rows[0] : undefined;
   }
 
