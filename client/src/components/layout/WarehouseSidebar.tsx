@@ -24,8 +24,15 @@ export default function WarehouseSidebar() {
     return location === path;
   };
   
-  // Debug-Informationen anzeigen
-  console.log("WarehouseSidebar wird gerendert. Warehouses:", warehouses);
+  // Debug-Informationen anzeigen und formatieren für bessere Lesbarkeit
+  console.log("WarehouseSidebar wird gerendert. Warehouses:", 
+    Array.isArray(warehouses) ? warehouses.length : 'nicht als Array', 
+    Array.isArray(warehouses) ? warehouses.map(w => w.id) : 'keine IDs');
+    
+  // Prüfen, ob wir Warehouses haben
+  if (Array.isArray(warehouses) && warehouses.length > 0) {
+    console.log("WarehouseSidebar - Erstes Warehouse:", warehouses[0].name);
+  }
 
   if (isLoading) {
     return (

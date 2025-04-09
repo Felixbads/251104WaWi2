@@ -199,6 +199,8 @@ export default function Sidebar() {
             LAGER
           </h3>
           <nav>
+            {/* Debug Info für Sidebar Rendering */}
+            <div className="px-6 py-2 text-xs text-gray-400 mb-1">Lager Übersicht</div>
             <WarehouseSidebar />
           </nav>
         </div>
