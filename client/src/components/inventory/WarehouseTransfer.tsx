@@ -86,6 +86,37 @@ interface CartItem {
   availableQuantity: number;
 }
 
+// Interface für Warehouse
+interface Warehouse {
+  id: number;
+  name: string;
+  description?: string;
+  address?: string;
+  postal_code?: string;
+  city?: string;
+  is_active?: boolean;
+}
+
+// Interface für Inventory Item
+interface InventoryItem {
+  id: number;
+  product_id: number;
+  productId: number;
+  productName: string;
+  warehouseId: number;
+  quantity: number;
+  minimum_stock?: number;
+  min_quantity?: number;
+  minQuantity?: number;
+  current_stock?: number;
+  currentStock?: number;
+  location?: string;
+  status?: string;
+  batch_count?: number;
+  category?: string;
+  sku?: string;
+}
+
 export default function WarehouseTransfer() {
   const { toast } = useToast();
   const [selectedSourceWarehouse, setSelectedSourceWarehouse] = useState<string>("");
@@ -97,14 +128,14 @@ export default function WarehouseTransfer() {
   // Abrufen aller Lager
   const { data: warehouses, isLoading: warehousesLoading } = useQuery({
     queryKey: ['/api/warehouses'],
-    queryFn: () => apiRequest<any[]>('/api/warehouses'),
+    queryFn: () => apiRequest('/api/warehouses'),
   });
 
   // Produkte im ausgewählten Quelllager abrufen
   const { data: sourceWarehouseProducts, isLoading: productsLoading } = useQuery({
-    queryKey: ['/api/warehouses', selectedSourceWarehouse, 'inventory'],
+    queryKey: ['/api/inventory/warehouse', selectedSourceWarehouse],
     queryFn: () => selectedSourceWarehouse 
-      ? apiRequest<any[]>(`/api/warehouses/${selectedSourceWarehouse}/inventory`) 
+      ? apiRequest(`/api/inventory/warehouse/${selectedSourceWarehouse}`) 
       : Promise.resolve([]),
     enabled: !!selectedSourceWarehouse,
   });
@@ -154,14 +185,14 @@ export default function WarehouseTransfer() {
     setSelectedDestinationWarehouse(value);
   };
 
-  const getAvailableDestinationWarehouses = () => {
+  const getAvailableDestinationWarehouses = (): Warehouse[] => {
     if (!warehouses) return [];
-    return warehouses.filter(w => w.id.toString() !== selectedSourceWarehouse);
+    return warehouses.filter((w: Warehouse) => w.id.toString() !== selectedSourceWarehouse);
   };
 
   // Produkt zum Warenkorb hinzufügen
   const addToCart = (values: TransferFormValues) => {
-    const selectedProduct = sourceWarehouseProducts?.find(p => p.productId.toString() === values.productId);
+    const selectedProduct = sourceWarehouseProducts?.find((p: InventoryItem) => p.productId.toString() === values.productId);
     
     if (!selectedProduct) {
       toast({
@@ -337,7 +368,7 @@ export default function WarehouseTransfer() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {warehouses?.map((warehouse) => (
+                          {warehouses?.map((warehouse: Warehouse) => (
                             <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
                               {warehouse.name}
                             </SelectItem>
@@ -370,7 +401,7 @@ export default function WarehouseTransfer() {
                         </FormControl>
                         <SelectContent>
                           {sourceWarehouseProducts && sourceWarehouseProducts.length > 0 ? (
-                            sourceWarehouseProducts.map((product) => (
+                            sourceWarehouseProducts.map((product: InventoryItem) => (
                               <SelectItem 
                                 key={product.id} 
                                 value={product.productId.toString()}
@@ -455,7 +486,7 @@ export default function WarehouseTransfer() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {getAvailableDestinationWarehouses().map((warehouse) => (
+                          {getAvailableDestinationWarehouses().map((warehouse: Warehouse) => (
                             <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
                               {warehouse.name}
                             </SelectItem>
@@ -498,9 +529,9 @@ export default function WarehouseTransfer() {
           </CardTitle>
           <CardDescription>
             Zu übertragende Produkte von {
-              warehouses?.find(w => w.id.toString() === selectedSourceWarehouse)?.name || "Quelllager"
+              warehouses?.find((w: Warehouse) => w.id.toString() === selectedSourceWarehouse)?.name || "Quelllager"
             } nach {
-              warehouses?.find(w => w.id.toString() === selectedDestinationWarehouse)?.name || "Ziellager"
+              warehouses?.find((w: Warehouse) => w.id.toString() === selectedDestinationWarehouse)?.name || "Ziellager"
             }
           </CardDescription>
         </CardHeader>
