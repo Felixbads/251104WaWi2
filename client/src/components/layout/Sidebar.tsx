@@ -16,6 +16,9 @@ import {
   Building2,
   TrashIcon,
   Download,
+  ClipboardCheck,
+  Database,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib";
@@ -124,31 +127,9 @@ export default function Sidebar() {
         {/* Nav Section: Verwaltung */}
         <div className="py-4 border-b border-gray-200 bg-white">
           <h3 className="px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-            Verwaltung
+            VERWALTUNG
           </h3>
           <nav>
-            <NavItem 
-              href="/bestellungen" 
-              icon={<ShoppingCart className="h-5 w-5 mr-3" />}
-              isActive={isActive("/bestellungen")}
-            >
-              Bestellungen
-            </NavItem>
-            <NavItem 
-              href="/lager" 
-              icon={<Building2 className="h-5 w-5 mr-3" />}
-              isActive={isActive("/lager") || isActive("/warehouse/")}
-            >
-              Lager-Übersicht
-            </NavItem>
-            <NavItem 
-              href="/lagerbestand" 
-              icon={<Package className="h-5 w-5 mr-3" />}
-              isActive={isActive("/lagerbestand")}
-            >
-              Lagerbestand
-            </NavItem>
-            
             <NavItem 
               href="/warenentnahme" 
               icon={<TrashIcon className="h-5 w-5 mr-3" />}
@@ -156,31 +137,6 @@ export default function Sidebar() {
             >
               Warenentnahme
             </NavItem>
-            <NavItem 
-              href="/forecast" 
-              icon={<BarChart2 className="h-5 w-5 mr-3" />}
-              isActive={isActive("/forecast") && !isActive("/forecast-evaluation")}
-            >
-              Prognosen
-            </NavItem>
-            <NavItem 
-              href="/forecast-evaluation" 
-              icon={<LineChart className="h-5 w-5 mr-3" />}
-              isActive={isActive("/forecast-evaluation")}
-            >
-              Prognoseanalyse
-            </NavItem>
-            
-            {/* Ergebnisse/Auswertungen nur für Admins sichtbar */}
-            <NavItem 
-              href="/auswertungen" 
-              icon={<BarChart2 className="h-5 w-5 mr-3" />}
-              isActive={isActive("/auswertungen")}
-              disabled={!isAdmin}
-            >
-              Ergebnis
-            </NavItem>
-            
             {/* Downloads nur für Admins sichtbar */}
             <NavItem 
               href="/downloads" 
@@ -193,22 +149,79 @@ export default function Sidebar() {
           </nav>
         </div>
 
-        {/* Nav Section: Lager - NEU */}
+        {/* Nav Section: LAGER */}
         <div className="py-4 border-b border-gray-200 bg-white">
           <h3 className="px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
             LAGER
           </h3>
           <nav>
-            {/* Debug Info für Sidebar Rendering */}
-            <div className="px-6 py-2 text-xs text-gray-400 mb-1">Lager Übersicht</div>
+            <NavItem 
+              href="/lagerbestand" 
+              icon={<Package className="h-5 w-5 mr-3" />}
+              isActive={isActive("/lagerbestand")}
+            >
+              Lagerbestand
+            </NavItem>
+            <NavItem 
+              href="/inventur" 
+              icon={<ClipboardCheck className="h-5 w-5 mr-3" />}
+              isActive={isActive("/inventur")}
+            >
+              Inventur
+            </NavItem>
+            <NavItem 
+              href="/bestellungen" 
+              icon={<ShoppingCart className="h-5 w-5 mr-3" />}
+              isActive={isActive("/bestellungen")}
+            >
+              Bestellungen
+            </NavItem>
+            {/* Lager-Einträge werden dynamisch geladen */}
             <WarehouseSidebar />
+          </nav>
+        </div>
+        
+        {/* Nav Section: ANALYSE */}
+        <div className="py-4 border-b border-gray-200 bg-white">
+          <h3 className="px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+            ANALYSE
+          </h3>
+          <nav>
+            <NavItem 
+              href="/auswertungen" 
+              icon={<BarChart2 className="h-5 w-5 mr-3" />}
+              isActive={isActive("/auswertungen")}
+            >
+              Auswertung
+            </NavItem>
+            <NavItem 
+              href="/erweiterte-auswertung" 
+              icon={<TrendingUp className="h-5 w-5 mr-3" />}
+              isActive={isActive("/erweiterte-auswertung")}
+            >
+              Erweiterte Auswertung
+            </NavItem>
+            <NavItem 
+              href="/forecast" 
+              icon={<BarChart2 className="h-5 w-5 mr-3" />}
+              isActive={isActive("/forecast") && !isActive("/forecast-evaluation")}
+            >
+              Prognose
+            </NavItem>
+            <NavItem 
+              href="/forecast-evaluation" 
+              icon={<LineChart className="h-5 w-5 mr-3" />}
+              isActive={isActive("/forecast-evaluation")}
+            >
+              Prognoseanalyse
+            </NavItem>
           </nav>
         </div>
         
         {/* Nav Section: System */}
         <div className="py-4 border-b border-gray-200 bg-white">
           <h3 className="px-6 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-            System
+            SYSTEM
           </h3>
           <nav>
             <NavItem 
@@ -224,6 +237,14 @@ export default function Sidebar() {
               isActive={isActive("/sync-history")}
             >
               Sync-Verlauf
+            </NavItem>
+            
+            <NavItem 
+              href="/datenverfuegbarkeit" 
+              icon={<Database className="h-5 w-5 mr-3" />}
+              isActive={isActive("/datenverfuegbarkeit")}
+            >
+              Datenverfügbarkeit
             </NavItem>
             
             {/* Benutzerverwaltung nur für Admins sichtbar */}
