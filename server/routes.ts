@@ -2457,7 +2457,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/debug`, inventoryRouter);
   app.use(`${API_PREFIX}/machine-warehouse-assignments`, machineWarehouseAssignmentsRouter);
   app.use(`${API_PREFIX}/product-batches`, productBatchesRouter);
-  app.use(`${API_PREFIX}`, warehouseMovementsRouter);
+  app.use(`${API_PREFIX}/warehouse-movements`, warehouseMovementsRouter);
   app.use(`${API_PREFIX}`, warehouseLocationsRouter);
   // Diese Route ist doppelt definiert und bereits oben implementiert
   

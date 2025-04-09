@@ -1,433 +1,250 @@
-import { Router } from "express";
-import { z } from "zod";
-import { db, rawDb } from "../db";
-import { storage } from "../storage";
-import { inventoryItems, inventoryMovements, products, warehouses } from "../../shared/schema";
-import { eq, and, desc, asc } from "drizzle-orm";
-import { randomUUID } from "crypto";
+import express from 'express';
+import { db } from '../db';
+import { products, inventoryItems, inventoryMovements, inventoryBatches } from '../../shared/schema';
+import { eq, and, sql, gte, desc, asc, inArray, gt } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
 
-const router = Router();
+const router = express.Router();
 
-// Validierungsschema für Warentransfers zwischen Lagern
-const warehouseTransferSchema = z.object({
-  sourceWarehouseId: z.number().positive(),
-  targetWarehouseId: z.number().positive(),
-  items: z.array(
-    z.object({
-      productId: z.number().positive(),
-      quantity: z.number().positive()
-    })
-  ),
-  notes: z.string().nullable().optional()
-});
+// POST /warehouse-movements/transfer - Produkte zwischen Lagern transferieren oder ausbuchen
+router.post('/transfer', async (req, res) => {
+  const {
+    sourceWarehouseId,
+    destinationType,
+    destinationWarehouseId,
+    externalDestination,
+    notes,
+    products: productsToTransfer
+  } = req.body;
 
-// Validierungsschema für Warenentnahmen aus dem Lager
-const warehouseWithdrawalSchema = z.object({
-  warehouseId: z.number().positive(),
-  items: z.array(
-    z.object({
-      productId: z.number().positive(),
-      quantity: z.number().positive()
-    })
-  ),
-  reason: z.string(),
-  notes: z.string().nullable().optional()
-});
+  // Validierung der Eingabe
+  if (!sourceWarehouseId) {
+    return res.status(400).json({ error: 'Source warehouse ID is required' });
+  }
 
-// API-Route für Warentransfers zwischen Lagern
-router.post("/warehouses/transfer", async (req, res) => {
+  if (!productsToTransfer || !Array.isArray(productsToTransfer) || productsToTransfer.length === 0) {
+    return res.status(400).json({ error: 'At least one product is required' });
+  }
+
+  if (destinationType === 'WAREHOUSE' && !destinationWarehouseId) {
+    return res.status(400).json({ error: 'Destination warehouse ID is required for warehouse transfers' });
+  }
+
+  if (destinationType === 'EXTERNAL' && !externalDestination) {
+    return res.status(400).json({ error: 'External destination is required for external transfers' });
+  }
+
   try {
-    // Validierung der Eingabedaten
-    const validationResult = warehouseTransferSchema.safeParse(req.body);
-    
-    if (!validationResult.success) {
-      return res.status(400).json({
-        success: false,
-        message: "Ungültige Eingabedaten",
-        errors: validationResult.error.format()
-      });
-    }
-    
-    const { sourceWarehouseId, targetWarehouseId, items, notes } = validationResult.data;
-    
-    // Überprüfen, ob Quell- und Ziellager existieren
-    const sourceWarehouse = await db.query.warehouses.findFirst({
-      where: eq(warehouses.id, sourceWarehouseId)
-    });
-    
-    const targetWarehouse = await db.query.warehouses.findFirst({
-      where: eq(warehouses.id, targetWarehouseId)
-    });
-    
-    if (!sourceWarehouse) {
-      return res.status(404).json({
-        success: false,
-        message: "Quelllager nicht gefunden"
-      });
-    }
-    
-    if (!targetWarehouse) {
-      return res.status(404).json({
-        success: false,
-        message: "Ziellager nicht gefunden"
-      });
-    }
-    
-    // Überprüfen, ob die Produkte im Quelllager verfügbar sind
-    const productsToTransfer = await Promise.all(
-      items.map(async (item) => {
-        const inventoryItem = await db.query.inventoryItems.findFirst({
-          where: and(
-            eq(inventoryItems.warehouseId, sourceWarehouseId),
-            eq(inventoryItems.productId, item.productId)
-          )
-        });
-        
-        if (!inventoryItem) {
-          throw new Error(`Produkt mit ID ${item.productId} nicht im Quelllager verfügbar`);
+    // Transaktion starten
+    return await db.transaction(async (tx) => {
+      const now = new Date();
+      const moveResults = [];
+
+      // Für jedes Produkt in der Liste
+      for (const product of productsToTransfer) {
+        if (!product.productId || product.quantity <= 0) {
+          continue; // Ungültige Produkte überspringen
         }
-        
-        if ((inventoryItem.quantity || 0) < item.quantity) {
-          throw new Error(`Nicht genügend Bestand für Produkt ${item.productId}: Verfügbar ${inventoryItem.quantity}, Angefordert ${item.quantity}`);
-        }
-        
-        return {
-          productId: item.productId,
-          quantity: item.quantity,
-          currentQuantity: inventoryItem.quantity || 0
-        };
-      })
-    );
-    
-    // Transaktion starten, um atomare Operationen zu gewährleisten
-    const result = await db.transaction(async (tx) => {
-      // Transaktions-ID generieren
-      const transactionId = new Date().getTime().toString();
-      const timestamp = new Date();
-      const performedBy = (req as any).user?.id || null;
-      
-      // Für jedes Produkt die Bewegung durchführen
-      for (const item of productsToTransfer) {
-        // 1. Bestand im Quelllager reduzieren
-        await tx.update(inventoryItems)
-          .set({ 
-            quantity: item.currentQuantity - item.quantity,
-            updatedAt: timestamp
-          })
-          .where(and(
-            eq(inventoryItems.warehouseId, sourceWarehouseId),
-            eq(inventoryItems.productId, item.productId)
-          ));
-        
-        // 2. Im Ziellager suchen oder erstellen
-        const targetItem = await tx.query.inventoryItems.findFirst({
-          where: and(
-            eq(inventoryItems.warehouseId, targetWarehouseId),
-            eq(inventoryItems.productId, item.productId)
+
+        // 1. Verfügbaren Bestand prüfen
+        const inventory = await tx.select()
+          .from(inventoryItems)
+          .where(
+            and(
+              eq(inventoryItems.warehouseId, sourceWarehouseId),
+              eq(inventoryItems.productId, product.productId)
+            )
           )
-        });
-        
-        if (targetItem) {
-          // 2a. Bestehenden Bestand erhöhen
-          await tx.update(inventoryItems)
-            .set({ 
-              quantity: (targetItem.quantity || 0) + item.quantity,
-              updatedAt: timestamp
-            })
-            .where(and(
-              eq(inventoryItems.warehouseId, targetWarehouseId),
-              eq(inventoryItems.productId, item.productId)
-            ));
-        } else {
-          // 2b. Neuen Bestand anlegen
-          await tx.insert(inventoryItems)
-            .values({
-              warehouseId: targetWarehouseId,
-              productId: item.productId,
-              quantity: item.quantity,
-              minQuantity: 0,  // Standardwert, kann später angepasst werden
-              createdAt: timestamp,
-              updatedAt: timestamp
+          .limit(1);
+
+        if (!inventory.length || inventory[0].quantity === null || inventory[0].quantity < product.quantity) {
+          throw new Error(`Nicht genügend Bestand für Produkt ID ${product.productId}. Verfügbar: ${inventory.length ? inventory[0].quantity : 0}`);
+        }
+
+        // 2. Produktname abrufen
+        const productDetails = await tx.select()
+          .from(products)
+          .where(eq(products.id, product.productId))
+          .limit(1);
+
+        if (!productDetails.length) {
+          throw new Error(`Produkt mit ID ${product.productId} nicht gefunden`);
+        }
+
+        const productName = productDetails[0].name;
+
+        // 3. Bei einem Transfer zu einem anderen Lager: Prüfen und ggf. anlegen des Zieleintrags
+        if (destinationType === 'WAREHOUSE') {
+          const destInventory = await tx.select()
+            .from(inventoryItems)
+            .where(
+              and(
+                eq(inventoryItems.warehouseId, destinationWarehouseId),
+                eq(inventoryItems.productId, product.productId)
+              )
+            )
+            .limit(1);
+
+          if (!destInventory.length) {
+            // Eintrag im Ziellager anlegen
+            await tx.insert(inventoryItems).values({
+              warehouseId: destinationWarehouseId,
+              productId: product.productId,
+              quantity: 0, // wird später aktualisiert
+              minQuantity: 0
             });
+          }
         }
-        
-        // 3. Bewegung im Quelllager protokollieren (OUT)
-        await tx.insert(inventoryMovements)
-          .values({
-            productId: item.productId,
-            quantity: item.quantity,
-            movementType: 'TRANSFER',
-            direction: 'OUT',
-            notes: notes || null,
-            referenceId: transactionId,
-            previousStock: item.currentQuantity,
-            currentStock: item.currentQuantity - item.quantity,
-            performedBy: performedBy,
-            sourceWarehouseId: sourceWarehouseId,
-            destinationWarehouseId: targetWarehouseId,
-            status: 'COMPLETED',
-            createdAt: timestamp,
-            updatedAt: timestamp
-          });
-        
-        // 4. Bewegung im Ziellager protokollieren (IN)
-        const targetCurrentStock = targetItem ? (targetItem.quantity || 0) : 0;
-        await tx.insert(inventoryMovements)
-          .values({
-            productId: item.productId,
-            quantity: item.quantity,
-            movementType: 'TRANSFER',
-            direction: 'IN',
-            notes: notes || null,
-            referenceId: transactionId,
-            previousStock: targetCurrentStock,
-            currentStock: targetCurrentStock + item.quantity,
-            performedBy: performedBy,
-            sourceWarehouseId: sourceWarehouseId,
-            destinationWarehouseId: targetWarehouseId,
-            status: 'COMPLETED',
-            createdAt: timestamp,
-            updatedAt: timestamp
-          });
-      }
-      
-      return transactionId;
-    });
-    
-    return res.status(200).json({
-      success: true,
-      message: "Warentransfer erfolgreich durchgeführt",
-      transactionId: result
-    });
-    
-  } catch (error) {
-    console.error("Fehler beim Warentransfer:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Fehler beim Warentransfer",
-      error: error instanceof Error ? error.message : String(error)
-    });
-  }
-});
 
-// API-Route für Warenentnahmen aus dem Lager
-router.post("/warehouses/withdrawal", async (req, res) => {
-  try {
-    // Validierung der Eingabedaten
-    const validationResult = warehouseWithdrawalSchema.safeParse(req.body);
-    
-    if (!validationResult.success) {
-      return res.status(400).json({
-        success: false,
-        message: "Ungültige Eingabedaten",
-        errors: validationResult.error.format()
-      });
-    }
-    
-    const { warehouseId, items, reason, notes } = validationResult.data;
-    
-    // Überprüfen, ob das Lager existiert
-    const warehouse = await db.query.warehouses.findFirst({
-      where: eq(warehouses.id, warehouseId)
-    });
-    
-    if (!warehouse) {
-      return res.status(404).json({
-        success: false,
-        message: "Lager nicht gefunden"
-      });
-    }
-    
-    // Überprüfen, ob die Produkte im Lager verfügbar sind
-    const productsToWithdraw = await Promise.all(
-      items.map(async (item) => {
-        const inventoryItem = await db.query.inventoryItems.findFirst({
-          where: and(
-            eq(inventoryItems.warehouseId, warehouseId),
-            eq(inventoryItems.productId, item.productId)
+        // 4. Batches im Quelllager verarbeiten (FIFO-Prinzip)
+        let remainingQuantity = product.quantity;
+        const batches = await tx.select()
+          .from(inventoryBatches)
+          .where(
+            and(
+              eq(inventoryBatches.warehouseId, sourceWarehouseId),
+              eq(inventoryBatches.productId, product.productId),
+              gt(inventoryBatches.quantity, 0)
+            )
           )
-        });
-        
-        if (!inventoryItem) {
-          throw new Error(`Produkt mit ID ${item.productId} nicht im Lager verfügbar`);
-        }
-        
-        if ((inventoryItem.quantity || 0) < item.quantity) {
-          throw new Error(`Nicht genügend Bestand für Produkt ${item.productId}: Verfügbar ${inventoryItem.quantity}, Angefordert ${item.quantity}`);
-        }
-        
-        return {
-          productId: item.productId,
-          quantity: item.quantity,
-          currentQuantity: inventoryItem.quantity || 0
-        };
-      })
-    );
-    
-    // Transaktion starten, um atomare Operationen zu gewährleisten
-    const result = await db.transaction(async (tx) => {
-      // Transaktions-ID generieren
-      const transactionId = new Date().getTime().toString();
-      const timestamp = new Date();
-      const performedBy = (req as any).user?.id || null;
-      
-      // Für jedes Produkt die Entnahme durchführen
-      for (const item of productsToWithdraw) {
-        // 1. Bestand im Lager reduzieren
-        await tx.update(inventoryItems)
-          .set({ 
-            quantity: item.currentQuantity - item.quantity,
-            updatedAt: timestamp
-          })
-          .where(and(
-            eq(inventoryItems.warehouseId, warehouseId),
-            eq(inventoryItems.productId, item.productId)
-          ));
-        
-        // 2. Bewegung protokollieren
-        await tx.insert(inventoryMovements)
-          .values({
-            productId: item.productId,
-            quantity: item.quantity,
-            movementType: 'OUT',
-            direction: 'OUT',
-            notes: `${reason}${notes ? ': ' + notes : ''}`,
-            referenceId: transactionId,
-            previousStock: item.currentQuantity,
-            currentStock: item.currentQuantity - item.quantity,
-            performedBy: performedBy,
-            sourceWarehouseId: warehouseId,
-            status: 'COMPLETED',
-            createdAt: timestamp,
-            updatedAt: timestamp
+          .orderBy(asc(inventoryBatches.expiryDate)); // FIFO: Älteste Chargen zuerst verbrauchen
+
+        // Die zu bewegenden Chargen
+        const batchMovements = [];
+
+        for (const batch of batches) {
+          if (remainingQuantity <= 0) break;
+
+          const quantityFromBatch = Math.min(batch.quantity, remainingQuantity);
+          remainingQuantity -= quantityFromBatch;
+
+          // Chargeneintrag für das Quell-Lager aktualisieren
+          await tx.update(inventoryBatches)
+            .set({
+              quantity: batch.quantity - quantityFromBatch
+            })
+            .where(eq(inventoryBatches.id, batch.id));
+
+          batchMovements.push({
+            batchId: batch.id,
+            quantity: quantityFromBatch,
+            batchNumber: batch.batchNumber,
+            expiryDate: batch.expiryDate
           });
-      }
-      
-      return transactionId;
-    });
-    
-    return res.status(200).json({
-      success: true,
-      message: "Warenentnahme erfolgreich durchgeführt",
-      transactionId: result
-    });
-    
-  } catch (error) {
-    console.error("Fehler bei der Warenentnahme:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Fehler bei der Warenentnahme",
-      error: error instanceof Error ? error.message : String(error)
-    });
-  }
-});
 
-// Validierungsschema für interne Umlagerungen innerhalb eines Lagers
-const internalMovementSchema = z.object({
-  warehouseId: z.number().positive(),
-  productId: z.number().positive(),
-  quantity: z.number().positive(),
-  sourceLocation: z.string().min(1, "Quelllagerplatz ist erforderlich"),
-  destinationLocation: z.string().min(1, "Ziellagerplatz ist erforderlich"),
-  movementType: z.literal('INTERNAL'),
-  notes: z.string().nullable().optional(),
-});
+          // Bei Warehouse-Transfer: Batch im Ziellager erstellen oder aktualisieren
+          if (destinationType === 'WAREHOUSE') {
+            const existingBatch = await tx.select()
+              .from(inventoryBatches)
+              .where(
+                and(
+                  eq(inventoryBatches.warehouseId, destinationWarehouseId),
+                  eq(inventoryBatches.productId, product.productId),
+                  eq(inventoryBatches.batchNumber, batch.batchNumber),
+                  eq(inventoryBatches.expiryDate, batch.expiryDate)
+                )
+              )
+              .limit(1);
 
-// API-Route für interne Umlagerungen innerhalb eines Lagers
-router.post("/warehouses/movements/internal", async (req, res) => {
-  try {
-    // Validierung der Eingabedaten
-    const validationResult = internalMovementSchema.safeParse(req.body);
-    
-    if (!validationResult.success) {
-      return res.status(400).json({
-        success: false,
-        message: "Ungültige Eingabedaten",
-        errors: validationResult.error.format()
-      });
-    }
-    
-    const { warehouseId, productId, quantity, sourceLocation, destinationLocation, notes } = validationResult.data;
-    
-    // Überprüfen, ob das Lager existiert
-    const warehouse = await db.query.warehouses.findFirst({
-      where: eq(warehouses.id, warehouseId)
-    });
-    
-    if (!warehouse) {
-      return res.status(404).json({
-        success: false,
-        message: "Lager nicht gefunden"
-      });
-    }
-    
-    // Überprüfen, ob das Produkt im Lager verfügbar ist
-    const inventoryItem = await db.query.inventoryItems.findFirst({
-      where: and(
-        eq(inventoryItems.warehouseId, warehouseId),
-        eq(inventoryItems.productId, productId)
-      )
-    });
-    
-    if (!inventoryItem) {
-      return res.status(404).json({
-        success: false,
-        message: "Produkt nicht im Lager verfügbar"
-      });
-    }
-    
-    if ((inventoryItem.quantity || 0) < quantity) {
-      return res.status(400).json({
-        success: false,
-        message: `Nicht genügend Bestand: Verfügbar ${inventoryItem.quantity}, Angefordert ${quantity}`
-      });
-    }
-    
-    // Transaktion starten, um atomare Operationen zu gewährleisten
-    const result = await db.transaction(async (tx) => {
-      // Transaktions-ID generieren
-      const transactionId = randomUUID();
-      const timestamp = new Date();
-      const performedBy = (req as any).user?.id || null;
-      
-      // Wir verändern hier nicht den Gesamtbestand, sondern protokollieren nur die Bewegung innerhalb des Lagers
-      
-      // Bewegung protokollieren
-      await tx.insert(inventoryMovements)
-        .values({
-          productId: productId,
-          quantity: quantity,
-          movementType: 'INTERNAL',
-          direction: 'INTERNAL',
-          notes: notes || `Umlagerung von ${sourceLocation} nach ${destinationLocation}`,
-          referenceId: transactionId,
-          previousStock: inventoryItem.quantity || 0,
-          currentStock: inventoryItem.quantity || 0, // Gesamtbestand bleibt unverändert
-          performedBy: performedBy,
-          sourceWarehouseId: warehouseId, 
-          destinationWarehouseId: warehouseId, // Bei internen Bewegungen ist Quelle = Ziel
-          status: 'COMPLETED',
-          locationFrom: sourceLocation,
-          locationTo: destinationLocation,
-          createdAt: timestamp,
-          updatedAt: timestamp
+            if (existingBatch.length) {
+              // Bestehende Charge im Ziellager aktualisieren
+              await tx.update(inventoryBatches)
+                .set({
+                  quantity: existingBatch[0].quantity + quantityFromBatch
+                })
+                .where(eq(inventoryBatches.id, existingBatch[0].id));
+            } else {
+              // Neue Charge im Ziellager anlegen
+              await tx.insert(inventoryBatches).values({
+                warehouseId: destinationWarehouseId,
+                productId: product.productId,
+                batchNumber: batch.batchNumber,
+                expiryDate: batch.expiryDate,
+                quantity: quantityFromBatch,
+                incomingDate: new Date(),
+                status: 'active'
+              });
+            }
+          }
+        }
+
+        // 5. Bestand im Quelllager aktualisieren
+        await tx.update(inventoryItems)
+          .set({
+            quantity: inventory[0].quantity - product.quantity,
+            updatedAt: now
+          })
+          .where(
+            and(
+              eq(inventoryItems.warehouseId, sourceWarehouseId),
+              eq(inventoryItems.productId, product.productId)
+            )
+          );
+
+        // 6. Bei Warehouse-Transfer: Bestand im Ziellager aktualisieren
+        if (destinationType === 'WAREHOUSE') {
+          const destInventory = await tx.select()
+            .from(inventoryItems)
+            .where(
+              and(
+                eq(inventoryItems.warehouseId, destinationWarehouseId),
+                eq(inventoryItems.productId, product.productId)
+              )
+            )
+            .limit(1);
+
+          const currentQuantity = destInventory.length ? (destInventory[0].quantity || 0) : 0;
+          
+          await tx.update(inventoryItems)
+            .set({
+              quantity: currentQuantity + product.quantity,
+              updatedAt: now
+            })
+            .where(
+              and(
+                eq(inventoryItems.warehouseId, destinationWarehouseId),
+                eq(inventoryItems.productId, product.productId)
+              )
+            );
+        }
+
+        // 7. Warenbewegungseintrag erstellen
+        const movementValues = {
+          productId: product.productId,
+          quantity: -product.quantity, // Negative Menge für den Ausgang
+          movementType: destinationType === 'WAREHOUSE' ? 'TRANSFER' : 'OUT',
+          sourceType: 'warehouse',
+          sourceId: sourceWarehouseId,
+          destinationType: destinationType === 'WAREHOUSE' ? 'warehouse' : 'external',
+          destinationId: destinationType === 'WAREHOUSE' ? destinationWarehouseId : null,
+          status: 'completed',
+          notes: `${notes || ''} ${destinationType === 'EXTERNAL' ? `[${externalDestination}]` : ''}`.trim(),
+          performedAt: now,
+          referenceId: randomUUID(),
+          referenceType: 'manual_transfer'
+        };
+
+        const moveResult = await tx.insert(inventoryMovements).values(movementValues);
+        
+        moveResults.push({
+          productId: product.productId,
+          productName: productName,
+          quantity: product.quantity,
+          batches: batchMovements
         });
-      
-      return transactionId;
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: `Successfully transferred products from warehouse ${sourceWarehouseId}`,
+        movements: moveResults
+      });
     });
-    
-    return res.status(200).json({
-      success: true,
-      message: "Interne Umlagerung erfolgreich durchgeführt",
-      transactionId: result
-    });
-    
   } catch (error) {
-    console.error("Fehler bei der internen Umlagerung:", error);
+    console.error('Error during product transfer:', error);
     return res.status(500).json({
-      success: false,
-      message: "Fehler bei der internen Umlagerung",
-      error: error instanceof Error ? error.message : String(error)
+      error: 'Failed to transfer products',
+      message: error instanceof Error ? error.message : String(error)
     });
   }
 });
