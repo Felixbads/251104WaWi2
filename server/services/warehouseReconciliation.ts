@@ -12,13 +12,13 @@ import { InsertInventoryItem, InsertProductBatch } from "@shared/schema";
 import type { MachineWarehouseAssignment, Transaction } from "@shared/schema";
 
 /**
- * Führt den automatischen Lagerabgleich zwischen Automaten und Lagern durch.
- * Jedes Produkt, das in einem Automaten geführt wird, wird dem zugeordneten Lager hinzugefügt,
- * sofern es dort noch nicht existiert.
+ * Führt den automatischen Lagerabgleich zwischen Automaten und Lagern durch und fügt alle Produkte
+ * aus dem Gesamtportfolio jedem Lager hinzu, mit Anfangsbestand 0 und einem Batch mit MHD.
  * 
  * @param specificWarehouseId - Optional: Wenn angegeben, wird nur dieses spezifische Lager abgeglichen
+ * @param syncAllProducts - Optional: Wenn true, werden alle Produkte aus dem Gesamtportfolio hinzugefügt (standardmäßig true)
  */
-export async function reconcileWarehouseProducts(specificWarehouseId?: number): Promise<{
+export async function reconcileWarehouseProducts(specificWarehouseId?: number, syncAllProducts: boolean = true): Promise<{
   processingTime: number;
   warehousesChecked: number;
   machinesChecked: number;
@@ -26,9 +26,11 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
   productsAdded: number;
   errors: number;
   skippedDuplicates: number;
+  allProductsAdded: number;
 }> {
   console.log("Starte automatischen Lagerabgleich...", 
-              specificWarehouseId ? `für Lager ${specificWarehouseId}` : "für alle Lager");
+              specificWarehouseId ? `für Lager ${specificWarehouseId}` : "für alle Lager",
+              syncAllProducts ? "inklusive aller Produkte aus dem Gesamtportfolio" : "nur Automatenprodukte");
   const startTime = Date.now();
   
   let warehousesChecked = 0;
@@ -37,9 +39,23 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
   let productsAdded = 0;
   let errors = 0;
   let skippedDuplicates = 0;
+  let allProductsAdded = 0; // Zähler für Produkte aus dem Gesamtportfolio
   
   try {
-    // 1. Lager-Automaten-Zuordnungen abrufen (gefiltert oder alle)
+    // 1. Zuerst bestimmen wir die Liste der zu verarbeitenden Lager
+    let warehousesToProcess: number[] = [];
+    
+    if (specificWarehouseId) {
+      warehousesToProcess = [specificWarehouseId];
+      console.log(`Verarbeite Lager mit ID ${specificWarehouseId}`);
+    } else {
+      // Alle aktiven Lager abrufen
+      const allWarehouses = await storage.getWarehouses();
+      warehousesToProcess = allWarehouses.map(w => w.id);
+      console.log(`Verarbeite alle ${warehousesToProcess.length} aktiven Lager`);
+    }
+    
+    // 2. Lager-Automaten-Zuordnungen abrufen (gefiltert oder alle)
     let machineWarehouseAssignments;
     
     if (specificWarehouseId) {
@@ -165,18 +181,60 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
       }
     }
     
+    // Wenn syncAllProducts aktiviert ist, holen wir alle verfügbaren Produkte
+    let allProducts: any[] = [];
+    
+    if (syncAllProducts) {
+      console.log("Hole alle Produkte aus dem Gesamtportfolio...");
+      try {
+        // Hole alle verfügbaren Produkte (in Batches von maximal 1000, um zu große Abfragen zu vermeiden)
+        const productsResult = await storage.getProducts({ limit: 1000 });
+        allProducts = Array.isArray(productsResult) ? productsResult : productsResult.data;
+        console.log(`Insgesamt ${allProducts.length} Produkte im Gesamtportfolio gefunden`);
+      } catch (error) {
+        console.error("Fehler beim Abrufen aller Produkte:", error);
+        errors++;
+      }
+    }
+    
     // Verarbeite jedes Lager und seine Produkte - mit Batching, um die Datenbank zu entlasten
-    for (const warehouseId of Object.keys(warehouseToProducts).map(Number)) {
+    for (const warehouseId of warehousesToProcess) {
+      // Initialisiere die Map für dieses Lager, falls es noch nicht durch Automaten initialisiert wurde
+      if (!warehouseToProducts[warehouseId]) {
+        warehouseToProducts[warehouseId] = new Map<number, ProductInfo>();
+        warehousesChecked++;
+      }
+      
       const productInfoMap = warehouseToProducts[warehouseId];
       const productCount = productInfoMap.size;
       
-      console.log(`Verarbeite Lager ID ${warehouseId} mit ${productCount} eindeutigen Produkten`);
+      console.log(`Verarbeite Lager ID ${warehouseId} mit ${productCount} eindeutigen Produkten aus Automaten`);
       
       // Hole alle bereits im Lager vorhandenen Produkte
       const existingItems = await storage.getInventoryItemsByWarehouse(warehouseId);
       const existingProductIds = new Set(existingItems.map(item => item.productId ? Number(item.productId) : -1));
       
       console.log(`Lager ${warehouseId} hat bereits ${existingProductIds.size} Produkte`);
+      
+      // Wenn syncAllProducts aktiviert ist, fügen wir alle Produkte aus dem Gesamtportfolio hinzu
+      if (syncAllProducts && allProducts.length > 0) {
+        console.log(`Füge alle ${allProducts.length} Produkte aus dem Gesamtportfolio zu Lager ${warehouseId} hinzu...`);
+        
+        // Zuerst alle Produkte markieren, damit wir sie nicht doppelt hinzufügen
+        for (const product of allProducts) {
+          if (product && product.id && typeof product.id === 'number') {
+            if (!productInfoMap.has(product.id)) {
+              productInfoMap.set(product.id, {
+                id: product.id,
+                name: product.productName || 'Unbekanntes Produkt',
+                found: false
+              });
+            }
+          }
+        }
+        
+        console.log(`Produktmap für Lager ${warehouseId} jetzt mit ${productInfoMap.size} Produkten`);
+      }
       
       // Batch-Verarbeitung - maximal 50 Produkte auf einmal
       const BATCH_SIZE = 50;
@@ -236,8 +294,16 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
                 const newBatch = await storage.createProductBatch(newBatchData);
                 
                 if (newBatch && newBatch.id) {
-                  productsAdded++;
-                  console.log(`✅ Produkt ${parsedProductId} (${product.productName}) erfolgreich als Batch zu Lager ${parsedWarehouseId} hinzugefügt mit ID ${newBatch.id}`);
+                  // Zähle das Produkt entweder als Automatprodukt oder als Portfolio-Produkt
+                  if (productInfoMap.get(parsedProductId)?.found) {
+                    // Produkt aus Automaten
+                    productsAdded++;
+                    console.log(`✅ Produkt ${parsedProductId} (${product.productName}) aus Automat erfolgreich als Batch zu Lager ${parsedWarehouseId} hinzugefügt mit ID ${newBatch.id}`);
+                  } else {
+                    // Produkt aus dem Gesamtportfolio
+                    allProductsAdded++;
+                    console.log(`✅ Produkt ${parsedProductId} (${product.productName}) aus Gesamtportfolio erfolgreich als Batch zu Lager ${parsedWarehouseId} hinzugefügt mit ID ${newBatch.id}`);
+                  }
                   
                   // Für die Kompatibilität auch sicherstellen, dass ein inventory_item existiert
                   try {
@@ -300,7 +366,7 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
     const endTime = Date.now();
     const processingTime = endTime - startTime;
     
-    console.log(`Lagerabgleich abgeschlossen - Zeit: ${processingTime}ms, Fehler: ${errors}, Hinzugefügte Produkte: ${productsAdded}, Übersprungene Duplikate: ${skippedDuplicates}`);
+    console.log(`Lagerabgleich abgeschlossen - Zeit: ${processingTime}ms, Fehler: ${errors}, Hinzugefügte Produkte: ${productsAdded}, Übersprungene Duplikate: ${skippedDuplicates}, Aus Portfolioliste hinzugefügt: ${allProductsAdded}`);
     
     return {
       processingTime,
@@ -309,7 +375,8 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
       productsFound,
       productsAdded,
       errors,
-      skippedDuplicates
+      skippedDuplicates,
+      allProductsAdded
     };
   } catch (error) {
     console.error("Kritischer Fehler beim Lagerabgleich:", error);
@@ -321,7 +388,8 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number): 
       productsFound,
       productsAdded,
       errors: errors + 1,
-      skippedDuplicates
+      skippedDuplicates,
+      allProductsAdded
     };
   }
 }

@@ -2546,7 +2546,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Route für manuellen Lagerabgleich
   app.post(`${API_PREFIX}/warehouse-reconciliation`, async (req: Request, res: Response) => {
     try {
-      const { warehouseId } = req.body;
+      const { warehouseId, syncAllProducts = true } = req.body;
       
       if (!warehouseId) {
         return res.status(400).json({ 
@@ -2555,14 +2555,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      console.log(`Manueller Lagerabgleich für Lager ${warehouseId} gestartet...`);
+      console.log(`Manueller Lagerabgleich für Lager ${warehouseId} gestartet...${syncAllProducts ? ' (inkl. aller Produkte aus dem Portfolio)' : ' (nur Automatenprodukte)'}`);
       // Import mit ES Module Syntax statt require
       const { reconcileWarehouseProducts } = await import('./services/warehouseReconciliation');
-      const result = await reconcileWarehouseProducts(Number(warehouseId));
+      const result = await reconcileWarehouseProducts(Number(warehouseId), syncAllProducts);
       
       return res.json({
         success: true,
-        message: `Lagerabgleich abgeschlossen: ${result.productsAdded} neue Produkte hinzugefügt`,
+        message: `Lagerabgleich abgeschlossen: ${result.productsAdded} neue Produkte aus Automaten und ${result.allProductsAdded} aus dem Gesamtportfolio hinzugefügt`,
         result
       });
     } catch (error) {
