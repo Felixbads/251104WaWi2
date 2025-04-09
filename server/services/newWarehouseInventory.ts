@@ -75,7 +75,7 @@ export async function getWarehouseStatistics(warehouseId: number): Promise<Wareh
         FROM 
           machine_warehouse_assignments
         WHERE 
-          warehouse_id = $1 AND is_active = true
+          warehouse_id = $1
       )
       SELECT 
         COALESCE(i.product_count, 0) as product_count,
@@ -253,7 +253,7 @@ export async function syncMachineWithWarehouse(machineId: number): Promise<any> 
     const assignmentQuery = `
       SELECT warehouse_id 
       FROM machine_warehouse_assignments 
-      WHERE machine_id = $1 AND is_active = true
+      WHERE machine_id = $1
       LIMIT 1
     `;
     
@@ -261,7 +261,7 @@ export async function syncMachineWithWarehouse(machineId: number): Promise<any> 
     const assignmentResult = await db.query(assignmentQuery, [machineId]);
     
     if (assignmentResult.rows.length === 0) {
-      throw new Error(`No active warehouse assignment found for machine ${machineId}`);
+      throw new Error(`No warehouse assignment found for machine ${machineId}`);
     }
     
     const warehouseId = assignmentResult.rows[0].warehouse_id;
