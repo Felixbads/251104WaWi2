@@ -1689,6 +1689,9 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
     retry: 1
   });
   
+  // Query-Client für Cache-Invalidierung
+  const queryClient = useQueryClient();
+  
   // Bestellung erstellen Mutation
   const createOrderMutation = useMutation({
     mutationFn: (data: any) => {
@@ -1704,26 +1707,12 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
         description: `Bestellung #${data?.id || 'Neue'} wurde erfolgreich erstellt.`,
       });
       
-      // Query-Cache invalidieren
-      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      // Markieren, dass eine neue Bestellung begonnen werden soll beim nächsten Laden
+      sessionStorage.setItem('orderCompleted', 'true');
+      sessionStorage.removeItem('startingNewOrder');
       
-      // Zurück zur Übersicht oder Details anzeigen
-      if (data?.id) {
-        // Speichere ID für spätere Verwendung
-        setCreatedOrderId(data.id);
-        // Umschalten zum Bestätigungsschritt
-        setShowConfirmation(true);
-        // Markieren, dass eine neue Bestellung begonnen werden soll beim nächsten Laden
-        sessionStorage.setItem('orderCompleted', 'true');
-        sessionStorage.removeItem('startingNewOrder');
-      } else {
-        toast({
-          title: "Warnung",
-          description: "Die Bestellung wurde erstellt, aber die ID konnte nicht abgerufen werden.",
-          variant: "warning",
-        });
-        window.location.href = '/bestellungen';
-      }
+      // Zur Bestellübersicht navigieren
+      window.location.href = '/bestellungen';
     },
     onError: (error) => {
       console.error("Fehler beim Erstellen der Bestellung:", error);
