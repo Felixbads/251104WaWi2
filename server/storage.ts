@@ -2982,36 +2982,61 @@ export class DatabaseStorage implements IStorage {
 
   // Inventory Count Item operations
   async getInventoryCountItems(inventoryCountId: number): Promise<InventoryCountItem[]> {
-    const result = await db.select({
-      item: inventoryCountItems,
-      product: products
-    })
-    .from(inventoryCountItems)
-    .leftJoin(products, eq(inventoryCountItems.productId, products.id))
-    .where(eq(inventoryCountItems.inventoryCountId, inventoryCountId))
-    .orderBy(asc(products.productName));
-    
-    return result.map(row => ({
-      ...row.item,
-      productName: row.product?.productName
-    })) as InventoryCountItem[];
+    try {
+      console.log(`Lade Inventurelemente für Inventur ${inventoryCountId}`);
+      
+      const result = await db.select({
+        item: inventoryCountItems,
+        product: products
+      })
+      .from(inventoryCountItems)
+      .leftJoin(products, eq(inventoryCountItems.productId, products.id))
+      .where(eq(inventoryCountItems.inventoryCountId, inventoryCountId))
+      .orderBy(asc(products.productName));
+      
+      console.log(`Gefunden: ${result.length} Inventurelemente für Inventur ${inventoryCountId}`);
+      
+      // Das vollständige Produkt-Objekt zurückgeben anstatt nur den Namen
+      return result.map(row => ({
+        ...row.item,
+        productName: row.product?.productName,
+        product: row.product
+      })) as InventoryCountItem[];
+    } catch (error) {
+      console.error(`Fehler beim Laden der Inventurelemente für Inventur ${inventoryCountId}:`, error);
+      throw error;
+    }
   }
 
   async getInventoryCountItemById(id: number): Promise<InventoryCountItem | undefined> {
-    const [item] = await db.select({
-      item: inventoryCountItems,
-      product: products
-    })
-    .from(inventoryCountItems)
-    .leftJoin(products, eq(inventoryCountItems.productId, products.id))
-    .where(eq(inventoryCountItems.id, id));
-    
-    if (!item) return undefined;
-    
-    return {
-      ...item.item,
-      productName: item.product?.productName
-    } as InventoryCountItem;
+    try {
+      console.log(`Lade Inventurelement mit ID ${id}`);
+      
+      const [item] = await db.select({
+        item: inventoryCountItems,
+        product: products
+      })
+      .from(inventoryCountItems)
+      .leftJoin(products, eq(inventoryCountItems.productId, products.id))
+      .where(eq(inventoryCountItems.id, id));
+      
+      if (!item) {
+        console.log(`Inventurelement mit ID ${id} nicht gefunden`);
+        return undefined;
+      }
+      
+      console.log(`Inventurelement mit ID ${id} gefunden`);
+      
+      // Das vollständige Produkt-Objekt zurückgeben
+      return {
+        ...item.item,
+        productName: item.product?.productName,
+        product: item.product
+      } as InventoryCountItem;
+    } catch (error) {
+      console.error(`Fehler beim Laden des Inventurelements mit ID ${id}:`, error);
+      throw error;
+    }
   }
 
   async createInventoryCountItem(item: InsertInventoryCountItem): Promise<InventoryCountItem> {
