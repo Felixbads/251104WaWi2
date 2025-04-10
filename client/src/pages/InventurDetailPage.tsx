@@ -1042,6 +1042,7 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                   <TableHead className="text-center">Erwarteter Bestand</TableHead>
                   <TableHead className="text-center">Gezählter Bestand</TableHead>
                   <TableHead className="text-center">Differenz</TableHead>
+                  <TableHead>Notizen</TableHead>
                   <TableHead className="text-right">Aktionen</TableHead>
                 </TableRow>
               </TableHeader>

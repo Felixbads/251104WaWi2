@@ -37,9 +37,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Request interceptor to add token to requests
     const interceptor = axios.interceptors.request.use(
       (config) => {
+        // Überprüfe, ob token im State vorhanden ist
         if (token) {
           config.headers['Authorization'] = `Bearer ${token}`;
+        } 
+        // Falls nicht, prüfe auf localStorage
+        else {
+          const storedToken = localStorage.getItem('auth_token');
+          if (storedToken) {
+            config.headers['Authorization'] = `Bearer ${storedToken}`;
+            
+            // Token im State aktualisieren, falls es noch nicht dort war
+            if (!token) {
+              setToken(storedToken);
+            }
+          }
         }
+        
+        // Stelle sicher, dass withCredentials true ist für alle API-Anfragen
+        if (config.url?.startsWith('/api/')) {
+          config.withCredentials = true;
+        }
+        
         return config;
       },
       (error) => Promise.reject(error)
