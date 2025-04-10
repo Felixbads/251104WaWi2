@@ -277,22 +277,134 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-8"></TableHead>
-                  <TableHead className="font-medium">Produkt</TableHead>
-                  <TableHead className="font-medium">Kategorie</TableHead>
-                  <TableHead className="font-medium">SKU</TableHead>
-                  <TableHead className="font-medium text-right">Chargen</TableHead>
-                  <TableHead className="font-medium text-right">Bestand</TableHead>
-                  <TableHead className="font-medium text-right">Min. Bestand</TableHead>
+                  <TableHead 
+                    className="font-medium cursor-pointer hover:bg-muted/20"
+                    onClick={() => toggleSort('productName')}
+                  >
+                    <div className="flex items-center">
+                      Produkt
+                      {sortColumn === 'productName' && (
+                        sortDirection === 'asc' ? 
+                          <ArrowUp className="ml-1 h-4 w-4" /> : 
+                          <ArrowDown className="ml-1 h-4 w-4" />
+                      )}
+                      {sortColumn !== 'productName' && (
+                        <ArrowUpDown className="ml-1 h-4 w-4 opacity-50" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="font-medium cursor-pointer hover:bg-muted/20"
+                    onClick={() => toggleSort('category')}
+                  >
+                    <div className="flex items-center">
+                      Kategorie
+                      {sortColumn === 'category' && (
+                        sortDirection === 'asc' ? 
+                          <ArrowUp className="ml-1 h-4 w-4" /> : 
+                          <ArrowDown className="ml-1 h-4 w-4" />
+                      )}
+                      {sortColumn !== 'category' && (
+                        <ArrowUpDown className="ml-1 h-4 w-4 opacity-50" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="font-medium cursor-pointer hover:bg-muted/20"
+                    onClick={() => toggleSort('sku')}
+                  >
+                    <div className="flex items-center">
+                      SKU
+                      {sortColumn === 'sku' && (
+                        sortDirection === 'asc' ? 
+                          <ArrowUp className="ml-1 h-4 w-4" /> : 
+                          <ArrowDown className="ml-1 h-4 w-4" />
+                      )}
+                      {sortColumn !== 'sku' && (
+                        <ArrowUpDown className="ml-1 h-4 w-4 opacity-50" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="font-medium text-right cursor-pointer hover:bg-muted/20"
+                    onClick={() => toggleSort('batchCount')}
+                  >
+                    <div className="flex items-center justify-end">
+                      Chargen
+                      {sortColumn === 'batchCount' && (
+                        sortDirection === 'asc' ? 
+                          <ArrowUp className="ml-1 h-4 w-4" /> : 
+                          <ArrowDown className="ml-1 h-4 w-4" />
+                      )}
+                      {sortColumn !== 'batchCount' && (
+                        <ArrowUpDown className="ml-1 h-4 w-4 opacity-50" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="font-medium text-right cursor-pointer hover:bg-muted/20"
+                    onClick={() => toggleSort('quantity')}
+                  >
+                    <div className="flex items-center justify-end">
+                      Bestand
+                      {sortColumn === 'quantity' && (
+                        sortDirection === 'asc' ? 
+                          <ArrowUp className="ml-1 h-4 w-4" /> : 
+                          <ArrowDown className="ml-1 h-4 w-4" />
+                      )}
+                      {sortColumn !== 'quantity' && (
+                        <ArrowUpDown className="ml-1 h-4 w-4 opacity-50" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="font-medium text-right cursor-pointer hover:bg-muted/20"
+                    onClick={() => toggleSort('minQuantity')}
+                  >
+                    <div className="flex items-center justify-end">
+                      Min. Bestand
+                      {sortColumn === 'minQuantity' && (
+                        sortDirection === 'asc' ? 
+                          <ArrowUp className="ml-1 h-4 w-4" /> : 
+                          <ArrowDown className="ml-1 h-4 w-4" />
+                      )}
+                      {sortColumn !== 'minQuantity' && (
+                        <ArrowUpDown className="ml-1 h-4 w-4 opacity-50" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead className="font-medium text-center">MHD</TableHead>
                   <TableHead className="font-medium text-center">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredInventory.length > 0 ? (
-                  filteredInventory.map((item: any) => {
+                {filteredAndSortedInventory.length > 0 ? (
+                  filteredAndSortedInventory.map((item: any) => {
                     const productId = item.productId || item.product_id;
                     const isExpanded = expandedRows.has(productId);
                     const productBatches = batchesByProduct[productId] || [];
                     const hasBatches = productBatches.length > 0;
+                    
+                    // Nächstes MHD berechnen
+                    let nextExpiryDate = null;
+                    let isExpired = false;
+                    let isExpiringSoon = false;
+                    
+                    if (hasBatches) {
+                      // Sortiere die Chargen nach Ablaufdatum (aufsteigend)
+                      const sortedBatches = [...productBatches].sort((a, b) => {
+                        if (!a.expiryDate) return 1;
+                        if (!b.expiryDate) return -1;
+                        return new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime();
+                      });
+                      
+                      // Das früheste Ablaufdatum finden
+                      if (sortedBatches.length > 0 && sortedBatches[0].expiryDate) {
+                        nextExpiryDate = new Date(sortedBatches[0].expiryDate);
+                        isExpired = nextExpiryDate < new Date();
+                        isExpiringSoon = !isExpired && nextExpiryDate < new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+                      }
+                    }
                     
                     return (
                       <React.Fragment key={item.id}>
@@ -320,13 +432,28 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                           <TableCell className="text-right">{item.quantity}</TableCell>
                           <TableCell className="text-right">{item.minQuantity || item.min_quantity || 0}</TableCell>
                           <TableCell className="text-center">
+                            {nextExpiryDate ? (
+                              <div className="flex items-center justify-center">
+                                <Calendar className="h-3 w-3 mr-1 text-muted-foreground" />
+                                <span className={
+                                  isExpired ? 'text-destructive font-medium' :
+                                  isExpiringSoon ? 'text-amber-500 font-medium' : ''
+                                }>
+                                  {nextExpiryDate.toLocaleDateString('de-DE')}
+                                </span>
+                              </div>
+                            ) : (
+                              '-'
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
                             {getStockStatusBadge(item)}
                           </TableCell>
                         </TableRow>
                         
                         {isExpanded && (
                           <TableRow>
-                            <TableCell colSpan={8} className="py-0 bg-muted/10">
+                            <TableCell colSpan={9} className="py-0 bg-muted/10">
                               <div className="px-4 py-2">
                                 <div className="flex items-center justify-between mb-2">
                                   <h4 className="text-sm font-medium">Chargen</h4>
@@ -403,7 +530,7 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center">
+                    <TableCell colSpan={9} className="h-24 text-center">
                       {searchTerm ? (
                         <div className="flex flex-col items-center justify-center text-muted-foreground">
                           <Search className="h-8 w-8 mb-2" />
@@ -422,9 +549,9 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
               </TableBody>
             </Table>
           </div>
-          {filteredInventory.length > 0 && (
+          {filteredAndSortedInventory.length > 0 && (
             <div className="mt-4 text-sm text-muted-foreground">
-              {filteredInventory.length} {filteredInventory.length === 1 ? 'Produkt' : 'Produkte'} {searchTerm && 'gefunden'}
+              {filteredAndSortedInventory.length} {filteredAndSortedInventory.length === 1 ? 'Produkt' : 'Produkte'} {searchTerm && 'gefunden'}
             </div>
           )}
         </CardContent>
