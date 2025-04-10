@@ -767,6 +767,129 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
   // Ausgewählte IDs für Hinzufügen-Dialog
   const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
 
+  // Batch-Auswahl-Dialog
+  const BatchSelectDialog = () => {
+    const [selectedBatchId, setSelectedBatchId] = useState<number | null>(
+      selectedItem?.batchId || null
+    );
+    
+    // Formatiere ein Datum für die Anzeige
+    const formatBatchDate = (dateStr: string | null) => {
+      if (!dateStr) return 'Kein Datum';
+      return new Intl.DateTimeFormat('de-DE', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).format(new Date(dateStr));
+    };
+    
+    return (
+      <Dialog open={showBatchDialog} onOpenChange={(open) => {
+        setShowBatchDialog(open);
+        if (!open) setSelectedItem(null);
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Charge auswählen</DialogTitle>
+            <DialogDescription>
+              Wählen Sie die Charge für das Produkt "{selectedItem?.product?.productName || 'Unbekanntes Produkt'}" aus.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            {isLoadingBatches ? (
+              <div className="flex justify-center">
+                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : availableBatches.length === 0 ? (
+              <div className="text-center py-4 text-muted-foreground">
+                Keine Chargen für dieses Produkt verfügbar.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12"></TableHead>
+                      <TableHead>Chargennummer</TableHead>
+                      <TableHead>MHD</TableHead>
+                      <TableHead className="text-right">Menge</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell>
+                        <input 
+                          type="radio" 
+                          name="batchSelection" 
+                          checked={selectedBatchId === null} 
+                          onChange={() => setSelectedBatchId(null)}
+                          className="h-4 w-4"
+                        />
+                      </TableCell>
+                      <TableCell colSpan={3}>
+                        <span className="font-medium">Keine Charge (Standard)</span>
+                      </TableCell>
+                    </TableRow>
+                    {availableBatches.map(batch => (
+                      <TableRow key={batch.id} className={batch.id === selectedBatchId ? "bg-muted/50" : ""}>
+                        <TableCell>
+                          <input 
+                            type="radio" 
+                            name="batchSelection" 
+                            checked={batch.id === selectedBatchId} 
+                            onChange={() => setSelectedBatchId(batch.id)}
+                            className="h-4 w-4"
+                          />
+                        </TableCell>
+                        <TableCell>{batch.batchNumber}</TableCell>
+                        <TableCell>
+                          {batch.expiryDate ? (
+                            <Badge variant={
+                              new Date(batch.expiryDate) < new Date() ? "destructive" : 
+                              new Date(batch.expiryDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? "warning" : 
+                              "outline"
+                            }>
+                              {formatBatchDate(batch.expiryDate)}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">Kein MHD</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {batch.currentQuantity}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBatchDialog(false)}>
+              Abbrechen
+            </Button>
+            <Button 
+              onClick={() => handleBatchUpdate(selectedBatchId)}
+              disabled={updateBatchMutation.isPending}
+            >
+              {updateBatchMutation.isPending ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Wird aktualisiert...
+                </>
+              ) : (
+                'Charge speichern'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
   // Hinzufügen-Dialog
   const AddProductsDialog = () => {
     const [dialogSearchTerm, setDialogSearchTerm] = useState('');
@@ -1045,6 +1168,7 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
       {/* Dialogkomponenten */}
       <AddProductsDialog />
       <CompleteInventurDialog />
+      <BatchSelectDialog />
       
       {/* Kopfzeile mit zurück-Button und Titel */}
       <div className="flex justify-between items-center">
@@ -1213,6 +1337,7 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                   <TableHead className="text-center">Erwarteter Bestand</TableHead>
                   <TableHead className="text-center">Gezählter Bestand</TableHead>
                   <TableHead className="text-center">Differenz</TableHead>
+                  <TableHead className="text-center">MHD</TableHead>
                   <TableHead>Notizen</TableHead>
                   <TableHead className="text-right">Aktionen</TableHead>
                 </TableRow>
@@ -1225,13 +1350,14 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                       <TableCell className="text-center"><Skeleton className="h-5 w-16 mx-auto" /></TableCell>
                       <TableCell className="text-center"><Skeleton className="h-5 w-16 mx-auto" /></TableCell>
                       <TableCell className="text-center"><Skeleton className="h-5 w-16 mx-auto" /></TableCell>
+                      <TableCell className="text-center"><Skeleton className="h-5 w-16 mx-auto" /></TableCell>
                       <TableCell><Skeleton className="h-5 w-full" /></TableCell>
                       <TableCell className="text-right"><Skeleton className="h-10 w-16 ml-auto" /></TableCell>
                     </TableRow>
                   ))
                 ) : filteredItems.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
+                    <TableCell colSpan={7} className="h-24 text-center">
                       {searchTerm ? 'Keine passenden Produkte gefunden.' : 'Keine Produkte für diese Inventur.'}
                     </TableCell>
                   </TableRow>
@@ -1299,6 +1425,55 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                             <span className="text-gray-400">-</span>
                           )}
                         </TableCell>
+                        <TableCell className="text-center">
+                          {(currentStatus === 'pending' || currentStatus === 'in_progress') ? (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="whitespace-nowrap"
+                              onClick={() => openBatchDialog(item)}
+                            >
+                              {item.batchId ? (
+                                <>
+                                  {item.batch?.expiryDate ? (
+                                    <Badge variant={
+                                      new Date(item.batch.expiryDate) < new Date() ? "destructive" : 
+                                      new Date(item.batch.expiryDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? "warning" : 
+                                      "outline"
+                                    }>
+                                      {new Intl.DateTimeFormat('de-DE', {
+                                        year: 'numeric',
+                                        month: '2-digit',
+                                        day: '2-digit'
+                                      }).format(new Date(item.batch.expiryDate))}
+                                    </Badge>
+                                  ) : (
+                                    <span>Charge: {item.batch?.batchNumber || 'Unbekannt'}</span>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="text-muted-foreground">MHD auswählen</span>
+                              )}
+                              <Calendar className="h-4 w-4 ml-2" />
+                            </Button>
+                          ) : (
+                            item.batch?.expiryDate ? (
+                              <Badge variant={
+                                new Date(item.batch.expiryDate) < new Date() ? "destructive" : 
+                                new Date(item.batch.expiryDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? "warning" : 
+                                "outline"
+                              }>
+                                {new Intl.DateTimeFormat('de-DE', {
+                                  year: 'numeric',
+                                  month: '2-digit',
+                                  day: '2-digit'
+                                }).format(new Date(item.batch.expiryDate))}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">Kein MHD</span>
+                            )
+                          )}
+                        </TableCell>
                         <TableCell>
                           {currentStatus === 'pending' || currentStatus === 'in_progress' ? (
                             <Input
@@ -1339,6 +1514,11 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                                   <DropdownMenuItem onClick={() => handleSetCount(item.id, expectedQuantity + 1)}>
                                     <Plus className="h-4 w-4 mr-2" />
                                     Menge erhöhen
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => openBatchDialog(item)}>
+                                    <Calendar className="h-4 w-4 mr-2" />
+                                    {item.batchId ? 'MHD/Charge ändern' : 'MHD/Charge auswählen'}
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                 </>
