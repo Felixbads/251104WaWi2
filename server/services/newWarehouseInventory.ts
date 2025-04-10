@@ -59,7 +59,7 @@ export async function getWarehouseStatistics(warehouseId: number): Promise<Wareh
     const query = `
       WITH inventory_stats AS (
         SELECT 
-          COUNT(DISTINCT i.product_id) as product_count,
+          (SELECT COUNT(*) FROM products) as product_count,
           COUNT(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) AND i.product_id IS NOT NULL THEN 1 END) as critical_item_count,
           COALESCE(SUM(i.quantity * COALESCE(p.price, 0)), 0) as inventory_value
         FROM 

@@ -24,6 +24,9 @@ import {
   ChevronDown, 
   ChevronRight, 
   Calendar, 
+  ArrowUpDown, 
+  ArrowDown,
+  ArrowUp,
 } from 'lucide-react';
 import ProductBatchDialog from './batch/ProductBatchDialog';
 import { format } from 'date-fns';
@@ -38,6 +41,8 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [selectedProduct, setSelectedProduct] = useState<{id: number, warehouseId: number, name: string} | null>(null);
   const [batchDialogOpen, setBatchDialogOpen] = useState(false);
+  const [sortColumn, setSortColumn] = useState<string>('productName');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
   // API-Abfrage für Inventardaten
   const { data: inventory = [], isLoading, error } = useQuery({
@@ -77,20 +82,76 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
     return groupedBatches;
   }, [allBatches]);
   
-  // Filtern der Inventardaten basierend auf dem Suchbegriff
-  const filteredInventory = React.useMemo(() => {
-    if (!searchTerm.trim()) return inventory;
+  // Filtern und Sortieren der Inventardaten
+  const filteredAndSortedInventory = React.useMemo(() => {
+    // Filtern nach Suchbegriff
+    let filteredData = searchTerm.trim() ? 
+      (inventory as any[]).filter((item: any) => {
+        const searchTermLower = searchTerm.toLowerCase();
+        const productName = item.productName || item.product_name || '';
+        return (
+          productName.toLowerCase().includes(searchTermLower) ||
+          (item.category || '').toLowerCase().includes(searchTermLower) ||
+          (item.sku || '').toLowerCase().includes(searchTermLower)
+        );
+      }) : 
+      [...(inventory as any[])];
     
-    return inventory.filter((item: any) => {
-      const searchTermLower = searchTerm.toLowerCase();
-      const productName = item.productName || item.product_name || '';
-      return (
-        productName.toLowerCase().includes(searchTermLower) ||
-        (item.category || '').toLowerCase().includes(searchTermLower) ||
-        (item.sku || '').toLowerCase().includes(searchTermLower)
-      );
+    // Sortieren nach ausgewählter Spalte
+    filteredData.sort((a: any, b: any) => {
+      let valueA, valueB;
+      
+      // Bestimme die zu vergleichenden Werte basierend auf der Spalte
+      switch (sortColumn) {
+        case 'productName':
+          valueA = (a.productName || a.product_name || '').toLowerCase();
+          valueB = (b.productName || b.product_name || '').toLowerCase();
+          break;
+        case 'category':
+          valueA = (a.category || '').toLowerCase();
+          valueB = (b.category || '').toLowerCase();
+          break;
+        case 'sku':
+          valueA = (a.sku || '').toLowerCase();
+          valueB = (b.sku || '').toLowerCase();
+          break;
+        case 'batchCount':
+          valueA = a.batchCount || a.batch_count || 0;
+          valueB = b.batchCount || b.batch_count || 0;
+          break;
+        case 'quantity':
+          valueA = a.quantity || 0;
+          valueB = b.quantity || 0;
+          break;
+        case 'minQuantity':
+          valueA = a.minQuantity || a.min_quantity || 0;
+          valueB = b.minQuantity || b.min_quantity || 0;
+          break;
+        default:
+          valueA = (a.productName || a.product_name || '').toLowerCase();
+          valueB = (b.productName || b.product_name || '').toLowerCase();
+      }
+      
+      // Vergleich für die Sortierrichtung
+      if (valueA < valueB) return sortDirection === 'asc' ? -1 : 1;
+      if (valueA > valueB) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
     });
-  }, [inventory, searchTerm]);
+    
+    return filteredData;
+  }, [inventory, searchTerm, sortColumn, sortDirection]);
+  
+  // Funktion zum Umschalten der Sortierung
+  const toggleSort = (column: string) => {
+    if (sortColumn === column) {
+      // Wenn die gleiche Spalte angeklickt wird, ändere die Richtung
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Wenn eine neue Spalte angeklickt wird, setze diese als Sortierkriterium (aufsteigend)
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
+  };
 
   // Toggle für expandierte Zeilen
   const toggleRow = (productId: number) => {
