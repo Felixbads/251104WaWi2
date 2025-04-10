@@ -942,20 +942,10 @@ function NewOrderForm({
       } catch (apiError) {
         console.error("API-Fehler beim Speichern der Bestellung:", apiError);
         
-        // Fallback für Demo/Test: Simulierte Bestellungs-ID
-        const simulatedOrderId = Math.floor(Math.random() * 10000) + 1;
-        setCreatedOrderId(simulatedOrderId);
-        
-        // Umschalten zum Bestätigungsschritt trotz Fehler (nur für Demo/Test)
-        setShowConfirmation(true);
-        
-        // Markieren, dass eine neue Bestellung begonnen werden soll beim nächsten Laden
-        sessionStorage.setItem('orderCompleted', 'true');
-        sessionStorage.removeItem('startingNewOrder');
-        
         toast({
-          title: "Bestellung erstellt (Test-Modus)",
-          description: "Bestellungs-ID wurde simuliert für Testzwecke. Im Produktivbetrieb wird die Bestellung in der Datenbank gespeichert.",
+          title: "Fehler beim Erstellen der Bestellung",
+          description: `Die Bestellung konnte nicht erstellt werden: ${apiError instanceof Error ? apiError.message : 'Unbekannter Fehler'}`,
+          variant: "destructive",
         });
       }
     } catch (error) {
@@ -1702,23 +1692,41 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
   // Bestellung erstellen Mutation
   const createOrderMutation = useMutation({
     mutationFn: (data: any) => {
-      return apiRequest("/api/orders", data, "POST");
+      console.log("Erstelle Bestellung mit Daten:", data);
+      return apiRequest("post", "/orders", data);
     },
     onSuccess: (response) => {
       const data = response as any;
+      console.log("Bestellung erfolgreich erstellt:", data);
+      
       toast({
         title: "Bestellung erstellt",
         description: `Bestellung #${data?.id || 'Neue'} wurde erfolgreich erstellt.`,
       });
       
+      // Query-Cache invalidieren
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      
       // Zurück zur Übersicht oder Details anzeigen
       if (data?.id) {
-        window.location.href = `/orders/${data.id}`;
+        // Speichere ID für spätere Verwendung
+        setCreatedOrderId(data.id);
+        // Umschalten zum Bestätigungsschritt
+        setShowConfirmation(true);
+        // Markieren, dass eine neue Bestellung begonnen werden soll beim nächsten Laden
+        sessionStorage.setItem('orderCompleted', 'true');
+        sessionStorage.removeItem('startingNewOrder');
       } else {
+        toast({
+          title: "Warnung",
+          description: "Die Bestellung wurde erstellt, aber die ID konnte nicht abgerufen werden.",
+          variant: "warning",
+        });
         window.location.href = '/bestellungen';
       }
     },
     onError: (error) => {
+      console.error("Fehler beim Erstellen der Bestellung:", error);
       toast({
         title: "Fehler",
         description: `Fehler beim Erstellen der Bestellung: ${error}`,
