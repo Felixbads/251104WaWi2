@@ -271,7 +271,7 @@ function WarehouseSelectionForm({
   }
   
   // Nur aktive Lager anzeigen
-  const activeWarehouses = warehouses.filter((wh: any) => wh.isActive);
+  const activeWarehouses = warehouses ? warehouses.filter((wh: any) => wh.isActive) : [];
   
   return (
     <Card className="w-full max-w-3xl mx-auto">
