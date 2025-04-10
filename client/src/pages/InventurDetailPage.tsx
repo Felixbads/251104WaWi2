@@ -179,13 +179,26 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
   const {
     data: inventurItems = [] as InventoryCountItem[],
     isLoading: isLoadingItems,
-    refetch: refetchInventurItems
+    refetch: refetchInventurItems,
+    error: inventurItemsError
   } = useQuery<InventoryCountItem[]>({
     queryKey: [`/api/inventory-counts/${id}/items`],
     staleTime: 5 * 1000, // 5 Sekunden Cache
     enabled: !!id,
+    retry: 3, // Bei Fehlern maximal 3 Versuche
+    retryDelay: 1000, // 1 Sekunde zwischen den Versuchen
     onSuccess: (data: InventoryCountItem[]) => {
       console.log(`Inventurelemente geladen: ${data?.length || 0} Produkte`);
+    },
+    onError: (error: any) => {
+      console.error('Fehler beim Laden der Inventurelemente:', error);
+      // Automatischer Wiederverbindungsversuch bei 401 Unauthorized
+      if (error?.response?.status === 401) {
+        console.log('Authentifizierungsfehler beim Laden der Inventurpositionen. Versuche erneut...');
+        setTimeout(() => {
+          refetchInventurItems();
+        }, 2000);
+      }
     }
   });
 
