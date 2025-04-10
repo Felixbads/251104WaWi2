@@ -1,4 +1,4 @@
--- Produktbereinigungsmigration
+-- Produktbereinigungsmigration (Angepasst) 
 -- Erstellt: 10. April 2025
 -- Dieser SQL-Skript bereinigt die Produktdatenbank, indem Duplikate entfernt werden
 
@@ -16,7 +16,7 @@ SELECT DISTINCT ON (LOWER(product_name))
     created_at,
     updated_at,
     supplier_id,
-    supplier_name,
+    additional_data,
     vat,
     deposit_price,
     deposit_vat,
@@ -36,7 +36,7 @@ SELECT DISTINCT ON (LOWER(product_name))
     warehouse_location,
     category,
     package_size,
-    additional_data,
+    supplier_name,
     account_name,
     account_timezone,
     supplier_sku,
