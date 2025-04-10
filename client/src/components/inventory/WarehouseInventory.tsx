@@ -242,7 +242,7 @@ export default function WarehouseInventory({
   const error = propError || fetchError;
 
   // Sichere Suche und Filterung
-  const filteredInventory = Array.isArray(inventory) 
+  const filteredAndSortedInventory = Array.isArray(inventory) 
     ? inventory.filter((item: InventoryItem) => {
         if (!item) return false;
         
@@ -415,7 +415,7 @@ export default function WarehouseInventory({
       <div className="rounded-md border">
         <Table>
           <TableCaption>
-            {filteredInventory.length} Lagerposten {warehouseFilter ? `in Lager #${warehouseFilter}` : 'in allen Lagern'}
+            {filteredAndSortedInventory.length} Lagerposten {warehouseFilter ? `in Lager #${warehouseFilter}` : 'in allen Lagern'}
           </TableCaption>
           <TableHeader>
             <TableRow>
@@ -428,7 +428,7 @@ export default function WarehouseInventory({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredInventory.length === 0 ? (
+            {filteredAndSortedInventory.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={warehouseFilter ? 5 : 6} className="h-24 text-center">
                   <div className="flex flex-col items-center justify-center">
@@ -440,7 +440,7 @@ export default function WarehouseInventory({
                 </TableCell>
               </TableRow>
             ) : (
-              filteredInventory.map((item: InventoryItem) => {
+              filteredAndSortedInventory.map((item: InventoryItem) => {
                 if (!item) return null;
                 
                 // Sicherheitsabfragen für alle Werte
