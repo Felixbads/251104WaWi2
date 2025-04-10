@@ -21,14 +21,14 @@ export async function apiRequest(
   // Authentifizierungsheader hinzufügen, wenn ein Token gespeichert ist
   const storedToken = localStorage.getItem('auth_token');
   
-  const headers = {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options?.headers || {})
   };
   
   // Auth-Token hinzufügen, wenn vorhanden
   if (storedToken) {
-    headers['Authorization' as string] = `Bearer ${storedToken}`;
+    headers['Authorization'] = `Bearer ${storedToken}`;
   }
   
   console.log(`API Request: ${method} ${apiUrl} with auth token: ${!!storedToken}`, 

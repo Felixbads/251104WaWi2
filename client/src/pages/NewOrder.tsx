@@ -295,7 +295,7 @@ function WarehouseSelectionForm({
                   <FormLabel>Ziellager</FormLabel>
                   <Select 
                     onValueChange={(value) => field.onChange(parseInt(value))}
-                    defaultValue={field.value?.toString()}
+                    value={field.value?.toString() || ""}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -303,7 +303,7 @@ function WarehouseSelectionForm({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {activeWarehouses.map((warehouse: any) => (
+                      {activeWarehouses?.map((warehouse: any) => (
                         <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
                           {warehouse.name}
                           {warehouse.city && ` (${warehouse.city})`}
