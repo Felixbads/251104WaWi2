@@ -27,6 +27,24 @@ interface InventoryCount {
   warehouseName?: string; // Name des Lagers, der vom API zurückgegeben wird
 }
 
+interface ProductBatch {
+  id: number;
+  batchNumber: string;
+  productId: number;
+  warehouseId: number;
+  initialQuantity: number;
+  currentQuantity: number;
+  expiryDate: string | null;
+  manufacturingDate?: string | null;
+  receivedDate?: string | null;
+  notes?: string | null;
+  productName?: string;
+  status?: string;
+  locationInWarehouse?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 interface InventoryCountItem {
   id: number;
   inventoryCountId: number;
@@ -42,6 +60,8 @@ interface InventoryCountItem {
   createdAt: string;
   updatedAt?: string;
   product?: Product;
+  batchId?: number | null;
+  batch?: ProductBatch | null;
 }
 
 interface Product {
@@ -154,6 +174,15 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
   
   // Editierte Notizen-State
   const [editedNotes, setEditedNotes] = useState<{[key: number]: string}>({});
+  
+  // Dialog-State für Batch-Auswahl
+  const [showBatchDialog, setShowBatchDialog] = useState(false);
+  
+  // Aktuell ausgewähltes Element für Batch-Dialog
+  const [selectedItem, setSelectedItem] = useState<InventoryCountItem | null>(null);
+  
+  // Batch-Daten für aktuelles Produkt
+  const [availableBatches, setAvailableBatches] = useState<ProductBatch[]>([]);
 
   // Lade Inventurinformationen
   const { 
@@ -523,6 +552,80 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
     const countedItems = inventurItems.filter((item: any) => item.countedQuantity !== null).length;
     return Math.round((countedItems / inventurItems.length) * 100);
   }, [inventurItems]);
+
+  // Lade verfügbare Batches für ein Produkt
+  const {
+    isLoading: isLoadingBatches,
+    refetch: fetchProductBatches
+  } = useQuery<ProductBatch[]>({
+    queryKey: [`/api/inventory-counts/${id}/product-batches/${selectedItem?.productId || 0}`],
+    enabled: false, // Manuell auslösen, wenn ein Produkt ausgewählt wird
+    onSuccess: (data) => {
+      setAvailableBatches(data || []);
+    }
+  });
+
+  // Mutation zum Aktualisieren der Batch eines Inventurelements
+  const updateBatchMutation = useMutation({
+    mutationFn: async (data: { itemId: number; batchId: number | null }) => {
+      try {
+        const response = await fetch(`/api/inventory-counts/items/${data.itemId}/batch`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ batchId: data.batchId }),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Fehler beim Aktualisieren der Charge: ${response.status}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Fehler beim Aktualisieren der Charge:', error);
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}/items`] });
+      
+      setShowBatchDialog(false);
+      setSelectedItem(null);
+      
+      toast({
+        title: "Charge aktualisiert",
+        description: "Die Charge wurde erfolgreich aktualisiert.",
+      });
+    },
+    onError: (error) => {
+      console.error('Fehler beim Aktualisieren der Charge:', error);
+      toast({
+        title: "Fehler",
+        description: "Die Charge konnte nicht aktualisiert werden.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Funktion zum Öffnen des Batch-Dialogs
+  const openBatchDialog = async (item: InventoryCountItem) => {
+    setSelectedItem(item);
+    setShowBatchDialog(true);
+    
+    // Lade Batches für das ausgewählte Produkt
+    await fetchProductBatches();
+  };
+
+  // Funktion zum Aktualisieren der Batch
+  const handleBatchUpdate = (batchId: number | null) => {
+    if (selectedItem) {
+      updateBatchMutation.mutate({ 
+        itemId: selectedItem.id, 
+        batchId 
+      });
+    }
+  };
 
   // Kategorisiere Produkte nach Status: gezählt, nicht gezählt, etc.
   const itemStats = useMemo(() => {
