@@ -175,7 +175,7 @@ export default function WarehouseTransfer({ warehouseId, onSuccess }: WarehouseT
   };
 
   // Filter inventory items based on search term
-  const filteredInventory = inventory.filter(item => {
+  const filteredAndSortedInventory = inventory.filter(item => {
     return item.productName?.toLowerCase().includes(filter.toLowerCase());
   });
 
@@ -445,7 +445,7 @@ export default function WarehouseTransfer({ warehouseId, onSuccess }: WarehouseT
                   <Loader2 className="h-8 w-8 animate-spin" />
                   <span className="ml-2">Lade Produkte...</span>
                 </div>
-              ) : filteredInventory.length === 0 ? (
+              ) : filteredAndSortedInventory.length === 0 ? (
                 <Alert>
                   <AlertTriangle className="h-4 w-4" />
                   <AlertTitle>Keine Produkte gefunden</AlertTitle>
@@ -465,7 +465,7 @@ export default function WarehouseTransfer({ warehouseId, onSuccess }: WarehouseT
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredInventory.map((item) => (
+                      {filteredAndSortedInventory.map((item: any) => (
                         <TableRow key={item.productId}>
                           <TableCell>
                             <div>

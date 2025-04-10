@@ -219,7 +219,7 @@ export default function WarehouseInventory({
         const movements = await getProductMovements(item.productId, item.warehouseId);
         
         // Inventar-Item mit den Bewegungen aktualisieren
-        const updatedInventory = inventory.map(invItem => 
+        const updatedInventory = filteredAndSortedInventory.map(invItem => 
           invItem.id === itemId ? { ...invItem, movements } : invItem
         );
         
