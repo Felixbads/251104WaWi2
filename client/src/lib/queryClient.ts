@@ -15,8 +15,8 @@ export async function apiRequest(
     headers?: Record<string, string>;
   }
 ): Promise<any> {
-  // Stelle sicher, dass URL mit /api beginnt
-  const apiUrl = url.startsWith('/api') ? url : `/api${url}`;
+  // Stelle sicher, dass URL mit /api beginnt, wenn nicht direkt mit HTTP beginnend
+  const apiUrl = url.startsWith('http') ? url : (url.startsWith('/api') ? url : `/api${url}`);
   
   // Authentifizierungsheader hinzufügen, wenn ein Token gespeichert ist
   const storedToken = localStorage.getItem('auth_token');
