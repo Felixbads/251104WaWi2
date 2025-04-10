@@ -187,10 +187,11 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number, s
     if (syncAllProducts) {
       console.log("Hole alle Produkte aus dem Gesamtportfolio...");
       try {
-        // Hole alle verfügbaren Produkte (in Batches von maximal 1000, um zu große Abfragen zu vermeiden)
-        const productsResult = await storage.getProducts({ limit: 1000 });
-        allProducts = Array.isArray(productsResult) ? productsResult : productsResult.data;
-        console.log(`Insgesamt ${allProducts.length} Produkte im Gesamtportfolio gefunden`);
+        // Direkte SQL-Abfrage für alle Produkte, um die Limitierung zu umgehen
+        const query = 'SELECT * FROM products ORDER BY product_name';
+        const result = await storage.rawDb.query(query);
+        allProducts = result.rows;
+        console.log(`Insgesamt ${allProducts.length} Produkte im Gesamtportfolio gefunden (direktes SQL)`);
       } catch (error) {
         console.error("Fehler beim Abrufen aller Produkte:", error);
         errors++;
