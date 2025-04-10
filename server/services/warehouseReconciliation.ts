@@ -10,6 +10,7 @@ import { storage } from "../storage";
 import { normalizeProductName } from "../utils/stringUtils";
 import { InsertInventoryItem, InsertProductBatch } from "@shared/schema";
 import type { MachineWarehouseAssignment, Transaction } from "@shared/schema";
+import { rawDb } from "../db";
 
 /**
  * Führt den automatischen Lagerabgleich zwischen Automaten und Lagern durch und fügt alle Produkte

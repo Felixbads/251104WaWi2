@@ -2199,13 +2199,41 @@ export class VendonSyncService {
           // Prüfe, ob das Produkt bereits existiert anhand der Map (nicht DB-Abfrage für jedes Produkt)
           const existing = existingProductMap[vendonId];
           
+          // Suche auch nach Produkten mit dem gleichen Namen (Verhindert Duplikate)
+          const existingByName = (existingProducts as any[]).find(p => 
+            p.productName?.toLowerCase() === productName.toLowerCase()
+          );
+          
           if (existing) {
-            // Update vorhandenes Produkt
-            await storage.updateProduct(existing.id, productData);
+            // Aktualisieren des bestehenden Produkts, das dieselbe vendonId hat
+            console.log(`Aktualisiere bestehendes Produkt (vendonId: ${vendonId}): ${productName}`);
+            
+            await storage.updateProduct(existing.id, {
+              ...productData,
+              updatedAt: new Date()
+            });
+            
+            itemsUpdated++;
+          } else if (existingByName) {
+            // Aktualisiere das bestehende Produkt und setze vendonId
+            console.log(`Aktualisiere bestehendes Produkt (Name: ${productName}) und setze vendonId: ${vendonId}`);
+            
+            await storage.updateProduct(existingByName.id, {
+              ...productData,
+              updatedAt: new Date()
+            });
+            
             itemsUpdated++;
           } else {
-            // Erstelle neues Produkt
-            await storage.createProduct(productData);
+            // Erstellen eines neuen Produkts
+            console.log(`Erstelle neues Produkt: ${productName} (vendonId: ${vendonId})`);
+            
+            await storage.createProduct({
+              ...productData,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            });
+            
             itemsSaved++;
           }
         } catch (error) {
