@@ -122,6 +122,7 @@ export async function getWarehouseStatistics(warehouseId: number): Promise<Wareh
 
 /**
  * Get inventory items for a warehouse with complete product information
+ * Zeigt ALLE Produkte an, auch wenn sie noch nicht im Lagerbestand sind
  */
 export async function getWarehouseInventory(warehouseId: number): Promise<InventoryItem[]> {
   logDebug('WarehouseInventory', `Fetching inventory for warehouse ID: ${warehouseId}`);
@@ -130,25 +131,23 @@ export async function getWarehouseInventory(warehouseId: number): Promise<Invent
     const query = `
       SELECT 
         i.id,
-        i.warehouse_id,
-        i.product_id,
+        $1 as warehouse_id,
+        p.id as product_id,
         p.product_name,
-        i.quantity,
-        i.min_quantity,
+        COALESCE(i.quantity, 0) as quantity,
+        COALESCE(i.min_quantity, 5) as min_quantity,
         p.price,
         (SELECT COUNT(*) FROM product_batches pb 
-          WHERE pb.product_id = i.product_id AND pb.warehouse_id = i.warehouse_id) as batch_count,
+          WHERE pb.product_id = p.id AND pb.warehouse_id = $1) as batch_count,
         (SELECT MAX(im.performed_at) FROM inventory_movements im 
-          WHERE im.product_id = i.product_id AND 
-            (im.source_warehouse_id = i.warehouse_id OR 
-             im.destination_warehouse_id = i.warehouse_id)) as last_movement_date,
-        CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) THEN true ELSE false END as is_critical
+          WHERE im.product_id = p.id AND 
+            (im.source_warehouse_id = $1 OR 
+             im.destination_warehouse_id = $1)) as last_movement_date,
+        CASE WHEN COALESCE(i.quantity, 0) <= COALESCE(i.min_quantity, 5) THEN true ELSE false END as is_critical
       FROM 
-        inventory_items i
-      JOIN 
-        products p ON i.product_id = p.id
-      WHERE 
-        i.warehouse_id = $1
+        products p
+      LEFT JOIN 
+        inventory_items i ON i.product_id = p.id AND i.warehouse_id = $1
       ORDER BY 
         p.product_name ASC
     `;
@@ -157,7 +156,7 @@ export async function getWarehouseInventory(warehouseId: number): Promise<Invent
     const result = await db.query(query, [warehouseId]);
     
     const inventory: InventoryItem[] = result.rows.map(row => ({
-      id: parseInt(row.id),
+      id: row.id ? parseInt(row.id) : -parseInt(row.product_id), // Temporäre negative ID für nicht existierende Einträge
       warehouseId: parseInt(row.warehouse_id),
       productId: parseInt(row.product_id),
       productName: row.product_name,
