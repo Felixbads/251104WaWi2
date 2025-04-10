@@ -271,7 +271,7 @@ function WarehouseSelectionForm({
   }
   
   // Nur aktive Lager anzeigen
-  const activeWarehouses = warehouses ? warehouses.filter((wh: any) => wh.isActive) : [];
+  const activeWarehouses = warehouses ? warehouses.filter((wh: any) => wh.is_active) : [];
   
   return (
     <Card className="w-full max-w-3xl mx-auto">
@@ -336,7 +336,7 @@ function WarehouseSelectionForm({
                     {warehouse.city && (
                       <CardDescription className="text-xs">
                         {warehouse.address && `${warehouse.address}, `}
-                        {warehouse.postalCode && `${warehouse.postalCode} `}
+                        {warehouse.postal_code && `${warehouse.postal_code} `}
                         {warehouse.city}
                       </CardDescription>
                     )}
