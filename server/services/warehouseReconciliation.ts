@@ -190,7 +190,7 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number, s
       try {
         // Direkte SQL-Abfrage für alle Produkte, um die Limitierung zu umgehen
         const query = 'SELECT * FROM products ORDER BY product_name';
-        const result = await storage.rawDb.query(query);
+        const result = await rawDb.query(query);
         allProducts = result.rows;
         console.log(`Insgesamt ${allProducts.length} Produkte im Gesamtportfolio gefunden (direktes SQL)`);
       } catch (error) {
