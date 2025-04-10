@@ -202,6 +202,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       // Lokalen Zustand zurücksetzen
       localStorage.removeItem('auth_token');
+      
+      // Authentifizierungsheader aus Standardkonfiguration entfernen
+      delete axios.defaults.headers.common['Authorization'];
+      
       setToken(null);
       setUser(null);
       setIsAuthenticated(false);

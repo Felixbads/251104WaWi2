@@ -18,14 +18,21 @@ export async function apiRequest(
   // Stelle sicher, dass URL mit /api beginnt
   const apiUrl = url.startsWith('/api') ? url : `/api${url}`;
   
-  // Wir verwenden Session-basierte Authentifizierung, daher kein Token notwendig
-  // Das Session-Cookie wird automatisch mit credentials: "include" gesendet
+  // Authentifizierungsheader hinzufügen, wenn ein Token gespeichert ist
+  const storedToken = localStorage.getItem('auth_token');
+  
   const headers = {
     "Content-Type": "application/json",
     ...(options?.headers || {})
   };
   
-  console.log(`API Request: ${method} ${apiUrl}`, {method: method.toUpperCase(), body: data ? JSON.stringify(data) : undefined});
+  // Auth-Token hinzufügen, wenn vorhanden
+  if (storedToken) {
+    headers['Authorization' as string] = `Bearer ${storedToken}`;
+  }
+  
+  console.log(`API Request: ${method} ${apiUrl} with auth token: ${!!storedToken}`, 
+    {method: method.toUpperCase(), body: data ? JSON.stringify(data) : undefined});
   
   // Für GET-Anfragen mit Daten diese als Query-Parameter hinzufügen
   let finalUrl = apiUrl;
@@ -48,6 +55,10 @@ export async function apiRequest(
       credentials: "include",
     });
     
+    if (!res.ok) {
+      console.error(`API error for ${finalUrl}: ${res.status} ${res.statusText}`);
+    }
+    
     return handleResponse(res);
   }
   
@@ -58,6 +69,10 @@ export async function apiRequest(
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
+
+  if (!res.ok) {
+    console.error(`API error for ${apiUrl}: ${res.status} ${res.statusText}`);
+  }
 
   return handleResponse(res);
 }
@@ -104,9 +119,15 @@ export const getQueryFn: <T>(options: {
       }
     }
     
-    // Session-basierte Authentifizierung, keine Token-Header nötig
-    // Das Session-Cookie wird automatisch mit credentials: "include" gesendet
+    // Authentifizierungsheader hinzufügen, wenn ein Token gespeichert ist
     const headers: Record<string, string> = {};
+    const storedToken = localStorage.getItem('auth_token');
+    
+    if (storedToken) {
+      headers['Authorization'] = `Bearer ${storedToken}`;
+    }
+    
+    console.log(`Sending request to ${apiUrl} with auth token: ${!!storedToken}`);
     
     const res = await fetch(apiUrl, {
       headers: headers,
@@ -114,7 +135,12 @@ export const getQueryFn: <T>(options: {
     });
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
+      console.error(`Authentication error for ${apiUrl}: Unauthorized`);
       return null;
+    }
+
+    if (!res.ok) {
+      console.error(`API error for ${apiUrl}: ${res.status} ${res.statusText}`);
     }
 
     await throwIfResNotOk(res);
