@@ -151,6 +151,9 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
   
   // Editierter Zählerstand-State
   const [editedCounts, setEditedCounts] = useState<{[key: number]: number | null}>({});
+  
+  // Editierte Notizen-State
+  const [editedNotes, setEditedNotes] = useState<{[key: number]: string}>({});
 
   // Lade Inventurinformationen
   const { 
@@ -558,6 +561,46 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
   const statusLabel = inventurStatusTypes[currentStatus as keyof typeof inventurStatusTypes]?.label || 'Unbekannt';
   const statusColor = inventurStatusTypes[currentStatus as keyof typeof inventurStatusTypes]?.color || 'bg-gray-100 text-gray-800 hover:bg-gray-200';
 
+  // Mutation zum Aktualisieren der Notizen eines Inventurprodukts
+  const updateNotesMutation = useMutation({
+    mutationFn: async (data: { id: number; notes: string }) => {
+      try {
+        const response = await fetch(`/api/inventory-count-items/${data.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Fehler beim Aktualisieren der Notizen: ${response.status}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Fehler beim Aktualisieren der Notizen:', error);
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}/items`] });
+      
+      toast({
+        title: "Notizen aktualisiert",
+        description: "Die Notizen wurden erfolgreich aktualisiert.",
+      });
+    },
+    onError: (error) => {
+      console.error('Fehler beim Aktualisieren der Notizen:', error);
+      toast({
+        title: "Fehler",
+        description: "Die Notizen konnten nicht aktualisiert werden.",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Setze einen Count-Wert für ein Produkt
   const handleSetCount = (id: number, count: number | null) => {
     // Speichere den Wert lokal
@@ -568,6 +611,18 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
     
     // Sende die Änderung an den Server
     updateCountMutation.mutate({ id, countedQuantity: count });
+  };
+  
+  // Aktualisiere die Notizen für ein Produkt
+  const handleUpdateNotes = (id: number, notes: string) => {
+    // Speichere den Wert lokal
+    setEditedNotes({
+      ...editedNotes,
+      [id]: notes
+    });
+    
+    // Sende die Änderung an den Server
+    updateNotesMutation.mutate({ id, notes });
   };
 
   // Füge Produkte zur Inventur hinzu
@@ -1054,12 +1109,13 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                       <TableCell className="text-center"><Skeleton className="h-5 w-16 mx-auto" /></TableCell>
                       <TableCell className="text-center"><Skeleton className="h-5 w-16 mx-auto" /></TableCell>
                       <TableCell className="text-center"><Skeleton className="h-5 w-16 mx-auto" /></TableCell>
+                      <TableCell><Skeleton className="h-5 w-full" /></TableCell>
                       <TableCell className="text-right"><Skeleton className="h-10 w-16 ml-auto" /></TableCell>
                     </TableRow>
                   ))
                 ) : filteredItems.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="h-24 text-center">
+                    <TableCell colSpan={6} className="h-24 text-center">
                       {searchTerm ? 'Keine passenden Produkte gefunden.' : 'Keine Produkte für diese Inventur.'}
                     </TableCell>
                   </TableRow>
@@ -1125,6 +1181,25 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                             </div>
                           ) : (
                             <span className="text-gray-400">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {currentStatus === 'pending' || currentStatus === 'in_progress' ? (
+                            <Input
+                              placeholder="Notizen eintragen..."
+                              value={editedNotes[item.id] !== undefined ? editedNotes[item.id] : item.notes || ''}
+                              onChange={(e) => {
+                                setEditedNotes({ ...editedNotes, [item.id]: e.target.value });
+                              }}
+                              onBlur={() => {
+                                if (editedNotes[item.id] !== undefined) {
+                                  handleUpdateNotes(item.id, editedNotes[item.id]);
+                                }
+                              }}
+                              className="w-full text-sm"
+                            />
+                          ) : (
+                            <span className="text-sm">{item.notes || '-'}</span>
                           )}
                         </TableCell>
                         <TableCell className="text-right">
