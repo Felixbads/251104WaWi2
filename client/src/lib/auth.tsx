@@ -61,7 +61,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         try {
           // Token an den Authorization-Header anhängen
           const config = {
-            headers: { Authorization: `Bearer ${storedToken}` }
+            headers: { Authorization: `Bearer ${storedToken}` },
+            // Wichtig: Cookies mit credentials senden
+            withCredentials: true
           };
           
           // Benutzerinformationen vom Server abrufen
@@ -75,11 +77,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // Auch nicht freigegebene Benutzer gelten als authentifiziert,
             // damit wir sie zur "Nicht freigegeben"-Seite leiten können
             setIsAuthenticated(true);
+            
+            // Token für alle zukünftigen Anfragen als Default setzen
+            axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
           }
         } catch (error) {
           console.error('Token validation error:', error);
           // Bei Fehler den Token entfernen
           localStorage.removeItem('auth_token');
+          delete axios.defaults.headers.common['Authorization'];
         }
       }
       
@@ -99,6 +105,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         // Token und User im localStorage speichern
         localStorage.setItem('auth_token', token);
+        
+        // Token für alle zukünftigen Anfragen als Default setzen
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         
         // State aktualisieren
         setToken(token);
