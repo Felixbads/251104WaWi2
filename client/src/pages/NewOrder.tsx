@@ -1753,19 +1753,55 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
   const [notes, setNotes] = useState("");
   const [isProcessingForecast, setIsProcessingForecast] = useState(false);
 
-  // Holen Sie Lieferanten
-  const { data: suppliersData, isLoading: isSuppliersLoading } = useQuery({
+  // Holen Sie Lieferanten - sichere Implementierung
+  const { data: rawSuppliersData, isLoading: isSuppliersLoading } = useQuery({
     queryKey: ["/api/suppliers"],
     retry: 1
   });
-  const suppliers = Array.isArray(suppliersData) ? suppliersData : [];
   
-  // Holen Sie Prognosemodelle
-  const { data: modelsData, isLoading: isModelsLoading } = useQuery({
+  // Sicheres Datenhandling ohne Destructuring
+  let suppliersArray: any[] = [];
+  
+  if (rawSuppliersData) {
+    if (typeof rawSuppliersData === 'object' && rawSuppliersData !== null) {
+      const dataObj = rawSuppliersData as Record<string, any>;
+      if (dataObj.data && Array.isArray(dataObj.data)) {
+        suppliersArray = dataObj.data;
+      } else if (Array.isArray(rawSuppliersData)) {
+        suppliersArray = rawSuppliersData as any[];
+      }
+    } else if (Array.isArray(rawSuppliersData)) {
+      suppliersArray = rawSuppliersData;
+    }
+  }
+  
+  // Suppliers-Array für die Verwendung im Formular
+  const suppliers = suppliersArray;
+  
+  // Holen Sie Prognosemodelle - sichere Implementierung
+  const { data: rawModelsData, isLoading: isModelsLoading } = useQuery({
     queryKey: ["/api/forecast/models"],
     retry: 1
   });
-  const models = Array.isArray(modelsData) ? modelsData : [];
+  
+  // Sicheres Datenhandling ohne Destructuring
+  let modelsArray: any[] = [];
+  
+  if (rawModelsData) {
+    if (typeof rawModelsData === 'object' && rawModelsData !== null) {
+      const dataObj = rawModelsData as Record<string, any>;
+      if (dataObj.data && Array.isArray(dataObj.data)) {
+        modelsArray = dataObj.data;
+      } else if (Array.isArray(rawModelsData)) {
+        modelsArray = rawModelsData as any[];
+      }
+    } else if (Array.isArray(rawModelsData)) {
+      modelsArray = rawModelsData;
+    }
+  }
+  
+  // Models-Array für die Verwendung im Formular
+  const models = modelsArray;
   
   // Holen Sie Produkte für das Lager
   const { data: products, isLoading: isProductsLoading } = useQuery({
@@ -1851,7 +1887,20 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
       const result = await refetchForecasts();
       setIsForecastGenerated(true);
       
-      const forecastData = result.data;
+      // Sichere Verarbeitung der Forecastdaten ohne gefährliches Destructuring
+      let forecastData: any[] = [];
+      
+      if (result && typeof result === 'object') {
+        // Versuchen, sicher auf data zuzugreifen
+        const resultObj = result as Record<string, any>;
+        if (resultObj.data) {
+          if (Array.isArray(resultObj.data)) {
+            forecastData = resultObj.data;
+          }
+        } else if (Array.isArray(result)) {
+          forecastData = result as any[];
+        }
+      }
       
       if (forecastData && Array.isArray(forecastData) && forecastData.length > 0) {
         // Sortieren Sie Produkte nach Prognose (höchster Bedarf zuerst)
