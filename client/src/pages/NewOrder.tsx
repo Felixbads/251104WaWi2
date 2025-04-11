@@ -787,9 +787,18 @@ function NewOrderForm({
   // Bestellposition hinzufügen
   const addOrderItem = (data: OrderItemValues) => {
     if (selectedProduct) {
-      // Aktuelle supplierId speichern, um sie später wieder zu setzen
-      const currentSupplier = orderForm.getValues('supplierId');
+      // Capture current state BEFORE any operations
+      const currentFormValues = orderForm.getValues();
+      const currentSupplier = currentFormValues.supplierId;
       console.log(`Lieferant beim Hinzufügen einer Position: ${currentSupplier}`);
+      
+      // Preserve complete form state to restore later
+      const preservedFormState = {
+        supplierId: currentSupplier,
+        expectedDeliveryDate: currentFormValues.expectedDeliveryDate,
+        notes: currentFormValues.notes,
+        priority: currentFormValues.priority
+      };
       
       // Neues Item erstellen mit allen relevanten Daten
       const newItem = {
@@ -818,12 +827,7 @@ function NewOrderForm({
         console.error("Fehler beim Speichern der Bestellpositionen:", e);
       }
       
-      // Form zurücksetzen, aber sicherstellen, dass der Lieferant erhalten bleibt
-      // Aktuelle supplierId vor dem Reset speichern
-      const preservedSupplier = orderForm.getValues().supplierId;
-      console.log("Bewahre Lieferanten-ID:", preservedSupplier);
-      
-      // Position-Formular zurücksetzen
+      // Position-Formular zurücksetzen, jedoch den Lieferant explizit beibehalten
       itemForm.reset({
         productId: null, // null für nullable Schema
         quantity: 1,
@@ -832,12 +836,11 @@ function NewOrderForm({
         targetMachineId: undefined
       });
       
-      // Stellen Sie sicher, dass der Lieferant im Hauptformular erhalten bleibt
-      if (preservedSupplier) {
-        // React-Hook-Form erfordert einen setTimeout, um Race-Conditions zu vermeiden
-        setTimeout(() => {
-          orderForm.setValue('supplierId', preservedSupplier);
-        }, 50);
+      // Sehr wichtig: Den gesamten Formularstatus explizit wiederherstellen
+      if (preservedFormState.supplierId) {
+        orderForm.setValue('supplierId', preservedFormState.supplierId);
+        // Zusätzlich direkt im currentSupplierId-State setzen, um sicherzustellen, dass die Reaktivität gewährleistet ist
+        setCurrentSupplierId(preservedFormState.supplierId);
       }
       
       // Ausgewähltes Produkt zurücksetzen
@@ -1007,8 +1010,10 @@ function NewOrderForm({
       };
       
       try {
-        // API-Anfrage zum Speichern der Bestellung mit korrektem API-Pfad
+        // API-Anfrage zum Speichern der Bestellung mit korrektem API-Pfad und Format
         console.log("Sende Bestellung an API:", orderForApi);
+        
+        // apiRequest korrekt verwenden - POST-Anfragen verwenden die Signatur (method, url, data)
         const response = await apiRequest("post", "/api/orders", orderForApi);
         
         if (response && response.id) {
