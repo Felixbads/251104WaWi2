@@ -8,6 +8,7 @@ import { jsPDF } from "jspdf";
 // @ts-ignore
 import QRCode from "qrcode";
 import ReceiveOrderDialog from "@/components/orders/ReceiveOrderDialog";
+import OrderDetailActions from "@/components/orders/OrderDetailActions";
 import html2canvas from "html2canvas";
 import { getOrder, updateOrder } from "@/lib/api";
 
@@ -985,26 +986,11 @@ Nationalpark Zentrum`);
                   </div>
                 </div>
                 
-                <div className="flex flex-wrap gap-3 mt-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleGenerateQrCode}
-                    className="gap-1.5"
-                  >
-                    <QrCode className="h-4 w-4" />
-                    QR Code für Lieferantenportal
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={generatePdf}
-                    className="gap-1.5"
-                  >
-                    <FileText className="h-4 w-4" />
-                    Bestellformular erstellen
-                  </Button>
-                </div>
+                {/* Dokumenten-Aktionen */}
+                <OrderDetailActions 
+                  order={order}
+                  pdfContentRef={pdfContentRef}
+                />
               </CardContent>
             </Card>
             
@@ -1323,7 +1309,7 @@ Nationalpark Zentrum`);
         order={order}
         open={showReceiveDialog}
         onOpenChange={setShowReceiveDialog}
-        onComplete={handleProcessReceipt}
+        onSuccess={handleProcessReceipt}
       />
       
       {/* Stornieren Dialog */}
