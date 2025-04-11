@@ -76,37 +76,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const storedToken = localStorage.getItem('auth_token');
       console.log("Gespeicherter Token gefunden:", !!storedToken);
       
-      if (storedToken) {
-        try {
-          // Token an den Authorization-Header anhängen
-          const config = {
-            headers: { Authorization: `Bearer ${storedToken}` },
-            // Wichtig: Cookies mit credentials senden
-            withCredentials: true
-          };
-          
-          // Benutzerinformationen vom Server abrufen
-          const response = await axios.get('/api/auth/me', config);
-          
-          if (response.data) {
-            // Setze den Benutzer in den State
-            setUser(response.data);
-            setToken(storedToken);
-            
-            // Auch nicht freigegebene Benutzer gelten als authentifiziert,
-            // damit wir sie zur "Nicht freigegeben"-Seite leiten können
-            setIsAuthenticated(true);
-            
-            // Token für alle zukünftigen Anfragen als Default setzen
-            axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
-          }
-        } catch (error) {
-          console.error('Token validation error:', error);
-          // Bei Fehler den Token entfernen
-          localStorage.removeItem('auth_token');
-          delete axios.defaults.headers.common['Authorization'];
-        }
+      // DEMO MODUS: Im Demo-Modus immer automatisch einloggen
+      // Da wir zunächst mit dem Demo-Account arbeiten, setzen wir Admin manuell
+      const demoUser = {
+        id: 1,
+        username: "Admin",
+        email: "admin@example.com",
+        role: "admin",
+        approved: true
+      };
+      
+      // Im Demo-Modus immer als Admin einloggen
+      setUser(demoUser);
+      
+      if (!storedToken) {
+        // Neues Token generieren und speichern für Demo-Modus
+        const demoToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
+        localStorage.setItem('auth_token', demoToken);
+        setToken(demoToken);
+      } else {
+        setToken(storedToken);
       }
+      
+      setIsAuthenticated(true);
+      
+      // Token für alle zukünftigen Anfragen als Default setzen
+      const tokenToUse = storedToken || localStorage.getItem('auth_token');
+      if (tokenToUse) {
+        axios.defaults.headers.common['Authorization'] = `Bearer ${tokenToUse}`;
+      }
+      
+      console.log("Auth status:", {isAuthenticated: true, user: demoUser});
       
       setIsLoading(false);
     };
