@@ -294,8 +294,12 @@ function WarehouseSelectionForm({
                 <FormItem>
                   <FormLabel>Ziellager</FormLabel>
                   <Select 
-                    onValueChange={(value) => field.onChange(parseInt(value))}
-                    value={field.value?.toString() || ""}
+                    onValueChange={(value) => {
+                      // Sicherer Umgang mit value
+                      const newValue = value ? parseInt(value) : null;
+                      field.onChange(newValue);
+                    }}
+                    value={field.value !== null && field.value !== undefined ? field.value.toString() : ""}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -324,7 +328,13 @@ function WarehouseSelectionForm({
                 <Card 
                   key={warehouse.id}
                   className={`cursor-pointer transition-all hover:border-primary/50 ${form.watch('warehouseId') === warehouse.id ? 'border-primary' : ''}`}
-                  onClick={() => form.setValue('warehouseId', warehouse.id)}
+                  onClick={() => {
+                    // Sicheres Setzen des Wertes
+                    const warehouseId = warehouse.id;
+                    if (warehouseId !== null && warehouseId !== undefined) {
+                      form.setValue('warehouseId', warehouseId);
+                    }
+                  }}
                 >
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base flex justify-between">
