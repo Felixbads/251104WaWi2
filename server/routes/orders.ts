@@ -300,14 +300,14 @@ router.post("/", async (req: Request, res: Response) => {
     }
 
     // Bestellpositionen abrufen
-    const orderItems = await db
+    const orderItemsList = await db
       .select()
       .from(orderItems)
       .where(eq(orderItems.orderId, newOrder.id));
 
     res.status(201).json({
       ...completeOrder[0],
-      orderItems
+      orderItems: orderItemsList
     });
   } catch (error) {
     console.error("Fehler beim Erstellen der Bestellung:", error);
