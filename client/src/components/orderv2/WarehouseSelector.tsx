@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Warehouse, Building2, Search, Loader2 } from 'lucide-react';
-import { Button } from "@/components/ui/button";
+import { Search, Loader2, Building, Map, MapPin, Package, UsersRound } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,12 +14,17 @@ type WarehouseSelectorProps = {
 interface WarehouseType {
   id: number;
   name: string;
-  description?: string;
+  location?: string;
   address?: string;
   city?: string;
-  postalCode?: string;
+  postal_code?: string;
+  country?: string;
+  type?: string;
   status?: string;
-  notes?: string;
+  capacity?: number;
+  manager?: string;
+  description?: string;
+  is_active?: boolean;
 }
 
 const WarehouseSelector: React.FC<WarehouseSelectorProps> = ({
@@ -38,8 +42,9 @@ const WarehouseSelector: React.FC<WarehouseSelectorProps> = ({
   // Filter warehouses based on search query
   const filteredWarehouses = warehouses?.filter(warehouse => 
     warehouse.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (warehouse.location && warehouse.location.toLowerCase().includes(searchQuery.toLowerCase())) ||
     (warehouse.city && warehouse.city.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (warehouse.description && warehouse.description.toLowerCase().includes(searchQuery.toLowerCase()))
+    (warehouse.manager && warehouse.manager.toLowerCase().includes(searchQuery.toLowerCase()))
   );
   
   return (
@@ -82,28 +87,55 @@ const WarehouseSelector: React.FC<WarehouseSelectorProps> = ({
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
                       <div className="flex items-center">
-                        <Building2 className="h-5 w-5 mr-2 text-primary" />
+                        <Building className="h-5 w-5 mr-2 text-primary" />
                         <h3 className="font-medium text-lg truncate">{warehouse.name}</h3>
                       </div>
                       
-                      {(warehouse.city || warehouse.address) && (
-                        <div className="text-sm text-muted-foreground mt-1">
-                          {warehouse.address && `${warehouse.address}, `}
-                          {warehouse.postalCode && `${warehouse.postalCode} `}
-                          {warehouse.city}
-                        </div>
+                      {warehouse.description && (
+                        <p className="text-sm mt-1 text-muted-foreground">{warehouse.description}</p>
                       )}
                       
-                      {warehouse.description && (
-                        <p className="text-sm mt-2 line-clamp-2">{warehouse.description}</p>
-                      )}
+                      <div className="space-y-1 mt-2">
+                        {(warehouse.city || warehouse.address) && (
+                          <div className="flex items-center text-sm text-muted-foreground">
+                            <MapPin className="h-3.5 w-3.5 mr-2" />
+                            <span className="truncate">
+                              {warehouse.address && `${warehouse.address}, `}
+                              {warehouse.postal_code && `${warehouse.postal_code} `}
+                              {warehouse.city}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {warehouse.capacity && (
+                          <div className="flex items-center text-sm text-muted-foreground">
+                            <Package className="h-3.5 w-3.5 mr-2" />
+                            <span>Kapazität: {warehouse.capacity}</span>
+                          </div>
+                        )}
+                        
+                        {warehouse.manager && (
+                          <div className="flex items-center text-sm text-muted-foreground">
+                            <UsersRound className="h-3.5 w-3.5 mr-2" />
+                            <span>{warehouse.manager}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     
-                    {warehouse.status && (
-                      <Badge variant={warehouse.status === 'active' ? 'default' : 'secondary'}>
-                        {warehouse.status === 'active' ? 'Aktiv' : warehouse.status}
-                      </Badge>
-                    )}
+                    <div className="flex flex-col items-end gap-1">
+                      {warehouse.status && (
+                        <Badge variant={warehouse.status === 'active' ? 'default' : 'secondary'}>
+                          {warehouse.status === 'active' ? 'Aktiv' : warehouse.status}
+                        </Badge>
+                      )}
+                      
+                      {warehouse.type && (
+                        <Badge variant="outline">
+                          {warehouse.type}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   
                   {selectedWarehouseId === warehouse.id && (

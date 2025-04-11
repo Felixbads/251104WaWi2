@@ -1,748 +1,485 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useEffect } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { Calendar as CalendarIcon, Loader2, Save, RefreshCw, Truck, Check, Plus, Trash2 } from 'lucide-react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  CheckCircle,
+  XCircle,
+  AlertTriangle,
+  Truck,
+  PackageCheck,
+  FileText,
+  Loader2,
+  Search,
+  Save,
+  Plus,
+  Minus,
+  Clock,
+  CalendarDays,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
+import { 
+  Card, 
+  CardContent, 
+  CardDescription, 
+  CardFooter, 
+  CardHeader, 
+  CardTitle 
+} from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
+import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Calendar } from '@/components/ui/calendar';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableCaption,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogClose,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 type GoodsReceiptFormProps = {
   orderId: number;
   onReceiptComplete: () => void;
 };
 
-interface OrderItem {
-  id: number;
-  productId: number;
-  productName: string;
-  orderedQuantity: number;
-  receivedQuantity: number;
-  unit?: string;
-  price?: number;
-  batches?: Array<{
-    id?: number;
-    expiryDate: Date | null;
-    quantity: number;
-  }>;
-}
-
 interface Order {
   id: number;
   orderNumber: string;
-  supplierName: string;
+  warehouseId: number;
   warehouseName: string;
+  supplierId: number;
+  supplierName: string;
   status: string;
-  orderDate: string;
+  createdAt: string;
   expectedDeliveryDate: string | null;
   items: OrderItem[];
 }
 
+interface OrderItem {
+  id: number;
+  productId: number;
+  productName: string;
+  quantity: number;
+  price: number;
+  receivedQuantity?: number;
+  status?: string;
+}
+
 const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
   orderId,
-  onReceiptComplete
+  onReceiptComplete,
 }) => {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  
-  // State for goods receipt form
+  const [receivedItems, setReceivedItems] = useState<Record<number, number>>({});
   const [receiptDate, setReceiptDate] = useState<Date>(new Date());
-  const [notes, setNotes] = useState('');
-  const [deliveryNumber, setDeliveryNumber] = useState('');
-  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
-  
+  const [deliveryNotes, setDeliveryNotes] = useState<string>('');
+  const [isReceiptComplete, setIsReceiptComplete] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
   // Fetch order details
-  const { data: order, isLoading: isLoadingOrder, error: orderError } = useQuery<Order>({
+  const { data: order, isLoading } = useQuery<Order>({
     queryKey: ['/api/orders', orderId],
-    onSuccess: (data) => {
-      // Initialize order items with batches array
-      const initializedItems = data.items.map(item => ({
-        ...item,
-        receivedQuantity: 0,
-        batches: [{ expiryDate: null, quantity: 0 }]
-      }));
-      setOrderItems(initializedItems);
-    }
+    enabled: !!orderId,
   });
-  
-  // Submit goods receipt mutation
-  const submitReceiptMutation = useMutation({
+
+  // Initialize receivedItems state when order data is loaded
+  useEffect(() => {
+    if (order?.items) {
+      const initialReceivedItems = order.items.reduce((acc, item) => {
+        acc[item.id] = item.receivedQuantity || 0;
+        return acc;
+      }, {} as Record<number, number>);
+      setReceivedItems(initialReceivedItems);
+    }
+  }, [order]);
+
+  // Filter items based on search query
+  const filteredItems = order?.items.filter(item => 
+    item.productName.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
+
+  // Check if all items are received
+  const allItemsReceived = order?.items.every(item => 
+    receivedItems[item.id] > 0 && receivedItems[item.id] <= item.quantity
+  ) || false;
+
+  // Process goods receipt mutation
+  const goodsReceiptMutation = useMutation({
     mutationFn: (receiptData: any) => {
-      return apiRequest('post', `/api/orders/${orderId}/receipt`, {
+      return apiRequest('post', `/api/orders/${orderId}/goods-receipt`, {
         body: receiptData
       });
     },
     onSuccess: () => {
       toast({
-        title: "Wareneingang erfolgreich erfasst",
-        description: "Der Wareneingang wurde erfolgreich gespeichert und die Lagerbestände wurden aktualisiert."
+        title: 'Wareneingang erfolgreich erfasst',
+        description: 'Der Wareneingang wurde erfolgreich erfasst und die Lagerbestände wurden aktualisiert.',
       });
-      
-      // Invalidate queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
-      
-      // Notify parent component
+      setIsReceiptComplete(true);
       onReceiptComplete();
     },
     onError: (error) => {
       toast({
-        title: "Fehler beim Erfassen des Wareneingangs",
+        title: 'Fehler beim Erfassen des Wareneingangs',
         description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
-        variant: "destructive"
+        variant: 'destructive',
       });
-    }
+    },
   });
-  
-  // Handle item batch dialog open
-  const handleOpenBatchDialog = (index: number) => {
-    setSelectedItemIndex(index);
-    setDialogOpen(true);
-  };
-  
-  // Handle adding a new batch to an item
-  const handleAddBatch = () => {
-    if (selectedItemIndex === null) return;
-    
-    const updatedItems = [...orderItems];
-    updatedItems[selectedItemIndex].batches?.push({
-      expiryDate: null,
-      quantity: 0
-    });
-    setOrderItems(updatedItems);
-  };
-  
-  // Handle removing a batch from an item
-  const handleRemoveBatch = (batchIndex: number) => {
-    if (selectedItemIndex === null) return;
-    
-    const updatedItems = [...orderItems];
-    const batches = updatedItems[selectedItemIndex].batches || [];
-    
-    if (batches.length <= 1) {
-      toast({
-        title: "Mindestens eine Charge erforderlich",
-        description: "Jedes Produkt muss mindestens eine Charge haben.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    // Remove the batch
-    updatedItems[selectedItemIndex].batches = batches.filter((_, i) => i !== batchIndex);
-    
-    // Recalculate total received quantity
-    const totalReceived = updatedItems[selectedItemIndex].batches?.reduce(
-      (sum, batch) => sum + (batch.quantity || 0), 0
-    ) || 0;
-    updatedItems[selectedItemIndex].receivedQuantity = totalReceived;
-    
-    setOrderItems(updatedItems);
-  };
-  
-  // Handle batch expiry date change
-  const handleBatchExpiryDateChange = (batchIndex: number, date: Date | undefined) => {
-    if (selectedItemIndex === null) return;
-    
-    const updatedItems = [...orderItems];
-    const batches = [...(updatedItems[selectedItemIndex].batches || [])];
-    
-    if (batches[batchIndex]) {
-      batches[batchIndex].expiryDate = date || null;
-      updatedItems[selectedItemIndex].batches = batches;
-      setOrderItems(updatedItems);
+
+  // Handle quantity change for an item
+  const handleQuantityChange = (itemId: number, value: number) => {
+    const item = order?.items.find(i => i.id === itemId);
+    if (item) {
+      // Ensure the value is not negative and not more than the ordered quantity
+      const newValue = Math.max(0, Math.min(value, item.quantity));
+      setReceivedItems(prev => ({
+        ...prev,
+        [itemId]: newValue,
+      }));
     }
   };
-  
-  // Handle batch quantity change
-  const handleBatchQuantityChange = (batchIndex: number, quantity: number) => {
-    if (selectedItemIndex === null) return;
-    
-    const updatedItems = [...orderItems];
-    const batches = [...(updatedItems[selectedItemIndex].batches || [])];
-    
-    if (batches[batchIndex]) {
-      batches[batchIndex].quantity = quantity;
-      updatedItems[selectedItemIndex].batches = batches;
-      
-      // Update total received quantity
-      const totalReceived = batches.reduce((sum, batch) => sum + (batch.quantity || 0), 0);
-      updatedItems[selectedItemIndex].receivedQuantity = totalReceived;
-      
-      setOrderItems(updatedItems);
+
+  // Handle increment/decrement of quantity
+  const incrementQuantity = (itemId: number) => {
+    const item = order?.items.find(i => i.id === itemId);
+    if (item) {
+      handleQuantityChange(itemId, (receivedItems[itemId] || 0) + 1);
     }
   };
-  
-  // Handle saving batch changes
-  const handleSaveBatchChanges = () => {
-    setDialogOpen(false);
+
+  const decrementQuantity = (itemId: number) => {
+    handleQuantityChange(itemId, (receivedItems[itemId] || 0) - 1);
   };
-  
-  // Format expiry date display
-  const formatExpiryDate = (date: Date | null) => {
-    if (!date) return 'Nicht angegeben';
-    return format(date, 'dd.MM.yyyy', { locale: de });
-  };
-  
-  // Handle direct received quantity update
-  const handleReceivedQuantityChange = (index: number, quantity: number) => {
-    const updatedItems = [...orderItems];
-    
-    // Update direct received quantity
-    updatedItems[index].receivedQuantity = quantity;
-    
-    // If there's only one batch, update its quantity too
-    if (updatedItems[index].batches?.length === 1) {
-      updatedItems[index].batches[0].quantity = quantity;
-    }
-    
-    setOrderItems(updatedItems);
-  };
-  
+
   // Submit goods receipt
-  const handleSubmitReceipt = () => {
-    // Validate form
-    const invalidItems = orderItems.filter(item => {
-      // Check if any received quantity is greater than ordered
-      if (item.receivedQuantity > item.orderedQuantity) {
-        return true;
-      }
-      
-      // Check if batches are properly set
-      if (item.receivedQuantity > 0) {
-        const batches = item.batches || [];
-        
-        // Ensure batch quantities sum up to receivedQuantity
-        const batchTotal = batches.reduce((sum, batch) => sum + (batch.quantity || 0), 0);
-        if (batchTotal !== item.receivedQuantity) {
-          return true;
-        }
-        
-        // Ensure all batches with quantity > 0 have an expiry date
-        const invalidBatch = batches.some(batch => 
-          batch.quantity > 0 && !batch.expiryDate
-        );
-        
-        return invalidBatch;
-      }
-      
-      return false;
-    });
-    
-    if (invalidItems.length > 0) {
+  const submitGoodsReceipt = () => {
+    if (!allItemsReceived) {
       toast({
-        title: "Fehlerhafte Eingaben",
-        description: "Bitte überprüfen Sie die eingegebenen Mengen und Mindesthaltbarkeitsdaten.",
-        variant: "destructive"
+        title: 'Unvollständiger Wareneingang',
+        description: 'Bitte geben Sie für alle Artikel eine Eingangsmenge an.',
+        variant: 'destructive',
       });
       return;
     }
-    
-    // Create receipt data
+
     const receiptData = {
-      receiptDate: receiptDate,
-      deliveryNumber: deliveryNumber,
-      notes: notes,
-      items: orderItems.map(item => ({
-        orderItemId: item.id,
-        productId: item.productId,
-        receivedQuantity: item.receivedQuantity,
-        batches: (item.batches || [])
-          .filter(batch => batch.quantity > 0)
-          .map(batch => ({
-            expiryDate: batch.expiryDate,
-            quantity: batch.quantity
-          }))
-      }))
+      orderId,
+      receiptDate,
+      items: Object.entries(receivedItems).map(([itemId, quantity]) => ({
+        orderItemId: parseInt(itemId),
+        receivedQuantity: quantity,
+      })),
+      notes: deliveryNotes,
     };
-    
-    // Submit receipt
-    submitReceiptMutation.mutate(receiptData);
+
+    goodsReceiptMutation.mutate(receiptData);
   };
-  
-  // Get items where at least one batch is missing an expiry date
-  const getItemsMissingExpiryDate = () => {
-    return orderItems.filter(item => {
-      if (item.receivedQuantity > 0) {
-        const batches = item.batches || [];
-        return batches.some(batch => batch.quantity > 0 && !batch.expiryDate);
-      }
-      return false;
-    });
+
+  // Get status color
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'received':
+        return 'text-green-500';
+      case 'partial':
+        return 'text-orange-500';
+      case 'pending':
+        return 'text-blue-500';
+      default:
+        return '';
+    }
   };
-  
-  // Calculate total received quantity for all items
-  const totalReceivedQuantity = orderItems.reduce(
-    (sum, item) => sum + item.receivedQuantity, 
-    0
-  );
-  
-  // Calculate total ordered quantity for all items
-  const totalOrderedQuantity = orderItems.reduce(
-    (sum, item) => sum + item.orderedQuantity, 
-    0
-  );
-  
-  // Check if any items have been received
-  const hasReceivedItems = totalReceivedQuantity > 0;
-  
-  // Check if all ordered items have been fully received
-  const allItemsReceived = orderItems.every(
-    item => item.receivedQuantity === item.orderedQuantity
-  );
-  
-  // Loading state
-  if (isLoadingOrder) {
+
+  // Get status badge variant
+  const getStatusBadgeVariant = (status: string): "default" | "destructive" | "outline" | "secondary" => {
+    switch (status) {
+      case 'received':
+        return 'default';
+      case 'partial':
+        return 'secondary';
+      case 'pending':
+        return 'outline';
+      default:
+        return 'default';
+    }
+  };
+
+  if (isLoading) {
     return (
-      <div className="flex justify-center items-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2">Bestelldaten werden geladen...</span>
+      <div className="flex flex-col items-center justify-center py-8">
+        <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
+        <p>Bestelldaten werden geladen...</p>
       </div>
     );
   }
-  
-  // Error state
-  if (orderError || !order) {
+
+  if (!order) {
     return (
-      <Card className="border-destructive">
-        <CardHeader>
-          <CardTitle className="text-destructive">Fehler beim Laden der Bestellung</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p>
-            Es ist ein Fehler beim Laden der Bestelldaten aufgetreten.
-            Bitte versuchen Sie es später erneut.
-          </p>
-        </CardContent>
-        <CardFooter>
-          <Button variant="outline" onClick={() => window.location.reload()}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Seite neu laden
-          </Button>
-        </CardFooter>
-      </Card>
+      <Alert variant="destructive">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Fehler</AlertTitle>
+        <AlertDescription>
+          Die Bestellung konnte nicht gefunden werden. Bitte versuchen Sie es später erneut.
+        </AlertDescription>
+      </Alert>
     );
   }
-  
+
+  if (isReceiptComplete) {
+    return (
+      <Alert>
+        <CheckCircle className="h-4 w-4" />
+        <AlertTitle>Wareneingang erfolgreich erfasst</AlertTitle>
+        <AlertDescription>
+          Der Wareneingang für die Bestellung {order.orderNumber} wurde erfolgreich erfasst und die Lagerbestände wurden aktualisiert.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Wareneingang erfassen</CardTitle>
-          <CardDescription>
-            Erfassen Sie den Wareneingang für die Bestellung #{order.orderNumber}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Receipt Date */}
-              <div className="space-y-2">
-                <Label htmlFor="receipt-date">Eingangsdatum</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      id="receipt-date"
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !receiptDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {receiptDate ? (
-                        format(receiptDate, "PPP", { locale: de })
-                      ) : (
-                        <span>Datum auswählen</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={receiptDate}
-                      onSelect={(date) => date && setReceiptDate(date)}
-                      initialFocus
-                      locale={de}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              
-              {/* Delivery Number */}
-              <div className="space-y-2">
-                <Label htmlFor="delivery-number">Lieferscheinnummer</Label>
-                <Input
-                  id="delivery-number"
-                  placeholder="Lieferscheinnummer (optional)"
-                  value={deliveryNumber}
-                  onChange={(e) => setDeliveryNumber(e.target.value)}
-                />
-              </div>
+      <div className="flex flex-col md:flex-row gap-4 justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">Bestellung #{order.orderNumber}</h2>
+          <div className="flex items-center text-sm text-muted-foreground mt-1">
+            <CalendarDays className="h-4 w-4 mr-1" />
+            <span>Erstellt am {format(new Date(order.createdAt), 'PPP', { locale: de })}</span>
+          </div>
+        </div>
+        
+        <Badge 
+          variant={getStatusBadgeVariant(order.status)}
+          className="h-fit"
+        >
+          {order.status === 'draft' ? 'Entwurf' : 
+           order.status === 'sent' ? 'Gesendet' :
+           order.status === 'received' ? 'Eingegangen' :
+           order.status === 'partial' ? 'Teilweise eingegangen' :
+           order.status}
+        </Badge>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <h3 className="text-sm font-medium text-muted-foreground mb-1">Lieferant</h3>
+          <div className="flex items-center">
+            <Truck className="h-4 w-4 mr-2 text-primary" />
+            <span className="font-medium">{order.supplierName}</span>
+          </div>
+        </div>
+        
+        <div>
+          <h3 className="text-sm font-medium text-muted-foreground mb-1">Ziellager</h3>
+          <div className="flex items-center">
+            <PackageCheck className="h-4 w-4 mr-2 text-primary" />
+            <span className="font-medium">{order.warehouseName}</span>
+          </div>
+        </div>
+      </div>
+      
+      <Separator />
+      
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+          <h3 className="text-lg font-medium">Wareneingang erfassen</h3>
+          
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-green-500"></div>
+              <span className="text-xs">Vollständig</span>
             </div>
-            
-            {/* Notes */}
-            <div className="space-y-2">
-              <Label htmlFor="notes">Anmerkungen</Label>
-              <Textarea
-                id="notes"
-                placeholder="Anmerkungen zum Wareneingang (optional)"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={3}
-              />
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+              <span className="text-xs">Teilweise</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+              <span className="text-xs">Ausstehend</span>
             </div>
           </div>
-        </CardContent>
-      </Card>
-      
-      {/* Order Items Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Bestellpositionen</CardTitle>
-          <CardDescription>
-            Erfassen Sie die erhaltenen Mengen und Mindesthaltbarkeitsdaten
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[40%]">Produkt</TableHead>
-                <TableHead className="text-center">Bestellt</TableHead>
-                <TableHead className="text-center">Erhalten</TableHead>
-                <TableHead className="text-center">MHD / Chargen</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {orderItems.map((item, index) => {
-                // Calculate progress percentage
-                const progressPercentage = item.orderedQuantity > 0 
-                  ? (item.receivedQuantity / item.orderedQuantity) * 100 
-                  : 0;
-                
-                // Check if all batches have expiry dates
-                const missingExpiryDates = (item.batches || []).some(
-                  batch => batch.quantity > 0 && !batch.expiryDate
-                );
-                
-                return (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.productName}</TableCell>
-                    <TableCell className="text-center">{item.orderedQuantity} {item.unit || 'Stk.'}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-center">
-                        <div className="w-32">
-                          <div className="flex items-center rounded-md border">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 rounded-r-none"
-                              onClick={() => handleReceivedQuantityChange(index, Math.max(0, item.receivedQuantity - 1))}
-                              disabled={item.receivedQuantity <= 0}
-                            >
-                              <span className="sr-only">Verringern</span>
-                              <span className="text-xl">-</span>
-                            </Button>
-                            <Input
-                              type="number"
-                              min="0"
-                              max={item.orderedQuantity}
-                              value={item.receivedQuantity}
-                              onChange={(e) => {
-                                const value = parseInt(e.target.value);
-                                if (!isNaN(value) && value >= 0 && value <= item.orderedQuantity) {
-                                  handleReceivedQuantityChange(index, value);
-                                }
-                              }}
-                              className="h-8 w-12 border-0 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 rounded-l-none"
-                              onClick={() => handleReceivedQuantityChange(index, Math.min(item.orderedQuantity, item.receivedQuantity + 1))}
-                              disabled={item.receivedQuantity >= item.orderedQuantity}
-                            >
-                              <span className="sr-only">Erhöhen</span>
-                              <span className="text-xl">+</span>
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {/* Progress bar for received vs ordered */}
-                      {item.receivedQuantity > 0 && (
-                        <div className="w-full mt-2">
-                          <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full ${progressPercentage === 100 ? 'bg-green-500' : 'bg-blue-500'}`}
-                              style={{ width: `${progressPercentage}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-center items-center">
-                        {item.receivedQuantity > 0 ? (
-                          <Button 
-                            variant={missingExpiryDates ? "destructive" : "outline"} 
-                            size="sm"
-                            onClick={() => handleOpenBatchDialog(index)}
-                            className="w-full"
-                          >
-                            {missingExpiryDates ? (
-                              <>
-                                <span className="sr-only">MHD fehlt</span>
-                                MHD erfassen
-                              </>
-                            ) : (
-                              <>
-                                <Check className="h-4 w-4 mr-2" />
-                                {(item.batches?.length || 0) > 1 
-                                  ? `${item.batches?.length} Chargen` 
-                                  : 'MHD erfasst'
-                                }
-                              </>
-                            )}
-                          </Button>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </div>
+        </div>
+        
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+          <Input
+            placeholder="Artikel suchen..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        
+        <div className="border rounded-md">
+          <ScrollArea className="max-h-[400px]">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[400px]">Produkt</TableHead>
+                  <TableHead className="text-right">Bestellt</TableHead>
+                  <TableHead className="text-right">Erhalten</TableHead>
+                  <TableHead className="text-right">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredItems.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                      Keine Artikel gefunden.
                     </TableCell>
                   </TableRow>
-                );
-              })}
-              
-              {orderItems.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center py-4 text-muted-foreground">
-                    Keine Bestellpositionen gefunden
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-            <TableCaption>
-              Gesamtmenge: {totalReceivedQuantity} von {totalOrderedQuantity} empfangen
-            </TableCaption>
-          </Table>
-        </CardContent>
-        
-        <CardFooter className="flex justify-between">
-          <div className="text-muted-foreground text-sm">
-            {totalReceivedQuantity === 0 
-              ? 'Keine Artikel empfangen'
-              : totalReceivedQuantity === totalOrderedQuantity
-                ? 'Alle Artikel vollständig empfangen'
-                : `${totalReceivedQuantity} von ${totalOrderedQuantity} Artikeln empfangen`
-            }
-          </div>
-          
-          <Button 
-            onClick={handleSubmitReceipt}
-            disabled={
-              !hasReceivedItems || 
-              getItemsMissingExpiryDate().length > 0 ||
-              submitReceiptMutation.isPending
-            }
-          >
-            {submitReceiptMutation.isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Wird gespeichert...
-              </>
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                Wareneingang speichern
-              </>
-            )}
-          </Button>
-        </CardFooter>
-      </Card>
-      
-      {/* Batch Entry Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Chargen und Mindesthaltbarkeitsdaten erfassen</DialogTitle>
-            <DialogDescription>
-              Erfassen Sie für jede Charge das Mindesthaltbarkeitsdatum und die Menge.
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedItemIndex !== null && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium text-lg">{orderItems[selectedItemIndex]?.productName}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Gesamtmenge: {orderItems[selectedItemIndex]?.receivedQuantity} {orderItems[selectedItemIndex]?.unit || 'Stk.'}
-                  </p>
-                </div>
-                
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleAddBatch}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Neue Charge
-                </Button>
-              </div>
-              
-              <ScrollArea className="max-h-[350px] pr-4">
-                <div className="space-y-4">
-                  {orderItems[selectedItemIndex]?.batches?.map((batch, batchIndex) => (
-                    <Card key={batchIndex}>
-                      <CardContent className="pt-6">
-                        <div className="flex items-center justify-between mb-4">
-                          <h4 className="font-medium">Charge #{batchIndex + 1}</h4>
-                          
-                          {orderItems[selectedItemIndex]?.batches?.length! > 1 && (
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleRemoveBatch(batchIndex)}
+                ) : (
+                  filteredItems.map((item) => {
+                    const receivedQuantity = receivedItems[item.id] || 0;
+                    let status = 'pending';
+                    if (receivedQuantity > 0) {
+                      status = receivedQuantity === item.quantity ? 'received' : 'partial';
+                    }
+                    
+                    return (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">{item.productName}</TableCell>
+                        <TableCell className="text-right">{item.quantity}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => decrementQuantity(item.id)}
+                              disabled={receivedQuantity <= 0}
                             >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Entfernen
+                              <Minus className="h-4 w-4" />
                             </Button>
-                          )}
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label>Mindesthaltbarkeitsdatum</Label>
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  className={cn(
-                                    "w-full justify-start text-left font-normal",
-                                    !batch.expiryDate && "text-muted-foreground"
-                                  )}
-                                >
-                                  <CalendarIcon className="mr-2 h-4 w-4" />
-                                  {batch.expiryDate ? (
-                                    format(batch.expiryDate, "PPP", { locale: de })
-                                  ) : (
-                                    <span>MHD auswählen</span>
-                                  )}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                  mode="single"
-                                  selected={batch.expiryDate || undefined}
-                                  onSelect={(date) => handleBatchExpiryDateChange(batchIndex, date)}
-                                  disabled={(date) => date < new Date()}
-                                  initialFocus
-                                  locale={de}
-                                />
-                              </PopoverContent>
-                            </Popover>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <Label>Menge</Label>
+                            
                             <Input
                               type="number"
+                              value={receivedQuantity}
+                              onChange={(e) => handleQuantityChange(item.id, parseInt(e.target.value) || 0)}
+                              className="w-16 text-center"
                               min="0"
-                              max={orderItems[selectedItemIndex]?.orderedQuantity}
-                              value={batch.quantity}
-                              onChange={(e) => {
-                                const value = parseInt(e.target.value);
-                                if (!isNaN(value) && value >= 0) {
-                                  handleBatchQuantityChange(batchIndex, value);
-                                }
-                              }}
+                              max={item.quantity}
                             />
+                            
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => incrementQuantity(item.id)}
+                              disabled={receivedQuantity >= item.quantity}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </ScrollArea>
-              
-              {/* Validation Messages */}
-              {orderItems[selectedItemIndex]?.batches?.some(batch => batch.quantity > 0 && !batch.expiryDate) && (
-                <div className="text-destructive text-sm mt-2">
-                  Bitte geben Sie für alle Chargen ein Mindesthaltbarkeitsdatum an.
-                </div>
-              )}
-              
-              {(() => {
-                const batches = orderItems[selectedItemIndex]?.batches || [];
-                const batchTotal = batches.reduce((sum, batch) => sum + (batch.quantity || 0), 0);
-                const receivedQuantity = orderItems[selectedItemIndex]?.receivedQuantity || 0;
-                
-                if (batchTotal !== receivedQuantity) {
-                  return (
-                    <div className="text-destructive text-sm mt-2">
-                      Die Summe der Chargenmengen ({batchTotal}) stimmt nicht mit der Gesamtmenge ({receivedQuantity}) überein.
-                    </div>
-                  );
-                }
-                
-                return null;
-              })()}
-            </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <div className={`w-3 h-3 rounded-full ${getStatusColor(status)}`}></div>
+                            <span className={getStatusColor(status)}>
+                              {status === 'received' ? 'Vollständig' : 
+                               status === 'partial' ? 'Teilweise' : 
+                               'Ausstehend'}
+                            </span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-4">
+          <Label htmlFor="receipt-date">Eingangsdatum</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                id="receipt-date"
+                variant="outline"
+                className={cn(
+                  "w-full justify-start text-left font-normal",
+                  !receiptDate && "text-muted-foreground"
+                )}
+              >
+                <CalendarDays className="mr-2 h-4 w-4" />
+                {receiptDate ? (
+                  format(receiptDate, "PPP", { locale: de })
+                ) : (
+                  <span>Wählen Sie ein Datum</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={receiptDate}
+                onSelect={(date) => date && setReceiptDate(date)}
+                initialFocus
+                locale={de}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+        
+        <div className="space-y-4">
+          <Label htmlFor="delivery-notes">Lieferschein-Anmerkungen</Label>
+          <Textarea
+            id="delivery-notes"
+            placeholder="Lieferschein-Nummer, Anmerkungen zur Lieferung, etc."
+            value={deliveryNotes}
+            onChange={(e) => setDeliveryNotes(e.target.value)}
+            className="min-h-[120px] resize-y"
+          />
+        </div>
+      </div>
+      
+      {!allItemsReceived && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Unvollständiger Wareneingang</AlertTitle>
+          <AlertDescription>
+            Bitte geben Sie für alle Artikel eine Eingangsmenge an.
+          </AlertDescription>
+        </Alert>
+      )}
+      
+      <div className="flex justify-end">
+        <Button 
+          onClick={submitGoodsReceipt}
+          disabled={!allItemsReceived || goodsReceiptMutation.isPending}
+          className="w-full md:w-auto"
+        >
+          {goodsReceiptMutation.isPending ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Wird verarbeitet...
+            </>
+          ) : (
+            <>
+              <Save className="mr-2 h-4 w-4" />
+              Wareneingang speichern
+            </>
           )}
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Abbrechen
-            </Button>
-            <Button onClick={handleSaveBatchChanges}>
-              <Check className="mr-2 h-4 w-4" />
-              Übernehmen
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </Button>
+      </div>
     </div>
   );
 };

@@ -1,12 +1,30 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useEffect } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { Link } from 'wouter';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-
-// UI Components
+import { format } from 'date-fns';
+import {
+  ChevronRight,
+  Building2,
+  Truck,
+  PackageCheck,
+  FileText,
+  ClipboardCheck,
+  FileDown,
+  Send,
+  Boxes,
+  ArrowRight,
+  Save,
+  Loader2,
+  Check,
+  RotateCcw,
+  XCircle,
+  AlertTriangle
+} from 'lucide-react';
+import { useLocation } from 'wouter';
+import { Steps, Step } from "@/components/ui/steps";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import {
   Card,
   CardContent,
@@ -16,78 +34,123 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert";
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
-// Icons
-import {
-  ArrowLeft,
-  ArrowRight,
-  Calendar,
-  Check,
-  ChevronRight,
-  ClipboardList,
-  Copy,
-  Download,
-  FileText,
-  LineChart,
-  Loader2,
-  Save,
-  Send,
-  ShoppingCart,
-  Truck,
-  Warehouse,
-} from 'lucide-react';
-
-// Order Components
+// Import custom components
 import WarehouseSelector from '@/components/orderv2/WarehouseSelector';
-import OrderModeSelector from '@/components/orderv2/OrderModeSelector';
+import OrderModeSelector, { OrderMode } from '@/components/orderv2/OrderModeSelector';
 import SupplierSelector from '@/components/orderv2/SupplierSelector';
 import ProductSelectionTable from '@/components/orderv2/ProductSelectionTable';
 import AdditionalInfoForm from '@/components/orderv2/AdditionalInfoForm';
 import OrderSummary from '@/components/orderv2/OrderSummary';
 import GoodsReceiptForm from '@/components/orderv2/GoodsReceiptForm';
 
-// Types
-type OrderMode = 'new' | 'copy' | 'forecast';
-type OrderStep = 'warehouse' | 'mode' | 'supplier' | 'products' | 'additionalInfo' | 'summary' | 'confirmation';
+// Define the order steps
+type OrderStep = 'warehouse' | 'mode' | 'supplier' | 'products' | 'additionalInfo' | 'summary' | 'goodsReceipt';
 
-const BestellungV2 = () => {
+const BestellungV2: React.FC = () => {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const [location, navigate] = useLocation();
   
-  // State for multi-step form
-  const [currentStep, setCurrentStep] = useState<OrderStep>('warehouse');
+  // State for the order process
+  const [step, setStep] = useState<OrderStep>('warehouse');
   const [warehouseId, setWarehouseId] = useState<number | null>(null);
   const [warehouseName, setWarehouseName] = useState<string>('');
   const [orderMode, setOrderMode] = useState<OrderMode>('new');
+  const [sourceOrderId, setSourceOrderId] = useState<number | null>(null);
   const [supplierId, setSupplierId] = useState<number | null>(null);
   const [supplierName, setSupplierName] = useState<string>('');
-  const [sourceOrderId, setSourceOrderId] = useState<number | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<any[]>([]);
-  const [additionalInfo, setAdditionalInfo] = useState({
-    expectedDeliveryDate: null as Date | null,
+  const [additionalInfo, setAdditionalInfo] = useState<{
+    expectedDeliveryDate: Date | null;
+    priority: string;
+    notes: string;
+  }>({
+    expectedDeliveryDate: null,
     priority: 'normal',
     notes: '',
   });
-  const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
-  const [pdfContentRef, setPdfContentRef] = useState<React.RefObject<HTMLDivElement>>(React.createRef());
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
+  const [orderId, setOrderId] = useState<number | null>(null);
   
-  // Get steps as array for navigation purposes
-  const steps: OrderStep[] = ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'confirmation'];
+  // Create order mutation
+  const createOrderMutation = useMutation({
+    mutationFn: (orderData: any) => {
+      return apiRequest('post', '/api/orders', {
+        body: orderData
+      });
+    },
+    onSuccess: (data) => {
+      toast({
+        title: 'Bestellung erfolgreich erstellt',
+        description: `Die Bestellung wurde erfolgreich erstellt.`,
+      });
+      
+      // Set the order ID for the next step
+      setOrderId(data.id);
+      
+      // Move to the next step
+      setStep('goodsReceipt');
+    },
+    onError: (error) => {
+      toast({
+        title: 'Fehler beim Erstellen der Bestellung',
+        description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
+        variant: 'destructive',
+      });
+    }
+  });
   
-  // Helper to determine if we can go to the next step
-  const canProceed = () => {
+  // Email order mutation
+  const emailOrderMutation = useMutation({
+    mutationFn: (emailData: { orderId: number, supplierEmail: string, pdfBase64: string, additionalNotes: string }) => {
+      return apiRequest('post', '/api/orders/email', {
+        body: emailData
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Bestellung per E-Mail versendet',
+        description: 'Die Bestellung wurde erfolgreich per E-Mail an den Lieferanten versendet.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Fehler beim Versenden der E-Mail',
+        description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
+        variant: 'destructive',
+      });
+    }
+  });
+  
+  // Mark order as sent mutation
+  const markOrderAsSentMutation = useMutation({
+    mutationFn: (orderData: any) => {
+      return apiRequest('post', `/api/orders/${orderData.id}/mark-sent`, {
+        body: orderData
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Bestellung als versendet markiert',
+        description: 'Die Bestellung wurde erfolgreich als versendet markiert.',
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Fehler beim Markieren der Bestellung',
+        description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
+        variant: 'destructive',
+      });
+    }
+  });
+  
+  // Check if the step is complete
+  const isStepComplete = (currentStep: OrderStep): boolean => {
     switch (currentStep) {
       case 'warehouse':
         return warehouseId !== null;
@@ -100,332 +163,346 @@ const BestellungV2 = () => {
       case 'additionalInfo':
         return additionalInfo.expectedDeliveryDate !== null;
       case 'summary':
-        return true;
+        return true; // Summary is always complete
+      case 'goodsReceipt':
+        return true; // GoodsReceipt is always complete
       default:
         return false;
     }
   };
   
-  // Navigation functions
+  // Get the next step
+  const getNextStep = (currentStep: OrderStep): OrderStep | null => {
+    switch (currentStep) {
+      case 'warehouse':
+        return 'mode';
+      case 'mode':
+        return 'supplier';
+      case 'supplier':
+        return 'products';
+      case 'products':
+        return 'additionalInfo';
+      case 'additionalInfo':
+        return 'summary';
+      case 'summary':
+        return 'goodsReceipt';
+      case 'goodsReceipt':
+        return null; // Last step
+      default:
+        return null;
+    }
+  };
+  
+  // Move to the next step
   const goToNextStep = () => {
-    const currentIndex = steps.indexOf(currentStep);
-    if (currentIndex < steps.length - 1) {
-      setCurrentStep(steps[currentIndex + 1]);
+    if (isStepComplete(step)) {
+      const nextStep = getNextStep(step);
+      if (nextStep) {
+        setStep(nextStep);
+      }
+    } else {
+      toast({
+        title: 'Unvollständige Informationen',
+        description: 'Bitte füllen Sie alle erforderlichen Felder aus, bevor Sie fortfahren.',
+        variant: 'destructive',
+      });
     }
   };
   
+  // Go back to the previous step
   const goToPreviousStep = () => {
-    const currentIndex = steps.indexOf(currentStep);
-    if (currentIndex > 0) {
-      setCurrentStep(steps[currentIndex - 1]);
+    switch (step) {
+      case 'mode':
+        setStep('warehouse');
+        break;
+      case 'supplier':
+        setStep('mode');
+        break;
+      case 'products':
+        setStep('supplier');
+        break;
+      case 'additionalInfo':
+        setStep('products');
+        break;
+      case 'summary':
+        setStep('additionalInfo');
+        break;
+      default:
+        break;
     }
   };
   
-  // Generate PDF for order
-  const generatePdf = async () => {
-    if (!pdfContentRef.current) return;
+  // Handle warehouse selection
+  const handleWarehouseSelect = (id: number, name: string) => {
+    setWarehouseId(id);
+    setWarehouseName(name);
+  };
+  
+  // Handle mode selection
+  const handleModeSelect = (mode: OrderMode) => {
+    setOrderMode(mode);
     
-    setIsGeneratingPdf(true);
-    
-    try {
-      const content = pdfContentRef.current;
-      const canvas = await html2canvas(content, { scale: 2 });
-      const imgData = canvas.toDataURL('image/png');
-      
-      // Calculate PDF dimensions based on A4 paper
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-      
-      const imgWidth = 210; // A4 width in mm
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
-      
-      // Convert to blob
-      const pdfBlob = pdf.output('blob');
-      setPdfBlob(pdfBlob);
-      
-      toast({
-        title: "PDF erfolgreich generiert",
-        description: "Sie können das PDF jetzt herunterladen oder per E-Mail versenden."
-      });
-    } catch (error) {
-      toast({
-        title: "Fehler beim Generieren des PDFs",
-        description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
-        variant: "destructive"
-      });
-    } finally {
-      setIsGeneratingPdf(false);
+    // Reset source order ID if not in copy mode
+    if (mode !== 'copy') {
+      setSourceOrderId(null);
     }
   };
   
-  // Send order via email
-  const sendOrderEmail = async () => {
-    if (!createdOrderId || !pdfBlob) return;
-    
-    try {
-      // Convert PDF to base64
-      const reader = new FileReader();
-      const pdfBase64Promise = new Promise<string>((resolve, reject) => {
-        reader.onload = () => {
-          const base64 = reader.result?.toString().split(',')[1];
-          if (base64) {
-            resolve(base64);
-          } else {
-            reject(new Error("Fehler beim Konvertieren der PDF-Datei"));
-          }
-        };
-        reader.onerror = () => reject(reader.error);
-        reader.readAsDataURL(pdfBlob);
-      });
-      
-      const pdfBase64 = await pdfBase64Promise;
-      
-      // Prepare email data
-      const emailData = {
-        orderId: createdOrderId,
-        supplierEmail: `supplier-${supplierId}@example.com`, // In a real scenario, this would come from the supplier data
-        pdfBase64: pdfBase64,
-        additionalNotes: additionalInfo.notes || "Bitte bestätigen Sie den Erhalt dieser Bestellung."
-      };
-      
-      // Show loading toast
-      toast({
-        title: "E-Mail wird gesendet",
-        description: "Bitte warten..."
-      });
-      
-      // Send API request
-      await apiRequest('post', '/api/email/order-confirmation', {
-        body: emailData
-      });
-      
-      toast({
-        title: "E-Mail versendet",
-        description: "Die Bestellung wurde erfolgreich per E-Mail an den Lieferanten versendet."
-      });
-    } catch (error) {
-      toast({
-        title: "Fehler beim Senden der E-Mail",
-        description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
-        variant: "destructive"
-      });
-    }
+  // Handle supplier selection
+  const handleSupplierSelect = (id: number, name: string) => {
+    setSupplierId(id);
+    setSupplierName(name);
   };
   
-  // Create new order in database
-  const createOrderMutation = useMutation({
-    mutationFn: (orderData: any) => {
-      return apiRequest('post', '/api/orders', {
-        body: orderData
-      });
-    },
-    onSuccess: (data) => {
-      setCreatedOrderId(data.id);
-      // Invalidate orders query to refresh any order lists
-      queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
-      // Move to confirmation step
-      setCurrentStep('confirmation');
-      // Generate PDF
-      setTimeout(() => {
-        generatePdf();
-      }, 500);
-    },
-    onError: (error) => {
-      toast({
-        title: "Fehler beim Speichern der Bestellung",
-        description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
-        variant: "destructive"
-      });
-    }
-  });
+  // Handle products change
+  const handleProductsChange = (products: any[]) => {
+    setSelectedProducts(products);
+  };
+  
+  // Handle additional info change
+  const handleAdditionalInfoChange = (info: {
+    expectedDeliveryDate: Date | null;
+    priority: string;
+    notes: string;
+  }) => {
+    setAdditionalInfo(info);
+  };
   
   // Handle order submission
-  const submitOrder = () => {
-    // Create the order data object
+  const handleOrderSubmit = async () => {
+    // Create the order data
     const orderData = {
       warehouseId,
-      warehouseName,
       supplierId,
-      supplierName,
+      products: selectedProducts.map(product => ({
+        productId: product.id,
+        quantity: product.orderQuantity,
+        price: product.price || 0,
+      })),
       expectedDeliveryDate: additionalInfo.expectedDeliveryDate,
       priority: additionalInfo.priority,
       notes: additionalInfo.notes,
-      orderItems: selectedProducts.map(product => ({
-        productId: product.id,
-        productName: product.name,
-        quantity: product.orderQuantity,
-        unitPrice: product.price,
-        totalPrice: product.price * product.orderQuantity
-      })),
-      totalAmount: selectedProducts.reduce((sum, product) => sum + (product.price * product.orderQuantity), 0)
+      status: 'draft', // Initial status
     };
     
-    // Submit the order
+    // Create the order
     createOrderMutation.mutate(orderData);
   };
   
-  // Render the current step
-  const renderStep = () => {
-    switch (currentStep) {
+  // Generate PDF and send by email
+  const generatePDFAndSendEmail = async () => {
+    try {
+      // Get the order summary element
+      const element = document.getElementById('order-summary');
+      
+      if (!element) {
+        toast({
+          title: 'Fehler beim Generieren des PDFs',
+          description: 'Das Bestellzusammenfassungselement konnte nicht gefunden werden.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      // Create a canvas from the element
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        logging: false,
+        useCORS: true,
+      });
+      
+      // Create a PDF
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+      
+      // Add the canvas to the PDF
+      const imgData = canvas.toDataURL('image/png');
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      
+      // Get the PDF as base64
+      const pdfBase64 = pdf.output('datauristring').split(',')[1];
+      
+      // Get supplier email
+      const supplierEmail = 'supplier@example.com'; // TODO: Get the actual supplier email
+      
+      // Send the email
+      emailOrderMutation.mutate({
+        orderId: orderId!,
+        supplierEmail,
+        pdfBase64,
+        additionalNotes: additionalInfo.notes || '',
+      });
+      
+      // Mark the order as sent
+      markOrderAsSentMutation.mutate({
+        id: orderId!,
+        sentDate: new Date(),
+      });
+    } catch (error) {
+      toast({
+        title: 'Fehler beim Generieren des PDFs',
+        description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
+        variant: 'destructive',
+      });
+    }
+  };
+  
+  // Handle goods receipt complete
+  const handleGoodsReceiptComplete = () => {
+    // Navigate to the orders page
+    navigate('/bestellungen');
+    
+    toast({
+      title: 'Wareneingang erfolgreich erfasst',
+      description: 'Der Wareneingang wurde erfolgreich erfasst und die Lagerbestände wurden aktualisiert.',
+    });
+  };
+  
+  // Reset the order process
+  const resetOrderProcess = () => {
+    setStep('warehouse');
+    setWarehouseId(null);
+    setWarehouseName('');
+    setOrderMode('new');
+    setSourceOrderId(null);
+    setSupplierId(null);
+    setSupplierName('');
+    setSelectedProducts([]);
+    setAdditionalInfo({
+      expectedDeliveryDate: null,
+      priority: 'normal',
+      notes: '',
+    });
+    setOrderId(null);
+  };
+  
+  // Get step content
+  const getStepContent = () => {
+    switch (step) {
       case 'warehouse':
         return (
-          <WarehouseSelector 
-            selectedWarehouseId={warehouseId} 
-            onSelectWarehouse={(id, name) => {
-              setWarehouseId(id);
-              setWarehouseName(name);
-            }}
+          <WarehouseSelector
+            selectedWarehouseId={warehouseId}
+            onSelectWarehouse={handleWarehouseSelect}
           />
         );
       case 'mode':
         return (
-          <OrderModeSelector 
-            selectedMode={orderMode} 
-            onSelectMode={setOrderMode}
-            onSourceOrderSelect={setSourceOrderId}
+          <OrderModeSelector
+            mode={orderMode}
+            onSelectMode={handleModeSelect}
           />
         );
       case 'supplier':
         return (
-          <SupplierSelector 
-            selectedSupplierId={supplierId} 
-            onSelectSupplier={(id, name) => {
-              setSupplierId(id);
-              setSupplierName(name);
-            }}
+          <SupplierSelector
+            selectedSupplierId={supplierId}
+            onSelectSupplier={handleSupplierSelect}
           />
         );
       case 'products':
         return (
-          <ProductSelectionTable 
+          <ProductSelectionTable
             supplierId={supplierId!}
             warehouseId={warehouseId!}
             sourceOrderId={sourceOrderId}
             mode={orderMode}
             selectedProducts={selectedProducts}
-            onProductsChange={setSelectedProducts}
+            onProductsChange={handleProductsChange}
           />
         );
       case 'additionalInfo':
         return (
-          <AdditionalInfoForm 
+          <AdditionalInfoForm
             additionalInfo={additionalInfo}
-            onAdditionalInfoChange={setAdditionalInfo}
+            onAdditionalInfoChange={handleAdditionalInfoChange}
           />
         );
       case 'summary':
         return (
-          <OrderSummary 
-            warehouseName={warehouseName}
-            supplierName={supplierName}
-            selectedProducts={selectedProducts}
-            additionalInfo={additionalInfo}
-            onSubmit={submitOrder}
-            isSubmitting={createOrderMutation.isPending}
-          />
+          <div id="order-summary">
+            <OrderSummary
+              warehouseName={warehouseName}
+              supplierName={supplierName}
+              selectedProducts={selectedProducts}
+              additionalInfo={additionalInfo}
+              onSubmit={handleOrderSubmit}
+              isSubmitting={createOrderMutation.isPending}
+            />
+          </div>
         );
-      case 'confirmation':
+      case 'goodsReceipt':
         return (
           <Card>
             <CardHeader>
-              <CardTitle className="text-center text-xl">
-                <Check className="h-6 w-6 inline-block mr-2 text-green-500" />
-                Bestellung erfolgreich erstellt
-              </CardTitle>
-              <CardDescription className="text-center">
-                Ihre Bestellung wurde erfolgreich gespeichert und kann jetzt weitergeleitet werden.
+              <CardTitle>Bestellung {orderId} erstellt</CardTitle>
+              <CardDescription>
+                Die Bestellung wurde erfolgreich erstellt. Sie können nun den Wareneingang erfassen, sobald die Lieferung eingetroffen ist.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="mt-4 p-6 bg-muted rounded-lg">
-                <h3 className="font-semibold text-lg mb-2">Bestellnummer: {createdOrderId}</h3>
-                <div className="grid grid-cols-2 gap-4 mt-4">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Lieferant</p>
-                    <p>{supplierName}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Lager</p>
-                    <p>{warehouseName}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Anzahl Produkte</p>
-                    <p>{selectedProducts.length}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Gesamtbetrag</p>
-                    <p>
-                      {new Intl.NumberFormat('de-DE', {
-                        style: 'currency',
-                        currency: 'EUR'
-                      }).format(selectedProducts.reduce((sum, p) => sum + (p.price * p.orderQuantity), 0))}
-                    </p>
-                  </div>
+              <div className="space-y-4">
+                <Alert>
+                  <FileText className="h-4 w-4" />
+                  <AlertTitle>Bestellung erfolgreich erstellt</AlertTitle>
+                  <AlertDescription>
+                    Die Bestellung wurde erfolgreich erstellt und kann nun per E-Mail an den Lieferanten versendet werden.
+                  </AlertDescription>
+                </Alert>
+                
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <Button 
+                    onClick={generatePDFAndSendEmail}
+                    disabled={emailOrderMutation.isPending}
+                    className="flex-1"
+                  >
+                    {emailOrderMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Wird gesendet...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="mr-2 h-4 w-4" />
+                        Als PDF per E-Mail versenden
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button 
+                    variant="outline"
+                    onClick={() => {
+                      navigate('/bestellungen');
+                    }}
+                    className="flex-1"
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    Zur Bestellübersicht
+                  </Button>
                 </div>
               </div>
-              
-              <div className="flex flex-wrap gap-3 mt-6 justify-center">
-                <Button 
-                  variant="outline" 
-                  className="gap-2"
-                  onClick={() => generatePdf()}
-                  disabled={isGeneratingPdf}
-                >
-                  {isGeneratingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                  PDF erzeugen
-                </Button>
-                
-                <Button 
-                  variant="outline" 
-                  className="gap-2"
-                  onClick={() => {
-                    if (pdfBlob) {
-                      const url = URL.createObjectURL(pdfBlob);
-                      const link = document.createElement('a');
-                      link.href = url;
-                      link.download = `Bestellung_${createdOrderId}.pdf`;
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                    } else {
-                      toast({
-                        title: "PDF nicht verfügbar",
-                        description: "Bitte erzeugen Sie zuerst ein PDF.",
-                        variant: "destructive"
-                      });
-                    }
-                  }}
-                  disabled={!pdfBlob}
-                >
-                  <Download className="h-4 w-4" />
-                  PDF herunterladen
-                </Button>
-                
-                <Button 
-                  className="gap-2"
-                  onClick={sendOrderEmail}
-                  disabled={!pdfBlob}
-                >
-                  <Send className="h-4 w-4" />
-                  Per E-Mail versenden
-                </Button>
-                
-                <Button 
-                  variant="secondary" 
-                  className="gap-2"
-                  asChild
-                >
-                  <Link to={`/orders/${createdOrderId}`}>
-                    <ChevronRight className="h-4 w-4" />
-                    Zur Bestellungsübersicht
-                  </Link>
-                </Button>
-              </div>
+            </CardContent>
+            
+            <Separator className="my-4" />
+            
+            <CardHeader>
+              <CardTitle>Wareneingang erfassen</CardTitle>
+              <CardDescription>
+                Erfassen Sie den Wareneingang, sobald die Lieferung eingetroffen ist.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <GoodsReceiptForm
+                orderId={orderId!}
+                onReceiptComplete={handleGoodsReceiptComplete}
+              />
             </CardContent>
           </Card>
         );
@@ -434,248 +511,162 @@ const BestellungV2 = () => {
     }
   };
   
-  // Get the current step's title and description
-  const getStepInfo = () => {
-    switch (currentStep) {
-      case 'warehouse':
-        return {
-          title: "Lagerauswahl",
-          description: "Wählen Sie das Ziellager für die Bestellung aus."
-        };
-      case 'mode':
-        return {
-          title: "Bestellmodus",
-          description: "Wählen Sie, wie Sie die Bestellung erstellen möchten."
-        };
-      case 'supplier':
-        return {
-          title: "Lieferantenauswahl",
-          description: "Wählen Sie den Lieferanten für diese Bestellung aus."
-        };
-      case 'products':
-        return {
-          title: "Produktauswahl",
-          description: "Wählen Sie die Produkte und Mengen für Ihre Bestellung."
-        };
-      case 'additionalInfo':
-        return {
-          title: "Zusatzinformationen",
-          description: "Geben Sie weitere Informationen zur Bestellung an."
-        };
-      case 'summary':
-        return {
-          title: "Bestellungsübersicht",
-          description: "Überprüfen Sie Ihre Bestellung vor dem Absenden."
-        };
-      case 'confirmation':
-        return {
-          title: "Bestellung abgeschlossen",
-          description: "Ihre Bestellung wurde erfolgreich aufgegeben."
-        };
-      default:
-        return {
-          title: "",
-          description: ""
-        };
-    }
+  // Define step content information
+  const stepInfo = {
+    warehouse: {
+      title: 'Lager auswählen',
+      description: 'Wählen Sie das Ziellager für die Bestellung aus.',
+      icon: <Building2 className="h-6 w-6" />,
+    },
+    mode: {
+      title: 'Bestellmodus wählen',
+      description: 'Wählen Sie den Bestellmodus aus.',
+      icon: <Boxes className="h-6 w-6" />,
+    },
+    supplier: {
+      title: 'Lieferant auswählen',
+      description: 'Wählen Sie den Lieferanten für die Bestellung aus.',
+      icon: <Truck className="h-6 w-6" />,
+    },
+    products: {
+      title: 'Produkte auswählen',
+      description: 'Wählen Sie die Produkte und Mengen für die Bestellung aus.',
+      icon: <PackageCheck className="h-6 w-6" />,
+    },
+    additionalInfo: {
+      title: 'Zusätzliche Informationen',
+      description: 'Fügen Sie weitere Informationen zur Bestellung hinzu.',
+      icon: <FileText className="h-6 w-6" />,
+    },
+    summary: {
+      title: 'Bestellzusammenfassung',
+      description: 'Überprüfen Sie die Bestellung und schließen Sie sie ab.',
+      icon: <ClipboardCheck className="h-6 w-6" />,
+    },
+    goodsReceipt: {
+      title: 'Wareneingang',
+      description: 'Erfassen Sie den Wareneingang, sobald die Lieferung eingetroffen ist.',
+      icon: <Boxes className="h-6 w-6" />,
+    },
   };
   
-  const { title, description } = getStepInfo();
-  
   return (
-    <div className="container mx-auto py-6">
-      <div className="flex items-center mb-6">
-        <Button variant="ghost" asChild className="mr-4">
-          <Link to="/orders">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Zurück zur Übersicht
-          </Link>
-        </Button>
+    <div className="container mx-auto py-6 space-y-6">
+      <div className="flex flex-col md:flex-row justify-between items-start gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Bestellung 2.0</h1>
-          <p className="text-muted-foreground">Neues, erweitertes Bestellsystem</p>
+          <h1 className="text-3xl font-bold tracking-tight">Bestellung 2.0</h1>
+          <p className="text-muted-foreground mt-1">
+            Erstellen Sie eine neue Bestellung und erfassen Sie den Wareneingang in einem nahtlosen Prozess.
+          </p>
         </div>
+        
+        {step !== 'warehouse' && (
+          <Button
+            variant="outline"
+            onClick={resetOrderProcess}
+            className="flex-shrink-0"
+          >
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Neu starten
+          </Button>
+        )}
       </div>
       
-      {/* Progress Stepper */}
-      {currentStep !== 'confirmation' && (
-        <Card className="mb-6">
-          <CardContent className="pt-6">
-            <div className="flex justify-between">
-              {steps.slice(0, steps.indexOf('confirmation')).map((step, index) => (
-                <div key={step} className="flex flex-col items-center">
-                  <div 
-                    className={`rounded-full flex items-center justify-center w-10 h-10 ${
-                      steps.indexOf(currentStep) >= index 
-                        ? 'bg-primary text-primary-foreground' 
-                        : 'bg-muted text-muted-foreground'
-                    }`}
-                  >
-                    {index + 1}
-                  </div>
-                  <div className="text-xs mt-2 text-center w-20">
-                    {getStepInfo()[step]?.title || step}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="relative mt-6">
-              <div className="absolute h-1 bg-muted top-0 left-0 right-0">
-                <div 
-                  className="h-1 bg-primary transition-all" 
-                  style={{ width: `${(100 * steps.indexOf(currentStep)) / (steps.indexOf('confirmation'))}%` }}
-                ></div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      
-      {/* Main Content Card */}
       <Card>
-        <CardHeader>
-          <CardTitle>{title}</CardTitle>
-          <CardDescription>{description}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {renderStep()}
-        </CardContent>
-        
-        {currentStep !== 'confirmation' && (
-          <CardFooter className="justify-between">
-            <Button 
-              variant="outline" 
-              onClick={goToPreviousStep}
-              disabled={currentStep === 'warehouse'}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Zurück
-            </Button>
-            
-            {currentStep !== 'summary' ? (
-              <Button 
-                onClick={goToNextStep}
-                disabled={!canProceed()}
-              >
-                Weiter
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            ) : (
-              <Button 
-                onClick={submitOrder}
-                disabled={createOrderMutation.isPending || !canProceed()}
-              >
-                {createOrderMutation.isPending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Bestellung wird gespeichert...
-                  </>
-                ) : (
-                  <>
-                    Bestellung aufgeben
-                    <Save className="ml-2 h-4 w-4" />
-                  </>
-                )}
-              </Button>
+        <CardContent className="pt-6">
+          <Steps 
+            currentStep={
+              ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'goodsReceipt']
+              .indexOf(step)
+            }
+            className="mt-4"
+          >
+            <Step
+              title="Lager"
+              description={warehouseName || "Ziellager auswählen"}
+              icon={<Building2 className="h-4 w-4" />}
+              onClick={() => step !== 'warehouse' && step !== 'goodsReceipt' && setStep('warehouse')}
+              disabled={step === 'goodsReceipt'}
+            />
+            <Step
+              title="Modus"
+              description={orderMode === 'new' ? "Neue Bestellung" : orderMode === 'copy' ? "Kopie" : "Prognose"}
+              icon={<Boxes className="h-4 w-4" />}
+              onClick={() => step !== 'mode' && step !== 'warehouse' && step !== 'goodsReceipt' && setStep('mode')}
+              disabled={!warehouseId || step === 'goodsReceipt'}
+            />
+            <Step
+              title="Lieferant"
+              description={supplierName || "Lieferant auswählen"}
+              icon={<Truck className="h-4 w-4" />}
+              onClick={() => step !== 'supplier' && step !== 'mode' && step !== 'warehouse' && step !== 'goodsReceipt' && setStep('supplier')}
+              disabled={!warehouseId || !orderMode || step === 'goodsReceipt'}
+            />
+            <Step
+              title="Produkte"
+              description={`${selectedProducts.length} Produkte ausgewählt`}
+              icon={<PackageCheck className="h-4 w-4" />}
+              onClick={() => step !== 'products' && step !== 'supplier' && step !== 'mode' && step !== 'warehouse' && step !== 'goodsReceipt' && setStep('products')}
+              disabled={!warehouseId || !orderMode || !supplierId || step === 'goodsReceipt'}
+            />
+            <Step
+              title="Details"
+              description={additionalInfo.expectedDeliveryDate ? format(additionalInfo.expectedDeliveryDate, 'dd.MM.yyyy') : "Lieferdetails"}
+              icon={<FileText className="h-4 w-4" />}
+              onClick={() => step !== 'additionalInfo' && step !== 'products' && step !== 'supplier' && step !== 'mode' && step !== 'warehouse' && step !== 'goodsReceipt' && setStep('additionalInfo')}
+              disabled={!warehouseId || !orderMode || !supplierId || selectedProducts.length === 0 || step === 'goodsReceipt'}
+            />
+            <Step
+              title="Abschluss"
+              description="Bestellung abschließen"
+              icon={<ClipboardCheck className="h-4 w-4" />}
+              onClick={() => step !== 'summary' && step !== 'additionalInfo' && step !== 'products' && step !== 'supplier' && step !== 'mode' && step !== 'warehouse' && step !== 'goodsReceipt' && setStep('summary')}
+              disabled={!warehouseId || !orderMode || !supplierId || selectedProducts.length === 0 || !additionalInfo.expectedDeliveryDate || step === 'goodsReceipt'}
+            />
+            {step === 'goodsReceipt' && (
+              <Step
+                title="Wareneingang"
+                description="Lieferung erfassen"
+                icon={<Boxes className="h-4 w-4" />}
+                current
+              />
             )}
-          </CardFooter>
-        )}
+          </Steps>
+        </CardContent>
       </Card>
       
-      {/* Hidden PDF content for generation */}
-      <div className="hidden">
-        <div ref={pdfContentRef} className="p-8 bg-white" style={{ width: '210mm', minHeight: '297mm' }}>
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-xl font-bold">Bestellung #{createdOrderId}</h1>
-              <p className="text-sm">Erstellt am: {new Date().toLocaleDateString('de-DE')}</p>
-            </div>
-            <div className="text-right">
-              <h2 className="font-bold">Nationale Parkverwaltung Sächsische Schweiz</h2>
-              <p className="text-sm">Nationalpark Zentrum</p>
-              <p className="text-sm">Dresdner Str. 2B, 01814 Bad Schandau</p>
-              <p className="text-sm">info@nationalpark-saechsische-schweiz.de</p>
-            </div>
-          </div>
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle>{stepInfo[step].title}</CardTitle>
+          <CardDescription>{stepInfo[step].description}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {getStepContent()}
+        </CardContent>
+        <CardFooter className="flex justify-between">
+          {step !== 'warehouse' && step !== 'goodsReceipt' && (
+            <Button
+              variant="outline"
+              onClick={goToPreviousStep}
+            >
+              Zurück
+            </Button>
+          )}
+          {step === 'warehouse' && (
+            <div></div>
+          )}
           
-          <div className="mt-10">
-            <h2 className="font-bold mb-1">Lieferant:</h2>
-            <p>{supplierName}</p>
-            <p>[Lieferantenadresse]</p>
-          </div>
-          
-          <div className="mt-6">
-            <h2 className="font-bold mb-1">Lieferadresse:</h2>
-            <p>{warehouseName}</p>
-            <p>[Lageradresse]</p>
-          </div>
-          
-          <div className="mt-8">
-            <h3 className="font-bold border-b pb-2 mb-2">Bestellpositionen</h3>
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="py-2 text-left">Produkt</th>
-                  <th className="py-2 text-right">Menge</th>
-                  <th className="py-2 text-right">Einheitspreis</th>
-                  <th className="py-2 text-right">Gesamtpreis</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedProducts.map((product, index) => (
-                  <tr key={index} className="border-b">
-                    <td className="py-2">{product.name}</td>
-                    <td className="py-2 text-right">{product.orderQuantity} {product.unit || 'Stk.'}</td>
-                    <td className="py-2 text-right">
-                      {new Intl.NumberFormat('de-DE', {
-                        style: 'currency',
-                        currency: 'EUR'
-                      }).format(product.price)}
-                    </td>
-                    <td className="py-2 text-right">
-                      {new Intl.NumberFormat('de-DE', {
-                        style: 'currency',
-                        currency: 'EUR'
-                      }).format(product.price * product.orderQuantity)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td colSpan={3} className="py-2 text-right font-bold">Gesamtbetrag:</td>
-                  <td className="py-2 text-right font-bold">
-                    {new Intl.NumberFormat('de-DE', {
-                      style: 'currency',
-                      currency: 'EUR'
-                    }).format(selectedProducts.reduce((sum, p) => sum + (p.price * p.orderQuantity), 0))}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-          
-          <div className="mt-8">
-            <h3 className="font-bold mb-2">Zusatzinformationen</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="font-medium">Gewünschter Liefertermin:</p>
-                <p>{additionalInfo.expectedDeliveryDate?.toLocaleDateString('de-DE') || 'Nicht angegeben'}</p>
-              </div>
-              <div>
-                <p className="font-medium">Priorität:</p>
-                <p>{additionalInfo.priority === 'high' ? 'Hoch' : additionalInfo.priority === 'urgent' ? 'Dringend' : 'Normal'}</p>
-              </div>
-            </div>
-            {additionalInfo.notes && (
-              <div className="mt-4">
-                <p className="font-medium">Anmerkungen:</p>
-                <p>{additionalInfo.notes}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+          {step !== 'summary' && step !== 'goodsReceipt' && (
+            <Button
+              onClick={goToNextStep}
+              disabled={!isStepComplete(step)}
+            >
+              Weiter
+              <ChevronRight className="ml-2 h-4 w-4" />
+            </Button>
+          )}
+        </CardFooter>
+      </Card>
     </div>
   );
 };

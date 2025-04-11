@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Truck, Search, Loader2, MapPin, Phone, Mail } from 'lucide-react';
-import { Button } from "@/components/ui/button";
+import { Search, Loader2, Mail, Phone, MapPin, Building, Truck } from 'lucide-react';
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,15 +14,19 @@ type SupplierSelectorProps = {
 interface SupplierType {
   id: number;
   name: string;
-  contactPerson?: string;
-  email?: string;
-  phone?: string;
+  description?: string;
   address?: string;
   city?: string;
-  postalCode?: string;
+  postal_code?: string;
   country?: string;
-  notes?: string;
+  contact_person?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
   status?: string;
+  type?: string;
+  notes?: string;
+  is_active?: boolean;
 }
 
 const SupplierSelector: React.FC<SupplierSelectorProps> = ({
@@ -33,16 +36,20 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   
   // Fetch suppliers
-  const { data: suppliers, isLoading, error } = useQuery<SupplierType[]>({
+  const { data: suppliersResponse, isLoading, error } = useQuery<{ data: SupplierType[] }>({
     queryKey: ['/api/suppliers'],
     staleTime: 60000, // 1 minute
   });
   
+  // Extract suppliers array from response
+  const suppliers = suppliersResponse?.data || [];
+  
   // Filter suppliers based on search query
   const filteredSuppliers = suppliers?.filter(supplier => 
     supplier.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (supplier.contactPerson && supplier.contactPerson.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (supplier.city && supplier.city.toLowerCase().includes(searchQuery.toLowerCase()))
+    (supplier.contact_person && supplier.contact_person.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (supplier.city && supplier.city.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (supplier.description && supplier.description.toLowerCase().includes(searchQuery.toLowerCase()))
   );
   
   return (
@@ -89,8 +96,8 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({
                         <h3 className="font-medium text-lg truncate">{supplier.name}</h3>
                       </div>
                       
-                      {supplier.contactPerson && (
-                        <p className="text-sm mt-1">{supplier.contactPerson}</p>
+                      {supplier.description && (
+                        <p className="text-sm mt-1 text-muted-foreground">{supplier.description}</p>
                       )}
                       
                       <div className="space-y-1 mt-2">
@@ -99,9 +106,16 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({
                             <MapPin className="h-3.5 w-3.5 mr-2" />
                             <span className="truncate">
                               {supplier.address && `${supplier.address}, `}
-                              {supplier.postalCode && `${supplier.postalCode} `}
+                              {supplier.postal_code && `${supplier.postal_code} `}
                               {supplier.city}
                             </span>
+                          </div>
+                        )}
+                        
+                        {supplier.contact_person && (
+                          <div className="flex items-center text-sm text-muted-foreground">
+                            <Building className="h-3.5 w-3.5 mr-2" />
+                            <span>{supplier.contact_person}</span>
                           </div>
                         )}
                         
@@ -121,11 +135,19 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({
                       </div>
                     </div>
                     
-                    {supplier.status && (
-                      <Badge variant={supplier.status === 'active' ? 'default' : 'secondary'}>
-                        {supplier.status === 'active' ? 'Aktiv' : supplier.status}
-                      </Badge>
-                    )}
+                    <div className="flex flex-col items-end gap-1">
+                      {supplier.status && (
+                        <Badge variant={supplier.status === 'active' ? 'default' : 'secondary'}>
+                          {supplier.status === 'active' ? 'Aktiv' : supplier.status}
+                        </Badge>
+                      )}
+                      
+                      {supplier.type && (
+                        <Badge variant="outline">
+                          {supplier.type}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   
                   {selectedSupplierId === supplier.id && (
