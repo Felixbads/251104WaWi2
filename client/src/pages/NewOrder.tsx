@@ -568,7 +568,7 @@ function NewOrderForm({
   const itemForm = useForm<OrderItemValues>({
     resolver: zodResolver(orderItemSchema),
     defaultValues: {
-      productId: undefined,
+      productId: null, // null für nullable() im Schema
       quantity: 1,
       unitPrice: 0,
       notes: '',
@@ -590,7 +590,7 @@ function NewOrderForm({
       
       // Produktauswahl zurücksetzen, wenn der Lieferant geändert wird
       if (itemForm.getValues('productId')) {
-        itemForm.setValue('productId', null);  // null statt undefined verwenden
+        itemForm.setValue('productId', null);  // null verwenden, da das Schema nullable() ist
         setSelectedProduct(null);
       }
     }
@@ -1312,7 +1312,7 @@ function NewOrderForm({
                                      // Wenn der Lieferantenname "Wehlen" enthält, dann auch Milchhof Fiedler Produkte anzeigen
                                      (supplierName.includes("wehlen") && productName.includes("fiedler")) ||
                                      // Allgemeine Prüfung für teilweise Übereinstimmungen
-                                     supplierName.split(" ").some(word => word.length > 3 && productName.includes(word));
+                                     supplierName.split(" ").some((word: string) => word.length > 3 && productName.includes(word));
                             })
                             .map((product: any) => (
                               <SelectItem key={product.id} value={product.id.toString()}>
