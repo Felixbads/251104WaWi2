@@ -1124,26 +1124,6 @@ function NewOrderForm({
               )}
             />
             
-            <FormField
-              control={orderForm.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Anmerkungen</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Anmerkungen zur Bestellung..." 
-                      className="resize-y min-h-[100px]" 
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Zusätzliche Informationen oder Anweisungen für den Lieferanten.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
           </form>
         </Form>
         
@@ -1162,6 +1142,27 @@ function NewOrderForm({
               Position hinzufügen
             </Button>
           </div>
+        
+        <FormField
+              control={orderForm.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem className="mt-6">
+                  <FormLabel>Anmerkungen</FormLabel>
+                  <FormControl>
+                    <Textarea 
+                      placeholder="Anmerkungen zur Bestellung..." 
+                      className="resize-y min-h-[100px]" 
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Zusätzliche Informationen oder Anweisungen für den Lieferanten.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
           
           {orderItems.length === 0 ? (
             <div className="text-center p-8 border rounded-lg">
@@ -1293,12 +1294,8 @@ function NewOrderForm({
                         </FormControl>
                         <SelectContent className="max-h-[300px] overflow-y-auto">
                           {products?.data ? products.data
-                            .filter((product: any) => {
-                              // Wenn kein Lieferant ausgewählt ist, alle Produkte anzeigen
-                              if (!currentSupplierId) return true;
-                              // Sonst nur Produkte anzeigen, die dem ausgewählten Lieferanten zugeordnet sind
-                              return product.supplierId === currentSupplierId;
-                            })
+                            // Keine Filterung nach supplierId, da die Produkte keinen supplierId haben
+                            // so werden alle Produkte angezeigt, egal welcher Lieferant ausgewählt ist
                             .map((product: any) => (
                               <SelectItem key={product.id} value={product.id.toString()}>
                                 {product.productName || product.name}
