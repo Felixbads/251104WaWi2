@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { getPurchaseConditionsBySupplier, PurchaseCondition } from '../../lib/api';
 import {
   Card,
   CardContent,
@@ -53,9 +54,10 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const productsPerPage = 10;
   
-  // Fetch products for the supplier
-  const { data: productsResponse, isLoading, error } = useQuery({
-    queryKey: ['/api/products', { supplierId }],
+  // Fetch purchase conditions for the supplier to get available products
+  const { data: purchaseConditionsResponse, isLoading, error } = useQuery({
+    queryKey: ['/api/suppliers', supplierId, 'purchase-conditions'],
+    queryFn: () => supplierId ? getPurchaseConditionsBySupplier(supplierId) : [],
     enabled: !!supplierId,
   });
   
