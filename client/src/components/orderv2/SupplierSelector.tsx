@@ -1,32 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Loader2, Mail, Phone, MapPin, Building, Truck } from 'lucide-react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Truck, Search, CheckCircle2, PhoneCall, Mail } from 'lucide-react';
+import { Skeleton } from "@/components/ui/skeleton";
 
-type SupplierSelectorProps = {
-  selectedSupplierId: number | null;
-  onSelectSupplier: (id: number, name: string) => void;
-};
-
-interface SupplierType {
+interface Supplier {
   id: number;
   name: string;
-  description?: string;
-  address?: string;
-  city?: string;
-  postal_code?: string;
-  country?: string;
-  contact_person?: string;
-  phone?: string;
-  email?: string;
-  website?: string;
-  status?: string;
-  type?: string;
-  notes?: string;
-  is_active?: boolean;
+  contactPerson: string;
+  email: string;
+  phone: string;
+}
+
+interface SupplierSelectorProps {
+  selectedSupplierId: number | null;
+  onSelectSupplier: (id: number, name: string) => void;
 }
 
 const SupplierSelector: React.FC<SupplierSelectorProps> = ({
@@ -36,134 +41,115 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   
   // Fetch suppliers
-  const { data: suppliersResponse, isLoading, error } = useQuery<{ data: SupplierType[] }>({
+  const { data: suppliersResponse, isLoading, error } = useQuery({
     queryKey: ['/api/suppliers'],
-    staleTime: 60000, // 1 minute
   });
   
-  // Extract suppliers array from response
-  const suppliers = suppliersResponse?.data || [];
+  // Extract suppliers from response (handles both array and {data: []} formats)
+  const suppliers = Array.isArray(suppliersResponse) 
+    ? suppliersResponse 
+    : (suppliersResponse as any)?.data || [];
   
   // Filter suppliers based on search query
-  const filteredSuppliers = suppliers?.filter(supplier => 
+  const filteredSuppliers = suppliers?.filter((supplier: Supplier) => 
     supplier.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (supplier.contact_person && supplier.contact_person.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (supplier.city && supplier.city.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    (supplier.description && supplier.description.toLowerCase().includes(searchQuery.toLowerCase()))
+    supplier.contactPerson?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    supplier.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
   
   return (
-    <div className="space-y-6">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-        <Input
-          placeholder="Lieferanten suchen..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
-        />
-      </div>
-      
-      {isLoading ? (
-        <div className="flex justify-center items-center py-8">
-          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          <span className="ml-2">Lieferanten werden geladen...</span>
+    <Card>
+      <CardHeader>
+        <CardTitle>Lieferant auswählen</CardTitle>
+        <CardDescription>
+          Wählen Sie den Lieferanten aus, bei dem Sie bestellen möchten.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="mb-4 flex items-center gap-2">
+          <Search className="w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Lieferant suchen..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="flex-1"
+          />
         </div>
-      ) : error ? (
-        <div className="text-center text-destructive py-8">
-          Fehler beim Laden der Lieferanten. Bitte versuchen Sie es später erneut.
-        </div>
-      ) : filteredSuppliers?.length === 0 ? (
-        <div className="text-center text-muted-foreground py-8">
-          Keine Lieferanten gefunden. Bitte versuchen Sie eine andere Suche.
-        </div>
-      ) : (
-        <ScrollArea className="h-[400px] pr-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredSuppliers?.map(supplier => (
-              <Card 
-                key={supplier.id}
-                className={`cursor-pointer transition-all hover:shadow-md ${
-                  selectedSupplierId === supplier.id ? 'ring-2 ring-primary' : ''
-                }`}
-                onClick={() => onSelectSupplier(supplier.id, supplier.name)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="flex items-center">
-                        <Truck className="h-5 w-5 mr-2 text-primary" />
-                        <h3 className="font-medium text-lg truncate">{supplier.name}</h3>
-                      </div>
-                      
-                      {supplier.description && (
-                        <p className="text-sm mt-1 text-muted-foreground">{supplier.description}</p>
-                      )}
-                      
-                      <div className="space-y-1 mt-2">
-                        {(supplier.city || supplier.address) && (
-                          <div className="flex items-center text-sm text-muted-foreground">
-                            <MapPin className="h-3.5 w-3.5 mr-2" />
-                            <span className="truncate">
-                              {supplier.address && `${supplier.address}, `}
-                              {supplier.postal_code && `${supplier.postal_code} `}
-                              {supplier.city}
-                            </span>
-                          </div>
-                        )}
-                        
-                        {supplier.contact_person && (
-                          <div className="flex items-center text-sm text-muted-foreground">
-                            <Building className="h-3.5 w-3.5 mr-2" />
-                            <span>{supplier.contact_person}</span>
-                          </div>
-                        )}
-                        
-                        {supplier.phone && (
-                          <div className="flex items-center text-sm text-muted-foreground">
-                            <Phone className="h-3.5 w-3.5 mr-2" />
-                            <span>{supplier.phone}</span>
-                          </div>
-                        )}
-                        
-                        {supplier.email && (
-                          <div className="flex items-center text-sm text-muted-foreground">
-                            <Mail className="h-3.5 w-3.5 mr-2" />
-                            <span className="truncate">{supplier.email}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="flex flex-col items-end gap-1">
-                      {supplier.status && (
-                        <Badge variant={supplier.status === 'active' ? 'default' : 'secondary'}>
-                          {supplier.status === 'active' ? 'Aktiv' : supplier.status}
-                        </Badge>
-                      )}
-                      
-                      {supplier.type && (
-                        <Badge variant="outline">
-                          {supplier.type}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {selectedSupplierId === supplier.id && (
-                    <div className="mt-4">
-                      <Badge variant="outline" className="bg-primary/10">
-                        Ausgewählt
-                      </Badge>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+        
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
           </div>
-        </ScrollArea>
-      )}
-    </div>
+        ) : error ? (
+          <div className="bg-destructive/20 p-4 rounded-md text-destructive">
+            Fehler beim Laden der Lieferanten. Bitte versuchen Sie es später erneut.
+          </div>
+        ) : (
+          <Table>
+            <TableCaption>Liste der verfügbaren Lieferanten</TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Kontaktperson</TableHead>
+                <TableHead>Kontakt</TableHead>
+                <TableHead className="text-right">Aktion</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredSuppliers && filteredSuppliers.length > 0 ? (
+                filteredSuppliers.map((supplier: Supplier) => (
+                  <TableRow key={supplier.id} className={selectedSupplierId === supplier.id ? 'bg-primary/10' : ''}>
+                    <TableCell className="font-medium">{supplier.name}</TableCell>
+                    <TableCell>{supplier.contactPerson || '-'}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        {supplier.email && (
+                          <div className="flex items-center text-xs">
+                            <Mail className="h-3 w-3 mr-1" />
+                            {supplier.email}
+                          </div>
+                        )}
+                        {supplier.phone && (
+                          <div className="flex items-center text-xs">
+                            <PhoneCall className="h-3 w-3 mr-1" />
+                            {supplier.phone}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {selectedSupplierId === supplier.id ? (
+                        <Button variant="outline" size="sm" className="text-primary" disabled>
+                          <CheckCircle2 className="mr-1 h-4 w-4" />
+                          Ausgewählt
+                        </Button>
+                      ) : (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => onSelectSupplier(supplier.id, supplier.name)}
+                        >
+                          <Truck className="mr-1 h-4 w-4" />
+                          Auswählen
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-4 text-muted-foreground">
+                    {searchQuery ? "Keine Lieferanten gefunden" : "Keine Lieferanten verfügbar"}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 

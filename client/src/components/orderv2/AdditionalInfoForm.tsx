@@ -1,167 +1,145 @@
-import React from 'react';
-import { Calendar as CalendarIcon, AlarmClock, FileText } from 'lucide-react';
-import { format } from 'date-fns';
-import { de } from 'date-fns/locale';
-import { Calendar } from '@/components/ui/calendar';
+import React, { useState } from 'react';
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+} from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { CalendarIcon, ClipboardList } from 'lucide-react';
+import { format } from 'date-fns';
+import { de } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
-type AdditionalInfoFormProps = {
+interface AdditionalInfoFormProps {
   additionalInfo: {
     expectedDeliveryDate: Date | null;
     priority: string;
     notes: string;
   };
-  onAdditionalInfoChange: (additionalInfo: {
+  onAdditionalInfoChange: (info: {
     expectedDeliveryDate: Date | null;
     priority: string;
     notes: string;
   }) => void;
-};
+}
 
 const AdditionalInfoForm: React.FC<AdditionalInfoFormProps> = ({
   additionalInfo,
-  onAdditionalInfoChange,
+  onAdditionalInfoChange
 }) => {
-  const handleDateChange = (date: Date | null) => {
+  // Update expected delivery date
+  const handleDateChange = (date: Date | undefined) => {
     onAdditionalInfoChange({
       ...additionalInfo,
-      expectedDeliveryDate: date,
+      expectedDeliveryDate: date || null
     });
   };
-
-  const handlePriorityChange = (priority: string) => {
+  
+  // Update priority
+  const handlePriorityChange = (value: string) => {
     onAdditionalInfoChange({
       ...additionalInfo,
-      priority,
+      priority: value
     });
   };
-
+  
+  // Update notes
   const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     onAdditionalInfoChange({
       ...additionalInfo,
-      notes: e.target.value,
+      notes: e.target.value
     });
   };
-
+  
   return (
-    <div className="space-y-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>Lieferdetails</CardTitle>
-          <CardDescription>
-            Geben Sie zusätzliche Informationen zur Bestellung an.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="expected-delivery-date">Erwartetes Lieferdatum</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  id="expected-delivery-date"
-                  variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !additionalInfo.expectedDeliveryDate && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {additionalInfo.expectedDeliveryDate ? (
-                    format(additionalInfo.expectedDeliveryDate, "PPP", { locale: de })
-                  ) : (
-                    <span>Wählen Sie ein Datum</span>
-                  )}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar
-                  mode="single"
-                  selected={additionalInfo.expectedDeliveryDate || undefined}
-                  onSelect={(date) => handleDateChange(date || null)}
-                  initialFocus
-                  locale={de}
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="priority">Priorität</Label>
-            <Select
-              value={additionalInfo.priority}
-              onValueChange={handlePriorityChange}
-            >
-              <SelectTrigger id="priority">
-                <SelectValue placeholder="Priorität wählen" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="low">Niedrig</SelectItem>
-                <SelectItem value="normal">Normal</SelectItem>
-                <SelectItem value="high">Hoch</SelectItem>
-                <SelectItem value="urgent">Dringend</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notes">Anmerkungen</Label>
-            <Textarea
-              id="notes"
-              placeholder="Zusätzliche Anmerkungen zur Bestellung..."
-              value={additionalInfo.notes}
-              onChange={handleNotesChange}
-              className="min-h-[120px] resize-y"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Liefertermine</CardTitle>
-          <CardDescription>
-            Tipps zur Lieferung und verfügbaren Terminen
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-start gap-3">
-            <AlarmClock className="h-5 w-5 text-muted-foreground mt-0.5" />
-            <div>
-              <p className="font-medium">Standard-Lieferzeit</p>
-              <p className="text-sm text-muted-foreground">
-                Die durchschnittliche Lieferzeit beträgt 3-5 Werktage ab dem Bestelldatum.
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex items-start gap-3">
-            <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
-            <div>
-              <p className="font-medium">Lieferdokumente</p>
-              <p className="text-sm text-muted-foreground">
-                Bitte stellen Sie sicher, dass die Lieferscheine bei Wareneingang vollständig und korrekt sind.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Zusätzliche Informationen</CardTitle>
+        <CardDescription>
+          Fügen Sie wichtige Details zu Ihrer Bestellung hinzu.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Expected Delivery Date */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Erwartetes Lieferdatum</label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "w-full justify-start text-left font-normal",
+                  !additionalInfo.expectedDeliveryDate && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {additionalInfo.expectedDeliveryDate ? (
+                  format(additionalInfo.expectedDeliveryDate, 'PPP', { locale: de })
+                ) : (
+                  <span>Datum auswählen</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={additionalInfo.expectedDeliveryDate || undefined}
+                onSelect={handleDateChange}
+                disabled={(date) => date < new Date()}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+        
+        {/* Priority */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Priorität</label>
+          <Select
+            value={additionalInfo.priority}
+            onValueChange={handlePriorityChange}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Priorität auswählen" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="low">Niedrig</SelectItem>
+              <SelectItem value="normal">Normal</SelectItem>
+              <SelectItem value="high">Hoch</SelectItem>
+              <SelectItem value="urgent">Dringend</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        {/* Notes */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Notizen für den Lieferanten</label>
+          <Textarea
+            placeholder="Fügen Sie hier spezielle Anweisungen oder Notizen für den Lieferanten hinzu."
+            value={additionalInfo.notes}
+            onChange={handleNotesChange}
+            rows={5}
+          />
+        </div>
+      </CardContent>
+    </Card>
   );
 };
 

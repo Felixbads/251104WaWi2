@@ -1,4 +1,4 @@
-import * as React from "react";
+import React from "react";
 import { cn } from "@/lib/utils";
 
 interface StepsProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -6,22 +6,26 @@ interface StepsProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 export function Steps({ currentStep = 0, className, children }: StepsProps) {
-  // Count the steps using React.Children
+  // Count the number of steps
   const steps = React.Children.toArray(children);
   const totalSteps = steps.length;
-
+  
+  // Set active and completed states for steps based on current step
+  const modifiedChildren = React.Children.map(children, (child, index) => {
+    if (React.isValidElement(child)) {
+      return React.cloneElement(child as React.ReactElement<StepProps>, {
+        isActive: index === currentStep,
+        isCompleted: index < currentStep,
+        isLastStep: index === totalSteps - 1,
+        step: index + 1,
+      });
+    }
+    return child;
+  });
+  
   return (
-    <div className={cn("w-full", className)}>
-      <div className="flex w-full items-center justify-between gap-3">
-        {React.Children.map(children, (step, index) => {
-          return React.cloneElement(step as React.ReactElement, {
-            step: index + 1,
-            isActive: currentStep === index,
-            isCompleted: index < currentStep,
-            isLastStep: index === totalSteps - 1,
-          });
-        })}
-      </div>
+    <div className={cn("flex flex-col sm:flex-row justify-between", className)}>
+      {modifiedChildren}
     </div>
   );
 }
@@ -44,74 +48,64 @@ export function Step({
   isActive = false,
   isCompleted = false,
   isLastStep = false,
-  className,
   icon,
   disabled = false,
+  className,
   onClick,
   ...props
 }: StepProps) {
   return (
-    <div 
+    <div
       className={cn(
-        "flex flex-1 flex-col relative",
-        {
-          "cursor-pointer": !disabled && onClick,
-          "cursor-not-allowed opacity-60": disabled,
-        },
+        "relative flex items-center mt-4 sm:mt-0",
+        isLastStep ? "flex-[0_0_auto]" : "flex-[1_0_auto]",
+        isActive && "text-primary",
+        isCompleted && "text-primary",
+        !isActive && !isCompleted && "text-muted-foreground",
+        disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+        onClick && !disabled ? "hover:text-primary" : "",
         className
       )}
       onClick={disabled ? undefined : onClick}
       {...props}
     >
-      <div className="flex items-center gap-2">
-        <div
-          className={cn(
-            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 font-medium",
-            {
-              "border-primary bg-primary text-white": isActive,
-              "border-primary/70 text-primary": isCompleted,
-              "border-muted-foreground text-muted-foreground": !isActive && !isCompleted,
-            }
-          )}
-        >
-          {icon && (
-            <div className="flex items-center justify-center">
-              {icon}
-            </div>
-          )}
-          {!icon && (
-            <>{isCompleted ? "✓" : step}</>
-          )}
-        </div>
-        <div className="flex flex-col">
-          <div
-            className={cn("text-sm font-medium", {
-              "text-foreground": isActive || isCompleted,
-              "text-muted-foreground": !isActive && !isCompleted,
-            })}
-          >
-            {title}
-          </div>
-          {description && (
-            <div
-              className={cn("text-xs", {
-                "text-muted-foreground": isActive || isCompleted,
-                "text-muted-foreground/70": !isActive && !isCompleted,
-              })}
-            >
-              {description}
-            </div>
-          )}
-        </div>
+      {/* Step Circle */}
+      <div
+        className={cn(
+          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-solid text-xs font-semibold",
+          isActive 
+            ? "border-primary bg-primary text-white"
+            : isCompleted 
+              ? "border-primary bg-primary text-white"
+              : "border-muted-foreground bg-background text-muted-foreground"
+        )}
+      >
+        {icon || step}
       </div>
+      
+      {/* Step Text */}
+      <div className="ml-3 hidden md:block">
+        <div className="font-semibold">
+          {title}
+        </div>
+        {description && (
+          <div className="text-xs">
+            {description}
+          </div>
+        )}
+      </div>
+      
+      {/* Mobile display for title only */}
+      <div className="ml-3 block md:hidden text-xs font-semibold">
+        {title}
+      </div>
+      
+      {/* Connector Line */}
       {!isLastStep && (
         <div
           className={cn(
-            "absolute top-4 left-4 h-[calc(100%-16px)] w-px ml-3 border-l-2",
-            {
-              "border-primary": isCompleted,
-              "border-muted": !isCompleted,
-            }
+            "ml-3 hidden h-0.5 grow sm:block",
+            isCompleted ? "bg-primary" : "bg-muted"
           )}
         />
       )}
