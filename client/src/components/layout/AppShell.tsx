@@ -30,7 +30,7 @@ export const menuItems = {
     { title: 'Warenbewegung', icon: <MoveHorizontal className="h-5 w-5 mr-3" />, path: '/warenbewegung' },
     { title: 'Inventur', icon: <ClipboardCheck className="h-5 w-5 mr-3" />, path: '/inventur' },
     { title: 'Bestellungen', icon: <ShoppingCart className="h-5 w-5 mr-3" />, path: '/bestellungen' },
-    { title: 'Neue Bestellung', icon: <ShoppingCart className="h-5 w-5 mr-3" />, path: '/bestellung-v2' },
+    { title: 'Neue Bestellung', icon: <ShoppingCart className="h-5 w-5 mr-3" />, path: '/bestellungen/neu-v2' },
   ],
   analysis: [
     { title: 'Auswertung', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/auswertungen' },
@@ -99,7 +99,7 @@ export default function AppShell({ children }: AppShellProps) {
     } else if (location.startsWith("/bestellungen")) {
       if (location === "/bestellungen") return "Bestellungen";
       return "Neue Bestellung";
-    } else if (location.startsWith("/bestellung-v2")) {
+    } else if (location.startsWith("/bestellungen/neu-v2")) {
       return "Bestellung 2.0";
     } else if (location.startsWith("/inventur")) {
       if (location === "/inventur") return "Inventur";

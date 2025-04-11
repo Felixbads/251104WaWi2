@@ -258,15 +258,8 @@ const BestellungV2: React.FC = () => {
   // Handle products change
   const handleProductsChange = (products: any[]) => {
     setSelectedProducts(products);
-    
-    // Wenn Produkte vorhanden sind, automatisch zum nächsten Schritt gehen
-    if (products.length > 0) {
-      // Automatisch zur nächsten Seite gehen, aber nur wenn mindestens ein Produkt ausgewählt wurde
-      // und wir uns auf der Produktauswahlseite befinden
-      if (step === 'products') {
-        setStep('additionalInfo');
-      }
-    }
+    // Bei der Produktauswahl nicht automatisch zum nächsten Schritt gehen,
+    // damit Benutzer Zeit haben, Produkte und Mengen in Ruhe auszuwählen
   };
   
   // Handle additional info change
@@ -276,11 +269,8 @@ const BestellungV2: React.FC = () => {
     notes: string;
   }) => {
     setAdditionalInfo(info);
-    
-    // Wenn Lieferdatum gesetzt ist, automatisch zum nächsten Schritt gehen
-    if (info.expectedDeliveryDate && step === 'additionalInfo') {
-      setStep('summary');
-    }
+    // Bei den zusätzlichen Informationen nicht automatisch zum nächsten Schritt gehen,
+    // damit Benutzer Zeit haben, die Informationen in Ruhe einzugeben
   };
   
   // Handle order submission
