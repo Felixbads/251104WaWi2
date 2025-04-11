@@ -1025,8 +1025,8 @@ function NewOrderForm({
                   <FormItem>
                     <FormLabel>Lieferant*</FormLabel>
                     <Select 
-                      onValueChange={(value) => field.onChange(parseInt(value))}
-                      defaultValue={field.value?.toString()}
+                      onValueChange={(value) => field.onChange(value ? parseInt(value) : undefined)}
+                      defaultValue={field.value !== null && field.value !== undefined ? field.value.toString() : undefined}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -1284,8 +1284,8 @@ function NewOrderForm({
                     <FormItem>
                       <FormLabel>Produkt*</FormLabel>
                       <Select 
-                        onValueChange={(value) => field.onChange(parseInt(value))}
-                        defaultValue={field.value?.toString()}
+                        onValueChange={(value) => field.onChange(value ? parseInt(value) : null)}
+                        defaultValue={field.value !== null && field.value !== undefined ? field.value.toString() : undefined}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -1384,7 +1384,7 @@ function NewOrderForm({
                       <FormLabel>Zielmaschine (optional)</FormLabel>
                       <Select 
                         onValueChange={(value) => field.onChange(value === "none" ? undefined : parseInt(value))}
-                        defaultValue={field.value?.toString() || "none"}
+                        defaultValue={field.value !== null && field.value !== undefined ? field.value.toString() : "none"}
                       >
                         <FormControl>
                           <SelectTrigger>
