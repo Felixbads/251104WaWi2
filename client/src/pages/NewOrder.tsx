@@ -1141,36 +1141,49 @@ function NewOrderForm({
     }
   };
   
-  // Bestätigung abschließen und zur Übersicht navigieren
+  // Bestätigung abschließen und zur Übersicht navigieren oder zur Bestelldetailseite
   const completeOrder = () => {
-    // Zustand zurücksetzen BEVOR wir navigieren
-    // Dies ist wichtig, damit bei der nächsten Bestellung wieder mit Schritt 1 begonnen wird
-    sessionStorage.removeItem('orderStep');
-    sessionStorage.removeItem('orderWarehouseId');
-    sessionStorage.removeItem('orderMode');
-    sessionStorage.removeItem('orderItems');
-    sessionStorage.removeItem('startingNewOrder');
-    // Markieren, dass eine neue Bestellung begonnen werden soll beim nächsten Laden
-    sessionStorage.setItem('orderCompleted', 'true');
-    
-    // Setze Flags auf false, damit beim nächsten Besuch ein neuer Prozess beginnt
-    setShowConfirmation(false);
-    setCreatedOrderId(null);
-    
-    // Lokalen Zustand zurücksetzen
-    setOrderItems([]);
-    
-    // Den QueryClient invalidieren, damit die Bestellliste aktualisiert wird
-    queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
-    
-    // Zur Bestellübersicht navigieren
-    setLocation('/bestellungen');
-    
-    // Toast-Nachricht anzeigen
-    toast({
-      title: "Vorgang abgeschlossen",
-      description: "Die Bestellung wurde erfolgreich abgeschlossen und gespeichert.",
-    });
+    // Bei direkter Navigation zur Bestelldetailseite SessionStorage nicht leeren,
+    // um die Bearbeitung der Bestellung zu ermöglichen
+    if (createdOrderId) {
+      // Zum Detail der Bestellung navigieren, um PDF zu erstellen und E-Mail zu senden
+      setLocation(`/bestellungen/${createdOrderId}`);
+      
+      // Toast-Nachricht anzeigen
+      toast({
+        title: "Bestellung erstellt",
+        description: "Die Bestellung wurde erstellt. Sie können jetzt die PDF erstellen und per E-Mail senden.",
+      });
+    } else {
+      // Zustand zurücksetzen BEVOR wir navigieren
+      // Dies ist wichtig, damit bei der nächsten Bestellung wieder mit Schritt 1 begonnen wird
+      sessionStorage.removeItem('orderStep');
+      sessionStorage.removeItem('orderWarehouseId');
+      sessionStorage.removeItem('orderMode');
+      sessionStorage.removeItem('orderItems');
+      sessionStorage.removeItem('startingNewOrder');
+      // Markieren, dass eine neue Bestellung begonnen werden soll beim nächsten Laden
+      sessionStorage.setItem('orderCompleted', 'true');
+      
+      // Setze Flags auf false, damit beim nächsten Besuch ein neuer Prozess beginnt
+      setShowConfirmation(false);
+      setCreatedOrderId(null);
+      
+      // Lokalen Zustand zurücksetzen
+      setOrderItems([]);
+      
+      // Den QueryClient invalidieren, damit die Bestellliste aktualisiert wird
+      queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      
+      // Zur Bestellübersicht navigieren
+      setLocation('/bestellungen');
+      
+      // Toast-Nachricht anzeigen
+      toast({
+        title: "Vorgang abgeschlossen",
+        description: "Die Bestellung wurde erfolgreich abgeschlossen und gespeichert.",
+      });
+    }
   };
   
   // Berechnung der Gesamtsumme
