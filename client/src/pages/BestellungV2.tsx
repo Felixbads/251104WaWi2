@@ -573,59 +573,52 @@ const BestellungV2: React.FC = () => {
               ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'goodsReceipt']
               .indexOf(step)
             }
-            className="mt-4"
-          >
-            <Step
-              title="Lager"
-              description={warehouseName || "Ziellager auswählen"}
-              icon={<Building2 className="h-4 w-4" />}
-              onClick={() => step !== 'warehouse' && step !== 'goodsReceipt' && setStep('warehouse')}
-              disabled={step === 'goodsReceipt'}
-            />
-            <Step
-              title="Modus"
-              description={orderMode === 'new' ? "Neue Bestellung" : orderMode === 'copy' ? "Kopie" : "Prognose"}
-              icon={<Boxes className="h-4 w-4" />}
-              onClick={() => step !== 'mode' && step !== 'warehouse' && step !== 'goodsReceipt' && setStep('mode')}
-              disabled={!warehouseId || step === 'goodsReceipt'}
-            />
-            <Step
-              title="Lieferant"
-              description={supplierName || "Lieferant auswählen"}
-              icon={<Truck className="h-4 w-4" />}
-              onClick={() => step !== 'supplier' && step !== 'mode' && step !== 'warehouse' && step !== 'goodsReceipt' && setStep('supplier')}
-              disabled={!warehouseId || !orderMode || step === 'goodsReceipt'}
-            />
-            <Step
-              title="Produkte"
-              description={`${selectedProducts.length} Produkte ausgewählt`}
-              icon={<PackageCheck className="h-4 w-4" />}
-              onClick={() => step !== 'products' && step !== 'supplier' && step !== 'mode' && step !== 'warehouse' && step !== 'goodsReceipt' && setStep('products')}
-              disabled={!warehouseId || !orderMode || !supplierId || step === 'goodsReceipt'}
-            />
-            <Step
-              title="Details"
-              description={additionalInfo.expectedDeliveryDate ? format(additionalInfo.expectedDeliveryDate, 'dd.MM.yyyy') : "Lieferdetails"}
-              icon={<FileText className="h-4 w-4" />}
-              onClick={() => step !== 'additionalInfo' && step !== 'products' && step !== 'supplier' && step !== 'mode' && step !== 'warehouse' && step !== 'goodsReceipt' && setStep('additionalInfo')}
-              disabled={!warehouseId || !orderMode || !supplierId || selectedProducts.length === 0 || step === 'goodsReceipt'}
-            />
-            <Step
-              title="Abschluss"
-              description="Bestellung abschließen"
-              icon={<ClipboardCheck className="h-4 w-4" />}
-              onClick={() => step !== 'summary' && step !== 'additionalInfo' && step !== 'products' && step !== 'supplier' && step !== 'mode' && step !== 'warehouse' && step !== 'goodsReceipt' && setStep('summary')}
-              disabled={!warehouseId || !orderMode || !supplierId || selectedProducts.length === 0 || !additionalInfo.expectedDeliveryDate || step === 'goodsReceipt'}
-            />
-            {step === 'goodsReceipt' && (
-              <Step
-                title="Wareneingang"
-                description="Lieferung erfassen"
-                icon={<Boxes className="h-4 w-4" />}
-                current
-              />
-            )}
-          </Steps>
+            steps={[
+              {
+                title: "Lager",
+                description: warehouseName || "Ziellager auswählen"
+              },
+              {
+                title: "Modus",
+                description: orderMode === 'new' ? "Neue Bestellung" : orderMode === 'copy' ? "Kopie" : "Prognose"
+              },
+              {
+                title: "Lieferant",
+                description: supplierName || "Lieferant auswählen"
+              },
+              {
+                title: "Produkte",
+                description: `${selectedProducts.length} Produkte ausgewählt`
+              },
+              {
+                title: "Details",
+                description: additionalInfo.expectedDeliveryDate ? format(additionalInfo.expectedDeliveryDate, 'dd.MM.yyyy') : "Lieferdetails"
+              },
+              {
+                title: "Abschluss",
+                description: "Bestellung abschließen"
+              },
+              {
+                title: "Wareneingang",
+                description: "Lieferung erfassen"
+              }
+            ]}
+            goToStep={(index) => {
+              const steps = ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'goodsReceipt'];
+              // Only allow going to steps that are valid based on current progress
+              if (
+                (index === 0) || // Always allow going to first step
+                (index === 1 && warehouseId) || // Mode requires warehouse
+                (index === 2 && warehouseId && orderMode) || // Supplier requires warehouse and mode
+                (index === 3 && warehouseId && orderMode && supplierId) || // Products require supplier
+                (index === 4 && warehouseId && orderMode && supplierId && selectedProducts.length > 0) || // Details require products
+                (index === 5 && warehouseId && orderMode && supplierId && selectedProducts.length > 0 && additionalInfo.expectedDeliveryDate) // Summary requires details
+              ) {
+                setStep(steps[index] as OrderStep);
+              }
+            }}
+            allowStepClick={true}
+          />
         </CardContent>
       </Card>
       
