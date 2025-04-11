@@ -542,10 +542,17 @@ function NewOrderForm({
   });
   
   // Lieferanten abfragen
-  const { data: suppliers, isLoading: isSuppliersLoading } = useQuery<{data: any[], meta: any}>({
+  const { data: suppliersResponse, isLoading: isSuppliersLoading } = useQuery<{data: any[], meta: any}>({
     queryKey: ['/api/suppliers'],
     staleTime: 1000 * 60, // 1 Minute
   });
+  
+  // Sichere Extraktion der Lieferantendaten
+  const suppliers = suppliersResponse ? {
+    data: Array.isArray(suppliersResponse.data) ? suppliersResponse.data : 
+          (suppliersResponse && Array.isArray(suppliersResponse) ? suppliersResponse : []),
+    meta: suppliersResponse.meta || {}
+  } : { data: [], meta: {} };
   
   // Form für Bestelldetails
   const orderForm = useForm<NewOrderValues>({
@@ -1048,7 +1055,7 @@ function NewOrderForm({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {suppliers?.data ? suppliers.data.map((supplier: any) => (
+                        {suppliers?.data && Array.isArray(suppliers.data) ? suppliers.data.map((supplier: any) => (
                           <SelectItem key={supplier.id} value={supplier.id.toString()}>
                             {supplier.name}
                           </SelectItem>
