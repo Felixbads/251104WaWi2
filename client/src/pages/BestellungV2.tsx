@@ -264,20 +264,28 @@ const BestellungV2: React.FC = () => {
   
   // Handle order submission
   const handleOrderSubmit = async () => {
+    // Ensure products have purchaseConditionId where available
+    const mappedProducts = selectedProducts.map(product => {
+      return {
+        productId: product.id,
+        purchaseConditionId: product.purchaseConditionId || null, // Include purchase condition ID if available
+        quantity: product.orderQuantity,
+        price: product.price || 0,
+      };
+    });
+    
     // Create the order data
     const orderData = {
       warehouseId,
       supplierId,
-      products: selectedProducts.map(product => ({
-        productId: product.id,
-        quantity: product.orderQuantity,
-        price: product.price || 0,
-      })),
+      products: mappedProducts,
       expectedDeliveryDate: additionalInfo.expectedDeliveryDate,
       priority: additionalInfo.priority,
       notes: additionalInfo.notes,
       status: 'draft', // Initial status
     };
+    
+    console.log("Submitting order data:", orderData);
     
     // Create the order
     createOrderMutation.mutate(orderData);
