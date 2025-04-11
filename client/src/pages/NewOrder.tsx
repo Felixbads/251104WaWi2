@@ -2263,27 +2263,46 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
 
 // Hauptkomponente: Neue Bestellung
 export default function NewOrder() {
+  // Explizites Try-Catch, um Probleme beim Laden von SessionStorage zu vermeiden
   // PERSISTENTEN ZUSTAND für kritische Werte mit session storage verwenden
-  // Bei Neuladen der Seite oder beim Navigieren innerhalb der Anwendung bleiben so die Werte erhalten
-  const getInitialStep = () => {
-    const savedStep = sessionStorage.getItem('orderStep');
-    return savedStep ? parseInt(savedStep) : 1;
-  };
   
-  const getInitialWarehouseId = () => {
-    const savedId = sessionStorage.getItem('orderWarehouseId');
-    return savedId ? parseInt(savedId) : null;
-  };
+  const [step, setStepInternal] = useState<number>(() => {
+    try {
+      const savedStep = sessionStorage.getItem('orderStep');
+      if (savedStep) {
+        const parsedStep = parseInt(savedStep);
+        return !isNaN(parsedStep) ? parsedStep : 1;
+      }
+    } catch (err) {
+      console.error("Fehler beim Laden des Schritts aus SessionStorage:", err);
+    }
+    return 1; // Standardwert
+  });
   
-  const getInitialOrderMode = () => {
-    const savedMode = sessionStorage.getItem('orderMode');
-    return savedMode as OrderMode | null;
-  };
+  const [warehouseId, setWarehouseIdInternal] = useState<number | null>(() => {
+    try {
+      const savedId = sessionStorage.getItem('orderWarehouseId');
+      if (savedId) {
+        const parsedId = parseInt(savedId);
+        return !isNaN(parsedId) ? parsedId : null;
+      }
+    } catch (err) {
+      console.error("Fehler beim Laden der Lager-ID aus SessionStorage:", err);
+    }
+    return null; // Standardwert
+  });
   
-  // Zustand mit persistenten Initialwerten
-  const [step, setStepInternal] = useState(getInitialStep);
-  const [warehouseId, setWarehouseIdInternal] = useState<number | null>(getInitialWarehouseId);
-  const [orderMode, setOrderModeInternal] = useState<OrderMode | null>(getInitialOrderMode);
+  const [orderMode, setOrderModeInternal] = useState<OrderMode | null>(() => {
+    try {
+      const savedMode = sessionStorage.getItem('orderMode');
+      if (savedMode === 'new' || savedMode === 'copy' || savedMode === 'forecast') {
+        return savedMode;
+      }
+    } catch (err) {
+      console.error("Fehler beim Laden des Bestellmodus aus SessionStorage:", err);
+    }
+    return null; // Standardwert
+  });
   
   // Wrapper-Funktionen die sowohl den State als auch sessionStorage aktualisieren
   const setStep = (newStep: number) => {
