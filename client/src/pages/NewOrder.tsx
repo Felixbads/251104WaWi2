@@ -1047,7 +1047,7 @@ function NewOrderForm({
       // Bestellungsdaten zusammenstellen mit Status 'submitted'
       const order = createOrderObject('submitted');
       
-      // In echter Implementierung: API-Aufruf zum Speichern der Bestellung
+      // Lade-Toast anzeigen
       toast({
         title: "Bestellung wird gespeichert",
         description: "Ihre Bestellung wird verarbeitet...",
@@ -1063,32 +1063,44 @@ function NewOrderForm({
       };
       
       try {
-        // API-Anfrage zum Speichern der Bestellung mit korrektem API-Pfad und Format
+        // API-Anfrage zum Speichern der Bestellung
         console.log("Sende Bestellung an API:", orderForApi);
         
-        // Log zur Fehlersuche hinzufügen
-        console.log("API Request: POST /api/orders", {
-          method: "POST", 
-          body: JSON.stringify(orderForApi)
-        });
+        // Authentifizierungsheader hinzufügen, wenn ein Token gespeichert ist
+        const storedToken = localStorage.getItem('auth_token');
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json"
+        };
         
-        // Den apiRequest mit dem richtigen Pfad und typisierten Daten aufrufen
-        // Reihenfolge der Parameter: (url, data, method)
+        // Auth-Token hinzufügen, wenn vorhanden
+        if (storedToken) {
+          headers['Authorization'] = `Bearer ${storedToken}`;
+        }
+        
+        console.log("Verwende Headers:", headers);
+        
+        // Direkten fetch verwenden, da apiRequest möglicherweise ein Problem hat
         const response = await fetch('/api/orders', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: headers,
           body: JSON.stringify(orderForApi),
           credentials: 'include'
-        }).then(res => {
-          if (!res.ok) {
-            throw new Error(`HTTP Fehler! Status: ${res.status}`);
-          }
-          return res.json();
         });
         
-        if (response && response.id) {
+        console.log("Server-Antwort Status:", response.status);
+        
+        // Fehler sofort erkennen
+        if (!response.ok) {
+          // Versuchen, den Fehlertext auszulesen
+          const errorText = await response.text().catch(() => "Keine Fehlerbeschreibung verfügbar");
+          throw new Error(`API-Fehler: ${response.status} ${response.statusText} - ${errorText}`);
+        }
+        
+        // JSON-Antwort auslesen
+        const responseData = await response.json();
+        console.log("Server-Antwort:", responseData);
+        
+        if (responseData && responseData.id) {
           // Erfolgreiche API-Antwort
           toast({
             title: "Bestellung erstellt",
@@ -1096,7 +1108,7 @@ function NewOrderForm({
           });
           
           // Setze die tatsächliche Bestellungs-ID aus der Antwort
-          setCreatedOrderId(response.id);
+          setCreatedOrderId(responseData.id);
           
           // Umschalten zum Bestätigungsschritt
           setShowConfirmation(true);

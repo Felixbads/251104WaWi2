@@ -63,6 +63,10 @@ export async function apiRequest(
   }
   
   // Für andere Methoden als GET den Body senden
+  // Debugging-Information hinzufügen
+  console.log(`Sending ${method.toUpperCase()} request to ${apiUrl} with data:`, data ? JSON.stringify(data) : "no data");
+  console.log("Headers:", headers);
+  
   const res = await fetch(apiUrl, {
     method: method.toUpperCase(),
     headers: headers,
@@ -167,13 +171,10 @@ export const queryClient = new QueryClient({
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: Infinity,
-      retry: false,
-      // Bei Fehler sollen wir die Funktion aufrufen
-      onError: handleError
+      retry: false
     },
     mutations: {
-      retry: false,
-      onError: handleError
+      retry: false
     },
   }
 });
