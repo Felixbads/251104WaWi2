@@ -19,6 +19,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
 
 // Icons
 import {
@@ -27,13 +32,23 @@ import {
   Download,
   Loader2,
   Send,
-  Printer
+  Printer,
+  Copy,
+  Check,
+  ChevronRight,
+  InfoIcon,
+  RefreshCw,
+  CheckCircle2,
+  AlertTriangle,
+  MapPin,
+  CalendarIcon,
+  Building
 } from "lucide-react";
 
 // PDF Viewer Component
 const PdfViewer = ({ url }: { url: string }) => {
   return (
-    <div className="w-full h-[70vh] overflow-hidden rounded-md border">
+    <div className="w-full h-[60vh] md:h-[70vh] overflow-hidden rounded-md border">
       <iframe 
         src={url} 
         className="w-full h-full" 
@@ -69,9 +84,9 @@ interface OrderDetailActionsProps {
 export default function OrderDetailActions({ order, pdfContentRef }: OrderDetailActionsProps) {
   const { toast } = useToast();
   
-  // Dialog States
-  const [showPdfDialog, setShowPdfDialog] = useState(false);
-  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  // Dialog & Tab State
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<string>("pdf");
   
   // PDF State
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
@@ -88,7 +103,7 @@ export default function OrderDetailActions({ order, pdfContentRef }: OrderDetail
   const sendEmailMutation = useMutation({
     mutationFn: (data: any) => sendEmail(data),
     onSuccess: () => {
-      setShowEmailDialog(false);
+      setIsDialogOpen(false);
       toast({
         title: "E-Mail gesendet",
         description: "Die E-Mail wurde erfolgreich versendet."
@@ -152,8 +167,9 @@ export default function OrderDetailActions({ order, pdfContentRef }: OrderDetail
       const url = URL.createObjectURL(blob);
       setPdfUrl(url);
       
-      // PDF-Vorschau anzeigen
-      setShowPdfDialog(true);
+      // Dialog öffnen
+      setIsDialogOpen(true);
+      setActiveTab("pdf");
       
       // Status aktualisieren
       toast({
@@ -197,7 +213,7 @@ export default function OrderDetailActions({ order, pdfContentRef }: OrderDetail
   };
   
   // E-Mail Dialog öffnen
-  const handleOpenEmailDialog = () => {
+  const handlePrepareEmail = () => {
     // Standardwerte setzen
     if (order.supplier?.email) {
       setEmailAddress(order.supplier.email);
@@ -215,7 +231,7 @@ Bitte bestätigen Sie uns den Erhalt und den voraussichtlichen Liefertermin.
 Mit freundlichen Grüßen
 ${order.createdByName || "Ihr Bestellteam"}`);
 
-    setShowEmailDialog(true);
+    setActiveTab("email");
   };
   
   // E-Mail senden
@@ -273,167 +289,474 @@ ${order.createdByName || "Ihr Bestellteam"}`);
     }
   };
   
+  // Text in Zwischenablage kopieren
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        toast({
+          title: "Kopiert",
+          description: "Text wurde in die Zwischenablage kopiert."
+        });
+      })
+      .catch(() => {
+        toast({
+          title: "Fehler",
+          description: "Text konnte nicht kopiert werden.",
+          variant: "destructive"
+        });
+      });
+  };
+  
   return (
-    <div className="flex flex-col space-y-2">
-      <div className="flex flex-wrap gap-2">
-        <Button 
-          variant="outline" 
-          size="sm"
-          onClick={handleGeneratePdf}
-          disabled={isGeneratingPdf || !order}
-        >
-          {isGeneratingPdf ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              PDF generieren...
-            </>
-          ) : (
-            <>
-              <FileText className="mr-2 h-4 w-4" />
-              PDF generieren
-            </>
-          )}
-        </Button>
-        
+    <div className="flex flex-col sm:flex-row gap-2">
+      <Button 
+        variant="outline" 
+        size="sm"
+        onClick={handleGeneratePdf}
+        disabled={isGeneratingPdf || !order}
+        className="flex items-center"
+      >
+        {isGeneratingPdf ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            <span className="hidden sm:inline">PDF wird generiert...</span>
+            <span className="sm:hidden">Generiere...</span>
+          </>
+        ) : (
+          <>
+            <FileText className="mr-2 h-4 w-4" />
+            <span className="hidden sm:inline">PDF generieren</span>
+            <span className="sm:hidden">PDF</span>
+          </>
+        )}
+      </Button>
+      
+      {pdfBlob && (
         <Button
           variant="outline"
           size="sm"
-          onClick={handleOpenEmailDialog}
-          disabled={!pdfBlob || !order}
+          onClick={() => {
+            setIsDialogOpen(true);
+            handlePrepareEmail();
+          }}
+          className="flex items-center"
         >
           <Mail className="mr-2 h-4 w-4" />
-          Per E-Mail versenden
+          <span className="hidden sm:inline">Per E-Mail versenden</span>
+          <span className="sm:hidden">E-Mail</span>
         </Button>
-      </div>
+      )}
       
-      {/* PDF Vorschau Dialog */}
-      <Dialog open={showPdfDialog} onOpenChange={setShowPdfDialog}>
-        <DialogContent className="max-w-4xl max-h-screen overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>PDF Vorschau - Bestellung {order?.orderNumber}</DialogTitle>
+      {/* Multifunction Dialog */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-2xl md:max-w-4xl max-h-[90vh] p-0 overflow-hidden flex flex-col">
+          <DialogHeader className="p-4 md:p-6 border-b">
+            <DialogTitle className="text-xl flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Bestellung #{order?.orderNumber}
+            </DialogTitle>
             <DialogDescription>
-              Vorschau der generierten PDF-Datei
+              {activeTab === "pdf" && "Vorschau und Versand der Bestellung als PDF-Dokument"}
+              {activeTab === "email" && "Versenden Sie die Bestellung per E-Mail an den Lieferanten"}
+              {activeTab === "details" && "Details zur Bestellung und zum Lieferanten"}
             </DialogDescription>
           </DialogHeader>
           
-          <div className="py-4">
-            <PdfViewer url={pdfUrl} />
-          </div>
-          
-          <DialogFooter className="flex justify-between sm:justify-between">
-            <div className="space-x-2">
-              <Button 
-                type="button" 
-                variant="outline"
-                onClick={handlePrintPdf}
-                disabled={!pdfUrl}
-              >
-                <Printer className="mr-2 h-4 w-4" />
-                Drucken
-              </Button>
+          <Tabs 
+            value={activeTab} 
+            onValueChange={setActiveTab}
+            className="flex-1 flex flex-col overflow-hidden"
+          >
+            <div className="border-b">
+              <TabsList className="w-full h-12 p-0 bg-transparent justify-start rounded-none px-4">
+                <TabsTrigger 
+                  value="pdf" 
+                  className="flex items-center data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  <span className="hidden sm:inline">PDF-Vorschau</span>
+                  <span className="sm:hidden">PDF</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="email" 
+                  className="flex items-center data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full"
+                >
+                  <Mail className="h-4 w-4 mr-2" />
+                  <span className="hidden sm:inline">E-Mail verfassen</span>
+                  <span className="sm:hidden">E-Mail</span>
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="details" 
+                  className="flex items-center data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full"
+                >
+                  <InfoIcon className="h-4 w-4 mr-2" />
+                  <span className="hidden sm:inline">Bestelldetails</span>
+                  <span className="sm:hidden">Details</span>
+                </TabsTrigger>
+              </TabsList>
+            </div>
+            
+            {/* PDF Tab */}
+            <TabsContent value="pdf" className="flex-1 overflow-hidden flex flex-col m-0 p-0">
+              <ScrollArea className="flex-1">
+                <div className="p-4">
+                  {!pdfUrl ? (
+                    <div className="flex flex-col items-center justify-center h-[40vh] sm:h-[50vh]">
+                      <AlertTriangle className="h-12 w-12 text-amber-500 mb-4" />
+                      <p className="text-center mb-4">PDF noch nicht generiert oder konnte nicht geladen werden.</p>
+                      <Button 
+                        onClick={handleGeneratePdf} 
+                        disabled={isGeneratingPdf}
+                      >
+                        {isGeneratingPdf ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            PDF wird generiert...
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            PDF generieren
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  ) : (
+                    <PdfViewer url={pdfUrl} />
+                  )}
+                </div>
+              </ScrollArea>
               
-              <Button 
-                type="button" 
-                variant="outline"
-                onClick={handleDownloadPdf}
-                disabled={!pdfBlob}
+              <div className="border-t p-4">
+                <div className="flex flex-col sm:flex-row gap-2 justify-end">
+                  <Button 
+                    variant="outline" 
+                    onClick={handleDownloadPdf}
+                    className="sm:w-auto"
+                    disabled={!pdfUrl || isGeneratingPdf}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    <span className="hidden sm:inline">Herunterladen</span>
+                    <span className="sm:hidden">Download</span>
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={handlePrintPdf}
+                    className="sm:w-auto"
+                    disabled={!pdfUrl || isGeneratingPdf}
+                  >
+                    <Printer className="mr-2 h-4 w-4" />
+                    <span className="hidden sm:inline">Drucken</span>
+                    <span className="sm:hidden">Drucken</span>
+                  </Button>
+                  <Button 
+                    onClick={() => {
+                      setActiveTab("email");
+                      handlePrepareEmail();
+                    }}
+                    className="sm:w-auto"
+                    disabled={!pdfUrl || isGeneratingPdf}
+                  >
+                    <Mail className="mr-2 h-4 w-4" />
+                    <span className="hidden sm:inline">Per E-Mail versenden</span>
+                    <span className="sm:hidden">E-Mail</span>
+                    <ChevronRight className="ml-2 h-4 w-4 hidden sm:block" />
+                  </Button>
+                </div>
+              </div>
+            </TabsContent>
+            
+            {/* E-Mail Tab */}
+            <TabsContent value="email" className="flex-1 overflow-hidden flex flex-col m-0 p-0">
+              <ScrollArea className="flex-1">
+                <div className="p-4 space-y-4">
+                  {!pdfBlob && (
+                    <Alert variant="warning" className="mb-4">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertTitle>PDF erforderlich</AlertTitle>
+                      <AlertDescription>
+                        Das PDF muss zuerst generiert werden, bevor die E-Mail gesendet werden kann.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  
+                  <Card>
+                    <CardHeader className="p-3 pb-1">
+                      <CardTitle className="text-sm font-medium">Empfänger</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <Input 
+                          value={emailAddress}
+                          onChange={(e) => setEmailAddress(e.target.value)}
+                          placeholder="lieferant@example.com"
+                          className="flex-grow"
+                        />
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => copyToClipboard(emailAddress)}
+                          className="shrink-0"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="p-3 pb-1">
+                      <CardTitle className="text-sm font-medium">CC-Empfänger (optional)</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-3 py-2">
+                      <Input
+                        value={ccAddresses}
+                        onChange={(e) => setCcAddresses(e.target.value)}
+                        placeholder="empfaenger2@example.com, empfaenger3@example.com"
+                      />
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="p-3 pb-1">
+                      <CardTitle className="text-sm font-medium">Betreff</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <Input 
+                          value={emailSubject}
+                          onChange={(e) => setEmailSubject(e.target.value)}
+                          placeholder="Betreff der E-Mail"
+                          className="flex-grow"
+                        />
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => copyToClipboard(emailSubject)}
+                          className="shrink-0"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card className="flex-1">
+                    <CardHeader className="p-3 pb-1">
+                      <CardTitle className="text-sm font-medium">Nachricht</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-3 py-2">
+                      <div className="flex flex-col gap-2">
+                        <Textarea 
+                          value={emailText}
+                          onChange={(e) => setEmailText(e.target.value)}
+                          placeholder="Text der E-Mail"
+                          className="min-h-[150px]"
+                        />
+                        <div className="flex justify-end">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => copyToClipboard(emailText)}
+                          >
+                            <Copy className="h-3 w-3 mr-1" />
+                            Text kopieren
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="p-3 pt-0">
+                      <div className="w-full flex items-center gap-2 text-xs text-muted-foreground">
+                        <span>Anhang: </span>
+                        <Badge variant="outline" className="font-normal">
+                          Bestellung_{order?.orderNumber}.pdf
+                        </Badge>
+                      </div>
+                    </CardFooter>
+                  </Card>
+                </div>
+              </ScrollArea>
+              
+              <div className="border-t p-4">
+                <Button
+                  onClick={handleSendEmail}
+                  disabled={sendEmailMutation.isPending || !emailAddress || !emailSubject || !emailText || !pdfBlob}
+                  className="w-full sm:w-auto"
+                >
+                  {sendEmailMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <span>Senden...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="mr-2 h-4 w-4" />
+                      <span>E-Mail senden</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            </TabsContent>
+            
+            {/* Details Tab */}
+            <TabsContent value="details" className="flex-1 overflow-hidden flex flex-col m-0 p-0">
+              <ScrollArea className="flex-1">
+                <div className="p-4 space-y-4">
+                  <Card>
+                    <CardHeader className="p-3">
+                      <CardTitle className="text-base font-medium flex items-center gap-2">
+                        <InfoIcon className="h-4 w-4" />
+                        Bestellung
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-3 pt-0">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">Bestellnummer:</p>
+                          <p className="font-medium">{order?.orderNumber}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">Datum:</p>
+                          <p className="font-medium">
+                            {order?.orderDate ? new Date(order.orderDate).toLocaleDateString('de-DE') : 'Nicht angegeben'}
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">Status:</p>
+                          <Badge variant={order?.status === "sent" ? "success" : "outline"}>
+                            {order?.status === "draft" ? "Entwurf" : 
+                             order?.status === "sent" ? "Versendet" : 
+                             order?.status === "confirmed" ? "Bestätigt" :
+                             order?.status === "delivered" ? "Geliefert" : order?.status || "Unbekannt"}
+                          </Badge>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">Lieferdatum:</p>
+                          <p className="font-medium">
+                            {order?.expectedDeliveryDate ? new Date(order.expectedDeliveryDate).toLocaleDateString('de-DE') : 'Nicht angegeben'}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="p-3">
+                      <CardTitle className="text-base font-medium flex items-center gap-2">
+                        <Building className="h-4 w-4" />
+                        Lieferant
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-3 pt-0">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">Name:</p>
+                          <p className="font-medium">{order?.supplierName || 'Nicht angegeben'}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">E-Mail:</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">{order?.supplierEmail || 'Nicht angegeben'}</p>
+                            {order?.supplierEmail && (
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                className="h-5 w-5"
+                                onClick={() => copyToClipboard(order.supplierEmail)}
+                              >
+                                <Copy className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">Telefon:</p>
+                          <p className="font-medium">{order?.supplierPhone || 'Nicht angegeben'}</p>
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">Ansprechpartner:</p>
+                          <p className="font-medium">{order?.supplierContactPerson || 'Nicht angegeben'}</p>
+                        </div>
+                        {order?.supplierAddress && (
+                          <div className="space-y-1 sm:col-span-2">
+                            <p className="text-xs text-muted-foreground">Adresse:</p>
+                            <p className="font-medium whitespace-pre-line">{order.supplierAddress}</p>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader className="p-3">
+                      <CardTitle className="text-base font-medium flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        Lieferadresse
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-3 pt-0">
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">Lieferort:</p>
+                        <p className="font-medium">{order?.deliveryAddress || order?.locationName || 'Standard-Lieferadresse'}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  {order?.notes && (
+                    <Card>
+                      <CardHeader className="p-3">
+                        <CardTitle className="text-base font-medium">Hinweise zur Bestellung</CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-3 pt-0">
+                        <p className="whitespace-pre-line">{order.notes}</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              </ScrollArea>
+              
+              <div className="border-t p-4">
+                <Button
+                  onClick={() => setActiveTab("email")}
+                  className="w-full sm:w-auto"
+                  disabled={!pdfBlob}
+                >
+                  <Mail className="mr-2 h-4 w-4" />
+                  Weiter zur E-Mail
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
+          
+          <DialogFooter className="border-t p-4 flex justify-between items-center">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsDialogOpen(false)}
+              size="sm"
+            >
+              Schließen
+            </Button>
+            
+            {activeTab === "email" && (
+              <Button
+                size="sm"
+                onClick={handleSendEmail}
+                disabled={sendEmailMutation.isPending || !emailAddress || !emailSubject || !emailText || !pdfBlob}
               >
-                <Download className="mr-2 h-4 w-4" />
-                Herunterladen
+                {sendEmailMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Senden...
+                  </>
+                ) : (
+                  <>
+                    <Send className="mr-2 h-4 w-4" />
+                    Senden
+                  </>
+                )}
               </Button>
-            </div>
-            
-            <Button
-              type="button"
-              onClick={handleOpenEmailDialog}
-              disabled={!pdfBlob}
-            >
-              <Mail className="mr-2 h-4 w-4" />
-              Per E-Mail versenden
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      
-      {/* E-Mail Versand Dialog */}
-      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Bestellung per E-Mail versenden</DialogTitle>
-            <DialogDescription>
-              Versenden Sie die Bestellung {order?.orderNumber} per E-Mail an den Lieferanten.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Empfänger</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="lieferant@example.com"
-                value={emailAddress}
-                onChange={(e) => setEmailAddress(e.target.value)}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="cc">CC (optional, mehrere durch Komma trennen)</Label>
-              <Input
-                id="cc"
-                type="text"
-                placeholder="empfaenger2@example.com, empfaenger3@example.com"
-                value={ccAddresses}
-                onChange={(e) => setCcAddresses(e.target.value)}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="subject">Betreff</Label>
-              <Input
-                id="subject"
-                value={emailSubject}
-                onChange={(e) => setEmailSubject(e.target.value)}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="text">Nachricht</Label>
-              <Textarea
-                id="text"
-                rows={8}
-                value={emailText}
-                onChange={(e) => setEmailText(e.target.value)}
-              />
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setShowEmailDialog(false)}
-            >
-              Abbrechen
-            </Button>
-            
-            <Button
-              type="button"
-              onClick={handleSendEmail}
-              disabled={sendEmailMutation.isPending || !emailAddress || !emailSubject || !emailText}
-            >
-              {sendEmailMutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Senden...
-                </>
-              ) : (
-                <>
-                  <Send className="mr-2 h-4 w-4" />
-                  Senden
-                </>
-              )}
-            </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
