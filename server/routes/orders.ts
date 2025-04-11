@@ -289,9 +289,28 @@ router.post("/", async (req: Request, res: Response) => {
       orderData.createdByName = "System";
     }
 
-    // Datums- und Zeitfelder korrekt formatieren
-    if (orderData.expectedDeliveryDate && !(orderData.expectedDeliveryDate instanceof Date)) {
-      orderData.expectedDeliveryDate = new Date(orderData.expectedDeliveryDate);
+    // Datums- und Zeitfelder korrekt formatieren oder auf null setzen
+    try {
+      if (orderData.expectedDeliveryDate) {
+        if (orderData.expectedDeliveryDate instanceof Date) {
+          // Wenn es bereits ein Date-Objekt ist, behalten wir es
+        } else if (typeof orderData.expectedDeliveryDate === 'string') {
+          // Wenn es ein String ist, konvertieren wir es
+          orderData.expectedDeliveryDate = new Date(orderData.expectedDeliveryDate);
+          // Überprüfen, ob das Datum gültig ist
+          if (isNaN(orderData.expectedDeliveryDate.getTime())) {
+            console.warn("Ungültiges Datumsformat für expectedDeliveryDate:", orderData.expectedDeliveryDate);
+            orderData.expectedDeliveryDate = null;
+          }
+        } else {
+          // Bei allen anderen Typen setzen wir es auf null
+          console.warn("Unerwarteter Typ für expectedDeliveryDate:", typeof orderData.expectedDeliveryDate);
+          orderData.expectedDeliveryDate = null;
+        }
+      }
+    } catch (dateError) {
+      console.error("Fehler bei der Verarbeitung des Lieferdatums:", dateError);
+      orderData.expectedDeliveryDate = null;
     }
 
     // Sicherstellen, dass alle erforderlichen Felder vorhanden sind
