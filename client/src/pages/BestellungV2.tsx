@@ -271,6 +271,7 @@ const BestellungV2: React.FC = () => {
         purchaseConditionId: product.purchaseConditionId || null, // Include purchase condition ID if available
         quantity: product.orderQuantity,
         price: product.price || 0,
+        totalPrice: (product.price || 0) * product.orderQuantity, // Calculate total price
       };
     });
     
@@ -278,11 +279,12 @@ const BestellungV2: React.FC = () => {
     const orderData = {
       warehouseId,
       supplierId,
-      products: mappedProducts,
+      orderItems: mappedProducts, // Server expects 'orderItems' array, not 'products'
       expectedDeliveryDate: additionalInfo.expectedDeliveryDate,
       priority: additionalInfo.priority,
       notes: additionalInfo.notes,
       status: 'draft', // Initial status
+      locationId: warehouseId, // In this context warehouse and location are the same
     };
     
     console.log("Submitting order data:", orderData);
