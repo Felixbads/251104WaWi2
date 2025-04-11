@@ -499,6 +499,28 @@ function NewOrderForm({
       });
     };
     
+    // Gespeicherten Lieferanten wiederherstellen, wenn vorhanden
+    const restoreSavedSupplier = () => {
+      const savedSupplierId = sessionStorage.getItem('currentSupplierId');
+      if (savedSupplierId) {
+        try {
+          const id = parseInt(savedSupplierId);
+          if (!isNaN(id)) {
+            console.log(`Gespeicherter Lieferant gefunden: ${id}`);
+            // Explizit im State setzen
+            setCurrentSupplierId(id);
+            // Im Formular setzen mit Verzögerung
+            setTimeout(() => {
+              orderForm.setValue('supplierId', id);
+              console.log(`Lieferant im Formular wiederhergestellt: ${id}`);
+            }, 100);
+          }
+        } catch (e) {
+          console.error("Fehler beim Wiederherstellen des Lieferanten:", e);
+        }
+      }
+    };
+    
     // Wenn direkt von /bestellungen/neu aufgerufen (ohne über den Schritt-Prozess zu gehen)
     if (!warehouseId) {
       startNewOrder();
@@ -519,6 +541,8 @@ function NewOrderForm({
     if (isNewSession) {
       startNewOrder();
     } else {
+      // Lieferanten-ID wiederherstellen, wenn vorhanden
+      restoreSavedSupplier();
       // Bestehende Bestellung fortsetzen - Daten laden
       const savedOrderItems = sessionStorage.getItem('orderItems');
       if (savedOrderItems) {
@@ -670,6 +694,15 @@ function NewOrderForm({
       
       // State aktualisieren, wenn sich der Lieferant ändert
       setCurrentSupplierId(supplierId);
+      
+      // In lokalen Speicher sichern für spätere Wiederherstellung bei Reset
+      if (supplierId) {
+        try {
+          sessionStorage.setItem('currentSupplierId', supplierId.toString());
+        } catch (e) {
+          console.error("Fehler beim Speichern des Lieferanten:", e);
+        }
+      }
       
       // Produktauswahl zurücksetzen, wenn der Lieferant geändert wird
       if (itemForm.getValues('productId')) {
@@ -836,12 +869,32 @@ function NewOrderForm({
         targetMachineId: undefined
       });
       
-      // Sehr wichtig: Den gesamten Formularstatus explizit wiederherstellen
-      if (preservedFormState.supplierId) {
-        orderForm.setValue('supplierId', preservedFormState.supplierId);
-        // Zusätzlich direkt im currentSupplierId-State setzen, um sicherzustellen, dass die Reaktivität gewährleistet ist
-        setCurrentSupplierId(preservedFormState.supplierId);
-      }
+      // Verzögerung einbauen, um Race-Conditions zu vermeiden
+      setTimeout(() => {
+        // Sehr wichtig: Den gesamten Formularstatus explizit wiederherstellen
+        if (preservedFormState.supplierId) {
+          // Direkt im State setzen, damit Komponenten reagieren können
+          setCurrentSupplierId(preservedFormState.supplierId);
+          
+          // Im Formular setzen
+          orderForm.setValue('supplierId', preservedFormState.supplierId);
+          
+          // Stellen Sie sicher, dass der Wert tatsächlich aktualisiert wurde
+          console.log(`Lieferant nach Wiederherstellung: ${orderForm.getValues().supplierId}`);
+          
+          // Andere Formularwerte wiederherstellen
+          if (preservedFormState.expectedDeliveryDate) {
+            orderForm.setValue('expectedDeliveryDate', preservedFormState.expectedDeliveryDate);
+          }
+          if (preservedFormState.notes) {
+            orderForm.setValue('notes', preservedFormState.notes);
+          }
+          if (preservedFormState.priority) {
+            orderForm.setValue('priority', preservedFormState.priority);
+          }
+        }
+      }, 0);
+      
       
       // Ausgewähltes Produkt zurücksetzen
       setSelectedProduct(null);
@@ -1013,8 +1066,27 @@ function NewOrderForm({
         // API-Anfrage zum Speichern der Bestellung mit korrektem API-Pfad und Format
         console.log("Sende Bestellung an API:", orderForApi);
         
-        // apiRequest korrekt verwenden - POST-Anfragen verwenden die Signatur (method, url, data)
-        const response = await apiRequest("post", "/api/orders", orderForApi);
+        // Log zur Fehlersuche hinzufügen
+        console.log("API Request: POST /api/orders", {
+          method: "POST", 
+          body: JSON.stringify(orderForApi)
+        });
+        
+        // Den apiRequest mit dem richtigen Pfad und typisierten Daten aufrufen
+        // Reihenfolge der Parameter: (url, data, method)
+        const response = await fetch('/api/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(orderForApi),
+          credentials: 'include'
+        }).then(res => {
+          if (!res.ok) {
+            throw new Error(`HTTP Fehler! Status: ${res.status}`);
+          }
+          return res.json();
+        });
         
         if (response && response.id) {
           // Erfolgreiche API-Antwort
