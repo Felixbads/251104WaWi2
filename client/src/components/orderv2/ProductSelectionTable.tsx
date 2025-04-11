@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getPurchaseConditionsBySupplier, PurchaseCondition } from '../../lib/api';
+import { getPurchaseConditionsBySupplier, PurchaseCondition, getSupplier } from '../../lib/api';
 import {
   Card,
   CardContent,
@@ -64,6 +64,7 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
   // Fetch supplier details to display name
   const { data: supplierData } = useQuery({
     queryKey: ['/api/suppliers', supplierId],
+    queryFn: () => supplierId ? getSupplier(supplierId) : null,
     enabled: !!supplierId,
   });
   
@@ -85,18 +86,32 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
     enabled: mode === 'forecast' && !!warehouseId,
   });
   
-  // Get products array from response (handling both formats)
+  // Convert purchase conditions to products array
   const products = React.useMemo(() => {
-    if (!productsResponse) return [];
-    // Handle both array response and {data: []} response format
-    if (Array.isArray(productsResponse)) return productsResponse;
-    if (typeof productsResponse === 'object' && 
-        'data' in productsResponse && 
-        Array.isArray(productsResponse.data)) {
-      return productsResponse.data;
-    }
-    return [];
-  }, [productsResponse]);
+    if (!purchaseConditionsResponse) return [];
+    
+    // Handle both array response formats
+    const purchaseConditions = Array.isArray(purchaseConditionsResponse) 
+      ? purchaseConditionsResponse 
+      : (purchaseConditionsResponse as any)?.data || [];
+    
+    // Map purchase conditions to a product-like format
+    return purchaseConditions.map((condition: PurchaseCondition) => ({
+      id: condition.productId,
+      name: condition.productName || `Produkt ID: ${condition.productId}`,
+      sku: condition.productSku,
+      price: condition.unitPrice,
+      packagingUnit: condition.packagingUnit,
+      minQuantity: condition.minQuantity || 1,
+      // Additional fields from purchase condition
+      purchaseConditionId: condition.id,
+      isPreferred: condition.isPreferred,
+      validFrom: condition.validFrom,
+      validTo: condition.validTo,
+      notes: condition.notes,
+      leadTime: condition.leadTime
+    }));
+  }, [purchaseConditionsResponse]);
   
   // Get supplier name if available
   const supplierName = React.useMemo(() => {
