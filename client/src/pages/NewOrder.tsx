@@ -737,7 +737,7 @@ function NewOrderForm({
       
       // Form zurücksetzen, aber sicherstellen, dass der Lieferant erhalten bleibt
       itemForm.reset({
-        productId: undefined,
+        productId: null, // null für nullable Schema
         quantity: 1,
         unitPrice: 0,
         notes: '',
