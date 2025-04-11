@@ -1294,8 +1294,26 @@ function NewOrderForm({
                         </FormControl>
                         <SelectContent className="max-h-[300px] overflow-y-auto">
                           {products?.data ? products.data
-                            // Keine Filterung nach supplierId, da die Produkte keinen supplierId haben
-                            // so werden alle Produkte angezeigt, egal welcher Lieferant ausgewählt ist
+                            .filter((product: any) => {
+                              // Wenn kein Lieferant ausgewählt ist, alle Produkte anzeigen
+                              if (!currentSupplierId) return true;
+                              
+                              // Supplier aus den Daten abrufen
+                              const supplier = suppliers?.data?.find((s: any) => s.id === currentSupplierId);
+                              if (!supplier) return true;
+                              
+                              // Produktnamen und Lieferantennamen normalisieren für besseren Vergleich
+                              const productName = (product.productName || product.name || "").toLowerCase();
+                              const supplierName = supplier.name.toLowerCase();
+                              
+                              // Prüfen, ob Produktname den Lieferantennamen enthält
+                              // Oft steht der Herstellername in Klammern am Ende des Produktnamens
+                              return productName.includes(supplierName) || 
+                                     // Wenn der Lieferantenname "Wehlen" enthält, dann auch Milchhof Fiedler Produkte anzeigen
+                                     (supplierName.includes("wehlen") && productName.includes("fiedler")) ||
+                                     // Allgemeine Prüfung für teilweise Übereinstimmungen
+                                     supplierName.split(" ").some(word => word.length > 3 && productName.includes(word));
+                            })
                             .map((product: any) => (
                               <SelectItem key={product.id} value={product.id.toString()}>
                                 {product.productName || product.name}
