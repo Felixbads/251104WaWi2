@@ -230,6 +230,8 @@ const BestellungV2: React.FC = () => {
   const handleWarehouseSelect = (id: number, name: string) => {
     setWarehouseId(id);
     setWarehouseName(name);
+    // Automatically go to next step
+    setStep('mode');
   };
   
   // Handle mode selection
@@ -240,17 +242,31 @@ const BestellungV2: React.FC = () => {
     if (mode !== 'copy') {
       setSourceOrderId(null);
     }
+    
+    // Automatically go to next step
+    setStep('supplier');
   };
   
   // Handle supplier selection
   const handleSupplierSelect = (id: number, name: string) => {
     setSupplierId(id);
     setSupplierName(name);
+    // Automatically go to next step
+    setStep('products');
   };
   
   // Handle products change
   const handleProductsChange = (products: any[]) => {
     setSelectedProducts(products);
+    
+    // Wenn Produkte vorhanden sind, automatisch zum nächsten Schritt gehen
+    if (products.length > 0) {
+      // Automatisch zur nächsten Seite gehen, aber nur wenn mindestens ein Produkt ausgewählt wurde
+      // und wir uns auf der Produktauswahlseite befinden
+      if (step === 'products') {
+        setStep('additionalInfo');
+      }
+    }
   };
   
   // Handle additional info change
@@ -260,6 +276,11 @@ const BestellungV2: React.FC = () => {
     notes: string;
   }) => {
     setAdditionalInfo(info);
+    
+    // Wenn Lieferdatum gesetzt ist, automatisch zum nächsten Schritt gehen
+    if (info.expectedDeliveryDate && step === 'additionalInfo') {
+      setStep('summary');
+    }
   };
   
   // Handle order submission

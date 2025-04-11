@@ -109,7 +109,10 @@ const WarehouseSelector: React.FC<WarehouseSelectorProps> = ({
                         <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={() => onSelectWarehouse(warehouse.id, warehouse.name)}
+                          onClick={() => {
+                            onSelectWarehouse(warehouse.id, warehouse.name);
+                            // Automatisch zum nächsten Schritt gehen
+                          }}
                         >
                           <Building2 className="mr-1 h-4 w-4" />
                           Auswählen
