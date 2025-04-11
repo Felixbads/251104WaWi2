@@ -474,8 +474,13 @@ type OrderItemValues = z.infer<typeof orderItemSchema>;
 // Funktion zum Formatieren von Datumsangaben
 const formatDate = (dateString: string | null) => {
   if (!dateString) return "-";
-  const date = parseISO(dateString);
-  return isValid(date) ? format(date, "dd.MM.yyyy HH:mm", { locale: de }) : "-";
+  try {
+    const date = parseISO(dateString);
+    return isValid(date) ? format(date, "dd.MM.yyyy HH:mm", { locale: de }) : "-";
+  } catch (error) {
+    console.error("Fehler beim Formatieren des Datums:", dateString, error);
+    return "-";
+  }
 };
 
 // Funktion zum Formatieren von Währungsbeträgen

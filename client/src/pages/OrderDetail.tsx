@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { format, parseISO, isValid } from "date-fns";
 import { de } from "date-fns/locale";
 import { jsPDF } from "jspdf";
 // @ts-ignore
@@ -231,15 +231,33 @@ const formatPriority = (priority: string) => {
 // Formatierung des Datums
 const formatDate = (dateString: string | null) => {
   if (!dateString) return "-";
-  const date = new Date(dateString);
-  return format(date, "dd.MM.yyyy", { locale: de });
+  try {
+    const date = parseISO(dateString);
+    if (!isValid(date)) {
+      console.warn("Ungültiges Datum:", dateString);
+      return "-";
+    }
+    return format(date, "dd.MM.yyyy", { locale: de });
+  } catch (error) {
+    console.error("Fehler beim Formatieren des Datums:", dateString, error);
+    return "-";
+  }
 };
 
 // Formatierung der Uhrzeit
 const formatTime = (dateString: string | null) => {
   if (!dateString) return "";
-  const date = new Date(dateString);
-  return format(date, "HH:mm", { locale: de });
+  try {
+    const date = parseISO(dateString);
+    if (!isValid(date)) {
+      console.warn("Ungültige Zeit:", dateString);
+      return "";
+    }
+    return format(date, "HH:mm", { locale: de });
+  } catch (error) {
+    console.error("Fehler beim Formatieren der Zeit:", dateString, error);
+    return "";
+  }
 };
 
 // Formatierung von Währungen

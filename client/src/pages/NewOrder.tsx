@@ -942,7 +942,7 @@ function NewOrderForm({
     
     return {
       ...formValues,
-      expectedDeliveryDate: formValues.expectedDeliveryDate ? format(formValues.expectedDeliveryDate, 'yyyy-MM-dd') : null,
+      expectedDeliveryDate: formValues.expectedDeliveryDate ? new Date(formValues.expectedDeliveryDate).toISOString() : null,
       warehouseId,
       status: status,
       totalAmount: orderItems.reduce((sum: number, item: any) => sum + item.totalPrice, 0),
@@ -1906,7 +1906,7 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
   // Holen Sie Produkte für das Lager
   const { data: products, isLoading: isProductsLoading } = useQuery({
     queryKey: ["/api/products", { warehouseId }],
-    queryFn: () => apiRequest(`/api/products?warehouseId=${warehouseId}`, null, "GET"),
+    queryFn: () => apiRequest(`/api/products?warehouseId=${warehouseId}`, {}, "GET"),
     retry: 1,
     enabled: !!warehouseId
   });
@@ -1914,7 +1914,7 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
   // Holen Sie Maschinen für das Lager
   const { data: machines, isLoading: isMachinesLoading } = useQuery({
     queryKey: ["/api/machines", { warehouseId }],
-    queryFn: () => apiRequest(`/api/machines?locationId=${warehouseId}`, null, "GET"),
+    queryFn: () => apiRequest(`/api/machines?locationId=${warehouseId}`, {}, "GET"),
     retry: 1,
     enabled: !!warehouseId
   });
@@ -1929,7 +1929,10 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
       const endDate = new Date();
       endDate.setDate(today.getDate() + parseInt(forecastPeriod));
       
-      return apiRequest(`/api/forecast/demand?modelId=${selectedModelId}&startDate=${today.toISOString().split("T")[0]}&endDate=${endDate.toISOString().split("T")[0]}`, null, "GET");
+      const startDateStr = today.toISOString().split("T")[0];
+      const endDateStr = endDate.toISOString().split("T")[0];
+      
+      return apiRequest(`/api/forecast/demand?modelId=${selectedModelId}&startDate=${startDateStr}&endDate=${endDateStr}`, {}, "GET");
     },
     enabled: !!selectedModelId && !!forecastPeriod,
     retry: 1
