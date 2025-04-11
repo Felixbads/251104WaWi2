@@ -270,17 +270,17 @@ router.post("/", async (req: Request, res: Response) => {
     }
 
     // Bestellpositionen trennen
-    const { orderItems: items, ...orderOnly } = orderData;
+    const { orderItems: itemsArray, ...orderOnly } = orderData;
 
     // Bestellung erstellen
     const newOrder = await storage.createOrder(orderOnly);
 
     // Bestellpositionen erstellen
-    if (items && Array.isArray(items) && items.length > 0) {
-      const orderItemsWithId = items.map((item, index) => ({
+    if (itemsArray && Array.isArray(itemsArray) && itemsArray.length > 0) {
+      const orderItemsWithId = itemsArray.map((item, index) => ({
         ...item,
         orderId: newOrder.id,
-        positionNumber: index + 1
+        positionNumber: item.positionNumber || index + 1
       }));
 
       await Promise.all(
