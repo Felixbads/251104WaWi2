@@ -120,9 +120,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
   // Process goods receipt mutation
   const goodsReceiptMutation = useMutation({
     mutationFn: (receiptData: any) => {
-      return apiRequest('post', `/api/orders/${orderId}/goods-receipt`, {
-        body: receiptData
-      });
+      return apiRequest('post', `/api/orders/${orderId}/goods-receipt`, receiptData);
     },
     onSuccess: () => {
       toast({

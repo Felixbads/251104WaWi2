@@ -1,41 +1,39 @@
-import React, { ReactNode } from 'react';
-import { cn } from '@/lib/utils';
-import { CheckIcon } from 'lucide-react';
+import * as React from "react";
+import { cn } from "@/lib/utils";
 
-interface StepsProps {
+interface StepsProps extends React.HTMLAttributes<HTMLDivElement> {
   currentStep: number;
-  children: React.ReactNode;
-  className?: string;
 }
 
-export function Steps({ currentStep, children, className }: StepsProps) {
-  // Count the total number of steps
-  const steps = React.Children.toArray(children) as React.ReactElement[];
+export function Steps({ currentStep = 0, className, children }: StepsProps) {
+  // Count the steps using React.Children
+  const steps = React.Children.toArray(children);
   const totalSteps = steps.length;
 
   return (
-    <div className={cn("flex flex-col sm:flex-row justify-between gap-4", className)}>
-      {steps.map((step, index) => {
-        return React.cloneElement(step, {
-          step: index + 1,
-          current: currentStep === index,
-          complete: currentStep > index,
-          last: totalSteps === index + 1,
-        });
-      })}
+    <div className={cn("w-full", className)}>
+      <div className="flex w-full items-center justify-between gap-3">
+        {React.Children.map(children, (step, index) => {
+          return React.cloneElement(step as React.ReactElement, {
+            step: index + 1,
+            isActive: currentStep === index,
+            isCompleted: index < currentStep,
+            isLastStep: index === totalSteps - 1,
+          });
+        })}
+      </div>
     </div>
   );
 }
 
-interface StepProps {
+interface StepProps extends React.HTMLAttributes<HTMLDivElement> {
   title: string;
   description?: string;
   step?: number;
-  current?: boolean;
-  complete?: boolean;
-  last?: boolean;
-  icon?: ReactNode;
-  onClick?: () => void;
+  isActive?: boolean;
+  isCompleted?: boolean;
+  isLastStep?: boolean;
+  icon?: React.ReactNode;
   disabled?: boolean;
 }
 
@@ -43,56 +41,80 @@ export function Step({
   title,
   description,
   step,
-  current,
-  complete,
-  last,
+  isActive = false,
+  isCompleted = false,
+  isLastStep = false,
+  className,
   icon,
-  onClick,
   disabled = false,
+  onClick,
+  ...props
 }: StepProps) {
   return (
     <div 
       className={cn(
-        "flex-1 flex flex-col gap-1 relative",
-        !last && "after:content-[''] after:absolute after:top-5 after:left-5 after:right-0 after:h-0.5 after:bg-muted after:translate-y-px sm:after:w-full sm:after:left-1/2",
-        current && "after:bg-primary",
-        complete && "after:bg-primary",
-        (onClick && !disabled) && "cursor-pointer",
-        disabled && "opacity-50 cursor-not-allowed"
+        "flex flex-1 flex-col relative",
+        {
+          "cursor-pointer": !disabled && onClick,
+          "cursor-not-allowed opacity-60": disabled,
+        },
+        className
       )}
-      onClick={() => !disabled && onClick && onClick()}
+      onClick={disabled ? undefined : onClick}
+      {...props}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <div
           className={cn(
-            "relative flex items-center justify-center w-10 h-10 rounded-full border border-muted bg-background z-10",
-            current && "border-primary bg-primary text-primary-foreground",
-            complete && "border-primary bg-primary text-primary-foreground"
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 font-medium",
+            {
+              "border-primary bg-primary text-white": isActive,
+              "border-primary/70 text-primary": isCompleted,
+              "border-muted-foreground text-muted-foreground": !isActive && !isCompleted,
+            }
           )}
         >
-          {complete ? (
-            <CheckIcon className="w-5 h-5" />
-          ) : icon ? (
-            icon
-          ) : (
-            <span className="text-sm font-medium">{step}</span>
+          {icon && (
+            <div className="flex items-center justify-center">
+              {icon}
+            </div>
+          )}
+          {!icon && (
+            <>{isCompleted ? "✓" : step}</>
           )}
         </div>
-        <div className="flex flex-col sm:min-w-[120px]">
-          <span
-            className={cn(
-              "text-sm font-medium",
-              current && "text-primary",
-              complete && "text-primary"
-            )}
+        <div className="flex flex-col">
+          <div
+            className={cn("text-sm font-medium", {
+              "text-foreground": isActive || isCompleted,
+              "text-muted-foreground": !isActive && !isCompleted,
+            })}
           >
             {title}
-          </span>
+          </div>
           {description && (
-            <span className="text-xs text-muted-foreground">{description}</span>
+            <div
+              className={cn("text-xs", {
+                "text-muted-foreground": isActive || isCompleted,
+                "text-muted-foreground/70": !isActive && !isCompleted,
+              })}
+            >
+              {description}
+            </div>
           )}
         </div>
       </div>
+      {!isLastStep && (
+        <div
+          className={cn(
+            "absolute top-4 left-4 h-[calc(100%-16px)] w-px ml-3 border-l-2",
+            {
+              "border-primary": isCompleted,
+              "border-muted": !isCompleted,
+            }
+          )}
+        />
+      )}
     </div>
   );
 }

@@ -93,7 +93,7 @@ const AdditionalInfoForm: React.FC<AdditionalInfoFormProps> = ({
                 <Calendar
                   mode="single"
                   selected={additionalInfo.expectedDeliveryDate || undefined}
-                  onSelect={handleDateChange}
+                  onSelect={(date) => handleDateChange(date || null)}
                   initialFocus
                   locale={de}
                 />

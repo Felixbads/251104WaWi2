@@ -80,9 +80,7 @@ const BestellungV2: React.FC = () => {
   // Create order mutation
   const createOrderMutation = useMutation({
     mutationFn: (orderData: any) => {
-      return apiRequest('post', '/api/orders', {
-        body: orderData
-      });
+      return apiRequest('POST', '/api/orders', orderData);
     },
     onSuccess: (data) => {
       toast({
@@ -108,9 +106,7 @@ const BestellungV2: React.FC = () => {
   // Email order mutation
   const emailOrderMutation = useMutation({
     mutationFn: (emailData: { orderId: number, supplierEmail: string, pdfBase64: string, additionalNotes: string }) => {
-      return apiRequest('post', '/api/orders/email', {
-        body: emailData
-      });
+      return apiRequest('POST', '/api/orders/email', emailData);
     },
     onSuccess: () => {
       toast({
@@ -130,9 +126,7 @@ const BestellungV2: React.FC = () => {
   // Mark order as sent mutation
   const markOrderAsSentMutation = useMutation({
     mutationFn: (orderData: any) => {
-      return apiRequest('post', `/api/orders/${orderData.id}/mark-sent`, {
-        body: orderData
-      });
+      return apiRequest('POST', `/api/orders/${orderData.id}/mark-sent`, orderData);
     },
     onSuccess: () => {
       toast({
