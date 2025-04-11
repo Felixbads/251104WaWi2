@@ -1025,8 +1025,12 @@ function NewOrderForm({
                   <FormItem>
                     <FormLabel>Lieferant*</FormLabel>
                     <Select 
-                      onValueChange={(value) => field.onChange(value ? parseInt(value) : undefined)}
-                      defaultValue={field.value !== null && field.value !== undefined ? field.value.toString() : undefined}
+                      onValueChange={(value) => {
+                        // Sicherer Umgang mit value
+                        const newValue = value ? parseInt(value) : undefined;
+                        field.onChange(newValue);
+                      }}
+                      value={field.value !== null && field.value !== undefined ? field.value.toString() : ""}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -1284,8 +1288,12 @@ function NewOrderForm({
                     <FormItem>
                       <FormLabel>Produkt*</FormLabel>
                       <Select 
-                        onValueChange={(value) => field.onChange(value ? parseInt(value) : null)}
-                        defaultValue={field.value !== null && field.value !== undefined ? field.value.toString() : undefined}
+                        onValueChange={(value) => {
+                          // Sicherer Umgang mit value
+                          const newValue = value ? parseInt(value) : null;
+                          field.onChange(newValue);
+                        }}
+                        value={field.value !== null && field.value !== undefined ? field.value.toString() : ""}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -1383,8 +1391,12 @@ function NewOrderForm({
                     <FormItem>
                       <FormLabel>Zielmaschine (optional)</FormLabel>
                       <Select 
-                        onValueChange={(value) => field.onChange(value === "none" ? undefined : parseInt(value))}
-                        defaultValue={field.value !== null && field.value !== undefined ? field.value.toString() : "none"}
+                        onValueChange={(value) => {
+                          // Sicherer Umgang mit value
+                          const newValue = value === "none" ? undefined : parseInt(value);
+                          field.onChange(newValue);
+                        }}
+                        value={field.value !== null && field.value !== undefined ? field.value.toString() : "none"}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -1874,7 +1886,11 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
                 <Label htmlFor="supplier">Lieferant</Label>
                 <Select
                   value={selectedSupplierId?.toString() || ""}
-                  onValueChange={(value) => setSelectedSupplierId(parseInt(value))}
+                  onValueChange={(value) => {
+                    // Sicherer Umgang mit value
+                    const newValue = value ? parseInt(value) : null;
+                    setSelectedSupplierId(newValue);
+                  }}
                 >
                   <SelectTrigger id="supplier">
                     <SelectValue placeholder="Lieferant auswählen" />
@@ -1920,7 +1936,11 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
                 <Label htmlFor="forecastModel">Prognosemodell</Label>
                 <Select
                   value={selectedModelId?.toString() || ""}
-                  onValueChange={(value) => setSelectedModelId(parseInt(value))}
+                  onValueChange={(value) => {
+                    // Sicherer Umgang mit value
+                    const newValue = value ? parseInt(value) : null;
+                    setSelectedModelId(newValue);
+                  }}
                 >
                   <SelectTrigger id="forecastModel">
                     <SelectValue placeholder="Modell auswählen" />
