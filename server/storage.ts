@@ -597,18 +597,90 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createOrder(data: Omit<InsertOrder, "id">): Promise<Order> {
+    // Datum-Felder sicher formatieren
+    const cleanData = { ...data };
+    
+    // Explizite Behandlung aller möglichen Datums-Felder
+    const dateFields = ['expectedDeliveryDate', 'actualDeliveryDate', 'orderDate', 'createdAt', 'updatedAt', 'lastUpdated'];
+    
+    for (const field of dateFields) {
+      if (field in cleanData) {
+        try {
+          // Wenn es bereits ein gültiges Date-Objekt ist, nichts tun
+          if (cleanData[field] instanceof Date && !isNaN(cleanData[field].getTime())) {
+            // Bereits korrekt, lasse es unverändert
+          } 
+          // Wenn es ein String ist, konvertieren wir es in ein Date-Objekt
+          else if (typeof cleanData[field] === 'string') {
+            const parsedDate = new Date(cleanData[field]);
+            if (!isNaN(parsedDate.getTime())) {
+              cleanData[field] = parsedDate;
+            } else {
+              console.warn(`Ungültiger Datumswert für ${field}: ${cleanData[field]}, setze auf null`);
+              cleanData[field] = null;
+            }
+          } 
+          // Alle anderen Typen werden auf null gesetzt
+          else if (cleanData[field] !== null) {
+            console.warn(`Unerwarteter Typ für ${field}: ${typeof cleanData[field]}, setze auf null`);
+            cleanData[field] = null;
+          }
+        } catch (dateError) {
+          console.error(`Fehler bei der Verarbeitung des Datums für ${field}:`, dateError);
+          cleanData[field] = null;
+        }
+      }
+    }
+    
+    // Immer die aktuellen Zeitstempel setzen
     const [newOrder] = await db.insert(orders).values({
-      ...data,
+      ...cleanData,
       createdAt: new Date(),
       updatedAt: new Date()
     }).returning();
+    
     return newOrder;
   }
 
   async updateOrder(id: number, data: Partial<InsertOrder>): Promise<Order | undefined> {
+    // Datum-Felder sicher formatieren
+    const cleanData = { ...data };
+    
+    // Explizite Behandlung aller möglichen Datums-Felder
+    const dateFields = ['expectedDeliveryDate', 'actualDeliveryDate', 'orderDate', 'createdAt', 'updatedAt', 'lastUpdated'];
+    
+    for (const field of dateFields) {
+      if (field in cleanData) {
+        try {
+          // Wenn es bereits ein gültiges Date-Objekt ist, nichts tun
+          if (cleanData[field] instanceof Date && !isNaN(cleanData[field].getTime())) {
+            // Bereits korrekt, lasse es unverändert
+          } 
+          // Wenn es ein String ist, konvertieren wir es in ein Date-Objekt
+          else if (typeof cleanData[field] === 'string') {
+            const parsedDate = new Date(cleanData[field]);
+            if (!isNaN(parsedDate.getTime())) {
+              cleanData[field] = parsedDate;
+            } else {
+              console.warn(`Ungültiger Datumswert für ${field}: ${cleanData[field]}, setze auf null`);
+              cleanData[field] = null;
+            }
+          } 
+          // Alle anderen Typen werden auf null gesetzt
+          else if (cleanData[field] !== null) {
+            console.warn(`Unerwarteter Typ für ${field}: ${typeof cleanData[field]}, setze auf null`);
+            cleanData[field] = null;
+          }
+        } catch (dateError) {
+          console.error(`Fehler bei der Verarbeitung des Datums für ${field}:`, dateError);
+          cleanData[field] = null;
+        }
+      }
+    }
+    
     const [updatedOrder] = await db
       .update(orders)
-      .set({ ...data, updatedAt: new Date() })
+      .set({ ...cleanData, updatedAt: new Date() })
       .where(eq(orders.id, id))
       .returning();
     return updatedOrder;
