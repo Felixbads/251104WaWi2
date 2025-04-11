@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getPurchaseConditionsBySupplier, PurchaseCondition, getSupplier } from '../../lib/api';
+import { getPurchaseConditionsBySupplier, PurchaseCondition, getSupplier, Supplier } from '../../lib/api';
 import {
   Card,
   CardContent,
