@@ -504,8 +504,25 @@ const BestellungV2: React.FC = () => {
             </CardHeader>
             <CardContent>
               <GoodsReceiptForm
-                orderId={orderId!}
-                onReceiptComplete={handleGoodsReceiptComplete}
+                order={{
+                  id: orderId!,
+                  orderNumber: `ORD-${orderId!}`,
+                  orderDate: new Date(),
+                  warehouseName: warehouseName,
+                  supplierName: supplierName,
+                  status: 'open',
+                  items: selectedProducts.map(product => ({
+                    id: product.id,
+                    name: product.name || product.productName || '',
+                    orderedQuantity: product.orderQuantity,
+                    price: product.price || 0
+                  }))
+                }}
+                onSubmit={(receivedItems, notes, documents) => {
+                  // Hier würde man die Waren-Eingangs-Daten verarbeiten
+                  handleGoodsReceiptComplete();
+                }}
+                isSubmitting={false}
               />
             </CardContent>
           </Card>

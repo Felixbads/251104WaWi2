@@ -1413,7 +1413,14 @@ export default function SupplierDetail() {
                         </div>
                       </div>
                       {product.supplierId === null && (
-                        <Button size="sm" variant="outline">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation(); // Verhindert, dass der Klick das übergeordnete div-Element auslöst
+                            assignProductToSupplierMutation.mutate(product.id);
+                          }}
+                        >
                           <Plus className="h-4 w-4 mr-1" /> Zuordnen
                         </Button>
                       )}
