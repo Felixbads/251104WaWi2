@@ -541,18 +541,36 @@ function NewOrderForm({
     staleTime: 1000 * 60, // 1 Minute
   });
   
-  // Lieferanten abfragen
-  const { data: suppliersResponse, isLoading: isSuppliersLoading } = useQuery<{data: any[], meta: any}>({
+  // Lieferanten abfragen - überarbeitete Version
+  const { data: rawSuppliersData, isLoading: isSuppliersLoading } = useQuery({
     queryKey: ['/api/suppliers'],
     staleTime: 1000 * 60, // 1 Minute
   });
   
-  // Sichere Extraktion der Lieferantendaten
-  const suppliers = suppliersResponse ? {
-    data: Array.isArray(suppliersResponse.data) ? suppliersResponse.data : 
-          (suppliersResponse && Array.isArray(suppliersResponse) ? suppliersResponse : []),
-    meta: suppliersResponse.meta || {}
-  } : { data: [], meta: {} };
+  // Vereinfachte Datennormalisierung ohne Destructuring
+  let supplierItems: any[] = [];
+  let supplierMeta: Record<string, any> = {};
+  
+  // Sicherer Umgang mit den Lieferantendaten
+  if (rawSuppliersData) {
+    if (typeof rawSuppliersData === 'object' && rawSuppliersData !== null) {
+      const dataObj = rawSuppliersData as Record<string, any>;
+      if (dataObj.data && Array.isArray(dataObj.data)) {
+        supplierItems = dataObj.data;
+        supplierMeta = dataObj.meta || {};
+      } else if (Array.isArray(rawSuppliersData)) {
+        supplierItems = rawSuppliersData as any[];
+      }
+    } else if (Array.isArray(rawSuppliersData)) {
+      supplierItems = rawSuppliersData;
+    }
+  }
+  
+  // Wrap in ein Objekt mit konsistenter Struktur
+  const suppliers = {
+    data: supplierItems,
+    meta: supplierMeta
+  };
   
   // Form für Bestelldetails
   const orderForm = useForm<NewOrderValues>({
@@ -568,18 +586,66 @@ function NewOrderForm({
   // State für den ausgewählten Lieferanten
   const [currentSupplierId, setCurrentSupplierId] = useState<number | undefined>(undefined);
   
-  // Produkte abfragen - ohne Lieferantenfilter, da in der Datenbank keine supplierId existiert
-  const { data: products, isLoading: isProductsLoading } = useQuery<{data: any[], meta: any}>({
+  // Produkte abfragen - überarbeitete Version
+  const { data: rawProductsData, isLoading: isProductsLoading } = useQuery({
     queryKey: ['/api/products'],
     staleTime: 1000 * 60, // 1 Minute
     enabled: !!currentSupplierId, // Abfrage erst ausführen, wenn ein Lieferant ausgewählt wurde
   });
   
-  // Maschinen abfragen
-  const { data: machines, isLoading: isMachinesLoading } = useQuery<{data: any[], meta: any}>({
+  // Sicherer Umgang mit Produktdaten
+  let productItems: any[] = [];
+  let productMeta: Record<string, any> = {};
+  
+  if (rawProductsData) {
+    if (typeof rawProductsData === 'object' && rawProductsData !== null) {
+      const dataObj = rawProductsData as Record<string, any>;
+      if (dataObj.data && Array.isArray(dataObj.data)) {
+        productItems = dataObj.data;
+        productMeta = dataObj.meta || {};
+      } else if (Array.isArray(rawProductsData)) {
+        productItems = rawProductsData as any[];
+      }
+    } else if (Array.isArray(rawProductsData)) {
+      productItems = rawProductsData;
+    }
+  }
+  
+  // Einheitliche Struktur für Produkte
+  const products = {
+    data: productItems,
+    meta: productMeta
+  };
+  
+  // Maschinen abfragen - überarbeitete Version
+  const { data: rawMachinesData, isLoading: isMachinesLoading } = useQuery({
     queryKey: ['/api/machines'],
     staleTime: 1000 * 60, // 1 Minute
   });
+  
+  // Sicherer Umgang mit Maschinendaten
+  let machineItems: any[] = [];
+  let machineMeta: Record<string, any> = {};
+  
+  if (rawMachinesData) {
+    if (typeof rawMachinesData === 'object' && rawMachinesData !== null) {
+      const dataObj = rawMachinesData as Record<string, any>;
+      if (dataObj.data && Array.isArray(dataObj.data)) {
+        machineItems = dataObj.data;
+        machineMeta = dataObj.meta || {};
+      } else if (Array.isArray(rawMachinesData)) {
+        machineItems = rawMachinesData as any[];
+      }
+    } else if (Array.isArray(rawMachinesData)) {
+      machineItems = rawMachinesData;
+    }
+  }
+  
+  // Einheitliche Struktur für Maschinen
+  const machines = {
+    data: machineItems,
+    meta: machineMeta
+  };
   
   // Form für Bestellposition
   const itemForm = useForm<OrderItemValues>({
