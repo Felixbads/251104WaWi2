@@ -1,0 +1,140 @@
+Erstelle ein neues, mehrstufiges Bestellmodul in unserer React-Anwendung, das den gesamten Bestellvorgang abbildet und nahtlos in die bestehende Datenbankarchitektur (Tabellen: orders, order_items, suppliers, purchase_conditions, inventory_items etc.) integriert wird. Der Prozess soll folgende Hauptschritte umfassen:
+	1.	Lagerauswahl
+	2.	Bestellmodus-Auswahl:
+	•	Neue Bestellung erstellen
+	•	Bestellung kopieren (basierend auf einer früheren Bestellung)
+	•	Prognosebasierte Bestellung (unter Einbeziehung von Forecast-Daten und aktuellem Lagerbestand)
+	3.	Lieferantenauswahl
+	4.	Produkttabelle mit Lagerbestandsanzeige und Bestellmengenangabe
+	5.	Eingabe von Zusatzinformationen:
+	•	Gewünschter Liefertermin
+	•	Priorität
+	•	Sonderanmerkungen
+	6.	Abschluss des Bestellvorgangs:
+	•	Erzeugung eines Bestell-PDF-Dokuments
+	•	Versand der Bestellung per E-Mail an den Lieferanten (inklusive PDF und Link zum Supplier-Portal)
+	•	Setzen des Bestellstatus auf ordered mit Flag isUpcoming = true (Anzeige als „Baldige Lieferung“)
+	7.	Wareneingangsworkflow nach Lieferung:
+	•	Nach erfolgter Lieferung soll das System einen Wareneingang (Goods Receipt) generieren
+	•	Erfassung des Mindesthaltbarkeitsdatums (MHD) pro Charge/Produkt
+	•	Aktualisierung des Lagerbestands (inventory_items) und Dokumentation der Warenbewegungen (inventory_movements)
+
+⸻
+
+Detaillierte Anforderungen und Schritte
+
+1. Lagerauswahl
+	•	UI-Komponente:
+	•	Dropdown oder Kachelauswahl zur Auswahl des Ziellagers (aus der Tabelle locations)
+	•	Backend:
+	•	Validierung der Lagerverfügbarkeit und ggf. Einbeziehung von Lagerplanungsdaten
+
+2. Bestellmodus-Auswahl
+
+Ermögliche dem Benutzer drei Modi:
+	•	Neue Bestellung:
+	•	Manuelle Eingabe aller Felder
+	•	Bestellung kopieren:
+	•	Auswahl einer bestehenden Bestellung als Vorlage und automatisches Kopieren der relevanten Felder (Produkte, Mengen, Zusatzinfos)
+	•	Prognosebasierte Bestellung:
+	•	Automatische Berechnung basierend auf Verkaufsprognosen und aktuellem Lagerbestand (abgefragt aus inventory_items)
+	•	Vorschläge für Nachbestellungen, wenn der Bestand unter einen bestimmten Wert fällt
+	•	Möglichkeit zur manuellen Anpassung der vorgeschlagenen Bestellmengen
+
+3. Lieferantenauswahl
+	•	UI-Komponente:
+	•	Auswahlfeld/Droplist zur Auswahl eines Lieferanten aus der suppliers-Tabelle
+	•	Datenabruf:
+	•	Nach Lieferantenauswahl werden alle zugehörigen Produkte inkl. Einkaufsbedingungen (aus purchase_conditions und products) geladen
+
+4. Produktauswahl und Lagerbestandsanzeige
+	•	Produkttabelle:
+	•	Anzeige aller relevanten Produktdaten:
+	•	Produktname, Verpackungseinheit, Einzelpreis (laut purchase_conditions)
+	•	Aktueller Lagerbestand (aggregiert aus inventory_items)
+	•	Eingabefeld zur Angabe der gewünschten Bestellmenge
+	•	Visualisierung:
+	•	Farbliche Indikatoren (z. B. grün/gelb/rot) anhand des Verhältnisses aktueller Bestand vs. Mindestmenge
+
+5. Zusatzinformationen
+	•	Formularfelder:
+	•	Gewünschter Liefertermin (Datum und Uhrzeit)
+	•	Prioritätsstufe (z. B. Normal, Hoch, Dringend)
+	•	Freitextfeld für Notizen und Sonderanmerkungen
+
+6. Abschluss: PDF-Erzeugung & Mail-Versand
+	•	PDF-Erstellung:
+	•	Automatische Generierung eines PDF-Dokuments mit:
+	•	Kopfbereich (Firmenlogo, Bestellnummer, Lieferantendaten)
+	•	Tabellenübersicht der ausgewählten Produkte (inkl. Mengen, Einzel- und Gesamtpreisen)
+	•	Angaben zu den Zusatzinformationen (Liefertermin, Notizen)
+	•	Mail-Versand:
+	•	Versand einer E-Mail an den Lieferanten (E-Mail-Adresse aus suppliers)
+	•	E-Mail-Inhalt:
+	•	Bestellbestätigung mit angehängtem PDF
+	•	Persönlicher Link zum Lieferantenseitenportal (z. B. https://dein-system.de/supplier-view/:orderId?token=...)
+	•	Backend-Aktion:
+	•	Speichere die Bestellung in orders und order_items
+	•	Setze den Status auf ordered und aktiviere das Flag isUpcoming = true (Kennzeichnung als „Baldige Lieferung“)
+
+7. Wareneingangsworkflow mit MHD-Angabe (Post-Delivery)
+	•	Workflow-Start:
+	•	Nach Lieferung wird im System automatisch oder manuell der Wareneingang initiiert (z. B. über einen Button „Wareneingang erfassen“)
+	•	Erfassung im UI:
+	•	Zeige die bestellten Produkte an, inkl. bereits gelieferten Mengen
+	•	Für jeden Produkteinsatz:
+	•	Eingabefeld zur Angabe des Mindesthaltbarkeitsdatums (MHD)
+	•	Möglichkeit, unterschiedliche Chargen mit jeweils eigenem MHD zu erfassen
+	•	Backend:
+	•	Aktualisierung des Lagerbestandes in inventory_items
+	•	Protokollierung der Warenbewegungen in inventory_movements
+	•	Verknüpfung des Wareneingangs mit der ursprünglichen Bestellung (Referenz zu orders und order_items)
+
+⸻
+
+Komponenten- und Tech-Vorschläge
+
+Frontend (React)
+
+Erstelle eine neue Seite, z. B. client/src/pages/NewOrderFull.tsx, unterteilt in folgende Teilkomponenten:
+	•	<WarehouseSelector />
+	•	<OrderModeSelector />
+	•	<SupplierSelector />
+	•	<ProductSelectionTable />
+	•	<AdditionalInfoForm />
+	•	<PDFPreviewAndGenerate />
+	•	<OrderSummaryAndSubmit />
+	•	Neuer Schritt: <GoodsReceiptForm /> (für MHD-Erfassung und Wareneingang nach Lieferung)
+
+Backend/API
+
+Erstelle bzw. erweitere die folgenden Endpunkte:
+	•	Lagerabfrage: Abfrage aktueller Lagerbestände
+	•	Bestellungsverwaltung: Erstellen und Aktualisieren von Datensätzen in orders und order_items
+	•	PDF-Generierung: Nutzung einer PDF-Library, um Bestellbestätigungen zu erstellen
+	•	Mailversand: Versand der Bestellmails mit PDF-Anhang und individuellem Link
+	•	Wareneingang: Endpunkt zur Erfassung des Wareneingangs sowie zur Eingabe von MHDs (z. B. POST /api/inventory/orders/:orderId/receipt)
+	•	Datenvalidierung: Überprüfung von Eingaben (z. B. MHD-Format, Datumsangaben)
+
+⸻
+
+Zusammengefasster Workflow
+	1.	Lagerauswahl: Der Nutzer wählt das Ziel-Lager.
+	2.	Bestellmodus-Auswahl: Der Nutzer entscheidet zwischen neuer Bestellung, Kopie oder prognosebasierter Bestellung.
+	3.	Lieferantenauswahl: Auswahl eines Lieferanten aus der suppliers-Tabelle.
+	4.	Produktauswahl: Auswahl der Produkte inkl. Anzeige der aktuellen Lagerbestände und Eingabe der Bestellmengen.
+	5.	Zusatzinformationen: Eingabe von Liefertermin, Priorität und Notizen.
+	6.	Bestellabschluss:
+	•	Erstellung eines PDF-Dokuments mit allen Bestelldetails
+	•	Versand der Bestellung per E-Mail (inkl. Link zum Lieferantenportal)
+	•	Setzen des Status auf „Baldige Lieferung“
+	7.	Wareneingangsworkflow:
+	•	Nach Lieferung wird der Wareneingang initiiert
+	•	Erfassung der gelieferten Mengen inkl. MHD-Angaben pro Charge
+	•	Aktualisierung des Lagerbestands und Dokumentation der Warenbewegungen
+
+⸻
+
+Bitte implementiert diesen erweiterten Bestellprozess so, dass alle Schritte nahtlos ineinander übergehen. Der Workflow soll nicht nur den Bestellvorgang abbilden, sondern auch den Übergang zum Wareneingang mit MHD-Erfassung ermöglichen, um die vollumfängliche Rückverfolgbarkeit und Lagerverwaltung sicherzustellen.
+
+⸻
