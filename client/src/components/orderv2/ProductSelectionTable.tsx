@@ -54,8 +54,14 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
   const productsPerPage = 10;
   
   // Fetch products for the supplier
-  const { data: products, isLoading, error } = useQuery({
+  const { data: productsResponse, isLoading, error } = useQuery({
     queryKey: ['/api/products', { supplierId }],
+    enabled: !!supplierId,
+  });
+  
+  // Fetch supplier details to display name
+  const { data: supplierData } = useQuery({
+    queryKey: ['/api/suppliers', supplierId],
     enabled: !!supplierId,
   });
   
@@ -76,6 +82,30 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
     queryKey: ['/api/forecast', { warehouseId }],
     enabled: mode === 'forecast' && !!warehouseId,
   });
+  
+  // Get products array from response (handling both formats)
+  const products = React.useMemo(() => {
+    if (!productsResponse) return [];
+    // Handle both array response and {data: []} response format
+    if (Array.isArray(productsResponse)) return productsResponse;
+    if (typeof productsResponse === 'object' && 
+        'data' in productsResponse && 
+        Array.isArray(productsResponse.data)) {
+      return productsResponse.data;
+    }
+    return [];
+  }, [productsResponse]);
+  
+  // Get supplier name if available
+  const supplierName = React.useMemo(() => {
+    if (!supplierData) return '';
+    if (typeof supplierData === 'object' && 
+        supplierData !== null && 
+        'name' in supplierData) {
+      return supplierData.name as string;
+    }
+    return '';
+  }, [supplierData]);
   
   // Combine products with selection state and stock info
   const enrichedProducts = React.useMemo(() => {
@@ -315,7 +345,11 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
       <CardHeader>
         <CardTitle>Produkte auswählen</CardTitle>
         <CardDescription>
-          Wählen Sie die Produkte und Mengen für Ihre Bestellung aus.
+          {supplierName ? (
+            <>Lieferant: <strong>{supplierName}</strong> - Wählen Sie die Produkte und Mengen für Ihre Bestellung aus.</>
+          ) : (
+            <>Wählen Sie die Produkte und Mengen für Ihre Bestellung aus.</>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>
