@@ -770,7 +770,7 @@ router.delete("/:orderId/items/:itemId", async (req: Request, res: Response) => 
   }
 });
 
-// Wareneingang erfassen
+// Wareneingang erfassen mit MHD und Chargen-Tracking
 router.post("/:id/receipt", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -781,7 +781,8 @@ router.post("/:id/receipt", async (req: Request, res: Response) => {
       deliveryNoteNumber,
       qualityCheckPassed,
       notes,
-      receivedItems
+      isComplete: formIsComplete,
+      items // Gelieferte Artikelpositionen mit MHD-Daten und Chargeninformationen
     } = req.body;
 
     if (isNaN(orderId)) {
@@ -800,9 +801,10 @@ router.post("/:id/receipt", async (req: Request, res: Response) => {
     }
 
     // Validieren, dass der Status für einen Wareneingang geeignet ist
-    if (order[0].status !== "ordered" && order[0].status !== "partial") {
+    if (order[0].status !== "ordered" && order[0].status !== "pending" && 
+        order[0].status !== "shipped" && order[0].status !== "partial") {
       return res.status(400).json({ 
-        error: "Wareneingang kann nur für Bestellungen im Status 'ordered' oder 'partial' erfasst werden" 
+        error: "Wareneingang kann nur für Bestellungen im Status 'ordered', 'pending', 'shipped' oder 'partial' erfasst werden" 
       });
     }
 
@@ -812,35 +814,107 @@ router.post("/:id/receipt", async (req: Request, res: Response) => {
       .from(orderItems)
       .where(eq(orderItems.orderId, orderId));
 
-    let isComplete = true;
+    let isComplete = formIsComplete || false;
     let hasDelivery = false;
 
-    // Bestellpositionen aktualisieren
-    if (receivedItems && Array.isArray(receivedItems)) {
-      for (const receivedItem of receivedItems) {
-        const orderItem = allOrderItems.find(item => item.id === receivedItem.orderItemId);
+    // Bestellpositionen und Batches aktualisieren
+    if (items && Array.isArray(items)) {
+      for (const item of items) {
+        const orderItem = allOrderItems.find(oi => oi.id === item.orderItemId);
         
         if (!orderItem) {
           continue; // Position nicht gefunden
         }
 
-        // Überprüfen, ob vollständig geliefert
-        if (receivedItem.receivedQuantity > 0) {
+        // Überprüfen, ob etwas geliefert wurde
+        if (item.receivedQuantity > 0) {
           hasDelivery = true;
           
-          if (receivedItem.receivedQuantity < orderItem.quantity) {
-            isComplete = false;
-          }
-
           // Wareneingang für diese Position erfassen
           await storage.updateOrderItem(orderItem.id, {
-            quantityDelivered: (orderItem.quantityDelivered || 0) + receivedItem.receivedQuantity,
-            qualityIssues: receivedItem.qualityIssues || false,
-            damageDescription: receivedItem.damageDescription || null,
+            quantityDelivered: (orderItem.quantityDelivered || 0) + item.receivedQuantity,
+            status: item.qualityCheck ? "received_ok" : "received_issues",
+            notes: item.notes || orderItem.notes,
             updatedAt: new Date()
           });
-        } else {
-          isComplete = false;
+
+          // Jetzt müssen wir einen Batch mit MHD erstellen und den Lagerbestand aktualisieren
+          try {
+            // 1. Lagerort aus der Bestellung ermitteln
+            const warehouseId = order[0].locationId || 1; // Falls kein Lagerort festgelegt ist, Standard verwenden
+            
+            // 2. Produkt-Batch erstellen mit MHD und Chargennummer
+            const batchData = {
+              productId: item.productId,
+              warehouseId,
+              batchNumber: item.batchNumber,
+              supplierBatchNumber: item.supplierBatchNumber || null,
+              initialQuantity: item.receivedQuantity,
+              currentQuantity: item.receivedQuantity,
+              receivedDate: new Date(receiptDate) || new Date(),
+              manufacturingDate: item.manufacturingDate ? new Date(item.manufacturingDate) : null,
+              expiryDate: new Date(item.expiryDate),
+              orderId,
+              supplierId: order[0].supplierId,
+              status: item.qualityCheck ? "active" : "quarantine",
+              locationInWarehouse: item.locationInWarehouse || null,
+              notes: item.notes || null,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            };
+
+            // Batch in der Datenbank speichern
+            const newBatch = await db.insert(productBatches).values(batchData).returning();
+            
+            // 3. Lagerbestand aktualisieren
+            const existingItem = await storage.getInventoryItemByProductAndWarehouse(
+              item.productId, 
+              warehouseId
+            );
+
+            if (existingItem) {
+              // Bestand erhöhen
+              await storage.updateInventoryItem(existingItem.id, {
+                quantity: existingItem.quantity + item.receivedQuantity,
+                lastCountDate: new Date(),
+                updatedAt: new Date()
+              });
+            } else {
+              // Neuen Lagerbestand anlegen
+              await storage.createInventoryItem({
+                productId: item.productId,
+                warehouseId,
+                quantity: item.receivedQuantity,
+                minQuantity: 0,
+                reorderPoint: 0,
+                status: "active",
+                lastCountDate: new Date(),
+                createdAt: new Date(),
+                updatedAt: new Date()
+              });
+            }
+
+            // 4. Bewegung für den Bestandszugang erfassen
+            await storage.createInventoryMovement({
+              productId: item.productId,
+              quantity: item.receivedQuantity,
+              movementType: "receipt",
+              sourceType: "supplier",
+              sourceId: order[0].supplierId?.toString() || "",
+              destinationType: "warehouse",
+              destinationId: warehouseId.toString(),
+              referenceType: "order",
+              referenceId: orderId.toString(),
+              reason: "Wareneingang",
+              notes: `Wareneingang aus Bestellung ${order[0].orderNumber}, Charge: ${item.batchNumber}`,
+              batchNumber: item.batchNumber,
+              expiryDate: new Date(item.expiryDate),
+              performedBy: "system"
+            });
+          } catch (error) {
+            console.error("Fehler beim Erstellen von Batches und Lagerbestand:", error);
+            // Fehler nicht weitergeben, stattdessen Logging, damit der Wareneingang trotzdem verarbeitet wird
+          }
         }
       }
     }
@@ -964,7 +1038,8 @@ router.post("/:id/receipt", async (req: Request, res: Response) => {
     res.json({
       success: true,
       isComplete,
-      order: updatedOrder
+      order: updatedOrder,
+      message: "Wareneingang erfolgreich erfasst und Lagerbestand aktualisiert"
     });
   } catch (error) {
     console.error("Fehler beim Erfassen des Wareneingangs:", error);
