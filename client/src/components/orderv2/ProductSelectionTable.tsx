@@ -1,58 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, Minus, Search, Filter, ArrowUpDown, Loader2, ShoppingCart } from 'lucide-react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import { Search, Plus, Minus, Package2, AlertCircle, Tag } from 'lucide-react';
+import { Skeleton } from "@/components/ui/skeleton";
 import { OrderMode } from './OrderModeSelector';
 
-type ProductSelectionTableProps = {
+interface ProductSelectionTableProps {
   supplierId: number;
   warehouseId: number;
-  sourceOrderId: number | null;
+  sourceOrderId?: number | null;
   mode: OrderMode;
   selectedProducts: any[];
   onProductsChange: (products: any[]) => void;
-};
-
-interface ProductType {
-  id: number;
-  productName: string;
-  price: number;
-  sku?: string;
-  barcode?: string;
-  category?: string;
-  status?: string;
-  inStock?: number;
-  minStock?: number;
-  supplier?: {
-    id: number;
-    name: string;
-  };
 }
 
 const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
@@ -64,327 +50,399 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
   onProductsChange
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [sortField, setSortField] = useState<string | null>(null);
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [localProducts, setLocalProducts] = useState<any[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const productsPerPage = 10;
   
   // Fetch products for the supplier
-  const { data: products, isLoading, error } = useQuery<ProductType[]>({
+  const { data: products, isLoading, error } = useQuery({
     queryKey: ['/api/products', { supplierId }],
     enabled: !!supplierId,
   });
   
-  // Fetch current inventory levels
-  const { data: inventory } = useQuery<any[]>({
-    queryKey: ['/api/inventory/warehouse', warehouseId],
+  // Fetch products from source order if in copy mode
+  const { data: sourceOrderProducts } = useQuery({
+    queryKey: ['/api/orders', sourceOrderId, 'products'],
+    enabled: mode === 'copy' && !!sourceOrderId,
+  });
+  
+  // Fetch inventory for warehouse to show stock levels
+  const { data: inventory } = useQuery({
+    queryKey: ['/api/inventory', { warehouseId }],
     enabled: !!warehouseId,
   });
   
-  // If in copy mode, fetch source order
-  const { data: sourceOrder } = useQuery<any>({
-    queryKey: ['/api/orders', sourceOrderId],
-    enabled: !!sourceOrderId && mode === 'copy',
+  // Fetch forecast data if in forecast mode
+  const { data: forecastData } = useQuery({
+    queryKey: ['/api/forecast', { warehouseId }],
+    enabled: mode === 'forecast' && !!warehouseId,
   });
   
-  // If in forecast mode, fetch product forecast
-  const { data: forecast } = useQuery<any[]>({
-    queryKey: ['/api/forecast/products', warehouseId],
-    enabled: !!warehouseId && mode === 'forecast',
-  });
-  
-  // Initialize local products
-  useEffect(() => {
-    if (products) {
-      const initialProducts = products.map(product => {
-        // Find inventory for this product
-        const productInventory = inventory?.find(inv => inv.productId === product.id);
-        
-        // Find source order item if in copy mode
-        const sourceItem = sourceOrder?.items?.find((item: any) => item.productId === product.id);
-        
-        // Find forecast if in forecast mode
-        const productForecast = forecast?.find(f => f.productId === product.id);
-        
-        // Check if product is already selected
-        const existingSelection = selectedProducts.find(p => p.id === product.id);
-        
-        return {
-          ...product,
-          inStock: productInventory?.quantity || 0,
-          orderQuantity: existingSelection?.orderQuantity || 
-                        (mode === 'copy' ? sourceItem?.quantity || 0 : 0),
-          suggestedQuantity: mode === 'forecast' && productForecast ? 
-                            Math.max(productForecast.suggestedOrderQuantity, 0) : 0
-        };
-      });
+  // Combine products with selection state and stock info
+  const enrichedProducts = React.useMemo(() => {
+    if (!products || !Array.isArray(products)) return [];
+    
+    return products.map((product: any) => {
+      // Find if product is selected
+      const selectedProduct = selectedProducts.find(p => p.id === product.id);
       
-      setLocalProducts(initialProducts);
-    }
-  }, [products, inventory, sourceOrder, forecast, selectedProducts, mode]);
-  
-  // Update selected products when local products change
-  useEffect(() => {
-    const selected = localProducts.filter(p => p.orderQuantity > 0);
-    onProductsChange(selected);
-  }, [localProducts, onProductsChange]);
-  
-  // Filter and sort products
-  const filteredProducts = localProducts
-    .filter(product => {
-      // Apply search query filter
-      const matchesSearch = product.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                           (product.sku && product.sku.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                           (product.barcode && product.barcode.toLowerCase().includes(searchQuery.toLowerCase()));
+      // Find inventory info
+      const inventoryItem = Array.isArray(inventory) 
+        ? inventory.find((item: any) => item.productId === product.id)
+        : null;
       
-      // Apply category filter
-      const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
+      // Find forecast info if in forecast mode
+      const forecastItem = Array.isArray(forecastData)
+        ? forecastData.find((item: any) => item.productId === product.id)
+        : null;
       
-      return matchesSearch && matchesCategory;
-    })
-    .sort((a, b) => {
-      if (!sortField) return 0;
-      
-      let aValue = a[sortField];
-      let bValue = b[sortField];
-      
-      // Handle string comparisons
-      if (typeof aValue === 'string' && typeof bValue === 'string') {
-        return sortDirection === 'asc' ? 
-          aValue.localeCompare(bValue) : 
-          bValue.localeCompare(aValue);
-      }
-      
-      // Handle numeric comparisons
-      return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
-    });
-  
-  // Get unique categories for filter
-  const categories = Array.from(new Set(localProducts
-    .filter(p => p.category)
-    .map(p => p.category)));
-  
-  // Handle sort toggle
-  const toggleSort = (field: string) => {
-    if (sortField === field) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
-    }
-  };
-  
-  // Handle quantity update
-  const updateQuantity = (productId: number, quantity: number) => {
-    setLocalProducts(prev => 
-      prev.map(product => 
-        product.id === productId ? 
-          { ...product, orderQuantity: Math.max(0, quantity) } : 
-          product
-      )
-    );
-  };
-  
-  // Apply suggested quantities (only in forecast mode)
-  const applySuggestedQuantities = () => {
-    setLocalProducts(prev => 
-      prev.map(product => ({
+      return {
         ...product,
-        orderQuantity: mode === 'forecast' ? product.suggestedQuantity : product.orderQuantity
-      }))
+        orderQuantity: selectedProduct?.orderQuantity || 0,
+        inStock: inventoryItem?.quantity || 0,
+        lastOrderDate: selectedProduct?.lastOrderDate || null,
+        forecastQuantity: forecastItem?.recommendedQuantity || 0,
+      };
+    });
+  }, [products, selectedProducts, inventory, forecastData]);
+  
+  // Filter products based on search
+  const filteredProducts = React.useMemo(() => {
+    if (!enrichedProducts) return [];
+    
+    return enrichedProducts.filter((product: any) => 
+      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.category?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [enrichedProducts, searchQuery]);
+  
+  // Paginate products
+  const paginatedProducts = React.useMemo(() => {
+    const startIndex = (currentPage - 1) * productsPerPage;
+    return filteredProducts.slice(startIndex, startIndex + productsPerPage);
+  }, [filteredProducts, currentPage, productsPerPage]);
+  
+  // Calculate number of pages
+  const pageCount = Math.ceil(filteredProducts.length / productsPerPage);
+  
+  // Load source order products when in copy mode
+  useEffect(() => {
+    if (mode === 'copy' && sourceOrderProducts && Array.isArray(sourceOrderProducts) && sourceOrderProducts.length > 0) {
+      // Only update if we don't already have selected products
+      if (selectedProducts.length === 0) {
+        onProductsChange(sourceOrderProducts);
+      }
+    }
+  }, [mode, sourceOrderProducts, selectedProducts.length, onProductsChange]);
+  
+  // Load forecast quantities when in forecast mode
+  useEffect(() => {
+    if (mode === 'forecast' && forecastData && Array.isArray(forecastData) && forecastData.length > 0 && products && Array.isArray(products)) {
+      // Only update if we don't already have selected products
+      if (selectedProducts.length === 0) {
+        const forecastProducts = products.map((product: any) => {
+          const forecastItem = forecastData.find((item: any) => item.productId === product.id);
+          return {
+            ...product,
+            orderQuantity: forecastItem?.recommendedQuantity || 0
+          };
+        }).filter((product: any) => product.orderQuantity > 0);
+        
+        onProductsChange(forecastProducts);
+      }
+    }
+  }, [mode, forecastData, products, selectedProducts.length, onProductsChange]);
+  
+  // Handle quantity change
+  const handleQuantityChange = (productId: number, quantity: number) => {
+    const updatedProducts = [...selectedProducts];
+    const productIndex = updatedProducts.findIndex(p => p.id === productId);
+    
+    if (productIndex >= 0) {
+      // Update existing product
+      if (quantity <= 0) {
+        // Remove product if quantity is zero or negative
+        updatedProducts.splice(productIndex, 1);
+      } else {
+        // Update quantity
+        updatedProducts[productIndex].orderQuantity = quantity;
+      }
+    } else if (quantity > 0) {
+      // Add new product
+      const product = enrichedProducts.find((p: any) => p.id === productId);
+      if (product) {
+        updatedProducts.push({
+          id: productId,
+          name: product.name,
+          price: product.price,
+          sku: product.sku,
+          orderQuantity: quantity
+        });
+      }
+    }
+    
+    onProductsChange(updatedProducts);
+  };
+  
+  // Increment quantity
+  const incrementQuantity = (productId: number) => {
+    const selectedProduct = selectedProducts.find(p => p.id === productId);
+    const currentQuantity = selectedProduct?.orderQuantity || 0;
+    handleQuantityChange(productId, currentQuantity + 1);
+  };
+  
+  // Decrement quantity
+  const decrementQuantity = (productId: number) => {
+    const selectedProduct = selectedProducts.find(p => p.id === productId);
+    const currentQuantity = selectedProduct?.orderQuantity || 0;
+    if (currentQuantity > 0) {
+      handleQuantityChange(productId, currentQuantity - 1);
+    }
+  };
+  
+  // Render pagination controls
+  const renderPagination = () => {
+    if (pageCount <= 1) return null;
+    
+    const pageItems = [];
+    const maxDisplayedPages = 5;
+    
+    // Always show first page
+    pageItems.push(
+      <PaginationItem key="first">
+        <PaginationLink 
+          onClick={() => setCurrentPage(1)} 
+          isActive={currentPage === 1}
+        >
+          1
+        </PaginationLink>
+      </PaginationItem>
+    );
+    
+    // Show ellipsis if needed
+    if (currentPage > 3) {
+      pageItems.push(
+        <PaginationItem key="ellipsis1">
+          <PaginationEllipsis />
+        </PaginationItem>
+      );
+    }
+    
+    // Calculate range of pages to show
+    let startPage = Math.max(2, currentPage - 1);
+    let endPage = Math.min(pageCount - 1, currentPage + 1);
+    
+    // Adjust range to show more pages if we're at the start or end
+    if (currentPage <= 3) {
+      endPage = Math.min(pageCount - 1, maxDisplayedPages - 1);
+    }
+    if (currentPage >= pageCount - 2) {
+      startPage = Math.max(2, pageCount - maxDisplayedPages + 2);
+    }
+    
+    // Add middle pages
+    for (let i = startPage; i <= endPage; i++) {
+      pageItems.push(
+        <PaginationItem key={i}>
+          <PaginationLink 
+            onClick={() => setCurrentPage(i)} 
+            isActive={currentPage === i}
+          >
+            {i}
+          </PaginationLink>
+        </PaginationItem>
+      );
+    }
+    
+    // Show ellipsis if needed
+    if (currentPage < pageCount - 2) {
+      pageItems.push(
+        <PaginationItem key="ellipsis2">
+          <PaginationEllipsis />
+        </PaginationItem>
+      );
+    }
+    
+    // Always show last page if there's more than one page
+    if (pageCount > 1) {
+      pageItems.push(
+        <PaginationItem key="last">
+          <PaginationLink 
+            onClick={() => setCurrentPage(pageCount)} 
+            isActive={currentPage === pageCount}
+          >
+            {pageCount}
+          </PaginationLink>
+        </PaginationItem>
+      );
+    }
+    
+    return (
+      <Pagination className="mt-4">
+        <PaginationContent>
+          <PaginationItem>
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="cursor-pointer"
+            >
+              <PaginationPrevious />
+            </Button>
+          </PaginationItem>
+          
+          {pageItems}
+          
+          <PaginationItem>
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={() => setCurrentPage(prev => Math.min(pageCount, prev + 1))}
+              disabled={currentPage === pageCount}
+              className="cursor-pointer"
+            >
+              <PaginationNext />
+            </Button>
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
     );
   };
   
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-          <Input
-            placeholder="Produkte durchsuchen..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        
-        <Select
-          value={categoryFilter}
-          onValueChange={setCategoryFilter}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Kategorie" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle Kategorien</SelectItem>
-            {categories.map(category => (
-              <SelectItem key={category} value={category}>{category}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        
-        {mode === 'forecast' && (
-          <Button 
-            onClick={applySuggestedQuantities}
-            className="whitespace-nowrap"
-          >
-            <ShoppingCart className="mr-2 h-4 w-4" />
-            Prognosevorschläge übernehmen
-          </Button>
-        )}
-      </div>
-      
-      <div className="border rounded-md">
-        <div className="relative overflow-x-auto rounded-md">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[400px]">
-                  <Button variant="ghost" onClick={() => toggleSort('productName')} className="flex gap-1 items-center px-0">
-                    Produkt
-                    <ArrowUpDown className="h-3 w-3" />
-                  </Button>
-                </TableHead>
-                {mode === 'forecast' && (
-                  <TableHead className="text-right">
-                    <Button variant="ghost" onClick={() => toggleSort('suggestedQuantity')} className="flex gap-1 items-center px-0">
-                      Vorschlag
-                      <ArrowUpDown className="h-3 w-3" />
-                    </Button>
-                  </TableHead>
-                )}
-                <TableHead className="text-right">
-                  <Button variant="ghost" onClick={() => toggleSort('inStock')} className="flex gap-1 items-center px-0">
-                    Lagerbestand
-                    <ArrowUpDown className="h-3 w-3" />
-                  </Button>
-                </TableHead>
-                <TableHead className="text-right">
-                  <Button variant="ghost" onClick={() => toggleSort('price')} className="flex gap-1 items-center px-0">
-                    Preis
-                    <ArrowUpDown className="h-3 w-3" />
-                  </Button>
-                </TableHead>
-                <TableHead className="text-right">Menge</TableHead>
-                <TableHead className="text-right">Summe</TableHead>
-              </TableRow>
-            </TableHeader>
+    <Card>
+      <CardHeader>
+        <CardTitle>Produkte auswählen</CardTitle>
+        <CardDescription>
+          Wählen Sie die Produkte und Mengen für Ihre Bestellung aus.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="mb-4 flex flex-col sm:flex-row gap-2">
+          <div className="flex items-center gap-2 flex-1">
+            <Search className="w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Produkte suchen..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1"
+            />
+          </div>
+          
+          <div className="flex gap-2">
+            <Badge variant="outline" className="flex items-center gap-1 py-2">
+              <Package2 className="w-3 h-3" />
+              <span>{selectedProducts.length} Produkte</span>
+            </Badge>
             
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={mode === 'forecast' ? 6 : 5} className="h-24 text-center">
-                    <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                    <p className="mt-2">Produkte werden geladen...</p>
-                  </TableCell>
-                </TableRow>
-              ) : error ? (
-                <TableRow>
-                  <TableCell colSpan={mode === 'forecast' ? 6 : 5} className="h-24 text-center text-destructive">
-                    Fehler beim Laden der Produkte. Bitte versuchen Sie es später erneut.
-                  </TableCell>
-                </TableRow>
-              ) : filteredProducts.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={mode === 'forecast' ? 6 : 5} className="h-24 text-center text-muted-foreground">
-                    Keine Produkte gefunden.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredProducts.map(product => (
-                  <TableRow key={product.id} className={product.orderQuantity > 0 ? 'bg-primary/5' : ''}>
-                    <TableCell className="font-medium">
-                      <div>
-                        {product.productName}
-                        {product.status === 'low_stock' && (
-                          <Badge variant="destructive" className="ml-2">
-                            Niedriger Bestand
-                          </Badge>
-                        )}
-                      </div>
-                      {product.sku && (
-                        <div className="text-xs text-muted-foreground mt-1">
-                          SKU: {product.sku}
-                        </div>
-                      )}
-                    </TableCell>
-                    
-                    {mode === 'forecast' && (
-                      <TableCell className="text-right">
-                        {product.suggestedQuantity}
-                      </TableCell>
-                    )}
-                    
-                    <TableCell className="text-right">
-                      {product.inStock}
-                    </TableCell>
-                    
-                    <TableCell className="text-right">
-                      {product.price.toFixed(2)} €
-                    </TableCell>
-                    
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => updateQuantity(product.id, product.orderQuantity - 1)}
-                          disabled={product.orderQuantity <= 0}
-                        >
-                          <Minus className="h-4 w-4" />
-                        </Button>
-                        
-                        <Input
-                          type="number"
-                          value={product.orderQuantity}
-                          onChange={(e) => updateQuantity(product.id, parseInt(e.target.value) || 0)}
-                          className="w-16 text-center"
-                          min="0"
-                        />
-                        
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => updateQuantity(product.id, product.orderQuantity + 1)}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                    
-                    <TableCell className="text-right font-medium">
-                      {(product.price * product.orderQuantity).toFixed(2)} €
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+            <Badge variant="outline" className="flex items-center gap-1 py-2">
+              <Tag className="w-3 h-3" />
+              <span>Gesamtmenge: {selectedProducts.reduce((sum, p) => sum + p.orderQuantity, 0)}</span>
+            </Badge>
+          </div>
         </div>
-      </div>
-      
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle>Bestellübersicht</CardTitle>
-          <CardDescription>
-            {selectedProducts.length} Produkte ausgewählt
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex justify-between font-medium text-lg">
-            <div>Gesamtsumme:</div>
-            <div>
-              {selectedProducts.reduce((sum, product) => sum + (product.price * product.orderQuantity), 0).toFixed(2)} €
-            </div>
+        
+        {isLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
           </div>
-          <div className="text-sm text-muted-foreground mt-1 text-right">
-            (exkl. MwSt.)
+        ) : error ? (
+          <div className="bg-destructive/20 p-4 rounded-md text-destructive">
+            Fehler beim Laden der Produkte. Bitte versuchen Sie es später erneut.
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        ) : filteredProducts.length > 0 ? (
+          <>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Produktname</TableHead>
+                  <TableHead className="hidden md:table-cell">SKU</TableHead>
+                  <TableHead className="text-right">Preis</TableHead>
+                  <TableHead className="text-right">Lagerbestand</TableHead>
+                  <TableHead className="text-right">Menge</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginatedProducts.map((product: any) => {
+                  const selectedProduct = selectedProducts.find(p => p.id === product.id);
+                  const orderQuantity = selectedProduct?.orderQuantity || 0;
+                  const isSelected = orderQuantity > 0;
+                  
+                  return (
+                    <TableRow 
+                      key={product.id} 
+                      className={isSelected ? 'bg-primary/10' : ''}
+                    >
+                      <TableCell className="font-medium">
+                        <div>
+                          {product.name}
+                          {mode === 'forecast' && product.forecastQuantity > 0 && (
+                            <Badge variant="outline" className="ml-2 bg-blue-50">
+                              Empfohlen: {product.forecastQuantity}
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">{product.sku || '-'}</TableCell>
+                      <TableCell className="text-right">{product.price?.toFixed(2) || '-'} €</TableCell>
+                      <TableCell className="text-right">
+                        {product.inStock}
+                        {product.inStock <= 5 && (
+                          <AlertCircle className="inline ml-1 h-4 w-4 text-amber-500" />
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end space-x-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => decrementQuantity(product.id)}
+                            disabled={orderQuantity === 0}
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={orderQuantity}
+                            onChange={(e) => handleQuantityChange(product.id, parseInt(e.target.value) || 0)}
+                            className="w-16 h-8 text-center"
+                          />
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => incrementQuantity(product.id)}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            
+            {renderPagination()}
+          </>
+        ) : (
+          <div className="bg-muted p-8 rounded-md flex flex-col items-center justify-center text-center">
+            <Package2 className="h-10 w-10 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">Keine Produkte gefunden</h3>
+            <p className="text-muted-foreground">
+              {searchQuery 
+                ? `Keine Produkte gefunden, die zu "${searchQuery}" passen.` 
+                : "Keine Produkte für diesen Lieferanten verfügbar."}
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
