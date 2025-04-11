@@ -264,27 +264,52 @@ const BestellungV2: React.FC = () => {
   
   // Handle order submission
   const handleOrderSubmit = async () => {
-    // Ensure products have purchaseConditionId where available
-    const mappedProducts = selectedProducts.map(product => {
+    // Berechne den Gesamtbetrag der Bestellung
+    const calculatedTotalAmount = selectedProducts.reduce((sum, product) => {
+      return sum + (product.price || 0) * product.orderQuantity;
+    }, 0);
+
+    // Ensure products have purchaseConditionId where available and include required fields
+    const mappedProducts = selectedProducts.map((product, index) => {
+      const unitPrice = product.price || 0;
+      const quantity = product.orderQuantity;
+      const totalPrice = unitPrice * quantity;
+      
       return {
         productId: product.id,
-        purchaseConditionId: product.purchaseConditionId || null, // Include purchase condition ID if available
-        quantity: product.orderQuantity,
-        price: product.price || 0,
-        totalPrice: (product.price || 0) * product.orderQuantity, // Calculate total price
+        productName: product.productName || product.name || "Unbenanntes Produkt",
+        purchaseConditionId: product.purchaseConditionId || null,
+        quantity: quantity,
+        unitPrice: unitPrice,
+        totalPrice: totalPrice,
+        // Weitere erforderliche Felder gemäß Schema
+        sku: product.sku || "",
+        supplierSku: product.supplierSku || "",
+        unit: "stk",
+        vatRate: 19, // Standardwert für MwSt
+        positionNumber: index + 1
       };
     });
     
+    // Generiere eine Bestellnummer falls nötig (wird normalerweise vom Server generiert)
+    const orderNumber = `ORD-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.floor(Math.random() * 1000).toString().padStart(4, '0')}`;
+    
     // Create the order data
     const orderData = {
+      orderNumber: orderNumber,
       warehouseId,
       supplierId,
-      orderItems: mappedProducts, // Server expects 'orderItems' array, not 'products'
+      orderItems: mappedProducts,
       expectedDeliveryDate: additionalInfo.expectedDeliveryDate,
       priority: additionalInfo.priority,
       notes: additionalInfo.notes,
       status: 'draft', // Initial status
       locationId: warehouseId, // In this context warehouse and location are the same
+      totalAmount: calculatedTotalAmount,
+      currency: "EUR",
+      // Weitere Standardwerte
+      supplierName: supplierName,
+      locationName: warehouseName
     };
     
     console.log("Submitting order data:", orderData);
