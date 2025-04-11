@@ -94,10 +94,11 @@ const BestellungV2: React.FC = () => {
       // Move to the next step
       setStep('goodsReceipt');
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      console.error('Order creation error:', error);
       toast({
         title: 'Fehler beim Erstellen der Bestellung',
-        description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
+        description: `Es ist ein Fehler aufgetreten: ${error?.message || JSON.stringify(error)}`,
         variant: 'destructive',
       });
     }
@@ -305,7 +306,7 @@ const BestellungV2: React.FC = () => {
     // Generiere eine Bestellnummer falls nötig (wird normalerweise vom Server generiert)
     const orderNumber = `ORD-${new Date().toISOString().split('T')[0].replace(/-/g, '')}-${Math.floor(Math.random() * 1000).toString().padStart(4, '0')}`;
     
-    // Create the order data
+    // Create the order data with all required fields according to schema
     const orderData = {
       orderNumber: orderNumber,
       warehouseId,
@@ -313,14 +314,20 @@ const BestellungV2: React.FC = () => {
       orderItems: mappedProducts,
       expectedDeliveryDate: additionalInfo.expectedDeliveryDate,
       priority: additionalInfo.priority,
-      notes: additionalInfo.notes,
+      notes: additionalInfo.notes || '',
       status: 'draft', // Initial status
       locationId: warehouseId, // In this context warehouse and location are the same
       totalAmount: calculatedTotalAmount,
       currency: "EUR",
       // Weitere Standardwerte
       supplierName: supplierName,
-      locationName: warehouseName
+      locationName: warehouseName,
+      // Zusätzliche Felder hinzufügen basierend auf Schema
+      vatAmount: calculatedTotalAmount * 0.19, // 19% MwSt
+      discountAmount: 0,
+      shippingCost: 0,
+      orderDate: new Date(),
+      paymentStatus: 'pending'
     };
     
     console.log("Submitting order data:", orderData);

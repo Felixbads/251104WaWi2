@@ -217,6 +217,7 @@ router.get("/dashboard/open", async (req: Request, res: Response) => {
 router.post("/", async (req: Request, res: Response) => {
   try {
     const orderData = req.body;
+    console.log("Received order data:", JSON.stringify(orderData, null, 2));
 
     // Bestellnummer generieren, falls nicht angegeben
     if (!orderData.orderNumber) {
@@ -272,46 +273,71 @@ router.post("/", async (req: Request, res: Response) => {
     // Bestellpositionen trennen
     const { orderItems: itemsArray, ...orderOnly } = orderData;
 
-    // Bestellung erstellen
-    const newOrder = await storage.createOrder(orderOnly);
+    console.log("Creating order with data:", JSON.stringify(orderOnly, null, 2));
+    
+    try {
+      // Bestellung erstellen
+      const newOrder = await storage.createOrder(orderOnly);
+      console.log("Order created successfully:", newOrder);
 
-    // Bestellpositionen erstellen
-    if (itemsArray && Array.isArray(itemsArray) && itemsArray.length > 0) {
-      const orderItemsWithId = itemsArray.map((item, index) => ({
-        ...item,
-        orderId: newOrder.id,
-        positionNumber: item.positionNumber || index + 1
-      }));
+      // Bestellpositionen erstellen
+      if (itemsArray && Array.isArray(itemsArray) && itemsArray.length > 0) {
+        console.log(`Processing ${itemsArray.length} order items`);
+        const orderItemsWithId = itemsArray.map((item, index) => ({
+          ...item,
+          orderId: newOrder.id,
+          positionNumber: item.positionNumber || index + 1
+        }));
 
-      await Promise.all(
-        orderItemsWithId.map(item => storage.createOrderItem(item))
-      );
+        await Promise.all(
+          orderItemsWithId.map(async (item, index) => {
+            try {
+              console.log(`Creating order item ${index + 1}:`, JSON.stringify(item, null, 2));
+              return await storage.createOrderItem(item);
+            } catch (itemError) {
+              console.error(`Error creating order item ${index + 1}:`, itemError);
+              throw itemError;
+            }
+          })
+        );
+      }
+
+      // Vollständige Bestellung mit Positionen zurückgeben
+      const completeOrder = await db
+        .select()
+        .from(orders)
+        .where(eq(orders.id, newOrder.id))
+        .limit(1);
+
+      if (!completeOrder || completeOrder.length === 0) {
+        return res.status(404).json({ error: "Erstellte Bestellung nicht gefunden" });
+      }
+
+      // Bestellpositionen abrufen
+      const orderItemsList = await db
+        .select()
+        .from(orderItems)
+        .where(eq(orderItems.orderId, newOrder.id));
+
+      res.status(201).json({
+        ...completeOrder[0],
+        orderItems: orderItemsList
+      });
+    } catch (storageError) {
+      console.error("Storage error while creating order:", storageError);
+      res.status(500).json({ 
+        error: "Fehler beim Erstellen der Bestellung in der Datenbank", 
+        details: storageError.message,
+        stack: storageError.stack
+      });
     }
-
-    // Vollständige Bestellung mit Positionen zurückgeben
-    const completeOrder = await db
-      .select()
-      .from(orders)
-      .where(eq(orders.id, newOrder.id))
-      .limit(1);
-
-    if (!completeOrder || completeOrder.length === 0) {
-      return res.status(404).json({ error: "Erstellte Bestellung nicht gefunden" });
-    }
-
-    // Bestellpositionen abrufen
-    const orderItemsList = await db
-      .select()
-      .from(orderItems)
-      .where(eq(orderItems.orderId, newOrder.id));
-
-    res.status(201).json({
-      ...completeOrder[0],
-      orderItems: orderItemsList
-    });
   } catch (error) {
-    console.error("Fehler beim Erstellen der Bestellung:", error);
-    res.status(500).json({ error: "Fehler beim Erstellen der Bestellung" });
+    console.error("General error while creating order:", error);
+    res.status(500).json({ 
+      error: "Fehler beim Erstellen der Bestellung", 
+      details: error.message,
+      stack: error.stack 
+    });
   }
 });
 
