@@ -170,11 +170,11 @@ export default function Sidebar() {
               Inventur
             </NavItem>
             <NavItem 
-              href="/bestellungen" 
+              href="/bestellung-v2" 
               icon={<ShoppingCart className="h-5 w-5 mr-3" />}
-              isActive={isActive("/bestellungen")}
+              isActive={isActive("/bestellung-v2")}
             >
-              Bestellungen
+              Bestellungen 2.0
             </NavItem>
             {/* Lager-Einträge werden dynamisch geladen */}
             <WarehouseSidebar />
