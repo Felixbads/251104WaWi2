@@ -245,6 +245,20 @@ router.post("/", async (req: Request, res: Response) => {
       orderData.orderNumber = `ORD-${dateString}-${count.toString().padStart(4, '0')}`;
     }
 
+    // Pflichtfelder überprüfen
+    if (!orderData.supplierId) {
+      return res.status(400).json({ error: "Lieferant muss angegeben werden" });
+    }
+
+    if (!orderData.locationId) {
+      return res.status(400).json({ error: "Lagerstandort muss angegeben werden" });
+    }
+
+    // Status setzen falls nicht angegeben
+    if (!orderData.status) {
+      orderData.status = "draft";
+    }
+
     // Lieferanten-Name aus der ID abrufen
     if (orderData.supplierId && !orderData.supplierName) {
       const supplier = await storage.getSupplierById(orderData.supplierId);
@@ -260,6 +274,11 @@ router.post("/", async (req: Request, res: Response) => {
         orderData.locationName = location.name;
       }
     }
+    
+    // Gesamtbetrag sicherstellen
+    if (typeof orderData.totalAmount !== 'number' || isNaN(orderData.totalAmount)) {
+      orderData.totalAmount = 0;
+    }
 
     // Benutzer-Informationen hinzufügen
     if (req.user && req.user.id) {
@@ -270,14 +289,34 @@ router.post("/", async (req: Request, res: Response) => {
       orderData.createdByName = "System";
     }
 
+    // Datums- und Zeitfelder korrekt formatieren
+    if (orderData.expectedDeliveryDate && !(orderData.expectedDeliveryDate instanceof Date)) {
+      orderData.expectedDeliveryDate = new Date(orderData.expectedDeliveryDate);
+    }
+
+    // Sicherstellen, dass alle erforderlichen Felder vorhanden sind
+    const requiredFieldDefaults = {
+      vatAmount: orderData.totalAmount * 0.19,
+      discountAmount: 0,
+      shippingCost: 0,
+      notes: orderData.notes || '',
+      paymentStatus: 'pending'
+    };
+
     // Bestellpositionen trennen
     const { orderItems: itemsArray, ...orderOnly } = orderData;
 
-    console.log("Creating order with data:", JSON.stringify(orderOnly, null, 2));
+    // Fehlende Felder setzen
+    const completeOrderData = {
+      ...requiredFieldDefaults,
+      ...orderOnly
+    };
+
+    console.log("Creating order with data:", JSON.stringify(completeOrderData, null, 2));
     
     try {
       // Bestellung erstellen
-      const newOrder = await storage.createOrder(orderOnly);
+      const newOrder = await storage.createOrder(completeOrderData);
       console.log("Order created successfully:", newOrder);
 
       // Bestellpositionen erstellen
@@ -292,8 +331,21 @@ router.post("/", async (req: Request, res: Response) => {
         await Promise.all(
           orderItemsWithId.map(async (item, index) => {
             try {
-              console.log(`Creating order item ${index + 1}:`, JSON.stringify(item, null, 2));
-              return await storage.createOrderItem(item);
+              // Sicherstellen, dass alle erforderlichen Felder für orderItem vorhanden sind
+              const completeItem = {
+                ...item,
+                productName: item.productName || 'Unbenanntes Produkt',
+                quantity: typeof item.quantity === 'number' ? item.quantity : 1,
+                unitPrice: typeof item.unitPrice === 'number' ? item.unitPrice : 0,
+                totalPrice: typeof item.totalPrice === 'number' ? item.totalPrice : 
+                            (typeof item.unitPrice === 'number' && typeof item.quantity === 'number' ? 
+                             item.unitPrice * item.quantity : 0),
+                unit: item.unit || 'stk',
+                vatRate: typeof item.vatRate === 'number' ? item.vatRate : 19
+              };
+              
+              console.log(`Creating order item ${index + 1}:`, JSON.stringify(completeItem, null, 2));
+              return await storage.createOrderItem(completeItem);
             } catch (itemError) {
               console.error(`Error creating order item ${index + 1}:`, itemError);
               throw itemError;

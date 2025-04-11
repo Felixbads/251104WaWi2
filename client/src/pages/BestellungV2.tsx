@@ -96,9 +96,23 @@ const BestellungV2: React.FC = () => {
     },
     onError: (error: any) => {
       console.error('Order creation error:', error);
+      let errorMessage = 'Unbekannter Fehler';
+      
+      if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.details) {
+        errorMessage = error.details;
+      } else if (typeof error === 'object') {
+        try {
+          errorMessage = JSON.stringify(error);
+        } catch (e) {
+          errorMessage = 'Fehler konnte nicht formatiert werden';
+        }
+      }
+      
       toast({
         title: 'Fehler beim Erstellen der Bestellung',
-        description: `Es ist ein Fehler aufgetreten: ${error?.message || JSON.stringify(error)}`,
+        description: `Es ist ein Fehler aufgetreten: ${errorMessage}`,
         variant: 'destructive',
       });
     }
