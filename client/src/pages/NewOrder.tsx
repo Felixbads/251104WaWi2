@@ -551,9 +551,9 @@ function NewOrderForm({
   // State für den ausgewählten Lieferanten
   const [currentSupplierId, setCurrentSupplierId] = useState<number | undefined>(undefined);
   
-  // Produkte abfragen mit Lieferantenfilter
+  // Produkte abfragen - ohne Lieferantenfilter, da in der Datenbank keine supplierId existiert
   const { data: products, isLoading: isProductsLoading } = useQuery<{data: any[], meta: any}>({
-    queryKey: ['/api/products', { supplierId: currentSupplierId }],
+    queryKey: ['/api/products'],
     staleTime: 1000 * 60, // 1 Minute
     enabled: !!currentSupplierId, // Abfrage erst ausführen, wenn ein Lieferant ausgewählt wurde
   });
