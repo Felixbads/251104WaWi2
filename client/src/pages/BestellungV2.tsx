@@ -326,7 +326,10 @@ const BestellungV2: React.FC = () => {
       warehouseId,
       supplierId,
       orderItems: mappedProducts,
-      expectedDeliveryDate: additionalInfo.expectedDeliveryDate,
+      // Sicherstellen, dass das Datum ein gültiges JavaScript Date-Objekt ist
+      expectedDeliveryDate: additionalInfo.expectedDeliveryDate instanceof Date ? 
+                           additionalInfo.expectedDeliveryDate : 
+                           (additionalInfo.expectedDeliveryDate ? new Date(additionalInfo.expectedDeliveryDate) : null),
       priority: additionalInfo.priority,
       notes: additionalInfo.notes || '',
       status: 'draft', // Initial status
