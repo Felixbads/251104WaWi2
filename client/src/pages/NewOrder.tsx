@@ -1842,7 +1842,8 @@ function ForecastOrderForm({ warehouseId, onBack }: { warehouseId: number, onBac
   const createOrderMutation = useMutation({
     mutationFn: (data: any) => {
       console.log("Erstelle Bestellung mit Daten:", data);
-      return apiRequest("post", "/orders", data);
+      // Korrekter API-Pfad mit führendem Slash
+      return apiRequest("post", "/api/orders", data);
     },
     onSuccess: (response) => {
       const data = response as any;
