@@ -819,6 +819,11 @@ function NewOrderForm({
       }
       
       // Form zurücksetzen, aber sicherstellen, dass der Lieferant erhalten bleibt
+      // Aktuelle supplierId vor dem Reset speichern
+      const preservedSupplier = orderForm.getValues().supplierId;
+      console.log("Bewahre Lieferanten-ID:", preservedSupplier);
+      
+      // Position-Formular zurücksetzen
       itemForm.reset({
         productId: null, // null für nullable Schema
         quantity: 1,
@@ -826,6 +831,14 @@ function NewOrderForm({
         notes: '',
         targetMachineId: undefined
       });
+      
+      // Stellen Sie sicher, dass der Lieferant im Hauptformular erhalten bleibt
+      if (preservedSupplier) {
+        // React-Hook-Form erfordert einen setTimeout, um Race-Conditions zu vermeiden
+        setTimeout(() => {
+          orderForm.setValue('supplierId', preservedSupplier);
+        }, 50);
+      }
       
       // Ausgewähltes Produkt zurücksetzen
       setSelectedProduct(null);
@@ -994,11 +1007,9 @@ function NewOrderForm({
       };
       
       try {
-        // API-Anfrage zum Speichern der Bestellung
-        const response = await apiRequest('/api/orders', {
-          method: 'POST',
-          body: JSON.stringify(orderForApi)
-        });
+        // API-Anfrage zum Speichern der Bestellung mit korrektem API-Pfad
+        console.log("Sende Bestellung an API:", orderForApi);
+        const response = await apiRequest("post", "/api/orders", orderForApi);
         
         if (response && response.id) {
           // Erfolgreiche API-Antwort
