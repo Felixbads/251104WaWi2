@@ -101,7 +101,7 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
   
   // Filterfunktion für Bestellungen
   const filteredOrders = React.useMemo(() => {
-    if (!orders) return [];
+    if (!orders || !Array.isArray(orders)) return [];
     
     return orders.filter((order: any) => {
       // Suche
