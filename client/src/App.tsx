@@ -16,6 +16,7 @@ import Synchronization from "@/pages/Synchronization";
 import SyncHistory from "@/pages/SyncHistory";
 import SyncPage from "@/pages/SyncPage";
 import Settings from "@/pages/Settings";
+import MailSettings from "@/pages/MailSettings"; // Neue Email-Einstellungen-Seite
 import Forecast from "@/pages/Forecast";
 import ForecastEvaluation from "@/pages/ForecastEvaluation";
 import DataAvailability from "@/pages/DataAvailability"; // Neue Datenverfügbarkeits-Komponente
@@ -365,6 +366,12 @@ function AuthenticatedRouter() {
         <Route path="/settings" component={props => (
           <ApprovedUserRoute>
             <Settings {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/email-einstellungen" component={props => (
+          <ApprovedUserRoute>
+            <MailSettings {...props} />
           </ApprovedUserRoute>
         )} />
         
