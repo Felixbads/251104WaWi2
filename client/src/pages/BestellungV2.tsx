@@ -625,37 +625,48 @@ const BestellungV2: React.FC = () => {
             <CardHeader>
               <CardTitle>Bestellung {orderId} erstellt</CardTitle>
               <CardDescription>
-                Die Bestellung wurde erfolgreich erstellt. Sie können nun den Wareneingang erfassen, sobald die Lieferung eingetroffen ist.
+                Die Bestellung wurde erfolgreich erstellt und an den Lieferanten gesendet.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <Alert>
+                <Alert className={emailOrderMutation.isSuccess ? "bg-green-50 border-green-200" : ""}>
                   <FileText className="h-4 w-4" />
-                  <AlertTitle>Bestellung erfolgreich erstellt</AlertTitle>
+                  <AlertTitle>{emailOrderMutation.isSuccess ? "Bestellung wurde versendet" : "PDF wird generiert und E-Mail vorbereitet"}</AlertTitle>
                   <AlertDescription>
-                    Die Bestellung wurde erfolgreich erstellt und kann nun per E-Mail an den Lieferanten versendet werden.
+                    {emailOrderMutation.isSuccess 
+                      ? "Die Bestellung wurde erfolgreich per E-Mail an den Lieferanten versendet."
+                      : "Die PDF-Datei wird generiert und die E-Mail an den Lieferanten vorbereitet. Dieser Vorgang läuft automatisch."}
                   </AlertDescription>
                 </Alert>
                 
                 <div className="flex flex-col sm:flex-row gap-4">
-                  <Button 
-                    onClick={generatePDFAndSendEmail}
-                    disabled={emailOrderMutation.isPending}
-                    className="flex-1"
-                  >
-                    {emailOrderMutation.isPending ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Wird gesendet...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="mr-2 h-4 w-4" />
-                        Als PDF per E-Mail versenden
-                      </>
-                    )}
-                  </Button>
+                  {emailOrderMutation.isPending ? (
+                    <Button 
+                      disabled
+                      className="flex-1"
+                    >
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      PDF wird generiert und E-Mail versendet...
+                    </Button>
+                  ) : emailOrderMutation.isSuccess ? (
+                    <Button 
+                      variant="outline"
+                      className="flex-1"
+                      onClick={generatePDFAndSendEmail}
+                    >
+                      <Send className="mr-2 h-4 w-4" />
+                      E-Mail erneut senden
+                    </Button>
+                  ) : (
+                    <Button 
+                      onClick={generatePDFAndSendEmail}
+                      className="flex-1"
+                    >
+                      <Send className="mr-2 h-4 w-4" />
+                      PDF manuell erstellen & senden
+                    </Button>
+                  )}
                   
                   <Button 
                     variant="outline"
