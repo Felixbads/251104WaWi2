@@ -238,14 +238,14 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
         
         <div className="flex items-center gap-2">
           <Select
-            value={statusFilter || ''}
-            onValueChange={(value) => setStatusFilter(value || null)}
+            value={statusFilter || 'all'}
+            onValueChange={(value) => setStatusFilter(value === 'all' ? null : value)}
           >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Status filtern" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Alle Status</SelectItem>
+              <SelectItem value="all">Alle Status</SelectItem>
               <SelectItem value="draft">Entwurf</SelectItem>
               <SelectItem value="pending">In Bearbeitung</SelectItem>
               <SelectItem value="shipped">Versandt</SelectItem>
@@ -280,14 +280,14 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
         
         <div className="flex items-center gap-2">
           <Select
-            value={statusFilter || ''}
-            onValueChange={(value) => setStatusFilter(value || null)}
+            value={statusFilter || 'all'}
+            onValueChange={(value) => setStatusFilter(value === 'all' ? null : value)}
           >
             <SelectTrigger className="flex-1">
               <SelectValue placeholder="Status filtern" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Alle Status</SelectItem>
+              <SelectItem value="all">Alle Status</SelectItem>
               <SelectItem value="draft">Entwurf</SelectItem>
               <SelectItem value="pending">In Bearbeitung</SelectItem>
               <SelectItem value="shipped">Versandt</SelectItem>
