@@ -19,9 +19,12 @@ import {
   Check,
   RotateCcw,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
+  ListFilter,
+  ClipboardList,
+  Package
 } from 'lucide-react';
-import { useLocation } from 'wouter';
+import { useLocation, useParams } from 'wouter';
 import { Steps, Step } from "@/components/ui/steps";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -49,16 +52,19 @@ import ProductSelectionTable from '@/components/orderv2/ProductSelectionTable';
 import AdditionalInfoForm from '@/components/orderv2/AdditionalInfoForm';
 import OrderSummary from '@/components/orderv2/OrderSummary';
 import GoodsReceiptForm from '@/components/orderv2/GoodsReceiptForm';
+import OrdersOverview from '@/components/orderv2/OrdersOverview';
+import { Badge } from '@/components/ui/badge';
 
 // Define the order steps
-type OrderStep = 'warehouse' | 'mode' | 'supplier' | 'products' | 'additionalInfo' | 'summary' | 'goodsReceipt';
+type OrderStep = 'overview' | 'warehouse' | 'mode' | 'supplier' | 'products' | 'additionalInfo' | 'summary' | 'goodsReceipt' | 'warehouseReceiptOfExistingOrder';
 
 const BestellungV2: React.FC = () => {
   const { toast } = useToast();
   const [location, navigate] = useLocation();
+  const params = useParams();
   
   // State for the order process
-  const [step, setStep] = useState<OrderStep>('warehouse');
+  const [step, setStep] = useState<OrderStep>('overview'); // Starte mit der Übersicht
   const [warehouseId, setWarehouseId] = useState<number | null>(null);
   const [warehouseName, setWarehouseName] = useState<string>('');
   const [orderMode, setOrderMode] = useState<OrderMode>('new');
@@ -76,6 +82,7 @@ const BestellungV2: React.FC = () => {
     notes: '',
   });
   const [orderId, setOrderId] = useState<number | null>(null);
+  const [existingOrderData, setExistingOrderData] = useState<any>(null);
   
   // Create order mutation
   const createOrderMutation = useMutation({
@@ -473,9 +480,90 @@ const BestellungV2: React.FC = () => {
     setOrderId(null);
   };
   
+  // Handler für die Auswahl einer bestehenden Bestellung
+  const handleSelectOrder = async (id: number) => {
+    try {
+      // Bestellung vom Server abrufen
+      const response = await fetch(`/api/orders/${id}`);
+      if (!response.ok) {
+        throw new Error(`Fehler beim Laden der Bestellung: ${response.statusText}`);
+      }
+      
+      const orderData = await response.json();
+      
+      // Bestelldaten speichern
+      setExistingOrderData(orderData);
+      setOrderId(orderData.id);
+      
+      // Je nach Status der Bestellung zur passenden Ansicht navigieren
+      if (['shipped', 'delivered'].includes(orderData.status)) {
+        // Direkt zum Wareneingang navigieren
+        setStep('warehouseReceiptOfExistingOrder');
+      } else {
+        // Bestelldaten anzeigen, aber nicht zum Wareneingang navigieren
+        // Hier könnten weitere Details angezeigt werden
+        navigate(`/bestellungen/${id}`);
+      }
+      
+    } catch (error) {
+      toast({
+        title: 'Fehler beim Laden der Bestellung',
+        description: `${(error as Error).message}`,
+        variant: 'destructive',
+      });
+    }
+  };
+  
+  // Handler für den Start einer neuen Bestellung
+  const handleStartNewOrder = () => {
+    // Zustand zurücksetzen und zum ersten Schritt navigieren
+    resetOrderProcess();
+    setStep('warehouse');
+  };
+  
+  // Handler für den Start des Wareneingang-Workflows für eine bestehende Bestellung
+  const handleStartWarehouseReceiptProcess = async (id: number) => {
+    try {
+      // Bestellung vom Server abrufen
+      const response = await fetch(`/api/orders/${id}`);
+      if (!response.ok) {
+        throw new Error(`Fehler beim Laden der Bestellung: ${response.statusText}`);
+      }
+      
+      const orderData = await response.json();
+      
+      // Bestelldaten speichern
+      setExistingOrderData(orderData);
+      setOrderId(orderData.id);
+      
+      // Zum Wareneingang für die bestehende Bestellung navigieren
+      setStep('warehouseReceiptOfExistingOrder');
+      
+    } catch (error) {
+      toast({
+        title: 'Fehler beim Laden der Bestellung',
+        description: `${(error as Error).message}`,
+        variant: 'destructive',
+      });
+    }
+  };
+  
+  // Zurück zur Übersicht
+  const handleBackToOverview = () => {
+    setStep('overview');
+  };
+  
   // Get step content
   const getStepContent = () => {
     switch (step) {
+      case 'overview':
+        return (
+          <OrdersOverview
+            onSelectOrder={handleSelectOrder}
+            onStartWarehouseReceiptProcess={handleStartWarehouseReceiptProcess}
+            onStartNewOrder={handleStartNewOrder}
+          />
+        );
       case 'warehouse':
         return (
           <WarehouseSelector
@@ -620,6 +708,11 @@ const BestellungV2: React.FC = () => {
   
   // Define step content information
   const stepInfo = {
+    overview: {
+      title: 'Bestellungsübersicht',
+      description: 'Verwalten Sie Ihre Bestellungen und starten Sie neue Prozesse.',
+      icon: <ClipboardList className="h-6 w-6" />,
+    },
     warehouse: {
       title: 'Lager auswählen',
       description: 'Wählen Sie das Ziellager für die Bestellung aus.',
@@ -655,6 +748,11 @@ const BestellungV2: React.FC = () => {
       description: 'Erfassen Sie den Wareneingang, sobald die Lieferung eingetroffen ist.',
       icon: <Boxes className="h-6 w-6" />,
     },
+    warehouseReceiptOfExistingOrder: {
+      title: 'Wareneingang erfassen',
+      description: 'Erfassen Sie den Wareneingang für eine bestehende Bestellung.',
+      icon: <Package className="h-6 w-6" />,
+    },
   };
   
   return (
@@ -667,7 +765,7 @@ const BestellungV2: React.FC = () => {
           </p>
         </div>
         
-        {step !== 'warehouse' && (
+        {step !== 'warehouse' && step !== 'overview' && (
           <Button
             variant="outline"
             onClick={resetOrderProcess}
@@ -679,61 +777,64 @@ const BestellungV2: React.FC = () => {
         )}
       </div>
       
-      <Card>
-        <CardContent className="pt-6">
-          <Steps 
-            currentStep={
-              ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'goodsReceipt']
-              .indexOf(step)
-            }
-            steps={[
-              {
-                title: "Lager",
-                description: warehouseName || "Ziellager auswählen"
-              },
-              {
-                title: "Modus",
-                description: orderMode === 'new' ? "Neue Bestellung" : orderMode === 'copy' ? "Kopie" : "Prognose"
-              },
-              {
-                title: "Lieferant",
-                description: supplierName || "Lieferant auswählen"
-              },
-              {
-                title: "Produkte",
-                description: `${selectedProducts.length} Produkte ausgewählt`
-              },
-              {
-                title: "Details",
-                description: additionalInfo.expectedDeliveryDate ? format(additionalInfo.expectedDeliveryDate, 'dd.MM.yyyy') : "Lieferdetails"
-              },
-              {
-                title: "Abschluss",
-                description: "Bestellung abschließen"
-              },
-              {
-                title: "Wareneingang",
-                description: "Lieferung erfassen"
+      {/* Schritt-Anzeige nur anzeigen, wenn wir nicht in der Übersicht sind */}
+      {step !== 'overview' && step !== 'warehouseReceiptOfExistingOrder' && (
+        <Card>
+          <CardContent className="pt-6">
+            <Steps 
+              currentStep={
+                ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'goodsReceipt']
+                .indexOf(step)
               }
-            ]}
-            goToStep={(index) => {
-              const steps = ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'goodsReceipt'];
-              // Only allow going to steps that are valid based on current progress
-              if (
-                (index === 0) || // Always allow going to first step
-                (index === 1 && warehouseId) || // Mode requires warehouse
-                (index === 2 && warehouseId && orderMode) || // Supplier requires warehouse and mode
-                (index === 3 && warehouseId && orderMode && supplierId) || // Products require supplier
-                (index === 4 && warehouseId && orderMode && supplierId && selectedProducts.length > 0) || // Details require products
-                (index === 5 && warehouseId && orderMode && supplierId && selectedProducts.length > 0 && additionalInfo.expectedDeliveryDate) // Summary requires details
-              ) {
-                setStep(steps[index] as OrderStep);
-              }
-            }}
-            allowStepClick={true}
-          />
-        </CardContent>
-      </Card>
+              steps={[
+                {
+                  title: "Lager",
+                  description: warehouseName || "Ziellager auswählen"
+                },
+                {
+                  title: "Modus",
+                  description: orderMode === 'new' ? "Neue Bestellung" : orderMode === 'copy' ? "Kopie" : "Prognose"
+                },
+                {
+                  title: "Lieferant",
+                  description: supplierName || "Lieferant auswählen"
+                },
+                {
+                  title: "Produkte",
+                  description: `${selectedProducts.length} Produkte ausgewählt`
+                },
+                {
+                  title: "Details",
+                  description: additionalInfo.expectedDeliveryDate ? format(additionalInfo.expectedDeliveryDate, 'dd.MM.yyyy') : "Lieferdetails"
+                },
+                {
+                  title: "Abschluss",
+                  description: "Bestellung abschließen"
+                },
+                {
+                  title: "Wareneingang",
+                  description: "Lieferung erfassen"
+                }
+              ]}
+              goToStep={(index) => {
+                const steps = ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'goodsReceipt'];
+                // Only allow going to steps that are valid based on current progress
+                if (
+                  (index === 0) || // Always allow going to first step
+                  (index === 1 && warehouseId) || // Mode requires warehouse
+                  (index === 2 && warehouseId && orderMode) || // Supplier requires warehouse and mode
+                  (index === 3 && warehouseId && orderMode && supplierId) || // Products require supplier
+                  (index === 4 && warehouseId && orderMode && supplierId && selectedProducts.length > 0) || // Details require products
+                  (index === 5 && warehouseId && orderMode && supplierId && selectedProducts.length > 0 && additionalInfo.expectedDeliveryDate) // Summary requires details
+                ) {
+                  setStep(steps[index] as OrderStep);
+                }
+              }}
+              allowStepClick={true}
+            />
+          </CardContent>
+        </Card>
+      )}
       
       <Card className="shadow-lg">
         <CardHeader>
