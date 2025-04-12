@@ -328,8 +328,7 @@ const BestellungV2: React.FC = () => {
       orderItems: mappedProducts,
       // Sicherstellen, dass das Datum ein gültiges JavaScript Date-Objekt ist
       expectedDeliveryDate: additionalInfo.expectedDeliveryDate instanceof Date ? 
-                           additionalInfo.expectedDeliveryDate : 
-                           (additionalInfo.expectedDeliveryDate ? new Date(additionalInfo.expectedDeliveryDate) : null),
+                           new Date(additionalInfo.expectedDeliveryDate.getTime()) : null,
       priority: additionalInfo.priority,
       notes: additionalInfo.notes || '',
       status: 'draft', // Initial status
@@ -393,16 +392,43 @@ const BestellungV2: React.FC = () => {
       // Get the PDF as base64
       const pdfBase64 = pdf.output('datauristring').split(',')[1];
       
-      // Get supplier email
-      const supplierEmail = 'supplier@example.com'; // TODO: Get the actual supplier email
-      
-      // Send the email
-      emailOrderMutation.mutate({
-        orderId: orderId!,
-        supplierEmail,
-        pdfBase64,
-        additionalNotes: additionalInfo.notes || '',
-      });
+      // Lieferanten-Email abrufen
+      // Verwenden wir eine API-Anfrage, um die tatsächliche E-Mail-Adresse des Lieferanten zu erhalten
+      try {
+        // Zuerst versuchen wir, die E-Mail des Lieferanten abzurufen
+        const supplierResponse = await fetch(`/api/suppliers/${supplierId}`);
+        if (!supplierResponse.ok) {
+          throw new Error(`Fehler beim Abrufen der Lieferantendaten: ${supplierResponse.statusText}`);
+        }
+        
+        const supplierData = await supplierResponse.json();
+        let supplierEmail = supplierData.email;
+        
+        // Prüfen, ob eine gültige E-Mail vorhanden ist
+        if (!supplierEmail || !supplierEmail.includes('@')) {
+          toast({
+            title: 'Keine gültige E-Mail-Adresse',
+            description: 'Der Lieferant hat keine gültige E-Mail-Adresse. Bitte aktualisieren Sie die Lieferantendaten.',
+            variant: 'destructive',
+          });
+          return;
+        }
+        
+        // E-Mail senden
+        emailOrderMutation.mutate({
+          orderId: orderId!,
+          supplierEmail,
+          pdfBase64,
+          additionalNotes: additionalInfo.notes || '',
+        });
+      } catch (error) {
+        toast({
+          title: 'Fehler beim Abrufen der Lieferanten-E-Mail',
+          description: `${(error as Error).message}`,
+          variant: 'destructive',
+        });
+        return;
+      }
       
       // Mark the order as sent
       markOrderAsSentMutation.mutate({
