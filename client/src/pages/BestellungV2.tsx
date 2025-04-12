@@ -365,24 +365,111 @@ const BestellungV2: React.FC = () => {
   // Generate PDF and send by email
   const generatePDFAndSendEmail = async () => {
     try {
-      // Get the order summary element
-      const element = document.getElementById('order-summary');
-      
-      if (!element) {
+      if (!orderId) {
         toast({
           title: 'Fehler beim Generieren des PDFs',
-          description: 'Das Bestellzusammenfassungselement konnte nicht gefunden werden.',
+          description: 'Es liegt keine gültige Bestellungs-ID vor.',
           variant: 'destructive',
         });
         return;
       }
+
+      // Da wir möglicherweise nicht mehr im gleichen Schritt sind, müssen wir die Bestelldaten erneut abrufen
+      let orderData;
+      try {
+        const response = await fetch(`/api/orders/${orderId}`);
+        if (!response.ok) {
+          throw new Error(`Fehler beim Abrufen der Bestelldaten: ${response.statusText}`);
+        }
+        orderData = await response.json();
+      } catch (error) {
+        toast({
+          title: 'Fehler beim Abrufen der Bestelldaten',
+          description: `${(error as Error).message}`,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Erstellen eines temporären DIV-Elements für die PDF-Generierung
+      const tempDiv = document.createElement('div');
+      tempDiv.style.position = 'absolute';
+      tempDiv.style.left = '-9999px';
+      tempDiv.style.top = '-9999px';
+      tempDiv.style.width = '210mm';
+      tempDiv.style.background = 'white';
+      tempDiv.style.padding = '20px';
+      
+      // Bestelldaten in dieses Element einfügen
+      tempDiv.innerHTML = `
+        <div style="font-family: Arial, sans-serif;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+            <div>
+              <h2 style="margin: 0; font-size: 18px;">Bestellung ${orderData.orderNumber || ''}</h2>
+              <p style="margin: 5px 0; font-size: 14px;">Datum: ${orderData.orderDate ? new Date(orderData.orderDate).toLocaleDateString('de-DE') : new Date().toLocaleDateString('de-DE')}</p>
+            </div>
+            <div style="text-align: right;">
+              <h3 style="margin: 0; font-size: 16px;">Nationale Parkverwaltung Sächsische Schweiz</h3>
+              <p style="margin: 5px 0; font-size: 12px;">Nationalpark Zentrum</p>
+              <p style="margin: 5px 0; font-size: 12px;">Dresdner Str. 2B, 01814 Bad Schandau</p>
+            </div>
+          </div>
+          
+          <div style="margin-top: 30px;">
+            <h3 style="margin: 0; font-size: 16px;">Lieferant:</h3>
+            <p style="margin: 5px 0; font-size: 14px;">${orderData.supplierName || supplierName}</p>
+          </div>
+          
+          <div style="margin-top: 15px;">
+            <h3 style="margin: 0; font-size: 16px;">Lieferadresse:</h3>
+            <p style="margin: 5px 0; font-size: 14px;">${orderData.locationName || warehouseName}</p>
+          </div>
+          
+          <div style="margin-top: 30px;">
+            <h3 style="margin: 0; font-size: 16px; border-bottom: 1px solid #ddd; padding-bottom: 5px;">Bestellpositionen</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+              <tr style="background-color: #f3f4f6;">
+                <th style="text-align: left; padding: 8px; font-size: 14px;">Produkt</th>
+                <th style="text-align: right; padding: 8px; font-size: 14px;">Preis</th>
+                <th style="text-align: right; padding: 8px; font-size: 14px;">Menge</th>
+                <th style="text-align: right; padding: 8px; font-size: 14px;">Gesamt</th>
+              </tr>
+              ${(orderData.orderItems || selectedProducts).map((item, index) => `
+                <tr style="border-bottom: 1px solid #eee;">
+                  <td style="text-align: left; padding: 8px; font-size: 14px;">${item.productName || item.name}</td>
+                  <td style="text-align: right; padding: 8px; font-size: 14px;">${(item.unitPrice || item.price || 0).toFixed(2)} €</td>
+                  <td style="text-align: right; padding: 8px; font-size: 14px;">${item.quantity || item.orderQuantity}</td>
+                  <td style="text-align: right; padding: 8px; font-size: 14px;">${((item.unitPrice || item.price || 0) * (item.quantity || item.orderQuantity)).toFixed(2)} €</td>
+                </tr>
+              `).join('')}
+              <tr style="font-weight: bold;">
+                <td colspan="3" style="text-align: right; padding: 8px; font-size: 14px;">Gesamtsumme:</td>
+                <td style="text-align: right; padding: 8px; font-size: 14px;">${orderData.totalAmount ? orderData.totalAmount.toFixed(2) : total.toFixed(2)} €</td>
+              </tr>
+            </table>
+          </div>
+          
+          <div style="margin-top: 30px;">
+            <h3 style="margin: 0; font-size: 16px;">Zusätzliche Informationen:</h3>
+            <p style="margin: 5px 0; font-size: 14px;">Lieferdatum: ${orderData.expectedDeliveryDate ? new Date(orderData.expectedDeliveryDate).toLocaleDateString('de-DE') : additionalInfo.expectedDeliveryDate ? additionalInfo.expectedDeliveryDate.toLocaleDateString('de-DE') : 'Nicht festgelegt'}</p>
+            <p style="margin: 5px 0; font-size: 14px;">Priorität: ${orderData.priority || additionalInfo.priority || 'Normal'}</p>
+            ${(orderData.notes || additionalInfo.notes) ? `<p style="margin: 5px 0; font-size: 14px;">Anmerkungen: ${orderData.notes || additionalInfo.notes}</p>` : ''}
+          </div>
+        </div>
+      `;
+      
+      // Temporäres Element zum DOM hinzufügen
+      document.body.appendChild(tempDiv);
       
       // Create a canvas from the element
-      const canvas = await html2canvas(element, {
+      const canvas = await html2canvas(tempDiv, {
         scale: 2,
         logging: false,
         useCORS: true,
       });
+      
+      // Element wieder entfernen
+      document.body.removeChild(tempDiv);
       
       // Create a PDF
       const pdf = new jsPDF({
