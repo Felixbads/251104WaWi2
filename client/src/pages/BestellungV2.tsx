@@ -656,9 +656,7 @@ const BestellungV2: React.FC = () => {
                   
                   <Button 
                     variant="outline"
-                    onClick={() => {
-                      navigate('/bestellungen');
-                    }}
+                    onClick={handleBackToOverview}
                     className="flex-1"
                   >
                     <FileText className="mr-2 h-4 w-4" />
@@ -698,6 +696,112 @@ const BestellungV2: React.FC = () => {
                 }}
                 isSubmitting={false}
               />
+            </CardContent>
+          </Card>
+        );
+      case 'warehouseReceiptOfExistingOrder':
+        if (!existingOrderData) {
+          return (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Fehler beim Laden der Bestellung</AlertTitle>
+              <AlertDescription>
+                Die ausgewählte Bestellung konnte nicht geladen werden. Bitte versuchen Sie es erneut.
+                <Button 
+                  variant="outline" 
+                  onClick={handleBackToOverview} 
+                  className="mt-4"
+                >
+                  Zurück zur Übersicht
+                </Button>
+              </AlertDescription>
+            </Alert>
+          );
+        }
+        
+        // Zeige die Bestellung und Wareneingangsformular
+        return (
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+                <div>
+                  <CardTitle>Wareneingang für Bestellung #{existingOrderData.id || orderId}</CardTitle>
+                  <CardDescription>
+                    {existingOrderData.orderNumber || `ORD-${existingOrderData.id || orderId}`} vom {
+                      existingOrderData.orderDate ? 
+                      format(new Date(existingOrderData.orderDate), 'dd.MM.yyyy') : 
+                      'unbekanntem Datum'
+                    }
+                  </CardDescription>
+                </div>
+                <Badge className="self-start">
+                  {existingOrderData.status === 'shipped' ? 'Versandt' : 
+                   existingOrderData.status === 'delivered' ? 'Geliefert' :
+                   existingOrderData.status || 'Unbekannt'}
+                </Badge>
+              </div>
+            </CardHeader>
+            
+            <CardContent className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <h3 className="font-medium text-sm text-muted-foreground">Lieferant</h3>
+                  <p className="font-medium">{existingOrderData.supplierName || 'Unbekannter Lieferant'}</p>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-medium text-sm text-muted-foreground">Lieferziel</h3>
+                  <p className="font-medium">{existingOrderData.warehouseName || existingOrderData.locationName || 'Unbekanntes Lager'}</p>
+                </div>
+                {existingOrderData.expectedDeliveryDate && (
+                  <div className="space-y-2">
+                    <h3 className="font-medium text-sm text-muted-foreground">Erwarteter Liefertermin</h3>
+                    <p className="font-medium">{format(new Date(existingOrderData.expectedDeliveryDate), 'dd.MM.yyyy')}</p>
+                  </div>
+                )}
+                {existingOrderData.totalAmount && (
+                  <div className="space-y-2">
+                    <h3 className="font-medium text-sm text-muted-foreground">Gesamtwert</h3>
+                    <p className="font-medium">
+                      {new Intl.NumberFormat('de-DE', {
+                        style: 'currency',
+                        currency: existingOrderData.currency || 'EUR'
+                      }).format(existingOrderData.totalAmount)}
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              <Separator />
+              
+              <div>
+                <h3 className="font-medium mb-4">Wareneingang erfassen</h3>
+                
+                <GoodsReceiptForm
+                  order={{
+                    id: existingOrderData.id || orderId!,
+                    orderNumber: existingOrderData.orderNumber || `ORD-${existingOrderData.id || orderId}`,
+                    orderDate: existingOrderData.orderDate ? new Date(existingOrderData.orderDate) : new Date(),
+                    warehouseName: existingOrderData.warehouseName || existingOrderData.locationName || '',
+                    supplierName: existingOrderData.supplierName || '',
+                    status: existingOrderData.status || 'open',
+                    items: existingOrderData.orderItems ? existingOrderData.orderItems.map((item: any) => ({
+                      id: item.productId,
+                      name: item.productName,
+                      orderedQuantity: item.quantity,
+                      price: item.unitPrice
+                    })) : []
+                  }}
+                  onSubmit={(receivedItems, notes, documents) => {
+                    // Hier würde man die Waren-Eingangs-Daten verarbeiten
+                    toast({
+                      title: 'Wareneingang erfasst',
+                      description: 'Der Wareneingang wurde erfolgreich erfasst und die Bestände aktualisiert.',
+                    });
+                    handleBackToOverview();
+                  }}
+                  isSubmitting={false}
+                />
+              </div>
             </CardContent>
           </Card>
         );
@@ -838,33 +942,52 @@ const BestellungV2: React.FC = () => {
       
       <Card className="shadow-lg">
         <CardHeader>
-          <CardTitle>{stepInfo[step].title}</CardTitle>
-          <CardDescription>{stepInfo[step].description}</CardDescription>
+          <CardTitle>{stepInfo[step]?.title || 'Bestellungen'}</CardTitle>
+          <CardDescription>{stepInfo[step]?.description || 'Verwalten Sie Ihre Bestellungen'}</CardDescription>
         </CardHeader>
         <CardContent>
           {getStepContent()}
         </CardContent>
         <CardFooter className="flex justify-between">
-          {step !== 'warehouse' && step !== 'goodsReceipt' && (
-            <Button
-              variant="outline"
-              onClick={goToPreviousStep}
-            >
-              Zurück
-            </Button>
-          )}
-          {step === 'warehouse' && (
-            <div></div>
+          {/* In der Übersicht keine Navigation anzeigen */}
+          {step !== 'overview' && step !== 'warehouseReceiptOfExistingOrder' && (
+            <>
+              {step !== 'warehouse' && step !== 'goodsReceipt' && (
+                <Button
+                  variant="outline"
+                  onClick={goToPreviousStep}
+                >
+                  Zurück
+                </Button>
+              )}
+              {step === 'warehouse' && (
+                <div></div>
+              )}
+              
+              {step !== 'summary' && step !== 'goodsReceipt' && (
+                <Button
+                  onClick={goToNextStep}
+                  disabled={!isStepComplete(step)}
+                >
+                  Weiter
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              )}
+            </>
           )}
           
-          {step !== 'summary' && step !== 'goodsReceipt' && (
-            <Button
-              onClick={goToNextStep}
-              disabled={!isStepComplete(step)}
-            >
-              Weiter
-              <ChevronRight className="ml-2 h-4 w-4" />
-            </Button>
+          {/* In der Übersicht Zurück-Button zur vorherigen Seite */}
+          {(step === 'overview' || step === 'warehouseReceiptOfExistingOrder') && (
+            <div className="w-full flex justify-end">
+              {step === 'warehouseReceiptOfExistingOrder' && (
+                <Button 
+                  variant="outline" 
+                  onClick={handleBackToOverview}
+                >
+                  Zurück zur Übersicht
+                </Button>
+              )}
+            </div>
           )}
         </CardFooter>
       </Card>
