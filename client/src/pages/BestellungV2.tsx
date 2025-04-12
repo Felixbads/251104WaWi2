@@ -373,6 +373,15 @@ const BestellungV2: React.FC = () => {
         });
         return;
       }
+      
+      // Definition einer Hilfsfunktion für die Berechnung des Gesamtbetrags
+      const calculateTotal = (items: any[]) => {
+        return items.reduce((sum, item) => {
+          const price = item.unitPrice || item.price || 0;
+          const quantity = item.quantity || item.orderQuantity || 0;
+          return sum + (price * quantity);
+        }, 0);
+      };
 
       // Da wir möglicherweise nicht mehr im gleichen Schritt sind, müssen wir die Bestelldaten erneut abrufen
       let orderData;
@@ -434,7 +443,7 @@ const BestellungV2: React.FC = () => {
                 <th style="text-align: right; padding: 8px; font-size: 14px;">Menge</th>
                 <th style="text-align: right; padding: 8px; font-size: 14px;">Gesamt</th>
               </tr>
-              ${(orderData.orderItems || selectedProducts).map((item, index) => `
+              ${(orderData.orderItems || selectedProducts).map((item: any, index: number) => `
                 <tr style="border-bottom: 1px solid #eee;">
                   <td style="text-align: left; padding: 8px; font-size: 14px;">${item.productName || item.name}</td>
                   <td style="text-align: right; padding: 8px; font-size: 14px;">${(item.unitPrice || item.price || 0).toFixed(2)} €</td>
@@ -444,7 +453,7 @@ const BestellungV2: React.FC = () => {
               `).join('')}
               <tr style="font-weight: bold;">
                 <td colspan="3" style="text-align: right; padding: 8px; font-size: 14px;">Gesamtsumme:</td>
-                <td style="text-align: right; padding: 8px; font-size: 14px;">${orderData.totalAmount ? orderData.totalAmount.toFixed(2) : total.toFixed(2)} €</td>
+                <td style="text-align: right; padding: 8px; font-size: 14px;">${orderData.totalAmount ? orderData.totalAmount.toFixed(2) : (orderData.orderItems ? calculateTotal(orderData.orderItems) : calculateTotal(selectedProducts)).toFixed(2)} €</td>
               </tr>
             </table>
           </div>
