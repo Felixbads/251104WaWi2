@@ -98,8 +98,11 @@ const BestellungV2: React.FC = () => {
       // Set the order ID for the next step
       setOrderId(data.id);
       
-      // Move to the next step
-      setStep('goodsReceipt');
+      // Automatisch PDF generieren und E-Mail vorbereiten
+      setTimeout(() => {
+        // Generiere PDF und leite zum E-Mail-Formular weiter
+        generatePDFAndSendEmail();
+      }, 500); // Kurze Verzögerung für bessere Benutzererfahrung
     },
     onError: (error: any) => {
       console.error('Order creation error:', error);

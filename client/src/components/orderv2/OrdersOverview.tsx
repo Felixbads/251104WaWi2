@@ -88,7 +88,7 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
   });
   
   // Abfrage für Bestellungen
-  const { data: orders, isLoading, error, refetch } = useQuery({
+  const { data: ordersResponse, isLoading, error, refetch } = useQuery({
     queryKey: ['/api/orders'],
     queryFn: async () => {
       const response = await fetch('/api/orders');
@@ -98,6 +98,9 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
       return response.json();
     }
   });
+  
+  // Extrahiere das Datenarray aus der Antwort
+  const orders = ordersResponse?.data || [];
   
   // Filterfunktion für Bestellungen
   const filteredOrders = React.useMemo(() => {
