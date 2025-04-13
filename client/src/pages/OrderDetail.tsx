@@ -284,12 +284,9 @@ export default function OrderDetail() {
   
   // Dialog States
   const [showSendDialog, setShowSendDialog] = useState(false);
-  const [showTrackingDialog, setShowTrackingDialog] = useState(false);
   const [showReceiveDialog, setShowReceiveDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showStatusChangeDialog, setShowStatusChangeDialog] = useState(false);
-  
-  // Dialog States
   const [showQrDialog, setShowQrDialog] = useState(false);
   const [showPdfDialog, setShowPdfDialog] = useState(false);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
