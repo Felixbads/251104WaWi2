@@ -67,6 +67,9 @@ import {
   ShoppingBag,
   AlertTriangle,
   ExternalLink,
+  RefreshCw,
+  MapPin,
+  Printer,
 } from "lucide-react";
 
 // Mocked order data for demo
@@ -284,6 +287,7 @@ export default function OrderDetail() {
   const [showTrackingDialog, setShowTrackingDialog] = useState(false);
   const [showReceiveDialog, setShowReceiveDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showStatusChangeDialog, setShowStatusChangeDialog] = useState(false);
   
   // Dialog States
   const [showQrDialog, setShowQrDialog] = useState(false);
@@ -775,6 +779,16 @@ Nationalpark Zentrum`);
           <Button variant="outline" size="sm" onClick={() => setShowQrDialog(true)} className="gap-2">
             <QrCode className="h-4 w-4" />
             <span className="hidden sm:inline">QR-Code</span>
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setShowStatusChangeDialog(true)} 
+            className="gap-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+            <span className="hidden sm:inline">Status ändern</span>
+            <span className="sm:hidden">Status</span>
           </Button>
           <Button variant="outline" size="sm" onClick={() => setShowEmailDialog(true)} className="gap-2">
             <Mail className="h-4 w-4" />
