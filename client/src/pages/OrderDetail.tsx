@@ -1536,6 +1536,13 @@ Nationalpark Zentrum`);
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Manual Status Change Dialog */}
+      <ManualStatusChange 
+        order={order} 
+        isOpen={showStatusChangeDialog} 
+        onClose={() => setShowStatusChangeDialog(false)} 
+      />
     </div>
   );
 }
