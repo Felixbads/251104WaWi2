@@ -9,6 +9,7 @@ import { jsPDF } from "jspdf";
 import QRCode from "qrcode";
 import ReceiveOrderDialog from "@/components/orders/ReceiveOrderDialog";
 import OrderDetailActions from "@/components/orders/OrderDetailActions";
+import ManualStatusChange from "@/components/orders/ManualStatusChange";
 import html2canvas from "html2canvas";
 import { getOrder, updateOrder } from "@/lib/api";
 
