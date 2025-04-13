@@ -829,12 +829,10 @@ Nationalpark Zentrum`);
     );
   }
   
-  // Funktionen basierend auf dem Status
+  // Funktionen basierend auf dem vereinfachten Status-Workflow
   const canSend = order.status === "draft";
-  const canAddTracking = order.status === "pending";
-  const canMarkAsDelivered = order.status === "shipped" || order.status === "pending";
-  const canComplete = order.status === "delivered";
-  const canCancel = ["draft", "pending", "shipped"].includes(order.status);
+  const canReceiveGoods = order.status === "ordered"; // Direkt nach "Bestellt" kann Wareneingang erfasst werden
+  const canCancel = ["draft", "ordered"].includes(order.status);
   
   // Bestellübersicht
   return (
@@ -876,7 +874,7 @@ Nationalpark Zentrum`);
         </div>
       </div>
       
-      {/* Aktionen */}
+      {/* Aktionen (vereinfachter Workflow) */}
       <div className="flex flex-wrap gap-2 mb-6">
         {canSend && (
           <Button onClick={() => setShowSendDialog(true)} className="gap-1.5">
@@ -885,21 +883,7 @@ Nationalpark Zentrum`);
           </Button>
         )}
         
-        {canAddTracking && (
-          <Button variant="outline" onClick={() => setShowTrackingDialog(true)} className="gap-1.5">
-            <Truck className="h-4 w-4" />
-            Tracking-Code
-          </Button>
-        )}
-        
-        {canMarkAsDelivered && (
-          <Button variant="outline" onClick={handleMarkAsDelivered} className="gap-1.5">
-            <CheckCircle2 className="h-4 w-4" />
-            Als geliefert markieren
-          </Button>
-        )}
-        
-        {canComplete && (
+        {canReceiveGoods && (
           <Button variant="outline" onClick={() => setShowReceiveDialog(true)} className="gap-1.5">
             <PackageCheck className="h-4 w-4" />
             Wareneingang erfassen

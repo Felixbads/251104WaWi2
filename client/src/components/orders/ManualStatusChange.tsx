@@ -84,16 +84,11 @@ export default function ManualStatusChange({ order, isOpen, onClose }: ManualSta
     }
   });
   
-  // Statusoptionen
+  // Vereinfachte Statusoptionen
   const statusOptions = [
     { value: "draft", label: "Entwurf" },
-    { value: "pending", label: "Ausstehend" },
     { value: "ordered", label: "Bestellt" },
-    { value: "shipped", label: "Versandt" },
-    { value: "delivered", label: "Geliefert" },
-    { value: "received", label: "Wareneingang" },
-    { value: "completed", label: "Abgeschlossen" },
-    { value: "cancelled", label: "Storniert" }
+    { value: "completed", label: "Abgeschlossen" }
   ];
   
   // Status aktualisieren
