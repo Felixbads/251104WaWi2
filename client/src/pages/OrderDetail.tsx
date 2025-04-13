@@ -300,7 +300,6 @@ export default function OrderDetail() {
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   
   // Form States
-  const [trackingCode, setTrackingCode] = useState("");
   const [sendNote, setSendNote] = useState("");
   const [cancelReason, setCancelReason] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
@@ -371,46 +370,7 @@ export default function OrderDetail() {
     );
   };
   
-  // Tracking-Code hinzufügen
-  const handleAddTracking = () => {
-    if (!order) return;
-    
-    // Bestehende Statushistorie als Array verarbeiten
-    const currentHistory = Array.isArray(order.statusHistory) 
-      ? order.statusHistory 
-      : (order.statusHistory ? JSON.parse(order.statusHistory as string) : []);
-    
-    // Neuen Status hinzufügen
-    const newStatusEntry = {
-      status: "shipped",
-      timestamp: new Date().toISOString(),
-      note: `Tracking-Code hinzugefügt: ${trackingCode}`
-    };
-    
-    updateOrderMutation.mutate(
-      { 
-        status: "shipped", 
-        trackingCode,
-        statusHistory: JSON.stringify([...currentHistory, newStatusEntry])
-      },
-      {
-        onSuccess: () => {
-          setShowTrackingDialog(false);
-          toast({
-            title: "Tracking-Code hinzugefügt",
-            description: "Der Tracking-Code wurde erfolgreich gespeichert."
-          });
-        },
-        onError: (error) => {
-          toast({
-            title: "Fehler beim Speichern",
-            description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
-            variant: "destructive"
-          });
-        }
-      }
-    );
-  };
+  // Diese Funktion wurde im vereinfachten Workflow entfernt
   
   // Bestellung als geliefert markieren
   const handleMarkAsDelivered = () => {
@@ -1041,10 +1001,7 @@ Nationalpark Zentrum`);
                     <h3 className="text-sm font-medium text-muted-foreground mb-1">Priorität</h3>
                     <div>{formatPriority(order.priority)}</div>
                   </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground mb-1">Tracking-Code</h3>
-                    <p>{order.trackingCode || "-"}</p>
-                  </div>
+                  {/* Tracking-Code im vereinfachten Workflow entfernt */}
                 </div>
                 
                 {order.notes && (
@@ -1357,45 +1314,7 @@ Nationalpark Zentrum`);
         </DialogContent>
       </Dialog>
       
-      {/* Tracking Dialog */}
-      <Dialog open={showTrackingDialog} onOpenChange={setShowTrackingDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Tracking-Code hinzufügen</DialogTitle>
-            <DialogDescription>
-              Fügen Sie einen Tracking-Code hinzu, um die Lieferung zu verfolgen.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="tracking-code">Tracking-Code</Label>
-              <Input
-                id="tracking-code"
-                placeholder="z.B. DHL12345678"
-                value={trackingCode}
-                onChange={(e) => setTrackingCode(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              variant="outline"
-              onClick={() => setShowTrackingDialog(false)}
-            >
-              Abbrechen
-            </Button>
-            <Button 
-              onClick={handleAddTracking}
-              disabled={!trackingCode || updateOrderMutation.isPending}
-            >
-              {updateOrderMutation.isPending && (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              )}
-              Speichern
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Tracking Dialog - im vereinfachten Workflow entfernt */}
       
       {/* Wareneingangs-Dialog mit detaillierten Optionen */}
       <ReceiveOrderDialog
