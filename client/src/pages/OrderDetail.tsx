@@ -203,16 +203,20 @@ const formatStatus = (status: string) => {
   switch (status) {
     case "draft":
       return <Badge variant="outline" className="bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300">Entwurf</Badge>;
-    case "pending":
-      return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">In Bearbeitung</Badge>;
-    case "shipped":
-      return <Badge variant="outline" className="bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300">Versandt</Badge>;
-    case "delivered":
-      return <Badge variant="outline" className="bg-cyan-100 text-cyan-800 dark:bg-cyan-900/20 dark:text-cyan-300">Geliefert</Badge>;
+    case "ordered":
+      return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">Bestellt</Badge>;
     case "completed":
       return <Badge variant="outline" className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">Abgeschlossen</Badge>;
     case "cancelled":
       return <Badge variant="outline" className="bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300">Storniert</Badge>;
+    
+    // Alter Status für Kompatibilität mit früheren Bestellungen
+    case "pending":
+      return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">Bestellt</Badge>;
+    case "shipped":
+      return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">Bestellt</Badge>;
+    case "delivered":
+      return <Badge variant="outline" className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300">Abgeschlossen</Badge>;
     default:
       return <Badge variant="outline">{status}</Badge>;
   }
@@ -341,14 +345,14 @@ export default function OrderDetail() {
     
     // Neuen Status hinzufügen
     const newStatusEntry = {
-      status: "pending",
+      status: "ordered",
       timestamp: new Date().toISOString(),
       note: sendNote || "Bestellung beim Lieferanten eingereicht"
     };
     
     updateOrderMutation.mutate(
       { 
-        status: "pending", 
+        status: "ordered", 
         statusHistory: JSON.stringify([...currentHistory, newStatusEntry])
       },
       {
@@ -372,7 +376,7 @@ export default function OrderDetail() {
   
   // Diese Funktion wurde im vereinfachten Workflow entfernt
   
-  // Bestellung als geliefert markieren
+  // Im vereinfachten Workflow: Bestellung direkt abschließen nach Wareneingang
   const handleMarkAsDelivered = () => {
     if (!order) return;
     
@@ -381,25 +385,27 @@ export default function OrderDetail() {
       ? order.statusHistory 
       : (order.statusHistory ? JSON.parse(order.statusHistory as string) : []);
     
-    // Neuen Status hinzufügen
+    // Neuen Status hinzufügen - direkt auf "completed" setzen im vereinfachten Workflow
     const newStatusEntry = {
-      status: "delivered",
+      status: "completed",
       timestamp: new Date().toISOString(),
-      note: "Bestellung wurde geliefert"
+      note: "Bestellung wurde geliefert und abgeschlossen"
     };
+    
+    // Im vereinfachten Workflow direkt den Dialog zur Wareneingangserfassung öffnen
+    setShowReceiveDialog(true);
     
     updateOrderMutation.mutate(
       { 
-        status: "delivered", 
+        status: "completed", 
         actualDeliveryDate: new Date().toISOString(),
         statusHistory: JSON.stringify([...currentHistory, newStatusEntry])
       },
       {
         onSuccess: () => {
-          setShowReceiveDialog(true);
           toast({
-            title: "Bestellung als geliefert markiert",
-            description: "Bitte überprüfen Sie die Lieferung und erfassen Sie den Wareneingang."
+            title: "Bestellung abgeschlossen",
+            description: "Bitte erfassen Sie den Wareneingang."
           });
         }
       }
