@@ -1227,24 +1227,30 @@ Nationalpark Zentrum`);
                   .reverse().map((entry: any, index: number) => (
                     <li key={entry.id || index} className="relative pl-14">
                       <div className="absolute left-0 flex h-14 w-14 items-center justify-center rounded-full border bg-card">
+                        {/* Vereinfachter Workflow hat nur 3 Status + Storniert */}
                         {entry.status === "draft" && <FileText className="h-6 w-6 text-blue-500" />}
-                        {entry.status === "pending" && <Send className="h-6 w-6 text-yellow-500" />}
-                        {entry.status === "shipped" && <Truck className="h-6 w-6 text-purple-500" />}
-                        {entry.status === "delivered" && <ShoppingBag className="h-6 w-6 text-cyan-500" />}
+                        {entry.status === "ordered" && <Send className="h-6 w-6 text-yellow-500" />}
                         {entry.status === "completed" && <CheckCircle2 className="h-6 w-6 text-green-500" />}
                         {entry.status === "cancelled" && <XCircle className="h-6 w-6 text-red-500" />}
+                        {/* Legacy-Status für Abwärtskompatibilität */}
+                        {entry.status === "pending" && <Send className="h-6 w-6 text-yellow-500" />}
+                        {entry.status === "shipped" && <Send className="h-6 w-6 text-yellow-500" />}
+                        {entry.status === "delivered" && <CheckCircle2 className="h-6 w-6 text-green-500" />}
                       </div>
                       <div>
                         <time className="block text-sm text-muted-foreground">
                           {formatDate(entry.timestamp)} {formatTime(entry.timestamp)}
                         </time>
                         <h3 className="font-medium">
+                          {/* Vereinfachter Workflow hat nur 3 Status + Storniert */}
                           {entry.status === "draft" && "Bestellung erstellt"}
-                          {entry.status === "pending" && "Bestellung eingereicht"}
-                          {entry.status === "shipped" && "Bestellung versandt"}
-                          {entry.status === "delivered" && "Bestellung geliefert"}
+                          {entry.status === "ordered" && "Bestellung an Lieferanten gesendet"}
                           {entry.status === "completed" && "Bestellung abgeschlossen"}
                           {entry.status === "cancelled" && "Bestellung storniert"}
+                          {/* Legacy-Status für Abwärtskompatibilität */}
+                          {entry.status === "pending" && "Bestellung an Lieferanten gesendet"}
+                          {entry.status === "shipped" && "Bestellung unterwegs"}
+                          {entry.status === "delivered" && "Bestellung geliefert"}
                         </h3>
                         {entry.note && <p className="text-sm text-muted-foreground mt-1">{entry.note}</p>}
                       </div>
