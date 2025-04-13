@@ -102,9 +102,20 @@ export default function ManualStatusChange({ order, isOpen, onClose }: ManualSta
     
     try {
       // Bestehende Statushistorie als Array verarbeiten
-      const currentHistory = Array.isArray(order.statusHistory) 
-        ? order.statusHistory 
-        : (order.statusHistory ? JSON.parse(order.statusHistory as string) : []);
+      let currentHistory = [];
+      
+      try {
+        // Versuchen, die Statushistorie zu parsen, wenn sie als String vorliegt
+        if (typeof order.statusHistory === 'string' && order.statusHistory) {
+          currentHistory = JSON.parse(order.statusHistory);
+        } else if (Array.isArray(order.statusHistory)) {
+          currentHistory = order.statusHistory;
+        }
+      } catch (parseError) {
+        console.error("Fehler beim Parsen der Statushistorie:", parseError);
+        // Fallback zu leerem Array, wenn das Parsing fehlschlägt
+        currentHistory = [];
+      }
       
       // Neuen Status hinzufügen
       const newStatusEntry = {
@@ -113,10 +124,13 @@ export default function ManualStatusChange({ order, isOpen, onClose }: ManualSta
         note: note || `Status manuell auf "${statusOptions.find(s => s.value === selectedStatus)?.label || selectedStatus}" geändert`
       };
       
+      // Sicherstellen, dass wir ein Array haben
+      const newHistory = Array.isArray(currentHistory) ? [...currentHistory, newStatusEntry] : [newStatusEntry];
+      
       // Bestellung aktualisieren
       updateOrderMutation.mutate({
         status: selectedStatus,
-        statusHistory: JSON.stringify([...currentHistory, newStatusEntry])
+        statusHistory: JSON.stringify(newHistory)
       });
       
     } catch (error) {
