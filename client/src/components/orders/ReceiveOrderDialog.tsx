@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { format, addMonths } from "date-fns";
+import { format, addMonths, isValid } from "date-fns";
 import { de } from "date-fns/locale";
 
 // UI Komponenten
@@ -402,9 +402,10 @@ export default function ReceiveOrderDialog({
             Wareneingang erfassen
           </DialogTitle>
           <DialogDescription>
-            Bestellung #{order?.orderNumber} von {order?.supplierName} vom {
-              format(new Date(order?.orderDate), "dd.MM.yyyy", { locale: de })
-            }
+            Bestellung #{order?.orderNumber} von {order?.supplierName}
+            {order?.orderDate && (
+              <> vom {format(new Date(order.orderDate), "dd.MM.yyyy", { locale: de })}</>
+            )}
           </DialogDescription>
         </DialogHeader>
         
