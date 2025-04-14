@@ -852,16 +852,48 @@ router.post("/:id/receipt", async (req: Request, res: Response) => {
             const warehouseId = order[0].locationId || 1; // Falls kein Lagerort festgelegt ist, Standard verwenden
             
             // 2. Produkt-Batch erstellen mit MHD und Chargennummer
+            // Datum-Validierung für mehr Robustheit
+            let parsedExpiryDate;
+            try {
+              // Sicherstellen, dass das MHD ein gültiges Datum ist
+              parsedExpiryDate = item.expiryDate ? new Date(item.expiryDate) : new Date();
+              if (isNaN(parsedExpiryDate.getTime())) {
+                // Fallback zu einem Standarddatum (3 Monate in die Zukunft)
+                const fallbackDate = new Date();
+                fallbackDate.setMonth(fallbackDate.getMonth() + 3);
+                parsedExpiryDate = fallbackDate;
+                console.warn(`Ungültiges Ablaufdatum für Artikel ${item.productId}, verwende Standarddatum`);
+              }
+            } catch (dateError) {
+              console.error("Fehler bei der Datumkonvertierung:", dateError);
+              // Fallback-Datum (3 Monate in die Zukunft)
+              const fallbackDate = new Date();
+              fallbackDate.setMonth(fallbackDate.getMonth() + 3);
+              parsedExpiryDate = fallbackDate;
+            }
+            
+            // Empfangsdatum validieren
+            let parsedReceivedDate;
+            try {
+              parsedReceivedDate = receiptDate ? new Date(receiptDate) : new Date();
+              if (isNaN(parsedReceivedDate.getTime())) {
+                parsedReceivedDate = new Date();
+              }
+            } catch (dateError) {
+              console.error("Fehler beim Parsen des Eingangsdatums:", dateError);
+              parsedReceivedDate = new Date();
+            }
+            
             const batchData = {
               productId: item.productId,
               warehouseId,
-              batchNumber: item.batchNumber,
+              batchNumber: item.batchNumber || `BATCH-${Date.now()}`,
               supplierBatchNumber: item.supplierBatchNumber || null,
               initialQuantity: item.receivedQuantity,
               currentQuantity: item.receivedQuantity,
-              receivedDate: new Date(receiptDate) || new Date(),
+              receivedDate: parsedReceivedDate,
               // Entfernt: manufacturingDate (existiert nicht in der Tabelle)
-              expiryDate: new Date(item.expiryDate),
+              expiryDate: parsedExpiryDate,
               orderId,
               supplierId: order[0].supplierId,
               status: item.qualityCheck ? "active" : "quarantine",
@@ -916,7 +948,7 @@ router.post("/:id/receipt", async (req: Request, res: Response) => {
               reason: "Wareneingang",
               notes: `Wareneingang aus Bestellung ${order[0].orderNumber}, Charge: ${item.batchNumber}`,
               batchNumber: item.batchNumber,
-              expiryDate: new Date(item.expiryDate),
+              expiryDate: parsedExpiryDate,
               performedBy: "system"
             });
           } catch (error) {
