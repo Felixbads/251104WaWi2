@@ -26,10 +26,10 @@ router.get('/', async (req: Request, res: Response) => {
       machineId: row.assignment.machineId,
       warehouseId: row.assignment.warehouseId,
       isDefault: row.assignment.isPrimary,
-      machineName: row.machine?.name || 'Unbekannter Automat',
-      machineType: row.machine?.type || 'Unbekannt',
+      machineName: row.machine?.machineName || 'Unbekannter Automat',
+      machineType: row.machine?.machineType || 'Unbekannt',
       warehouseName: row.warehouse?.name || 'Unbekanntes Lager',
-      location: row.machine?.location || 'Unbekannt',
+      location: row.machine?.locationName || 'Unbekannt',
       createdAt: row.assignment.createdAt,
       updatedAt: row.assignment.updatedAt
     }));
