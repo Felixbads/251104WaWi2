@@ -17,6 +17,7 @@ import adminRouter from './routes/admin';
 import inventoryRouter from './routes/inventory';
 import warehouseInventoryRouter from './routes/warehouse-inventory';
 import machineWarehouseAssignmentsRouter from './routes/machine-warehouse-assignments';
+import warehouseMachineAssignmentsRouter from './routes/warehouse-machine-assignments';
 import productBatchesRouter from './routes/product-batches';
 import inventoryBatchesRouter from './routes/inventory-batches';
 import warehouse3Router from './routes/warehouse3.routes';
