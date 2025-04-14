@@ -346,7 +346,13 @@ export default function OrderDetail() {
       }
       
       const data = await response.json();
-      setDocuments(data);
+      // Überprüfen, ob die Daten in einem gültigen Format vorliegen
+      if (Array.isArray(data)) {
+        setDocuments(data);
+      } else {
+        console.error("Unerwartetes Datenformat:", data);
+        setDocuments([]); // Leeres Array im Fehlerfall setzen
+      }
     } catch (error) {
       console.error("Fehler beim Laden der Dokumente:", error);
       toast({
