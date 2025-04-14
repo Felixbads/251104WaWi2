@@ -16,6 +16,7 @@ import { Link } from 'wouter';
 import WarehouseStats from '../../components/inventory/WarehouseStats';
 import WarehouseInventoryTable from '../../components/inventory/WarehouseInventoryTable';
 import WarehouseMovementsTable from '../../components/inventory/WarehouseMovementsTable';
+import WarehouseMachineAssignments from '../../components/inventory/WarehouseMachineAssignments';
 
 // Typdefinition für die Warehouse-Info
 interface WarehouseInfo {
