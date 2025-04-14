@@ -26,6 +26,7 @@ import warehouseMovementsRouter from './routes/warehouse-movements';
 import warehouseLocationsRouter from './routes/warehouse-locations';
 import inventoryCountBatchesRouter from './routes/inventory-count-batches';
 import warehousesRouter from './routes/warehouses';
+import { criticalInventoryRouter } from './routes/critical-inventory';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -2467,6 +2468,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/warehouse-movements`, warehouseMovementsRouter);
   app.use(`${API_PREFIX}/warehouses`, warehousesRouter); // Neue Route für /api/warehouses
   app.use(`${API_PREFIX}`, warehouseLocationsRouter);
+  app.use(`${API_PREFIX}`, criticalInventoryRouter); // Route für kritische Inventarposten
   // Diese Route ist doppelt definiert und bereits oben implementiert
   
   // Warehouse stats API endpoint

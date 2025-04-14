@@ -1,15 +1,14 @@
 import express from 'express';
-import { db } from '../db';
-import { eq, and, lt, or, gte } from 'drizzle-orm';
+import { db, rawDb } from '../db';
+import { eq, and, lt, or, gte, sql } from 'drizzle-orm';
 import { inventoryItems, products, warehouses, productBatches } from '../../shared/schema';
-import { Storage } from '../storage';
+import { storage } from '../storage';
 
 const router = express.Router();
 
 // Hole kritische Produkte (niedriger Bestand oder bald ablaufend)
 router.get('/critical-items', async (req, res) => {
   try {
-    const storage = Storage.getInstance();
     
     // Aktuelles Datum und Datum in 14 Tagen
     const today = new Date();
@@ -62,8 +61,8 @@ router.get('/critical-items', async (req, res) => {
     // Wir brauchen Produkt- und Lagernamen für die ablaufenden Batches
     const expiringWithDetails = await Promise.all(
       expiringBatches.map(async (batch) => {
-        const product = await storage.getProductById(batch.productId);
-        const warehouse = await storage.getWarehouseById(batch.warehouseId);
+        const product = await storage.getProduct(batch.productId);
+        const warehouse = await storage.getWarehouse(batch.warehouseId);
         const inventoryItem = await db
           .select()
           .from(inventoryItems)
@@ -139,7 +138,7 @@ router.post('/reset-and-rebuild', async (req, res) => {
     console.log('Starte Bereinigung und Neuaufbau des Lagerbestands...');
     
     // 1. Sichere Löschen von product_movements, die auf product_batches verweisen
-    await db.execute(`
+    await rawDb.query(`
       DELETE FROM product_movements 
       WHERE product_batch_id IN (SELECT id FROM product_batches)
     `);
@@ -147,23 +146,23 @@ router.post('/reset-and-rebuild', async (req, res) => {
     console.log('Produktbewegungen gelöscht');
     
     // 2. Lösche product_batches
-    await db.execute(`DELETE FROM product_batches`);
+    await rawDb.query(`DELETE FROM product_batches`);
     console.log('Produktchargen gelöscht');
     
     // 3. Lösche inventory_count_items
-    await db.execute(`DELETE FROM inventory_count_items`);
+    await rawDb.query(`DELETE FROM inventory_count_items`);
     console.log('Inventurelemente gelöscht');
     
     // 4. Lösche inventory_items
-    await db.execute(`DELETE FROM inventory_items`);
+    await rawDb.query(`DELETE FROM inventory_items`);
     console.log('Lagerinventar gelöscht');
 
     // 5. Lösche product_conditions
-    await db.execute(`DELETE FROM purchase_conditions`);
+    await rawDb.query(`DELETE FROM purchase_conditions`);
     console.log('Einkaufsbedingungen gelöscht');
     
     // 6. Lösche machine_stocks
-    await db.execute(`DELETE FROM machine_stocks`);
+    await rawDb.query(`DELETE FROM machine_stocks`);
     console.log('Automatenbestände gelöscht');
     
     // 7. Starte den Lagerabgleich neu
@@ -175,7 +174,6 @@ router.post('/reset-and-rebuild', async (req, res) => {
     
     // Wir starten einen einfachen Abgleich ohne Vendon-API, nur mit den Produkten aus der Datenbank
     // Die Vendon-Synchronisierung wird später automatisch laufen
-    const storage = Storage.getInstance();
     const warehouses = await storage.getWarehouses();
     
     if (warehouses && warehouses.length > 0) {
