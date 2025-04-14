@@ -1168,6 +1168,9 @@ export const orders = pgTable("orders", {
   // Dokumente
   documents: text("documents"), // Dokumente als JSON-Array (Pfade/URLs zu Bestellformularen, Lieferscheinen, etc.)
   
+  // Statusverlauf
+  statusHistory: text("status_history"), // Verlauf der Statusänderungen als JSON-Array
+  
   // Audit
   createdAt: timestamp("created_at").notNull().defaultNow(), // Erstellungsdatum
   updatedAt: timestamp("updated_at").notNull().defaultNow(), // Aktualisierungsdatum
