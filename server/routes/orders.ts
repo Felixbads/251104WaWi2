@@ -829,13 +829,13 @@ router.post("/:id/receipt", async (req: Request, res: Response) => {
         // Überprüfen, ob etwas geliefert wurde
         if (item.receivedQuantity > 0) {
           hasDelivery = true;
+          console.log(`Position ${orderItem.id} hat Liefermenge ${item.receivedQuantity}`);
           
           // Wareneingang für diese Position erfassen
           await storage.updateOrderItem(orderItem.id, {
             quantityDelivered: (orderItem.quantityDelivered || 0) + item.receivedQuantity,
             status: item.qualityCheck ? "received_ok" : "received_issues",
-            notes: item.notes || orderItem.notes,
-            updatedAt: new Date()
+            notes: item.notes || orderItem.notes
           });
 
           // Jetzt müssen wir einen Batch mit MHD erstellen und den Lagerbestand aktualisieren
@@ -921,6 +921,7 @@ router.post("/:id/receipt", async (req: Request, res: Response) => {
 
     // Wenn keine Lieferung dabei ist, Fehler zurückgeben
     if (!hasDelivery) {
+      console.error("Keine Liefermengen angegeben. Request body:", JSON.stringify(req.body, null, 2));
       return res.status(400).json({ error: "Keine Liefermengen angegeben" });
     }
 

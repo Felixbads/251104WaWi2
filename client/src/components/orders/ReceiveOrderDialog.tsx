@@ -135,7 +135,10 @@ export default function ReceiveOrderDialog({
   
   // Mutation zum Speichern des Wareneingangs
   const saveReceiptMutation = useMutation({
-    mutationFn: (data: any) => saveGoodsReceipt(order.id, data),
+    mutationFn: (data: any) => {
+      console.log("Sende Wareneingang-Daten:", JSON.stringify(data, null, 2));
+      return saveGoodsReceipt(order.id, data);
+    },
     onSuccess: (data) => {
       toast({
         title: "Wareneingang gespeichert",
@@ -146,6 +149,7 @@ export default function ReceiveOrderDialog({
       onSuccess(data);
     },
     onError: (error: any) => {
+      console.error("Fehler beim Speichern des Wareneingangs:", error);
       toast({
         title: "Fehler beim Speichern",
         description: error.message || "Beim Speichern des Wareneingangs ist ein Fehler aufgetreten.",
@@ -225,9 +229,13 @@ export default function ReceiveOrderDialog({
   // Wareneingang speichern
   const handleSaveReceipt = () => {
     // Prüfen, ob mindestens ein Artikel eine Liefermenge > 0 hat
-    const hasItemsWithQuantity = receivedItems.some((item: any) => item.receivedQuantity > 0);
+    const itemsWithQuantity = receivedItems.filter((item: any) => 
+      item.receivedQuantity > 0 && 
+      item.batches && 
+      item.batches.length > 0
+    );
     
-    if (!hasItemsWithQuantity) {
+    if (itemsWithQuantity.length === 0) {
       toast({
         title: "Fehler beim Speichern",
         description: "Keine Liefermengen angegeben. Bitte geben Sie mindestens eine Liefermenge ein.",
@@ -237,10 +245,9 @@ export default function ReceiveOrderDialog({
     }
     
     // Prüfen, ob die Mengen stimmen
-    const itemsWithInvalidQuantities = receivedItems.filter((item: any) => {
-      if (item.receivedQuantity === 0) return false; // Ignoriere Artikel ohne Liefermenge
-      const totalBatchQuantity = item.batches.reduce((acc: number, batch: any) => acc + batch.quantity, 0);
-      return totalBatchQuantity !== item.receivedQuantity;
+    const itemsWithInvalidQuantities = itemsWithQuantity.filter((item: any) => {
+      const totalBatchQuantity = item.batches.reduce((acc: number, batch: any) => acc + (batch.quantity || 0), 0);
+      return Math.abs(totalBatchQuantity - item.receivedQuantity) > 0.001; // Kleine Toleranz für Rundungsfehler
     });
     
     if (itemsWithInvalidQuantities.length > 0) {
@@ -257,9 +264,18 @@ export default function ReceiveOrderDialog({
       orderId: order.id,
       warehouseId: order.warehouseId,
       notes: generalNotes,
-      receivedItems: receivedItems.filter((item: any) => item.receivedQuantity > 0), // Nur Artikel mit Liefermenge senden
+      items: itemsWithQuantity.map((item: any) => ({
+        ...item,
+        batches: item.batches.map((batch: any) => ({
+          ...batch,
+          quantity: batch.quantity || 0,
+          expiryDate: batch.expiryDate ? batch.expiryDate.toISOString() : null
+        }))
+      })),
       receiptDate: new Date().toISOString()
     };
+    
+    console.log("Sende Wareneingang-Daten:", JSON.stringify(receiptData, null, 2));
     
     // Mutation ausführen
     saveReceiptMutation.mutate(receiptData);
