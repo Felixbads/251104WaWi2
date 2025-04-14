@@ -32,10 +32,11 @@ interface ManualStatusChangeProps {
   onClose: () => void;
 }
 
-// Funktion zur Aktualisierung der Bestellung
-const updateOrder = async (id: number, data: any) => {
-  const response = await fetch(`/api/orders/${id}`, {
-    method: 'PATCH',
+// Funktion zur Aktualisierung des Bestellstatus
+const updateOrderStatus = async (id: number, data: any) => {
+  // API-Anfrage mit dem endpoint für Statusänderungen
+  const response = await fetch(`/api/orders/${id}/status`, {
+    method: 'PUT', // Wichtig: PUT für Status-Änderung
     headers: {
       'Content-Type': 'application/json',
     },
@@ -44,7 +45,7 @@ const updateOrder = async (id: number, data: any) => {
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(errorData.error || "Fehler beim Aktualisieren der Bestellung");
+    throw new Error(errorData.error || "Fehler beim Aktualisieren des Bestellstatus");
   }
 
   return response.json();
@@ -61,7 +62,7 @@ export default function ManualStatusChange({ order, isOpen, onClose }: ManualSta
   // Mutations
   const updateOrderMutation = useMutation({
     mutationFn: async (data: any) => {
-      return updateOrder(order.id, data);
+      return updateOrderStatus(order.id, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/orders/${order.id}`] });
@@ -96,39 +97,16 @@ export default function ManualStatusChange({ order, isOpen, onClose }: ManualSta
     if (!order) return;
     
     try {
-      // Bestehende Statushistorie als Array verarbeiten
-      let currentHistory = [];
-      
-      try {
-        // Versuchen, die Statushistorie zu parsen, wenn sie als String vorliegt
-        if (typeof order.statusHistory === 'string' && order.statusHistory) {
-          currentHistory = JSON.parse(order.statusHistory);
-        } else if (Array.isArray(order.statusHistory)) {
-          currentHistory = order.statusHistory;
-        }
-      } catch (parseError) {
-        console.error("Fehler beim Parsen der Statushistorie:", parseError);
-        // Fallback zu leerem Array, wenn das Parsing fehlschlägt
-        currentHistory = [];
-      }
-      
-      // Neuen Status hinzufügen
-      const newStatusEntry = {
-        status: selectedStatus,
-        timestamp: new Date().toISOString(),
-        note: note || `Status manuell auf "${statusOptions.find(s => s.value === selectedStatus)?.label || selectedStatus}" geändert`
-      };
-      
-      // Sicherstellen, dass wir ein Array haben
-      const newHistory = Array.isArray(currentHistory) ? [...currentHistory, newStatusEntry] : [newStatusEntry];
-      
-      // Bestellung aktualisieren
+      // Bestellung direkt mit dem neuen Status aktualisieren, 
+      // ohne die statusHistory zu manipulieren
+      // Die statusHistory wird vom Server korrekt aktualisiert
       updateOrderMutation.mutate({
         status: selectedStatus,
-        statusHistory: JSON.stringify(newHistory)
+        note: note || `Status manuell auf "${statusOptions.find(s => s.value === selectedStatus)?.label || selectedStatus}" geändert`
       });
       
     } catch (error) {
+      console.error("Statusänderungsfehler:", error);
       toast({
         title: "Fehler beim Aktualisieren",
         description: `${(error as Error).message}`,

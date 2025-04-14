@@ -1153,7 +1153,12 @@ export async function deleteOrder(id: number): Promise<{success: boolean; messag
 }
 
 export async function updateOrderStatus(id: number, status: string, note?: string): Promise<Order> {
-  return apiRequest<Order>('put', `/orders/${id}/status`, { status, note });
+  // Statusanfrage vereinfachen und sicherstellen, dass wir nur die erwarteten Parameter senden
+  const data = {
+    status: status,
+    note: note || undefined
+  };
+  return apiRequest<Order>('put', `/orders/${id}/status`, data);
 }
 
 /**
