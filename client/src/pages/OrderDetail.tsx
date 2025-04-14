@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -12,6 +12,7 @@ import OrderDetailActions from "@/components/orders/OrderDetailActions";
 import ManualStatusChange from "@/components/orders/ManualStatusChange";
 import html2canvas from "html2canvas";
 import { getOrder, updateOrder } from "@/lib/api";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // UI Komponenten
 import { Button } from "@/components/ui/button";
@@ -70,6 +71,7 @@ import {
   RefreshCw,
   MapPin,
   Printer,
+  Eye,
 } from "lucide-react";
 
 // Mocked order data for demo
@@ -320,6 +322,75 @@ export default function OrderDetail() {
   // States für Dokumente
   const [documents, setDocuments] = useState<any[]>([]);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
+
+  // Dokumente laden
+  const fetchDocuments = async (orderId: number) => {
+    if (!orderId) return;
+    
+    setIsLoadingDocuments(true);
+    try {
+      const response = await fetch(`/api/documents?referenceId=${orderId}&type=order`, {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Fehler beim Laden der Dokumente: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      setDocuments(data);
+    } catch (error) {
+      console.error("Fehler beim Laden der Dokumente:", error);
+      toast({
+        title: "Fehler beim Laden der Dokumente",
+        description: `${(error as Error).message}`,
+        variant: "destructive"
+      });
+      setDocuments([]);
+    } finally {
+      setIsLoadingDocuments(false);
+    }
+  };
+  
+  // Dokument anzeigen
+  const handleViewDocument = (doc: any) => {
+    if (!doc || !doc.fileUrl) {
+      toast({
+        title: "Dokument nicht verfügbar",
+        description: "Der Link zum Dokument ist nicht verfügbar.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Neues Fenster öffnen, um das Dokument anzuzeigen
+    window.open(doc.fileUrl, '_blank');
+  };
+  
+  // Dokument herunterladen
+  const handleDownloadDocument = (doc: any) => {
+    if (!doc || !doc.fileUrl) {
+      toast({
+        title: "Dokument nicht verfügbar",
+        description: "Der Link zum Dokument ist nicht verfügbar.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Download-Link erstellen und klicken
+    const link = document.createElement('a');
+    link.href = doc.fileUrl;
+    link.download = doc.title || `Dokument-${doc.id}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast({
+      title: "Download gestartet",
+      description: "Das Dokument wird heruntergeladen."
+    });
+  };
   
   // Mutations für Bestellstatus-Updates
   const updateOrderMutation = useMutation({
