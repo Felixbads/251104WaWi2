@@ -115,18 +115,21 @@ export default function ReceiveOrderDialog({
   
   // State für empfangene Waren
   const [receivedItems, setReceivedItems] = useState(() => {
-    return order?.orderItems?.map((item: any) => ({
+    // Sicherstellen, dass orderItems ein Array ist
+    const itemsArray = Array.isArray(order?.orderItems) ? order.orderItems : [];
+    
+    return itemsArray.map((item: any) => ({
       orderItemId: item.id,
       productId: item.productId,
       productName: item.productName,
-      orderedQuantity: item.quantity,
-      receivedQuantity: item.quantity, // Standard: Alles empfangen
+      orderedQuantity: item.quantity || 0,
+      receivedQuantity: item.quantity || 0, // Standard: Alles empfangen
       notes: "",
       batches: [
         {
-          quantity: item.quantity,
+          quantity: item.quantity || 0,
           expiryDate: addMonths(new Date(), 3), // Standard: 3 Monate haltbar
-          batchNumber: `BATCH-${order.orderNumber}-${item.id}`,
+          batchNumber: `BATCH-${order?.orderNumber || 'NEW'}-${item.id || '0'}`,
           lotNumber: "",
           supplierReference: ""
         }
@@ -235,8 +238,21 @@ export default function ReceiveOrderDialog({
   
   // Wareneingang speichern
   const handleSaveReceipt = () => {
+    // Prüfen, ob mindestens ein Artikel eine Liefermenge > 0 hat
+    const hasItemsWithQuantity = receivedItems.some(item => item.receivedQuantity > 0);
+    
+    if (!hasItemsWithQuantity) {
+      toast({
+        title: "Fehler beim Speichern",
+        description: "Keine Liefermengen angegeben. Bitte geben Sie mindestens eine Liefermenge ein.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     // Prüfen, ob die Mengen stimmen
     const itemsWithInvalidQuantities = receivedItems.filter(item => {
+      if (item.receivedQuantity === 0) return false; // Ignoriere Artikel ohne Liefermenge
       const totalBatchQuantity = item.batches.reduce((acc, batch) => acc + batch.quantity, 0);
       return totalBatchQuantity !== item.receivedQuantity;
     });
@@ -255,7 +271,7 @@ export default function ReceiveOrderDialog({
       orderId: order.id,
       warehouseId: order.warehouseId,
       notes: generalNotes,
-      receivedItems,
+      receivedItems: receivedItems.filter(item => item.receivedQuantity > 0), // Nur Artikel mit Liefermenge senden
       receiptDate: new Date().toISOString()
     };
     

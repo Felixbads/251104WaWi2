@@ -322,6 +322,14 @@ export default function OrderDetail() {
   // States für Dokumente
   const [documents, setDocuments] = useState<any[]>([]);
   const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
+  
+  // Dokumente im Dokumenten-Tab laden
+  useEffect(() => {
+    // Dokumente nur laden, wenn der Tab aktiv ist und eine Order-ID vorhanden ist
+    if (activeTab === "documents" && order?.id) {
+      fetchDocuments(order.id);
+    }
+  }, [activeTab, order?.id]);
 
   // Dokumente laden
   const fetchDocuments = async (orderId: number) => {
