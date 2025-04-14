@@ -978,17 +978,28 @@ router.post("/:id/receipt", async (req: Request, res: Response) => {
       updatedAt: new Date()
     };
 
-    // Statushistorie aktualisieren
-    const statusHistory = order[0].statusHistory 
-      ? JSON.parse(order[0].statusHistory) 
-      : [];
+    // Statushistorie aktualisieren - sicherstellen, dass wir immer mit einem Array arbeiten
+    let statusHistory;
+    try {
+      // Falls es ein String ist, versuchen wir es zu parsen
+      statusHistory = typeof order[0].statusHistory === 'string' 
+        ? JSON.parse(order[0].statusHistory) 
+        : (Array.isArray(order[0].statusHistory) 
+            ? order[0].statusHistory 
+            : []);
+    } catch (error) {
+      console.error("Fehler beim Parsen der Statushistorie:", error);
+      statusHistory = [];
+    }
 
+    // Neuen Status hinzufügen
     statusHistory.push({
       status: newStatus,
       timestamp: new Date().toISOString(),
       note: `Wareneingang erfasst: ${isComplete ? 'Vollständig' : 'Teilweise'}`
     });
 
+    // Immer als String speichern, für Konsistenz
     updateData.statusHistory = JSON.stringify(statusHistory);
 
     // Bestellung aktualisieren

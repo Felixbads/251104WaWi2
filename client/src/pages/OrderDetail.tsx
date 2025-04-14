@@ -428,14 +428,29 @@ export default function OrderDetail() {
     navigate('/bestellungen');
   };
   
+  // Hilfsfunktion, um die Statushistorie zu verarbeiten
+  const parseStatusHistory = (statusHistory: any): any[] => {
+    if (!statusHistory) return [];
+    
+    try {
+      if (Array.isArray(statusHistory)) {
+        return statusHistory;
+      } else if (typeof statusHistory === 'string') {
+        return JSON.parse(statusHistory);
+      }
+    } catch (error) {
+      console.error("Fehler beim Parsen der Statushistorie:", error);
+    }
+    
+    return [];
+  };
+  
   // Bestellung absenden
   const handleSendOrder = () => {
     if (!order) return;
     
     // Bestehende Statushistorie als Array verarbeiten
-    const currentHistory = Array.isArray(order.statusHistory) 
-      ? order.statusHistory 
-      : (order.statusHistory ? JSON.parse(order.statusHistory as string) : []);
+    const currentHistory = parseStatusHistory(order.statusHistory);
     
     // Neuen Status hinzufügen
     const newStatusEntry = {
@@ -1316,9 +1331,7 @@ Nationalpark Zentrum`);
               <div className="relative">
                 <div className="absolute top-0 bottom-0 left-7 w-px bg-muted-foreground/20"></div>
                 <ol className="space-y-8">
-                  {(Array.isArray(order.statusHistory) ? [...order.statusHistory] : 
-                  (order.statusHistory ? JSON.parse(order.statusHistory as string) : []))
-                  .reverse().map((entry: any, index: number) => (
+                  {parseStatusHistory(order.statusHistory).reverse().map((entry: any, index: number) => (
                     <li key={entry.id || index} className="relative pl-14">
                       <div className="absolute left-0 flex h-14 w-14 items-center justify-center rounded-full border bg-card">
                         {/* Vereinfachter Workflow hat nur 3 Status + Storniert */}
