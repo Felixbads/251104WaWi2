@@ -112,25 +112,25 @@ export default function WarehouseInventoryPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
             <Building2 className="h-8 w-8" />
-            {warehouse.name || `Lager #${warehouseId}`}
+            {warehouse?.name || `Lager #${warehouseId}`}
           </h1>
-          {warehouse.address && (
+          {warehouse?.address && (
             <div className="text-muted-foreground flex items-center mt-1">
               <MapPin className="h-4 w-4 mr-1" />
-              {warehouse.address}, {warehouse.postal_code} {warehouse.city}
+              {warehouse?.address}, {warehouse?.postal_code} {warehouse?.city}
             </div>
           )}
         </div>
         <div className="flex items-center gap-2 mt-2 md:mt-0">
-          {warehouse.is_active ? (
+          {warehouse?.is_active ? (
             <Badge variant="outline" className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100">Aktiv</Badge>
           ) : (
             <Badge variant="outline" className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-100">Inaktiv</Badge>
           )}
-          {warehouse.updated_at && (
+          {warehouse?.updated_at && (
             <div className="text-sm text-muted-foreground flex items-center">
               <Clock className="h-3 w-3 mr-1" />
-              Aktualisiert: {formatRelativeDate(warehouse.updated_at)}
+              Aktualisiert: {formatRelativeDate(warehouse?.updated_at)}
             </div>
           )}
         </div>
@@ -146,6 +146,7 @@ export default function WarehouseInventoryPage() {
         <TabsList className="mb-4">
           <TabsTrigger value="inventory">Lagerbestand</TabsTrigger>
           <TabsTrigger value="movements">Warenbewegungen</TabsTrigger>
+          <TabsTrigger value="machines">Automaten-Zuordnung</TabsTrigger>
         </TabsList>
 
         <TabsContent value="inventory" className="space-y-4">
@@ -154,6 +155,10 @@ export default function WarehouseInventoryPage() {
 
         <TabsContent value="movements" className="space-y-4">
           <WarehouseMovementsTable warehouseId={warehouseId} />
+        </TabsContent>
+
+        <TabsContent value="machines" className="space-y-4">
+          <WarehouseMachineAssignments />
         </TabsContent>
       </Tabs>
     </div>

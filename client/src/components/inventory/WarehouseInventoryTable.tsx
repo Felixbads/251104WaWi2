@@ -573,6 +573,22 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
               </TableBody>
             </Table>
           </div>
+          
+          {/* Aktionsbuttons am Ende der Tabelle */}
+          <div className="flex justify-end gap-2 mt-6">
+            <button 
+              onClick={resetWarehouseInventory}
+              className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700"
+            >
+              Lagerbestand zurücksetzen
+            </button>
+            <button 
+              onClick={triggerWarehouseReconciliation}
+              className="px-4 py-2 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700"
+            >
+              Lagerabgleich mit allen Produkten
+            </button>
+          </div>
           {filteredAndSortedInventory.length > 0 && (
             <div className="mt-4 text-sm text-muted-foreground">
               {filteredAndSortedInventory.length} {filteredAndSortedInventory.length === 1 ? 'Produkt' : 'Produkte'} {searchTerm && 'gefunden'}
