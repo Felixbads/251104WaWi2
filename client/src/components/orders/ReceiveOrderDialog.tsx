@@ -120,26 +120,34 @@ export default function ReceiveOrderDialog({
   
   // State für empfangene Waren
   const [receivedItems, setReceivedItems] = useState(() => {
-    // Sicherstellen, dass orderItems ein Array ist
-    const itemsArray = Array.isArray(order?.orderItems) ? order.orderItems : [];
-    
-    return itemsArray.map((item: any) => ({
-      orderItemId: item.id,
-      productId: item.productId,
-      productName: item.productName,
-      orderedQuantity: item.quantity || 0,
-      receivedQuantity: item.quantity || 0, // Standard: Alles empfangen
-      notes: "",
-      batches: [
-        {
-          quantity: item.quantity || 0,
-          expiryDate: addMonths(new Date(), 3), // Standard: 3 Monate haltbar
-          batchNumber: `BATCH-${order?.orderNumber || 'NEW'}-${item.id || '0'}`,
-          lotNumber: "",
-          supplierReference: ""
-        }
-      ]
-    })) || [];
+    try {
+      // Sicherstellen, dass orderItems ein Array ist
+      const itemsArray = Array.isArray(order?.orderItems) ? order.orderItems : [];
+      
+      // Erzeuge ein gültiges Standarddatum für MHD (3 Monate in der Zukunft)
+      const defaultExpiryDate = addMonths(new Date(), 3);
+      
+      return itemsArray.map((item: any) => ({
+        orderItemId: item.id,
+        productId: item.productId,
+        productName: item.productName,
+        orderedQuantity: item.quantity || 0,
+        receivedQuantity: item.quantity || 0, // Standard: Alles empfangen
+        notes: "",
+        batches: [
+          {
+            quantity: item.quantity || 0,
+            expiryDate: defaultExpiryDate, // Standard: 3 Monate haltbar
+            batchNumber: `BATCH-${order?.orderNumber || 'NEW'}-${item.id || '0'}`,
+            lotNumber: "",
+            supplierReference: ""
+          }
+        ]
+      })) || [];
+    } catch (error) {
+      console.error("Fehler beim Initialisieren der empfangenen Waren:", error);
+      return []; // Leeres Array im Fehlerfall zurückgeben
+    }
   });
   
   // Allgemeine Notizen zum Wareneingang
@@ -219,13 +227,32 @@ export default function ReceiveOrderDialog({
       return;
     }
     
-    newItems[itemIndex].batches.push({
-      quantity: remainingQuantity,
-      expiryDate: addMonths(new Date(), 3),
-      batchNumber: `${globalBatchPattern}${itemIndex}`,
-      lotNumber: "",
-      supplierReference: ""
-    });
+    // Gültiges Datum für neuen Batch erstellen (3 Monate in der Zukunft)
+    try {
+      const newExpiryDate = addMonths(new Date(), 3);
+      
+      newItems[itemIndex].batches.push({
+        quantity: remainingQuantity,
+        expiryDate: newExpiryDate,
+        batchNumber: `${globalBatchPattern}${itemIndex}`,
+        lotNumber: "",
+        supplierReference: ""
+      });
+    } catch (error) {
+      console.error("Fehler beim Erstellen des Ablaufdatums:", error);
+      // Fallback für den Fall eines ungültigen Datums
+      const today = new Date();
+      // Manuelles Addieren von 3 Monaten
+      const futureDate = new Date(today.getFullYear(), today.getMonth() + 3, today.getDate());
+      
+      newItems[itemIndex].batches.push({
+        quantity: remainingQuantity,
+        expiryDate: futureDate,
+        batchNumber: `${globalBatchPattern}${itemIndex}`,
+        lotNumber: "",
+        supplierReference: ""
+      });
+    }
     
     setReceivedItems(newItems);
   };
@@ -288,7 +315,12 @@ export default function ReceiveOrderDialog({
         batches: item.batches.map((batch: any) => ({
           ...batch,
           quantity: batch.quantity || 0,
-          expiryDate: batch.expiryDate ? batch.expiryDate.toISOString() : null
+          expiryDate: batch.expiryDate ? 
+            // Prüfen, ob das Datum gültig ist, bevor wir es formatieren
+            (isValid(batch.expiryDate) ? batch.expiryDate.toISOString() : 
+              // Fallback: Aktuelles Datum + 3 Monate
+              addMonths(new Date(), 3).toISOString()
+            ) : null
         }))
       })),
       receiptDate: new Date().toISOString()
