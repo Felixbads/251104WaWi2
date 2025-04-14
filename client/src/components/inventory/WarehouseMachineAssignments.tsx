@@ -55,9 +55,9 @@ interface WarehouseMachineAssignment {
 
 interface Machine {
   id: number;
-  name: string;
-  type: string;
-  location: string;
+  machineName: string;
+  machineType: string;
+  locationName: string;
 }
 
 interface Warehouse {
@@ -81,13 +81,13 @@ export default function WarehouseMachineAssignments() {
   });
   
   // Verfügbare Lager laden
-  const { data: warehousesData = { data: [] }, isLoading: isLoadingWarehouses } = useQuery({
+  const { data: warehousesData = [], isLoading: isLoadingWarehouses } = useQuery({
     queryKey: ['/api/warehouses'],
     staleTime: 1000 * 60 * 5, // 5 Minuten Cache
   });
 
   // Verfügbare Automaten laden
-  const { data: machinesData = { data: [] }, isLoading: isLoadingMachines } = useQuery({
+  const { data: machinesData = [], isLoading: isLoadingMachines } = useQuery({
     queryKey: ['/api/machines'],
     staleTime: 1000 * 60 * 5, // 5 Minuten Cache
   });
@@ -326,7 +326,7 @@ export default function WarehouseMachineAssignments() {
                   {isLoadingWarehouses ? (
                     <div className="p-2">Lädt Lager...</div>
                   ) : (
-                    (warehousesData.data || []).map((warehouse: Warehouse) => (
+                    (warehousesData || []).map((warehouse: Warehouse) => (
                       <SelectItem key={warehouse.id} value={warehouse.id.toString()}>
                         {warehouse.name}
                       </SelectItem>
@@ -346,9 +346,9 @@ export default function WarehouseMachineAssignments() {
                   {isLoadingMachines ? (
                     <div className="p-2">Lädt Automaten...</div>
                   ) : (
-                    (machinesData.data || []).map((machine: Machine) => (
+                    (machinesData || []).map((machine: Machine) => (
                       <SelectItem key={machine.id} value={machine.id.toString()}>
-                        {machine.name} ({machine.location})
+                        {machine.machineName} ({machine.locationName})
                       </SelectItem>
                     ))
                   )}
