@@ -860,7 +860,7 @@ router.post("/:id/receipt", async (req: Request, res: Response) => {
               initialQuantity: item.receivedQuantity,
               currentQuantity: item.receivedQuantity,
               receivedDate: new Date(receiptDate) || new Date(),
-              manufacturingDate: item.manufacturingDate ? new Date(item.manufacturingDate) : null,
+              // Entfernt: manufacturingDate (existiert nicht in der Tabelle)
               expiryDate: new Date(item.expiryDate),
               orderId,
               supplierId: order[0].supplierId,
