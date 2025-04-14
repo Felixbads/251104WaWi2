@@ -261,15 +261,39 @@ export default function OrderDetailActions({ order, pdfContentRef }: OrderDetail
   
   // PDF herunterladen
   const handleDownloadPdf = () => {
-    if (!pdfBlob) return;
+    if (!pdfBlob) {
+      toast({
+        title: "Fehler beim Herunterladen",
+        description: "PDF konnte nicht gefunden werden.",
+        variant: "destructive"
+      });
+      return;
+    }
     
-    const url = URL.createObjectURL(pdfBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Bestellung_${order.orderNumber}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    try {
+      const url = URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Bestellung_${order?.orderNumber || 'download'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // URL-Objekt wieder freigeben
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+      
+      toast({
+        title: "Download gestartet",
+        description: "Das PDF wird heruntergeladen."
+      });
+    } catch (error) {
+      console.error("Download-Fehler:", error);
+      toast({
+        title: "Fehler beim Herunterladen",
+        description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
+        variant: "destructive"
+      });
+    }
   };
   
   // PDF drucken
