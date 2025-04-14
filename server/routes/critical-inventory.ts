@@ -17,73 +17,72 @@ router.get('/critical-items', async (req, res) => {
     
     // 1. Hole Produkte mit niedrigem Bestand 
     // (Menge < Mindestmenge oder Menge < 20% der Maximalmenge)
-    const lowStockItems = await db
-      .select({
-        id: inventoryItems.id,
-        productId: inventoryItems.productId,
-        productName: products.name,
-        warehouseId: inventoryItems.warehouseId,
-        warehouseName: warehouses.name,
-        quantity: inventoryItems.quantity,
-        minQuantity: inventoryItems.minQuantity,
-        maxQuantity: inventoryItems.maxQuantity,
-      })
-      .from(inventoryItems)
-      .leftJoin(products, eq(inventoryItems.productId, products.id))
-      .leftJoin(warehouses, eq(inventoryItems.warehouseId, warehouses.id))
-      .where(
-        or(
-          lt(inventoryItems.quantity, inventoryItems.minQuantity),
-          and(
-            gte(inventoryItems.maxQuantity, 1),
-            lt(inventoryItems.quantity, db.raw(`${inventoryItems.tableName}.max_quantity * 0.2`))
-          )
-        )
-      );
+    // Da wir Probleme mit dem ORM haben, verwenden wir SQL direkt
+    const lowStockItemsQuery = `
+      SELECT 
+        i.id, 
+        i.product_id AS "productId", 
+        p.name AS "productName", 
+        i.warehouse_id AS "warehouseId", 
+        w.name AS "warehouseName", 
+        i.quantity, 
+        i.min_quantity AS "minQuantity", 
+        i.max_quantity AS "maxQuantity"
+      FROM 
+        inventory_items i
+      LEFT JOIN 
+        products p ON i.product_id = p.id
+      LEFT JOIN 
+        warehouses w ON i.warehouse_id = w.id
+      WHERE 
+        (i.quantity < i.min_quantity OR (i.max_quantity >= 1 AND i.quantity < i.max_quantity * 0.2))
+    `;
+    const lowStockResult = await rawDb.query(lowStockItemsQuery);
+    const lowStockItems = lowStockResult.rows;
 
     // 2. Hole Produkte mit nahem Ablaufdatum (innerhalb der nächsten 14 Tage)
-    const expiringBatches = await db
-      .select({
-        productBatchId: productBatches.id,
-        productId: productBatches.productId,
-        warehouseId: productBatches.warehouseId,
-        expiryDate: productBatches.expiryDate,
-      })
-      .from(productBatches)
-      .where(
-        and(
-          gte(productBatches.expiryDate, today), 
-          lt(productBatches.expiryDate, twoWeeksLater),
-          gte(productBatches.quantity, 1) // Nur Batches mit positivem Bestand
-        )
-      );
+    const expiringBatchesQuery = `
+      SELECT 
+        id AS "productBatchId", 
+        product_id AS "productId", 
+        warehouse_id AS "warehouseId", 
+        expiry_date AS "expiryDate"
+      FROM 
+        product_batches
+      WHERE 
+        expiry_date >= $1 
+        AND expiry_date < $2
+        AND quantity >= 1
+    `;
+    const expiringBatchesResult = await rawDb.query(expiringBatchesQuery, [today, twoWeeksLater]);
+    const expiringBatches = expiringBatchesResult.rows;
       
     // Wir brauchen Produkt- und Lagernamen für die ablaufenden Batches
     const expiringWithDetails = await Promise.all(
       expiringBatches.map(async (batch) => {
         const product = await storage.getProduct(batch.productId);
         const warehouse = await storage.getWarehouse(batch.warehouseId);
-        const inventoryItem = await db
-          .select()
-          .from(inventoryItems)
-          .where(
-            and(
-              eq(inventoryItems.productId, batch.productId),
-              eq(inventoryItems.warehouseId, batch.warehouseId)
-            )
-          )
-          .then(items => items[0]);
+        // Direkte SQL-Abfrage verwenden
+        const inventoryItemQuery = `
+          SELECT * FROM inventory_items
+          WHERE product_id = $1 AND warehouse_id = $2
+          LIMIT 1
+        `;
+        const inventoryItemResult = await rawDb.query(inventoryItemQuery, [batch.productId, batch.warehouseId]);
+        const inventoryItem = inventoryItemResult.rows[0];
           
         return {
           id: inventoryItem?.id || 0,
           productId: batch.productId,
-          productName: product?.name || 'Unbekanntes Produkt',
+          productName: product?.productName || 'Unbekanntes Produkt',
           warehouseId: batch.warehouseId,
           warehouseName: warehouse?.name || 'Unbekanntes Lager',
           quantity: inventoryItem?.quantity || 0,
           minQuantity: inventoryItem?.minQuantity || 0,
           maxQuantity: inventoryItem?.maxQuantity || 0,
-          nextExpiryDate: batch.expiryDate.toISOString(),
+          nextExpiryDate: typeof batch.expiryDate === 'string' 
+            ? batch.expiryDate 
+            : new Date(batch.expiryDate).toISOString(),
         };
       })
     );
@@ -178,12 +177,14 @@ router.post('/reset-and-rebuild', async (req, res) => {
     
     if (warehouses && warehouses.length > 0) {
       // Wähle das Standardlager (oder das erste in der Liste)
-      const defaultWarehouse = warehouses.find(w => w.isDefault) || warehouses[0];
+      // Da wir keine isDefault-Eigenschaft haben, nehmen wir das erste Lager
+      const defaultWarehouse = warehouses[0];
       
       // Füge alle Produkte zum Standardlager hinzu
       for (const product of allProducts) {
         try {
-          await storage.createOrUpdateInventoryItem({
+          // Verwende createInventoryItem anstelle von createOrUpdateInventoryItem
+          await storage.createInventoryItem({
             productId: product.id,
             warehouseId: defaultWarehouse.id,
             quantity: 0,

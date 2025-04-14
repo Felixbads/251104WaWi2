@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   RefreshCw, Package, AlertTriangle, Calendar, Thermometer, 
-  CircleAlert, CircleX, Loader2, WarningCircle
+  CircleAlert, CircleX, Loader2
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -47,7 +47,7 @@ export default function CriticalInventoryItems() {
   };
 
   // Filtere die Daten basierend auf dem aktiven Tab
-  const filteredItems = criticalItems.filter((item: CriticalItem) => {
+  const filteredItems = (criticalItems as CriticalItem[]).filter((item: CriticalItem) => {
     if (activeTab === "all") return true;
     if (activeTab === "low-stock" && ["low-stock", "both"].includes(item.criticality)) return true;
     if (activeTab === "expiring" && ["expiring", "both"].includes(item.criticality)) return true;
