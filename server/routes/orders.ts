@@ -773,6 +773,8 @@ router.delete("/:orderId/items/:itemId", async (req: Request, res: Response) => 
 // Wareneingang erfassen mit MHD und Chargen-Tracking
 router.post("/:id/receipt", async (req: Request, res: Response) => {
   try {
+    console.log("Wareneingang-Daten erhalten:", JSON.stringify(req.body, null, 2));
+    
     const { id } = req.params;
     const orderId = parseInt(id);
     const {
@@ -782,8 +784,13 @@ router.post("/:id/receipt", async (req: Request, res: Response) => {
       qualityCheckPassed,
       notes,
       isComplete: formIsComplete,
-      items // Gelieferte Artikelpositionen mit MHD-Daten und Chargeninformationen
+      // Unterstützt sowohl "items" als auch "receivedItems", um Kompatibilität sicherzustellen
+      items, 
+      receivedItems
     } = req.body;
+    
+    // Verwende receivedItems, wenn vorhanden, sonst items
+    const itemsToProcess = receivedItems || items || [];
 
     if (isNaN(orderId)) {
       return res.status(400).json({ error: "Ungültige Bestellungs-ID" });
@@ -823,6 +830,7 @@ router.post("/:id/receipt", async (req: Request, res: Response) => {
         const orderItem = allOrderItems.find(oi => oi.id === item.orderItemId);
         
         if (!orderItem) {
+          console.log(`Bestellposition ${item.orderItemId} nicht gefunden`);
           continue; // Position nicht gefunden
         }
 
@@ -919,8 +927,21 @@ router.post("/:id/receipt", async (req: Request, res: Response) => {
       }
     }
 
-    // Wenn keine Lieferung dabei ist, Fehler zurückgeben
-    if (!hasDelivery) {
+    // Wenn keine Lieferung dabei ist, prüfen wir als Alternative auch itemsToProcess
+    let hasAnyDelivery = hasDelivery;
+    
+    // Alternative Prüfung: Schauen, ob in itemsToProcess gültige Liefermengen sind
+    if (!hasAnyDelivery && itemsToProcess && Array.isArray(itemsToProcess)) {
+      const itemsWithQuantity = itemsToProcess.filter(item => item.receivedQuantity > 0);
+      hasAnyDelivery = itemsWithQuantity.length > 0;
+      
+      if (hasAnyDelivery) {
+        console.log("Liefermengen in itemsToProcess gefunden:", JSON.stringify(itemsWithQuantity, null, 2));
+      }
+    }
+    
+    // Wenn wirklich keine Lieferung gefunden wurde, Fehler zurückgeben
+    if (!hasAnyDelivery) {
       console.error("Keine Liefermengen angegeben. Request body:", JSON.stringify(req.body, null, 2));
       return res.status(400).json({ error: "Keine Liefermengen angegeben" });
     }
@@ -978,9 +999,14 @@ router.post("/:id/receipt", async (req: Request, res: Response) => {
       for (const receivedItem of receivedItems) {
         if (receivedItem.receivedQuantity <= 0) continue;
         
+        console.log(`Verarbeite receivedItem:`, JSON.stringify(receivedItem, null, 2));
+        
         // Finde die entsprechende Bestellposition für Produkt-ID und Lager-ID
         const orderItem = allOrderItems.find(item => item.id === receivedItem.orderItemId);
-        if (!orderItem || !orderItem.productId) continue;
+        if (!orderItem || !orderItem.productId) {
+          console.log(`Keine passende Bestellposition für ID ${receivedItem.orderItemId} gefunden`);
+          continue;
+        }
         
         // Standardmäßig das Lager vom Bestellkopf verwenden
         const warehouseId = order[0].warehouseId;
