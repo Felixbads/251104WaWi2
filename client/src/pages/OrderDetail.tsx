@@ -1265,20 +1265,68 @@ Nationalpark Zentrum`);
         {/* Dokumente Tab */}
         <TabsContent value="documents">
           <Card>
-            <CardHeader>
-              <CardTitle>Dokumente</CardTitle>
-              <CardDescription>
-                Alle zugehörigen Dokumente
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <div>
+                <CardTitle>Dokumente</CardTitle>
+                <CardDescription>
+                  Alle zugehörigen Dokumente
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => fetchDocuments(order.id)}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Aktualisieren
+              </Button>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-12">
-                <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-1">Coming Soon</h3>
-                <p className="text-muted-foreground">
-                  Dokumentenverwaltung wird in einem zukünftigen Update implementiert.
-                </p>
-              </div>
+              {isLoadingDocuments ? (
+                <div className="flex justify-center items-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : documents && documents.length > 0 ? (
+                <div className="space-y-2">
+                  {documents.map((doc) => (
+                    <div 
+                      key={doc.id} 
+                      className="flex items-center justify-between p-3 rounded-md border hover:bg-accent transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <FileText className="h-5 w-5 text-primary" />
+                        <div>
+                          <p className="font-medium text-sm">{doc.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(doc.createdAt).toLocaleDateString('de-DE')}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleViewDocument(doc)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleDownloadDocument(doc)}
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-1">Keine Dokumente</h3>
+                  <p className="text-muted-foreground">
+                    Generieren Sie ein PDF-Dokument durch Klicken auf "PDF generieren"
+                    in der Aktionsleiste.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

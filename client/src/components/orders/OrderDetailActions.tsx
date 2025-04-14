@@ -259,9 +259,9 @@ export default function OrderDetailActions({ order, pdfContentRef }: OrderDetail
     }
   };
   
-  // PDF herunterladen
-  const handleDownloadPdf = () => {
-    if (!pdfBlob) {
+  // PDF herunterladen und in Dokumentenverwaltung speichern
+  const handleDownloadPdf = async () => {
+    if (!pdfBlob || !order) {
       toast({
         title: "Fehler beim Herunterladen",
         description: "PDF konnte nicht gefunden werden.",
@@ -271,10 +271,32 @@ export default function OrderDetailActions({ order, pdfContentRef }: OrderDetail
     }
     
     try {
+      // 1. Zuerst das PDF in der Dokumentenverwaltung speichern
+      // Datei in FormData umwandeln für den Upload
+      const formData = new FormData();
+      formData.append('file', pdfBlob, `Bestellung_${order.orderNumber || order.id}_${new Date().toISOString().split('T')[0]}.pdf`);
+      formData.append('type', 'order');
+      formData.append('referenceId', order.id.toString());
+      formData.append('title', `Bestellung ${order.orderNumber || order.id}`);
+      formData.append('description', `Automatisch generiertes PDF für Bestellung ${order.orderNumber || order.id}`);
+      
+      // API-Aufruf zum Speichern des Dokuments
+      const saveResponse = await fetch('/api/documents', {
+        method: 'POST',
+        body: formData,
+        // Kein Content-Type header, damit der Browser die boundary korrekt setzt
+      });
+      
+      if (!saveResponse.ok) {
+        console.error("Fehler beim Speichern des Dokuments", await saveResponse.text());
+        throw new Error("Das Dokument konnte nicht gespeichert werden");
+      }
+      
+      // 2. Download für den Benutzer starten
       const url = URL.createObjectURL(pdfBlob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `Bestellung_${order?.orderNumber || 'download'}.pdf`;
+      link.download = `Bestellung_${order?.orderNumber || order.id}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -282,14 +304,19 @@ export default function OrderDetailActions({ order, pdfContentRef }: OrderDetail
       // URL-Objekt wieder freigeben
       setTimeout(() => URL.revokeObjectURL(url), 100);
       
+      // Rückmeldung an den Benutzer
       toast({
-        title: "Download gestartet",
-        description: "Das PDF wird heruntergeladen."
+        title: "PDF erfolgreich gespeichert",
+        description: "Das PDF wurde in der Dokumentenverwaltung gespeichert und steht zum Download bereit.",
       });
+      
+      // Dokumente neu laden, falls nötig (Feld für die Zukunft)
+      // invalidateDocumentsQuery();
+      
     } catch (error) {
-      console.error("Download-Fehler:", error);
+      console.error("Download/Speichern-Fehler:", error);
       toast({
-        title: "Fehler beim Herunterladen",
+        title: "Fehler beim Verarbeiten",
         description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
         variant: "destructive"
       });
