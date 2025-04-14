@@ -65,20 +65,39 @@ import {
 
 // API-Funktion zum Speichern des Wareneingangs
 const saveGoodsReceipt = async (orderId: number, receiptData: any) => {
-  const response = await fetch(`/api/orders/${orderId}/receipt`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(receiptData),
-  });
+  console.log("Sende Wareneingang-Anfrage:", JSON.stringify(receiptData, null, 2));
+  
+  // Das Format umwandeln, um sicherzustellen, dass wir das vom Server erwartete Format senden
+  const serverData = {
+    ...receiptData,
+    // Sicherstellen, dass receivedItems im Feldnamen "receivedItems" gesendet wird
+    receivedItems: receiptData.items
+  };
+  
+  delete serverData.items; // items entfernen, damit es keine Duplikate gibt
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || "Fehler beim Speichern des Wareneingangs");
+  try {
+    const response = await fetch(`/api/orders/${orderId}/receipt`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(serverData),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error("Fehler-Antwort vom Server:", errorData);
+      throw new Error(errorData.error || "Fehler beim Speichern des Wareneingangs");
+    }
+
+    const result = await response.json();
+    console.log("Erfolgreiche Server-Antwort:", result);
+    return result;
+  } catch (error: any) {
+    console.error("Fehler beim API-Aufruf:", error);
+    throw error;
   }
-
-  return response.json();
 };
 
 interface ReceiveOrderDialogProps {
