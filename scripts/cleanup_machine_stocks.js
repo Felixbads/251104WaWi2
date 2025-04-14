@@ -8,10 +8,10 @@
  * Anwendung: node scripts/cleanup_machine_stocks.js
  */
 
-require('dotenv').config();
-const { db } = require('../server/db');
-const { products, machineStocks, machines } = require('../shared/schema');
-const { eq, sql, inArray, desc, like, ilike, and, isNull } = require('drizzle-orm');
+import 'dotenv/config';
+import { db } from '../server/db.js';
+import { products, machineStocks, machines } from '../shared/schema.js';
+import { eq, sql, inArray, desc, like, ilike, and, isNull } from 'drizzle-orm';
 
 /**
  * Hauptfunktion zur Bereinigung der Lagerbestände
