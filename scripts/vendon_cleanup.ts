@@ -104,7 +104,7 @@ async function cleanupVendonData() {
         // Finde machine_stocks mit Verweisen auf die Duplikate
         const affectedMachineStocks = await db.select()
           .from(machineStocks)
-          .where(inArray(sql`${machineStocks.productVendonId}::int`, duplicateIds.map(id => id.toString())));
+          .where(inArray(machineStocks.productVendonId, duplicateIds.map(id => id.toString())));
 
         if (affectedMachineStocks.length > 0) {
           console.log(`  - ${affectedMachineStocks.length} machine_stocks Einträge gefunden für Duplikate`);
@@ -174,7 +174,8 @@ async function cleanupVendonData() {
     console.log('\nIdentifiziere Einträge mit ungültigen Produktreferenzen...');
     const invalidStocks = allMachineStocks.filter(stock => {
       // Stelle sicher, dass productVendonId nicht null ist
-      return stock.productVendonId !== null && !validVendonIds.has(stock.productVendonId);
+      if (stock.productVendonId === null) return false;
+      return !validVendonIds.has(stock.productVendonId);
     });
     
     console.log(`${invalidStocks.length} Einträge mit ungültigen Produktreferenzen gefunden.`);
@@ -227,10 +228,11 @@ async function cleanupVendonData() {
         if (!best.lastSync && current.lastSync) return current;
         if (best.lastSync && current.lastSync && current.lastSync > best.lastSync) return current;
         
-        // Sicherer Vergleich der Mengen mit Null-Prüfung
-        const bestQuantity = best.quantity || 0;
-        const currentQuantity = current.quantity || 0;
-        if (bestQuantity < currentQuantity) return current;
+        // Null-sichere Quantitätsvergleiche
+        const bestQty = typeof best.quantity === 'number' ? best.quantity : 0;
+        const currentQty = typeof current.quantity === 'number' ? current.quantity : 0;
+        
+        if (bestQty < currentQty) return current;
         
         return best;
       }, group[0]);
