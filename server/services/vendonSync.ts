@@ -2126,7 +2126,7 @@ export class VendonSyncService {
     const syncLogId = logEntry.id;
 
     try {
-      console.log("Starte erweiterte Produktsynchronisierung...");
+      console.log("Starte erweiterte Produktsynchronisierung mit verbesserter Duplikatprüfung...");
       const startTime = Date.now();
       
       // Produkte von der API abrufen mit der verbesserten Methode
@@ -2147,18 +2147,39 @@ export class VendonSyncService {
       // Sammle vorhandene Produkte in einem einzigen Datenbankaufruf
       console.log("Hole bestehende Produkte aus der Datenbank...");
       const existingProducts = await storage.getProducts(0); // 0 means no limit
-      const existingProductMap: Record<string, any> = {};
-      
-      // Erstelle eine Map für schnelle Suche
-      // Verwende eine type assertion, da wir wissen, dass es ein Array ist
-      (existingProducts as any[]).forEach(product => {
-        existingProductMap[product.vendonId] = product;
-      });
-      
-      // Type assertion für die Längenprüfung
       console.log(`${(existingProducts as any[]).length} bestehende Produkte in der Datenbank gefunden.`);
       
-      // Verarbeite jeden Produkt-Datensatz einzeln, aber effizienter
+      // Erstelle zwei Maps für effiziente Suche:
+      // 1. Nach Vendon-ID
+      // 2. Nach normalisiertem Produktnamen
+      const existingByVendonId: Record<string, any> = {};
+      const existingByNormalizedName: Record<string, any> = {};
+      
+      // Normalisiere Namen für Vergleich (Kleinbuchstaben, Leerzeichen trimmen)
+      const normalizeProductName = (name: string): string => {
+        if (!name) return '';
+        return name.toLowerCase().trim();
+      };
+      
+      // Fülle die Maps mit existierenden Produkten
+      (existingProducts as any[]).forEach(product => {
+        // Nach Vendon-ID
+        if (product.vendonId) {
+          existingByVendonId[product.vendonId] = product;
+        }
+        
+        // Nach normalisiertem Namen
+        if (product.productName) {
+          const normalizedName = normalizeProductName(product.productName);
+          existingByNormalizedName[normalizedName] = product;
+        }
+      });
+      
+      // Gruppiere Produkte nach normalisiertem Namen für Duplikaterkennung
+      // Verarbeite die Produkte nach Wichtigkeit: API-Produkte haben höhere Priorität
+      const processedProductIds = new Set<string>();
+      
+      // Verarbeite jeden Produkt-Datensatz einzeln, effizient und mit Duplikatschutz
       for (const product of products) {
         try {
           if (!product.id) {
@@ -2168,6 +2189,13 @@ export class VendonSyncService {
           }
           
           const vendonId = product.id.toString();
+          
+          // Überspringe, wenn dieses Produkt bereits in diesem Durchlauf verarbeitet wurde
+          if (processedProductIds.has(vendonId)) {
+            console.log(`Produkt mit vendonId ${vendonId} bereits in diesem Durchlauf verarbeitet (Duplikat in API-Daten)`);
+            duplicates++;
+            continue;
+          }
           
           // Verbesserte Produktnamenextraktion
           let productName = product.name;
@@ -2184,6 +2212,9 @@ export class VendonSyncService {
             productName = `Produkt ${vendonId}`;
           }
           
+          // Normalisierter Name für Duplikatprüfung
+          const normalizedName = normalizeProductName(productName);
+          
           // Extrahiere Produktdaten mit mehr Informationen
           const productData = {
             vendonId,
@@ -2196,26 +2227,27 @@ export class VendonSyncService {
             extraData: JSON.stringify(product)
           };
           
-          // Prüfe, ob das Produkt bereits existiert anhand der Map (nicht DB-Abfrage für jedes Produkt)
-          const existing = existingProductMap[vendonId];
+          // Prüfe, ob das Produkt bereits existiert (nach Vendon-ID)
+          const existingById = existingByVendonId[vendonId];
           
-          // Suche auch nach Produkten mit dem gleichen Namen (Verhindert Duplikate)
-          const existingByName = (existingProducts as any[]).find(p => 
-            p.productName?.toLowerCase() === productName.toLowerCase()
-          );
+          // Prüfe, ob das Produkt bereits existiert (nach normalisiertem Namen)
+          const existingByName = existingByNormalizedName[normalizedName];
           
-          if (existing) {
-            // Aktualisieren des bestehenden Produkts, das dieselbe vendonId hat
+          // Markiere als verarbeitet, um Duplikate in diesem Durchlauf zu vermeiden
+          processedProductIds.add(vendonId);
+          
+          if (existingById) {
+            // Aktualisieren des bestehenden Produkts mit derselben vendonId
             console.log(`Aktualisiere bestehendes Produkt (vendonId: ${vendonId}): ${productName}`);
             
-            await storage.updateProduct(existing.id, {
+            await storage.updateProduct(existingById.id, {
               ...productData,
               updatedAt: new Date()
             });
             
             itemsUpdated++;
           } else if (existingByName) {
-            // Aktualisiere das bestehende Produkt und setze vendonId
+            // Aktualisiere das bestehende Produkt mit dem gleichen Namen und setze vendonId
             console.log(`Aktualisiere bestehendes Produkt (Name: ${productName}) und setze vendonId: ${vendonId}`);
             
             await storage.updateProduct(existingByName.id, {
@@ -2223,16 +2255,23 @@ export class VendonSyncService {
               updatedAt: new Date()
             });
             
+            // Aktualisiere auch die lokalen Referenzen, damit nachfolgende Abfragen korrekt sind
+            existingByVendonId[vendonId] = {...existingByName, ...productData, updatedAt: new Date()};
+            
             itemsUpdated++;
           } else {
             // Erstellen eines neuen Produkts
             console.log(`Erstelle neues Produkt: ${productName} (vendonId: ${vendonId})`);
             
-            await storage.createProduct({
+            const newProduct = await storage.createProduct({
               ...productData,
               createdAt: new Date(),
               updatedAt: new Date()
             });
+            
+            // Aktualisiere die Maps mit dem neuen Produkt für nachfolgende Lookups
+            existingByVendonId[vendonId] = newProduct;
+            existingByNormalizedName[normalizedName] = newProduct;
             
             itemsSaved++;
           }
@@ -2258,12 +2297,12 @@ export class VendonSyncService {
         syncStatus: 'completed'
       });
       
-      console.log(`Erweiterte Produktsynchronisierung abgeschlossen. ${itemsSaved} hinzugefügt, ${itemsUpdated} aktualisiert, ${errors} Fehler in ${durationSeconds} Sekunden.`);
+      console.log(`Erweiterte Produktsynchronisierung abgeschlossen. ${itemsSaved} hinzugefügt, ${itemsUpdated} aktualisiert, ${duplicates} Duplikate übersprungen, ${errors} Fehler in ${durationSeconds} Sekunden.`);
       
       return {
         syncLogId,
         status: 'success',
-        message: `${products.length} Produkte synchronisiert: ${itemsSaved} neu, ${itemsUpdated} aktualisiert, ${errors} Fehler`
+        message: `${products.length} Produkte synchronisiert: ${itemsSaved} neu, ${itemsUpdated} aktualisiert, ${duplicates} Duplikate übersprungen, ${errors} Fehler`
       };
     } catch (error) {
       console.error("Fehler bei der erweiterten Produktsynchronisierung:", error);
