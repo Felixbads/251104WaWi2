@@ -3,14 +3,14 @@
  * 
  * Dieses Skript führt eine vollständige Bereinigung durch:
  * 1. Identifiziert Produktduplikate basierend auf normalisiertem Namen
- * 2. Konsolidiert Duplikate und aktualisiert Referenzen in machine_stocks
+ * 2. Konsolidiert Duplikate und aktualisiert Referenzen in machine_stocks und inventory_count_items
  * 3. Bereinigt ungültige und duplizierte Lagerbestände
  * 
  * Anwendung: npx tsx scripts/vendon_cleanup.ts
  */
 
 import { db } from '../server/db';
-import { products, machineStocks, stocks } from '../shared/schema';
+import { products, machineStocks, stocks, inventoryCountItems, inventoryItems } from '../shared/schema';
 import { eq, sql, inArray, desc } from 'drizzle-orm';
 
 /**
@@ -133,6 +133,57 @@ async function cleanupVendonData() {
         console.log(`  - Aktualisierung der stocks-Tabelle übersprungen`);
       } catch (error) {
         console.error(`  - Fehler beim Aktualisieren von stocks:`, error);
+      }
+
+      // 7.1 Aktualisiere Referenzen in inventory_count_items (wichtig für Foreign-Key-Constraints)
+      try {
+        // Finde inventory_count_items mit Verweisen auf die Duplikate
+        const affectedInventoryItems = await db.select()
+          .from(inventoryCountItems)
+          .where(inArray(inventoryCountItems.productId, duplicateIds));
+
+        if (affectedInventoryItems.length > 0) {
+          console.log(`  - ${affectedInventoryItems.length} inventory_count_items Einträge gefunden für Duplikate`);
+          
+          // Update inventory_count_items Einträge
+          for (const item of affectedInventoryItems) {
+            await db.update(inventoryCountItems)
+              .set({ 
+                productId: primaryProduct.id
+              })
+              .where(eq(inventoryCountItems.id, item.id));
+          }
+          
+          console.log(`  - ${affectedInventoryItems.length} inventory_count_items Einträge auf Primärprodukt aktualisiert`);
+        }
+      } catch (error) {
+        console.error(`  - Fehler beim Aktualisieren von inventory_count_items:`, error);
+      }
+
+      // 7.2 Aktualisiere Referenzen in inventory_items (wichtig für Foreign-Key-Constraints)
+      try {
+        // Finde inventory_items mit Verweisen auf die Duplikate
+        const affectedInventoryItems = await db.select()
+          .from(inventoryItems)
+          .where(inArray(inventoryItems.productId, duplicateIds));
+
+        if (affectedInventoryItems.length > 0) {
+          console.log(`  - ${affectedInventoryItems.length} inventory_items Einträge gefunden für Duplikate`);
+          
+          // Update inventory_items Einträge
+          for (const item of affectedInventoryItems) {
+            await db.update(inventoryItems)
+              .set({ 
+                productId: primaryProduct.id,
+                updatedAt: new Date()
+              })
+              .where(eq(inventoryItems.id, item.id));
+          }
+          
+          console.log(`  - ${affectedInventoryItems.length} inventory_items Einträge auf Primärprodukt aktualisiert`);
+        }
+      } catch (error) {
+        console.error(`  - Fehler beim Aktualisieren von inventory_items:`, error);
       }
 
       // 8. Lösche die Duplikate
@@ -274,10 +325,16 @@ async function cleanupVendonData() {
     const endTime = Date.now();
     const durationSeconds = (endTime - startTime) / 1000;
     
+    // Hole die tatsächliche Produktanzahl nach der Bereinigung für eine genaue Statistik
+    const finalProductCount = await db.select({ count: sql`count(*)` })
+      .from(products)
+      .then(result => Number(result[0].count));
+    
     console.log('\n=== ZUSAMMENFASSUNG DER BEREINIGUNG ===');
     console.log(`Ursprüngliche Produktanzahl: ${allProducts.length}`);
     console.log(`Bereinigte Produktduplikate: ${totalDuplicatesRemoved}`);
-    console.log(`Neue Produktanzahl: ${allProducts.length - totalDuplicatesRemoved}`);
+    console.log(`Neue Produktanzahl: ${finalProductCount}`);
+    console.log(`Reduziert um: ${Math.round((1 - finalProductCount / allProducts.length) * 100)}%`);
     console.log(`MachineStocks aktualisiert: ${machineStocksUpdated}`);
     console.log(`Stocks aktualisiert: ${stocksUpdated}`);
     console.log(`Ungültige Lagerbestände gelöscht: ${invalidStocks.length}`);
