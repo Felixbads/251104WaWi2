@@ -241,6 +241,36 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
       alert('Fehler beim Lagerabgleich');
     }
   };
+  
+  // Lagerbestand zurücksetzen (löschen)
+  const resetWarehouseInventory = async () => {
+    if (!confirm('ACHTUNG: Diese Aktion wird den gesamten Lagerbestand für dieses Lager löschen. Möchten Sie fortfahren?')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/reset-warehouse-inventory', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          warehouseId,
+        }),
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        alert(`Lagerbestand erfolgreich zurückgesetzt: ${result.message || "Alle Einträge wurden gelöscht."}`);
+        window.location.reload(); // Seite neu laden, um aktualisierte Daten anzuzeigen
+      } else {
+        alert('Fehler beim Zurücksetzen des Lagerbestands');
+      }
+    } catch (error) {
+      console.error('Fehler beim Zurücksetzen des Lagerbestands:', error);
+      alert('Fehler beim Zurücksetzen des Lagerbestands');
+    }
+  };
 
   return (
     <>
@@ -251,12 +281,20 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
               <Package2 className="h-5 w-5" />
               Lagerbestand
             </CardTitle>
-            <button 
-              onClick={triggerWarehouseReconciliation}
-              className="px-4 py-2 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700"
-            >
-              Lagerabgleich mit allen Produkten
-            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={resetWarehouseInventory}
+                className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700"
+              >
+                Lagerbestand zurücksetzen
+              </button>
+              <button 
+                onClick={triggerWarehouseReconciliation}
+                className="px-4 py-2 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700"
+              >
+                Lagerabgleich mit allen Produkten
+              </button>
+            </div>
           </div>
           <CardDescription>
             Übersicht aller Produkte im Lager mit aktuellen Bestandsmengen
