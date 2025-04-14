@@ -386,18 +386,23 @@ export default function OrderDetail() {
       return;
     }
     
-    // Download-Link erstellen und klicken
-    const link = document.createElement('a');
-    link.href = doc.fileUrl;
-    link.download = doc.title || `Dokument-${doc.id}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    toast({
-      title: "Download gestartet",
-      description: "Das Dokument wird heruntergeladen."
-    });
+    try {
+      // Download über direktes Öffnen im neuen Tab
+      // Dies umgeht den URL-Pattern-Fehler bei der Download-Methode
+      window.open(doc.fileUrl, '_blank');
+      
+      toast({
+        title: "Download gestartet",
+        description: "Das Dokument wurde in einem neuen Tab geöffnet. Speichern Sie es dort mit Strg+S."
+      });
+    } catch (error) {
+      console.error("Fehler beim Herunterladen des Dokuments:", error);
+      toast({
+        title: "Fehler beim Herunterladen",
+        description: `${(error as Error).message || "Beim Herunterladen ist ein Fehler aufgetreten."}`,
+        variant: "destructive"
+      });
+    }
   };
   
   // Mutations für Bestellstatus-Updates

@@ -31,36 +31,23 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { 
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
 
 // Icons
 import { 
@@ -68,7 +55,6 @@ import {
   Calendar as CalendarIcon,
   CheckCircle2,
   Info,
-  AlertTriangle,
   Package,
   ChevronRight,
   X,
@@ -110,7 +96,7 @@ export default function ReceiveOrderDialog({
 }: ReceiveOrderDialogProps) {
   const { toast } = useToast();
   
-  // Aktiver Tab
+  // Aktiver Tab (nur noch 2 Tabs: Wareneingang und Zusammenfassung)
   const [activeTab, setActiveTab] = useState<string>("quantities");
   
   // State für empfangene Waren
@@ -198,7 +184,7 @@ export default function ReceiveOrderDialog({
   // Neuen Batch hinzufügen
   const addBatch = (itemIndex: number) => {
     const newItems = [...receivedItems];
-    const currentQuantity = newItems[itemIndex].batches.reduce((acc, batch) => acc + batch.quantity, 0);
+    const currentQuantity = newItems[itemIndex].batches.reduce((acc: number, batch: any) => acc + batch.quantity, 0);
     const remainingQuantity = newItems[itemIndex].receivedQuantity - currentQuantity;
     
     if (remainingQuantity <= 0) {
@@ -239,7 +225,7 @@ export default function ReceiveOrderDialog({
   // Wareneingang speichern
   const handleSaveReceipt = () => {
     // Prüfen, ob mindestens ein Artikel eine Liefermenge > 0 hat
-    const hasItemsWithQuantity = receivedItems.some(item => item.receivedQuantity > 0);
+    const hasItemsWithQuantity = receivedItems.some((item: any) => item.receivedQuantity > 0);
     
     if (!hasItemsWithQuantity) {
       toast({
@@ -251,9 +237,9 @@ export default function ReceiveOrderDialog({
     }
     
     // Prüfen, ob die Mengen stimmen
-    const itemsWithInvalidQuantities = receivedItems.filter(item => {
+    const itemsWithInvalidQuantities = receivedItems.filter((item: any) => {
       if (item.receivedQuantity === 0) return false; // Ignoriere Artikel ohne Liefermenge
-      const totalBatchQuantity = item.batches.reduce((acc, batch) => acc + batch.quantity, 0);
+      const totalBatchQuantity = item.batches.reduce((acc: number, batch: any) => acc + batch.quantity, 0);
       return totalBatchQuantity !== item.receivedQuantity;
     });
     
@@ -271,7 +257,7 @@ export default function ReceiveOrderDialog({
       orderId: order.id,
       warehouseId: order.warehouseId,
       notes: generalNotes,
-      receivedItems: receivedItems.filter(item => item.receivedQuantity > 0), // Nur Artikel mit Liefermenge senden
+      receivedItems: receivedItems.filter((item: any) => item.receivedQuantity > 0), // Nur Artikel mit Liefermenge senden
       receiptDate: new Date().toISOString()
     };
     
@@ -281,15 +267,19 @@ export default function ReceiveOrderDialog({
   
   // Überprüfung, ob ein Artikel valid ist
   const isItemValid = (item: any) => {
+    // Wenn keine Menge angegeben wurde, ist der Artikel gültig (wird ignoriert)
+    if (item.receivedQuantity === 0) return true;
+    
+    // Sonst prüfen, ob die Summe der Batches der Gesamtmenge entspricht
     const totalBatchQuantity = item.batches.reduce((acc: number, batch: any) => acc + batch.quantity, 0);
     return totalBatchQuantity === item.receivedQuantity;
   };
   
   // Globales MHD auf alle Produkte anwenden
   const applyGlobalExpiryDate = () => {
-    const newItems = receivedItems.map(item => ({
+    const newItems = receivedItems.map((item: any) => ({
       ...item,
-      batches: item.batches.map(batch => ({
+      batches: item.batches.map((batch: any) => ({
         ...batch,
         expiryDate: globalExpiryDate
       }))
@@ -305,9 +295,9 @@ export default function ReceiveOrderDialog({
   
   // Globales Batch-Muster auf alle Produkte anwenden
   const applyGlobalBatchPattern = () => {
-    const newItems = receivedItems.map((item, index) => ({
+    const newItems = receivedItems.map((item: any) => ({
       ...item,
-      batches: item.batches.map((batch, batchIndex) => ({
+      batches: item.batches.map((batch: any, batchIndex: number) => ({
         ...batch,
         batchNumber: `${globalBatchPattern}${item.orderItemId}-${batchIndex}`
       }))
@@ -323,10 +313,10 @@ export default function ReceiveOrderDialog({
   
   // Alle Mengen auf einmal übernehmen oder zurücksetzen
   const handleReceiveAll = () => {
-    const newItems = receivedItems.map(item => ({
+    const newItems = receivedItems.map((item: any) => ({
       ...item,
       receivedQuantity: receiveAll ? item.orderedQuantity : 0,
-      batches: item.batches.map(batch => ({
+      batches: item.batches.map((batch: any) => ({
         ...batch,
         quantity: receiveAll ? item.orderedQuantity : 0
       }))
@@ -363,16 +353,8 @@ export default function ReceiveOrderDialog({
                 className="flex items-center data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full"
               >
                 <Package className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Mengen</span>
-                <span className="sm:hidden">Mengen</span>
-              </TabsTrigger>
-              <TabsTrigger 
-                value="batches" 
-                className="flex items-center data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full"
-              >
-                <CalendarIcon className="h-4 w-4 mr-2" />
-                <span className="hidden sm:inline">Chargen & MHD</span>
-                <span className="sm:hidden">MHD</span>
+                <span className="hidden sm:inline">Wareneingang erfassen</span>
+                <span className="sm:hidden">Erfassen</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="summary" 
@@ -385,14 +367,14 @@ export default function ReceiveOrderDialog({
             </TabsList>
           </div>
           
-          {/* Tab 1: Mengen erfassen */}
+          {/* Tab 1: Kombinierter Tab für Mengen und Chargen */}
           <TabsContent value="quantities" className="flex-1 overflow-hidden flex flex-col m-0 py-0 px-0">
             <div className="p-4 border-b">
               <Alert className="mb-4">
                 <Info className="h-4 w-4" />
                 <AlertTitle>Hinweis</AlertTitle>
                 <AlertDescription>
-                  Geben Sie die tatsächlich gelieferten Mengen ein. Abweichungen können mit Notizen versehen werden.
+                  Geben Sie die tatsächlich gelieferten Mengen ein und verwalten Sie Chargen und MHD.
                 </AlertDescription>
               </Alert>
               
@@ -417,67 +399,8 @@ export default function ReceiveOrderDialog({
                   )}
                 </Button>
               </div>
-            </div>
-            
-            <ScrollArea className="flex-1 pb-4">
-              <div className="space-y-3 p-4">
-                {receivedItems.map((item, index) => (
-                  <Card key={`item-${item.orderItemId}`} className="overflow-hidden">
-                    <CardHeader className="p-3 pb-0">
-                      <CardTitle className="text-base font-medium truncate">
-                        {item.productName}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="flex items-center justify-between">
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground">Bestellt:</p>
-                            <p className="font-medium">{item.orderedQuantity} Stk.</p>
-                          </div>
-                          <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground">Erhalten:</p>
-                            <Input
-                              type="number"
-                              min="0"
-                              value={item.receivedQuantity}
-                              onChange={(e) => updateItemQuantity(index, parseInt(e.target.value) || 0)}
-                              className="w-20 h-8 text-right"
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-xs text-muted-foreground">Bemerkung:</p>
-                          <Input
-                            value={item.notes}
-                            onChange={(e) => updateItemNotes(index, e.target.value)}
-                            placeholder="z.B. Beschädigt"
-                            className="w-full h-8"
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </ScrollArea>
-            
-            <div className="border-t p-4">
-              <Button 
-                className="w-full"
-                variant="outline"
-                onClick={() => setActiveTab("batches")}
-              >
-                Weiter zu Chargen & MHD
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            </div>
-          </TabsContent>
-          
-          {/* Tab 2: Batches & MHD */}
-          <TabsContent value="batches" className="flex-1 overflow-hidden flex flex-col m-0 py-0 px-0">
-            <div className="p-4 border-b">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 my-4">
                 <Card>
                   <CardHeader className="p-3">
                     <CardTitle className="text-sm font-medium flex items-center">
@@ -550,64 +473,80 @@ export default function ReceiveOrderDialog({
               </div>
             </div>
             
-            <ScrollArea className="flex-1">
-              <div className="p-4">
-                <Accordion type="multiple" className="w-full">
-                  {receivedItems.map((item, itemIndex) => (
-                    <AccordionItem 
-                      key={`batch-item-${item.orderItemId}`} 
-                      value={item.orderItemId.toString()}
-                    >
-                      <AccordionTrigger className="px-4 py-2 hover:bg-muted/50 rounded-md">
-                        <div className="flex items-center justify-between w-full mr-4">
-                          <span className="font-medium truncate">{item.productName}</span>
-                          <div className="flex gap-2 items-center">
-                            <Badge variant="outline">
-                              {item.receivedQuantity} Stk.
-                            </Badge>
-                            <Badge variant={
-                              isItemValid(item) ? "outline" : "destructive"
-                            }>
-                              {item.batches.length} {item.batches.length === 1 ? "Charge" : "Chargen"}
-                            </Badge>
+            <ScrollArea className="flex-1 pb-4">
+              <div className="space-y-6 p-4">
+                {receivedItems.map((item: any, index: number) => (
+                  <Card key={`item-${item.orderItemId}`} className="overflow-hidden">
+                    <CardHeader className="p-3 pb-0">
+                      <CardTitle className="text-base font-medium truncate">
+                        {item.productName}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-3">
+                      {/* Mengenbereich */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">Bestellt:</p>
+                            <p className="font-medium">{item.orderedQuantity} Stk.</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">Erhalten:</p>
+                            <Input
+                              type="number"
+                              min="0"
+                              value={item.receivedQuantity}
+                              onChange={(e) => updateItemQuantity(index, parseInt(e.target.value) || 0)}
+                              className="w-20 h-8 text-right"
+                            />
                           </div>
                         </div>
-                      </AccordionTrigger>
-                      <AccordionContent className="p-2 px-4">
-                        <div className="flex justify-end mb-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            onClick={() => addBatch(itemIndex)}
-                            className="h-8 text-xs"
-                          >
-                            <Plus className="h-3 w-3 mr-1" />
-                            Charge hinzufügen
-                          </Button>
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground">Bemerkung:</p>
+                          <Input
+                            value={item.notes}
+                            onChange={(e) => updateItemNotes(index, e.target.value)}
+                            placeholder="z.B. Beschädigt"
+                            className="w-full h-8"
+                          />
                         </div>
-                        
-                        <div className="space-y-4">
-                          {item.batches.map((batch, batchIndex) => (
-                            <Card key={`batch-${item.orderItemId}-${batchIndex}`}>
-                              <CardHeader className="p-3 pb-1">
-                                <div className="flex justify-between items-center">
-                                  <CardTitle className="text-sm font-medium">
-                                    Charge {batchIndex + 1}
-                                  </CardTitle>
+                      </div>
+                      
+                      {/* Chargenbereich - nur anzeigen, wenn Liefermenge > 0 */}
+                      {item.receivedQuantity > 0 && (
+                        <div className="mt-4">
+                          <Separator className="my-3" />
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-sm font-medium">Chargen & MHD</h4>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => addBatch(index)}
+                              className="h-7 text-xs"
+                            >
+                              <Plus className="h-3 w-3 mr-1" />
+                              Charge hinzufügen
+                            </Button>
+                          </div>
+                          
+                          <div className="space-y-4 mt-3">
+                            {item.batches.map((batch: any, batchIndex: number) => (
+                              <div key={`batch-${item.orderItemId}-${batchIndex}`} className="border rounded-md p-3">
+                                <div className="flex justify-between items-center mb-2">
+                                  <span className="text-sm font-medium">Charge {batchIndex + 1}</span>
                                   {item.batches.length > 1 && (
                                     <Button
                                       variant="ghost"
                                       size="sm"
-                                      className="h-8 text-xs text-destructive hover:text-destructive"
-                                      onClick={() => removeBatch(itemIndex, batchIndex)}
+                                      className="h-7 text-xs text-destructive hover:text-destructive"
+                                      onClick={() => removeBatch(index, batchIndex)}
                                     >
                                       <X className="h-3 w-3 mr-1" />
                                       Entfernen
                                     </Button>
                                   )}
                                 </div>
-                              </CardHeader>
-                              <CardContent className="p-3 pt-0">
+                                
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                   <div className="space-y-2">
                                     <Label className="text-xs">Menge</Label>
@@ -615,7 +554,7 @@ export default function ReceiveOrderDialog({
                                       type="number"
                                       min="1"
                                       value={batch.quantity}
-                                      onChange={(e) => updateBatchValue(itemIndex, batchIndex, 'quantity', parseInt(e.target.value) || 0)}
+                                      onChange={(e) => updateBatchValue(index, batchIndex, 'quantity', parseInt(e.target.value) || 0)}
                                       className="h-8"
                                     />
                                   </div>
@@ -640,7 +579,7 @@ export default function ReceiveOrderDialog({
                                         <Calendar
                                           mode="single"
                                           selected={batch.expiryDate}
-                                          onSelect={(date) => date && updateBatchValue(itemIndex, batchIndex, 'expiryDate', date)}
+                                          onSelect={(date) => date && updateBatchValue(index, batchIndex, 'expiryDate', date)}
                                           initialFocus
                                           locale={de}
                                         />
@@ -652,7 +591,7 @@ export default function ReceiveOrderDialog({
                                     <Label className="text-xs">Chargennummer</Label>
                                     <Input
                                       value={batch.batchNumber}
-                                      onChange={(e) => updateBatchValue(itemIndex, batchIndex, 'batchNumber', e.target.value)}
+                                      onChange={(e) => updateBatchValue(index, batchIndex, 'batchNumber', e.target.value)}
                                       placeholder="Chargennummer"
                                       className="h-8"
                                     />
@@ -662,20 +601,25 @@ export default function ReceiveOrderDialog({
                                     <Label className="text-xs">Lieferantenreferenz</Label>
                                     <Input
                                       value={batch.supplierReference}
-                                      onChange={(e) => updateBatchValue(itemIndex, batchIndex, 'supplierReference', e.target.value)}
+                                      onChange={(e) => updateBatchValue(index, batchIndex, 'supplierReference', e.target.value)}
                                       placeholder="Lieferantenreferenz"
                                       className="h-8"
                                     />
                                   </div>
                                 </div>
-                              </CardContent>
-                            </Card>
-                          ))}
+                              </div>
+                            ))}
+                          </div>
+                          {!isItemValid(item) && (
+                            <p className="text-xs text-destructive mt-2">
+                              Die Summe der Chargenmengen muss der Gesamtmenge entsprechen.
+                            </p>
+                          )}
                         </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
-                </Accordion>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             </ScrollArea>
             
@@ -691,7 +635,7 @@ export default function ReceiveOrderDialog({
             </div>
           </TabsContent>
           
-          {/* Tab 3: Zusammenfassung */}
+          {/* Tab 2: Zusammenfassung */}
           <TabsContent value="summary" className="flex-1 overflow-hidden flex flex-col m-0 py-0 px-0">
             <ScrollArea className="flex-1">
               <div className="p-4 space-y-4">
@@ -719,7 +663,7 @@ export default function ReceiveOrderDialog({
                       <div className="space-y-2">
                         <p className="text-sm text-muted-foreground">Status:</p>
                         <Badge className="font-normal">
-                          {receivedItems.some(item => !isItemValid(item)) 
+                          {receivedItems.some((item: any) => !isItemValid(item)) 
                             ? "Mengen überprüfen" 
                             : "Bereit zur Buchung"}
                         </Badge>
@@ -754,20 +698,24 @@ export default function ReceiveOrderDialog({
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {receivedItems.map((item) => (
+                        {receivedItems.map((item: any) => (
                           <TableRow key={`summary-${item.orderItemId}`}>
                             <TableCell className="font-medium">{item.productName}</TableCell>
                             <TableCell className="text-right">{item.orderedQuantity}</TableCell>
                             <TableCell className="text-right">{item.receivedQuantity}</TableCell>
                             <TableCell className="text-right">
-                              {!isItemValid(item) ? (
+                              {item.receivedQuantity > 0 && !isItemValid(item) ? (
                                 <Badge variant="destructive" className="ml-auto">
                                   Überprüfen
                                 </Badge>
                               ) : (
-                                <Badge variant="outline" className="ml-auto">
-                                  {item.batches.length}
-                                </Badge>
+                                item.receivedQuantity > 0 ? (
+                                  <Badge variant="outline" className="ml-auto">
+                                    {item.batches.length}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-muted-foreground">0</span>
+                                )
                               )}
                             </TableCell>
                           </TableRow>
@@ -782,7 +730,7 @@ export default function ReceiveOrderDialog({
             <div className="border-t p-4">
               <Button 
                 className="w-full"
-                disabled={saveReceiptMutation.isPending || receivedItems.some(item => !isItemValid(item))}
+                disabled={saveReceiptMutation.isPending || receivedItems.some((item: any) => !isItemValid(item))}
                 onClick={handleSaveReceipt}
               >
                 {saveReceiptMutation.isPending ? (
@@ -814,7 +762,7 @@ export default function ReceiveOrderDialog({
             {activeTab !== "summary" && (
               <Button
                 size="sm"
-                disabled={saveReceiptMutation.isPending || receivedItems.some(item => !isItemValid(item))}
+                disabled={saveReceiptMutation.isPending || receivedItems.some((item: any) => !isItemValid(item))}
                 onClick={handleSaveReceipt}
               >
                 {saveReceiptMutation.isPending ? (
@@ -833,13 +781,13 @@ export default function ReceiveOrderDialog({
           </div>
           
           <div className="flex items-center">
-            {receivedItems.some(item => !isItemValid(item)) && (
+            {receivedItems.some((item: any) => !isItemValid(item)) && (
               <Badge variant="destructive" className="mr-2">
                 Mengen überprüfen
               </Badge>
             )}
             <span className="text-xs text-muted-foreground">
-              {receivedItems.filter(item => item.receivedQuantity > 0).length} von {receivedItems.length} Artikeln
+              {receivedItems.filter((item: any) => item.receivedQuantity > 0).length} von {receivedItems.length} Artikeln
             </span>
           </div>
         </DialogFooter>
