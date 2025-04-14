@@ -317,6 +317,10 @@ export default function OrderDetail() {
     queryFn: () => getOrder(Number(id))
   });
   
+  // States für Dokumente
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [isLoadingDocuments, setIsLoadingDocuments] = useState(false);
+  
   // Mutations für Bestellstatus-Updates
   const updateOrderMutation = useMutation({
     mutationFn: async (updateData: any) => {
