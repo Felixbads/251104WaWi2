@@ -821,7 +821,7 @@ router.post("/:id/receipt", async (req: Request, res: Response) => {
       .from(orderItems)
       .where(eq(orderItems.orderId, orderId));
 
-    let isComplete = formIsComplete || false;
+    let isComplete = formIsComplete;
     let hasDelivery = false;
 
     // Bestellpositionen und Batches aktualisieren
@@ -944,6 +944,38 @@ router.post("/:id/receipt", async (req: Request, res: Response) => {
     if (!hasAnyDelivery) {
       console.error("Keine Liefermengen angegeben. Request body:", JSON.stringify(req.body, null, 2));
       return res.status(400).json({ error: "Keine Liefermengen angegeben" });
+    }
+
+    // Überprüfen, ob alle Positionen vollständig geliefert wurden - isComplete Flag berechnen
+    if (!isComplete) {
+      console.log("Prüfe automatisch ob Bestellung komplett geliefert ist...");
+      let allItemsComplete = true;
+      
+      // Alle Bestellpositionen mit aktuellen Lieferdaten aktualisieren
+      const updatedOrderItems = await db
+        .select()
+        .from(orderItems)
+        .where(eq(orderItems.orderId, orderId));
+      
+      // Überprüfen, ob für jede Position die bestellte Menge = gelieferte Menge ist
+      for (const orderItem of updatedOrderItems) {
+        // Berechnung der gelieferten Menge: bereits gelieferte Menge + neue Menge aus aktuellem Wareneingang
+        const itemInCurrentDelivery = items?.find(i => i.orderItemId === orderItem.id) || 
+                                      itemsToProcess?.find(i => i.orderItemId === orderItem.id);
+        
+        const newlyDeliveredQuantity = itemInCurrentDelivery?.receivedQuantity || 0;
+        const totalDeliveredQuantity = (orderItem.quantityDelivered || 0) + newlyDeliveredQuantity;
+        
+        // Wenn eine Position noch nicht vollständig geliefert ist, ist die gesamte Bestellung nicht komplett
+        if (totalDeliveredQuantity < orderItem.orderedQuantity) {
+          allItemsComplete = false;
+          console.log(`Position ${orderItem.id} nicht vollständig: bestellt=${orderItem.orderedQuantity}, geliefert=${totalDeliveredQuantity}`);
+          break;
+        }
+      }
+      
+      isComplete = allItemsComplete;
+      console.log(`Bestellung ist ${isComplete ? 'vollständig' : 'teilweise'} geliefert.`);
     }
 
     // Status der Bestellung aktualisieren
