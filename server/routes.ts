@@ -25,6 +25,7 @@ import warehouse3ApiRouter from './routes/warehouse3.api';
 import warehouseMovementsRouter from './routes/warehouse-movements';
 import warehouseLocationsRouter from './routes/warehouse-locations';
 import inventoryCountBatchesRouter from './routes/inventory-count-batches';
+import warehousesRouter from './routes/warehouses';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -2464,6 +2465,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/inventory-batches`, inventoryBatchesRouter);
   app.use(`${API_PREFIX}/inventory-counts`, inventoryCountBatchesRouter);
   app.use(`${API_PREFIX}/warehouse-movements`, warehouseMovementsRouter);
+  app.use(`${API_PREFIX}/warehouses`, warehousesRouter); // Neue Route für /api/warehouses
   app.use(`${API_PREFIX}`, warehouseLocationsRouter);
   // Diese Route ist doppelt definiert und bereits oben implementiert
   
@@ -2656,7 +2658,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/warehouse3-api`, warehouse3ApiRouter); // Neue Lagerverwaltung API (Version 3)
   
   // Lagerplätze API einbinden
-  app.use(`${API_PREFIX}`, warehouseLocationsRouter);
+  // Entferne diese doppelte Registrierung, da die Route bereits oben registriert wurde
+  // app.use(`${API_PREFIX}`, warehouseLocationsRouter);
   
   // Registriere Export/Import-Routen
   app.use(`${API_PREFIX}`, exportImportRoutes);
