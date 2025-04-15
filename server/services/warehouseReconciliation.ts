@@ -82,8 +82,18 @@ export async function reconcileWarehouseProducts(
       id: number;
       name: string;
       found: boolean; // Flag, um zu markieren, dass das Produkt bereits verarbeitet wurde
+      warehouses: Set<number>; // Set der Lager-IDs, in denen dieses Produkt enthalten ist
     }
     
+    // Globale Map für alle Produkte, unabhängig vom Lager
+    // Diese wird verwendet, um Duplikate lagersübergreifend zu erkennen
+    const globalProductsMap = new Map<number, ProductInfo>();
+    
+    // Map für Zuordnung von normalisierten Produktnamen zu Produkt-IDs
+    // Hilft dabei, Produkte mit gleichen Namen aber unterschiedlichen IDs zu erkennen
+    const normalizedNameToProductId = new Map<string, number>();
+    
+    // Zuordnung von Lagern zu Produkten, für die lagerspezifische Verarbeitung
     const warehouseToProducts: Record<number, Map<number, ProductInfo>> = {};
     
     // Für jede Maschinen-Lager-Zuordnung
@@ -112,14 +122,34 @@ export async function reconcileWarehouseProducts(
         for (const transaction of transactions) {
           try {
             if (transaction.productId && typeof transaction.productId === 'number') {
-              // Füge Produkt-ID zum entsprechenden Lager hinzu, wenn es noch nicht dort ist
-              if (!warehouseToProducts[warehouseId].has(transaction.productId)) {
-                warehouseToProducts[warehouseId].set(transaction.productId, {
-                  id: transaction.productId,
+              const productId = transaction.productId;
+              // Lagerübergreifende Prüfung mit globalProductsMap
+              if (!globalProductsMap.has(productId)) {
+                // Produkt noch nicht im globalen Register
+                const productInfo = {
+                  id: productId,
                   name: 'Unbekanntes Produkt', // Standard-Name falls kein Name verfügbar
-                  found: false
-                });
+                  found: false,
+                  warehouses: new Set<number>([warehouseId])
+                };
+                globalProductsMap.set(productId, productInfo);
+                
+                // Füge Produkt-ID zum entsprechenden Lager hinzu
+                warehouseToProducts[warehouseId].set(productId, productInfo);
+                
+                console.log(`Neues Produkt ${productId} global registriert und für Lager ${warehouseId} vorgemerkt`);
                 productsFound++;
+              } else {
+                // Produkt bereits im globalen Register - füge nur Lager-Zuordnung hinzu wenn nötig
+                const productInfo = globalProductsMap.get(productId)!;
+                if (!productInfo.warehouses.has(warehouseId)) {
+                  productInfo.warehouses.add(warehouseId);
+                  warehouseToProducts[warehouseId].set(productId, productInfo);
+                  console.log(`Bereits registriertes Produkt ${productId} (${productInfo.name}) für Lager ${warehouseId} vorgemerkt`);
+                  productsFound++;
+                } else {
+                  console.log(`Produkt ${productId} (${productInfo.name}) bereits für Lager ${warehouseId} vorgemerkt`);
+                }
               }
             }
             // Wenn keine Produkt-ID gesetzt ist, versuche das Produkt über den Namen zu finden
@@ -135,18 +165,35 @@ export async function reconcileWarehouseProducts(
                   const product = await storage.getProductByNormalizedName(productName);
                   
                   if (product && product.id) {
-                    // Nur wenn dieses Produkt noch nicht im Set ist
-                    if (!warehouseToProducts[warehouseId].has(product.id)) {
-                      warehouseToProducts[warehouseId].set(product.id, {
-                        id: product.id,
+                    const productId = product.id;
+                    // Lagerübergreifende Prüfung mit globalProductsMap
+                    if (!globalProductsMap.has(productId)) {
+                      // Produkt noch nicht im globalen Register
+                      const productInfo = {
+                        id: productId,
                         name: product.productName || productName,
-                        found: false
-                      });
+                        found: false,
+                        warehouses: new Set<number>([warehouseId])
+                      };
+                      globalProductsMap.set(productId, productInfo);
+                      
+                      // Füge Produkt-ID zum entsprechenden Lager hinzu
+                      warehouseToProducts[warehouseId].set(productId, productInfo);
+                      
                       productsFound++;
                       console.log(`Produkt "${productName}" über normalisierten Namen gefunden und für Lager ${warehouseId} vorgemerkt`);
                     } else {
-                      // Produkt bereits gefunden, nicht doppelt zählen
-                      console.log(`Produkt "${productName}" bereits für Lager ${warehouseId} vorgemerkt`);
+                      // Produkt bereits im globalen Register - füge nur Lager-Zuordnung hinzu wenn nötig
+                      const productInfo = globalProductsMap.get(productId)!;
+                      if (!productInfo.warehouses.has(warehouseId)) {
+                        productInfo.warehouses.add(warehouseId);
+                        warehouseToProducts[warehouseId].set(productId, productInfo);
+                        productsFound++;
+                        console.log(`Produkt "${productName}" bereits global registriert und jetzt für Lager ${warehouseId} vorgemerkt`);
+                      } else {
+                        // Produkt bereits gefunden, nicht doppelt zählen
+                        console.log(`Produkt "${productName}" bereits für Lager ${warehouseId} vorgemerkt`);
+                      }
                     }
                   } else {
                     console.log(`Keine exakte Übereinstimmung für "${productName}" gefunden, versuche allgemeine Suche...`);
@@ -164,11 +211,34 @@ export async function reconcileWarehouseProducts(
                       if (matchedProduct && matchedProduct.id) {
                         // Nur wenn dieses Produkt noch nicht im Set ist
                         if (!warehouseToProducts[warehouseId].has(matchedProduct.id)) {
-                          warehouseToProducts[warehouseId].set(matchedProduct.id, {
-                            id: matchedProduct.id,
-                            name: matchedProduct.productName || rawProductName,
-                            found: false
-                          });
+                          const productId = matchedProduct.id;
+                          // Lagerübergreifende Prüfung mit globalProductsMap
+                          if (!globalProductsMap.has(productId)) {
+                            // Produkt noch nicht im globalen Register
+                            const productInfo = {
+                              id: productId,
+                              name: matchedProduct.productName || rawProductName,
+                              found: false,
+                              warehouses: new Set<number>([warehouseId])
+                            };
+                            globalProductsMap.set(productId, productInfo);
+                            
+                            // Füge Produkt-ID zum entsprechenden Lager hinzu
+                            warehouseToProducts[warehouseId].set(productId, productInfo);
+                            
+                            console.log(`Produkt "${rawProductName}" über allgemeine Suche gefunden und im globalen Register hinzugefügt`);
+                          } else {
+                            // Produkt bereits im globalen Register - füge nur Lager-Zuordnung hinzu wenn nötig
+                            const productInfo = globalProductsMap.get(productId)!;
+                            if (!productInfo.warehouses.has(warehouseId)) {
+                              productInfo.warehouses.add(warehouseId);
+                              warehouseToProducts[warehouseId].set(productId, productInfo);
+                              console.log(`Produkt "${rawProductName}" bereits global registriert und jetzt für Lager ${warehouseId} vorgemerkt`);
+                            } else {
+                              console.log(`Produkt "${rawProductName}" bereits für Lager ${warehouseId} vorgemerkt (aus globaler Suche)`);
+                              continue; // Nicht doppelt zählen
+                            }
+                          }
                           productsFound++;
                           console.log(`Produkt "${rawProductName}" über allgemeine Suche gefunden (${matchedProduct.productName}) und für Lager ${warehouseId} vorgemerkt`);
                         }
