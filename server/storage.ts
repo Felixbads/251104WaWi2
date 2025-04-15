@@ -183,6 +183,12 @@ export interface IStorage {
   createSyncLog(log: InsertSyncLog): Promise<SyncLog>;
   updateSyncLog(id: number, log: Partial<InsertSyncLog>): Promise<SyncLog | undefined>;
   getLatestSyncLog(syncType: string): Promise<SyncLog | undefined>;
+  
+  /**
+   * Ruft den letzten laufenden Synchronisationsprozess für den angegebenen Typ ab
+   * Wird verwendet, um parallele Synchronisierungen zu verhindern
+   */
+  getLatestRunningSyncLog(syncType: string): Promise<SyncLog | undefined>;
 
   // Location operations
   getLocations(): Promise<Location[]>;
