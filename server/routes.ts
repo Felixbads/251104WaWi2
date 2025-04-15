@@ -674,6 +674,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`Neue Inventurzählung erstellt: ID ${inventoryCount.id} für Lager ${warehouse.name} (${warehouseId})`);
       console.log(`Warehouse Name in Response: ${inventoryCount.warehouseName || 'Nicht gesetzt'}`);
       
+      // Füge automatisch alle Produkte aus dem Lager zur Inventur hinzu
+      try {
+        console.log(`Füge automatisch alle Produkte für neue Inventur ${inventoryCount.id} hinzu...`);
+        
+        // Synchronisiere zuerst alle Automatenprodukte mit dem Lager
+        console.log(`Synchronisiere alle Automaten-Produkte mit Lager ${warehouseId} vor dem Hinzufügen zur Inventur...`);
+        const { reconcileWarehouseProducts } = require('./services/warehouseReconciliation');
+        await reconcileWarehouseProducts(warehouseId);
+        
+        // Jetzt holen wir die aktualisierten Lagerprodukte
+        const inventoryItems = await storage.getInventoryItems({ 
+          warehouseId,
+          includeZeroStock: true // Wichtig: Auch Produkte mit Bestand 0 einschließen
+        });
+        
+        console.log(`${inventoryItems.length} Lagerprodukte gefunden nach Synchronisierung für Inventur ${inventoryCount.id}`);
+        
+        if (inventoryItems && inventoryItems.length > 0) {
+          // Speichere alle gefundenen Produkte in der Inventur
+          const savedItems = [];
+          
+          for (const item of inventoryItems) {
+            const savedItem = await storage.createInventoryCountItem({
+              inventoryCountId: inventoryCount.id,
+              productId: item.productId || 0,
+              expectedQuantity: item.quantity || 0,
+              actualQuantity: null,
+              status: 'pending'
+            });
+            
+            savedItems.push(savedItem);
+          }
+          
+          console.log(`${savedItems.length} Inventurelemente automatisch für ID ${inventoryCount.id} hinzugefügt`);
+        } else {
+          console.warn(`Keine Lagerprodukte für Lager ${warehouseId} gefunden!`);
+        }
+      } catch (addError) {
+        console.error("Fehler beim automatischen Hinzufügen der Produkte:", addError);
+        // Wir lassen die Inventur trotzdem erstellen, selbst wenn das Hinzufügen fehlschlägt
+      }
+      
       res.status(201).json(inventoryCount);
     } catch (error) {
       console.error("Error creating inventory count:", error);
