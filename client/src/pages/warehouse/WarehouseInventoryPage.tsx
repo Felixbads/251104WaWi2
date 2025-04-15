@@ -101,7 +101,7 @@ export default function WarehouseInventoryPage() {
     <div className="container mx-auto py-10">
       <div className="mb-6">
         <Button variant="outline" size="sm" asChild>
-          <Link href="/warehouse3">
+          <Link href="/lagerbestand">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Zurück
           </Link>
