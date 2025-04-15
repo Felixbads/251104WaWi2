@@ -39,6 +39,9 @@ export interface IStorage {
   // Raw SQL Query für erweiterte Abfragen
   query(sql: string, params?: any[]): Promise<any[]>;
   
+  // Direkter Zugriff auf die Datenbank für Raw Queries
+  executeRawQuery(sql: string, params?: any[]): Promise<{rows: any[], rowCount: number}>;
+  
   // Database statistics operations
   getDatabaseStats(): Promise<{
     transactions: { count: number; latest: Date | null };
@@ -405,6 +408,21 @@ export class DatabaseStorage implements IStorage {
   // Raw SQL Query für erweiterte Abfragen
   async query(sql: string, params: any[] = []): Promise<any[]> {
     return await db.execute(sql as any, params);
+  }
+  
+  // Führt eine SQL-Abfrage direkt aus und gibt ein erweitertes Ergebnis zurück
+  async executeRawQuery(sql: string, params: any[] = []): Promise<{rows: any[], rowCount: number}> {
+    try {
+      // Verwende rawDb (PostgreSQL-Client) für direkten Zugriff
+      const result = await rawDb.query(sql, params);
+      return {
+        rows: result.rows || [],
+        rowCount: result.rowCount || 0
+      };
+    } catch (error) {
+      console.error("Fehler bei der Ausführung von Raw SQL:", error);
+      throw error;
+    }
   }
   
   // Get transaction count for sync status

@@ -2144,14 +2144,48 @@ export class VendonSyncService {
       
       console.log(`${products.length} Produkte von der API erhalten. Starte Verarbeitung...`);
       
-      // Sammle vorhandene Produkte in einem einzigen Datenbankaufruf
+      // Sammle vorhandene Produkte in einem einzigen Datenbankaufruf mit Verwendung von SQL-Abfragen
+      // zur genaueren Kontrolle, da hier Massenduplikate vorliegen könnten
       console.log("Hole bestehende Produkte aus der Datenbank...");
-      const existingProducts = await storage.getProducts(0); // 0 means no limit
-      console.log(`${(existingProducts as any[]).length} bestehende Produkte in der Datenbank gefunden.`);
+      
+      // Direkte SQL-Abfrage statt ORM-Aufruf für bessere Kontrolle über die Ergebnisse
+      const existingProductsResult = await storage.executeRawQuery(`
+        SELECT 
+          id, 
+          vendon_id as "vendonId", 
+          product_name as "productName",
+          price, 
+          status, 
+          sku, 
+          barcode
+        FROM products
+      `);
+      
+      const existingProducts = existingProductsResult.rows;
+      console.log(`${existingProducts.length} bestehende Produkte in der Datenbank gefunden.`);
+      
+      // Suche nach Duplikaten, um dieses Problem zu diagnostizieren
+      const duplicateVendonIdsResult = await storage.executeRawQuery(`
+        SELECT 
+          vendon_id, 
+          COUNT(*) as count 
+        FROM products 
+        GROUP BY vendon_id 
+        HAVING COUNT(*) > 1
+        ORDER BY count DESC
+        LIMIT 5
+      `);
+      
+      if (duplicateVendonIdsResult.rows.length > 0) {
+        console.log("WARNUNG: Folgende Vendon-IDs haben Duplikate in der Datenbank:");
+        duplicateVendonIdsResult.rows.forEach(row => {
+          console.log(`  VendonID: ${row.vendon_id}, Anzahl: ${row.count}`);
+        });
+      }
       
       // Erstelle zwei Maps für effiziente Suche:
-      // 1. Nach Vendon-ID
-      // 2. Nach normalisiertem Produktnamen
+      // 1. Nach Vendon-ID (bevorzugt)
+      // 2. Nach normalisiertem Produktnamen (Fallback)
       const existingByVendonId: Record<string, any> = {};
       const existingByNormalizedName: Record<string, any> = {};
       
@@ -2161,25 +2195,32 @@ export class VendonSyncService {
         return name.toLowerCase().trim();
       };
       
-      // Fülle die Maps mit existierenden Produkten
-      (existingProducts as any[]).forEach(product => {
-        // Nach Vendon-ID
-        if (product.vendonId) {
+      // Fülle die Maps, aber vermeide Duplikate - behalte nur das erste Produkt pro Vendon-ID
+      // oder normalisiertem Namen
+      existingProducts.forEach(product => {
+        // Nach Vendon-ID - nur einfügen, wenn noch nicht vorhanden
+        if (product.vendonId && !existingByVendonId[product.vendonId]) {
           existingByVendonId[product.vendonId] = product;
         }
         
-        // Nach normalisiertem Namen
+        // Nach normalisiertem Namen - nur einfügen, wenn noch nicht vorhanden
         if (product.productName) {
           const normalizedName = normalizeProductName(product.productName);
-          existingByNormalizedName[normalizedName] = product;
+          if (!existingByNormalizedName[normalizedName]) {
+            existingByNormalizedName[normalizedName] = product;
+          }
         }
       });
+      
+      console.log(`Nach Deduplizierung: ${Object.keys(existingByVendonId).length} einzigartige Produkte nach Vendon-ID`);
+      console.log(`Nach Deduplizierung: ${Object.keys(existingByNormalizedName).length} einzigartige Produkte nach normalisiertem Namen`);
       
       // Gruppiere Produkte nach normalisiertem Namen für Duplikaterkennung
       // Verarbeite die Produkte nach Wichtigkeit: API-Produkte haben höhere Priorität
       const processedProductIds = new Set<string>();
+      const processedNormalizedNames = new Set<string>();
       
-      // Verarbeite jeden Produkt-Datensatz einzeln, effizient und mit Duplikatschutz
+      // Verarbeite jeden Produkt-Datensatz einzeln, effizient und mit strengerer Duplikatschutz
       for (const product of products) {
         try {
           if (!product.id) {
@@ -2215,6 +2256,13 @@ export class VendonSyncService {
           // Normalisierter Name für Duplikatprüfung
           const normalizedName = normalizeProductName(productName);
           
+          // Überspringe auch, wenn der normalisierte Name bereits verarbeitet wurde
+          if (processedNormalizedNames.has(normalizedName)) {
+            console.log(`Produkt mit normalisiertem Namen '${normalizedName}' bereits verarbeitet (Duplikat in API-Daten)`);
+            duplicates++;
+            continue;
+          }
+          
           // Extrahiere Produktdaten mit mehr Informationen
           const productData = {
             vendonId,
@@ -2223,6 +2271,8 @@ export class VendonSyncService {
             status: product.status || 'active',
             sku: product.sku || product.code || null,
             barcode: product.barcode || product.code || null,
+            // Zeitstempel für die letzte Aktualisierung von Vendon
+            vendonUpdatedAt: new Date(),
             // Felder aus dem extraData-Feld können später extrahiert werden
             extraData: JSON.stringify(product)
           };
@@ -2235,6 +2285,7 @@ export class VendonSyncService {
           
           // Markiere als verarbeitet, um Duplikate in diesem Durchlauf zu vermeiden
           processedProductIds.add(vendonId);
+          processedNormalizedNames.add(normalizedName);
           
           if (existingById) {
             // Aktualisieren des bestehenden Produkts mit derselben vendonId
@@ -2244,6 +2295,10 @@ export class VendonSyncService {
               ...productData,
               updatedAt: new Date()
             });
+            
+            // Aktualisiere auch die Maps für nachfolgende Lookups
+            existingByVendonId[vendonId] = {...existingById, ...productData, updatedAt: new Date()};
+            existingByNormalizedName[normalizedName] = existingByVendonId[vendonId];
             
             itemsUpdated++;
           } else if (existingByName) {
@@ -2257,23 +2312,69 @@ export class VendonSyncService {
             
             // Aktualisiere auch die lokalen Referenzen, damit nachfolgende Abfragen korrekt sind
             existingByVendonId[vendonId] = {...existingByName, ...productData, updatedAt: new Date()};
+            existingByNormalizedName[normalizedName] = existingByVendonId[vendonId];
             
             itemsUpdated++;
           } else {
-            // Erstellen eines neuen Produkts
-            console.log(`Erstelle neues Produkt: ${productName} (vendonId: ${vendonId})`);
+            // Überprüfe nochmals direkt in der Datenbank, ob ein Produkt mit dieser vendonId oder diesem Namen existiert
+            // Dies ist ein doppelter Sicherheitsmechanismus gegen Duplikate
+            const existingInDB = await storage.getProductByVendonId(vendonId);
             
-            const newProduct = await storage.createProduct({
-              ...productData,
-              createdAt: new Date(),
-              updatedAt: new Date()
-            });
-            
-            // Aktualisiere die Maps mit dem neuen Produkt für nachfolgende Lookups
-            existingByVendonId[vendonId] = newProduct;
-            existingByNormalizedName[normalizedName] = newProduct;
-            
-            itemsSaved++;
+            if (existingInDB) {
+              // Aktualisiere das Produkt, das in der Datenbank gefunden wurde
+              console.log(`Produkt mit vendonId ${vendonId} doch in DB gefunden, aktualisiere: ${productName}`);
+              
+              await storage.updateProduct(existingInDB.id, {
+                ...productData,
+                updatedAt: new Date()
+              });
+              
+              // Aktualisiere die Maps
+              existingByVendonId[vendonId] = {...existingInDB, ...productData, updatedAt: new Date()};
+              existingByNormalizedName[normalizedName] = existingByVendonId[vendonId];
+              
+              itemsUpdated++;
+            } else {
+              // Noch eine letzte Prüfung nach Name
+              const existingByNameInDB = await storage.executeRawQuery(`
+                SELECT id FROM products 
+                WHERE LOWER(TRIM(product_name)) = $1 
+                LIMIT 1
+              `, [normalizedName]);
+              
+              if (existingByNameInDB.rows.length > 0) {
+                // Produkt mit gleichem Namen gefunden, aktualisieren
+                const productId = existingByNameInDB.rows[0].id;
+                console.log(`Produkt mit normalisiertem Namen '${normalizedName}' in DB gefunden (ID: ${productId}), aktualisiere`);
+                
+                await storage.updateProduct(productId, {
+                  ...productData,
+                  updatedAt: new Date()
+                });
+                
+                // Aktualisiere die Maps
+                const updatedProduct = {...productData, id: productId, updatedAt: new Date()};
+                existingByVendonId[vendonId] = updatedProduct;
+                existingByNormalizedName[normalizedName] = updatedProduct;
+                
+                itemsUpdated++;
+              } else {
+                // Jetzt erst wirklich ein neues Produkt erstellen, wenn wir sicher sind
+                console.log(`Erstelle neues Produkt: ${productName} (vendonId: ${vendonId})`);
+                
+                const newProduct = await storage.createProduct({
+                  ...productData,
+                  createdAt: new Date(),
+                  updatedAt: new Date()
+                });
+                
+                // Aktualisiere die Maps mit dem neuen Produkt für nachfolgende Lookups
+                existingByVendonId[vendonId] = newProduct;
+                existingByNormalizedName[normalizedName] = newProduct;
+                
+                itemsSaved++;
+              }
+            }
           }
         } catch (error) {
           console.error(`Fehler bei der Verarbeitung des Produkts:`, error);
