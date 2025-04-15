@@ -678,36 +678,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         console.log(`Füge automatisch alle Produkte für neue Inventur ${inventoryCount.id} hinzu...`);
         
-        // Synchronisiere zuerst alle Automatenprodukte mit dem Lager
-        console.log(`Synchronisiere alle Automaten-Produkte mit Lager ${warehouseId} vor dem Hinzufügen zur Inventur...`);
-        const { reconcileWarehouseProducts } = require('./services/warehouseReconciliation');
-        await reconcileWarehouseProducts(warehouseId, true, true);
+        // Hole direkt die inventory_items für das Lager
+        const inventoryItems = await storage.getInventoryItemsByWarehouse(warehouseId);
         
-        // Jetzt holen wir die aktualisierten Lagerprodukte
-        const inventoryItems = await storage.getInventoryItems({ 
-          warehouseId,
-          includeZeroStock: true // Wichtig: Auch Produkte mit Bestand 0 einschließen
-        });
-        
-        console.log(`${inventoryItems.length} Lagerprodukte gefunden nach Synchronisierung für Inventur ${inventoryCount.id}`);
+        console.log(`${inventoryItems.length} Lagerprodukte gefunden in inventory_items für Lager ${warehouseId}`);
         
         if (inventoryItems && inventoryItems.length > 0) {
           // Speichere alle gefundenen Produkte in der Inventur
           const savedItems = [];
+          console.log(`Beginne mit dem Hinzufügen von ${inventoryItems.length} Produkten zur Inventur ${inventoryCount.id}`);
           
+          // Für jedes Lagerprodukt ein Inventurelement erstellen
           for (const item of inventoryItems) {
-            const savedItem = await storage.createInventoryCountItem({
-              inventoryCountId: inventoryCount.id,
-              productId: item.productId || 0,
-              expectedQuantity: item.quantity || 0,
-              actualQuantity: null,
-              status: 'pending'
-            });
+            if (!item.productId) {
+              console.warn(`Überspringe Eintrag ohne Produkt-ID:`, item);
+              continue;
+            }
             
-            savedItems.push(savedItem);
+            console.log(`Füge Produkt ${item.productId} mit Bestand ${item.quantity || 0} zur Inventur hinzu`);
+            try {
+              const savedItem = await storage.createInventoryCountItem({
+                inventoryCountId: inventoryCount.id,
+                productId: item.productId,
+                expectedQuantity: item.quantity || 0,
+                actualQuantity: null,
+                status: 'pending'
+              });
+              
+              savedItems.push(savedItem);
+            } catch (itemError) {
+              console.error(`Fehler beim Hinzufügen von Produkt ${item.productId}:`, itemError);
+            }
           }
           
-          console.log(`${savedItems.length} Inventurelemente automatisch für ID ${inventoryCount.id} hinzugefügt`);
+          console.log(`✅ ${savedItems.length} Produkte automatisch zur Inventur ${inventoryCount.id} hinzugefügt`);
         } else {
           console.warn(`Keine Lagerprodukte für Lager ${warehouseId} gefunden!`);
         }
@@ -908,11 +912,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { reconcileWarehouseProducts } = require('./services/warehouseReconciliation');
       await reconcileWarehouseProducts(warehouseId, true, true);
       
-      // Jetzt holen wir die aktualisierten Lagerprodukte
-      const inventoryItems = await storage.getInventoryItems({ 
-        warehouseId,
-        includeZeroStock: true // Wichtig: Auch Produkte mit Bestand 0 einschließen
-      });
+      // Jetzt holen wir die Lagerprodukte direkt aus der inventory_items Tabelle
+      const inventoryItems = await storage.getInventoryItemsByWarehouse(warehouseId);
       
       console.log(`${inventoryItems.length} Lagerprodukte gefunden nach Synchronisierung`);
       
