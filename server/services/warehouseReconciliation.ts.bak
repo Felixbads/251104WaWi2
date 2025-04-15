@@ -23,7 +23,7 @@ import { rawDb } from "../db";
 export async function reconcileWarehouseProducts(
   specificWarehouseId?: number, 
   syncAllProducts: boolean = true,
-  forceCreateInventoryItems: boolean = true
+  forceCreateInventoryItems: boolean = true // Füge einen neuen Parameter hinzu, der standardmäßig auf true gesetzt ist
 ): Promise<{
   processingTime: number;
   warehousesChecked: number;
@@ -33,13 +33,12 @@ export async function reconcileWarehouseProducts(
   errors: number;
   skippedDuplicates: number;
   allProductsAdded: number;
-  inventoryItemsCreated: number;
+  inventoryItemsCreated: number; // Neuer Zähler für erstellte inventory_items
 }> {
   console.log("Starte automatischen Lagerabgleich...", 
               specificWarehouseId ? `für Lager ${specificWarehouseId}` : "für alle Lager",
               syncAllProducts ? "inklusive aller Produkte aus dem Gesamtportfolio" : "nur Automatenprodukte",
               forceCreateInventoryItems ? "mit Zwangserstellung von inventory_items" : "ohne Zwangserstellung von inventory_items");
-              
   const startTime = Date.now();
   
   let warehousesChecked = 0;
@@ -48,8 +47,8 @@ export async function reconcileWarehouseProducts(
   let productsAdded = 0;
   let errors = 0;
   let skippedDuplicates = 0;
-  let allProductsAdded = 0;
-  let inventoryItemsCreated = 0;
+  let allProductsAdded = 0; // Zähler für Produkte aus dem Gesamtportfolio
+  let inventoryItemsCreated = 0; // Zähler für erstellte inventory_items
   
   try {
     // 1. Zuerst bestimmen wir die Liste der zu verarbeitenden Lager
@@ -330,22 +329,24 @@ export async function reconcileWarehouseProducts(
                   productInfoMap.set(productId, productInfo);
                   console.log(`Produkt ${productId} (${product.productName || 'Unbekanntes Produkt'}) aus Gesamtportfolio bereits global registriert, jetzt auch für Lager ${warehouseId}`);
                 } else {
-                  console.log(`Produkt ${productId} (${product.productName || 'Unbekanntes Produkt'}) bereits für Lager ${warehouseId} vorgemerkt (aus globalem Register)`);
+                  console.log(`Produkt ${productId} (${product.productName || 'Unbekanntes Produkt'}) aus Gesamtportfolio bereits für Lager ${warehouseId} vorgemerkt`);
                 }
               }
             }
+            }
           }
         }
+        
+        console.log(`Produktmap für Lager ${warehouseId} jetzt mit ${productInfoMap.size} Produkten`);
       }
       
-      // Batch-Verarbeitung für effizientere DB-Operationen
-      const BATCH_SIZE = 25;
+      // Batch-Verarbeitung - maximal 50 Produkte auf einmal
+      const BATCH_SIZE = 50;
       let processedCount = 0;
       
-      // Jetzt fügen wir alle Produkte zum Lager hinzu (sowohl Automaten als auch Gesamtportfolio)
-      // Wir verwenden die gleiche Map (productInfoMap) für die Verarbeitung
-      for (const [productId, productInfo] of productInfoMap.entries()) {
-        // Überspringe das Produkt, wenn es bereits im Lager vorhanden ist
+      // Array.from() konvertiert den Iterator zu einem Array, das wir dann durchlaufen können
+      for (const [productId, productInfo] of Array.from(productInfoMap.entries())) {
+        // Überprüfe, ob das Produkt bereits im Lager existiert
         if (existingProductIds.has(productId)) {
           skippedDuplicates++;
           continue;
