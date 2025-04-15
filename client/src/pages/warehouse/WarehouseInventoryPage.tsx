@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Building2, MapPin, Clock } from 'lucide-react';
+import { ArrowLeft, Building2, MapPin, Clock, Trash2 } from 'lucide-react';
 import { Link } from 'wouter';
 import WarehouseStats from '../../components/inventory/WarehouseStats';
 import WarehouseInventoryTable from '../../components/inventory/WarehouseInventoryTable';
@@ -101,7 +101,7 @@ export default function WarehouseInventoryPage() {
     <div className="container mx-auto py-10">
       <div className="mb-6">
         <Button variant="outline" size="sm" asChild>
-          <Link href="/warehouses">
+          <Link href="/warehouse3">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Zurück
           </Link>
@@ -161,6 +161,35 @@ export default function WarehouseInventoryPage() {
           <WarehouseMachineAssignments />
         </TabsContent>
       </Tabs>
+      
+      <div className="mt-8 border-t pt-6 flex justify-end">
+        <Button 
+          variant="destructive" 
+          className="flex items-center gap-2"
+          onClick={() => {
+            if (confirm('Sind Sie sicher, dass Sie dieses Lager löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.')) {
+              fetch(`/api/warehouses/${warehouseId}`, {
+                method: 'DELETE',
+              })
+                .then(response => {
+                  if (response.ok) {
+                    alert('Lager erfolgreich gelöscht');
+                    window.location.href = '/warehouse3';
+                  } else {
+                    throw new Error('Fehler beim Löschen des Lagers');
+                  }
+                })
+                .catch(error => {
+                  console.error('Fehler beim Löschen:', error);
+                  alert('Fehler beim Löschen des Lagers');
+                });
+            }
+          }}
+        >
+          <Trash2 className="h-4 w-4" />
+          Lager löschen
+        </Button>
+      </div>
     </div>
   );
 }
