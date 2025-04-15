@@ -53,12 +53,21 @@ async function cleanupDuplicateProducts() {
       const duplicateIds = ids.slice(1);
       
       // 1.2 Aktualisiere Referenzen auf Duplikate zu dem Hauptprodukt
-      // Aktualisiere machine_stocks
+      // Hole vendon_id des Hauptprodukts
+      const primaryProduct = await client.query(`
+        SELECT vendon_id FROM products WHERE id = $1
+      `, [primaryId]);
+      
+      const primaryVendonId = primaryProduct.rows[0].vendon_id;
+      
+      // Aktualisiere machine_stocks über product_vendon_id
       await client.query(`
         UPDATE machine_stocks
-        SET product_id = $1
-        WHERE product_id = ANY($2)
-      `, [primaryId, duplicateIds]);
+        SET product_vendon_id = $1
+        WHERE product_vendon_id IN (
+          SELECT vendon_id FROM products WHERE id = ANY($2)
+        )
+      `, [primaryVendonId, duplicateIds]);
       
       // Aktualisiere inventory_count_items
       await client.query(`
@@ -151,9 +160,9 @@ async function cleanupDuplicateProducts() {
     // 3. Bereinige duplizierte Lagerbestände (gleiche Maschine, gleiches Produkt)
     console.log('Bereinige duplizierte Lagerbestände...');
     const dupMachineStocks = await client.query(`
-      SELECT machine_id, product_id, COUNT(*) as count, array_agg(id) as ids
+      SELECT machine_id, product_vendon_id, COUNT(*) as count, array_agg(id) as ids
       FROM machine_stocks
-      GROUP BY machine_id, product_id
+      GROUP BY machine_id, product_vendon_id
       HAVING COUNT(*) > 1
       ORDER BY count DESC
     `);
@@ -163,8 +172,8 @@ async function cleanupDuplicateProducts() {
     let totalCleanedStocks = 0;
     
     for (const group of dupMachineStocks.rows) {
-      const { machine_id, product_id, count, ids } = group;
-      console.log(`Bereinige ${count} duplizierte Lagerbestände für Maschine ${machine_id}, Produkt ${product_id}`);
+      const { machine_id, product_vendon_id, count, ids } = group;
+      console.log(`Bereinige ${count} duplizierte Lagerbestände für Maschine ${machine_id}, Produkt ${product_vendon_id}`);
       
       // 3.1 Wähle ein Haupt-Stock (das erste in der Liste)
       const primaryId = ids[0];
