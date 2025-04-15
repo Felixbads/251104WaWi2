@@ -92,6 +92,7 @@ export async function reconcileWarehouseProducts(
     
     // Map für Zuordnung von normalisierten Produktnamen zu Produkt-IDs
     // Hilft dabei, Produkte mit gleichen Namen aber unterschiedlichen IDs zu erkennen
+    // und verhindert das Erstellen von Duplikaten
     const normalizedNameToProductId = new Map<string, number>();
     
     // Zuordnung von Lagern zu Produkten, für die lagerspezifische Verarbeitung
