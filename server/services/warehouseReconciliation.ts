@@ -18,8 +18,13 @@ import { rawDb } from "../db";
  * 
  * @param specificWarehouseId - Optional: Wenn angegeben, wird nur dieses spezifische Lager abgeglichen
  * @param syncAllProducts - Optional: Wenn true, werden alle Produkte aus dem Gesamtportfolio hinzugefügt (standardmäßig true)
+ * @param forceCreateInventoryItems - Optional: Wenn true, werden inventory_items für alle Produkte erstellt, auch wenn sie schon vorgemerkt sind
  */
-export async function reconcileWarehouseProducts(specificWarehouseId?: number, syncAllProducts: boolean = true): Promise<{
+export async function reconcileWarehouseProducts(
+  specificWarehouseId?: number, 
+  syncAllProducts: boolean = true,
+  forceCreateInventoryItems: boolean = true // Füge einen neuen Parameter hinzu, der standardmäßig auf true gesetzt ist
+): Promise<{
   processingTime: number;
   warehousesChecked: number;
   machinesChecked: number;
@@ -28,10 +33,12 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number, s
   errors: number;
   skippedDuplicates: number;
   allProductsAdded: number;
+  inventoryItemsCreated: number; // Neuer Zähler für erstellte inventory_items
 }> {
   console.log("Starte automatischen Lagerabgleich...", 
               specificWarehouseId ? `für Lager ${specificWarehouseId}` : "für alle Lager",
-              syncAllProducts ? "inklusive aller Produkte aus dem Gesamtportfolio" : "nur Automatenprodukte");
+              syncAllProducts ? "inklusive aller Produkte aus dem Gesamtportfolio" : "nur Automatenprodukte",
+              forceCreateInventoryItems ? "mit Zwangserstellung von inventory_items" : "ohne Zwangserstellung von inventory_items");
   const startTime = Date.now();
   
   let warehousesChecked = 0;
@@ -41,6 +48,7 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number, s
   let errors = 0;
   let skippedDuplicates = 0;
   let allProductsAdded = 0; // Zähler für Produkte aus dem Gesamtportfolio
+  let inventoryItemsCreated = 0; // Zähler für erstellte inventory_items
   
   try {
     // 1. Zuerst bestimmen wir die Liste der zu verarbeitenden Lager
@@ -378,7 +386,8 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number, s
       productsAdded,
       errors,
       skippedDuplicates,
-      allProductsAdded
+      allProductsAdded,
+      inventoryItemsCreated
     };
   } catch (error) {
     console.error("Kritischer Fehler beim Lagerabgleich:", error);
@@ -391,7 +400,8 @@ export async function reconcileWarehouseProducts(specificWarehouseId?: number, s
       productsAdded,
       errors: errors + 1,
       skippedDuplicates,
-      allProductsAdded
+      allProductsAdded,
+      inventoryItemsCreated
     };
   }
 }
