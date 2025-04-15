@@ -2116,6 +2116,25 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
     return log;
   }
+  
+  /**
+   * Ruft den letzten laufenden Synchronisationsprozess für den angegebenen Typ ab
+   * Wird verwendet, um parallele Synchronisierungen zu verhindern
+   */
+  async getLatestRunningSyncLog(syncType: string): Promise<SyncLog | undefined> {
+    const [log] = await db
+      .select()
+      .from(syncLogs)
+      .where(
+        and(
+          eq(syncLogs.syncType, syncType),
+          eq(syncLogs.syncStatus, 'running')
+        )
+      )
+      .orderBy(desc(syncLogs.startDate))
+      .limit(1);
+    return log;
+  }
 
   // Location operations
   async getLocations(): Promise<Location[]> {

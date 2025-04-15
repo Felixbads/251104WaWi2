@@ -13,6 +13,7 @@ import {
   InsertMachineStock,
   Product
 } from "@shared/schema";
+import { SYNC_TYPE, acquireSyncLock, releaseSyncLock } from "./syncLock";
 import axios, { AxiosInstance, AxiosRequestConfig } from "axios";
 
 /**
@@ -2115,9 +2116,32 @@ export class VendonSyncService {
   
   // Produkte synchronisieren
   async syncProducts(): Promise<{ syncLogId: number; status: string; message: string }> {
+    // Prüfe, ob bereits eine Produktsynchronisierung läuft
+    const lockAcquired = await acquireSyncLock(SYNC_TYPE.PRODUCTS);
+    
+    if (!lockAcquired) {
+      console.warn("Es läuft bereits eine Produktsynchronisierung. Diese Anfrage wird übersprungen.");
+      
+      // Versuche, den laufenden Synchronisierungsprozess zu finden
+      const runningSyncLog = await storage.getLatestRunningSyncLog(SYNC_TYPE.PRODUCTS);
+      if (runningSyncLog) {
+        return {
+          syncLogId: runningSyncLog.id,
+          status: "running_elsewhere",
+          message: `Eine Produktsynchronisierung läuft bereits seit ${runningSyncLog.startDate?.toISOString()}. Bitte warten Sie, bis diese abgeschlossen ist.`
+        };
+      } else {
+        return {
+          syncLogId: 0,
+          status: "locked",
+          message: "Die Produktsynchronisierung ist derzeit gesperrt. Bitte versuchen Sie es später erneut."
+        };
+      }
+    }
+    
     // Erstelle einen Sync-Log-Eintrag
     const syncLog: InsertSyncLog = {
-      syncType: 'products',
+      syncType: SYNC_TYPE.PRODUCTS,
       startDate: new Date(),
       syncStatus: 'running',
     };
@@ -2400,6 +2424,9 @@ export class VendonSyncService {
       
       console.log(`Erweiterte Produktsynchronisierung abgeschlossen. ${itemsSaved} hinzugefügt, ${itemsUpdated} aktualisiert, ${duplicates} Duplikate übersprungen, ${errors} Fehler in ${durationSeconds} Sekunden.`);
       
+      // Gebe Sperre frei
+      releaseSyncLock(SYNC_TYPE.PRODUCTS);
+      
       return {
         syncLogId,
         status: 'success',
@@ -2414,6 +2441,9 @@ export class VendonSyncService {
         syncStatus: 'error',
         errorMessage: error instanceof Error ? error.message : String(error)
       });
+      
+      // Gebe Sperre frei auch im Fehlerfall
+      releaseSyncLock(SYNC_TYPE.PRODUCTS);
       
       return {
         syncLogId,
