@@ -1447,21 +1447,67 @@ export class DatabaseStorage implements IStorage {
     if (!productName) return undefined;
     
     const normalizedName = normalizeProductName(productName);
+    console.log(`Suche Produkt mit normalizedName="${normalizedName}"`);
     
+    // Versuch 1: Versuche die schnellste Methode - direktes SQL mit normalisierter Name Spalte
+    try {
+      // Prüfe, ob die normalized_name Spalte existiert
+      const checkColumnQuery = `
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name = 'products' AND column_name = 'normalized_name'
+      `;
+      const columnResult = await rawDb.query(checkColumnQuery);
+      const hasNormalizedColumn = columnResult.rows.length > 0;
+      
+      if (hasNormalizedColumn) {
+        // Direktes SQL mit normalized_name Spalte
+        const normalizedQuery = `
+          SELECT * FROM products 
+          WHERE normalized_name = $1 
+          LIMIT 1
+        `;
+        
+        const normalizedResult = await rawDb.query(normalizedQuery, [normalizedName]);
+        
+        if (normalizedResult.rows.length > 0) {
+          console.log(`✅ Produkt über normalized_name Spalte gefunden: ${normalizedResult.rows[0].product_name} (ID: ${normalizedResult.rows[0].id})`);
+          return normalizedResult.rows[0];
+        }
+      }
+    } catch (sqlError) {
+      console.error("Fehler bei SQL-basierter Produkt-Suche:", sqlError);
+      // Weiter mit den anderen Methoden
+    }
+    
+    // Versuch 2: Drizzle ORM mit normalizeProductName-Funktion und Caching
     // Cache der normalisierten Produktnamen für besseres Matching
     const allProducts = await db.select()
       .from(products);
       
+    // In-Memory-Cache für schnellere wiederholte Suchen
+    const normalizedCache = new Map<number, string>();
+    
     // Vergleiche mit dem normalisierten Namen jedes Produkts
     // Das erspart uns komplexe SQL-Operationen und nutzt unsere verbesserte Normalisierungsfunktion
     const exactMatches = allProducts.filter(product => {
       if (!product.productName) return false;
-      const productNormalizedName = normalizeProductName(product.productName);
+      
+      // Benutze Cache für normalisierte Namen
+      let productNormalizedName: string;
+      if (normalizedCache.has(product.id)) {
+        productNormalizedName = normalizedCache.get(product.id)!;
+      } else {
+        productNormalizedName = normalizeProductName(product.productName);
+        normalizedCache.set(product.id, productNormalizedName);
+      }
+      
       return productNormalizedName === normalizedName;
     });
     
     // Wenn ein exakter Match gefunden wurde, gib das erste zurück
     if (exactMatches.length > 0) {
+      console.log(`✅ Produkt über normalisierten Vergleich gefunden: ${exactMatches[0].productName} (ID: ${exactMatches[0].id})`);
       return exactMatches[0];
     }
     

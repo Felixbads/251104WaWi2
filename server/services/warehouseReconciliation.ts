@@ -95,6 +95,30 @@ export async function reconcileWarehouseProducts(
     // und verhindert das Erstellen von Duplikaten
     const normalizedNameToProductId = new Map<string, number>();
     
+    // Initialisiere diese Map mit allen vorhandenen Produkten
+    console.log("Initialisiere Map für normalisierte Produktnamen...");
+    try {
+      const allProductsQuery = 'SELECT id, product_name FROM products WHERE product_name IS NOT NULL';
+      const productsResult = await rawDb.query(allProductsQuery);
+      
+      for (const product of productsResult.rows) {
+        if (product.product_name) {
+          const normalizedName = normalizeProductName(product.product_name);
+          if (normalizedName && !normalizedNameToProductId.has(normalizedName)) {
+            normalizedNameToProductId.set(normalizedName, product.id);
+            console.log(`Produktname "${normalizedName}" zur ID ${product.id} zugeordnet`);
+          } else if (normalizedName && normalizedNameToProductId.has(normalizedName)) {
+            const existingId = normalizedNameToProductId.get(normalizedName);
+            console.log(`WARNUNG: Duplikat gefunden! Produkt "${product.product_name}" (ID ${product.id}) hat gleichen normalisierten Namen wie ID ${existingId}`);
+          }
+        }
+      }
+      
+      console.log(`✅ Insgesamt ${normalizedNameToProductId.size} normalisierte Produktnamen initialisiert`);
+    } catch (error) {
+      console.error("Fehler beim Initialisieren der normalisierten Produktnamen-Map:", error);
+    }
+    
     // Zuordnung von Lagern zu Produkten, für die lagerspezifische Verarbeitung
     const warehouseToProducts: Record<number, Map<number, ProductInfo>> = {};
     
