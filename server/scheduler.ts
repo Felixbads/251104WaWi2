@@ -105,7 +105,7 @@ async function performSync(syncType: string): Promise<void> {
       case 'warehouse_reconciliation':
         // Führe täglichen Lagerabgleich durch, um neue Produkte in Automaten zu erkennen
         console.log('Starte täglichen Lagerabgleich für alle Automaten-Lager-Kombinationen...');
-        result = await reconcileWarehouseProducts();
+        result = await reconcileWarehouseProducts(undefined, true, true);
         console.log(`Täglicher Lagerabgleich abgeschlossen: ${result.productsAdded} neue Produkte zu ${result.warehousesChecked} Lagern hinzugefügt.`);
         break;
       case 'all':

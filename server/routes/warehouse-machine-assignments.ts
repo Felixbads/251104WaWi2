@@ -87,7 +87,7 @@ router.post('/', async (req: Request, res: Response) => {
     
     // Starte Lagerabgleich
     try {
-      const reconcileResult = await reconcileWarehouseProducts(Number(warehouseId));
+      const reconcileResult = await reconcileWarehouseProducts(Number(warehouseId), true, true);
       console.log(`Lagerabgleich abgeschlossen: ${reconcileResult?.productsAdded || 0} neue Produkte hinzugefügt`);
     } catch (reconcileError) {
       console.error('Fehler beim Lagerabgleich nach Automaten-Zuordnung:', reconcileError);
