@@ -1448,33 +1448,51 @@ export class DatabaseStorage implements IStorage {
     
     const normalizedName = normalizeProductName(productName);
     
-    // Verwende SQL-Funktionen, um Namen zu normalisieren und zu vergleichen
-    const result = await db.select()
-      .from(products)
-      .where(
-        sql`LOWER(TRIM(${products.productName})) = ${normalizedName}`
-      );
+    // Cache der normalisierten Produktnamen für besseres Matching
+    const allProducts = await db.select()
+      .from(products);
       
-    if (result.length === 0) {
-      // Wenn kein exakter Match gefunden wurde, versuche eine Teilübereinstimmung
-      // mit mindestens 80% Ähnlichkeit (nur wenn der Name mindestens 4 Zeichen hat)
-      if (normalizedName.length >= 4) {
-        const fuzzyMatches = await db.select()
-          .from(products)
-          .where(
-            sql`LOWER(TRIM(${products.productName})) LIKE ${'%' + normalizedName + '%'}`
-          )
-          .limit(5);
-          
-        // Wähle den besten Match (hier einfach den ersten)
-        if (fuzzyMatches.length > 0) {
-          return fuzzyMatches[0];
-        }
-      }
-      return undefined;
+    // Vergleiche mit dem normalisierten Namen jedes Produkts
+    // Das erspart uns komplexe SQL-Operationen und nutzt unsere verbesserte Normalisierungsfunktion
+    const exactMatches = allProducts.filter(product => {
+      if (!product.productName) return false;
+      const productNormalizedName = normalizeProductName(product.productName);
+      return productNormalizedName === normalizedName;
+    });
+    
+    // Wenn ein exakter Match gefunden wurde, gib das erste zurück
+    if (exactMatches.length > 0) {
+      return exactMatches[0];
     }
     
-    return result[0];
+    // Wenn kein exakter Match gefunden wurde, versuche eine Teilübereinstimmung
+    // mit mindestens 80% Ähnlichkeit (nur wenn der Name mindestens 4 Zeichen hat)
+    if (normalizedName.length >= 4) {
+      const fuzzyMatches = allProducts.filter(product => {
+        if (!product.productName) return false;
+        const productNormalizedName = normalizeProductName(product.productName);
+        return productNormalizedName.includes(normalizedName) || 
+               normalizedName.includes(productNormalizedName);
+      });
+      
+      // Sortiere nach Ähnlichkeit (kürzere Differenz = besserer Match)
+      fuzzyMatches.sort((a, b) => {
+        const aNormalized = normalizeProductName(a.productName || '');
+        const bNormalized = normalizeProductName(b.productName || '');
+        
+        const aDiff = Math.abs(aNormalized.length - normalizedName.length);
+        const bDiff = Math.abs(bNormalized.length - normalizedName.length);
+        
+        return aDiff - bDiff;
+      });
+      
+      // Wähle den besten Match
+      if (fuzzyMatches.length > 0) {
+        return fuzzyMatches[0];
+      }
+    }
+    
+    return undefined;
   }
 
   async createProduct(product: InsertProduct): Promise<Product> {
