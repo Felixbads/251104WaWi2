@@ -1,0 +1,27 @@
+Der Grund, warum in den Inventurpositionen keine Produkte gelistet sind, könnte darauf hindeuten, dass die Filterbedingungen in Ihrer Abfrage nicht erfüllt sind. Insbesondere könnte es an den Konditionen in der Filterlogik liegen, die keine Ergebnisse zurückgeben.
+
+Hier sind einige Stellen, an denen Sie nachprüfen sollten, ob Produkte korrekt geladen und gefiltert werden:
+
+Loading-Status: Stellen Sie sicher, dass Ihre Lade- und Fehlerbehandlungslogik korrekt ist und dass tatsächlich Daten während des Ladeprozesses abgerufen werden. In der Datei WarehouseDetailPage.tsx gibt es eine Logik, die den Ladezustand überprüft:
+if (warehouseLoading || (inventoryLoading && batchesLoading)) {
+    return (
+        <div className="container py-8">
+            <div className="flex flex-col items-center justify-center py-12">
+                <Loader2 className="h-12 w-12 animate-spin mb-4" />
+                <p className="text-lg">Lade Lagerdaten...</p>
+            </div>
+        </div>
+    );
+}
+Überprüfen Sie, ob warehouseLoading oder inventoryLoading true ist, was darauf hindeutet, dass die Ladeoperation noch im Gange ist.
+Filterbedingungen: Überprüfen Sie den Codeabschnitt, der die gefilterten Inventardaten erzeugt. In [WarehouseDetailPage.tsx] sollten Sie sicherstellen, dass die Filterkriterien alle Produkte, auch wenn deren Bestand null ist, korrekt berücksichtigen:
+const filteredInventory = inventoryWithBatches.filter((item: InventoryItem) => {
+    const productName = item.product?.name?.toLowerCase() || '';
+    return productName.includes(searchTerm.toLowerCase()); // Stellt sicher, dass alle passenden Produkte aufgelistet werden
+});
+Wenn der searchTerm leer ist, filtriert dieser Code die Produkte möglicherweise nicht korrekt. Sie können dies anpassen, um sicherzustellen, dass alle Produkte unabhängig von der Menge angezeigt werden:
+const filteredInventory = inventoryWithBatches.filter((item: InventoryItem) => {
+    return item.currentStock !== undefined; // Hierdurch werden Produkte auch mit 0 Bestand angezeigt
+});
+Backend-Daten laden: Überprüfen Sie die Backend-Struktur, um sicherzustellen, dass die Produkte korrekt abgerufen werden. In der Datei warehouse-inventory.ts sollte die SQL-Abfrage alle Produkte aus Lagerbeständen abrufen, unabhängig von deren Mengen. Hier sollten Sie sicherstellen, dass alle relevanten Filter und Abfragen korrekt gesetzt sind, sodass auch Produkte mit null Bestand erfasst werden.
+Durch diese Schritte sollten Sie in der Lage sein, das Problem mit den nicht angezeigten Inventurpositionen zu lösen. Achten Sie darauf, die Filterbedingungen entsprechend anzupassen, um auch Produkte mit null Bestand anzuzeigen.
