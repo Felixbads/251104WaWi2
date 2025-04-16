@@ -91,8 +91,9 @@ export default function NewBatchDialog({
         productId: parseInt(data.productId),
         warehouseId: parseInt(data.warehouseId),
         batchNumber: data.batchNumber,
-        expiryDate: data.expiryDate ? format(data.expiryDate, "yyyy-MM-dd") : null,
-        receivedDate: data.incomingDate ? format(data.incomingDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
+        // Stelle sicher, dass die Datumsformate als ISO-Strings übergeben werden
+        expiryDate: data.expiryDate ? data.expiryDate.toISOString().split('T')[0] : null,
+        receivedDate: data.incomingDate ? data.incomingDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         initialQuantity: parseInt(data.quantity),
         currentQuantity: parseInt(data.quantity),
         locationInWarehouse: data.locationInWarehouse || null,

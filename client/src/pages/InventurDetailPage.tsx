@@ -278,16 +278,34 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
         [variables.id]: variables.countedQuantity
       }));
       
-      // Aktualisiere die Daten im QueryClient Cache direkt
+      // Aktualisiere die Daten im QueryClient Cache direkt und stärke die Typensicherheit
       queryClient.setQueryData(
         [`/api/inventory-counts/${id}/items`],
         (oldData: any) => {
           if (!oldData) return oldData;
-          return oldData.map((item: any) => 
-            item.id === variables.id 
-              ? { ...item, countedQuantity: variables.countedQuantity } 
-              : item
-          );
+          
+          console.log("Aktualisiere Cache für Inventurelemente", {
+            itemId: variables.id,
+            countedQuantity: variables.countedQuantity,
+            oldDataLength: oldData.length
+          });
+          
+          return oldData.map((item: any) => {
+            if (item.id === variables.id) {
+              console.log("Inventurelement aktualisiert:", {
+                itemId: item.id,
+                alteMenge: item.countedQuantity,
+                neueMenge: variables.countedQuantity
+              });
+              return { 
+                ...item, 
+                countedQuantity: variables.countedQuantity,
+                actualQuantity: variables.countedQuantity,
+                status: variables.countedQuantity !== null ? 'counted' : 'pending' 
+              };
+            }
+            return item;
+          });
         }
       );
       
