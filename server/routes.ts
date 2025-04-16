@@ -774,6 +774,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+  
+  // PATCH /inventory-count-items/:id - Inventurzählungselement aktualisieren
+  app.patch(`${API_PREFIX}/inventory-count-items/:id`, async (req: Request, res: Response) => {
+    try {
+      const itemId = parseInt(req.params.id);
+      
+      if (!itemId) {
+        return res.status(400).json({ error: "Item ID is required" });
+      }
+      
+      // Hole das zu aktualisierende Element
+      const countItem = await storage.getInventoryCountItemById(itemId);
+      if (!countItem) {
+        return res.status(404).json({ error: "Inventory count item not found" });
+      }
+      
+      // Validiere die Anfragedaten
+      const validatedData = insertInventoryCountItemSchema.partial().parse(req.body);
+      
+      // Wenn countedQuantity geändert wurde, berechnen wir die Differenz neu
+      if (validatedData.countedQuantity !== undefined) {
+        // In der Anfrage heißt es countedQuantity, aber im Schema actualQuantity
+        validatedData.actualQuantity = validatedData.countedQuantity;
+        delete validatedData.countedQuantity;
+        
+        const expectedQty = countItem.expectedQuantity !== null && countItem.expectedQuantity !== undefined ? 
+                            countItem.expectedQuantity : 0;
+        
+        validatedData.difference = validatedData.actualQuantity - expectedQty;
+        validatedData.status = 'counted';
+      }
+      
+      // Aktualisiere das Element
+      const updatedItem = await storage.updateInventoryCountItem(itemId, validatedData);
+      
+      console.log(`Inventurzählungselement ${itemId} aktualisiert mit actualQuantity: ${validatedData.actualQuantity}`);
+      return res.json(updatedItem);
+    } catch (error) {
+      console.error("Error updating inventory count item:", error);
+      res.status(500).json({ 
+        error: "Failed to update inventory count item", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
 
   // POST /inventory-counts/:id/complete - Inventurzählung abschließen
   app.post(`${API_PREFIX}/inventory-counts/:id/complete`, async (req: Request, res: Response) => {
