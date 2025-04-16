@@ -12,7 +12,9 @@ router.post('/product-batches', async (req: Request, res: Response) => {
       productId, 
       warehouseId, 
       batchNumber, 
-      expiryDate, 
+      expiryDate,
+      receivedDate,
+      locationInWarehouse, 
       initialQuantity = 0,
       currentQuantity = 0,
       notes 
@@ -57,35 +59,72 @@ router.post('/product-batches', async (req: Request, res: Response) => {
     // Status-Spalte prüfen und Standardwert hinzufügen
     let statusValue = 'active';
     let hasStatusColumn = columns.includes('status');
-    let statusParam = hasStatusColumn ? ', status' : '';
-    let statusPlaceholder = hasStatusColumn ? ', $8' : '';
     
-    // Wenn manufacturing_date nicht vorhanden ist, verwenden wir eine angepasste Abfrage
-    let result;
-    if (!columns.includes('manufacturing_date')) {
-      result = await rawDb.query(
-        `INSERT INTO product_batches
-         (product_id, warehouse_id, batch_number, expiry_date, initial_quantity, 
-          current_quantity, notes${statusParam}, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7${statusPlaceholder}, NOW(), NOW())
-         RETURNING *`,
-        hasStatusColumn 
-          ? [productId, warehouseId, batchNumber, expiryDate, initialQuantity, currentQuantity, notes, statusValue]
-          : [productId, warehouseId, batchNumber, expiryDate, initialQuantity, currentQuantity, notes]
-      );
-    } else {
-      // Standard-Abfrage mit manufacturing_date-Spalte
-      result = await rawDb.query(
-        `INSERT INTO product_batches
-         (product_id, warehouse_id, batch_number, expiry_date, manufacturing_date, initial_quantity, 
-          current_quantity, notes${statusParam}, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, NULL, $5, $6, $7${statusPlaceholder}, NOW(), NOW())
-         RETURNING *`,
-        hasStatusColumn 
-          ? [productId, warehouseId, batchNumber, expiryDate, initialQuantity, currentQuantity, notes, statusValue]
-          : [productId, warehouseId, batchNumber, expiryDate, initialQuantity, currentQuantity, notes]
-      );
+    // Überprüfe, welche zusätzlichen Spalten in der Tabelle vorhanden sind
+    let hasReceivedDateColumn = columns.includes('received_date');
+    let hasLocationColumn = columns.includes('location_in_warehouse');
+    
+    console.log("Verfügbare Spalten in product_batches:", columns);
+    console.log("Received Date vorhanden:", hasReceivedDateColumn);
+    console.log("Location vorhanden:", hasLocationColumn);
+    
+    // Baue die SQL-Abfrage dynamisch auf basierend auf vorhandenen Spalten
+    let columnsString = 'product_id, warehouse_id, batch_number, expiry_date';
+    let valuesString = '$1, $2, $3, $4';
+    let valuesArray = [productId, warehouseId, batchNumber, expiryDate];
+    let valueIndex = 5;
+    
+    // Füge receivedDate hinzu, wenn die Spalte existiert
+    if (hasReceivedDateColumn) {
+      columnsString += ', received_date';
+      valuesString += `, $${valueIndex}`;
+      valuesArray.push(receivedDate || new Date());
+      valueIndex++;
     }
+    
+    // Füge locationInWarehouse hinzu, wenn die Spalte existiert
+    if (hasLocationColumn) {
+      columnsString += ', location_in_warehouse';
+      valuesString += `, $${valueIndex}`;
+      valuesArray.push(locationInWarehouse || null);
+      valueIndex++;
+    }
+    
+    // Füge manufacturing_date hinzu, wenn die Spalte existiert (als NULL)
+    if (columns.includes('manufacturing_date')) {
+      columnsString += ', manufacturing_date';
+      valuesString += ', NULL';
+    }
+    
+    // Füge remaining columns hinzu
+    columnsString += `, initial_quantity, current_quantity, notes`;
+    valuesString += `, $${valueIndex}, $${valueIndex + 1}, $${valueIndex + 2}`;
+    valuesArray.push(initialQuantity, currentQuantity, notes);
+    valueIndex += 3;
+    
+    // Füge Status hinzu, wenn die Spalte existiert
+    if (hasStatusColumn) {
+      columnsString += ', status';
+      valuesString += `, $${valueIndex}`;
+      valuesArray.push(statusValue);
+      valueIndex++;
+    }
+    
+    // Füge created_at und updated_at hinzu
+    columnsString += ', created_at, updated_at';
+    valuesString += ', NOW(), NOW()';
+    
+    console.log("SQL Columns:", columnsString);
+    console.log("SQL Values:", valuesString);
+    console.log("Values Array:", valuesArray);
+    
+    // Führe die SQL-Abfrage aus
+    const result = await rawDb.query(
+      `INSERT INTO product_batches (${columnsString})
+       VALUES (${valuesString})
+       RETURNING *`,
+      valuesArray
+    );
     
     if (!result.rows || result.rows.length === 0) {
       return res.status(500).json({ error: "Failed to create product batch" });
@@ -101,6 +140,8 @@ router.post('/product-batches', async (req: Request, res: Response) => {
       expiryDate: batch.expiry_date,
       initialQuantity: batch.initial_quantity,
       currentQuantity: batch.current_quantity,
+      receivedDate: batch.received_date,
+      locationInWarehouse: batch.location_in_warehouse,
       notes: batch.notes,
       createdAt: batch.created_at,
       updatedAt: batch.updated_at

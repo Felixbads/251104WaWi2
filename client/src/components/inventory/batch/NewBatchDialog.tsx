@@ -84,17 +84,22 @@ export default function NewBatchDialog({
   // Mutation zum Erstellen einer neuen Charge
   const createBatchMutation = useMutation({
     mutationFn: async (data: BatchFormData) => {
+      console.log("Creating new batch with data:", data);
+      
       // Konvertiere String-IDs zu Zahlen und bereite die Daten für den API-Endpunkt vor
       const payload = {
         productId: parseInt(data.productId),
         warehouseId: parseInt(data.warehouseId),
         batchNumber: data.batchNumber,
         expiryDate: data.expiryDate ? format(data.expiryDate, "yyyy-MM-dd") : null,
+        receivedDate: data.incomingDate ? format(data.incomingDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"),
         initialQuantity: parseInt(data.quantity),
         currentQuantity: parseInt(data.quantity),
+        locationInWarehouse: data.locationInWarehouse || null,
         notes: data.notes || null
       };
 
+      console.log("Sending payload to API:", payload);
       return apiRequest('/api/inventory-counts/product-batches', 'POST', payload);
     },
     onSuccess: (data) => {
@@ -224,85 +229,49 @@ export default function NewBatchDialog({
                   )}
                 />
 
-                {/* Mindesthaltbarkeitsdatum (MHD) */}
+                {/* Mindesthaltbarkeitsdatum (MHD) - vereinfachte Version mit Input-Feld */}
                 <FormField
                   control={form.control}
                   name="expiryDate"
                   render={({ field }) => (
-                    <FormItem className="flex flex-col">
-                      <FormLabel>Mindesthaltbarkeitsdatum</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant={"outline"}
-                              className={`w-full pl-3 text-left font-normal ${!field.value ? "text-muted-foreground" : ""}`}
-                            >
-                              {field.value ? (
-                                format(field.value, "dd.MM.yyyy")
-                              ) : (
-                                <span>MHD auswählen</span>
-                              )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={(date) => {
-                              field.onChange(date);
-                              console.log("Date selected:", date);
-                            }}
-                            // Für MHD sollten zukünftige Daten erlaubt sein, entferne die Einschränkung
-                            disabled={false}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
+                    <FormItem>
+                      <FormLabel>Mindesthaltbarkeitsdatum (MHD)</FormLabel>
+                      <FormControl>
+                        <Input 
+                          type="date" 
+                          value={field.value ? format(field.value, "yyyy-MM-dd") : ''}
+                          onChange={(e) => {
+                            const date = e.target.value ? new Date(e.target.value) : undefined;
+                            console.log("MHD Input changed:", e.target.value, "Parsed date:", date);
+                            field.onChange(date);
+                          }}
+                          min={format(new Date(), "yyyy-MM-dd")} // Minimum heute
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
-                {/* Eingangsdatum */}
+                {/* Eingangsdatum - vereinfachte Version mit Input-Feld */}
                 <FormField
                   control={form.control}
                   name="incomingDate"
                   render={({ field }) => (
-                    <FormItem className="flex flex-col">
+                    <FormItem>
                       <FormLabel>Eingangsdatum</FormLabel>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant={"outline"}
-                              className={`w-full pl-3 text-left font-normal ${!field.value ? "text-muted-foreground" : ""}`}
-                            >
-                              {field.value ? (
-                                format(field.value, "dd.MM.yyyy")
-                              ) : (
-                                <span>Eingangsdatum auswählen</span>
-                              )}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={(date) => {
-                              field.onChange(date);
-                              console.log("Eingangsdatum selected:", date);
-                            }}
-                            // Für Eingangsdatum nur Daten bis heute erlauben
-                            disabled={(date) => date > new Date()}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
+                      <FormControl>
+                        <Input 
+                          type="date" 
+                          value={field.value ? format(field.value, "yyyy-MM-dd") : ''}
+                          onChange={(e) => {
+                            const date = e.target.value ? new Date(e.target.value) : undefined;
+                            console.log("Eingangsdatum Input changed:", e.target.value, "Parsed date:", date);
+                            field.onChange(date);
+                          }}
+                          max={format(new Date(), "yyyy-MM-dd")} // Maximum heute
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
