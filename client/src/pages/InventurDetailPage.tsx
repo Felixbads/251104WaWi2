@@ -1693,7 +1693,7 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                         </TableCell>
                         <TableCell className="text-center">
                           {currentStatus === 'pending' || currentStatus === 'in_progress' ? (
-                            <div className="flex justify-center">
+                            <div className="flex justify-center items-center space-x-2">
                               <Input
                                 type="number" 
                                 min="0"
@@ -1702,13 +1702,25 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                                   const count = e.target.value === '' ? null : Math.max(0, parseInt(e.target.value) || 0);
                                   setEditedCounts({ ...editedCounts, [item.id]: count });
                                 }}
-                                onBlur={() => {
-                                  if (editedCounts[item.id] !== undefined) {
-                                    handleSetCount(item.id, editedCounts[item.id]);
-                                  }
-                                }}
                                 className="w-20 text-center"
                               />
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => {
+                                  if (editedCounts[item.id] !== undefined) {
+                                    handleSetCount(item.id, editedCounts[item.id]);
+                                    toast({
+                                      title: "Gespeichert",
+                                      description: `Menge ${editedCounts[item.id]} für ${item.productName} gespeichert.`,
+                                      duration: 3000
+                                    });
+                                  }
+                                }}
+                                className="flex-shrink-0"
+                              >
+                                <Save className="h-4 w-4" />
+                              </Button>
                             </div>
                           ) : (
                             <span>{countedQuantity !== null ? `${countedQuantity} ${item.product?.unit || 'Stk.'}` : '-'}</span>
