@@ -6872,3 +6872,303 @@ DATA: {
   "isCritical": true
 }
 
+[2025-04-16T08:14:26.208Z] [WarehouseStatsAPI] Fetching statistics for warehouse 4 using new service
+
+[2025-04-16T08:14:26.208Z] [WarehouseStats] Fetching warehouse statistics for ID: 4
+
+[2025-04-16T08:14:26.209Z] [SQL] Query: getWarehouseStatistics
+DATA: {
+  "sql": "\n      WITH inventory_stats AS (\n        SELECT \n          (SELECT COUNT(*) FROM products) as product_count,\n          COUNT(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) AND i.product_id IS NOT NULL THEN 1 END) as critical_item_count,\n          COALESCE(SUM(i.quantity * COALESCE(p.price, 0)), 0) as inventory_value\n        FROM \n          inventory_items i\n        LEFT JOIN\n          products p ON i.product_id = p.id\n        WHERE \n          i.warehouse_id = $1\n      ),\n      machine_count AS (\n        SELECT \n          COUNT(DISTINCT machine_id) as machine_count\n        FROM \n          machine_warehouse_assignments\n        WHERE \n          warehouse_id = $1\n      )\n      SELECT \n        COALESCE(i.product_count, 0) as product_count,\n        COALESCE(i.critical_item_count, 0) as critical_item_count,\n        COALESCE(i.inventory_value, 0) as inventory_value,\n        COALESCE(m.machine_count, 0) as machine_count\n      FROM \n        (SELECT 1) dummy\n      LEFT JOIN inventory_stats i ON true\n      LEFT JOIN machine_count m ON true\n    ",
+  "params": [
+    4
+  ]
+}
+
+[2025-04-16T08:14:26.210Z] [InventoryAPI] Bestandsabfrage für Lager ID 4 mit neuem Service
+
+[2025-04-16T08:14:26.210Z] [WarehouseInventory] Fetching inventory for warehouse ID: 4
+
+[2025-04-16T08:14:26.211Z] [SQL] Query: getWarehouseInventory
+DATA: {
+  "sql": "\n      SELECT \n        i.id,\n        $1 as warehouse_id,\n        p.id as product_id,\n        p.product_name,\n        COALESCE(i.quantity, 0) as quantity,\n        COALESCE(i.min_quantity, 5) as min_quantity,\n        p.price,\n        (SELECT COUNT(*) FROM product_batches pb \n          WHERE pb.product_id = p.id AND pb.warehouse_id = $1) as batch_count,\n        (SELECT MAX(im.performed_at) FROM inventory_movements im \n          WHERE im.product_id = p.id AND \n            (im.source_warehouse_id = $1 OR \n             im.destination_warehouse_id = $1)) as last_movement_date,\n        CASE WHEN COALESCE(i.quantity, 0) <= COALESCE(i.min_quantity, 5) THEN true ELSE false END as is_critical\n      FROM \n        products p\n      LEFT JOIN \n        inventory_items i ON i.product_id = p.id AND i.warehouse_id = $1\n      ORDER BY \n        p.product_name ASC\n    ",
+  "params": [
+    4
+  ]
+}
+
+[2025-04-16T08:14:26.451Z] [WarehouseStats] Statistics for warehouse 4:
+DATA: {
+  "warehouseId": 4,
+  "productCount": 186,
+  "criticalItemCount": 180,
+  "inventoryValue": 0,
+  "machineCount": 10
+}
+
+[2025-04-16T08:14:26.451Z] [WarehouseStatsAPI] Statistics data for warehouse 4:
+DATA: {
+  "warehouseId": 4,
+  "productCount": 186,
+  "criticalItemCount": 180,
+  "inventoryValue": 0,
+  "machineCount": 10
+}
+
+[2025-04-16T08:14:28.162Z] [WarehouseInventory] Found 186 inventory items for warehouse 4
+
+[2025-04-16T08:14:28.163Z] [InventoryAPI] Lagerbestand für Lager 4 geladen: 186 Einträge gefunden
+
+[2025-04-16T08:14:28.163Z] [InventoryAPI] Beispiel-Eintrag:
+DATA: {
+  "id": 236,
+  "warehouseId": 4,
+  "productId": 70165,
+  "productName": "6 frische Eier, Struppen",
+  "quantity": 0,
+  "minQuantity": 5,
+  "price": 2.5,
+  "batchCount": 0,
+  "lastMovementDate": null,
+  "isCritical": true
+}
+
+[2025-04-16T08:18:27.642Z] [WarehouseStatsAPI] Fetching statistics for warehouse 4 using new service
+
+[2025-04-16T08:18:27.643Z] [WarehouseStats] Fetching warehouse statistics for ID: 4
+
+[2025-04-16T08:18:27.643Z] [SQL] Query: getWarehouseStatistics
+DATA: {
+  "sql": "\n      WITH inventory_stats AS (\n        SELECT \n          (SELECT COUNT(*) FROM products) as product_count,\n          COUNT(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) AND i.product_id IS NOT NULL THEN 1 END) as critical_item_count,\n          COALESCE(SUM(i.quantity * COALESCE(p.price, 0)), 0) as inventory_value\n        FROM \n          inventory_items i\n        LEFT JOIN\n          products p ON i.product_id = p.id\n        WHERE \n          i.warehouse_id = $1\n      ),\n      machine_count AS (\n        SELECT \n          COUNT(DISTINCT machine_id) as machine_count\n        FROM \n          machine_warehouse_assignments\n        WHERE \n          warehouse_id = $1\n      )\n      SELECT \n        COALESCE(i.product_count, 0) as product_count,\n        COALESCE(i.critical_item_count, 0) as critical_item_count,\n        COALESCE(i.inventory_value, 0) as inventory_value,\n        COALESCE(m.machine_count, 0) as machine_count\n      FROM \n        (SELECT 1) dummy\n      LEFT JOIN inventory_stats i ON true\n      LEFT JOIN machine_count m ON true\n    ",
+  "params": [
+    4
+  ]
+}
+
+[2025-04-16T08:18:27.650Z] [InventoryAPI] Bestandsabfrage für Lager ID 4 mit neuem Service
+
+[2025-04-16T08:18:27.650Z] [WarehouseInventory] Fetching inventory for warehouse ID: 4
+
+[2025-04-16T08:18:27.651Z] [SQL] Query: getWarehouseInventory
+DATA: {
+  "sql": "\n      SELECT \n        i.id,\n        $1 as warehouse_id,\n        p.id as product_id,\n        p.product_name,\n        COALESCE(i.quantity, 0) as quantity,\n        COALESCE(i.min_quantity, 5) as min_quantity,\n        p.price,\n        (SELECT COUNT(*) FROM product_batches pb \n          WHERE pb.product_id = p.id AND pb.warehouse_id = $1) as batch_count,\n        (SELECT MAX(im.performed_at) FROM inventory_movements im \n          WHERE im.product_id = p.id AND \n            (im.source_warehouse_id = $1 OR \n             im.destination_warehouse_id = $1)) as last_movement_date,\n        CASE WHEN COALESCE(i.quantity, 0) <= COALESCE(i.min_quantity, 5) THEN true ELSE false END as is_critical\n      FROM \n        products p\n      LEFT JOIN \n        inventory_items i ON i.product_id = p.id AND i.warehouse_id = $1\n      ORDER BY \n        p.product_name ASC\n    ",
+  "params": [
+    4
+  ]
+}
+
+[2025-04-16T08:18:27.871Z] [WarehouseStats] Statistics for warehouse 4:
+DATA: {
+  "warehouseId": 4,
+  "productCount": 186,
+  "criticalItemCount": 180,
+  "inventoryValue": 0,
+  "machineCount": 10
+}
+
+[2025-04-16T08:18:27.871Z] [WarehouseStatsAPI] Statistics data for warehouse 4:
+DATA: {
+  "warehouseId": 4,
+  "productCount": 186,
+  "criticalItemCount": 180,
+  "inventoryValue": 0,
+  "machineCount": 10
+}
+
+[2025-04-16T08:18:29.487Z] [WarehouseInventory] Found 186 inventory items for warehouse 4
+
+[2025-04-16T08:18:29.487Z] [InventoryAPI] Lagerbestand für Lager 4 geladen: 186 Einträge gefunden
+
+[2025-04-16T08:18:29.488Z] [InventoryAPI] Beispiel-Eintrag:
+DATA: {
+  "id": 236,
+  "warehouseId": 4,
+  "productId": 70165,
+  "productName": "6 frische Eier, Struppen",
+  "quantity": 0,
+  "minQuantity": 5,
+  "price": 2.5,
+  "batchCount": 0,
+  "lastMovementDate": null,
+  "isCritical": true
+}
+
+[2025-04-16T08:18:59.050Z] [WarehouseStatsAPI] Fetching statistics for warehouse 6 using new service
+
+[2025-04-16T08:18:59.050Z] [WarehouseStats] Fetching warehouse statistics for ID: 6
+
+[2025-04-16T08:18:59.050Z] [SQL] Query: getWarehouseStatistics
+DATA: {
+  "sql": "\n      WITH inventory_stats AS (\n        SELECT \n          (SELECT COUNT(*) FROM products) as product_count,\n          COUNT(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) AND i.product_id IS NOT NULL THEN 1 END) as critical_item_count,\n          COALESCE(SUM(i.quantity * COALESCE(p.price, 0)), 0) as inventory_value\n        FROM \n          inventory_items i\n        LEFT JOIN\n          products p ON i.product_id = p.id\n        WHERE \n          i.warehouse_id = $1\n      ),\n      machine_count AS (\n        SELECT \n          COUNT(DISTINCT machine_id) as machine_count\n        FROM \n          machine_warehouse_assignments\n        WHERE \n          warehouse_id = $1\n      )\n      SELECT \n        COALESCE(i.product_count, 0) as product_count,\n        COALESCE(i.critical_item_count, 0) as critical_item_count,\n        COALESCE(i.inventory_value, 0) as inventory_value,\n        COALESCE(m.machine_count, 0) as machine_count\n      FROM \n        (SELECT 1) dummy\n      LEFT JOIN inventory_stats i ON true\n      LEFT JOIN machine_count m ON true\n    ",
+  "params": [
+    6
+  ]
+}
+
+[2025-04-16T08:18:59.281Z] [WarehouseStats] Statistics for warehouse 6:
+DATA: {
+  "warehouseId": 6,
+  "productCount": 186,
+  "criticalItemCount": 52,
+  "inventoryValue": 0,
+  "machineCount": 1
+}
+
+[2025-04-16T08:18:59.282Z] [WarehouseStatsAPI] Statistics data for warehouse 6:
+DATA: {
+  "warehouseId": 6,
+  "productCount": 186,
+  "criticalItemCount": 52,
+  "inventoryValue": 0,
+  "machineCount": 1
+}
+
+[2025-04-16T08:18:59.559Z] [InventoryAPI] Bestandsabfrage für Lager ID 6 mit neuem Service
+
+[2025-04-16T08:18:59.559Z] [WarehouseInventory] Fetching inventory for warehouse ID: 6
+
+[2025-04-16T08:18:59.559Z] [SQL] Query: getWarehouseInventory
+DATA: {
+  "sql": "\n      SELECT \n        i.id,\n        $1 as warehouse_id,\n        p.id as product_id,\n        p.product_name,\n        COALESCE(i.quantity, 0) as quantity,\n        COALESCE(i.min_quantity, 5) as min_quantity,\n        p.price,\n        (SELECT COUNT(*) FROM product_batches pb \n          WHERE pb.product_id = p.id AND pb.warehouse_id = $1) as batch_count,\n        (SELECT MAX(im.performed_at) FROM inventory_movements im \n          WHERE im.product_id = p.id AND \n            (im.source_warehouse_id = $1 OR \n             im.destination_warehouse_id = $1)) as last_movement_date,\n        CASE WHEN COALESCE(i.quantity, 0) <= COALESCE(i.min_quantity, 5) THEN true ELSE false END as is_critical\n      FROM \n        products p\n      LEFT JOIN \n        inventory_items i ON i.product_id = p.id AND i.warehouse_id = $1\n      ORDER BY \n        p.product_name ASC\n    ",
+  "params": [
+    6
+  ]
+}
+
+[2025-04-16T08:19:00.019Z] [WarehouseInventory] Found 186 inventory items for warehouse 6
+
+[2025-04-16T08:19:00.020Z] [InventoryAPI] Lagerbestand für Lager 6 geladen: 186 Einträge gefunden
+
+[2025-04-16T08:19:00.020Z] [InventoryAPI] Beispiel-Eintrag:
+DATA: {
+  "id": -70377,
+  "warehouseId": 6,
+  "productId": 70377,
+  "productName": "6 frische Eier, Struppen",
+  "quantity": 0,
+  "minQuantity": 5,
+  "price": 2.5,
+  "batchCount": 0,
+  "lastMovementDate": null,
+  "isCritical": true
+}
+
+[2025-04-16T08:19:05.622Z] [InventoryAPI] Bestandsabfrage für Lager ID 7 mit neuem Service
+
+[2025-04-16T08:19:05.623Z] [WarehouseInventory] Fetching inventory for warehouse ID: 7
+
+[2025-04-16T08:19:05.623Z] [SQL] Query: getWarehouseInventory
+DATA: {
+  "sql": "\n      SELECT \n        i.id,\n        $1 as warehouse_id,\n        p.id as product_id,\n        p.product_name,\n        COALESCE(i.quantity, 0) as quantity,\n        COALESCE(i.min_quantity, 5) as min_quantity,\n        p.price,\n        (SELECT COUNT(*) FROM product_batches pb \n          WHERE pb.product_id = p.id AND pb.warehouse_id = $1) as batch_count,\n        (SELECT MAX(im.performed_at) FROM inventory_movements im \n          WHERE im.product_id = p.id AND \n            (im.source_warehouse_id = $1 OR \n             im.destination_warehouse_id = $1)) as last_movement_date,\n        CASE WHEN COALESCE(i.quantity, 0) <= COALESCE(i.min_quantity, 5) THEN true ELSE false END as is_critical\n      FROM \n        products p\n      LEFT JOIN \n        inventory_items i ON i.product_id = p.id AND i.warehouse_id = $1\n      ORDER BY \n        p.product_name ASC\n    ",
+  "params": [
+    7
+  ]
+}
+
+[2025-04-16T08:19:05.624Z] [WarehouseStatsAPI] Fetching statistics for warehouse 7 using new service
+
+[2025-04-16T08:19:05.624Z] [WarehouseStats] Fetching warehouse statistics for ID: 7
+
+[2025-04-16T08:19:05.624Z] [SQL] Query: getWarehouseStatistics
+DATA: {
+  "sql": "\n      WITH inventory_stats AS (\n        SELECT \n          (SELECT COUNT(*) FROM products) as product_count,\n          COUNT(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) AND i.product_id IS NOT NULL THEN 1 END) as critical_item_count,\n          COALESCE(SUM(i.quantity * COALESCE(p.price, 0)), 0) as inventory_value\n        FROM \n          inventory_items i\n        LEFT JOIN\n          products p ON i.product_id = p.id\n        WHERE \n          i.warehouse_id = $1\n      ),\n      machine_count AS (\n        SELECT \n          COUNT(DISTINCT machine_id) as machine_count\n        FROM \n          machine_warehouse_assignments\n        WHERE \n          warehouse_id = $1\n      )\n      SELECT \n        COALESCE(i.product_count, 0) as product_count,\n        COALESCE(i.critical_item_count, 0) as critical_item_count,\n        COALESCE(i.inventory_value, 0) as inventory_value,\n        COALESCE(m.machine_count, 0) as machine_count\n      FROM \n        (SELECT 1) dummy\n      LEFT JOIN inventory_stats i ON true\n      LEFT JOIN machine_count m ON true\n    ",
+  "params": [
+    7
+  ]
+}
+
+[2025-04-16T08:19:07.252Z] [WarehouseStats] Statistics for warehouse 7:
+DATA: {
+  "warehouseId": 7,
+  "productCount": 186,
+  "criticalItemCount": 70,
+  "inventoryValue": 0,
+  "machineCount": 1
+}
+
+[2025-04-16T08:19:07.252Z] [WarehouseStatsAPI] Statistics data for warehouse 7:
+DATA: {
+  "warehouseId": 7,
+  "productCount": 186,
+  "criticalItemCount": 70,
+  "inventoryValue": 0,
+  "machineCount": 1
+}
+
+[2025-04-16T08:19:07.443Z] [WarehouseInventory] Found 186 inventory items for warehouse 7
+
+[2025-04-16T08:19:07.443Z] [InventoryAPI] Lagerbestand für Lager 7 geladen: 186 Einträge gefunden
+
+[2025-04-16T08:19:07.443Z] [InventoryAPI] Beispiel-Eintrag:
+DATA: {
+  "id": -70377,
+  "warehouseId": 7,
+  "productId": 70377,
+  "productName": "6 frische Eier, Struppen",
+  "quantity": 0,
+  "minQuantity": 5,
+  "price": 2.5,
+  "batchCount": 0,
+  "lastMovementDate": null,
+  "isCritical": true
+}
+
+[2025-04-16T08:19:14.282Z] [WarehouseStatsAPI] Fetching statistics for warehouse 5 using new service
+
+[2025-04-16T08:19:14.282Z] [WarehouseStats] Fetching warehouse statistics for ID: 5
+
+[2025-04-16T08:19:14.282Z] [SQL] Query: getWarehouseStatistics
+DATA: {
+  "sql": "\n      WITH inventory_stats AS (\n        SELECT \n          (SELECT COUNT(*) FROM products) as product_count,\n          COUNT(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) AND i.product_id IS NOT NULL THEN 1 END) as critical_item_count,\n          COALESCE(SUM(i.quantity * COALESCE(p.price, 0)), 0) as inventory_value\n        FROM \n          inventory_items i\n        LEFT JOIN\n          products p ON i.product_id = p.id\n        WHERE \n          i.warehouse_id = $1\n      ),\n      machine_count AS (\n        SELECT \n          COUNT(DISTINCT machine_id) as machine_count\n        FROM \n          machine_warehouse_assignments\n        WHERE \n          warehouse_id = $1\n      )\n      SELECT \n        COALESCE(i.product_count, 0) as product_count,\n        COALESCE(i.critical_item_count, 0) as critical_item_count,\n        COALESCE(i.inventory_value, 0) as inventory_value,\n        COALESCE(m.machine_count, 0) as machine_count\n      FROM \n        (SELECT 1) dummy\n      LEFT JOIN inventory_stats i ON true\n      LEFT JOIN machine_count m ON true\n    ",
+  "params": [
+    5
+  ]
+}
+
+[2025-04-16T08:19:14.288Z] [InventoryAPI] Bestandsabfrage für Lager ID 5 mit neuem Service
+
+[2025-04-16T08:19:14.288Z] [WarehouseInventory] Fetching inventory for warehouse ID: 5
+
+[2025-04-16T08:19:14.288Z] [SQL] Query: getWarehouseInventory
+DATA: {
+  "sql": "\n      SELECT \n        i.id,\n        $1 as warehouse_id,\n        p.id as product_id,\n        p.product_name,\n        COALESCE(i.quantity, 0) as quantity,\n        COALESCE(i.min_quantity, 5) as min_quantity,\n        p.price,\n        (SELECT COUNT(*) FROM product_batches pb \n          WHERE pb.product_id = p.id AND pb.warehouse_id = $1) as batch_count,\n        (SELECT MAX(im.performed_at) FROM inventory_movements im \n          WHERE im.product_id = p.id AND \n            (im.source_warehouse_id = $1 OR \n             im.destination_warehouse_id = $1)) as last_movement_date,\n        CASE WHEN COALESCE(i.quantity, 0) <= COALESCE(i.min_quantity, 5) THEN true ELSE false END as is_critical\n      FROM \n        products p\n      LEFT JOIN \n        inventory_items i ON i.product_id = p.id AND i.warehouse_id = $1\n      ORDER BY \n        p.product_name ASC\n    ",
+  "params": [
+    5
+  ]
+}
+
+[2025-04-16T08:19:14.509Z] [WarehouseStats] Statistics for warehouse 5:
+DATA: {
+  "warehouseId": 5,
+  "productCount": 186,
+  "criticalItemCount": 0,
+  "inventoryValue": 0,
+  "machineCount": 0
+}
+
+[2025-04-16T08:19:14.509Z] [WarehouseStatsAPI] Statistics data for warehouse 5:
+DATA: {
+  "warehouseId": 5,
+  "productCount": 186,
+  "criticalItemCount": 0,
+  "inventoryValue": 0,
+  "machineCount": 0
+}
+
+[2025-04-16T08:19:16.130Z] [WarehouseInventory] Found 186 inventory items for warehouse 5
+
+[2025-04-16T08:19:16.130Z] [InventoryAPI] Lagerbestand für Lager 5 geladen: 186 Einträge gefunden
+
+[2025-04-16T08:19:16.131Z] [InventoryAPI] Beispiel-Eintrag:
+DATA: {
+  "id": -70377,
+  "warehouseId": 5,
+  "productId": 70377,
+  "productName": "6 frische Eier, Struppen",
+  "quantity": 0,
+  "minQuantity": 5,
+  "price": 2.5,
+  "batchCount": 0,
+  "lastMovementDate": null,
+  "isCritical": true
+}
+
