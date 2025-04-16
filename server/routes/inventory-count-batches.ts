@@ -43,22 +43,53 @@ router.post('/product-batches', async (req: Request, res: Response) => {
     }
     
     // Erstelle die neue Charge
-    const result = await rawDb.query(
-      `INSERT INTO product_batches
-       (product_id, warehouse_id, batch_number, expiry_date, initial_quantity, 
-        current_quantity, notes, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
-       RETURNING *`,
-      [
-        productId,
-        warehouseId,
-        batchNumber,
-        expiryDate,
-        initialQuantity,
-        currentQuantity,
-        notes
-      ]
+    // Prüfen, welche Spalten in der Tabelle vorhanden sind, um Fehler zu vermeiden
+    const columnsResult = await rawDb.query(
+      `SELECT column_name 
+       FROM information_schema.columns 
+       WHERE table_name = 'product_batches'`
     );
+    
+    const columns = columnsResult.rows.map(row => row.column_name);
+    
+    // Wenn manufacturing_date nicht vorhanden ist, verwenden wir eine angepasste Abfrage
+    let result;
+    if (!columns.includes('manufacturing_date')) {
+      result = await rawDb.query(
+        `INSERT INTO product_batches
+         (product_id, warehouse_id, batch_number, expiry_date, initial_quantity, 
+          current_quantity, notes, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+         RETURNING *`,
+        [
+          productId,
+          warehouseId,
+          batchNumber,
+          expiryDate,
+          initialQuantity,
+          currentQuantity,
+          notes
+        ]
+      );
+    } else {
+      // Standard-Abfrage mit manufacturing_date-Spalte
+      result = await rawDb.query(
+        `INSERT INTO product_batches
+         (product_id, warehouse_id, batch_number, expiry_date, manufacturing_date, initial_quantity, 
+          current_quantity, notes, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, NULL, $5, $6, $7, NOW(), NOW())
+         RETURNING *`,
+        [
+          productId,
+          warehouseId,
+          batchNumber,
+          expiryDate,
+          initialQuantity,
+          currentQuantity,
+          notes
+        ]
+      );
+    }
     
     if (!result.rows || result.rows.length === 0) {
       return res.status(500).json({ error: "Failed to create product batch" });
