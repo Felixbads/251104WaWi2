@@ -17,6 +17,7 @@ router.post('/product-batches', async (req: Request, res: Response) => {
       locationInWarehouse, 
       initialQuantity = 0,
       currentQuantity = 0,
+      quantity = 0, // Explizit das neue quantity-Feld extrahieren
       notes 
     } = req.body;
     
@@ -133,7 +134,7 @@ router.post('/product-batches', async (req: Request, res: Response) => {
     // Baue die SQL-Abfrage dynamisch auf basierend auf vorhandenen Spalten
     let columnsString = 'product_id, warehouse_id, batch_number, expiry_date, quantity';
     let valuesString = '$1, $2, $3, $4, $5';
-    let valuesArray = [productId, warehouseId, batchNumber, parsedExpiryDate, initialQuantity];
+    let valuesArray = [productId, warehouseId, batchNumber, parsedExpiryDate, quantity || initialQuantity]; // Verwende quantity, wenn es vorhanden ist, ansonsten initialQuantity
     let valueIndex = 6;
     
     // Füge receivedDate hinzu, wenn die Spalte existiert
