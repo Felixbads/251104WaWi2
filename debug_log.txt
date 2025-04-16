@@ -6494,3 +6494,21 @@ DATA: {
   "machineCount": 10
 }
 
+[2025-04-16T06:57:44.205Z] [WarehouseInventory] Found 1369 inventory items for warehouse 4
+
+[2025-04-16T06:57:44.206Z] [InventoryAPI] Lagerbestand für Lager 4 geladen: 1369 Einträge gefunden
+
+[2025-04-16T06:57:44.206Z] [InventoryAPI] Beispiel-Eintrag:
+DATA: {
+  "id": -70905,
+  "warehouseId": 4,
+  "productId": 70905,
+  "productName": "6 frische Eier, Struppen",
+  "quantity": 0,
+  "minQuantity": 5,
+  "price": 2.5,
+  "batchCount": 0,
+  "lastMovementDate": null,
+  "isCritical": true
+}
+
