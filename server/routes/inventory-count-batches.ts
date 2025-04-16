@@ -129,11 +129,12 @@ router.post('/product-batches', async (req: Request, res: Response) => {
     console.log("Received Date vorhanden:", hasReceivedDateColumn);
     console.log("Location vorhanden:", hasLocationColumn);
     
+    // DIREKTES HINZUFÜGEN DER QUANTITY-SPALTE - REQUIRED FIELD
     // Baue die SQL-Abfrage dynamisch auf basierend auf vorhandenen Spalten
-    let columnsString = 'product_id, warehouse_id, batch_number, expiry_date';
-    let valuesString = '$1, $2, $3, $4';
-    let valuesArray = [productId, warehouseId, batchNumber, parsedExpiryDate];
-    let valueIndex = 5;
+    let columnsString = 'product_id, warehouse_id, batch_number, expiry_date, quantity';
+    let valuesString = '$1, $2, $3, $4, $5';
+    let valuesArray = [productId, warehouseId, batchNumber, parsedExpiryDate, initialQuantity];
+    let valueIndex = 6;
     
     // Füge receivedDate hinzu, wenn die Spalte existiert
     if (hasReceivedDateColumn) {
@@ -167,15 +168,8 @@ router.post('/product-batches', async (req: Request, res: Response) => {
       valuesString += ', NULL';
     }
     
-    // Überprüfe, ob die Tabelle die "quantity"-Spalte enthält (basierend auf der Fehlermeldung)
-    if (columns.includes('quantity')) {
-      columnsString += ', quantity';
-      valuesString += `, $${valueIndex}`;
-      // Verwende die initialQuantity als Standardwert für die quantity-Spalte
-      valuesArray.push(initialQuantity);
-      valueIndex++;
-      console.log("Quantity-Spalte gefunden und hinzugefügt mit Wert:", initialQuantity);
-    }
+    // HINWEIS: Da quantity bereits in der Abfrage enthalten ist, müssen wir es hier nicht noch einmal hinzufügen
+    // Dies wurde entfernt, um eine Duplizierung der Spalte zu vermeiden:
     
     // Füge remaining columns hinzu
     columnsString += `, initial_quantity, current_quantity, notes`;
