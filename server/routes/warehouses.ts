@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import { db } from '../db';
 import { warehouses } from '@shared/schema';
-import { eq, like, and, or, desc, asc } from 'drizzle-orm';
+import { eq, like, and, or, desc, asc, inArray, ne as neq } from 'drizzle-orm';
 import { storage } from '../storage';
 
 const router = express.Router();
@@ -233,7 +233,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       const warehouseWithSameName = await db.query.warehouses.findFirst({
         where: and(
           eq(warehouses.name, name),
-          eq(warehouses.id, id, true) // not eq
+          neq(warehouses.id, id) // not equal using neq
         )
       });
       
@@ -268,7 +268,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   }
 });
 
-// DELETE - Lager löschen
+// DELETE - Lager löschen (mit allen abhängigen Datensätzen)
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const id = parseInt(req.params.id);
@@ -285,13 +285,87 @@ router.delete('/:id', async (req: Request, res: Response) => {
     if (!existingWarehouse) {
       return res.status(404).json({ error: 'Lager nicht gefunden' });
     }
+
+    // Wir starten eine Transaktion, um sicherzustellen, dass entweder alle
+    // oder keine Datensätze gelöscht werden
+    await db.transaction(async (tx) => {
+      console.log(`Beginne Löschvorgang für Lager ${id} (${existingWarehouse.name})`);
+      
+      // 1. Lösche MachineWarehouseAssignments
+      console.log(`Lösche Automaten-Zuordnungen für Lager ${id}...`);
+      const { machineWarehouseAssignments } = await import('@shared/schema');
+      const deletedAssignments = await tx
+        .delete(machineWarehouseAssignments)
+        .where(eq(machineWarehouseAssignments.warehouseId, id))
+        .returning();
+      console.log(`${deletedAssignments.length} Automaten-Zuordnungen gelöscht.`);
+      
+      // 2. Lösche InventoryMovements mit diesem Lager als Quelle oder Ziel
+      console.log(`Lösche Bestandsbewegungen für Lager ${id}...`);
+      const { inventoryMovements } = await import('@shared/schema');
+      const deletedSourceMovements = await tx
+        .delete(inventoryMovements)
+        .where(eq(inventoryMovements.sourceWarehouseId, id))
+        .returning();
+      const deletedDestMovements = await tx
+        .delete(inventoryMovements)
+        .where(eq(inventoryMovements.destinationWarehouseId, id))
+        .returning();
+      console.log(`${deletedSourceMovements.length + deletedDestMovements.length} Bestandsbewegungen gelöscht.`);
+      
+      // 3. Lösche InventoryCountItems für alle InventoryCounts dieses Lagers
+      console.log(`Lösche Inventurzählungseinträge für Lager ${id}...`);
+      const { inventoryCounts, inventoryCountItems } = await import('@shared/schema');
+      
+      // Finde alle InventoryCount-IDs für dieses Lager
+      const countIds = await tx
+        .select({ id: inventoryCounts.id })
+        .from(inventoryCounts)
+        .where(eq(inventoryCounts.warehouseId, id));
+      
+      if (countIds.length > 0) {
+        const countIdsList = countIds.map(count => count.id);
+        // Lösche alle InventoryCountItems für diese Counts
+        const deletedCountItems = await tx
+          .delete(inventoryCountItems)
+          .where(inArray(inventoryCountItems.inventoryCountId, countIdsList))
+          .returning();
+        console.log(`${deletedCountItems.length} Inventurzählungseinträge gelöscht.`);
+      }
+      
+      // 4. Lösche InventoryCounts für dieses Lager
+      console.log(`Lösche Inventurzählungen für Lager ${id}...`);
+      const deletedCounts = await tx
+        .delete(inventoryCounts)
+        .where(eq(inventoryCounts.warehouseId, id))
+        .returning();
+      console.log(`${deletedCounts.length} Inventurzählungen gelöscht.`);
+      
+      // 5. Lösche InventoryItems (Produkte im Lager)
+      console.log(`Lösche Lagerbestandseinträge für Lager ${id}...`);
+      const { inventoryItems } = await import('@shared/schema');
+      const deletedItems = await tx
+        .delete(inventoryItems)
+        .where(eq(inventoryItems.warehouseId, id))
+        .returning();
+      console.log(`${deletedItems.length} Lagerbestandseinträge gelöscht.`);
+      
+      // 6. Schließlich das Lager selbst löschen
+      console.log(`Lösche Lager ${id}...`);
+      const deletedWarehouse = await tx
+        .delete(warehouses)
+        .where(eq(warehouses.id, id))
+        .returning();
+      console.log(`Lager ${deletedWarehouse[0].name} (ID: ${deletedWarehouse[0].id}) erfolgreich gelöscht.`);
+    });
     
-    // Lager löschen
-    await db
-      .delete(warehouses)
-      .where(eq(warehouses.id, id));
-    
-    res.json({ success: true, message: 'Lager erfolgreich gelöscht' });
+    // Antwort mit Erfolgsmeldung senden
+    res.json({ 
+      success: true, 
+      message: `Lager "${existingWarehouse.name}" und alle zugehörigen Daten erfolgreich gelöscht.`,
+      warehouseId: id,
+      warehouseName: existingWarehouse.name
+    });
   } catch (error) {
     console.error('Fehler beim Löschen des Lagers:', error);
     res.status(500).json({ 
