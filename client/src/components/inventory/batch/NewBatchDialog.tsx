@@ -87,6 +87,7 @@ export default function NewBatchDialog({
       console.log("Creating new batch with data:", data);
       
       // Konvertiere String-IDs zu Zahlen und bereite die Daten für den API-Endpunkt vor
+      const quantity = parseInt(data.quantity);
       const payload = {
         productId: parseInt(data.productId),
         warehouseId: parseInt(data.warehouseId),
@@ -94,8 +95,10 @@ export default function NewBatchDialog({
         // Stelle sicher, dass die Datumsformate als ISO-Strings übergeben werden
         expiryDate: data.expiryDate ? data.expiryDate.toISOString().split('T')[0] : null,
         receivedDate: data.incomingDate ? data.incomingDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        initialQuantity: parseInt(data.quantity),
-        currentQuantity: parseInt(data.quantity),
+        initialQuantity: quantity,
+        currentQuantity: quantity,
+        // WICHTIG: Explizit das quantity-Feld setzen, da es in der Datenbank als NOT NULL definiert ist
+        quantity: quantity,
         locationInWarehouse: data.locationInWarehouse || null,
         notes: data.notes || null
       };
