@@ -264,9 +264,18 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
         throw error;
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}/items`] });
-      queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}`] });
+    onSuccess: (updatedItem, variables) => {
+      // Explizites Update des lokalen State vor der Invalidierung der Queries
+      setEditedCounts(prev => ({
+        ...prev,
+        [variables.id]: variables.countedQuantity
+      }));
+      
+      // Verzögerte Invalidierung der Queries, um sicherzustellen, dass die UI-Änderungen zuerst angewendet werden
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}/items`] });
+        queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}`] });
+      }, 10);
       
       toast({
         title: "Zählerstand aktualisiert",
@@ -772,6 +781,15 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
     const [selectedBatchId, setSelectedBatchId] = useState<number | null>(
       selectedItem?.batchId || null
     );
+    const [showNewBatchForm, setShowNewBatchForm] = useState(false);
+    const [newExpiryDate, setNewExpiryDate] = useState<Date | null>(null);
+    const [newBatchNumber, setNewBatchNumber] = useState("");
+    const [newBatchQuantity, setNewBatchQuantity] = useState<number | null>(
+      selectedItem?.countedQuantity || selectedItem?.actualQuantity || null
+    );
+    const [splitQuantity, setSplitQuantity] = useState<number | null>(null);
+    const [showSplitForm, setShowSplitForm] = useState(false);
+    const [splitTargetBatchId, setSplitTargetBatchId] = useState<number | null>(null);
     
     // Formatiere ein Datum für die Anzeige
     const formatBatchDate = (dateStr: string | null) => {
@@ -783,108 +801,376 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
       }).format(new Date(dateStr));
     };
     
+    // Erstellt eine neue Charge mit MHD
+    const createNewBatch = async () => {
+      if (!selectedItem || !selectedItem.productId) return;
+      
+      try {
+        // Erstelle neue Charge API-Anfrage
+        const response = await fetch('/api/product-batches', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            productId: selectedItem.productId,
+            warehouseId: inventurData.warehouseId,
+            batchNumber: newBatchNumber || `INV-${new Date().toISOString().slice(0, 10)}`,
+            expiryDate: newExpiryDate,
+            initialQuantity: 0, // Wird über Inventur aktualisiert
+            currentQuantity: 0, // Wird über Inventur aktualisiert
+            notes: `Erstellt bei Inventur #${id}`
+          }),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Fehler beim Erstellen: ${response.status}`);
+        }
+        
+        const newBatch = await response.json();
+        
+        // Aktualisiere die Batches-Liste
+        setAvailableBatches(prev => [...prev, newBatch]);
+        
+        // Wähle die neue Charge aus
+        setSelectedBatchId(newBatch.id);
+        
+        // Schließe das Formular
+        setShowNewBatchForm(false);
+        
+        toast({
+          title: "Neue Charge erstellt",
+          description: "Die Charge wurde erfolgreich erstellt."
+        });
+      } catch (error) {
+        console.error('Fehler beim Erstellen einer neuen Charge:', error);
+        toast({
+          title: "Fehler",
+          description: "Die Charge konnte nicht erstellt werden.",
+          variant: "destructive"
+        });
+      }
+    };
+    
+    // Split-Bestand zwischen zwei Chargen
+    const handleSplitInventory = async () => {
+      if (!selectedItem || splitQuantity === null || splitTargetBatchId === null) return;
+      
+      try {
+        // Bestandsaufteilung API-Anfrage
+        const response = await fetch(`/api/inventory-counts/items/${selectedItem.id}/split`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            originalBatchId: selectedBatchId,
+            targetBatchId: splitTargetBatchId,
+            splitQuantity: splitQuantity
+          }),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Fehler beim Aufteilen: ${response.status}`);
+        }
+        
+        // Aktualisiere Liste und schließe Dialog
+        queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}/items`] });
+        setShowSplitForm(false);
+        setShowBatchDialog(false);
+        
+        toast({
+          title: "Bestand aufgeteilt",
+          description: "Der Bestand wurde erfolgreich zwischen den Chargen aufgeteilt."
+        });
+      } catch (error) {
+        console.error('Fehler beim Aufteilen des Bestands:', error);
+        toast({
+          title: "Fehler",
+          description: "Der Bestand konnte nicht aufgeteilt werden.",
+          variant: "destructive"
+        });
+      }
+    };
+    
     return (
       <Dialog open={showBatchDialog} onOpenChange={(open) => {
         setShowBatchDialog(open);
-        if (!open) setSelectedItem(null);
+        if (!open) {
+          setSelectedItem(null);
+          setShowNewBatchForm(false);
+          setShowSplitForm(false);
+        }
       }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Charge auswählen</DialogTitle>
+            <DialogTitle>
+              {showNewBatchForm 
+                ? "Neue Charge erstellen" 
+                : showSplitForm 
+                  ? "Bestand aufteilen" 
+                  : "Charge auswählen"}
+            </DialogTitle>
             <DialogDescription>
-              Wählen Sie die Charge für das Produkt "{selectedItem?.product?.productName || 'Unbekanntes Produkt'}" aus.
+              {showNewBatchForm 
+                ? "Erstellen Sie eine neue Charge mit MHD für das Produkt." 
+                : showSplitForm 
+                  ? "Teilen Sie den Bestand zwischen zwei Chargen auf." 
+                  : `Wählen Sie die Charge für das Produkt "${selectedItem?.product?.productName || 'Unbekanntes Produkt'}" aus.`}
             </DialogDescription>
           </DialogHeader>
           
-          <div className="py-4">
-            {isLoadingBatches ? (
-              <div className="flex justify-center">
-                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+          {showNewBatchForm ? (
+            // Formular für neue Charge
+            <div className="space-y-4 py-4">
+              <div className="grid gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="batchNumber">Chargennummer</Label>
+                  <Input 
+                    id="batchNumber" 
+                    value={newBatchNumber} 
+                    onChange={e => setNewBatchNumber(e.target.value)}
+                    placeholder="Optionale Chargennummer"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="expiryDate">Mindesthaltbarkeitsdatum (MHD)</Label>
+                  <div className="flex flex-col">
+                    <Button
+                      variant="outline"
+                      onClick={() => document.getElementById('datePicker')?.click()}
+                      className="w-full justify-start text-left font-normal"
+                    >
+                      {newExpiryDate ? (
+                        formatBatchDate(newExpiryDate.toISOString())
+                      ) : (
+                        <span className="text-muted-foreground">MHD auswählen</span>
+                      )}
+                      <Calendar className="ml-auto h-4 w-4 opacity-50" />
+                    </Button>
+                    <input
+                      type="date"
+                      id="datePicker"
+                      className="sr-only"
+                      onChange={(e) => {
+                        const date = e.target.value ? new Date(e.target.value) : null;
+                        setNewExpiryDate(date);
+                      }}
+                    />
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="quantity">Menge</Label>
+                  <Input 
+                    id="quantity" 
+                    type="number" 
+                    min="0"
+                    value={newBatchQuantity !== null ? newBatchQuantity : ''} 
+                    onChange={e => setNewBatchQuantity(e.target.value ? Number(e.target.value) : null)}
+                    placeholder="Menge in dieser Charge"
+                  />
+                </div>
               </div>
-            ) : availableBatches.length === 0 ? (
-              <div className="text-center py-4 text-muted-foreground">
-                Keine Chargen für dieses Produkt verfügbar.
+              
+              <div className="flex justify-between pt-4">
+                <Button variant="outline" onClick={() => setShowNewBatchForm(false)}>
+                  Zurück
+                </Button>
+                <Button onClick={createNewBatch}>
+                  Charge erstellen
+                </Button>
               </div>
-            ) : (
-              <div className="space-y-4">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12"></TableHead>
-                      <TableHead>Chargennummer</TableHead>
-                      <TableHead>MHD</TableHead>
-                      <TableHead className="text-right">Menge</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell>
-                        <input 
-                          type="radio" 
-                          name="batchSelection" 
-                          checked={selectedBatchId === null} 
-                          onChange={() => setSelectedBatchId(null)}
-                          className="h-4 w-4"
-                        />
-                      </TableCell>
-                      <TableCell colSpan={3}>
-                        <span className="font-medium">Keine Charge (Standard)</span>
-                      </TableCell>
-                    </TableRow>
-                    {availableBatches.map(batch => (
-                      <TableRow key={batch.id} className={batch.id === selectedBatchId ? "bg-muted/50" : ""}>
+            </div>
+          ) : showSplitForm ? (
+            // Formular für Bestandsaufteilung
+            <div className="space-y-4 py-4">
+              <div className="grid gap-4">
+                <div className="space-y-2">
+                  <Label>Quellcharge</Label>
+                  <div className="p-2 border rounded-md">
+                    <div className="font-medium">
+                      {selectedBatchId 
+                        ? availableBatches.find(b => b.id === selectedBatchId)?.batchNumber || "Charge " + selectedBatchId
+                        : "Keine Charge (Standard)"}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      MHD: {selectedBatchId 
+                        ? (availableBatches.find(b => b.id === selectedBatchId)?.expiryDate 
+                           ? formatBatchDate(availableBatches.find(b => b.id === selectedBatchId)?.expiryDate || null) 
+                           : "Kein MHD")
+                        : "Kein MHD"}
+                    </div>
+                    <div className="text-sm">
+                      Aktueller Bestand: {selectedItem?.countedQuantity || selectedItem?.actualQuantity || 0}
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="splitQuantity">Zu übertragende Menge</Label>
+                  <Input 
+                    id="splitQuantity" 
+                    type="number" 
+                    min="1"
+                    max={selectedItem?.countedQuantity || selectedItem?.actualQuantity || 0}
+                    value={splitQuantity !== null ? splitQuantity : ''} 
+                    onChange={e => setSplitQuantity(e.target.value ? Number(e.target.value) : null)}
+                    placeholder="Menge für Übertragung"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Diese Menge wird von der aktuellen Charge abgezogen und zur Zielcharge hinzugefügt.
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="targetBatch">Zielcharge</Label>
+                  <select
+                    id="targetBatch"
+                    className="w-full p-2 border rounded-md"
+                    value={splitTargetBatchId || ''}
+                    onChange={e => setSplitTargetBatchId(e.target.value ? Number(e.target.value) : null)}
+                  >
+                    <option value="">Bitte auswählen</option>
+                    {availableBatches
+                      .filter(batch => batch.id !== selectedBatchId)
+                      .map(batch => (
+                        <option key={batch.id} value={batch.id}>
+                          {batch.batchNumber} - MHD: {batch.expiryDate ? formatBatchDate(batch.expiryDate) : "Kein MHD"}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+              
+              <div className="flex justify-between pt-4">
+                <Button variant="outline" onClick={() => setShowSplitForm(false)}>
+                  Zurück
+                </Button>
+                <Button 
+                  onClick={handleSplitInventory}
+                  disabled={!splitTargetBatchId || splitQuantity === null || splitQuantity <= 0 || 
+                    splitQuantity > (selectedItem?.countedQuantity || selectedItem?.actualQuantity || 0)}
+                >
+                  Bestand aufteilen
+                </Button>
+              </div>
+            </div>
+          ) : (
+            // Reguläre Auswahl-Ansicht
+            <div className="py-4">
+              {isLoadingBatches ? (
+                <div className="flex justify-center">
+                  <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12"></TableHead>
+                        <TableHead>Chargennummer</TableHead>
+                        <TableHead>MHD</TableHead>
+                        <TableHead className="text-right">Menge</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      <TableRow>
                         <TableCell>
                           <input 
                             type="radio" 
                             name="batchSelection" 
-                            checked={batch.id === selectedBatchId} 
-                            onChange={() => setSelectedBatchId(batch.id)}
+                            checked={selectedBatchId === null} 
+                            onChange={() => setSelectedBatchId(null)}
                             className="h-4 w-4"
                           />
                         </TableCell>
-                        <TableCell>{batch.batchNumber}</TableCell>
-                        <TableCell>
-                          {batch.expiryDate ? (
-                            <Badge variant={
-                              new Date(batch.expiryDate) < new Date() ? "destructive" : 
-                              new Date(batch.expiryDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? "warning" : 
-                              "outline"
-                            }>
-                              {formatBatchDate(batch.expiryDate)}
-                            </Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">Kein MHD</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {batch.currentQuantity}
+                        <TableCell colSpan={3}>
+                          <span className="font-medium">Keine Charge (Standard)</span>
                         </TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowBatchDialog(false)}>
-              Abbrechen
-            </Button>
-            <Button 
-              onClick={() => handleBatchUpdate(selectedBatchId)}
-              disabled={updateBatchMutation.isPending}
-            >
-              {updateBatchMutation.isPending ? (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Wird aktualisiert...
-                </>
-              ) : (
-                'Charge speichern'
+                      {availableBatches.map(batch => (
+                        <TableRow key={batch.id} className={batch.id === selectedBatchId ? "bg-muted/50" : ""}>
+                          <TableCell>
+                            <input 
+                              type="radio" 
+                              name="batchSelection" 
+                              checked={batch.id === selectedBatchId} 
+                              onChange={() => setSelectedBatchId(batch.id)}
+                              className="h-4 w-4"
+                            />
+                          </TableCell>
+                          <TableCell>{batch.batchNumber}</TableCell>
+                          <TableCell>
+                            {batch.expiryDate ? (
+                              <Badge variant={
+                                new Date(batch.expiryDate) < new Date() ? "destructive" : 
+                                new Date(batch.expiryDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? "warning" : 
+                                "outline"
+                              }>
+                                {formatBatchDate(batch.expiryDate)}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">Kein MHD</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {batch.currentQuantity}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  
+                  <div className="flex gap-2 mt-4">
+                    <Button 
+                      type="button" 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => setShowNewBatchForm(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Neue Charge
+                    </Button>
+                    
+                    {selectedItem && (selectedItem.countedQuantity || selectedItem.actualQuantity) && selectedBatchId && availableBatches.length > 0 && (
+                      <Button 
+                        type="button" 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => setShowSplitForm(true)}
+                      >
+                        <TrendingUp className="h-4 w-4 mr-1" />
+                        Bestand aufteilen
+                      </Button>
+                    )}
+                  </div>
+                </div>
               )}
-            </Button>
-          </DialogFooter>
+            </div>
+          )}
+          
+          {!showNewBatchForm && !showSplitForm && (
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowBatchDialog(false)}>
+                Abbrechen
+              </Button>
+              <Button 
+                onClick={() => handleBatchUpdate(selectedBatchId)}
+                disabled={updateBatchMutation.isPending}
+              >
+                {updateBatchMutation.isPending ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Wird aktualisiert...
+                  </>
+                ) : (
+                  'Charge speichern'
+                )}
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     );

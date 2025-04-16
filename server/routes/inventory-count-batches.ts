@@ -5,6 +5,90 @@ import { eq } from 'drizzle-orm';
 
 const router = Router();
 
+// POST /api/product-batches - Neue Charge für ein Produkt erstellen
+router.post('/../product-batches', async (req: Request, res: Response) => {
+  try {
+    const { 
+      productId, 
+      warehouseId, 
+      batchNumber, 
+      expiryDate, 
+      initialQuantity = 0,
+      currentQuantity = 0,
+      notes 
+    } = req.body;
+    
+    if (!productId || !warehouseId) {
+      return res.status(400).json({ error: "Product ID and Warehouse ID are required" });
+    }
+    
+    // Überprüfe, ob das Produkt existiert
+    const productResult = await rawDb.query(
+      `SELECT * FROM products WHERE id = $1`,
+      [productId]
+    );
+    
+    if (productResult.rows.length === 0) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+    
+    // Überprüfe, ob das Lager existiert
+    const warehouseResult = await rawDb.query(
+      `SELECT * FROM warehouses WHERE id = $1`,
+      [warehouseId]
+    );
+    
+    if (warehouseResult.rows.length === 0) {
+      return res.status(404).json({ error: "Warehouse not found" });
+    }
+    
+    // Erstelle die neue Charge
+    const result = await rawDb.query(
+      `INSERT INTO product_batches
+       (product_id, warehouse_id, batch_number, expiry_date, initial_quantity, 
+        current_quantity, notes, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+       RETURNING *`,
+      [
+        productId,
+        warehouseId,
+        batchNumber,
+        expiryDate,
+        initialQuantity,
+        currentQuantity,
+        notes
+      ]
+    );
+    
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(500).json({ error: "Failed to create product batch" });
+    }
+    
+    // Transformiere das Ergebnis in ein sauberes Format
+    const batch = result.rows[0];
+    const formattedBatch = {
+      id: batch.id,
+      productId: batch.product_id,
+      warehouseId: batch.warehouse_id,
+      batchNumber: batch.batch_number,
+      expiryDate: batch.expiry_date,
+      initialQuantity: batch.initial_quantity,
+      currentQuantity: batch.current_quantity,
+      notes: batch.notes,
+      createdAt: batch.created_at,
+      updatedAt: batch.updated_at
+    };
+    
+    res.status(201).json(formattedBatch);
+  } catch (error) {
+    console.error("Error creating product batch:", error);
+    res.status(500).json({ 
+      error: "Failed to create product batch", 
+      details: error instanceof Error ? error.message : String(error) 
+    });
+  }
+});
+
 // GET /api/inventory-counts/:id/product-batches/:productId - Verfügbare Batches für ein Produkt in einer Inventur abrufen
 router.get('/:inventoryCountId/product-batches/:productId', async (req: Request, res: Response) => {
   try {
@@ -71,6 +155,116 @@ router.get('/:inventoryCountId/product-batches/:productId', async (req: Request,
     res.status(500).json({ 
       error: "Failed to fetch product batches for inventory count", 
       details: error instanceof Error ? error.message : String(error) 
+    });
+  }
+});
+
+// POST /api/inventory-counts/items/:id/split - Bestand zwischen Chargen aufteilen
+router.post('/items/:itemId/split', async (req: Request, res: Response) => {
+  try {
+    const itemId = parseInt(req.params.itemId);
+    const { originalBatchId, targetBatchId, splitQuantity } = req.body;
+    
+    if (!itemId) {
+      return res.status(400).json({ error: "Inventory Count Item ID is required" });
+    }
+    
+    if (splitQuantity === null || splitQuantity === undefined || splitQuantity <= 0) {
+      return res.status(400).json({ error: "Valid split quantity is required" });
+    }
+    
+    if (!targetBatchId) {
+      return res.status(400).json({ error: "Target batch ID is required" });
+    }
+    
+    // Holen Sie das Zählelement
+    const inventoryItemResult = await rawDb.query(
+      `SELECT * FROM inventory_count_items_v3 WHERE id = $1`,
+      [itemId]
+    );
+    
+    if (!inventoryItemResult.rows || inventoryItemResult.rows.length === 0) {
+      return res.status(404).json({ error: "Inventory Count Item not found" });
+    }
+    
+    const inventoryItem = inventoryItemResult.rows[0];
+    const currentQuantity = inventoryItem.actual_quantity || 0;
+    
+    if (splitQuantity >= currentQuantity) {
+      return res.status(400).json({ 
+        error: "Split quantity must be less than the current quantity",
+        currentQuantity,
+        splitQuantity
+      });
+    }
+    
+    // Überprüfen Sie, ob die Ziel-Charge existiert
+    const targetBatchResult = await rawDb.query(
+      `SELECT * FROM product_batches WHERE id = $1`,
+      [targetBatchId]
+    );
+    
+    if (!targetBatchResult.rows || targetBatchResult.rows.length === 0) {
+      return res.status(404).json({ error: "Target batch not found" });
+    }
+    
+    // Aktualisieren Sie das bestehende Zählelement
+    await rawDb.query(
+      `UPDATE inventory_count_items_v3 
+       SET actual_quantity = actual_quantity - $1, 
+           difference = (actual_quantity - $1) - expected_quantity,
+           updated_at = NOW()
+       WHERE id = $2`,
+      [splitQuantity, itemId]
+    );
+    
+    // Erstellen Sie ein neues Zählelement für die Ziel-Charge
+    const createItemResult = await rawDb.query(
+      `INSERT INTO inventory_count_items_v3
+       (inventory_count_id, product_id, expected_quantity, actual_quantity, 
+        difference, status, batch_id, created_at, updated_at)
+       VALUES ($1, $2, 0, $3, $3, 'counted', $4, NOW(), NOW())
+       RETURNING *`,
+      [
+        inventoryItem.inventory_count_id,
+        inventoryItem.product_id,
+        splitQuantity,
+        targetBatchId
+      ]
+    );
+    
+    if (!createItemResult.rows || createItemResult.rows.length === 0) {
+      // Fehler beim Erstellen des neuen Elements - Zurückrollen der Änderung
+      await rawDb.query(
+        `UPDATE inventory_count_items_v3 
+         SET actual_quantity = $1, 
+             difference = $1 - expected_quantity,
+             updated_at = NOW()
+         WHERE id = $2`,
+        [currentQuantity, itemId]
+      );
+      
+      return res.status(500).json({ error: "Failed to create new inventory count item" });
+    }
+    
+    res.status(200).json({
+      originalItem: {
+        id: itemId,
+        quantity: currentQuantity - splitQuantity,
+        batchId: originalBatchId
+      },
+      newItem: {
+        id: createItemResult.rows[0].id,
+        quantity: splitQuantity,
+        batchId: targetBatchId
+      },
+      success: true
+    });
+  } catch (error) {
+    console.error('Error splitting inventory item:', error);
+    res.status(500).json({ 
+      error: "Failed to split inventory item",
+      details: error instanceof Error ? error.message : String(error)
     });
   }
 });
