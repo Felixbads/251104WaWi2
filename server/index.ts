@@ -86,11 +86,11 @@ app.use((req, res, next) => {
     
     // Führen wir einen initialen Lagerabgleich beim Start durch
     try {
-      log('Starte initialen Lagerabgleich beim Serverstart (inkl. alle Produkte aus dem Gesamtportfolio)...');
-      reconcileWarehouseProducts(undefined, true, true).then(result => {
+      log('Starte initialen Lagerabgleich beim Serverstart (NUR Produkte aus zugewiesenen Automaten)...');
+      reconcileWarehouseProducts(undefined, false, true).then(result => {
         log(`Initialer Lagerabgleich abgeschlossen: 
         - ${result.productsAdded} neue Produkte aus Automaten zu ${result.warehousesChecked} Lagern hinzugefügt
-        - ${result.allProductsAdded} Produkte aus dem Gesamtportfolio hinzugefügt`);
+        - Keine zusätzlichen Produkte aus dem Gesamtportfolio hinzugefügt, um Duplikate zu vermeiden`);
       }).catch(error => {
         log(`Fehler beim initialen Lagerabgleich: ${error.message}`);
       });

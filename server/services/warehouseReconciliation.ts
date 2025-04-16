@@ -17,12 +17,12 @@ import { rawDb } from "../db";
  * aus dem Gesamtportfolio jedem Lager hinzu, mit Anfangsbestand 0 und einem Batch mit MHD.
  * 
  * @param specificWarehouseId - Optional: Wenn angegeben, wird nur dieses spezifische Lager abgeglichen
- * @param syncAllProducts - Optional: Wenn true, werden alle Produkte aus dem Gesamtportfolio hinzugefügt (standardmäßig true)
+ * @param syncAllProducts - Optional: Wenn true, werden alle Produkte aus dem Gesamtportfolio hinzugefügt (standardmäßig false)
  * @param forceCreateInventoryItems - Optional: Wenn true, werden inventory_items für alle Produkte erstellt, auch wenn sie schon vorgemerkt sind
  */
 export async function reconcileWarehouseProducts(
   specificWarehouseId?: number, 
-  syncAllProducts: boolean = true,
+  syncAllProducts: boolean = false, // Standardwert auf false geändert, um Duplikate zu vermeiden
   forceCreateInventoryItems: boolean = true
 ): Promise<{
   processingTime: number;
