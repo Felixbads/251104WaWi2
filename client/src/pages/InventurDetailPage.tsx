@@ -272,6 +272,11 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
       }
     },
     onSuccess: (updatedItem, variables) => {
+      console.log("✅ Zählerstand erfolgreich aktualisiert:", {
+        itemId: variables.id,
+        countedQuantity: variables.countedQuantity
+      });
+      
       // Explizites Update des lokalen State vor der Invalidierung der Queries
       setEditedCounts(prev => ({
         ...prev,
@@ -295,13 +300,16 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
               console.log("Inventurelement aktualisiert:", {
                 itemId: item.id,
                 alteMenge: item.countedQuantity,
-                neueMenge: variables.countedQuantity
+                neueMenge: variables.countedQuantity,
+                status: variables.countedQuantity !== null ? 'counted' : 'pending'
               });
               return { 
                 ...item, 
                 countedQuantity: variables.countedQuantity,
                 actualQuantity: variables.countedQuantity,
-                status: variables.countedQuantity !== null ? 'counted' : 'pending' 
+                // Aktualisiere Status, wenn ein neuer Zählerstand gesetzt wurde
+                status: variables.countedQuantity !== null ? 'counted' : 'pending',
+                countedAt: variables.countedQuantity !== null ? new Date().toISOString() : null
               };
             }
             return item;
@@ -766,7 +774,9 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
 
   // Setze einen Count-Wert für ein Produkt
   const handleSetCount = (id: number, count: number | null) => {
-    // Speichere den Wert lokal
+    console.log(`Setze Anzahl für Artikel ${id} auf ${count}`);
+    
+    // Speichere den Wert sofort lokal, damit die UI ohne Verzögerung aktualisiert wird
     setEditedCounts({ 
       ...editedCounts, 
       [id]: count 
