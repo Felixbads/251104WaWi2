@@ -131,10 +131,26 @@ router.post('/product-batches', async (req: Request, res: Response) => {
     console.log("Location vorhanden:", hasLocationColumn);
     
     // DIREKTES HINZUFÜGEN DER QUANTITY-SPALTE - REQUIRED FIELD
+    // Überprüfe, ob quantity einen gültigen Wert hat
+    if (quantity === 0 || quantity === null || quantity === undefined || isNaN(quantity)) {
+      console.error("Ungültiger quantity-Wert:", quantity, "Fallback zu initialQuantity:", initialQuantity);
+      if (initialQuantity === 0 || initialQuantity === null || initialQuantity === undefined || isNaN(initialQuantity)) {
+        console.error("Ungültiger initialQuantity-Wert:", initialQuantity);
+        return res.status(400).json({ 
+          error: "Quantity is required and must be a valid positive number", 
+          receivedData: { quantity, initialQuantity }
+        });
+      }
+    }
+
+    // Verwende einen garantiert positiven Wert für quantity
+    const finalQuantity = (quantity > 0) ? quantity : ((initialQuantity > 0) ? initialQuantity : 1);
+    console.log("Finaler Quantity-Wert:", finalQuantity, "Original quantity:", quantity, "initialQuantity:", initialQuantity);
+    
     // Baue die SQL-Abfrage dynamisch auf basierend auf vorhandenen Spalten
     let columnsString = 'product_id, warehouse_id, batch_number, expiry_date, quantity';
     let valuesString = '$1, $2, $3, $4, $5';
-    let valuesArray = [productId, warehouseId, batchNumber, parsedExpiryDate, quantity || initialQuantity]; // Verwende quantity, wenn es vorhanden ist, ansonsten initialQuantity
+    let valuesArray = [productId, warehouseId, batchNumber, parsedExpiryDate, finalQuantity];
     let valueIndex = 6;
     
     // Füge receivedDate hinzu, wenn die Spalte existiert

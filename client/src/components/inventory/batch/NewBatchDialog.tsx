@@ -88,6 +88,13 @@ export default function NewBatchDialog({
       
       // Konvertiere String-IDs zu Zahlen und bereite die Daten für den API-Endpunkt vor
       const quantity = parseInt(data.quantity);
+      
+      // Zusätzliche Validierung der Menge vor dem Senden
+      if (isNaN(quantity) || quantity <= 0) {
+        console.error("Invalid quantity value:", data.quantity);
+        throw new Error("Die Menge muss eine positive Zahl sein");
+      }
+      
       const payload = {
         productId: parseInt(data.productId),
         warehouseId: parseInt(data.warehouseId),
