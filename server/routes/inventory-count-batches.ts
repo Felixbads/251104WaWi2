@@ -167,6 +167,16 @@ router.post('/product-batches', async (req: Request, res: Response) => {
       valuesString += ', NULL';
     }
     
+    // Überprüfe, ob die Tabelle die "quantity"-Spalte enthält (basierend auf der Fehlermeldung)
+    if (columns.includes('quantity')) {
+      columnsString += ', quantity';
+      valuesString += `, $${valueIndex}`;
+      // Verwende die initialQuantity als Standardwert für die quantity-Spalte
+      valuesArray.push(initialQuantity);
+      valueIndex++;
+      console.log("Quantity-Spalte gefunden und hinzugefügt mit Wert:", initialQuantity);
+    }
+    
     // Füge remaining columns hinzu
     columnsString += `, initial_quantity, current_quantity, notes`;
     valuesString += `, $${valueIndex}, $${valueIndex + 1}, $${valueIndex + 2}`;
