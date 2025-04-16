@@ -1,5 +1,5 @@
 import type { Express, Request as ExpressRequest, Response, NextFunction } from "express";
-import { User, insertPurchaseConditionSchema } from '../shared/schema';
+import { User, insertPurchaseConditionSchema, insertInventoryCountItemSchema } from '../shared/schema';
 
 // Erweitern der Request-Schnittstelle zur Unterstützung des user-Objekts
 interface Request extends ExpressRequest {
@@ -790,26 +790,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Inventory count item not found" });
       }
       
-      // Validiere die Anfragedaten
-      const validatedData = insertInventoryCountItemSchema.partial().parse(req.body);
+      console.log(`Inventurzählungselement ${itemId} gefunden, aktualisiere mit Daten:`, req.body);
+      
+      // Validiere die Anfragedaten mit einem angepassten Schema, da das Frontend countedQuantity sendet
+      // aber das Backend actualQuantity erwartet
+      const validationSchema = z.object({
+        countedQuantity: z.number().optional(),
+        notes: z.string().optional(),
+        status: z.string().optional(),
+        countedBy: z.number().optional(),
+        countedAt: z.date().optional()
+      });
+      
+      const validatedInput = validationSchema.parse(req.body);
+      
+      // Erstelle das tatsächliche Update-Objekt
+      const updateData: Partial<InsertInventoryCountItem> = {};
       
       // Wenn countedQuantity geändert wurde, berechnen wir die Differenz neu
-      if (validatedData.countedQuantity !== undefined) {
+      if (validatedInput.countedQuantity !== undefined) {
         // In der Anfrage heißt es countedQuantity, aber im Schema actualQuantity
-        validatedData.actualQuantity = validatedData.countedQuantity;
-        delete validatedData.countedQuantity;
+        updateData.actualQuantity = validatedInput.countedQuantity;
         
         const expectedQty = countItem.expectedQuantity !== null && countItem.expectedQuantity !== undefined ? 
                             countItem.expectedQuantity : 0;
         
-        validatedData.difference = validatedData.actualQuantity - expectedQty;
-        validatedData.status = 'counted';
+        updateData.difference = updateData.actualQuantity - expectedQty;
+        updateData.status = 'counted';
+        updateData.countedAt = new Date();
       }
       
-      // Aktualisiere das Element
-      const updatedItem = await storage.updateInventoryCountItem(itemId, validatedData);
+      // Weitere Felder übernehmen, wenn vorhanden
+      if (validatedInput.notes !== undefined) updateData.notes = validatedInput.notes;
+      if (validatedInput.status !== undefined) updateData.status = validatedInput.status;
+      if (validatedInput.countedBy !== undefined) updateData.countedBy = validatedInput.countedBy;
       
-      console.log(`Inventurzählungselement ${itemId} aktualisiert mit actualQuantity: ${validatedData.actualQuantity}`);
+      // Aktualisiere das Element
+      const updatedItem = await storage.updateInventoryCountItem(itemId, updateData);
+      
+      console.log(`Inventurzählungselement ${itemId} erfolgreich aktualisiert mit actualQuantity: ${updateData.actualQuantity}`);
       return res.json(updatedItem);
     } catch (error) {
       console.error("Error updating inventory count item:", error);
