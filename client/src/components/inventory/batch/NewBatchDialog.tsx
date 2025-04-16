@@ -84,19 +84,18 @@ export default function NewBatchDialog({
   // Mutation zum Erstellen einer neuen Charge
   const createBatchMutation = useMutation({
     mutationFn: async (data: BatchFormData) => {
-      // Konvertiere String-IDs zu Zahlen und behalte Datum im ISO-Format
+      // Konvertiere String-IDs zu Zahlen und bereite die Daten für den API-Endpunkt vor
       const payload = {
-        ...data,
-        warehouseId: parseInt(data.warehouseId),
         productId: parseInt(data.productId),
-        quantity: parseInt(data.quantity),
-        status: "active", // Standardmäßig aktiv
+        warehouseId: parseInt(data.warehouseId),
+        batchNumber: data.batchNumber,
+        expiryDate: data.expiryDate ? format(data.expiryDate, "yyyy-MM-dd") : null,
+        initialQuantity: parseInt(data.quantity),
+        currentQuantity: parseInt(data.quantity),
+        notes: data.notes || null
       };
 
-      return apiRequest('/api/inventory-batches', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
+      return apiRequest('/api/inventory-counts/product-batches', 'POST', payload);
     },
     onSuccess: (data) => {
       setShowSuccessState(true);

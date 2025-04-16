@@ -18,6 +18,8 @@ router.post('/product-batches', async (req: Request, res: Response) => {
       notes 
     } = req.body;
     
+    console.log("POST /api/inventory-counts/product-batches request:", req.body);
+    
     if (!productId || !warehouseId) {
       return res.status(400).json({ error: "Product ID and Warehouse ID are required" });
     }
@@ -52,42 +54,36 @@ router.post('/product-batches', async (req: Request, res: Response) => {
     
     const columns = columnsResult.rows.map(row => row.column_name);
     
+    // Status-Spalte prüfen und Standardwert hinzufügen
+    let statusValue = 'active';
+    let hasStatusColumn = columns.includes('status');
+    let statusParam = hasStatusColumn ? ', status' : '';
+    let statusPlaceholder = hasStatusColumn ? ', $8' : '';
+    
     // Wenn manufacturing_date nicht vorhanden ist, verwenden wir eine angepasste Abfrage
     let result;
     if (!columns.includes('manufacturing_date')) {
       result = await rawDb.query(
         `INSERT INTO product_batches
          (product_id, warehouse_id, batch_number, expiry_date, initial_quantity, 
-          current_quantity, notes, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+          current_quantity, notes${statusParam}, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7${statusPlaceholder}, NOW(), NOW())
          RETURNING *`,
-        [
-          productId,
-          warehouseId,
-          batchNumber,
-          expiryDate,
-          initialQuantity,
-          currentQuantity,
-          notes
-        ]
+        hasStatusColumn 
+          ? [productId, warehouseId, batchNumber, expiryDate, initialQuantity, currentQuantity, notes, statusValue]
+          : [productId, warehouseId, batchNumber, expiryDate, initialQuantity, currentQuantity, notes]
       );
     } else {
       // Standard-Abfrage mit manufacturing_date-Spalte
       result = await rawDb.query(
         `INSERT INTO product_batches
          (product_id, warehouse_id, batch_number, expiry_date, manufacturing_date, initial_quantity, 
-          current_quantity, notes, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, NULL, $5, $6, $7, NOW(), NOW())
+          current_quantity, notes${statusParam}, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, NULL, $5, $6, $7${statusPlaceholder}, NOW(), NOW())
          RETURNING *`,
-        [
-          productId,
-          warehouseId,
-          batchNumber,
-          expiryDate,
-          initialQuantity,
-          currentQuantity,
-          notes
-        ]
+        hasStatusColumn 
+          ? [productId, warehouseId, batchNumber, expiryDate, initialQuantity, currentQuantity, notes, statusValue]
+          : [productId, warehouseId, batchNumber, expiryDate, initialQuantity, currentQuantity, notes]
       );
     }
     
