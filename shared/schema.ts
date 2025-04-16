@@ -1542,6 +1542,7 @@ export const inventoryCountItems = pgTable("inventory_count_items", {
   productId: integer("product_id").notNull().references(() => products.id),
   expectedQuantity: integer("expected_quantity").default(0),
   actualQuantity: integer("actual_quantity"),
+  countedQuantity: integer("counted_quantity"), // Gezählte Menge, die vom Benutzer eingegeben wurde
   difference: integer("difference"),
   notes: text("notes"),
   status: text("status").default("pending"), // pending, counted, adjusted, skipped
@@ -1559,6 +1560,30 @@ export const insertInventoryCountItemSchema = createInsertSchema(inventoryCountI
 
 export type InsertInventoryCountItem = z.infer<typeof insertInventoryCountItemSchema>;
 export type InventoryCountItem = typeof inventoryCountItems.$inferSelect;
+
+// Inventurchargen - Verbindet Inventurpositionen mit Chargen und MHD
+export const inventoryCountBatches = pgTable("inventory_count_batches", {
+  id: serial("id").primaryKey(),
+  inventoryCountItemId: integer("inventory_count_item_id")
+    .notNull()
+    .references(() => inventoryCountItems.id),
+  batchNumber: text("batch_number").notNull(),
+  expiryDate: date("expiry_date"), // MHD-Datum (optional)
+  quantity: integer("quantity").notNull(),
+  notes: text("notes"),
+  status: text("status").default("pending"), // pending, counted, adjusted, transferred
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertInventoryCountBatchSchema = createInsertSchema(inventoryCountBatches).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertInventoryCountBatch = z.infer<typeof insertInventoryCountBatchSchema>;
+export type InventoryCountBatch = typeof inventoryCountBatches.$inferSelect;
 
 // Machine-Warehouse Assignment table
 export const machineWarehouseAssignments = pgTable("machine_warehouse_assignments", {
@@ -1668,7 +1693,7 @@ export const inventoryCountRelations = relations(inventoryCounts, ({ one, many }
   items: many(inventoryCountItems),
 }));
 
-export const inventoryCountItemRelations = relations(inventoryCountItems, ({ one }) => ({
+export const inventoryCountItemRelations = relations(inventoryCountItems, ({ one, many }) => ({
   inventoryCount: one(inventoryCounts, {
     fields: [inventoryCountItems.inventoryCountId],
     references: [inventoryCounts.id],
@@ -1676,6 +1701,14 @@ export const inventoryCountItemRelations = relations(inventoryCountItems, ({ one
   product: one(products, {
     fields: [inventoryCountItems.productId],
     references: [products.id],
+  }),
+  batches: many(inventoryCountBatches),
+}));
+
+export const inventoryCountBatchRelations = relations(inventoryCountBatches, ({ one }) => ({
+  inventoryCountItem: one(inventoryCountItems, {
+    fields: [inventoryCountBatches.inventoryCountItemId],
+    references: [inventoryCountItems.id],
   }),
 }));
 
@@ -1797,6 +1830,7 @@ export const allRelations = {
   machineWarehouseAssignmentRelations,
   inventoryCountRelations,
   inventoryCountItemRelations,
+  inventoryCountBatchRelations,
   productDisposalsRelations,
   productDisposalItemsRelations,
   purchaseConditionsRelations,

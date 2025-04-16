@@ -83,6 +83,7 @@ import InventoryMovementNew from "@/pages/InventoryMovementNew";
 import UserManagement from "@/pages/UserManagement";
 import InventurPage from "@/pages/InventurPage";
 import InventurDetailPage from "@/pages/InventurDetailPage";
+import InventurCreationPage from "@/pages/InventurCreationPage";
 // Neue Lagerbestandsseiten importieren
 import WarehouseInventoryPage from "@/pages/warehouse/WarehouseInventoryPage";
 import WarehouseOverviewPage from "@/pages/warehouse/WarehouseOverviewPage";
@@ -312,6 +313,12 @@ function AuthenticatedRouter() {
         <Route path="/inventur" component={props => (
           <ApprovedUserRoute>
             <InventurPage {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
+        <Route path="/inventur/neu" component={props => (
+          <ApprovedUserRoute>
+            <InventurCreationPage {...props} />
           </ApprovedUserRoute>
         )} />
         
