@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import { db } from '../db';
 import { warehouses } from '@shared/schema';
-import { eq, like, and, or, desc, asc, inArray, ne as neq } from 'drizzle-orm';
+import { eq, like, and, or, desc, asc, inArray, ne } from 'drizzle-orm';
 import { storage } from '../storage';
 
 const router = express.Router();
@@ -233,7 +233,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       const warehouseWithSameName = await db.query.warehouses.findFirst({
         where: and(
           eq(warehouses.name, name),
-          neq(warehouses.id, id) // not equal using neq
+          ne(warehouses.id, id) // not equal using ne
         )
       });
       
