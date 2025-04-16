@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import { useToast } from '@/hooks/use-toast';
+
+// Eigene Funktion für eindeutige IDs
+const generateUniqueId = (): string => {
+  return Date.now().toString() + Math.random().toString(36).substring(2, 9);
+};
 import {
   Dialog,
   DialogContent,
@@ -51,7 +55,7 @@ export default function BatchMultiDialog({
       ? existingBatches
       : [
           {
-            id: uuidv4(),
+            id: generateUniqueId(),
             batchNumber: `INV-${new Date().toISOString().split('T')[0]}-1`,
             expiryDate: null,
             quantity: item.countedQuantity || 0,
@@ -71,7 +75,7 @@ export default function BatchMultiDialog({
   // Batch hinzufügen
   const addBatch = () => {
     const newBatch: BatchEntry = {
-      id: uuidv4(),
+      id: generateUniqueId(),
       batchNumber: `INV-${new Date().toISOString().split('T')[0]}-${batches.length + 1}`,
       expiryDate: null,
       quantity: remainingQuantity > 0 ? remainingQuantity : 0,

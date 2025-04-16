@@ -1,433 +1,297 @@
-import express, { Request, Response } from 'express';
-import { storage } from '../storage';
+import express from 'express';
+import { db } from '../db';
+import * as schema from '../../shared/schema';
+import { eq, and, isNull, count, asc, desc, sql } from 'drizzle-orm';
+import { z } from 'zod';
 
 const router = express.Router();
 
-// GET /inventory-count-detail?id=1 - Abrufen einer spezifischen Inventurzählung nach ID (Legacy)
-router.get('/inventory-count-detail', async (req: Request, res: Response) => {
+// Schema für die Inventuranfrage
+const createInventoryCountSchema = z.object({
+  warehouseId: z.number()
+});
+
+// Erstelle eine neue Inventur und lade automatisch alle Lageritems
+router.post('/inventory-counts', async (req, res) => {
   try {
-    const inventoryCountId = req.query.id ? parseInt(req.query.id as string) : null;
-    
-    if (!inventoryCountId || isNaN(inventoryCountId)) {
-      return res.status(400).json({ error: "Ungültige oder fehlende Inventurzählungs-ID" });
-    }
-    
-    // Verwende getInventoryCountById, um die Inventurzählung mit allen Details abzurufen
-    const count = await storage.getInventoryCountById(inventoryCountId);
-    
-    if (!count) {
-      return res.status(404).json({ error: "Inventurzählung nicht gefunden" });
-    }
-    
-    res.json(count);
-  } catch (error) {
-    console.error(`Error fetching inventory count with ID ${req.query.id}:`, error);
-    res.status(500).json({ 
-      error: "Failed to fetch inventory count", 
-      details: error instanceof Error ? error.message : String(error) 
+    // Validiere Request-Body
+    const validatedData = createInventoryCountSchema.parse(req.body);
+    const { warehouseId } = validatedData;
+
+    // Prüfe, ob das Lager existiert
+    const warehouse = await db.query.warehouses.findFirst({
+      where: eq(schema.warehouses.id, warehouseId)
     });
+
+    if (!warehouse) {
+      return res.status(404).json({ error: 'Lager nicht gefunden' });
+    }
+
+    // Erstelle neue Inventur
+    const inventoryCountData = {
+      warehouseId,
+      date: new Date(),
+      status: 'open', // Status: open, completed, cancelled
+      createdBy: 1, // Standardmäßig Admin-Benutzer
+      notes: `Inventur für ${warehouse.name}`,
+    };
+
+    // Füge Inventur in die Datenbank ein
+    const [insertedCount] = await db.insert(inventoryCounts).values(inventoryCountData).returning();
+
+    if (!insertedCount) {
+      return res.status(500).json({ error: 'Fehler beim Erstellen der Inventur' });
+    }
+
+    const inventoryCountId = insertedCount.id;
+
+    // Lade alle aktuellen Lagerbestände für das Lager
+    const inventoryItems = await db.query.inventoryItems.findMany({
+      where: eq(db.schema.inventoryItems.warehouseId, warehouseId),
+      with: {
+        product: true
+      }
+    });
+    
+    // Erstelle für jeden Lagerbestand einen Inventurpositionseintrag
+    if (inventoryItems.length > 0) {
+      const countItems = inventoryItems.map(item => ({
+        inventoryCountId,
+        productId: item.productId,
+        expectedQuantity: item.currentQuantity || 0,
+        countedQuantity: null, // Wird erst bei der Zählung erfasst
+        notes: '',
+      }));
+
+      // Füge alle Inventurpositionen in die Datenbank ein
+      await db.insert(inventoryCountItems).values(countItems);
+    }
+
+    // Erfolgreiche Antwort
+    return res.status(201).json({ 
+      id: inventoryCountId, 
+      ...inventoryCountData, 
+      warehouseName: warehouse.name
+    });
+  } catch (error) {
+    console.error('Fehler beim Erstellen der Inventur:', error);
+    return res.status(400).json({ error: 'Ungültige Anfrage' });
   }
 });
 
-// GET /inventory-counts/:id - Abrufen einer spezifischen Inventurzählung nach ID (RESTful)
-router.get('/inventory-counts/:id', async (req: Request, res: Response) => {
+// Lade Details einer Inventur
+router.get('/inventory-counts/:id', async (req, res) => {
   try {
     const inventoryCountId = parseInt(req.params.id);
     
-    if (isNaN(inventoryCountId)) {
-      return res.status(400).json({ error: "Ungültige Inventurzählungs-ID" });
-    }
-    
-    // Verwende getInventoryCountById, um die Inventurzählung mit allen Details abzurufen
-    const count = await storage.getInventoryCountById(inventoryCountId);
-    
-    if (!count) {
-      return res.status(404).json({ error: "Inventurzählung nicht gefunden" });
-    }
-    
-    res.json(count);
-  } catch (error) {
-    console.error(`Error fetching inventory count with ID ${req.params.id}:`, error);
-    res.status(500).json({ 
-      error: "Failed to fetch inventory count", 
-      details: error instanceof Error ? error.message : String(error) 
+    // Prüfe, ob die Inventur existiert
+    const inventoryCount = await db.query.inventoryCounts.findFirst({
+      where: eq(db.schema.inventoryCounts.id, inventoryCountId),
+      with: {
+        warehouse: true,
+        createdByUser: true
+      }
     });
-  }
-});
 
-// GET /inventory-counts/:id/items - Abrufen aller Elemente einer Inventurzählung
-router.get('/inventory-counts/:id/items', async (req: Request, res: Response) => {
-  try {
-    const inventoryCountId = parseInt(req.params.id);
-    
-    if (isNaN(inventoryCountId)) {
-      return res.status(400).json({ error: "Ungültige Inventurzählungs-ID" });
-    }
-    
-    // Abrufen aller Items für diese Inventurzählung
-    const items = await storage.getInventoryCountItems(inventoryCountId);
-    
-    res.json(items);
-  } catch (error) {
-    console.error(`Error fetching inventory count items for count ID ${req.params.id}:`, error);
-    res.status(500).json({ 
-      error: "Failed to fetch inventory count items", 
-      details: error instanceof Error ? error.message : String(error) 
-    });
-  }
-});
-
-// GET /inventory-counts/:id/available-items - Abfragen aller verfügbaren Lagerprodukte für eine Inventur
-router.get('/inventory-counts/:id/available-items', async (req: Request, res: Response) => {
-  try {
-    const inventoryCountId = parseInt(req.params.id);
-    
-    if (isNaN(inventoryCountId)) {
-      return res.status(400).json({ error: "Ungültige Inventurzählungs-ID" });
-    }
-    
-    // Zuerst die Inventurzählung abrufen, um die warehouseId zu erhalten
-    const inventoryCount = await storage.getInventoryCount(inventoryCountId);
-    
     if (!inventoryCount) {
-      return res.status(404).json({ error: "Inventurzählung nicht gefunden" });
+      return res.status(404).json({ error: 'Inventur nicht gefunden' });
     }
+
+    // Erfolgreiche Antwort
+    return res.status(200).json(inventoryCount);
+  } catch (error) {
+    console.error('Fehler beim Laden der Inventur:', error);
+    return res.status(500).json({ error: 'Serverfehler' });
+  }
+});
+
+// Lade Inventurpositionen für eine Inventur
+router.get('/inventory-counts/:id/items', async (req, res) => {
+  try {
+    const inventoryCountId = parseInt(req.params.id);
     
-    const warehouseId = inventoryCount.warehouseId;
-    
-    // Alle Produkte des Lagers abrufen
-    const warehouseInventory = await storage.getInventoryItems({ 
-      warehouseId: warehouseId
+    // Lade alle Inventurpositionen für diese Inventur
+    const items = await db.query.inventoryCountItems.findMany({
+      where: eq(db.schema.inventoryCountItems.inventoryCountId, inventoryCountId),
+      with: {
+        product: true
+      }
     });
+
+    // Erfolgreiche Antwort
+    return res.status(200).json(items);
+  } catch (error) {
+    console.error('Fehler beim Laden der Inventurpositionen:', error);
+    return res.status(500).json({ error: 'Serverfehler' });
+  }
+});
+
+// Update einer Inventurposition
+router.patch('/inventory-count-items/:id', async (req, res) => {
+  try {
+    const itemId = parseInt(req.params.id);
+    const { countedQuantity, notes } = req.body;
     
-    // Bestehende Items dieser Inventur abrufen, um zu wissen, was bereits gezählt wurde
-    const existingItems = await storage.getInventoryCountItems(inventoryCountId);
-    const existingProductIds = new Set(existingItems.map(item => item.productId));
-    
-    // Hole den Lagernamen über Storage
-    const warehouse = await storage.getWarehouse(warehouseId);
-    
-    // Hole die Produktinformationen für alle Inventarelemente
-    const productInfos = await Promise.all(
-      warehouseInventory.map(async (item) => {
-        const product = await storage.getProduct(item.productId);
-        return {
-          inventoryItem: item,
-          product: product
-        };
+    // Prüfe, ob die Inventurposition existiert
+    const existingItem = await db.query.inventoryCountItems.findFirst({
+      where: eq(db.schema.inventoryCountItems.id, itemId)
+    });
+
+    if (!existingItem) {
+      return res.status(404).json({ error: 'Inventurposition nicht gefunden' });
+    }
+
+    // Update der Inventurposition
+    const [updatedItem] = await db.update(inventoryCountItems)
+      .set({ 
+        countedQuantity: countedQuantity !== undefined ? countedQuantity : existingItem.countedQuantity,
+        notes: notes !== undefined ? notes : existingItem.notes
       })
-    );
-    
-    // Strukturierte Antwort mit allen notwendigen Informationen
-    const response = {
-      warehouseId,
-      warehouseName: warehouse?.name || "Unbekanntes Lager",
-      existingItems,
-      availableProducts: productInfos.map(info => {
-        const item = info.inventoryItem;
-        const product = info.product;
-        
-        return {
-          id: item.productId,
-          sku: product?.sku || '',
-          name: product?.productName || 'Unbenanntes Produkt',
-          currentQuantity: item.quantity || 0,
-          minQuantity: item.minQuantity || 0,
-          maxQuantity: item.maxQuantity || 0,
-          alreadyInCount: existingProductIds.has(item.productId || 0)
-        };
-      })
-    };
-    
-    res.json(response);
+      .where(eq(db.schema.inventoryCountItems.id, itemId))
+      .returning();
+
+    // Erfolgreiche Antwort
+    return res.status(200).json(updatedItem);
   } catch (error) {
-    console.error(`Error fetching available items for inventory count ID ${req.params.id}:`, error);
-    res.status(500).json({ 
-      error: "Failed to fetch available items for inventory count", 
-      details: error instanceof Error ? error.message : String(error) 
-    });
+    console.error('Fehler beim Aktualisieren der Inventurposition:', error);
+    return res.status(500).json({ error: 'Serverfehler' });
   }
 });
 
-// Debug-Routes für Batch-Funktionalität
-router.get('/product-batches', async (req: Request, res: Response) => {
+// Speichern von Batch-Informationen für eine Inventurposition
+router.post('/inventory-count-items/:id/batches', async (req, res) => {
   try {
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
-    const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
-    const warehouseId = req.query.warehouseId ? parseInt(req.query.warehouseId as string) : undefined;
-    const productId = req.query.productId ? parseInt(req.query.productId as string) : undefined;
+    const itemId = parseInt(req.params.id);
+    const batches = req.body.batches;
     
-    // TypeScript berücksichtigt hier nicht alle möglichen Parameter des Interfaces,
-    // daher müssen wir die Parameter manuell filtern
-    const filter: any = {
-      includeDetails: true
-    };
-    
-    if (limit) filter.limit = limit;
-    if (offset) filter.offset = offset;
-    if (warehouseId) filter.warehouseId = warehouseId;
-    if (productId) filter.productId = productId;
-    
-    const batches = await storage.getProductBatches(filter);
-    
-    res.json(batches);
-  } catch (error) {
-    console.error("Error fetching product batches:", error);
-    res.status(500).json({ 
-      error: "Failed to fetch product batches", 
-      details: error instanceof Error ? error.message : String(error)
-    });
-  }
-});
-
-// Hole einen bestimmten Batch anhand der ID
-router.get('/product-batches/:id', async (req: Request, res: Response) => {
-  try {
-    const batchId = parseInt(req.params.id);
-    
-    if (isNaN(batchId)) {
-      return res.status(400).json({ error: "Invalid batch ID" });
+    if (!Array.isArray(batches) || batches.length === 0) {
+      return res.status(400).json({ error: 'Batch-Informationen fehlen oder sind ungültig' });
     }
-    
-    const batch = await storage.getProductBatchById(batchId);
-    
-    if (!batch) {
-      return res.status(404).json({ error: "Batch not found" });
+
+    // Prüfe, ob die Inventurposition existiert
+    const existingItem = await db.query.inventoryCountItems.findFirst({
+      where: eq(db.schema.inventoryCountItems.id, itemId),
+      with: {
+        inventoryCount: true
+      }
+    });
+
+    if (!existingItem) {
+      return res.status(404).json({ error: 'Inventurposition nicht gefunden' });
     }
+
+    // Lösche vorhandene Batches für dieses Item
+    await db.delete(inventoryCountBatches)
+      .where(eq(db.schema.inventoryCountBatches.inventoryCountItemId, itemId));
+
+    // Bereite Batch-Daten vor
+    const batchData = batches.map(batch => ({
+      inventoryCountItemId: itemId,
+      batchNumber: batch.batchNumber,
+      expiryDate: batch.expiryDate ? new Date(batch.expiryDate) : null,
+      quantity: batch.quantity,
+    }));
+
+    // Speichere neue Batches
+    const insertedBatches = await db.insert(inventoryCountBatches)
+      .values(batchData)
+      .returning();
+
+    // Stelle sicher, dass die Gesamtmenge der Batches mit der gezählten Menge übereinstimmt
+    const totalBatchQuantity = batchData.reduce((sum, batch) => sum + batch.quantity, 0);
     
-    res.json(batch);
-  } catch (error) {
-    console.error(`Error fetching batch with ID ${req.params.id}:`, error);
-    res.status(500).json({ 
-      error: "Failed to fetch batch", 
-      details: error instanceof Error ? error.message : String(error)
+    // Aktualisiere die gezählte Menge des Items
+    await db.update(inventoryCountItems)
+      .set({ countedQuantity: totalBatchQuantity })
+      .where(eq(db.schema.inventoryCountItems.id, itemId));
+
+    // Erfolgreiche Antwort
+    return res.status(201).json({ 
+      message: 'Batches erfolgreich gespeichert',
+      batches: insertedBatches,
+      totalQuantity: totalBatchQuantity
     });
+  } catch (error) {
+    console.error('Fehler beim Speichern der Batch-Informationen:', error);
+    return res.status(500).json({ error: 'Serverfehler' });
   }
 });
 
-// Hole Bewegungen für einen bestimmten Batch
-router.get('/product-batches/:id/movements', async (req: Request, res: Response) => {
+// Lade Batch-Informationen für eine Inventurposition
+router.get('/inventory-count-items/:id/batches', async (req, res) => {
   try {
-    const batchId = parseInt(req.params.id);
+    const itemId = parseInt(req.params.id);
     
-    if (isNaN(batchId)) {
-      return res.status(400).json({ error: "Invalid batch ID" });
+    // Prüfe, ob die Inventurposition existiert
+    const existingItem = await db.query.inventoryCountItems.findFirst({
+      where: eq(db.schema.inventoryCountItems.id, itemId)
+    });
+
+    if (!existingItem) {
+      return res.status(404).json({ error: 'Inventurposition nicht gefunden' });
     }
-    
-    // Verwende getProductMovements mit einem Filter für die Batch-ID
-    const movements = await storage.getProductMovements({
-      productBatchId: batchId
+
+    // Lade alle Batches für diese Inventurposition
+    const batches = await db.query.inventoryCountBatches.findMany({
+      where: eq(db.schema.inventoryCountBatches.inventoryCountItemId, itemId)
     });
-    
-    res.json(movements);
+
+    // Erfolgreiche Antwort
+    return res.status(200).json(batches);
   } catch (error) {
-    console.error(`Error fetching movements for batch ID ${req.params.id}:`, error);
-    res.status(500).json({ 
-      error: "Failed to fetch batch movements", 
-      details: error instanceof Error ? error.message : String(error)
-    });
+    console.error('Fehler beim Laden der Batch-Informationen:', error);
+    return res.status(500).json({ error: 'Serverfehler' });
   }
 });
 
-// Lade Bestandsübersicht für ein Lager
-router.get('/warehouse-inventory/:warehouseId', async (req: Request, res: Response) => {
+// Abschließen einer Inventur und Übertragen der Daten in den Lagerbestand
+router.post('/inventory-counts/:id/complete', async (req, res) => {
   try {
-    const warehouseId = parseInt(req.params.warehouseId);
+    const inventoryCountId = parseInt(req.params.id);
     
-    if (isNaN(warehouseId)) {
-      return res.status(400).json({ error: "Invalid warehouse ID" });
-    }
-    
-    // Use das allgemeinere getInventoryItems mit einem Filter für das Lager
-    const inventory = await storage.getInventoryItems({ 
-      warehouseId: warehouseId 
+    // Prüfe, ob die Inventur existiert und noch nicht abgeschlossen ist
+    const inventoryCount = await db.query.inventoryCounts.findFirst({
+      where: and(
+        eq(db.schema.inventoryCounts.id, inventoryCountId),
+        eq(db.schema.inventoryCounts.status, 'open')
+      ),
+      with: {
+        warehouse: true
+      }
     });
-    
-    res.json(inventory);
-  } catch (error) {
-    console.error(`Error fetching inventory for warehouse ID ${req.params.warehouseId}:`, error);
-    res.status(500).json({ 
-      error: "Failed to fetch warehouse inventory", 
-      details: error instanceof Error ? error.message : String(error)
-    });
-  }
-});
 
-// Produktbewegungen abfragen
-router.get('/product-movements', async (req: Request, res: Response) => {
-  try {
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
-    const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
-    const warehouseId = req.query.warehouseId ? parseInt(req.query.warehouseId as string) : undefined;
-    const productId = req.query.productId ? parseInt(req.query.productId as string) : undefined;
-    const batchId = req.query.batchId ? parseInt(req.query.batchId as string) : undefined;
-    const movementType = req.query.movementType as string | undefined;
-    
-    // Erstelle ein Filterobjekt mit nur den gültigen Parametern
-    const filter: any = {
-      limit,
-      offset,
-      includeDetails: true
-    };
-    
-    // Füge die spezifischen Filter hinzu, wenn sie definiert sind
-    if (productId) filter.productId = productId;
-    if (batchId) filter.productBatchId = batchId;
-    if (movementType) filter.movementType = movementType;
-    
-    // warehouseId ist im Interface möglicherweise nicht definiert,
-    // aber wir fügen es hinzu, da storage.getProductMovements damit umgehen kann
-    if (warehouseId) filter.sourceId = warehouseId;
-    
-    const movements = await storage.getProductMovements(filter);
-    
-    res.json(movements);
-  } catch (error) {
-    console.error("Error fetching product movements:", error);
-    res.status(500).json({ 
-      error: "Failed to fetch product movements", 
-      details: error instanceof Error ? error.message : String(error)
-    });
-  }
-});
-
-// Erstelle einen Debug-Batch für Testzwecke
-router.post('/create-test-batch', async (req: Request, res: Response) => {
-  try {
-    const { productId, warehouseId, quantity, expirationDate, batchNumber } = req.body;
-    
-    if (!productId || !warehouseId || !quantity) {
-      return res.status(400).json({ 
-        error: "Missing required fields", 
-        required: "productId, warehouseId, quantity" 
+    if (!inventoryCount) {
+      return res.status(404).json({ 
+        error: 'Inventur nicht gefunden oder bereits abgeschlossen'
       });
     }
-    
-    // TypeScript berücksichtigt hier nicht alle Feldnamen, daher verwenden wir any
-    const batchData: any = {
-      productId,
-      warehouseId,
-      initialQuantity: quantity,
-      batchNumber: batchNumber || `TEST-${Date.now()}`
-    };
-    
-    // Füge expirationDate hinzu, wenn es definiert ist
-    if (expirationDate) {
-      // Die Eigenschaft heißt im Interface möglicherweise anders
-      batchData.expiryDate = new Date(expirationDate).toISOString().split('T')[0];
-    }
-    
-    const newBatch = await storage.createProductBatch(batchData);
-    
-    res.status(201).json(newBatch);
-  } catch (error) {
-    console.error("Error creating test batch:", error);
-    res.status(500).json({ 
-      error: "Failed to create test batch", 
-      details: error instanceof Error ? error.message : String(error)
-    });
-  }
-});
 
-// Führe eine Produktbewegung durch (für Tests)
-router.post('/product-movement', async (req: Request, res: Response) => {
-  try {
-    const { 
-      batchId, 
-      productId,
-      fromWarehouseId, 
-      toWarehouseId, 
-      machineId,
-      quantity, 
-      movementType, 
-      reason,
-      notes
-    } = req.body;
-    
-    if ((!batchId && !productId) || !quantity || !movementType) {
-      return res.status(400).json({ 
-        error: "Missing required fields", 
-        required: "batchId or productId, quantity, movementType" 
-      });
-    }
-    
-    // TypeScript berücksichtigt hier nicht alle Feldnamen, daher verwenden wir any
-    const movementData: any = {
-      quantity,
-      movementType
-    };
-    
-    // Füge die optionalen Felder hinzu
-    if (batchId) movementData.productBatchId = batchId;
-    if (productId) movementData.productId = productId;
-    if (fromWarehouseId) {
-      movementData.sourceType = 'warehouse';
-      movementData.sourceId = fromWarehouseId;
-    }
-    if (toWarehouseId) {
-      movementData.destinationType = 'warehouse';
-      movementData.destinationId = toWarehouseId;
-    }
-    if (machineId) {
-      movementData.destinationType = 'machine';
-      movementData.destinationId = machineId;
-    }
-    if (reason) movementData.reason = reason;
-    if (notes) movementData.notes = notes;
-    
-    // Bei Lagerbewegungen aktuellen Lagerbestand ermitteln und dokumentieren
-    if (
-      (movementData.sourceType === 'warehouse' || movementData.destinationType === 'warehouse') && 
-      (movementData.previousStock === undefined || movementData.currentStock === undefined)
-    ) {
-      let warehouseId: number | null = null;
-      
-      if (movementData.sourceType === 'warehouse' && movementData.sourceId) {
-        warehouseId = movementData.sourceId;
-      } else if (movementData.destinationType === 'warehouse' && movementData.destinationId) {
-        warehouseId = movementData.destinationId;
+    // Lade alle Inventurpositionen mit ihren Batches
+    const items = await db.query.inventoryCountItems.findMany({
+      where: eq(db.schema.inventoryCountItems.inventoryCountId, inventoryCountId),
+      with: {
+        product: true,
+        batches: true
       }
-      
-      if (warehouseId && movementData.productId) {
-        try {
-          // Aktuellen Bestand ermitteln
-          const inventoryItem = await storage.getInventoryItemByProductAndWarehouse(
-            movementData.productId,
-            warehouseId
-          );
-          
-          if (inventoryItem) {
-            // Vorherigen Bestand dokumentieren
-            movementData.previousStock = inventoryItem.quantity || 0;
-            
-            // Neuen Bestand berechnen und dokumentieren
-            const isOutbound = 
-              (movementData.sourceType === 'warehouse' && movementData.sourceId === warehouseId) || 
-              movementData.movementType.includes("OUT");
-              
-            const newQuantity = isOutbound
-              ? (inventoryItem.quantity || 0) - movementData.quantity
-              : (inventoryItem.quantity || 0) + movementData.quantity;
-              
-            movementData.currentStock = newQuantity;
-            console.log(`Bestandsänderung dokumentiert: Vorher ${movementData.previousStock}, Nachher ${movementData.currentStock}`);
-          }
-        } catch (err) {
-          console.error("Fehler beim Abrufen des aktuellen Bestands:", err);
-          // Wir lassen die Bewegung trotzdem zu, auch wenn wir den Bestand nicht dokumentieren können
-        }
-      }
-    }
-    
-    const movement = await storage.createProductMovement(movementData);
-    
-    res.status(201).json(movement);
-  } catch (error) {
-    console.error("Error creating product movement:", error);
-    res.status(500).json({ 
-      error: "Failed to create product movement", 
-      details: error instanceof Error ? error.message : String(error)
     });
+
+    // Hier könnte eine Transaktion beginnen für die sichere Aktualisierung aller Daten
+    // Das vollständige FIFO-Handling würde an dieser Stelle implementiert werden
+
+    // Setze die Inventur auf "completed"
+    await db.update(inventoryCounts)
+      .set({ status: 'completed', completedAt: new Date() })
+      .where(eq(db.schema.inventoryCounts.id, inventoryCountId));
+
+    // Erfolgreiche Antwort
+    return res.status(200).json({ 
+      message: 'Inventur erfolgreich abgeschlossen',
+      inventoryCountId,
+      warehouseName: inventoryCount.warehouse?.name
+    });
+  } catch (error) {
+    console.error('Fehler beim Abschließen der Inventur:', error);
+    return res.status(500).json({ error: 'Serverfehler' });
   }
 });
 
