@@ -271,11 +271,24 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
         [variables.id]: variables.countedQuantity
       }));
       
-      // Verzögerte Invalidierung der Queries, um sicherzustellen, dass die UI-Änderungen zuerst angewendet werden
+      // Aktualisiere die Daten im QueryClient Cache direkt
+      queryClient.setQueryData(
+        [`/api/inventory-counts/${id}/items`],
+        (oldData: any) => {
+          if (!oldData) return oldData;
+          return oldData.map((item: any) => 
+            item.id === variables.id 
+              ? { ...item, countedQuantity: variables.countedQuantity } 
+              : item
+          );
+        }
+      );
+      
+      // Verzögerte Invalidierung der Queries, nur um sicherzustellen, dass alle Daten frisch sind
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}/items`] });
         queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}`] });
-      }, 10);
+      }, 300);
       
       toast({
         title: "Zählerstand aktualisiert",
