@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
@@ -6,7 +6,8 @@ import { useToast } from '@/hooks/use-toast';
 import {
   ArrowLeft, Save, ClipboardCheck, Calendar, CheckCircle2, XCircle,
   Pencil, AlertTriangle, Package, Search, Plus, Minus, RefreshCw,
-  MoreHorizontal, Ban, ClockIcon, TrendingUp, TrendingDown, Equal
+  MoreHorizontal, Ban, ClockIcon, TrendingUp, TrendingDown, Equal,
+  ChevronDown, ChevronUp, ChevronRight, Split
 } from 'lucide-react';
 
 // Interface-Definitionen für die Datentypen
