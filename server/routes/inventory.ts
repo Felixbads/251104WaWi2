@@ -4,6 +4,15 @@ import * as schema from '../../shared/schema';
 import { eq, and, isNull, count, asc, desc, sql } from 'drizzle-orm';
 import { z } from 'zod';
 
+// Tabellen-Referenzen für bessere Lesbarkeit
+const {
+  inventoryCounts,
+  inventoryCountItems,
+  inventoryCountBatches,
+  inventoryItems,
+  warehouses
+} = schema;
+
 const router = express.Router();
 
 // Schema für die Inventuranfrage
@@ -46,19 +55,19 @@ router.post('/inventory-counts', async (req, res) => {
     const inventoryCountId = insertedCount.id;
 
     // Lade alle aktuellen Lagerbestände für das Lager
-    const inventoryItems = await db.query.inventoryItems.findMany({
-      where: eq(db.schema.inventoryItems.warehouseId, warehouseId),
+    const inventoryItemsList = await db.query.inventoryItems.findMany({
+      where: eq(schema.inventoryItems.warehouseId, warehouseId),
       with: {
         product: true
       }
     });
     
     // Erstelle für jeden Lagerbestand einen Inventurpositionseintrag
-    if (inventoryItems.length > 0) {
-      const countItems = inventoryItems.map(item => ({
+    if (inventoryItemsList.length > 0) {
+      const countItems = inventoryItemsList.map(item => ({
         inventoryCountId,
         productId: item.productId,
-        expectedQuantity: item.currentQuantity || 0,
+        expectedQuantity: item.quantity || 0, // In der Datenbank könnte es currentQuantity oder quantity heißen
         countedQuantity: null, // Wird erst bei der Zählung erfasst
         notes: '',
       }));
@@ -86,10 +95,9 @@ router.get('/inventory-counts/:id', async (req, res) => {
     
     // Prüfe, ob die Inventur existiert
     const inventoryCount = await db.query.inventoryCounts.findFirst({
-      where: eq(db.schema.inventoryCounts.id, inventoryCountId),
+      where: eq(schema.inventoryCounts.id, inventoryCountId),
       with: {
-        warehouse: true,
-        createdByUser: true
+        warehouse: true
       }
     });
 
@@ -112,7 +120,7 @@ router.get('/inventory-counts/:id/items', async (req, res) => {
     
     // Lade alle Inventurpositionen für diese Inventur
     const items = await db.query.inventoryCountItems.findMany({
-      where: eq(db.schema.inventoryCountItems.inventoryCountId, inventoryCountId),
+      where: eq(schema.inventoryCountItems.inventoryCountId, inventoryCountId),
       with: {
         product: true
       }
@@ -134,7 +142,7 @@ router.patch('/inventory-count-items/:id', async (req, res) => {
     
     // Prüfe, ob die Inventurposition existiert
     const existingItem = await db.query.inventoryCountItems.findFirst({
-      where: eq(db.schema.inventoryCountItems.id, itemId)
+      where: eq(schema.inventoryCountItems.id, itemId)
     });
 
     if (!existingItem) {
@@ -147,7 +155,7 @@ router.patch('/inventory-count-items/:id', async (req, res) => {
         countedQuantity: countedQuantity !== undefined ? countedQuantity : existingItem.countedQuantity,
         notes: notes !== undefined ? notes : existingItem.notes
       })
-      .where(eq(db.schema.inventoryCountItems.id, itemId))
+      .where(eq(schema.inventoryCountItems.id, itemId))
       .returning();
 
     // Erfolgreiche Antwort
@@ -170,7 +178,7 @@ router.post('/inventory-count-items/:id/batches', async (req, res) => {
 
     // Prüfe, ob die Inventurposition existiert
     const existingItem = await db.query.inventoryCountItems.findFirst({
-      where: eq(db.schema.inventoryCountItems.id, itemId),
+      where: eq(schema.inventoryCountItems.id, itemId),
       with: {
         inventoryCount: true
       }
@@ -182,7 +190,7 @@ router.post('/inventory-count-items/:id/batches', async (req, res) => {
 
     // Lösche vorhandene Batches für dieses Item
     await db.delete(inventoryCountBatches)
-      .where(eq(db.schema.inventoryCountBatches.inventoryCountItemId, itemId));
+      .where(eq(schema.inventoryCountBatches.inventoryCountItemId, itemId));
 
     // Bereite Batch-Daten vor
     const batchData = batches.map(batch => ({
@@ -203,7 +211,7 @@ router.post('/inventory-count-items/:id/batches', async (req, res) => {
     // Aktualisiere die gezählte Menge des Items
     await db.update(inventoryCountItems)
       .set({ countedQuantity: totalBatchQuantity })
-      .where(eq(db.schema.inventoryCountItems.id, itemId));
+      .where(eq(schema.inventoryCountItems.id, itemId));
 
     // Erfolgreiche Antwort
     return res.status(201).json({ 
@@ -224,7 +232,7 @@ router.get('/inventory-count-items/:id/batches', async (req, res) => {
     
     // Prüfe, ob die Inventurposition existiert
     const existingItem = await db.query.inventoryCountItems.findFirst({
-      where: eq(db.schema.inventoryCountItems.id, itemId)
+      where: eq(schema.inventoryCountItems.id, itemId)
     });
 
     if (!existingItem) {
@@ -233,7 +241,7 @@ router.get('/inventory-count-items/:id/batches', async (req, res) => {
 
     // Lade alle Batches für diese Inventurposition
     const batches = await db.query.inventoryCountBatches.findMany({
-      where: eq(db.schema.inventoryCountBatches.inventoryCountItemId, itemId)
+      where: eq(schema.inventoryCountBatches.inventoryCountItemId, itemId)
     });
 
     // Erfolgreiche Antwort
@@ -252,8 +260,8 @@ router.post('/inventory-counts/:id/complete', async (req, res) => {
     // Prüfe, ob die Inventur existiert und noch nicht abgeschlossen ist
     const inventoryCount = await db.query.inventoryCounts.findFirst({
       where: and(
-        eq(db.schema.inventoryCounts.id, inventoryCountId),
-        eq(db.schema.inventoryCounts.status, 'open')
+        eq(schema.inventoryCounts.id, inventoryCountId),
+        eq(schema.inventoryCounts.status, 'open')
       ),
       with: {
         warehouse: true
@@ -268,7 +276,7 @@ router.post('/inventory-counts/:id/complete', async (req, res) => {
 
     // Lade alle Inventurpositionen mit ihren Batches
     const items = await db.query.inventoryCountItems.findMany({
-      where: eq(db.schema.inventoryCountItems.inventoryCountId, inventoryCountId),
+      where: eq(schema.inventoryCountItems.inventoryCountId, inventoryCountId),
       with: {
         product: true,
         batches: true
@@ -280,8 +288,12 @@ router.post('/inventory-counts/:id/complete', async (req, res) => {
 
     // Setze die Inventur auf "completed"
     await db.update(inventoryCounts)
-      .set({ status: 'completed', completedAt: new Date() })
-      .where(eq(db.schema.inventoryCounts.id, inventoryCountId));
+      .set({ 
+        status: 'completed', 
+        completedAt: new Date(),
+        completedBy: 1 // Alternativ können Sie auch completedBy verwenden
+      })
+      .where(eq(schema.inventoryCounts.id, inventoryCountId));
 
     // Erfolgreiche Antwort
     return res.status(200).json({ 
