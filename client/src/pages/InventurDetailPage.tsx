@@ -183,6 +183,12 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
   
   // Batch-Daten für aktuelles Produkt
   const [availableBatches, setAvailableBatches] = useState<ProductBatch[]>([]);
+  
+  // State für aufklappbare MHD-Zeilen
+  const [expandedItems, setExpandedItems] = useState<{[key: number]: boolean}>({}); 
+  
+  // State für die MHD-Split-Funktion
+  const [isSplitMode, setIsSplitMode] = useState(false);
 
   // Lade Inventurinformationen
   const { 
@@ -1683,169 +1689,303 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                     }
                     
                     return (
-                      <TableRow key={item.id}>
-                        <TableCell>
-                          <div className="font-medium">{item.product?.productName || 'Unbekanntes Produkt'}</div>
-                          <div className="text-xs text-muted-foreground">{item.product?.sku || '-'}</div>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {expectedQuantity} {item.product?.unit || 'Stk.'}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {currentStatus === 'pending' || currentStatus === 'in_progress' ? (
-                            <div className="flex justify-center items-center space-x-2">
-                              <Input
-                                type="number" 
-                                min="0"
-                                value={editedCounts[item.id] !== undefined ? editedCounts[item.id] ?? '' : countedQuantity ?? ''}
-                                onChange={(e) => {
-                                  const count = e.target.value === '' ? null : Math.max(0, parseInt(e.target.value) || 0);
-                                  setEditedCounts({ ...editedCounts, [item.id]: count });
+                      <React.Fragment key={item.id}>
+                        {/* Hauptzeile für das Produkt */}
+                        <TableRow className={item.status === 'counted' ? 'bg-muted/20' : ''}>
+                          <TableCell>
+                            <div className="flex items-center">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 p-0 mr-2"
+                                onClick={() => {
+                                  setExpandedItems(prev => {
+                                    // Toggle den Status des Items
+                                    const newState = { ...prev };
+                                    newState[item.id] = !prev[item.id];
+                                    return newState;
+                                  });
                                 }}
-                                className="w-20 text-center"
-                              />
+                              >
+                                {expandedItems[item.id] ? (
+                                  <ChevronDown className="h-4 w-4" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4" />
+                                )}
+                              </Button>
+                              <div>
+                                <div className="font-medium">{item.product?.productName || 'Unbekanntes Produkt'}</div>
+                                <div className="text-xs text-muted-foreground">{item.product?.sku || '-'}</div>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {expectedQuantity} {item.product?.unit || 'Stk.'}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {currentStatus === 'pending' || currentStatus === 'in_progress' ? (
+                              <div className="flex justify-center items-center space-x-2">
+                                <Input
+                                  type="number" 
+                                  min="0"
+                                  value={editedCounts[item.id] !== undefined ? editedCounts[item.id] ?? '' : countedQuantity ?? ''}
+                                  onChange={(e) => {
+                                    const count = e.target.value === '' ? null : Math.max(0, parseInt(e.target.value) || 0);
+                                    setEditedCounts({ ...editedCounts, [item.id]: count });
+                                  }}
+                                  className="w-20 text-center"
+                                />
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => {
+                                    if (editedCounts[item.id] !== undefined) {
+                                      handleSetCount(item.id, editedCounts[item.id]);
+                                      
+                                      // Wert im Feld behalten nach dem Speichern
+                                      setEditedCounts(prevCounts => ({
+                                        ...prevCounts,
+                                        [item.id]: editedCounts[item.id]
+                                      }));
+                                      
+                                      toast({
+                                        title: "Gespeichert",
+                                        description: `Menge ${editedCounts[item.id]} für ${item.productName} gespeichert.`,
+                                        duration: 3000
+                                      });
+                                    }
+                                  }}
+                                  className="flex-shrink-0"
+                                >
+                                  <Save className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <span>{countedQuantity !== null ? `${countedQuantity} ${item.product?.unit || 'Stk.'}` : '-'}</span>
+                            )}
+                          </TableCell>
+                          <TableCell className={`text-center ${differenceClass}`}>
+                            {difference !== null ? (
+                              <div className="flex items-center justify-center">
+                                {differenceIcon}
+                                {difference > 0 ? '+' : ''}{difference} {item.product?.unit || 'Stk.'}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {(currentStatus === 'pending' || currentStatus === 'in_progress') ? (
                               <Button 
                                 variant="outline" 
+                                size="sm" 
+                                className="whitespace-nowrap"
+                                onClick={() => {
+                                  openBatchDialog(item);
+                                  // Automatisch expandieren, wenn MHD-Dialog geöffnet wird
+                                  setExpandedItems(prev => ({
+                                    ...prev,
+                                    [item.id]: true
+                                  }));
+                                }}
+                              >
+                                <span className="text-muted-foreground">MHD hinzufügen</span>
+                                <Calendar className="h-4 w-4 ml-2" />
+                              </Button>
+                            ) : (
+                              <Button 
+                                variant="ghost" 
                                 size="sm"
                                 onClick={() => {
-                                  if (editedCounts[item.id] !== undefined) {
-                                    handleSetCount(item.id, editedCounts[item.id]);
-                                    toast({
-                                      title: "Gespeichert",
-                                      description: `Menge ${editedCounts[item.id]} für ${item.productName} gespeichert.`,
-                                      duration: 3000
-                                    });
+                                  setExpandedItems(prev => ({
+                                    ...prev,
+                                    [item.id]: !prev[item.id]
+                                  }));
+                                }}
+                              >
+                                <span className="text-muted-foreground text-xs">MHD anzeigen</span>
+                                {expandedItems[item.id] ? (
+                                  <ChevronUp className="h-4 w-4 ml-1" />
+                                ) : (
+                                  <ChevronDown className="h-4 w-4 ml-1" />
+                                )}
+                              </Button>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {currentStatus === 'pending' || currentStatus === 'in_progress' ? (
+                              <Input
+                                placeholder="Notizen eintragen..."
+                                value={editedNotes[item.id] !== undefined ? editedNotes[item.id] : item.notes || ''}
+                                onChange={(e) => {
+                                  setEditedNotes({ ...editedNotes, [item.id]: e.target.value });
+                                }}
+                                onBlur={() => {
+                                  if (editedNotes[item.id] !== undefined) {
+                                    handleUpdateNotes(item.id, editedNotes[item.id]);
                                   }
                                 }}
-                                className="flex-shrink-0"
-                              >
-                                <Save className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <span>{countedQuantity !== null ? `${countedQuantity} ${item.product?.unit || 'Stk.'}` : '-'}</span>
-                          )}
-                        </TableCell>
-                        <TableCell className={`text-center ${differenceClass}`}>
-                          {difference !== null ? (
-                            <div className="flex items-center justify-center">
-                              {differenceIcon}
-                              {difference > 0 ? '+' : ''}{difference} {item.product?.unit || 'Stk.'}
-                            </div>
-                          ) : (
-                            <span className="text-gray-400">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {(currentStatus === 'pending' || currentStatus === 'in_progress') ? (
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="whitespace-nowrap"
-                              onClick={() => openBatchDialog(item)}
-                            >
-                              {item.batchId ? (
-                                <>
-                                  {item.batch?.expiryDate ? (
-                                    <Badge variant={
-                                      new Date(item.batch.expiryDate) < new Date() ? "destructive" : 
-                                      new Date(item.batch.expiryDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? "warning" : 
-                                      "outline"
-                                    }>
-                                      {new Intl.DateTimeFormat('de-DE', {
-                                        year: 'numeric',
-                                        month: '2-digit',
-                                        day: '2-digit'
-                                      }).format(new Date(item.batch.expiryDate))}
-                                    </Badge>
-                                  ) : (
-                                    <span>Charge: {item.batch?.batchNumber || 'Unbekannt'}</span>
-                                  )}
-                                </>
-                              ) : (
-                                <span className="text-muted-foreground">MHD auswählen</span>
-                              )}
-                              <Calendar className="h-4 w-4 ml-2" />
-                            </Button>
-                          ) : (
-                            item.batch?.expiryDate ? (
-                              <Badge variant={
-                                new Date(item.batch.expiryDate) < new Date() ? "destructive" : 
-                                new Date(item.batch.expiryDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? "warning" : 
-                                "outline"
-                              }>
-                                {new Intl.DateTimeFormat('de-DE', {
-                                  year: 'numeric',
-                                  month: '2-digit',
-                                  day: '2-digit'
-                                }).format(new Date(item.batch.expiryDate))}
-                              </Badge>
+                                className="w-full text-sm"
+                              />
                             ) : (
-                              <span className="text-muted-foreground text-xs">Kein MHD</span>
-                            )
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {currentStatus === 'pending' || currentStatus === 'in_progress' ? (
-                            <Input
-                              placeholder="Notizen eintragen..."
-                              value={editedNotes[item.id] !== undefined ? editedNotes[item.id] : item.notes || ''}
-                              onChange={(e) => {
-                                setEditedNotes({ ...editedNotes, [item.id]: e.target.value });
-                              }}
-                              onBlur={() => {
-                                if (editedNotes[item.id] !== undefined) {
-                                  handleUpdateNotes(item.id, editedNotes[item.id]);
-                                }
-                              }}
-                              className="w-full text-sm"
-                            />
-                          ) : (
-                            <span className="text-sm">{item.notes || '-'}</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              {(currentStatus === 'pending' || currentStatus === 'in_progress') && (
-                                <>
-                                  <DropdownMenuItem onClick={() => handleSetCount(item.id, expectedQuantity)}>
-                                    <Equal className="h-4 w-4 mr-2" />
-                                    Erwartete Menge bestätigen
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleSetCount(item.id, Math.max(0, expectedQuantity - 1))}>
-                                    <Minus className="h-4 w-4 mr-2" />
-                                    Menge verringern
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => handleSetCount(item.id, expectedQuantity + 1)}>
-                                    <Plus className="h-4 w-4 mr-2" />
-                                    Menge erhöhen
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem onClick={() => openBatchDialog(item)}>
-                                    <Calendar className="h-4 w-4 mr-2" />
-                                    {item.batchId ? 'MHD/Charge ändern' : 'MHD/Charge auswählen'}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                </>
-                              )}
-                              
-                              <DropdownMenuItem 
-                                onClick={() => setLocation(`/produkte/${item.product?.id}`)}
-                                disabled={!item.product?.id}
-                              >
-                                <Pencil className="h-4 w-4 mr-2" />
-                                Produkt ansehen
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
+                              <span className="text-sm">{item.notes || '-'}</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {(currentStatus === 'pending' || currentStatus === 'in_progress') && (
+                                  <>
+                                    <DropdownMenuItem onClick={() => handleSetCount(item.id, expectedQuantity)}>
+                                      <Equal className="h-4 w-4 mr-2" />
+                                      Erwartete Menge bestätigen
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleSetCount(item.id, Math.max(0, expectedQuantity - 1))}>
+                                      <Minus className="h-4 w-4 mr-2" />
+                                      Menge verringern
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleSetCount(item.id, expectedQuantity + 1)}>
+                                      <Plus className="h-4 w-4 mr-2" />
+                                      Menge erhöhen
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem 
+                                      onClick={() => {
+                                        openBatchDialog(item);
+                                        setExpandedItems(prev => ({
+                                          ...prev,
+                                          [item.id]: true
+                                        }));
+                                      }}
+                                    >
+                                      <Calendar className="h-4 w-4 mr-2" />
+                                      MHD hinzufügen
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => {
+                                        setExpandedItems(prev => ({
+                                          ...prev,
+                                          [item.id]: !prev[item.id]
+                                        }));
+                                      }}
+                                    >
+                                      {expandedItems[item.id] ? (
+                                        <>
+                                          <ChevronUp className="h-4 w-4 mr-2" />
+                                          Details ausblenden
+                                        </>
+                                      ) : (
+                                        <>
+                                          <ChevronDown className="h-4 w-4 mr-2" />
+                                          Details anzeigen
+                                        </>
+                                      )}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                  </>
+                                )}
+                                
+                                <DropdownMenuItem 
+                                  onClick={() => setLocation(`/produkte/${item.product?.id}`)}
+                                  disabled={!item.product?.id}
+                                >
+                                  <Pencil className="h-4 w-4 mr-2" />
+                                  Produkt ansehen
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                        
+                        {/* Detailzeilen für MHDs, wenn expanded */}
+                        {expandedItems[item.id] && (
+                          <>
+                            {/* MHD-Zeilen, falls vorhanden */}
+                            {item.batch?.expiryDate ? (
+                              <TableRow className="bg-muted/10">
+                                <TableCell colSpan={2} className="pl-10">
+                                  <div className="flex items-center">
+                                    <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
+                                    <span className="text-sm font-medium">MHD: {new Intl.DateTimeFormat('de-DE', {
+                                      year: 'numeric',
+                                      month: '2-digit',
+                                      day: '2-digit'
+                                    }).format(new Date(item.batch.expiryDate))}</span>
+                                    <Badge 
+                                      className="ml-2" 
+                                      variant={
+                                        new Date(item.batch.expiryDate) < new Date() ? "destructive" : 
+                                        new Date(item.batch.expiryDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? "warning" : 
+                                        "outline"
+                                      }
+                                    >
+                                      {new Date(item.batch.expiryDate) < new Date() ? 'Abgelaufen' : 
+                                       new Date(item.batch.expiryDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) ? 'Läuft bald ab' : 
+                                       'Gültig'}
+                                    </Badge>
+                                  </div>
+                                </TableCell>
+                                <TableCell colSpan={3} className="text-center">
+                                  <span className="text-sm">
+                                    Menge: {countedQuantity || 0} {item.product?.unit || 'Stk.'}
+                                  </span>
+                                </TableCell>
+                                <TableCell colSpan={2}>
+                                  <span className="text-sm text-muted-foreground">
+                                    Charge: {item.batch?.batchNumber || '-'}
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            ) : (
+                              <TableRow className="bg-muted/10">
+                                <TableCell colSpan={7} className="text-center py-3">
+                                  <div className="flex flex-col items-center justify-center">
+                                    <span className="text-muted-foreground text-sm mb-2">Kein MHD für dieses Produkt hinterlegt</span>
+                                    {(currentStatus === 'pending' || currentStatus === 'in_progress') && (
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        onClick={() => openBatchDialog(item)}
+                                        className="mt-1"
+                                      >
+                                        <Calendar className="h-4 w-4 mr-2" />
+                                        MHD jetzt hinzufügen
+                                      </Button>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                            
+                            {/* Zeile für MHD-Aufteilung, wenn in Bearbeitung */}
+                            {(currentStatus === 'pending' || currentStatus === 'in_progress') && countedQuantity && countedQuantity > 0 && (
+                              <TableRow className="bg-muted/5 border-t border-dashed border-muted">
+                                <TableCell colSpan={7} className="text-center py-2">
+                                  <div className="flex items-center justify-center space-x-2">
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm" 
+                                      onClick={() => {
+                                        setIsSplitMode(true);
+                                        openBatchDialog(item);
+                                      }}
+                                      className="text-xs"
+                                    >
+                                      <Split className="h-3 w-3 mr-1" />
+                                      Bestand auf weiteres MHD aufteilen
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </>
+                        )}
+                      </React.Fragment>
                     );
                   })
                 )}
