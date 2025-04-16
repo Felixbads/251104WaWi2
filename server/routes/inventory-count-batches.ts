@@ -20,7 +20,10 @@ router.post('/product-batches', async (req: Request, res: Response) => {
       notes 
     } = req.body;
     
-    console.log("POST /api/inventory-counts/product-batches request:", req.body);
+    console.log("POST /api/inventory-counts/product-batches request:", JSON.stringify(req.body, null, 2));
+    console.log("expiryDate type:", typeof expiryDate, "value:", expiryDate);
+    console.log("receivedDate type:", typeof receivedDate, "value:", receivedDate);
+    console.log("locationInWarehouse type:", typeof locationInWarehouse, "value:", locationInWarehouse);
     
     if (!productId || !warehouseId) {
       return res.status(400).json({ error: "Product ID and Warehouse ID are required" });
