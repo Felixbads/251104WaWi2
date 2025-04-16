@@ -5,8 +5,8 @@ import { eq } from 'drizzle-orm';
 
 const router = Router();
 
-// POST /api/product-batches - Neue Charge für ein Produkt erstellen
-router.post('/../product-batches', async (req: Request, res: Response) => {
+// POST /api/inventory-counts/product-batches - Neue Charge für ein Produkt erstellen
+router.post('/product-batches', async (req: Request, res: Response) => {
   try {
     const { 
       productId, 
