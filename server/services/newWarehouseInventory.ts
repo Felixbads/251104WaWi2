@@ -131,23 +131,25 @@ export async function getWarehouseInventory(warehouseId: number): Promise<Invent
     const query = `
       SELECT 
         i.id,
-        $1 as warehouse_id,
+        i.warehouse_id,
         p.id as product_id,
         p.product_name,
         COALESCE(i.quantity, 0) as quantity,
         COALESCE(i.min_quantity, 5) as min_quantity,
         p.price,
         (SELECT COUNT(*) FROM product_batches pb 
-          WHERE pb.product_id = p.id AND pb.warehouse_id = $1) as batch_count,
+          WHERE pb.product_id = p.id AND pb.warehouse_id = i.warehouse_id) as batch_count,
         (SELECT MAX(im.performed_at) FROM inventory_movements im 
           WHERE im.product_id = p.id AND 
-            (im.source_warehouse_id = $1 OR 
-             im.destination_warehouse_id = $1)) as last_movement_date,
+            (im.source_warehouse_id = i.warehouse_id OR 
+             im.destination_warehouse_id = i.warehouse_id)) as last_movement_date,
         CASE WHEN COALESCE(i.quantity, 0) <= COALESCE(i.min_quantity, 5) THEN true ELSE false END as is_critical
       FROM 
-        products p
-      LEFT JOIN 
-        inventory_items i ON i.product_id = p.id AND i.warehouse_id = $1
+        inventory_items i
+      JOIN 
+        products p ON i.product_id = p.id
+      WHERE 
+        i.warehouse_id = $1
       ORDER BY 
         p.product_name ASC
     `;
