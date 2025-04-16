@@ -28,7 +28,7 @@ router.get('/', async (req: Request, res: Response) => {
         p.sku as sku,
         p.vendon_id as vendon_id,
         p.barcode as barcode,
-        p.unit as unit,
+        p.units as unit,
         COALESCE(ib.incoming_date, ib.created_at::text) as received_date
       FROM 
         inventory_batches ib
@@ -98,7 +98,7 @@ router.get('/:id', async (req: Request, res: Response) => {
         p.sku as sku,
         p.vendon_id as vendon_id,
         p.barcode as barcode,
-        p.unit as unit,
+        p.units as unit,
         COALESCE(ib.incoming_date, ib.created_at::text) as received_date
       FROM 
         inventory_batches ib
@@ -206,7 +206,7 @@ router.get('/product/:productId/warehouse/:warehouseId', async (req: Request, re
         p.sku as sku,
         p.vendon_id as vendon_id,
         p.barcode as barcode,
-        p.unit as unit,
+        p.units as unit,
         COALESCE(ib.incoming_date, ib.created_at::text) as received_date
       FROM 
         inventory_batches ib
