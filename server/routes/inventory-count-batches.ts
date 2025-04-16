@@ -95,8 +95,13 @@ router.get('/:inventoryCountId/product-batches/:productId', async (req: Request,
     const inventoryCountId = parseInt(req.params.inventoryCountId);
     const productId = parseInt(req.params.productId);
     
-    if (!inventoryCountId || !productId) {
-      return res.status(400).json({ error: "Inventory Count ID and Product ID are required" });
+    if (!inventoryCountId) {
+      return res.status(400).json({ error: "Inventory Count ID is required" });
+    }
+    
+    // Wenn keine gültige Produkt-ID vorhanden ist, geben wir eine leere Liste zurück
+    if (!productId || isNaN(productId)) {
+      return res.status(200).json([]);
     }
     
     // Überprüfe, ob die Inventurzählung existiert
