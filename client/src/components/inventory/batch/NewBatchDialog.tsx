@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { format } from 'date-fns';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
 import {
@@ -114,6 +114,16 @@ export default function NewBatchDialog({
       return apiRequest('/api/inventory-counts/product-batches', 'POST', payload);
     },
     onSuccess: (data) => {
+      console.log("Charge erfolgreich erstellt:", data);
+      
+      // Invalidiere den Cache für alle Produkt-Batch-Abfragen, damit die neue Charge angezeigt wird
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const queryKey = query.queryKey[0];
+          return typeof queryKey === 'string' && queryKey.includes('/api/inventory-counts/') && queryKey.includes('/product-batches/');
+        }
+      });
+      
       setShowSuccessState(true);
       setTimeout(() => {
         setShowSuccessState(false);
