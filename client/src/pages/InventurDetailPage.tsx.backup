@@ -957,6 +957,7 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                 <div className="space-y-2">
                   <Label htmlFor="expiryDate">Mindesthaltbarkeitsdatum (MHD)</Label>
                   <div className="space-y-3">
+                    {/* Direktes Datumseingabefeld */}
                     <input
                       type="date"
                       id="datePicker"
@@ -968,6 +969,7 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                       }}
                     />
                     
+                    {/* Schnellauswahl-Buttons */}
                     <div className="space-y-2">
                       <Label>MHD Schnellauswahl</Label>
                       <div className="flex flex-wrap gap-2">
