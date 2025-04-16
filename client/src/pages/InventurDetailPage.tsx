@@ -836,10 +836,12 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
             productId: selectedItem.productId,
             warehouseId: inventurData.warehouseId,
             batchNumber: newBatchNumber || `INV-${new Date().toISOString().slice(0, 10)}`,
-            expiryDate: newExpiryDate,
-            initialQuantity: 0, // Wird über Inventur aktualisiert
-            currentQuantity: 0, // Wird über Inventur aktualisiert
-            notes: `Erstellt bei Inventur #${id}`
+            expiryDate: newExpiryDate ? newExpiryDate.toISOString().split('T')[0] : null,
+            initialQuantity: newBatchQuantity || 0,
+            currentQuantity: newBatchQuantity || 0,
+            notes: `Erstellt bei Inventur #${id}`,
+            receivedDate: new Date().toISOString().split('T')[0],
+            locationInWarehouse: null
           }),
         });
         
