@@ -164,6 +164,7 @@ const handleError = (error: unknown) => {
   return null; // Wir geben null zurück, um Fehler nicht weiterzupropagieren
 };
 
+// Exportiere queryClient für die Verwendung in Komponenten
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
