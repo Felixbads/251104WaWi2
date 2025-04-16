@@ -69,11 +69,11 @@ export default function NewBatchDialog({
   const form = useForm<BatchFormData>({
     resolver: zodResolver(batchSchema),
     defaultValues: {
-      warehouseId: '',
+      warehouseId: warehouses.length === 1 ? warehouses[0]?.id?.toString() : '',
       productId: '',
       quantity: '',
       batchNumber: '',
-      expiryDate: undefined,
+      expiryDate: new Date(new Date().setMonth(new Date().getMonth() + 3)), // 3 Monate in der Zukunft als Standard-MHD
       incomingDate: new Date(), // Standardmäßig das heutige Datum
       supplierBatchNumber: '',
       locationInWarehouse: '',
@@ -251,8 +251,12 @@ export default function NewBatchDialog({
                           <Calendar
                             mode="single"
                             selected={field.value}
-                            onSelect={field.onChange}
-                            disabled={(date) => date < new Date()}
+                            onSelect={(date) => {
+                              field.onChange(date);
+                              console.log("Date selected:", date);
+                            }}
+                            // Für MHD sollten zukünftige Daten erlaubt sein, entferne die Einschränkung
+                            disabled={false}
                             initialFocus
                           />
                         </PopoverContent>
@@ -289,7 +293,11 @@ export default function NewBatchDialog({
                           <Calendar
                             mode="single"
                             selected={field.value}
-                            onSelect={field.onChange}
+                            onSelect={(date) => {
+                              field.onChange(date);
+                              console.log("Eingangsdatum selected:", date);
+                            }}
+                            // Für Eingangsdatum nur Daten bis heute erlauben
                             disabled={(date) => date > new Date()}
                             initialFocus
                           />
