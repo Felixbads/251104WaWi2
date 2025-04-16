@@ -25,39 +25,98 @@ router.post('/product-batches', async (req: Request, res: Response) => {
     console.log("receivedDate type:", typeof receivedDate, "value:", receivedDate);
     console.log("locationInWarehouse type:", typeof locationInWarehouse, "value:", locationInWarehouse);
     
+    // Validiere Eingabedaten
     if (!productId || !warehouseId) {
-      return res.status(400).json({ error: "Product ID and Warehouse ID are required" });
+      console.error("Validation error: Product ID or Warehouse ID missing", { productId, warehouseId });
+      return res.status(400).json({ 
+        error: "Product ID and Warehouse ID are required",
+        receivedData: { productId, warehouseId }
+      });
+    }
+    
+    // Behandle potenzielle Probleme mit expiryDate
+    let parsedExpiryDate = null;
+    if (expiryDate) {
+      try {
+        // Versuche, das Datum zu parsen, um sicherzustellen, dass es ein gültiges Format hat
+        parsedExpiryDate = new Date(expiryDate);
+        console.log("Parsed expiry date:", parsedExpiryDate, "Valid:", !isNaN(parsedExpiryDate.getTime()));
+        
+        // Überprüfe, ob das Datum gültig ist
+        if (isNaN(parsedExpiryDate.getTime())) {
+          console.warn("Warning: Invalid expiry date format received:", expiryDate);
+          parsedExpiryDate = null;
+        } else {
+          // Formatiere das Datum im Format YYYY-MM-DD für PostgreSQL
+          parsedExpiryDate = parsedExpiryDate.toISOString().split('T')[0];
+        }
+      } catch (dateError) {
+        console.error("Error parsing expiry date:", dateError);
+        parsedExpiryDate = null;
+      }
     }
     
     // Überprüfe, ob das Produkt existiert
-    const productResult = await rawDb.query(
-      `SELECT * FROM products WHERE id = $1`,
-      [productId]
-    );
-    
-    if (productResult.rows.length === 0) {
-      return res.status(404).json({ error: "Product not found" });
+    try {
+      const productResult = await rawDb.query(
+        `SELECT * FROM products WHERE id = $1`,
+        [productId]
+      );
+      
+      if (productResult.rows.length === 0) {
+        console.error("Product not found:", productId);
+        return res.status(404).json({ error: "Product not found", productId });
+      }
+      
+      console.log("Product found:", productResult.rows[0].product_name);
+    } catch (dbError) {
+      console.error("Database error while checking product:", dbError);
+      return res.status(500).json({ 
+        error: "Database error while checking product", 
+        details: dbError instanceof Error ? dbError.message : String(dbError)
+      });
     }
     
     // Überprüfe, ob das Lager existiert
-    const warehouseResult = await rawDb.query(
-      `SELECT * FROM warehouses WHERE id = $1`,
-      [warehouseId]
-    );
-    
-    if (warehouseResult.rows.length === 0) {
-      return res.status(404).json({ error: "Warehouse not found" });
+    try {
+      const warehouseResult = await rawDb.query(
+        `SELECT * FROM warehouses WHERE id = $1`,
+        [warehouseId]
+      );
+      
+      if (warehouseResult.rows.length === 0) {
+        console.error("Warehouse not found:", warehouseId);
+        return res.status(404).json({ error: "Warehouse not found", warehouseId });
+      }
+      
+      console.log("Warehouse found:", warehouseResult.rows[0].name);
+    } catch (dbError) {
+      console.error("Database error while checking warehouse:", dbError);
+      return res.status(500).json({ 
+        error: "Database error while checking warehouse", 
+        details: dbError instanceof Error ? dbError.message : String(dbError)
+      });
     }
     
     // Erstelle die neue Charge
     // Prüfen, welche Spalten in der Tabelle vorhanden sind, um Fehler zu vermeiden
-    const columnsResult = await rawDb.query(
-      `SELECT column_name 
-       FROM information_schema.columns 
-       WHERE table_name = 'product_batches'`
-    );
-    
-    const columns = columnsResult.rows.map(row => row.column_name);
+    let columns = [];
+    try {
+      const columnsResult = await rawDb.query(
+        `SELECT column_name 
+         FROM information_schema.columns 
+         WHERE table_name = 'product_batches'`
+      );
+      
+      columns = columnsResult.rows.map(row => row.column_name);
+      console.log("Verfügbare Spalten in product_batches:", columns);
+    } catch (dbError) {
+      console.error("Error getting table columns:", dbError);
+      return res.status(500).json({ 
+        error: "Failed to get database schema", 
+        details: dbError instanceof Error ? dbError.message : String(dbError)
+      });
+    }
     
     // Status-Spalte prüfen und Standardwert hinzufügen
     let statusValue = 'active';
@@ -67,21 +126,30 @@ router.post('/product-batches', async (req: Request, res: Response) => {
     let hasReceivedDateColumn = columns.includes('received_date');
     let hasLocationColumn = columns.includes('location_in_warehouse');
     
-    console.log("Verfügbare Spalten in product_batches:", columns);
     console.log("Received Date vorhanden:", hasReceivedDateColumn);
     console.log("Location vorhanden:", hasLocationColumn);
     
     // Baue die SQL-Abfrage dynamisch auf basierend auf vorhandenen Spalten
     let columnsString = 'product_id, warehouse_id, batch_number, expiry_date';
     let valuesString = '$1, $2, $3, $4';
-    let valuesArray = [productId, warehouseId, batchNumber, expiryDate];
+    let valuesArray = [productId, warehouseId, batchNumber, parsedExpiryDate];
     let valueIndex = 5;
     
     // Füge receivedDate hinzu, wenn die Spalte existiert
     if (hasReceivedDateColumn) {
       columnsString += ', received_date';
       valuesString += `, $${valueIndex}`;
-      valuesArray.push(receivedDate || new Date());
+      
+      // Stelle sicher, dass receivedDate korrekt formatiert ist
+      let formattedReceivedDate;
+      try {
+        formattedReceivedDate = receivedDate ? new Date(receivedDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+      } catch (dateError) {
+        console.warn("Error parsing received date, using current date:", dateError);
+        formattedReceivedDate = new Date().toISOString().split('T')[0];
+      }
+      
+      valuesArray.push(formattedReceivedDate);
       valueIndex++;
     }
     
@@ -117,20 +185,34 @@ router.post('/product-batches', async (req: Request, res: Response) => {
     columnsString += ', created_at, updated_at';
     valuesString += ', NOW(), NOW()';
     
+    console.log("SQL-Abfrage zum Erstellen der Charge:");
     console.log("SQL Columns:", columnsString);
     console.log("SQL Values:", valuesString);
     console.log("Values Array:", valuesArray);
     
     // Führe die SQL-Abfrage aus
-    const result = await rawDb.query(
-      `INSERT INTO product_batches (${columnsString})
-       VALUES (${valuesString})
-       RETURNING *`,
-      valuesArray
-    );
-    
-    if (!result.rows || result.rows.length === 0) {
-      return res.status(500).json({ error: "Failed to create product batch" });
+    let result;
+    try {
+      result = await rawDb.query(
+        `INSERT INTO product_batches (${columnsString})
+         VALUES (${valuesString})
+         RETURNING *`,
+        valuesArray
+      );
+      
+      if (!result.rows || result.rows.length === 0) {
+        return res.status(500).json({ 
+          error: "Failed to create product batch, no rows returned", 
+          sqlInfo: { columnsString, valuesString }
+        });
+      }
+    } catch (dbError) {
+      console.error("Error executing insert query:", dbError);
+      return res.status(500).json({ 
+        error: "Database error while creating product batch", 
+        details: dbError instanceof Error ? dbError.message : String(dbError),
+        sqlInfo: { columnsString, valuesString }
+      });
     }
     
     // Transformiere das Ergebnis in ein sauberes Format
@@ -150,9 +232,10 @@ router.post('/product-batches', async (req: Request, res: Response) => {
       updatedAt: batch.updated_at
     };
     
+    console.log("Batch successfully created:", formattedBatch.id);
     res.status(201).json(formattedBatch);
   } catch (error) {
-    console.error("Error creating product batch:", error);
+    console.error("Unexpected error creating product batch:", error);
     res.status(500).json({ 
       error: "Failed to create product batch", 
       details: error instanceof Error ? error.message : String(error) 

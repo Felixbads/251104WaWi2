@@ -851,7 +851,40 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
     
     // Erstellt eine neue Charge mit MHD
     const createNewBatch = async () => {
-      if (!selectedItem || !selectedItem.productId) return;
+      if (!selectedItem || !selectedItem.productId) {
+        console.error("Kein Produkt ausgewählt oder Produkt hat keine ID");
+        toast({
+          title: "Fehler",
+          description: "Kein gültiges Produkt ausgewählt.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Formatiere das Datum richtig für die Anfrage
+      let formattedExpiryDate = null;
+      if (newExpiryDate) {
+        // Stelle sicher, dass das Datum korrekt formatiert ist: YYYY-MM-DD
+        formattedExpiryDate = newExpiryDate instanceof Date 
+          ? newExpiryDate.toISOString().split('T')[0] 
+          : null;
+        
+        console.log("Formatiertes Datum für API-Anfrage:", formattedExpiryDate);
+      }
+      
+      const batchData = {
+        productId: selectedItem.productId,
+        warehouseId: inventurData.warehouseId,
+        batchNumber: newBatchNumber || `INV-${new Date().toISOString().split('T')[0]}`,
+        expiryDate: formattedExpiryDate,
+        initialQuantity: newBatchQuantity || 0,
+        currentQuantity: newBatchQuantity || 0,
+        notes: `Erstellt bei Inventur #${id}`,
+        receivedDate: new Date().toISOString().split('T')[0],
+        locationInWarehouse: null
+      };
+      
+      console.log("Sende Batch-Daten:", JSON.stringify(batchData, null, 2));
       
       try {
         // Erstelle neue Charge API-Anfrage
@@ -860,24 +893,25 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            productId: selectedItem.productId,
-            warehouseId: inventurData.warehouseId,
-            batchNumber: newBatchNumber || `INV-${new Date().toISOString().slice(0, 10)}`,
-            expiryDate: newExpiryDate ? newExpiryDate.toISOString().split('T')[0] : null,
-            initialQuantity: newBatchQuantity || 0,
-            currentQuantity: newBatchQuantity || 0,
-            notes: `Erstellt bei Inventur #${id}`,
-            receivedDate: new Date().toISOString().split('T')[0],
-            locationInWarehouse: null
-          }),
+          body: JSON.stringify(batchData),
         });
         
+        // Überprüfe auf detailliertere Fehlermeldungen
         if (!response.ok) {
-          throw new Error(`Fehler beim Erstellen: ${response.status}`);
+          const errorText = await response.text();
+          let errorData;
+          
+          try {
+            errorData = JSON.parse(errorText);
+            throw new Error(errorData.details || errorData.error || `Serverfehler: ${response.status}`);
+          } catch (parseError) {
+            // Wenn JSON-Parse fehlschlägt, verwende den Rohtext
+            throw new Error(`Serverfehler (${response.status}): ${errorText.substring(0, 200)}`);
+          }
         }
         
         const newBatch = await response.json();
+        console.log("Neue Charge erstellt:", newBatch);
         
         // Aktualisiere die Batches-Liste
         setAvailableBatches(prev => [...prev, newBatch]);
@@ -893,10 +927,11 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
           description: "Die Charge wurde erfolgreich erstellt."
         });
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Unbekannter Fehler";
         console.error('Fehler beim Erstellen einer neuen Charge:', error);
         toast({
           title: "Fehler",
-          description: "Die Charge konnte nicht erstellt werden.",
+          description: `Die Charge konnte nicht erstellt werden: ${errorMessage}`,
           variant: "destructive"
         });
       }
