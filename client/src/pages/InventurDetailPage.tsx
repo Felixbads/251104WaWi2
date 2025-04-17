@@ -1415,10 +1415,10 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                   Wird hinzugefügt...
                 </div>
               ) : (
-                <>
+                <div className="flex items-center">
                   <Plus className="h-4 w-4 mr-2" />
                   {selectedProductIds.length} Produkte hinzufügen
-                </>
+                </div>
               )}
             </Button>
           </DialogFooter>
@@ -1605,15 +1605,15 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
               disabled={completeInventurMutation.isPending}
             >
               {completeInventurMutation.isPending ? (
-                <>
+                <div className="flex items-center">
                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                   Wird abgeschlossen...
-                </>
+                </div>
               ) : (
-                <>
+                <div className="flex items-center">
                   <CheckCircle2 className="h-4 w-4 mr-2" />
                   Inventur abschließen
-                </>
+                </div>
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1644,15 +1644,15 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
               className="bg-red-600 hover:bg-red-700"
             >
               {deleteInventurMutation.isPending ? (
-                <>
+                <div className="flex items-center">
                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                   Wird gelöscht...
-                </>
+                </div>
               ) : (
-                <>
+                <div className="flex items-center">
                   <Trash2 className="h-4 w-4 mr-2" />
                   Inventur löschen
-                </>
+                </div>
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -1815,7 +1815,7 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
               {isLoadingItems ? (
                 <Skeleton className="h-20 w-full" />
               ) : (
-                <>
+                <div className="space-y-2">
                   <div>
                     <p className="text-sm font-medium text-gray-500">Gezählte Produkte</p>
                     <p className="font-medium">
@@ -1850,7 +1850,7 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                       </p>
                     </div>
                   </div>
-                </>
+                </div>
               )}
             </div>
           </CardContent>
@@ -2090,7 +2090,7 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 {(currentStatus === 'pending' || currentStatus === 'in_progress') && (
-                                  <>
+                                  <div>
                                     <DropdownMenuItem onClick={() => handleSetCount(item.id, expectedQuantity)}>
                                       <Equal className="h-4 w-4 mr-2" />
                                       Erwartete Menge bestätigen
@@ -2137,7 +2137,7 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                                       )}
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
-                                  </>
+                                  </div>
                                 )}
                                 
                                 <DropdownMenuItem 
