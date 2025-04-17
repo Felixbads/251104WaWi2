@@ -1647,7 +1647,8 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
     const currentActions = statusActions[currentStatus as keyof typeof statusActions] || [];
     
     return (
-      <div className="flex gap-2">
+      // Verwende eine fixe Position am unteren Bildschirmrand
+      <div className="fixed bottom-4 right-4 z-50 flex flex-col md:flex-row gap-2 bg-background/95 p-4 rounded-lg shadow-lg border border-border">
         {currentActions.map((action, index) => (
           <Button 
             key={index} 
@@ -1799,9 +1800,10 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
             Detailansicht und Bearbeitung der ausgewählten Inventur
           </p>
         </div>
-        
-        <StatusControls />
       </div>
+      
+      {/* Die StatusControls-Komponente wird nun in der fixen Position am unteren Bildschirmrand angezeigt */}
+      <StatusControls />
       
       {/* Informationsbereich */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
