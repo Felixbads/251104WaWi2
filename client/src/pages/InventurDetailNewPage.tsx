@@ -1726,15 +1726,15 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
           id: selectedItem.id,
           productId: selectedItem.productId,
           productName: selectedItem.product?.productName || 'Unbenanntes Produkt',
-          currentQuantity: selectedItem.currentQuantity,
-          countedQuantity: selectedItem.countedQuantity,
+          expectedQuantity: selectedItem.expectedQuantity || 0,
+          countedQuantity: selectedItem.countedQuantity || null,
           batchId: selectedItem.batchId,
-          batchNumber: selectedItem.batchNumber,
-          expiryDate: selectedItem.expiryDate
+          batchNumber: selectedItem.batch?.batchNumber || '',
+          expiryDate: selectedItem.batch?.expiryDate || null
         } : null}
         availableBatches={availableBatches}
         onBatchSelect={handleBatchUpdate}
-        inventoryId={inventurId}
+        inventoryId={inventurData?.id.toString() || '0'}
       />
     </div>
   );
