@@ -7,7 +7,8 @@ import {
   Save, CheckCircle2, RefreshCw, Pencil,
   Search, TrendingUp, TrendingDown, Equal, Calendar,
   ChevronDown, ChevronUp, ChevronRight, Plus,
-  Split, ClockIcon, MoreHorizontal, FileText
+  Split, ClockIcon, MoreHorizontal, FileText,
+  CalendarDays, CircleAlert
 } from 'lucide-react';
 
 // UI-Komponenten
@@ -565,10 +566,70 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     addItemsMutation.mutate({ items });
   };
 
-  // Dialog zum Hinzufügen von Produkten
+    // State für Batch-Dialog
+  const [selectedBatchId, setSelectedBatchId] = useState<number | null>(null);
+  const [showNewBatchForm, setShowNewBatchForm] = useState(false);
+  const [showSplitForm, setShowSplitForm] = useState(false);
+  const [newBatchNumber, setNewBatchNumber] = useState('');
+  const [newExpiryDate, setNewExpiryDate] = useState<Date | null>(null);
+  const [newBatchQuantity, setNewBatchQuantity] = useState<number | null>(null);
+  const [splitQuantity, setSplitQuantity] = useState<number | null>(null);
+  const [splitTargetBatchId, setSplitTargetBatchId] = useState<number | null>(null);
+
+  // Mutation zum Aktualisieren des Batch für ein Inventurelement
+  const updateBatchMutation = useMutation({
+    mutationFn: async (data: { itemId: number; batchId: number | null }) => {
+      const response = await fetch(`/api/inventory-counts/items/${data.itemId}/batch`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ batchId: data.batchId }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Fehler beim Aktualisieren der Charge: ${response.status}`);
+      }
+      
+      return await response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}/items`] });
+      
+      setShowBatchDialog(false);
+      setSelectedItem(null);
+      
+      toast({
+        title: "Charge aktualisiert",
+        description: "Die Charge wurde erfolgreich aktualisiert.",
+      });
+    },
+    onError: (error) => {
+      console.error('Fehler beim Aktualisieren der Charge:', error);
+      toast({
+        title: "Fehler",
+        description: "Die Charge konnte nicht aktualisiert werden.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Funktion zum Öffnen des Batch-Dialogs
   const openBatchDialog = (item: InventoryCountItem) => {
     setSelectedItem(item);
     setShowBatchDialog(true);
+    
+    // Setze ausgewählte Charge, wenn vorhanden
+    setSelectedBatchId(item.batchId || null);
+    
+    // Setze alles zurück
+    setShowNewBatchForm(false);
+    setShowSplitForm(false);
+    setNewBatchNumber('');
+    setNewExpiryDate(null);
+    setNewBatchQuantity(null);
+    setSplitQuantity(null);
+    setSplitTargetBatchId(null);
     
     // Lade Chargen für das Produkt
     fetch(`/api/products/${item.productId}/batches?warehouseId=${inventurData?.warehouseId}`)
@@ -584,6 +645,167 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
           variant: "destructive",
         });
       });
+  };
+  
+  // Funktion zum Aktualisieren der Batch
+  const handleBatchUpdate = (batchId: number | null) => {
+    if (selectedItem) {
+      updateBatchMutation.mutate({ 
+        itemId: selectedItem.id, 
+        batchId 
+      });
+    }
+  };
+  
+  // Funktion zum Formatieren eines Datums
+  const formatBatchDate = (dateStr: string | null) => {
+    if (!dateStr) return "Kein MHD";
+    
+    return new Intl.DateTimeFormat('de-DE', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date(dateStr));
+  };
+  
+  // Erstellt eine neue Charge mit MHD
+  const createNewBatch = async () => {
+    if (!selectedItem || !selectedItem.productId) {
+      console.error("Kein Produkt ausgewählt oder Produkt hat keine ID");
+      toast({
+        title: "Fehler",
+        description: "Kein gültiges Produkt ausgewählt.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Formatiere das Datum richtig für die Anfrage
+    let formattedExpiryDate = null;
+    if (newExpiryDate) {
+      // Stelle sicher, dass das Datum korrekt formatiert ist: YYYY-MM-DD
+      formattedExpiryDate = newExpiryDate instanceof Date 
+        ? newExpiryDate.toISOString().split('T')[0] 
+        : null;
+      
+      console.log("Formatiertes Datum für API-Anfrage:", formattedExpiryDate);
+    }
+    
+    const batchData = {
+      productId: selectedItem.productId,
+      warehouseId: inventurData?.warehouseId,
+      batchNumber: newBatchNumber || `INV-${new Date().toISOString().split('T')[0]}`,
+      expiryDate: formattedExpiryDate,
+      initialQuantity: newBatchQuantity || 0,
+      currentQuantity: newBatchQuantity || 0,
+      notes: `Erstellt bei Inventur #${id}`,
+      receivedDate: new Date().toISOString().split('T')[0],
+      locationInWarehouse: null
+    };
+    
+    console.log("Sende Batch-Daten:", JSON.stringify(batchData, null, 2));
+    
+    try {
+      // Erstelle neue Charge API-Anfrage
+      const response = await fetch('/api/inventory-counts/product-batches', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(batchData),
+      });
+      
+      // Überprüfe auf detaillierte Fehlermeldungen
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorData;
+        
+        try {
+          errorData = JSON.parse(errorText);
+          throw new Error(errorData.details || errorData.error || `Serverfehler: ${response.status}`);
+        } catch (parseError) {
+          // Wenn JSON-Parse fehlschlägt, verwende den Rohtext
+          throw new Error(`Serverfehler (${response.status}): ${errorText.substring(0, 200)}`);
+        }
+      }
+      
+      const newBatch = await response.json();
+      console.log("Neue Charge erstellt:", newBatch);
+      
+      // Aktualisiere die Batches-Liste
+      setAvailableBatches(prev => [...prev, newBatch]);
+      
+      // Wähle die neue Charge aus
+      setSelectedBatchId(newBatch.id);
+      
+      // Schließe das Formular
+      setShowNewBatchForm(false);
+      
+      toast({
+        title: "Neue Charge erstellt",
+        description: "Die Charge wurde erfolgreich erstellt."
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unbekannter Fehler";
+      console.error('Fehler beim Erstellen einer neuen Charge:', error);
+      toast({
+        title: "Fehler",
+        description: `Die Charge konnte nicht erstellt werden: ${errorMessage}`,
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // Split-Bestand zwischen zwei Chargen
+  const handleSplitInventory = async () => {
+    if (!selectedItem || splitQuantity === null || splitTargetBatchId === null) return;
+    
+    try {
+      // Bestandsaufteilung API-Anfrage
+      const response = await fetch(`/api/inventory-counts/items/${selectedItem.id}/split`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sourceBatchId: selectedBatchId,
+          targetBatchId: splitTargetBatchId,
+          quantity: splitQuantity
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Fehler bei der Bestandsaufteilung: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log('Bestandsaufteilung erfolgreich:', result);
+      
+      // Aktualisiere die Inventurdaten
+      queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}/items`] });
+      
+      // Aktualisiere die Batches
+      fetch(`/api/products/${selectedItem.productId}/batches?warehouseId=${inventurData?.warehouseId}`)
+        .then(response => response.json())
+        .then(data => {
+          setAvailableBatches(data);
+        });
+      
+      // Schließe das Split-Formular
+      setShowSplitForm(false);
+      
+      toast({
+        title: "Bestand aufgeteilt",
+        description: `${splitQuantity} Einheiten wurden erfolgreich auf die andere Charge übertragen.`
+      });
+    } catch (error) {
+      console.error('Fehler bei der Bestandsaufteilung:', error);
+      toast({
+        title: "Fehler",
+        description: "Der Bestand konnte nicht aufgeteilt werden.",
+        variant: "destructive"
+      });
+    }
   };
 
   // Filtere Inventurpositionen basierend auf Suchbegriff
