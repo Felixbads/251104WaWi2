@@ -370,33 +370,64 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   // Mutation zum Abschließen der Inventur
   const completeInventurMutation = useMutation({
     mutationFn: async (data: { notes?: string }) => {
-      const response = await fetch(`/api/inventory-counts/${id}/complete`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
+      console.log(`Schließe Inventur ${id} ab mit Notizen:`, data.notes || 'keine');
       
-      if (!response.ok) {
-        throw new Error(`Fehler beim Abschließen: ${response.status}`);
+      try {
+        const response = await fetch(`/api/inventory-counts/${id}/complete`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(data || {}),
+        });
+        
+        const responseText = await response.text();
+        console.log(`Complete-Antwort: Status ${response.status}, Text:`, responseText);
+        
+        if (!response.ok) {
+          throw new Error(`Fehler beim Abschließen: ${response.status} - ${responseText}`);
+        }
+        
+        let result;
+        try {
+          // Versuche, die Antwort als JSON zu parsen
+          result = JSON.parse(responseText);
+        } catch (e) {
+          console.warn("Konnte Antwort nicht als JSON parsen:", e);
+          // Rückgabe eines einfachen Objekts, wenn kein JSON zurückgegeben wurde
+          result = { message: responseText, success: response.ok };
+        }
+        
+        console.log("Inventur erfolgreich abgeschlossen:", result);
+        return result;
+      } catch (error) {
+        console.error("Fehler beim Abschließen der Inventur:", error);
+        throw error;
       }
-      
-      return await response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("Inventur erfolgreich abgeschlossen, Bestände aktualisiert:", data);
+      
+      // Daten aktualisieren
       queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/inventory`] });
+      
+      // Dialog schließen
       setShowCompleteDialog(false);
+      
+      // Zurück zur Übersicht navigieren
+      navigate('/inventur');
       
       toast({
         title: "Inventur abgeschlossen",
-        description: "Die Inventur wurde erfolgreich abgeschlossen.",
+        description: "Die Inventur wurde erfolgreich abgeschlossen und die Lagerbestände wurden aktualisiert.",
       });
     },
-    onError: () => {
+    onError: (error) => {
+      console.error("Fehler beim Abschließen der Inventur:", error);
       toast({
         title: "Fehler",
-        description: "Die Inventur konnte nicht abgeschlossen werden.",
+        description: "Die Inventur konnte nicht abgeschlossen werden. Bitte versuchen Sie es erneut.",
         variant: "destructive",
       });
     },
@@ -405,53 +436,86 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   // Mutation zum Aktualisieren des Inventur-Status
   const updateStatusMutation = useMutation({
     mutationFn: async (status: string) => {
+      console.log(`Aktualisiere Inventur ${id} auf Status: ${status}`);
+      console.log(`Aktueller Status: ${inventurData?.status}`);
+      
+      // Setze Auth-Header wenn vorhanden
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      
       if (status === 'cancelled') {
+        console.log(`Sende Anfrage zum Abbrechen der Inventur ${id}...`);
         const response = await fetch(`/api/inventory-counts/${id}/cancel`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers,
           body: JSON.stringify({}),
         });
         
         if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Fehler beim Abbrechen: Status ${response.status}, Antwort:`, errorText);
           throw new Error(`Fehler beim Abbrechen: ${response.status}`);
         }
         
-        return await response.json();
+        const data = await response.json();
+        console.log("Inventur erfolgreich abgebrochen:", data);
+        return data;
       } 
+      // Wenn Status auf "in_progress" gesetzt werden soll und aktueller Status "pending" ist
       else if (status === 'in_progress' && inventurData?.status === 'pending') {
-        const response = await fetch(`/api/inventory-counts/${id}/start`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({}),
-        });
+        console.log(`Sende Anfrage zum Starten der Inventur ${id}...`);
         
-        if (!response.ok) {
-          throw new Error(`Fehler beim Starten: ${response.status}`);
+        try {
+          const response = await fetch(`/api/inventory-counts/${id}/start`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({}),
+          });
+          
+          const responseText = await response.text();
+          console.log(`Start-Antwort: Status ${response.status}, Text:`, responseText);
+          
+          if (!response.ok) {
+            throw new Error(`Fehler beim Starten: ${response.status} - ${responseText}`);
+          }
+          
+          let data;
+          try {
+            // Versuche, die Antwort als JSON zu parsen
+            data = JSON.parse(responseText);
+          } catch (e) {
+            console.warn("Konnte Antwort nicht als JSON parsen:", e);
+            // Rückgabe eines einfachen Objekts, wenn kein JSON zurückgegeben wurde
+            data = { message: responseText, success: response.ok };
+          }
+          
+          console.log("Inventur erfolgreich gestartet:", data);
+          return data;
+        } catch (error) {
+          console.error("Fehler beim Starten der Inventur:", error);
+          throw error;
         }
-        
-        return await response.json();
       }
-      else if (status === 'in_progress') {
+      // Allgemeines Status-Update für andere Statusübergänge
+      else {
+        console.log(`Sende allgemeines Status-Update auf ${status} für Inventur ${id}...`);
         const response = await fetch(`/api/inventory-counts/${id}/update-status`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers,
           body: JSON.stringify({ status }),
         });
         
         if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Fehler beim Statusupdate: Status ${response.status}, Antwort:`, errorText);
           throw new Error(`Fehler beim Statusupdate: ${response.status}`);
         }
         
-        return await response.json();
+        const data = await response.json();
+        console.log("Status erfolgreich aktualisiert:", data);
+        return data;
       }
-      
-      throw new Error(`Unbekannter Status: ${status}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}`] });
