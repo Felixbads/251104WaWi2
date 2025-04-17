@@ -1647,18 +1647,19 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
     const currentActions = statusActions[currentStatus as keyof typeof statusActions] || [];
     
     return (
-      // Verwende eine fixe Position am unteren Bildschirmrand
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col md:flex-row gap-2 bg-background/95 p-4 rounded-lg shadow-lg border border-border">
+      // Kleinere Action-Buttons direkt über der Produktliste
+      <div className="flex flex-wrap gap-2">
         {currentActions.map((action, index) => (
           <Button 
             key={index} 
+            size="sm"
             variant="outline" 
             className={action.style}
             onClick={action.action}
             disabled={action.disabled || updateStatusMutation.isPending}
           >
             {action.loading ? (
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
             ) : (
               action.icon
             )}
@@ -1802,9 +1803,6 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
         </div>
       </div>
       
-      {/* Die StatusControls-Komponente wird nun in der fixen Position am unteren Bildschirmrand angezeigt */}
-      <StatusControls />
-      
       {/* Informationsbereich */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
@@ -1906,6 +1904,11 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
             )}
           </CardContent>
         </Card>
+      </div>
+
+      {/* Status-Aktionen vor der Produktliste */}
+      <div className="mb-3">
+        <StatusControls />
       </div>
       
       {/* Produktliste und Aktionen */}
