@@ -540,32 +540,48 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   // Mutation zum Starten der Inventur
   const startInventurMutation = useMutation({
     mutationFn: async () => {
+      console.log(`Starte Inventur mit ID ${id}...`);
+      
+      if (!id) {
+        throw new Error("Keine Inventur-ID vorhanden");
+      }
+      
       const response = await fetch(`/api/inventory-counts/${id}/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': localStorage.getItem('token') ? `Bearer ${localStorage.getItem('token')}` : '',
         },
+        // Senden eines leeren Objekts als Body
         body: JSON.stringify({}),
       });
       
       if (!response.ok) {
-        throw new Error(`Fehler beim Starten: ${response.status}`);
+        const errorText = await response.text();
+        console.error(`Fehler beim Starten der Inventur: Status ${response.status}, Antwort:`, errorText);
+        throw new Error(`Fehler beim Starten: ${response.status} - ${errorText}`);
       }
       
-      return await response.json();
+      const result = await response.json();
+      console.log("Inventur erfolgreich gestartet:", result);
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("Inventur-Status aktualisiert:", data);
+      // Aktualisiere die Daten in der UI
       queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}`] });
       
+      // Informiere den Benutzer
       toast({
         title: "Inventur gestartet",
-        description: "Die Inventur wurde erfolgreich gestartet.",
+        description: "Die Inventur wurde erfolgreich gestartet und kann jetzt bearbeitet werden.",
       });
     },
-    onError: () => {
+    onError: (error) => {
+      console.error("Fehler beim Starten der Inventur:", error);
       toast({
         title: "Fehler",
-        description: "Die Inventur konnte nicht gestartet werden.",
+        description: "Die Inventur konnte nicht gestartet werden. Bitte versuchen Sie es erneut.",
         variant: "destructive",
       });
     },
