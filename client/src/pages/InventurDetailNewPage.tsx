@@ -735,8 +735,8 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       warehouseId: inventurData?.warehouseId,
       batchNumber: newBatchNumber || `INV-${new Date().toISOString().split('T')[0]}`,
       expiryDate: formattedExpiryDate,
-      initialQuantity: newBatchQuantity || 0,
-      currentQuantity: newBatchQuantity || 0,
+      initialQuantity: newBatchQuantity || 1, // Mindestmenge 1 statt 0
+      currentQuantity: newBatchQuantity || 1, // Mindestmenge 1 statt 0
       notes: `Erstellt bei Inventur #${id}`,
       receivedDate: new Date().toISOString().split('T')[0],
       locationInWarehouse: null
@@ -1345,7 +1345,14 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                       // Fragment statt div, damit die TableRow direkt in TableBody gerendert wird
                       <React.Fragment key={item.id}>
                         {/* Hauptzeile für das Produkt */}
-                        <TableRow className={item.status === 'counted' ? 'bg-muted/20' : ''}>
+                        <TableRow className={
+                          item.status === 'counted' || 
+                          item.countedQuantity !== null || 
+                          item.batchId !== null || 
+                          editedCounts[item.id] !== undefined
+                            ? 'bg-muted/20' 
+                            : ''
+                        }>
                           <TableCell>
                             <div className="flex items-center">
                               <Button
