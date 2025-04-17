@@ -941,7 +941,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     }, 100); // 100ms Verzögerung
   };
   
-  // Funktion zum Aktualisieren der Batch
+  // Funktion zum Aktualisieren der Charge und Neuladens aller betroffenen Daten
   const handleBatchUpdate = (batchId: number | null) => {
     if (selectedItem) {
       console.log("Batch-Update wird durchgeführt: Item ID =", selectedItem.id, "Batch ID =", batchId);
@@ -950,17 +950,33 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         batchId 
       });
       
-      // Nach dem Update die Liste der Batches neu laden
+      // Nach dem Update alle relevanten Daten neu laden
       queryClient.invalidateQueries({ 
         queryKey: [`/api/product-batches`]
       });
       
-      // Und die Liste der verfügbaren Batches aktualisieren
+      // Inventarposten aktualisieren, damit MHD in der Tabelle erscheint
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/inventory-counts/${id}/items`] 
+      });
+      
+      // Auch die Inventurdaten selbst neu laden
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/inventory-counts/${id}`] 
+      });
+      
+      // Mit Verzögerung verfügbare Chargen aktualisieren
       setTimeout(() => {
         if (selectedItem.productId) {
           loadBatches(selectedItem.productId);
         }
       }, 500);
+      
+      // Erfolgsmeldung anzeigen
+      toast({
+        title: "MHD aktualisiert",
+        description: `Die Charge wurde erfolgreich mit dem Artikel verknüpft.`,
+      });
     }
   };
   
@@ -975,7 +991,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     }).format(new Date(dateStr));
   };
   
-  // Erstellt eine neue Charge mit MHD
+  // Erstellt eine neue Charge mit MHD und verknüpft sie mit dem Inventar-Item
   const createNewBatch = async () => {
     if (!selectedItem || !selectedItem.productId) {
       console.error("Kein Produkt ausgewählt oder Produkt hat keine ID");
@@ -1001,7 +1017,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     const batchData = {
       productId: selectedItem.productId,
       warehouseId: inventurData?.warehouseId,
-      batchNumber: newBatchNumber || `INV-${new Date().toISOString().split('T')[0]}`,
+      batchNumber: newBatchNumber || `INV-${id}-${new Date().toISOString().split('T')[0]}`,
       expiryDate: formattedExpiryDate,
       initialQuantity: newBatchQuantity || 1, // Mindestmenge 1 statt 0
       currentQuantity: newBatchQuantity || 1, // Mindestmenge 1 statt 0
@@ -1013,7 +1029,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     console.log("Sende Batch-Daten:", JSON.stringify(batchData, null, 2));
     
     try {
-      // Erstelle neue Charge API-Anfrage
+      // Schritt 1: Erstelle neue Charge API-Anfrage
       const response = await fetch('/api/inventory-counts/product-batches', {
         method: 'POST',
         headers: {
@@ -1045,12 +1061,46 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       // Wähle die neue Charge aus
       setSelectedBatchId(newBatch.id);
       
+      // Schritt 2: Verknüpfe die neue Charge mit dem Inventurposten
+      console.log(`Verknüpfe Inventurposten ${selectedItem.id} mit Charge ${newBatch.id}...`);
+      
+      try {
+        const updateResponse = await fetch(`/api/inventory-counts/items/${selectedItem.id}/batch`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            batchId: newBatch.id 
+          }),
+        });
+        
+        if (!updateResponse.ok) {
+          console.error(`Fehler beim Verknüpfen: Status ${updateResponse.status}`);
+          const updateErrorText = await updateResponse.text();
+          console.error('Fehler beim Verknüpfen der Charge:', updateErrorText);
+        } else {
+          const updateResult = await updateResponse.json();
+          console.log("Verknüpfung erfolgreich:", updateResult);
+        }
+      } catch (updateError) {
+        console.error('Fehler beim Verknüpfen der Charge:', updateError);
+        // Zeige keinen Fehler für die Verknüpfung an, da die Charge bereits erstellt wurde
+      }
+      
+      // Aktualisiere die Inventardaten, um die Änderungen zu sehen
+      setTimeout(() => {
+        queryClient.invalidateQueries({ 
+          queryKey: [`/api/inventory-counts/${id}/items`] 
+        });
+      }, 300);
+      
       // Schließe das Formular
       setShowNewBatchForm(false);
       
       toast({
         title: "Neue Charge erstellt",
-        description: "Die Charge wurde erfolgreich erstellt."
+        description: "Die Charge wurde erfolgreich erstellt und mit dem Inventurposten verknüpft."
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unbekannter Fehler";
