@@ -673,38 +673,57 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     setSplitQuantity(null);
     setSplitTargetBatchId(null);
     
-    // Lade Chargen für das Produkt
+    // Lade Chargen für das Produkt mit detailliertem Error-Handling
     fetch(`/api/products/${item.productId}/batches?warehouseId=${inventurData?.warehouseId}`)
-      .then(response => response.json())
+      .then(async response => {
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Error response (${response.status}):`, errorText);
+          throw new Error(`Server antwortete mit ${response.status}: ${errorText}`);
+        }
+        return response.json();
+      })
       .then(data => {
-        setAvailableBatches(data);
+        console.log('Geladene Batches:', data);
+        setAvailableBatches(Array.isArray(data) ? data : []);
       })
       .catch(error => {
         console.error('Fehler beim Laden der Chargen:', error);
+        // Setze einen leeren Array als Fallback, damit der Dialog trotzdem geöffnet werden kann
+        setAvailableBatches([]);
         toast({
-          title: "Fehler",
-          description: "Die Chargen konnten nicht geladen werden.",
-          variant: "destructive",
+          title: "Hinweis",
+          description: "Es konnten keine bestehenden Chargen geladen werden. Sie können trotzdem eine neue Charge anlegen.",
+          variant: "default",
         });
       });
   };
   
-  // Funktion zum Laden von Chargen für ein bestimmtes Produkt
+  // Funktion zum Laden von Chargen für ein bestimmtes Produkt mit verbessertem Error-Handling
   const loadBatches = (productId: number) => {
     if (!productId || !inventurData?.warehouseId) return;
     
     fetch(`/api/products/${productId}/batches?warehouseId=${inventurData.warehouseId}`)
-      .then(response => response.json())
+      .then(async response => {
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Error response (${response.status}):`, errorText);
+          throw new Error(`Server antwortete mit ${response.status}: ${errorText}`);
+        }
+        return response.json();
+      })
       .then(data => {
         console.log("Geladene Chargen:", data);
-        setAvailableBatches(data);
+        setAvailableBatches(Array.isArray(data) ? data : []);
       })
       .catch(error => {
         console.error('Fehler beim Laden der Chargen:', error);
+        // Setze einen leeren Array als Fallback, damit der Dialog trotzdem funktioniert
+        setAvailableBatches([]);
         toast({
-          title: "Fehler",
-          description: "Die Chargen konnten nicht geladen werden.",
-          variant: "destructive",
+          title: "Hinweis",
+          description: "Es konnten keine bestehenden Chargen geladen werden. Sie können trotzdem eine neue Charge anlegen.",
+          variant: "default",
         });
       });
   };
@@ -859,11 +878,23 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       // Aktualisiere die Inventurdaten
       queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}/items`] });
       
-      // Aktualisiere die Batches
+      // Aktualisiere die Batches mit verbessertem Error-Handling
       fetch(`/api/products/${selectedItem.productId}/batches?warehouseId=${inventurData?.warehouseId}`)
-        .then(response => response.json())
+        .then(async response => {
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Error response (${response.status}):`, errorText);
+            throw new Error(`Server antwortete mit ${response.status}: ${errorText}`);
+          }
+          return response.json();
+        })
         .then(data => {
-          setAvailableBatches(data);
+          console.log("Aktualisierte Batches für Split-Dialog geladen:", data);
+          setAvailableBatches(Array.isArray(data) ? data : []);
+        })
+        .catch(error => {
+          console.error("Fehler beim Aktualisieren der Batches nach Split:", error);
+          // Wir setzen keinen leeren Array, weil wir die aktuellen Batches behalten wollen
         });
       
       // Schließe das Split-Formular
@@ -927,8 +958,12 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
           valueA = a.countedQuantity !== null ? a.countedQuantity : -1;
           valueB = b.countedQuantity !== null ? b.countedQuantity : -1;
         } else if (sortField === 'difference') {
-          const diffA = a.countedQuantity !== null ? a.countedQuantity - (a.expectedQuantity || 0) : null;
-          const diffB = b.countedQuantity !== null ? b.countedQuantity - (b.expectedQuantity || 0) : null;
+          // Sichere Typprüfung für countedQuantity
+          const aQty = a.countedQuantity !== null && a.countedQuantity !== undefined ? a.countedQuantity : null;
+          const bQty = b.countedQuantity !== null && b.countedQuantity !== undefined ? b.countedQuantity : null;
+          
+          const diffA = aQty !== null ? (aQty - (a.expectedQuantity || 0)) : null;
+          const diffB = bQty !== null ? (bQty - (b.expectedQuantity || 0)) : null;
           
           // Null-Differenzen am Ende sortieren
           if (diffA === null && diffB === null) return indexA - indexB; // Stabile Sortierung bei Gleichheit
