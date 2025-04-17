@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import InventoryCountBatchDialog from '@/components/inventory/batch/InventoryCountBatchDialog';
 import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import {

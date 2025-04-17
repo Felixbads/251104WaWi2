@@ -9722,3 +9722,153 @@ DATA: {
   "machineCount": 10
 }
 
+[2025-04-17T10:49:38.246Z] [WarehouseStatsAPI] Fetching statistics for warehouse 4 using new service
+
+[2025-04-17T10:49:38.247Z] [WarehouseStats] Fetching warehouse statistics for ID: 4
+
+[2025-04-17T10:49:38.247Z] [SQL] Query: getWarehouseStatistics
+DATA: {
+  "sql": "\n      WITH inventory_stats AS (\n        SELECT \n          COUNT(DISTINCT i.product_id) as product_count,\n          COUNT(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) AND i.product_id IS NOT NULL THEN 1 END) as critical_item_count,\n          COALESCE(SUM(i.quantity * COALESCE(p.price, 0)), 0) as inventory_value\n        FROM \n          inventory_items i\n        LEFT JOIN\n          products p ON i.product_id = p.id\n        WHERE \n          i.warehouse_id = $1\n      ),\n      machine_count AS (\n        SELECT \n          COUNT(DISTINCT machine_id) as machine_count\n        FROM \n          machine_warehouse_assignments\n        WHERE \n          warehouse_id = $1\n      )\n      SELECT \n        COALESCE(i.product_count, 0) as product_count,\n        COALESCE(i.critical_item_count, 0) as critical_item_count,\n        COALESCE(i.inventory_value, 0) as inventory_value,\n        COALESCE(m.machine_count, 0) as machine_count\n      FROM \n        (SELECT 1) dummy\n      LEFT JOIN inventory_stats i ON true\n      LEFT JOIN machine_count m ON true\n    ",
+  "params": [
+    4
+  ]
+}
+
+[2025-04-17T10:49:39.892Z] [WarehouseStats] Statistics for warehouse 4:
+DATA: {
+  "warehouseId": 4,
+  "productCount": 90,
+  "criticalItemCount": 90,
+  "inventoryValue": 0,
+  "machineCount": 10
+}
+
+[2025-04-17T10:49:39.892Z] [WarehouseStatsAPI] Statistics data for warehouse 4:
+DATA: {
+  "warehouseId": 4,
+  "productCount": 90,
+  "criticalItemCount": 90,
+  "inventoryValue": 0,
+  "machineCount": 10
+}
+
+[2025-04-17T10:50:40.556Z] [WarehouseStatsAPI] Fetching statistics for warehouse 4 using new service
+
+[2025-04-17T10:50:40.556Z] [WarehouseStats] Fetching warehouse statistics for ID: 4
+
+[2025-04-17T10:50:40.556Z] [SQL] Query: getWarehouseStatistics
+DATA: {
+  "sql": "\n      WITH inventory_stats AS (\n        SELECT \n          COUNT(DISTINCT i.product_id) as product_count,\n          COUNT(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) AND i.product_id IS NOT NULL THEN 1 END) as critical_item_count,\n          COALESCE(SUM(i.quantity * COALESCE(p.price, 0)), 0) as inventory_value\n        FROM \n          inventory_items i\n        LEFT JOIN\n          products p ON i.product_id = p.id\n        WHERE \n          i.warehouse_id = $1\n      ),\n      machine_count AS (\n        SELECT \n          COUNT(DISTINCT machine_id) as machine_count\n        FROM \n          machine_warehouse_assignments\n        WHERE \n          warehouse_id = $1\n      )\n      SELECT \n        COALESCE(i.product_count, 0) as product_count,\n        COALESCE(i.critical_item_count, 0) as critical_item_count,\n        COALESCE(i.inventory_value, 0) as inventory_value,\n        COALESCE(m.machine_count, 0) as machine_count\n      FROM \n        (SELECT 1) dummy\n      LEFT JOIN inventory_stats i ON true\n      LEFT JOIN machine_count m ON true\n    ",
+  "params": [
+    4
+  ]
+}
+
+[2025-04-17T10:50:42.200Z] [WarehouseStats] Statistics for warehouse 4:
+DATA: {
+  "warehouseId": 4,
+  "productCount": 90,
+  "criticalItemCount": 90,
+  "inventoryValue": 0,
+  "machineCount": 10
+}
+
+[2025-04-17T10:50:42.200Z] [WarehouseStatsAPI] Statistics data for warehouse 4:
+DATA: {
+  "warehouseId": 4,
+  "productCount": 90,
+  "criticalItemCount": 90,
+  "inventoryValue": 0,
+  "machineCount": 10
+}
+
+[2025-04-17T10:51:42.982Z] [WarehouseStatsAPI] Fetching statistics for warehouse 4 using new service
+
+[2025-04-17T10:51:42.983Z] [WarehouseStats] Fetching warehouse statistics for ID: 4
+
+[2025-04-17T10:51:42.983Z] [SQL] Query: getWarehouseStatistics
+DATA: {
+  "sql": "\n      WITH inventory_stats AS (\n        SELECT \n          COUNT(DISTINCT i.product_id) as product_count,\n          COUNT(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) AND i.product_id IS NOT NULL THEN 1 END) as critical_item_count,\n          COALESCE(SUM(i.quantity * COALESCE(p.price, 0)), 0) as inventory_value\n        FROM \n          inventory_items i\n        LEFT JOIN\n          products p ON i.product_id = p.id\n        WHERE \n          i.warehouse_id = $1\n      ),\n      machine_count AS (\n        SELECT \n          COUNT(DISTINCT machine_id) as machine_count\n        FROM \n          machine_warehouse_assignments\n        WHERE \n          warehouse_id = $1\n      )\n      SELECT \n        COALESCE(i.product_count, 0) as product_count,\n        COALESCE(i.critical_item_count, 0) as critical_item_count,\n        COALESCE(i.inventory_value, 0) as inventory_value,\n        COALESCE(m.machine_count, 0) as machine_count\n      FROM \n        (SELECT 1) dummy\n      LEFT JOIN inventory_stats i ON true\n      LEFT JOIN machine_count m ON true\n    ",
+  "params": [
+    4
+  ]
+}
+
+[2025-04-17T10:51:43.226Z] [WarehouseStats] Statistics for warehouse 4:
+DATA: {
+  "warehouseId": 4,
+  "productCount": 90,
+  "criticalItemCount": 90,
+  "inventoryValue": 0,
+  "machineCount": 10
+}
+
+[2025-04-17T10:51:43.226Z] [WarehouseStatsAPI] Statistics data for warehouse 4:
+DATA: {
+  "warehouseId": 4,
+  "productCount": 90,
+  "criticalItemCount": 90,
+  "inventoryValue": 0,
+  "machineCount": 10
+}
+
+[2025-04-17T10:52:43.894Z] [WarehouseStatsAPI] Fetching statistics for warehouse 4 using new service
+
+[2025-04-17T10:52:43.895Z] [WarehouseStats] Fetching warehouse statistics for ID: 4
+
+[2025-04-17T10:52:43.896Z] [SQL] Query: getWarehouseStatistics
+DATA: {
+  "sql": "\n      WITH inventory_stats AS (\n        SELECT \n          COUNT(DISTINCT i.product_id) as product_count,\n          COUNT(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) AND i.product_id IS NOT NULL THEN 1 END) as critical_item_count,\n          COALESCE(SUM(i.quantity * COALESCE(p.price, 0)), 0) as inventory_value\n        FROM \n          inventory_items i\n        LEFT JOIN\n          products p ON i.product_id = p.id\n        WHERE \n          i.warehouse_id = $1\n      ),\n      machine_count AS (\n        SELECT \n          COUNT(DISTINCT machine_id) as machine_count\n        FROM \n          machine_warehouse_assignments\n        WHERE \n          warehouse_id = $1\n      )\n      SELECT \n        COALESCE(i.product_count, 0) as product_count,\n        COALESCE(i.critical_item_count, 0) as critical_item_count,\n        COALESCE(i.inventory_value, 0) as inventory_value,\n        COALESCE(m.machine_count, 0) as machine_count\n      FROM \n        (SELECT 1) dummy\n      LEFT JOIN inventory_stats i ON true\n      LEFT JOIN machine_count m ON true\n    ",
+  "params": [
+    4
+  ]
+}
+
+[2025-04-17T10:52:45.540Z] [WarehouseStats] Statistics for warehouse 4:
+DATA: {
+  "warehouseId": 4,
+  "productCount": 90,
+  "criticalItemCount": 90,
+  "inventoryValue": 0,
+  "machineCount": 10
+}
+
+[2025-04-17T10:52:45.541Z] [WarehouseStatsAPI] Statistics data for warehouse 4:
+DATA: {
+  "warehouseId": 4,
+  "productCount": 90,
+  "criticalItemCount": 90,
+  "inventoryValue": 0,
+  "machineCount": 10
+}
+
+[2025-04-17T10:53:46.207Z] [WarehouseStatsAPI] Fetching statistics for warehouse 4 using new service
+
+[2025-04-17T10:53:46.208Z] [WarehouseStats] Fetching warehouse statistics for ID: 4
+
+[2025-04-17T10:53:46.208Z] [SQL] Query: getWarehouseStatistics
+DATA: {
+  "sql": "\n      WITH inventory_stats AS (\n        SELECT \n          COUNT(DISTINCT i.product_id) as product_count,\n          COUNT(CASE WHEN i.quantity <= COALESCE(i.min_quantity, 0) AND i.product_id IS NOT NULL THEN 1 END) as critical_item_count,\n          COALESCE(SUM(i.quantity * COALESCE(p.price, 0)), 0) as inventory_value\n        FROM \n          inventory_items i\n        LEFT JOIN\n          products p ON i.product_id = p.id\n        WHERE \n          i.warehouse_id = $1\n      ),\n      machine_count AS (\n        SELECT \n          COUNT(DISTINCT machine_id) as machine_count\n        FROM \n          machine_warehouse_assignments\n        WHERE \n          warehouse_id = $1\n      )\n      SELECT \n        COALESCE(i.product_count, 0) as product_count,\n        COALESCE(i.critical_item_count, 0) as critical_item_count,\n        COALESCE(i.inventory_value, 0) as inventory_value,\n        COALESCE(m.machine_count, 0) as machine_count\n      FROM \n        (SELECT 1) dummy\n      LEFT JOIN inventory_stats i ON true\n      LEFT JOIN machine_count m ON true\n    ",
+  "params": [
+    4
+  ]
+}
+
+[2025-04-17T10:53:46.447Z] [WarehouseStats] Statistics for warehouse 4:
+DATA: {
+  "warehouseId": 4,
+  "productCount": 90,
+  "criticalItemCount": 90,
+  "inventoryValue": 0,
+  "machineCount": 10
+}
+
+[2025-04-17T10:53:46.447Z] [WarehouseStatsAPI] Statistics data for warehouse 4:
+DATA: {
+  "warehouseId": 4,
+  "productCount": 90,
+  "criticalItemCount": 90,
+  "inventoryValue": 0,
+  "machineCount": 10
+}
+
