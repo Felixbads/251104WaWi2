@@ -132,7 +132,24 @@ interface ItemStats {
 }
 
 // Status-Definitionen
-const inventurStatusTypes = {
+// Definiere Typ für Statuseinträge
+type StatusEntry = {
+  label: string;
+  color: string;
+  icon: React.ElementType;
+};
+
+// Definiere Typ für Statustypen
+type InventurStatusTypes = {
+  pending: StatusEntry;
+  in_progress: StatusEntry;
+  completed: StatusEntry;
+  cancelled: StatusEntry;
+  [key: string]: StatusEntry;  // Index-Signatur für beliebige string-Keys
+};
+
+// Status-Definitionen mit korrekter Typisierung
+const inventurStatusTypes: InventurStatusTypes = {
   pending: { label: 'Geplant', color: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200', icon: ClockIcon },
   in_progress: { label: 'In Bearbeitung', color: 'bg-blue-100 text-blue-800 hover:bg-blue-200', icon: RefreshCw },
   completed: { label: 'Abgeschlossen', color: 'bg-green-100 text-green-800 hover:bg-green-200', icon: CheckCircle2 },
@@ -630,10 +647,22 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   }, [inventurData?.status]);
 
   // Aktuelle Status-Informationen
+  // Behandle null/undefined als 'pending' für konsistente Anzeige
   const currentStatus = inventurData?.status || 'pending';
-  const StatusIcon = inventurStatusTypes[currentStatus as keyof typeof inventurStatusTypes]?.icon || ClockIcon;
-  const statusLabel = inventurStatusTypes[currentStatus as keyof typeof inventurStatusTypes]?.label || 'Unbekannt';
-  const statusColor = inventurStatusTypes[currentStatus as keyof typeof inventurStatusTypes]?.color || 'bg-gray-100 text-gray-800';
+  
+  // Wähle das passende Icon, Label und Farbe basierend auf dem Status
+  // Verwende die Typindexsignatur für sicheren Zugriff
+  const StatusIcon = inventurStatusTypes[currentStatus]?.icon || ClockIcon;
+  
+  // Setze explizit "Ausstehend" als Label für null/undefined/pending
+  const statusLabel = (inventurData?.status === null || inventurData?.status === undefined) 
+    ? "Ausstehend" 
+    : (inventurStatusTypes[currentStatus]?.label || 'Ausstehend');
+  
+  // Verwende die Farbe für 'pending' bei null/undefined
+  const statusColor = (inventurData?.status === null || inventurData?.status === undefined)
+    ? (inventurStatusTypes["pending"]?.color || 'bg-gray-100 text-gray-800')
+    : (inventurStatusTypes[currentStatus]?.color || 'bg-gray-100 text-gray-800');
 
   return (
     <div className="space-y-6">
