@@ -3,7 +3,7 @@ import { useLocation } from 'wouter';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
-import { InventoryActions } from '@/components/inventory/InventoryActions';
+import { InventorySummaryCard } from '@/components/inventory/InventorySummaryCard';
 import {
   ArrowLeft, Save, ClipboardCheck, Calendar, CheckCircle2, XCircle,
   Pencil, AlertTriangle, Package, Search, Plus, Minus, RefreshCw,
@@ -1718,161 +1718,22 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
         </div>
       </div>
         
-      {/* Aktionsbereich in einer Card mit Aktionsbuttons */}
-      <Card className="border shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-xl">Inventur-Aktionen</CardTitle>
-          <CardDescription>
-            Verwalten Sie den Status und die Inhalte dieser Inventur
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {/* InventoryActions in einem abgesicherten Bereich - EINE EINZIGE INSTANZ */}
-          <div className="relative z-10">
-            {!isLoadingInventur && !isLoadingWarehouse ? (
-              <div>
-                {/* Status: pending */}
-                {currentStatus === 'pending' && (
-                  <div className="flex flex-wrap gap-3 my-4">
-                    <Button 
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                      onClick={() => startInventurMutation.mutate()}
-                      disabled={startInventurMutation.isPending}
-                    >
-                      {startInventurMutation.isPending ? (
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <PlayCircle className="h-4 w-4 mr-2" />
-                      )}
-                      Inventur starten
-                    </Button>
-                    
-                    <Button 
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                      onClick={() => addAllProductsMutation.mutate()}
-                      disabled={addAllProductsMutation.isPending}
-                    >
-                      {addAllProductsMutation.isPending ? (
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <Package className="h-4 w-4 mr-2" />
-                      )}
-                      Alle Produkte hinzufügen
-                    </Button>
-                    
-                    <Button 
-                      variant="outline"
-                      className="border-red-500 text-red-500 hover:bg-red-50"
-                      onClick={() => updateStatusMutation.mutate('cancelled')}
-                      disabled={updateStatusMutation.isPending}
-                    >
-                      <Ban className="h-4 w-4 mr-2" />
-                      Abbrechen
-                    </Button>
-                    
-                    <Button 
-                      variant="outline"
-                      className="border-red-500 text-red-500 hover:bg-red-50"
-                      onClick={() => setShowDeleteDialog(true)}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Löschen
-                    </Button>
-                  </div>
-                )}
-                
-                {/* Status: in_progress */}
-                {currentStatus === 'in_progress' && (
-                  <div className="flex flex-wrap gap-3 my-4">
-                    <Button 
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                      onClick={() => saveInventurMutation.mutate()}
-                      disabled={saveInventurMutation.isPending}
-                    >
-                      {saveInventurMutation.isPending ? (
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <Save className="h-4 w-4 mr-2" />
-                      )}
-                      Zwischenspeichern
-                    </Button>
-                    
-                    <Button 
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                      onClick={() => setShowCompleteDialog(true)}
-                    >
-                      <CheckCircle2 className="h-4 w-4 mr-2" />
-                      Inventur abschließen
-                    </Button>
-                    
-                    <Button 
-                      variant="outline"
-                      className="border-red-500 text-red-500 hover:bg-red-50"
-                      onClick={() => updateStatusMutation.mutate('cancelled')}
-                      disabled={updateStatusMutation.isPending}
-                    >
-                      <Ban className="h-4 w-4 mr-2" />
-                      Abbrechen
-                    </Button>
-                    
-                    <Button 
-                      variant="outline"
-                      className="border-red-500 text-red-500 hover:bg-red-50"
-                      onClick={() => setShowDeleteDialog(true)}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Löschen
-                    </Button>
-                  </div>
-                )}
-                
-                {/* Status: completed */}
-                {currentStatus === 'completed' && (
-                  <div className="flex flex-wrap gap-3 my-4">
-                    <Button 
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                      onClick={() => updateStatusMutation.mutate('in_progress')}
-                      disabled={updateStatusMutation.isPending}
-                    >
-                      <Pencil className="h-4 w-4 mr-2" />
-                      In Bearbeitung setzen
-                    </Button>
-                    
-                    <Button 
-                      variant="outline"
-                      className="border-red-500 text-red-500 hover:bg-red-50"
-                      onClick={() => setShowDeleteDialog(true)}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Löschen
-                    </Button>
-                  </div>
-                )}
-                
-                {/* Status: cancelled */}
-                {currentStatus === 'cancelled' && (
-                  <div className="flex flex-wrap gap-3 my-4">
-                    <Button 
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                      onClick={() => updateStatusMutation.mutate('in_progress')}
-                      disabled={updateStatusMutation.isPending}
-                    >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Reaktivieren
-                    </Button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-3 my-4">
-                <Skeleton className="h-10 w-40" />
-                <Skeleton className="h-10 w-40" />
-                <Skeleton className="h-10 w-36" />
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Neue InventorySummaryCard-Komponente mit Aktionsbuttons */}
+      <InventorySummaryCard
+        status={currentStatus}
+        isLoading={isLoadingInventur || isLoadingWarehouse}
+        onStart={() => startInventurMutation.mutate()}
+        onAddProducts={() => addAllProductsMutation.mutate()}
+        onSave={() => saveInventurMutation.mutate()}
+        onComplete={() => setShowCompleteDialog(true)}
+        onCancel={() => updateStatusMutation.mutate('cancelled')}
+        onDelete={() => setShowDeleteDialog(true)}
+        onResume={() => updateStatusMutation.mutate('in_progress')}
+        isStarting={startInventurMutation.isPending}
+        isAdding={addAllProductsMutation.isPending}
+        isSaving={saveInventurMutation.isPending}
+        isUpdating={updateStatusMutation.isPending}
+      />
       
       {/* Übersichtskarten mit Inventurinformationen */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
