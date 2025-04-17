@@ -686,13 +686,46 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       });
   };
   
+  // Funktion zum Laden von Chargen für ein bestimmtes Produkt
+  const loadBatches = (productId: number) => {
+    if (!productId || !inventurData?.warehouseId) return;
+    
+    fetch(`/api/products/${productId}/batches?warehouseId=${inventurData.warehouseId}`)
+      .then(response => response.json())
+      .then(data => {
+        console.log("Geladene Chargen:", data);
+        setAvailableBatches(data);
+      })
+      .catch(error => {
+        console.error('Fehler beim Laden der Chargen:', error);
+        toast({
+          title: "Fehler",
+          description: "Die Chargen konnten nicht geladen werden.",
+          variant: "destructive",
+        });
+      });
+  };
+  
   // Funktion zum Aktualisieren der Batch
   const handleBatchUpdate = (batchId: number | null) => {
     if (selectedItem) {
+      console.log("Batch-Update wird durchgeführt: Item ID =", selectedItem.id, "Batch ID =", batchId);
       updateBatchMutation.mutate({ 
         itemId: selectedItem.id, 
         batchId 
       });
+      
+      // Nach dem Update die Liste der Batches neu laden
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/product-batches`]
+      });
+      
+      // Und die Liste der verfügbaren Batches aktualisieren
+      setTimeout(() => {
+        if (selectedItem.productId) {
+          loadBatches(selectedItem.productId);
+        }
+      }, 500);
     }
   };
   

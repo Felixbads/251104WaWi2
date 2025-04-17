@@ -101,45 +101,71 @@ export default function InventoryCountBatchDialog({
         throw new Error('Fehlende Daten für neue Charge');
       }
 
+      console.log("Erstelle neue Charge für Produkt:", selectedItem.productId);
+      
+      const batchData = {
+        productId: selectedItem.productId,
+        warehouseId: parseInt(inventoryId), // Verwende Inventur-ID als Lager-ID
+        batchNumber: newBatchNumber,
+        expiryDate: format(expiryDate, 'yyyy-MM-dd'),
+        receivedDate: format(new Date(), 'yyyy-MM-dd'),
+        initialQuantity: selectedItem.countedQuantity || 1, // Mindestens 1
+        currentQuantity: selectedItem.countedQuantity || 1, // Mindestens 1
+        quantity: selectedItem.countedQuantity || 1 // Mindestens 1
+      };
+      
+      console.log("Sende Chargen-Daten:", JSON.stringify(batchData, null, 2));
+
       const response = await fetch(`/api/inventory-counts/product-batches`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          productId: selectedItem.productId,
-          warehouseId: parseInt(inventoryId), // Verwende Inventur-ID als Lager-ID
-          batchNumber: newBatchNumber,
-          expiryDate: format(expiryDate, 'yyyy-MM-dd'),
-          receivedDate: format(new Date(), 'yyyy-MM-dd'),
-          initialQuantity: selectedItem.countedQuantity || 1,
-          currentQuantity: selectedItem.countedQuantity || 1,
-          quantity: selectedItem.countedQuantity || 1
-        }),
+        body: JSON.stringify(batchData),
       });
 
+      // Überprüfe auf detaillierte Fehlermeldungen
       if (!response.ok) {
-        throw new Error(`Fehler beim Erstellen der Charge: ${response.status}`);
+        const errorText = await response.text();
+        let errorData;
+        
+        try {
+          errorData = JSON.parse(errorText);
+          throw new Error(errorData.details || errorData.error || `Serverfehler: ${response.status}`);
+        } catch (parseError) {
+          // Wenn JSON-Parse fehlschlägt, verwende den Rohtext
+          throw new Error(`Serverfehler (${response.status}): ${errorText.substring(0, 200)}`);
+        }
       }
 
       return await response.json();
     },
     onSuccess: (data) => {
+      console.log("Charge erfolgreich erstellt:", data);
+      
       // Batch-ID aktualisieren
       if (data && data.id) {
-        onBatchSelect(data.id);
-        
-        // Cache invalidieren
-        queryClient.invalidateQueries({ 
-          queryKey: [`/api/inventory-counts/${inventoryId}/items`]
-        });
-        
-        // Erfolgsmeldung anzeigen
-        setShowSuccess(true);
+        // Setzte eine kurze Verzögerung, damit Backend-Updates abgeschlossen werden können
         setTimeout(() => {
-          setShowSuccess(false);
-          onOpenChange(false);
-        }, 1500);
+          console.log("Aktualisiere Batch-ID auf:", data.id);
+          onBatchSelect(data.id);
+          
+          // Cache invalidieren - sowohl Items als auch Batches
+          queryClient.invalidateQueries({ 
+            queryKey: [`/api/inventory-counts/${inventoryId}/items`]
+          });
+          
+          queryClient.invalidateQueries({ 
+            queryKey: [`/api/products/${selectedItem.productId}/batches`]
+          });
+          
+          // Erfolgsmeldung anzeigen
+          setShowSuccess(true);
+          setTimeout(() => {
+            setShowSuccess(false);
+            onOpenChange(false);
+          }, 1500);
+        }, 300);
       }
     },
     onError: (error: any) => {
@@ -292,7 +318,10 @@ export default function InventoryCountBatchDialog({
                 ) : (
                   <>
                     <div className="mb-6">
-                      <Select value={selectedBatchId || ''} onValueChange={handleBatchChange}>
+                      <Select 
+                        value={selectedBatchId || "none"} 
+                        onValueChange={handleBatchChange}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="Charge auswählen" />
                         </SelectTrigger>
@@ -409,8 +438,8 @@ export default function InventoryCountBatchDialog({
                       <PopoverContent className="w-auto p-0">
                         <Calendar
                           mode="single"
-                          selected={expiryDate}
-                          onSelect={setExpiryDate}
+                          selected={expiryDate || undefined}
+                          onSelect={(date) => setExpiryDate(date || null)}
                           initialFocus
                         />
                       </PopoverContent>
