@@ -1671,7 +1671,7 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
       <BatchSelectDialog />
       
       {/* Kopfzeile mit zurück-Button und Titel */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-start">
         <Button variant="ghost" onClick={handleBack}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Zurück
@@ -1682,6 +1682,24 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
           <p className="text-muted-foreground">
             Detailansicht und Bearbeitung der ausgewählten Inventur
           </p>
+        </div>
+        
+        {/* POSITION 2: Buttons in der Kopfzeile */}
+        <div className="flex-shrink-0 mt-1 z-50">
+          <InventoryActions 
+            status={currentStatus}
+            onStart={() => startInventurMutation.mutate()}
+            onAddAllProducts={() => addAllProductsMutation.mutate()}
+            onSave={() => saveInventurMutation.mutate()}
+            onComplete={() => setShowCompleteDialog(true)}
+            onCancel={() => updateStatusMutation.mutate('cancelled')}
+            onDelete={() => setShowDeleteDialog(true)}
+            onResume={() => updateStatusMutation.mutate('in_progress')}
+            isStarting={startInventurMutation.isPending}
+            isAdding={addAllProductsMutation.isPending}
+            isSaving={saveInventurMutation.isPending}
+            isUpdating={updateStatusMutation.isPending}
+          />
         </div>
       </div>
       
