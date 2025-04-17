@@ -1789,7 +1789,7 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
       </div>
 
       {/* Status-Aktionen vor der Produktliste */}
-      <div className="mb-3">
+      <div className="mb-3 sticky top-2 z-50">
         <InventoryActions 
           status={currentStatus}
           onStart={() => startInventurMutation.mutate()}

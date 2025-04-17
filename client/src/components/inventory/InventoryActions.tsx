@@ -44,7 +44,7 @@ export const InventoryActions: React.FC<InventoryActionsProps> = ({
   // Render different buttons based on status
   if (status === 'pending') {
     return (
-      <div className="flex flex-wrap gap-3 my-4">
+      <div className="flex flex-wrap gap-3 my-4 z-50 relative">
         {/* Start inventory button */}
         <Button 
           className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -99,7 +99,7 @@ export const InventoryActions: React.FC<InventoryActionsProps> = ({
   
   if (status === 'in_progress') {
     return (
-      <div className="flex flex-wrap gap-3 my-4">
+      <div className="flex flex-wrap gap-3 my-4 z-50 relative">
         {/* Save button */}
         <Button 
           className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -149,7 +149,7 @@ export const InventoryActions: React.FC<InventoryActionsProps> = ({
   
   if (status === 'completed') {
     return (
-      <div className="flex flex-wrap gap-3 my-4">
+      <div className="flex flex-wrap gap-3 my-4 z-50 relative">
         {/* Resume button */}
         <Button 
           className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -175,7 +175,7 @@ export const InventoryActions: React.FC<InventoryActionsProps> = ({
   
   if (status === 'cancelled') {
     return (
-      <div className="flex flex-wrap gap-3 my-4">
+      <div className="flex flex-wrap gap-3 my-4 z-50 relative">
         {/* Reactivate button */}
         <Button 
           className="bg-blue-600 hover:bg-blue-700 text-white"
