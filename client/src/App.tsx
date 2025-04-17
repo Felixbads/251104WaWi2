@@ -323,14 +323,8 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
         
+        {/* Inventur-Detailseite */}
         <Route path="/inventur/:id" component={props => (
-          <ApprovedUserRoute>
-            <InventurDetailPage {...props} />
-          </ApprovedUserRoute>
-        )} />
-        
-        {/* Neue Inventur-Detailseite */}
-        <Route path="/inventur/:id/neu" component={props => (
           <ApprovedUserRoute>
             <InventurDetailNewPage {...props} />
           </ApprovedUserRoute>
