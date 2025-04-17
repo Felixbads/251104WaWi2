@@ -218,6 +218,9 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
   const [completionNotes, setCompletionNotes] = useState('');
   const [showStartButton, setShowStartButton] = useState(false);
+  // Sortierzustand für Tabellenspalten
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Lade Inventurdaten
   const { 
