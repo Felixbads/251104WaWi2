@@ -695,6 +695,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       .catch(error => {
         console.error('Fehler beim Laden der Chargen:', error);
         // Setze einen leeren Array als Fallback, damit der Dialog trotzdem geöffnet werden kann
+        // Das lässt die Möglichkeit, eine neue Charge zu erstellen obwohl Batch-Laden fehlgeschlagen ist
         setAvailableBatches([]);
         
         // Auch hier erst nach der Fehlerbehandlung die Formularflächen zurücksetzen

@@ -72,7 +72,7 @@ export default function InventoryCountBatchDialog({
   
   // State-Verwaltung
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<string>('existing');
+  const [activeTab, setActiveTab] = useState<string>(availableBatches.length === 0 ? 'new' : 'existing');
   const [newBatchNumber, setNewBatchNumber] = useState('');
   // Setze Standarddatum auf 3 Monate in der Zukunft für neue Chargen
   const [expiryDate, setExpiryDate] = useState<Date | null>(
