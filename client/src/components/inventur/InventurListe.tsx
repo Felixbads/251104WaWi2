@@ -84,6 +84,11 @@ export default function InventurListe() {
   const openInventurDetail = (id: number) => {
     setLocation(`/inventur/${id}`);
   };
+  
+  // Neue Inventurdetailseite öffnen
+  const openNewInventurDetail = (id: number) => {
+    setLocation(`/inventur/${id}/neu`);
+  };
 
   return (
     <Card>
@@ -163,6 +168,15 @@ export default function InventurListe() {
                           >
                             <Eye className="h-4 w-4 mr-1" />
                             Ansehen
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => openNewInventurDetail(inventur.id)}
+                            className="border-blue-500 text-blue-600 hover:bg-blue-50"
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            Neue Ansicht
                           </Button>
                           {inventur.status === 'completed' && (
                             <Button
