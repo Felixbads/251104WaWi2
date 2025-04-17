@@ -3,6 +3,7 @@ import { useLocation } from 'wouter';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { InventoryActions } from '@/components/inventory/InventoryActions';
 import {
   ArrowLeft, Save, ClipboardCheck, Calendar, CheckCircle2, XCircle,
   Pencil, AlertTriangle, Package, Search, Plus, Minus, RefreshCw,
@@ -1549,157 +1550,7 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
   // Dialog-State für Löschen-Bestätigung
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  // Einfache Buttons für die wichtigsten Aktionen
-  const SimpleStatusControls = () => {
-    // Status-abhängige Aktionen festlegen
-    const renderButtons = () => {
-      if (currentStatus === 'pending') {
-        return (
-          <>
-            {/* Button zum Starten der Inventur */}
-            <Button 
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => startInventurMutation.mutate()}
-              disabled={startInventurMutation.isPending}
-            >
-              {startInventurMutation.isPending ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <PlayCircle className="h-4 w-4 mr-2" />
-              )}
-              Inventur starten
-            </Button>
-            
-            {/* Button zum Hinzufügen aller Produkte */}
-            <Button 
-              className="bg-green-600 hover:bg-green-700 text-white"
-              onClick={() => addAllProductsMutation.mutate()}
-              disabled={addAllProductsMutation.isPending}
-            >
-              {addAllProductsMutation.isPending ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Package className="h-4 w-4 mr-2" />
-              )}
-              Alle Produkte hinzufügen
-            </Button>
-            
-            {/* Button zum Abbrechen */}
-            <Button 
-              variant="outline"
-              className="border-red-500 text-red-500 hover:bg-red-50"
-              onClick={() => updateStatusMutation.mutate('cancelled')}
-            >
-              <Ban className="h-4 w-4 mr-2" />
-              Abbrechen
-            </Button>
-            
-            {/* Button zum Löschen */}
-            <Button 
-              variant="outline"
-              className="border-red-500 text-red-500 hover:bg-red-50"
-              onClick={() => setShowDeleteDialog(true)}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Löschen
-            </Button>
-          </>
-        );
-      } else if (currentStatus === 'in_progress') {
-        return (
-          <>
-            {/* Button zum Zwischenspeichern */}
-            <Button 
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => saveInventurMutation.mutate()}
-              disabled={saveInventurMutation.isPending}
-            >
-              {saveInventurMutation.isPending ? (
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4 mr-2" />
-              )}
-              Zwischenspeichern
-            </Button>
-            
-            {/* Button zum Abschließen */}
-            <Button 
-              className="bg-green-600 hover:bg-green-700 text-white"
-              onClick={() => setShowCompleteDialog(true)}
-            >
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-              Inventur abschließen
-            </Button>
-            
-            {/* Button zum Abbrechen */}
-            <Button 
-              variant="outline"
-              className="border-red-500 text-red-500 hover:bg-red-50"
-              onClick={() => updateStatusMutation.mutate('cancelled')}
-            >
-              <Ban className="h-4 w-4 mr-2" />
-              Abbrechen
-            </Button>
-            
-            {/* Button zum Löschen */}
-            <Button 
-              variant="outline"
-              className="border-red-500 text-red-500 hover:bg-red-50"
-              onClick={() => setShowDeleteDialog(true)}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Löschen
-            </Button>
-          </>
-        );
-      } else if (currentStatus === 'completed') {
-        return (
-          <>
-            {/* Button für In Bearbeitung setzen */}
-            <Button 
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => updateStatusMutation.mutate('in_progress')}
-            >
-              <Pencil className="h-4 w-4 mr-2" />
-              In Bearbeitung setzen
-            </Button>
-            
-            {/* Button zum Löschen */}
-            <Button 
-              variant="outline"
-              className="border-red-500 text-red-500 hover:bg-red-50"
-              onClick={() => setShowDeleteDialog(true)}
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Löschen
-            </Button>
-          </>
-        );
-      } else if (currentStatus === 'cancelled') {
-        return (
-          <>
-            {/* Button zum Reaktivieren */}
-            <Button 
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => updateStatusMutation.mutate('pending')}
-            >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Reaktivieren
-            </Button>
-          </>
-        );
-      }
-      
-      // Fallback für unbekannte Status
-      return null;
-    };
-    
-    return (
-      <div className="flex flex-wrap gap-3 mb-4">
-        {renderButtons()}
-      </div>
-    );
-  };
+  // Status-Aktionen für die Inventur werden mit der InventoryActions-Komponente gerendert
 
   // Dialog zum Abschließen einer Inventur
   const CompleteInventurDialog = () => {
@@ -1939,7 +1790,20 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
 
       {/* Status-Aktionen vor der Produktliste */}
       <div className="mb-3">
-        <SimpleStatusControls />
+        <InventoryActions 
+          status={currentStatus}
+          onStart={() => startInventurMutation.mutate()}
+          onAddAllProducts={() => addAllProductsMutation.mutate()}
+          onSave={() => saveInventurMutation.mutate()}
+          onComplete={() => setShowCompleteDialog(true)}
+          onCancel={() => updateStatusMutation.mutate('cancelled')}
+          onDelete={() => setShowDeleteDialog(true)}
+          onResume={() => updateStatusMutation.mutate('in_progress')}
+          isStarting={startInventurMutation.isPending}
+          isAdding={addAllProductsMutation.isPending}
+          isSaving={saveInventurMutation.isPending}
+          isUpdating={updateStatusMutation.isPending}
+        />
       </div>
       
       {/* Produktliste und Aktionen */}
