@@ -3117,10 +3117,16 @@ export class DatabaseStorage implements IStorage {
     
     console.log(`Storage: Lager gefunden: ${warehouse.name} (ID: ${warehouse.id})`);
     
-    const [newCount] = await db.insert(inventoryCounts).values({
+    // Stelle sicher, dass ein Status gesetzt ist, standardmäßig "pending"
+    const inventoryData = {
       ...count,
+      status: count.status || 'pending', // Explizit den Status setzen, falls er fehlt
       createdAt: new Date()
-    }).returning();
+    };
+    
+    console.log(`Storage: Erstelle Inventur mit Status: ${inventoryData.status}`);
+    
+    const [newCount] = await db.insert(inventoryCounts).values(inventoryData).returning();
     
     // Füge Lagernamen hinzu
     return {
