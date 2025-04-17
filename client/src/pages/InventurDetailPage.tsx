@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useLocation } from 'wouter';
+import { useLocation, useNavigate } from 'wouter';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -7,7 +7,7 @@ import {
   ArrowLeft, Save, ClipboardCheck, Calendar, CheckCircle2, XCircle,
   Pencil, AlertTriangle, Package, Search, Plus, Minus, RefreshCw,
   MoreHorizontal, Ban, ClockIcon, TrendingUp, TrendingDown, Equal,
-  ChevronDown, ChevronUp, ChevronRight, Split
+  ChevronDown, ChevronUp, ChevronRight, Split, Trash2, PlayCircle
 } from 'lucide-react';
 
 // Interface-Definitionen für die Datentypen
@@ -157,7 +157,7 @@ interface InventurDetailPageProps {
 
 export default function InventurDetailPage({ params }: InventurDetailPageProps) {
   const id = params.id;
-  const [, setLocation] = useLocation();
+  const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -818,7 +818,7 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
 
   // Handler für Rücknavigation
   const handleBack = () => {
-    setLocation('/inventur');
+    navigate('/inventur');
   };
 
   // Ausgewählte IDs für Hinzufügen-Dialog
@@ -1427,6 +1427,128 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
   };
 
   // Status-bezogene Anzeigeelemente
+  // Mutation zum Starten der Inventur
+  const startInventurMutation = useMutation({
+    mutationFn: async () => {
+      try {
+        const response = await fetch(`/api/inventory-counts/${id}/start`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Fehler beim Starten: ${response.status}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Fehler beim Starten der Inventur:', error);
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}`] });
+      
+      toast({
+        title: "Inventur gestartet",
+        description: "Die Inventur wurde erfolgreich gestartet.",
+      });
+    },
+    onError: (error) => {
+      console.error('Fehler beim Starten der Inventur:', error);
+      toast({
+        title: "Fehler",
+        description: "Die Inventur konnte nicht gestartet werden.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation zum Speichern der Inventur (Zwischenstand)
+  const saveInventurMutation = useMutation({
+    mutationFn: async () => {
+      try {
+        const response = await fetch(`/api/inventory-counts/${id}/save`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ notes: inventurData.notes }),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Fehler beim Speichern: ${response.status}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Fehler beim Speichern der Inventur:', error);
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}`] });
+      
+      toast({
+        title: "Inventur gespeichert",
+        description: "Die Inventur wurde erfolgreich zwischengespeichert.",
+      });
+    },
+    onError: (error) => {
+      console.error('Fehler beim Speichern der Inventur:', error);
+      toast({
+        title: "Fehler",
+        description: "Die Inventur konnte nicht gespeichert werden.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation zum Löschen der Inventur
+  const deleteInventurMutation = useMutation({
+    mutationFn: async () => {
+      try {
+        const response = await fetch(`/api/inventory-counts/${id}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Fehler beim Löschen: ${response.status}`);
+        }
+        
+        return await response.json();
+      } catch (error) {
+        console.error('Fehler beim Löschen der Inventur:', error);
+        throw error;
+      }
+    },
+    onSuccess: () => {
+      // Nach dem Löschen zur Übersicht navigieren
+      navigate('/inventur');
+      
+      toast({
+        title: "Inventur gelöscht",
+        description: "Die Inventur wurde erfolgreich gelöscht.",
+      });
+    },
+    onError: (error) => {
+      console.error('Fehler beim Löschen der Inventur:', error);
+      toast({
+        title: "Fehler",
+        description: "Die Inventur konnte nicht gelöscht werden.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Dialog-State für Löschen-Bestätigung
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+
   const StatusControls = () => {
     // TypeScript Interface für Aktionen
     interface StatusAction {
@@ -1443,9 +1565,11 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
       pending: [
         { 
           label: 'Inventur starten',
-          icon: <RefreshCw className="h-4 w-4 mr-2" />, 
-          action: () => updateStatusMutation.mutate('in_progress'), 
-          style: 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+          icon: <PlayCircle className="h-4 w-4 mr-2" />, 
+          action: () => startInventurMutation.mutate(), 
+          style: 'bg-blue-50 text-blue-700 hover:bg-blue-100',
+          disabled: startInventurMutation.isPending,
+          loading: startInventurMutation.isPending
         },
         { 
           label: 'Alle Produkte hinzufügen',
@@ -1460,9 +1584,23 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
           icon: <Ban className="h-4 w-4 mr-2" />, 
           action: () => updateStatusMutation.mutate('cancelled'), 
           style: 'bg-red-50 text-red-700 hover:bg-red-100'
+        },
+        { 
+          label: 'Löschen', 
+          icon: <Trash2 className="h-4 w-4 mr-2" />, 
+          action: () => setShowDeleteDialog(true), 
+          style: 'bg-red-50 text-red-700 hover:bg-red-100'
         }
       ],
       in_progress: [
+        { 
+          label: 'Zwischenspeichern', 
+          icon: <Save className="h-4 w-4 mr-2" />, 
+          action: () => saveInventurMutation.mutate(), 
+          style: 'bg-blue-50 text-blue-700 hover:bg-blue-100',
+          disabled: saveInventurMutation.isPending,
+          loading: saveInventurMutation.isPending
+        },
         { 
           label: 'Inventur abschließen', 
           icon: <CheckCircle2 className="h-4 w-4 mr-2" />, 
@@ -1473,6 +1611,12 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
           label: 'Abbrechen', 
           icon: <Ban className="h-4 w-4 mr-2" />, 
           action: () => updateStatusMutation.mutate('cancelled'), 
+          style: 'bg-red-50 text-red-700 hover:bg-red-100'
+        },
+        { 
+          label: 'Löschen', 
+          icon: <Trash2 className="h-4 w-4 mr-2" />, 
+          action: () => setShowDeleteDialog(true), 
           style: 'bg-red-50 text-red-700 hover:bg-red-100'
         }
       ],
@@ -1588,12 +1732,52 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
     );
   };
 
+  // Dialog zum Löschen einer Inventur
+  const DeleteInventurDialog = () => {
+    return (
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Inventur löschen</AlertDialogTitle>
+            <AlertDialogDescription>
+              Möchten Sie diese Inventur wirklich löschen? 
+              Diese Aktion kann nicht rückgängig gemacht werden.
+              Alle erfassten Zählungen werden unwiderruflich gelöscht.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          <AlertDialogFooter className="mt-4">
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => deleteInventurMutation.mutate()}
+              disabled={deleteInventurMutation.isPending}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleteInventurMutation.isPending ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Wird gelöscht...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Inventur löschen
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    );
+  };
+
   // Main-Render
   return (
     <div className="container mx-auto py-6 space-y-6">
       {/* Dialogkomponenten */}
       <AddProductsDialog />
       <CompleteInventurDialog />
+      <DeleteInventurDialog />
       <BatchSelectDialog />
       
       {/* Kopfzeile mit zurück-Button und Titel */}
