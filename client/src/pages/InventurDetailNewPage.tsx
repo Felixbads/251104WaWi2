@@ -7,7 +7,7 @@ import {
   Save, CheckCircle2, RefreshCw, Pencil,
   Search, TrendingUp, TrendingDown, Equal, Calendar,
   ChevronDown, ChevronUp, ChevronRight, Plus,
-  Split, ClockIcon, MoreHorizontal
+  Split, ClockIcon, MoreHorizontal, FileText
 } from 'lucide-react';
 
 // UI-Komponenten
@@ -628,29 +628,26 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
 
   return (
     <div className="space-y-6">
-      {/* Kopfbereich mit Zurück-Button und Status */}
-      <div className="flex flex-col space-y-2">
-        <div className="flex items-center justify-between">
+      {/* Hauptkopfzeile mit Zurück-Button und Titel */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center">
           <Button
             variant="ghost"
             size="sm"
-            className="gap-1"
+            className="mr-2"
             onClick={() => navigate('/inventur')}
           >
-            <ArrowLeft className="h-4 w-4" />
-            Zurück zur Übersicht
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Zurück
           </Button>
           
-          <Badge className={statusColor}>
-            <StatusIcon className="h-3.5 w-3.5 mr-1.5" />
-            {statusLabel}
-          </Badge>
-        </div>
-        
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">
+            <h1 className="text-2xl font-bold tracking-tight flex items-center">
               Inventur {inventurData?.id} {warehouseData?.name ? `für ${warehouseData.name}` : ''}
+              <Badge className={`ml-3 ${statusColor}`}>
+                <StatusIcon className="h-3.5 w-3.5 mr-1.5" />
+                {statusLabel}
+              </Badge>
             </h1>
             <p className="text-muted-foreground">
               Erstellt am {formatDate(inventurData?.createdAt)}
@@ -658,181 +655,206 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
               {inventurData?.endDate && ` | Beendet: ${formatDate(inventurData.endDate)}`}
             </p>
           </div>
+        </div>
+        
+        {/* Aktionsbuttons im Header-Bereich */}
+        <div className="flex flex-wrap gap-2 justify-end">
+          {/* Status: pending */}
+          {currentStatus === 'pending' && (
+            <>
+              <Button 
+                variant="default"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => startInventurMutation.mutate()}
+                disabled={startInventurMutation.isPending}
+              >
+                {startInventurMutation.isPending ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <PlayCircle className="h-4 w-4 mr-2" />
+                )}
+                Inventur starten
+              </Button>
+              
+              <Button 
+                variant="default"
+                className="bg-green-600 hover:bg-green-700 text-white"
+                onClick={() => addAllProductsMutation.mutate()}
+                disabled={addAllProductsMutation.isPending}
+              >
+                {addAllProductsMutation.isPending ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Package className="h-4 w-4 mr-2" />
+                )}
+                Produkte hinzufügen
+              </Button>
+              
+              <Button 
+                variant="outline"
+                className="border-red-500 text-red-500 hover:bg-red-50"
+                onClick={() => updateStatusMutation.mutate('cancelled')}
+                disabled={updateStatusMutation.isPending}
+              >
+                <Ban className="h-4 w-4 mr-2" />
+                Abbrechen
+              </Button>
+              
+              <Button 
+                variant="outline"
+                className="border-red-500 text-red-500 hover:bg-red-50"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Löschen
+              </Button>
+            </>
+          )}
           
-          {(currentStatus === 'in_progress' || currentStatus === 'pending') && (
-            <div className="relative min-w-[200px] max-w-[300px]">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                value={searchTerm}
-                placeholder="Produkte durchsuchen..."
-                className="pl-8 h-9 w-full"
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
+          {/* Status: in_progress */}
+          {currentStatus === 'in_progress' && (
+            <>
+              <Button 
+                variant="default"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => saveInventurMutation.mutate()}
+                disabled={saveInventurMutation.isPending}
+              >
+                {saveInventurMutation.isPending ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-2" />
+                )}
+                Speichern
+              </Button>
+              
+              <Button 
+                variant="default"
+                className="bg-green-600 hover:bg-green-700 text-white"
+                onClick={() => setShowCompleteDialog(true)}
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Abschließen
+              </Button>
+              
+              <Button 
+                variant="outline"
+                className="border-red-500 text-red-500 hover:bg-red-50"
+                onClick={() => updateStatusMutation.mutate('cancelled')}
+                disabled={updateStatusMutation.isPending}
+              >
+                <Ban className="h-4 w-4 mr-2" />
+                Abbrechen
+              </Button>
+              
+              <Button 
+                variant="outline"
+                className="border-red-500 text-red-500 hover:bg-red-50"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Löschen
+              </Button>
+            </>
+          )}
+          
+          {/* Status: completed */}
+          {currentStatus === 'completed' && (
+            <Button 
+              variant="default"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => {
+                // Hier Export-Funktion
+              }}
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              Bericht exportieren
+            </Button>
+          )}
+          
+          {/* Status: cancelled */}
+          {currentStatus === 'cancelled' && (
+            <>
+              <Button 
+                variant="default"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => updateStatusMutation.mutate('pending')}
+                disabled={updateStatusMutation.isPending}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Neu starten
+              </Button>
+              
+              <Button 
+                variant="outline"
+                className="border-red-500 text-red-500 hover:bg-red-50"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Löschen
+              </Button>
+            </>
           )}
         </div>
       </div>
+      
+      {/* Suchfeld wenn relevant */}
+      {(currentStatus === 'in_progress' || currentStatus === 'pending') && (
+        <div className="mb-4 max-w-sm">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              value={searchTerm}
+              placeholder="Produkte durchsuchen..."
+              className="pl-8 h-9 w-full"
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+        </div>
+      )}
 
-      {/* Aktionsbereich mit Buttons */}
+      {/* Progress-Karte mit Zusammenfassung */}
       <Card className="border shadow-sm">
         <CardHeader className="pb-2">
-          <CardTitle className="text-xl">Inventur-Aktionen</CardTitle>
+          <CardTitle className="text-xl">Inventur-Fortschritt</CardTitle>
           <CardDescription>
-            Verwalten Sie den Status und die Inhalte dieser Inventur
+            Überblick über den aktuellen Stand der Inventurzählung
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoadingInventur || isLoadingWarehouse ? (
-            <div className="flex flex-wrap gap-3 my-4">
-              <Skeleton className="h-10 w-40" />
-              <Skeleton className="h-10 w-40" />
-              <Skeleton className="h-10 w-36" />
+          <div className="flex flex-col gap-4">
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-sm font-medium">Gezählte Produkte</span>
+                <span className="text-sm font-medium text-muted-foreground">
+                  {itemStats.counted} von {itemStats.total} ({itemStats.total > 0 ? Math.round((itemStats.counted / itemStats.total) * 100) : 0}%)
+                </span>
+              </div>
+              <Progress 
+                value={itemStats.total > 0 ? (itemStats.counted / itemStats.total) * 100 : 0} 
+                className="h-2" 
+              />
             </div>
-          ) : (
-            <>
-              {/* Status: pending */}
-              {currentStatus === 'pending' && (
-                <div className="flex flex-wrap gap-3 my-4">
-                  <Button 
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                    onClick={() => startInventurMutation.mutate()}
-                    disabled={startInventurMutation.isPending}
-                  >
-                    {startInventurMutation.isPending ? (
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <PlayCircle className="h-4 w-4 mr-2" />
-                    )}
-                    Inventur starten
-                  </Button>
-                  
-                  <Button 
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                    onClick={() => addAllProductsMutation.mutate()}
-                    disabled={addAllProductsMutation.isPending}
-                  >
-                    {addAllProductsMutation.isPending ? (
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Package className="h-4 w-4 mr-2" />
-                    )}
-                    Alle Produkte hinzufügen
-                  </Button>
-                  
-                  <Button 
-                    variant="outline"
-                    className="border-red-500 text-red-500 hover:bg-red-50"
-                    onClick={() => updateStatusMutation.mutate('cancelled')}
-                    disabled={updateStatusMutation.isPending}
-                  >
-                    <Ban className="h-4 w-4 mr-2" />
-                    Abbrechen
-                  </Button>
-                  
-                  <Button 
-                    variant="outline"
-                    className="border-red-500 text-red-500 hover:bg-red-50"
-                    onClick={() => setShowDeleteDialog(true)}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Löschen
-                  </Button>
-                </div>
-              )}
-              
-              {/* Status: in_progress */}
-              {currentStatus === 'in_progress' && (
-                <div className="flex flex-wrap gap-3 my-4">
-                  <Button 
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                    onClick={() => saveInventurMutation.mutate()}
-                    disabled={saveInventurMutation.isPending}
-                  >
-                    {saveInventurMutation.isPending ? (
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                      <Save className="h-4 w-4 mr-2" />
-                    )}
-                    Zwischenspeichern
-                  </Button>
-                  
-                  <Button 
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                    onClick={() => setShowCompleteDialog(true)}
-                  >
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Inventur abschließen
-                  </Button>
-                  
-                  <Button 
-                    variant="outline"
-                    className="border-red-500 text-red-500 hover:bg-red-50"
-                    onClick={() => updateStatusMutation.mutate('cancelled')}
-                    disabled={updateStatusMutation.isPending}
-                  >
-                    <Ban className="h-4 w-4 mr-2" />
-                    Abbrechen
-                  </Button>
-                  
-                  <Button 
-                    variant="outline"
-                    className="border-red-500 text-red-500 hover:bg-red-50"
-                    onClick={() => setShowDeleteDialog(true)}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Löschen
-                  </Button>
-                </div>
-              )}
-              
-              {/* Status: completed */}
-              {currentStatus === 'completed' && (
-                <div className="flex flex-wrap gap-3 my-4">
-                  <Button 
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                    onClick={() => updateStatusMutation.mutate('in_progress')}
-                    disabled={updateStatusMutation.isPending}
-                  >
-                    <Pencil className="h-4 w-4 mr-2" />
-                    In Bearbeitung setzen
-                  </Button>
-                  
-                  <Button 
-                    variant="outline"
-                    className="border-red-500 text-red-500 hover:bg-red-50"
-                    onClick={() => setShowDeleteDialog(true)}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Löschen
-                  </Button>
-                </div>
-              )}
-              
-              {/* Status: cancelled */}
-              {currentStatus === 'cancelled' && (
-                <div className="flex flex-wrap gap-3 my-4">
-                  <Button 
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                    onClick={() => updateStatusMutation.mutate('in_progress')}
-                    disabled={updateStatusMutation.isPending}
-                  >
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Reaktivieren
-                  </Button>
-                  
-                  <Button 
-                    variant="outline"
-                    className="border-red-500 text-red-500 hover:bg-red-50"
-                    onClick={() => setShowDeleteDialog(true)}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Löschen
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
+            
+            <div className="grid grid-cols-3 gap-4 mt-2">
+              <div className="flex flex-col items-center justify-center p-3 bg-blue-50 rounded-md">
+                <TrendingUp className="h-5 w-5 text-blue-600 mb-1" />
+                <span className="text-sm font-medium">{itemStats.increased}</span>
+                <span className="text-xs text-muted-foreground">Erhöht</span>
+              </div>
+              <div className="flex flex-col items-center justify-center p-3 bg-red-50 rounded-md">
+                <TrendingDown className="h-5 w-5 text-red-600 mb-1" />
+                <span className="text-sm font-medium">{itemStats.decreased}</span>
+                <span className="text-xs text-muted-foreground">Verringert</span>
+              </div>
+              <div className="flex flex-col items-center justify-center p-3 bg-green-50 rounded-md">
+                <Equal className="h-5 w-5 text-green-600 mb-1" />
+                <span className="text-sm font-medium">{itemStats.unchanged}</span>
+                <span className="text-xs text-muted-foreground">Unverändert</span>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
       
