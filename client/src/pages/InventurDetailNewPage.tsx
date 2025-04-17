@@ -898,16 +898,22 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     }
   }, [inventurItems, itemOrderMap]);
   
-  // Sortiere Inventurpositionen in der ursprünglichen Reihenfolge
+  // Sortiere Inventurpositionen mit Stabilität
   const sortedItems = useMemo(() => {
     // Wenn keine Sortierung aktiv ist und noch keine Originalreihenfolge gespeichert wurde, gib die Items unverändert zurück
     if (!sortField && Object.keys(itemOrderMap).length === 0) return inventurItems;
     
     const itemsToSort = [...inventurItems];
     
-    // Wenn ein Sortierfeld angegeben ist, sortiere nach diesem
-    if (sortField) {
-      return itemsToSort.sort((a, b) => {
+    // Stabile Sortierung: Verwende eine Sekundärsortierung nach ursprünglicher Reihenfolge,
+    // wenn die primäre Sortierung gleiche Werte ergibt
+    return itemsToSort.sort((a, b) => {
+      // Hol die ursprünglichen Indizes als Sekundärsortierung
+      const indexA = itemOrderMap[a.id] ?? Number.MAX_SAFE_INTEGER;
+      const indexB = itemOrderMap[b.id] ?? Number.MAX_SAFE_INTEGER;
+      
+      // Wenn ein Sortierfeld angegeben ist, sortiere primär danach
+      if (sortField) {
         let valueA, valueB;
         
         // Extrahiere die zu vergleichenden Werte je nach Sortierschlüssel
@@ -920,6 +926,17 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         } else if (sortField === 'countedQuantity') {
           valueA = a.countedQuantity !== null ? a.countedQuantity : -1;
           valueB = b.countedQuantity !== null ? b.countedQuantity : -1;
+        } else if (sortField === 'difference') {
+          const diffA = a.countedQuantity !== null ? a.countedQuantity - (a.expectedQuantity || 0) : null;
+          const diffB = b.countedQuantity !== null ? b.countedQuantity - (b.expectedQuantity || 0) : null;
+          
+          // Null-Differenzen am Ende sortieren
+          if (diffA === null && diffB === null) return indexA - indexB; // Stabile Sortierung bei Gleichheit
+          if (diffA === null) return 1;
+          if (diffB === null) return -1;
+          
+          valueA = diffA;
+          valueB = diffB;
         } else {
           // Fallback für andere Felder
           valueA = (a as any)[sortField] || '';
@@ -927,24 +944,27 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         }
         
         // Tatsächlicher Vergleich mit Berücksichtigung der Sortierrichtung
+        let result: number;
+        
         if (typeof valueA === 'string' && typeof valueB === 'string') {
-          return sortDirection === 'asc' 
+          result = sortDirection === 'asc' 
             ? valueA.localeCompare(valueB) 
             : valueB.localeCompare(valueA);
         } else {
-          return sortDirection === 'asc' 
+          result = sortDirection === 'asc' 
             ? (valueA as number) - (valueB as number) 
             : (valueB as number) - (valueA as number);
         }
-      });
-    }
-    
-    // Wenn keine Sortierung aktiv ist, behalte die ursprüngliche Reihenfolge bei
-    return itemsToSort.sort((a, b) => {
-      // Verwende das Index-Mapping für die ursprüngliche Reihenfolge
-      const indexA = itemOrderMap[a.id] ?? Number.MAX_SAFE_INTEGER;
-      const indexB = itemOrderMap[b.id] ?? Number.MAX_SAFE_INTEGER;
+        
+        // Wenn die Werte gleich sind, verwende die ursprüngliche Reihenfolge für eine stabile Sortierung
+        if (result === 0) {
+          return indexA - indexB;
+        }
+        
+        return result;
+      }
       
+      // Wenn keine Sortierung aktiv ist, behalte die ursprüngliche Reihenfolge bei
       return indexA - indexB;
     });
   }, [inventurItems, itemOrderMap, sortField, sortDirection]);

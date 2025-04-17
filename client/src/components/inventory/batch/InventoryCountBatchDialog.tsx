@@ -103,9 +103,16 @@ export default function InventoryCountBatchDialog({
 
       console.log("Erstelle neue Charge für Produkt:", selectedItem.productId);
       
+      // Hole zuerst die Inventurdaten, um die korrekte Lager-ID zu bekommen
+      const inventoryResponse = await fetch(`/api/inventory-counts/${inventoryId}`);
+      if (!inventoryResponse.ok) {
+        throw new Error('Fehler beim Laden der Inventurdaten');
+      }
+      const inventoryData = await inventoryResponse.json();
+      
       const batchData = {
         productId: selectedItem.productId,
-        warehouseId: parseInt(inventoryId), // Verwende Inventur-ID als Lager-ID
+        warehouseId: inventoryData.warehouseId, // Verwende die korrekte Lager-ID
         batchNumber: newBatchNumber,
         expiryDate: format(expiryDate, 'yyyy-MM-dd'),
         receivedDate: format(new Date(), 'yyyy-MM-dd'),
