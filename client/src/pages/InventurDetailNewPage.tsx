@@ -1071,9 +1071,8 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     };
   }, [filteredItems]);
 
-  // Aktuelle Status-Informationen
-  // Behandle null/undefined als 'pending' für konsistente Anzeige
-  // Dies stellt sicher, dass der Status korrekt angezeigt wird
+  // Status-Management: Behandlung verschiedener Status-Werte
+  // Wir erstellen einen State für den aktuellen Status mit initialem Wert 'pending'
   const [currentStatus, setCurrentStatus] = useState<string>('pending');
   
   // Status-Initialisierung und -Aktualisierung
@@ -1081,14 +1080,13 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     console.log('Status der Inventur:', inventurData?.status);
     
     // Der Status kann entweder 'null'/'undefined', 'pending', 'in_progress', 'completed' oder ein unbekannter Wert sein
-    // Wir müssen alle Fälle richtig behandeln
-
+    
     // Standardverhalten: Zeige Start-Button für 'null', 'undefined' oder 'pending'
     if (inventurData?.status === null || inventurData?.status === undefined || inventurData?.status === 'pending') {
       setShowStartButton(true);
       
-      // Bei neuen Inventuren, die noch keinen Status haben, 
-      // setze explizit auf 'pending', damit 'Unbekannt' nicht angezeigt wird
+      // Bei neuen Inventuren (null/undefined), setze Status auf 'pending'
+      // damit "Ausstehend" angezeigt wird statt "Unbekannt"
       if (inventurData?.status === null || inventurData?.status === undefined) {
         setCurrentStatus('pending');
       } else {
