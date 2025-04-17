@@ -44,7 +44,7 @@ interface InventoryCountItem {
   productId: number;
   productName: string;
   expectedQuantity: number;
-  countedQuantity: number | null;
+  countedQuantity?: number | null;
   batchId?: number | null;
   batchNumber?: string | null;
   expiryDate?: string | null;
