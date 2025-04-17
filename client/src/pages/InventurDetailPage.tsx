@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useLocation, useNavigate } from 'wouter';
+import { useLocation } from 'wouter';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -2196,7 +2196,7 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                                 )}
                                 
                                 <DropdownMenuItem 
-                                  onClick={() => setLocation(`/produkte/${item.product?.id}`)}
+                                  onClick={() => navigate(`/produkte/${item.product?.id}`)}
                                   disabled={!item.product?.id}
                                 >
                                   <Pencil className="h-4 w-4 mr-2" />
