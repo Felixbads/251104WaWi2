@@ -2125,15 +2125,15 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                                       }}
                                     >
                                       {expandedItems[item.id] ? (
-                                        <>
+                                        <div className="flex items-center">
                                           <ChevronUp className="h-4 w-4 mr-2" />
                                           Details ausblenden
-                                        </>
+                                        </div>
                                       ) : (
-                                        <>
+                                        <div className="flex items-center">
                                           <ChevronDown className="h-4 w-4 mr-2" />
                                           Details anzeigen
-                                        </>
+                                        </div>
                                       )}
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
@@ -2154,7 +2154,7 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                         
                         {/* Detailzeilen für MHDs, wenn expanded */}
                         {expandedItems[item.id] && (
-                          <>
+                          <div>
                             {/* MHD-Zeilen, falls vorhanden */}
                             {item.batch?.expiryDate ? (
                               <TableRow className="bg-muted/10">
@@ -2233,7 +2233,7 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                                 </TableCell>
                               </TableRow>
                             )}
-                          </>
+                          </div>
                         )}
                       </React.Fragment>
                     );
