@@ -219,7 +219,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   const [completionNotes, setCompletionNotes] = useState('');
   const [showStartButton, setShowStartButton] = useState(false);
   // Sortierzustand für Tabellenspalten
-  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<string | null>('product');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Lade Inventurdaten
@@ -883,21 +883,25 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     }
   };
 
-  // Speichere die ursprüngliche Reihenfolge der Items bei initialem Laden
-  const [originalItemOrder, setOriginalItemOrder] = useState<number[]>([]);
+  // Speichere die ursprüngliche Reihenfolge der Items als Item-ID zu Index-Mapping
+  const [itemOrderMap, setItemOrderMap] = useState<{[key: number]: number}>({});
   
-  // Aktualisiere originalItemOrder, wenn inventurItems zum ersten Mal geladen werden
+  // Aktualisiere itemOrderMap, wenn inventurItems zum ersten Mal geladen werden
   useEffect(() => {
-    if (inventurItems.length > 0 && originalItemOrder.length === 0) {
-      setOriginalItemOrder(inventurItems.map(item => item.id));
-      console.log("Ursprüngliche Reihenfolge gespeichert:", inventurItems.map(item => item.id));
+    if (inventurItems.length > 0 && Object.keys(itemOrderMap).length === 0) {
+      const orderMap: {[key: number]: number} = {};
+      inventurItems.forEach((item, index) => {
+        orderMap[item.id] = index;
+      });
+      setItemOrderMap(orderMap);
+      console.log("Ursprüngliche Reihenfolge gespeichert:", orderMap);
     }
-  }, [inventurItems, originalItemOrder]);
+  }, [inventurItems, itemOrderMap]);
   
   // Sortiere Inventurpositionen in der ursprünglichen Reihenfolge
   const sortedItems = useMemo(() => {
     // Wenn keine Sortierung aktiv ist und noch keine Originalreihenfolge gespeichert wurde, gib die Items unverändert zurück
-    if (!sortField && originalItemOrder.length === 0) return inventurItems;
+    if (!sortField && Object.keys(itemOrderMap).length === 0) return inventurItems;
     
     const itemsToSort = [...inventurItems];
     
@@ -937,16 +941,13 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     
     // Wenn keine Sortierung aktiv ist, behalte die ursprüngliche Reihenfolge bei
     return itemsToSort.sort((a, b) => {
-      const indexA = originalItemOrder.indexOf(a.id);
-      const indexB = originalItemOrder.indexOf(b.id);
-      
-      // Wenn ein Item nicht in originalItemOrder gefunden wird, platziere es am Ende
-      if (indexA === -1) return 1;
-      if (indexB === -1) return -1;
+      // Verwende das Index-Mapping für die ursprüngliche Reihenfolge
+      const indexA = itemOrderMap[a.id] ?? Number.MAX_SAFE_INTEGER;
+      const indexB = itemOrderMap[b.id] ?? Number.MAX_SAFE_INTEGER;
       
       return indexA - indexB;
     });
-  }, [inventurItems, originalItemOrder, sortField, sortDirection]);
+  }, [inventurItems, itemOrderMap, sortField, sortDirection]);
   
   // Filtere Inventurpositionen basierend auf Suchbegriff
   const filteredItems = useMemo(() => {
@@ -1410,8 +1411,8 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                       Produkt
                       {sortField === 'product' && (
                         sortDirection === 'asc' ? 
-                          <ArrowUpIcon className="h-4 w-4" /> : 
-                          <ArrowDownIcon className="h-4 w-4" />
+                          <ArrowUp className="h-4 w-4" /> : 
+                          <ArrowDown className="h-4 w-4" />
                       )}
                     </div>
                   </TableHead>
@@ -1430,8 +1431,8 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                       Erwarteter Bestand
                       {sortField === 'expectedQuantity' && (
                         sortDirection === 'asc' ? 
-                          <ArrowUpIcon className="h-4 w-4" /> : 
-                          <ArrowDownIcon className="h-4 w-4" />
+                          <ArrowUp className="h-4 w-4" /> : 
+                          <ArrowDown className="h-4 w-4" />
                       )}
                     </div>
                   </TableHead>
@@ -1450,8 +1451,8 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                       Gezählter Bestand
                       {sortField === 'countedQuantity' && (
                         sortDirection === 'asc' ? 
-                          <ArrowUpIcon className="h-4 w-4" /> : 
-                          <ArrowDownIcon className="h-4 w-4" />
+                          <ArrowUp className="h-4 w-4" /> : 
+                          <ArrowDown className="h-4 w-4" />
                       )}
                     </div>
                   </TableHead>
