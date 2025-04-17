@@ -1670,24 +1670,66 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
       <DeleteInventurDialog />
       <BatchSelectDialog />
       
-      {/* Kopfzeile mit zurück-Button und Titel */}
-      <div className="flex justify-between items-start">
-        <Button variant="ghost" onClick={handleBack}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Zurück
-        </Button>
-        
-        <div className="flex-1 mx-4">
-          <h1 className="text-2xl font-bold tracking-tight">Inventur Details</h1>
-          <p className="text-muted-foreground">
-            Detailansicht und Bearbeitung der ausgewählten Inventur
-          </p>
+      {/* Header mit Suchleiste und Aktionsbuttons (Products-Style) */}
+      <div className="w-full mb-6">
+        <div className="flex justify-between items-center gap-4 mb-4">
+          {/* Zurück-Button und Titel */}
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={handleBack} className="h-9">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Zurück
+            </Button>
+            <h1 className="text-2xl font-bold tracking-tight">Inventur #{inventurData.id}</h1>
+          </div>
+          
+          {/* Status-Badge */}
+          {!isLoadingInventur && (
+            <Badge className={statusColor}>
+              <StatusIcon className="h-3 w-3 mr-1.5" />
+              {statusLabel}
+            </Badge>
+          )}
         </div>
         
-        {/* POSITION 2: Buttons in der Kopfzeile in einer Card */}
-        <div className="flex-shrink-0 mt-1 z-50">
-          <Card className="border-2 border-primary shadow-lg w-80 mr-4">
-            <CardContent className="p-4">
+        <div className="flex flex-col md:flex-row justify-between gap-4">
+          {/* Beschreibung und Details */}
+          <div>
+            <p className="text-gray-500">
+              {warehouseData.name || inventurData.warehouseName || 'Lager unbekannt'} |
+              Erstellt am {formatDate(inventurData.createdAt)}
+              {inventurData.startDate && ` | Gestartet: ${formatDate(inventurData.startDate)}`}
+              {inventurData.endDate && ` | Beendet: ${formatDate(inventurData.endDate)}`}
+            </p>
+          </div>
+          
+          {/* Produkt-Suchfeld */}
+          {(currentStatus === 'in_progress' || currentStatus === 'pending') && (
+            <div className="relative min-w-[200px] max-w-[300px]">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                value={searchTerm}
+                placeholder="Produkte durchsuchen..."
+                className="pl-8 h-9 w-full"
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+        
+      {/* Aktionsbereich in einer Card mit Aktionsbuttons */}
+      <Card className="border shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-xl">Inventur-Aktionen</CardTitle>
+          <CardDescription>
+            Verwalten Sie den Status und die Inhalte dieser Inventur
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {/* InventoryActions in einem abgesicherten Bereich - EINE EINZIGE INSTANZ */}
+          <div className="relative z-10">
+            {!isLoadingInventur && !isLoadingWarehouse ? (
               <InventoryActions 
                 status={currentStatus}
                 onStart={() => startInventurMutation.mutate()}
@@ -1702,139 +1744,118 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                 isSaving={saveInventurMutation.isPending}
                 isUpdating={updateStatusMutation.isPending}
               />
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+            ) : (
+              <div className="flex flex-wrap gap-3 my-4 z-50 relative">
+                <Skeleton className="h-10 w-40" />
+                <Skeleton className="h-10 w-40" />
+                <Skeleton className="h-10 w-36" />
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
       
-      {/* Informationsbereich */}
+      {/* Übersichtskarten mit Inventurinformationen */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
+        {/* Karte 1: Grundinformationen */}
+        <Card className="shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Lager</CardTitle>
+            <CardTitle className="text-sm font-medium">Details</CardTitle>
           </CardHeader>
           <CardContent>
-            {isLoadingWarehouse ? (
-              <Skeleton className="h-7 w-full" />
-            ) : (
-              <div className="flex items-center gap-2">
-                <Package className="h-5 w-5 text-muted-foreground" />
-                <span className="text-lg font-semibold">{warehouseData?.name || inventurData.warehouseName || 'Unbekanntes Lager'}</span>
+            <div className="space-y-2">
+              <div>
+                <p className="text-sm font-medium text-gray-500">Lager</p>
+                <p className="font-medium">
+                  {warehouseData.name || inventurData.warehouseName || 'Nicht bekannt'}
+                </p>
               </div>
-            )}
+              <div>
+                <p className="text-sm font-medium text-gray-500">Produkte</p>
+                <p className="font-medium">{inventurItems?.length || 0}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Notizen</p>
+                <p className="line-clamp-2">{inventurData.notes || 'Keine Notizen'}</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
-        
-        <Card>
+
+        {/* Karte 2: Zeitliche Informationen */}
+        <Card className="shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Status</CardTitle>
+            <CardTitle className="text-sm font-medium">Zeitpunkte</CardTitle>
           </CardHeader>
           <CardContent>
-            {isLoadingInventur ? (
-              <Skeleton className="h-7 w-full" />
-            ) : (
-              <div className="flex items-center gap-2">
-                <Badge className={`${statusColor} px-3 py-1`} variant="outline">
-                  <StatusIcon className="h-4 w-4 mr-2" />
-                  {statusLabel}
-                </Badge>
-                
-                {inventurData.startDate && (
-                  <div className="text-sm text-muted-foreground flex items-center ml-2">
-                    <Calendar className="h-4 w-4 mr-1" />
-                    {formatDate(inventurData.startDate)}
-                  </div>
-                )}
+            <div className="space-y-2">
+              <div>
+                <p className="text-sm font-medium text-gray-500">Erstellt</p>
+                <p className="font-medium">{formatDate(inventurData.createdAt)}</p>
               </div>
-            )}
+              <div>
+                <p className="text-sm font-medium text-gray-500">Startdatum</p>
+                <p className="font-medium">{inventurData.startDate ? formatDate(inventurData.startDate) : '—'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Enddatum</p>
+                <p className="font-medium">{inventurData.endDate ? formatDate(inventurData.endDate) : '—'}</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
-        
-        <Card>
+
+        {/* Karte 3: Fortschrittsinformationen */}
+        <Card className="shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Fortschritt</CardTitle>
           </CardHeader>
           <CardContent>
-            {isLoadingItems ? (
-              <Skeleton className="h-7 w-full" />
-            ) : (
-              <div className="space-y-2">
-                <Progress value={progress} className="h-2" />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>{itemStats.counted} von {itemStats.total} Produkten gezählt</span>
-                  <span>{progress}%</span>
-                </div>
-              </div>
-            )}
+            <div className="space-y-2">
+              {isLoadingItems ? (
+                <Skeleton className="h-20 w-full" />
+              ) : (
+                <>
+                  <div>
+                    <p className="text-sm font-medium text-gray-500">Gezählte Produkte</p>
+                    <p className="font-medium">
+                      {itemStats.counted}
+                      <span className="text-gray-500 ml-1">
+                        von {itemStats.total}
+                      </span>
+                    </p>
+                    <Progress
+                      className="h-2 mt-2"
+                      value={progress}
+                    />
+                  </div>
+                  
+                  <div className="flex justify-between pt-2">
+                    <div>
+                      <p className="text-xs text-gray-500">Erhöht</p>
+                      <p className="font-medium text-green-600">
+                        {itemStats.increased}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Verringert</p>
+                      <p className="font-medium text-red-600">
+                        {itemStats.decreased}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Unverändert</p>
+                      <p className="font-medium">
+                        {itemStats.unchanged}
+                      </p>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
-      
-      {/* Zusatzinformationen (Datumsbereich, Notizen) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Zeitraum</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoadingInventur ? (
-              <Skeleton className="h-7 w-full" />
-            ) : (
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">Start:</span>
-                  <span>{inventurData.startDate ? formatDate(inventurData.startDate) : 'Nicht gestartet'}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">Ende:</span>
-                  <span>{inventurData.endDate ? formatDate(inventurData.endDate) : 'Nicht abgeschlossen'}</span>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Notizen</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {isLoadingInventur ? (
-              <Skeleton className="h-20 w-full" />
-            ) : (
-              <div className="text-sm">
-                {inventurData.notes ? inventurData.notes : 'Keine Notizen vorhanden'}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Status-Aktionen vor der Produktliste in einer Card (POSITION 3) */}
-      <Card className="border-2 border-primary shadow-lg">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Inventur-Aktionen</CardTitle>
-          <CardDescription>
-            Führen Sie hier Aktionen für diese Inventur durch
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <InventoryActions 
-            status={currentStatus}
-            onStart={() => startInventurMutation.mutate()}
-            onAddAllProducts={() => addAllProductsMutation.mutate()}
-            onSave={() => saveInventurMutation.mutate()}
-            onComplete={() => setShowCompleteDialog(true)}
-            onCancel={() => updateStatusMutation.mutate('cancelled')}
-            onDelete={() => setShowDeleteDialog(true)}
-            onResume={() => updateStatusMutation.mutate('in_progress')}
-            isStarting={startInventurMutation.isPending}
-            isAdding={addAllProductsMutation.isPending}
-            isSaving={saveInventurMutation.isPending}
-            isUpdating={updateStatusMutation.isPending}
-          />
-        </CardContent>
-      </Card>
       
       {/* Produktliste und Aktionen */}
       <Card>
@@ -1847,31 +1868,19 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
               </CardDescription>
             </div>
             
-            <div className="flex flex-col sm:flex-row gap-2">
-              <div className="relative">
-                <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Produkte suchen..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8 w-full"
-                />
-              </div>
-              
-              {/* Nur Hinzufügen erlauben, wenn die Inventur nicht abgeschlossen oder abgebrochen ist */}
-              {(currentStatus === 'pending' || currentStatus === 'in_progress') && (
-                <Button
-                  onClick={() => {
-                    setSelectedProductIds([]);
-                    setShowAddDialog(true);
-                  }}
-                  className="whitespace-nowrap"
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Produkte hinzufügen
-                </Button>
-              )}
-            </div>
+            {/* Nur Hinzufügen erlauben, wenn die Inventur nicht abgeschlossen oder abgebrochen ist */}
+            {(currentStatus === 'pending' || currentStatus === 'in_progress') && (
+              <Button
+                onClick={() => {
+                  setSelectedProductIds([]);
+                  setShowAddDialog(true);
+                }}
+                className="whitespace-nowrap"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Produkte hinzufügen
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
