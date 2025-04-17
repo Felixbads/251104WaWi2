@@ -847,21 +847,50 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     }
   };
 
+  // Speichere die ursprüngliche Reihenfolge der Items bei initialem Laden
+  const [originalItemOrder, setOriginalItemOrder] = useState<number[]>([]);
+  
+  // Aktualisiere originalItemOrder, wenn inventurItems zum ersten Mal geladen werden
+  useEffect(() => {
+    if (inventurItems.length > 0 && originalItemOrder.length === 0) {
+      setOriginalItemOrder(inventurItems.map(item => item.id));
+      console.log("Ursprüngliche Reihenfolge gespeichert:", inventurItems.map(item => item.id));
+    }
+  }, [inventurItems, originalItemOrder]);
+  
+  // Sortiere Inventurpositionen in der ursprünglichen Reihenfolge
+  const sortedItems = useMemo(() => {
+    // Wenn noch keine Originalreihenfolge gespeichert wurde, gib die Items unverändert zurück
+    if (originalItemOrder.length === 0) return inventurItems;
+    
+    // Sortiere die Items entsprechend der ursprünglich gespeicherten Reihenfolge
+    return [...inventurItems].sort((a, b) => {
+      const indexA = originalItemOrder.indexOf(a.id);
+      const indexB = originalItemOrder.indexOf(b.id);
+      
+      // Wenn ein Item nicht in originalItemOrder gefunden wird, platziere es am Ende
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+      
+      return indexA - indexB;
+    });
+  }, [inventurItems, originalItemOrder]);
+  
   // Filtere Inventurpositionen basierend auf Suchbegriff
   const filteredItems = useMemo(() => {
-    if (!inventurItems) return [];
+    if (!sortedItems.length) return [];
     
-    if (!searchTerm) return inventurItems;
+    if (!searchTerm) return sortedItems;
     
     const normalizedSearch = searchTerm.toLowerCase();
     
-    return inventurItems.filter(item => {
+    return sortedItems.filter(item => {
       const productName = item.product?.productName?.toLowerCase() || '';
       const sku = item.product?.sku?.toLowerCase() || '';
       
       return productName.includes(normalizedSearch) || sku.includes(normalizedSearch);
     });
-  }, [inventurItems, searchTerm]);
+  }, [sortedItems, searchTerm]);
 
   // Berechne Fortschritt und Statistiken
   const { progress, itemStats } = useMemo(() => {
