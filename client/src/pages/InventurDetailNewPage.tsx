@@ -736,7 +736,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     },
   });
 
-  // Funktion zum Öffnen des Batch-Dialogs
+  // Funktion zum Öffnen des Batch-Dialogs mit verbesserten Fehlerprüfungen und Verzögerung
   const openBatchDialog = (item: InventoryCountItem) => {
     console.log("Öffne Batch-Dialog für Item:", item);
     
@@ -768,79 +768,177 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     // 2. Dialog öffnen BEVOR wir die Daten laden oder UI-Status zurücksetzen
     setShowBatchDialog(true);
     
-    // 3. Chargen laden - jetzt mit sichergestellter Warehouse-ID
-    const warehouseId = inventurData.warehouseId;
-    fetch(`/api/products/${item.productId}/batches?warehouseId=${warehouseId}`)
-      .then(async response => {
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Error response (${response.status}):`, errorText);
-          throw new Error(`Server antwortete mit ${response.status}: ${errorText}`);
-        }
-        return response.json();
+    // 3. Formular sofort zurücksetzen, anstatt nach dem Laden
+    setShowNewBatchForm(false);
+    setShowSplitForm(false);
+    setNewBatchNumber('');
+    setNewExpiryDate(null);
+    setNewBatchQuantity(null);
+    setSplitQuantity(null);
+    setSplitTargetBatchId(null);
+    
+    // 4. Chargen laden nach kurzer Verzögerung
+    console.log(`Lade in Kürze Chargen für Produkt ${item.productId} in Lager ${inventurData.warehouseId}...`);
+    
+    // Anfänglichen leeren Array setzen, damit Interface nicht flackert
+    setAvailableBatches([]);
+    
+    // Kleine Verzögerung für DOM-Aktualisierung
+    setTimeout(() => {
+      const warehouseId = inventurData.warehouseId;
+      
+      if (!warehouseId || !item.productId) {
+        console.error("Produktdaten nach Verzögerung nicht mehr verfügbar");
+        return;
+      }
+      
+      console.log(`Starte Ladevorgang für Batches: Produkt ${item.productId}, Lager ${warehouseId}`);
+      
+      fetch(`/api/products/${item.productId}/batches?warehouseId=${warehouseId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache, no-store'
+        },
+        credentials: 'same-origin'
       })
-      .then(data => {
-        console.log('Geladene Batches:', data);
-        setAvailableBatches(Array.isArray(data) ? data : []);
-        
-        // 4. ERST NACH dem Laden der Daten die Formularflächen zurücksetzen
-        // Dadurch wird verhindert, dass der Dialog geöffnet und sofort wieder geschlossen wird
-        setShowNewBatchForm(false);
-        setShowSplitForm(false);
-        setNewBatchNumber('');
-        setNewExpiryDate(null);
-        setNewBatchQuantity(null);
-        setSplitQuantity(null);
-        setSplitTargetBatchId(null);
-      })
-      .catch(error => {
-        console.error('Fehler beim Laden der Chargen:', error);
-        // Setze einen leeren Array als Fallback, damit der Dialog trotzdem geöffnet werden kann
-        // Das lässt die Möglichkeit, eine neue Charge zu erstellen obwohl Batch-Laden fehlgeschlagen ist
-        setAvailableBatches([]);
-        setShowNewBatchForm(false);
-        setShowSplitForm(false);
-        setNewBatchNumber('');
-        setNewExpiryDate(null);
-        setNewBatchQuantity(null);
-        setSplitQuantity(null);
-        setSplitTargetBatchId(null);
-        
-        toast({
-          title: "Hinweis",
-          description: "Es konnten keine bestehenden Chargen geladen werden. Sie können trotzdem eine neue Charge anlegen.",
-          variant: "default",
+        .then(async response => {
+          console.log(`Batch-Antwort erhalten: Status ${response.status}`);
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Error response (${response.status}):`, errorText);
+            throw new Error(`Server antwortete mit ${response.status}: ${errorText}`);
+          }
+          
+          // Content-Type prüfen
+          const contentType = response.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            console.warn(`Antwort ist kein JSON: ${contentType}. Response:`, await response.text());
+            return [];
+          }
+          
+          return response.json();
+        })
+        .then(data => {
+          console.log('Geladene Batches:', data);
+          const batches = Array.isArray(data) ? data : [];
+          console.log(`${batches.length} Chargen erfolgreich geladen`);
+          setAvailableBatches(batches);
+          
+          // Wenn keine Chargen vorhanden sind, automatisch das "Neue Charge" Formular öffnen
+          if (batches.length === 0) {
+            setTimeout(() => {
+              setShowNewBatchForm(true);
+              
+              // Automatisch ein Batch-Nummer und Datum vorschlagen
+              setNewBatchNumber(`INV-${id}-${new Date().toISOString().split('T')[0]}`);
+              
+              // MHD auf 6 Monate in der Zukunft setzen
+              const futureDate = new Date();
+              futureDate.setMonth(futureDate.getMonth() + 6);
+              setNewExpiryDate(futureDate);
+              
+              // Standardmenge setzen
+              setNewBatchQuantity(item.expectedQuantity || 1);
+            }, 100);
+          }
+        })
+        .catch(error => {
+          console.error('Fehler beim Laden der Chargen:', error);
+          // Setze einen leeren Array als Fallback und öffne "Neue Charge" Tab
+          setAvailableBatches([]);
+          
+          setTimeout(() => {
+            setShowNewBatchForm(true);
+            
+            // Automatisch ein Batch-Nummer und Datum vorschlagen
+            setNewBatchNumber(`INV-${id}-${new Date().toISOString().split('T')[0]}`);
+            
+            // MHD auf 6 Monate in der Zukunft setzen
+            const futureDate = new Date();
+            futureDate.setMonth(futureDate.getMonth() + 6);
+            setNewExpiryDate(futureDate);
+            
+            // Standardmenge setzen
+            setNewBatchQuantity(item.expectedQuantity || 1);
+          }, 100);
+          
+          toast({
+            title: "Hinweis",
+            description: "Es konnten keine bestehenden Chargen geladen werden. Sie können eine neue Charge anlegen.",
+            variant: "default",
+          });
         });
-      });
+    }, 200); // Verzögerung für DOM-Update
   };
   
-  // Funktion zum Laden von Chargen für ein bestimmtes Produkt mit verbessertem Error-Handling
+  // Funktion zum Laden von Chargen für ein bestimmtes Produkt mit verbessertem Error-Handling und Debugging
   const loadBatches = (productId: number) => {
-    if (!productId || !inventurData?.warehouseId) return;
-    
-    fetch(`/api/products/${productId}/batches?warehouseId=${inventurData.warehouseId}`)
-      .then(async response => {
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Error response (${response.status}):`, errorText);
-          throw new Error(`Server antwortete mit ${response.status}: ${errorText}`);
-        }
-        return response.json();
-      })
-      .then(data => {
-        console.log("Geladene Chargen:", data);
-        setAvailableBatches(Array.isArray(data) ? data : []);
-      })
-      .catch(error => {
-        console.error('Fehler beim Laden der Chargen:', error);
-        // Setze einen leeren Array als Fallback, damit der Dialog trotzdem funktioniert
-        setAvailableBatches([]);
-        toast({
-          title: "Hinweis",
-          description: "Es konnten keine bestehenden Chargen geladen werden. Sie können trotzdem eine neue Charge anlegen.",
-          variant: "default",
-        });
+    if (!productId || !inventurData?.warehouseId) {
+      console.warn("Kann Chargen nicht laden: ProductID oder WarehouseID fehlt", { 
+        productId, 
+        warehouseId: inventurData?.warehouseId 
       });
+      return;
+    }
+    
+    console.log(`Lade Chargen für Produkt ${productId} in Lager ${inventurData.warehouseId}...`);
+    
+    // Kleine Verzögerung zum Sicherstellen, dass der DOM-Update abgeschlossen ist
+    setTimeout(() => {
+      fetch(`/api/products/${productId}/batches?warehouseId=${inventurData.warehouseId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache, no-store'
+        }
+      })
+        .then(async response => {
+          console.log(`Batch-Antwort erhalten: Status ${response.status}`);
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Error response (${response.status}):`, errorText);
+            throw new Error(`Server antwortete mit ${response.status}: ${errorText}`);
+          }
+          
+          const contentType = response.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            console.warn("Antwort ist kein JSON:", contentType);
+            return [];
+          }
+          
+          return response.json();
+        })
+        .then(data => {
+          console.log("Geladene Chargen:", data);
+          const batches = Array.isArray(data) ? data : [];
+          console.log(`${batches.length} Chargen erfolgreich geladen`);
+          setAvailableBatches(batches);
+          
+          // Wenn keine Chargen vorhanden sind, automatisch das "Neue Charge" Formular öffnen
+          if (batches.length === 0) {
+            setShowNewBatchForm(true);
+          }
+        })
+        .catch(error => {
+          console.error('Fehler beim Laden der Chargen:', error);
+          // Setze einen leeren Array als Fallback, damit der Dialog trotzdem funktioniert
+          setAvailableBatches([]);
+          
+          // Bei Fehlern automatisch das "Neue Charge" Formular öffnen
+          setShowNewBatchForm(true);
+          
+          toast({
+            title: "Hinweis",
+            description: "Es konnten keine bestehenden Chargen geladen werden. Sie können trotzdem eine neue Charge anlegen.",
+            variant: "default",
+          });
+        });
+    }, 100); // 100ms Verzögerung
   };
   
   // Funktion zum Aktualisieren der Batch
