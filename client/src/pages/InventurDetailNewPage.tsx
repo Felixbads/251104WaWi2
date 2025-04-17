@@ -1071,21 +1071,38 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     };
   }, [filteredItems]);
 
-  // Setze showStartButton, wenn der inventurData.status nicht verfügbar oder null/undefined ist
+  // Aktuelle Status-Informationen
+  // Behandle null/undefined als 'pending' für konsistente Anzeige
+  // Dies stellt sicher, dass der Status korrekt angezeigt wird
+  const [currentStatus, setCurrentStatus] = useState<string>('pending');
+  
+  // Status-Initialisierung und -Aktualisierung
   useEffect(() => {
     console.log('Status der Inventur:', inventurData?.status);
-    // Behandle null oder undefined immer wie einen "pending" Status
-    // aber behalte den originalen Wert in currentStatus bei, 
-    // damit der Status "in_progress" korrekt angezeigt werden kann
-    if (inventurData?.status === null || inventurData?.status === undefined) {
-      setShowStartButton(true);
-    }
-  }, [inventurData?.status]);
+    
+    // Der Status kann entweder 'null'/'undefined', 'pending', 'in_progress', 'completed' oder ein unbekannter Wert sein
+    // Wir müssen alle Fälle richtig behandeln
 
-  // Aktuelle Status-Informationen
-  // Behandle null/undefined als 'in_progress' für konsistente Anzeige (statt 'pending')
-  // Dies stellt sicher, dass die Aktionsbuttons immer angezeigt werden
-  const currentStatus = inventurData?.status || 'in_progress';
+    // Standardverhalten: Zeige Start-Button für 'null', 'undefined' oder 'pending'
+    if (inventurData?.status === null || inventurData?.status === undefined || inventurData?.status === 'pending') {
+      setShowStartButton(true);
+      
+      // Bei neuen Inventuren, die noch keinen Status haben, 
+      // setze explizit auf 'pending', damit 'Unbekannt' nicht angezeigt wird
+      if (inventurData?.status === null || inventurData?.status === undefined) {
+        setCurrentStatus('pending');
+      } else {
+        // Sonst übernehme den Status vom Server
+        setCurrentStatus(inventurData.status);
+      }
+    } else {
+      // Wenn ein anderer Status (in_progress, completed, cancelled) vom Server kommt
+      setCurrentStatus(inventurData.status);
+    }
+    
+    // Log für Debugging
+    console.log('Aktueller Status gesetzt auf:', inventurData?.status || 'pending');
+  }, [inventurData?.status]);
   
   // Wähle das passende Icon, Label und Farbe basierend auf dem Status
   // Verwende die Typindexsignatur für sicheren Zugriff
