@@ -621,10 +621,10 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     };
   }, [filteredItems]);
 
-  // Setze showStartButton, wenn der inventurData.status verfügbar ist und "pending" ist
+  // Setze showStartButton, wenn der inventurData.status nicht verfügbar oder "pending" ist
   useEffect(() => {
     console.log('Status der Inventur:', inventurData?.status);
-    if (inventurData?.status === 'pending') {
+    if (inventurData?.status === 'pending' || inventurData?.status === null || inventurData?.status === undefined) {
       setShowStartButton(true);
     }
   }, [inventurData?.status]);
@@ -1031,7 +1031,8 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                 ) : (
                   filteredItems.map((item) => {
                     const expectedQuantity = item.expectedQuantity || 0;
-                    const countedQuantity = item.countedQuantity !== null ? item.countedQuantity : null;
+                    // TypeScript-Fehler beheben: countedQuantity kann undefined oder null sein
+                    const countedQuantity = (item.countedQuantity !== null && item.countedQuantity !== undefined) ? item.countedQuantity : null;
                     const difference = countedQuantity !== null ? countedQuantity - expectedQuantity : null;
                     
                     let differenceClass = '';
@@ -1243,7 +1244,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                                 </div>
                                 
                                 {/* Button für MHD-Split (bei aktiver Inventur) */}
-                                {(currentStatus === 'pending' || currentStatus === 'in_progress') && countedQuantity && countedQuantity > 0 && (
+                                {(currentStatus === 'pending' || currentStatus === 'in_progress') && countedQuantity !== null && countedQuantity !== undefined && countedQuantity > 0 && (
                                   <div className="mt-3 flex justify-center">
                                     <Button 
                                       variant="outline" 
