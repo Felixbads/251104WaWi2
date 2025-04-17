@@ -177,6 +177,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   const [isSplitMode, setIsSplitMode] = useState(false);
   const [selectedProductIds, setSelectedProductIds] = useState<number[]>([]);
   const [completionNotes, setCompletionNotes] = useState('');
+  const [showStartButton, setShowStartButton] = useState(false);
 
   // Lade Inventurdaten
   const { 
@@ -598,7 +599,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       stats.counted = filteredItems.filter(item => item.countedQuantity !== null).length;
       
       filteredItems.forEach(item => {
-        if (item.countedQuantity !== null && item.expectedQuantity !== undefined) {
+        if (item.countedQuantity !== null && item.countedQuantity !== undefined && item.expectedQuantity !== undefined) {
           const diff = item.countedQuantity - item.expectedQuantity;
           
           if (diff > 0) {
@@ -619,6 +620,14 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       itemStats: stats
     };
   }, [filteredItems]);
+
+  // Setze showStartButton, wenn der inventurData.status verfügbar ist und "pending" ist
+  useEffect(() => {
+    console.log('Status der Inventur:', inventurData?.status);
+    if (inventurData?.status === 'pending') {
+      setShowStartButton(true);
+    }
+  }, [inventurData?.status]);
 
   // Aktuelle Status-Informationen
   const currentStatus = inventurData?.status || 'pending';
@@ -660,7 +669,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         {/* Aktionsbuttons im Header-Bereich */}
         <div className="flex flex-wrap gap-2 justify-end">
           {/* Status: pending */}
-          {currentStatus === 'pending' && (
+          {showStartButton && (
             <>
               <Button 
                 variant="default"
