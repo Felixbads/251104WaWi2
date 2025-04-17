@@ -1302,10 +1302,10 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                 disabled={updateBatchMutation.isPending}
               >
                 {updateBatchMutation.isPending ? (
-                  <>
+                  <div className="flex items-center">
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                     Wird aktualisiert...
-                  </>
+                  </div>
                 ) : (
                   'Charge speichern'
                 )}
@@ -1410,10 +1410,10 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
               disabled={selectedProductIds.length === 0 || addItemsMutation.isPending}
             >
               {addItemsMutation.isPending ? (
-                <>
+                <div className="flex items-center">
                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                   Wird hinzugefügt...
-                </>
+                </div>
               ) : (
                 <>
                   <Plus className="h-4 w-4 mr-2" />
