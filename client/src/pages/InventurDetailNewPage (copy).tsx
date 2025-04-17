@@ -658,17 +658,22 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
 
   // Funktion zum Öffnen des Batch-Dialogs
   const openBatchDialog = (item: InventoryCountItem) => {
-    console.log("Öffne Batch-Dialog für Item:", item);
-    
-    // Wichtig: Dialog-Reihenfolge geändert
-    // 1. Item und Batch-ID setzen
     setSelectedItem(item);
-    setSelectedBatchId(item.batchId || null);
-    
-    // 2. Dialog öffnen BEVOR wir die Daten laden oder UI-Status zurücksetzen
     setShowBatchDialog(true);
     
-    // 3. Chargen laden
+    // Setze ausgewählte Charge, wenn vorhanden
+    setSelectedBatchId(item.batchId || null);
+    
+    // Setze alles zurück
+    setShowNewBatchForm(false);
+    setShowSplitForm(false);
+    setNewBatchNumber('');
+    setNewExpiryDate(null);
+    setNewBatchQuantity(null);
+    setSplitQuantity(null);
+    setSplitTargetBatchId(null);
+    
+    // Lade Chargen für das Produkt mit detailliertem Error-Handling
     fetch(`/api/products/${item.productId}/batches?warehouseId=${inventurData?.warehouseId}`)
       .then(async response => {
         if (!response.ok) {
@@ -681,31 +686,11 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       .then(data => {
         console.log('Geladene Batches:', data);
         setAvailableBatches(Array.isArray(data) ? data : []);
-        
-        // 4. ERST NACH dem Laden der Daten die Formularflächen zurücksetzen
-        // Dadurch wird verhindert, dass der Dialog geöffnet und sofort wieder geschlossen wird
-        setShowNewBatchForm(false);
-        setShowSplitForm(false);
-        setNewBatchNumber('');
-        setNewExpiryDate(null);
-        setNewBatchQuantity(null);
-        setSplitQuantity(null);
-        setSplitTargetBatchId(null);
       })
       .catch(error => {
         console.error('Fehler beim Laden der Chargen:', error);
         // Setze einen leeren Array als Fallback, damit der Dialog trotzdem geöffnet werden kann
         setAvailableBatches([]);
-        
-        // Auch hier erst nach der Fehlerbehandlung die Formularflächen zurücksetzen
-        setShowNewBatchForm(false);
-        setShowSplitForm(false);
-        setNewBatchNumber('');
-        setNewExpiryDate(null);
-        setNewBatchQuantity(null);
-        setSplitQuantity(null);
-        setSplitTargetBatchId(null);
-        
         toast({
           title: "Hinweis",
           description: "Es konnten keine bestehenden Chargen geladen werden. Sie können trotzdem eine neue Charge anlegen.",

@@ -164,19 +164,10 @@ export default function InventurListe() {
                           <Button 
                             variant="outline" 
                             size="sm" 
-                            onClick={() => openInventurDetail(inventur.id)}
+                            onClick={() => openNewInventurDetail(inventur.id)}
                           >
                             <Eye className="h-4 w-4 mr-1" />
                             Ansehen
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => openNewInventurDetail(inventur.id)}
-                            className="border-blue-500 text-blue-600 hover:bg-blue-50"
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            Neue Ansicht
                           </Button>
                           {inventur.status === 'completed' && (
                             <Button
