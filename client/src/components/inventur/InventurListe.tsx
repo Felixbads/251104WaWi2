@@ -85,9 +85,9 @@ export default function InventurListe() {
     setLocation(`/inventur/${id}`);
   };
   
-  // Neue Inventurdetailseite öffnen
+  // Inventurdetailseite mit der neuen verbesserten Version öffnen
   const openNewInventurDetail = (id: number) => {
-    setLocation(`/inventur/${id}/neu`);
+    setLocation(`/inventur-detail/${id}`);
   };
 
   return (

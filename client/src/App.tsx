@@ -330,6 +330,13 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
         
+        {/* Neue verbesserte Inventur-Detailseite */}
+        <Route path="/inventur-detail/:id" component={props => (
+          <ApprovedUserRoute>
+            <InventurDetailNewPage {...props} />
+          </ApprovedUserRoute>
+        )} />
+        
         {/* Nur Admin kann die Auswertungsseite sehen */}
         <Route path="/auswertungen" component={props => (
           <AdminRoute>
