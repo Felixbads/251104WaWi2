@@ -1626,6 +1626,12 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
           icon: <Pencil className="h-4 w-4 mr-2" />, 
           action: () => updateStatusMutation.mutate('in_progress'), 
           style: 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+        },
+        { 
+          label: 'Löschen', 
+          icon: <Trash2 className="h-4 w-4 mr-2" />, 
+          action: () => setShowDeleteDialog(true), 
+          style: 'bg-red-50 text-red-700 hover:bg-red-100'
         }
       ],
       cancelled: [
