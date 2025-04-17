@@ -112,9 +112,9 @@ export default function InventoryCountBatchDialog({
           batchNumber: newBatchNumber,
           expiryDate: format(expiryDate, 'yyyy-MM-dd'),
           receivedDate: format(new Date(), 'yyyy-MM-dd'),
-          initialQuantity: selectedItem.countedQuantity || 0,
-          currentQuantity: selectedItem.countedQuantity || 0,
-          quantity: selectedItem.countedQuantity || 0
+          initialQuantity: selectedItem.countedQuantity || 1,
+          currentQuantity: selectedItem.countedQuantity || 1,
+          quantity: selectedItem.countedQuantity || 1
         }),
       });
 

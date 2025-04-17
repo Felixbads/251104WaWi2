@@ -570,7 +570,24 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
 
   // Handler zum Setzen eines Zählerstands
   const handleSetCount = (itemId: number, count: number | null) => {
-    updateCountMutation.mutate({ id: itemId, countedQuantity: count });
+    // Alle bearbeiteten Zählerstände speichern
+    const itemsToUpdate = Object.entries(editedCounts).map(([id, countValue]) => ({
+      id: parseInt(id),
+      countedQuantity: countValue
+    }));
+    
+    // Stellen sicher, dass der aktuelle Eintrag in jedem Fall enthalten ist
+    if (!itemsToUpdate.some(item => item.id === itemId)) {
+      itemsToUpdate.push({ id: itemId, countedQuantity: count });
+    }
+    
+    // Alle Einträge nacheinander speichern
+    itemsToUpdate.forEach(item => {
+      updateCountMutation.mutate(item);
+    });
+    
+    // Bearbeitete Einträge zurücksetzen
+    setEditedCounts({});
   };
 
   // Handler zum Hinzufügen aller ausgewählten Produkte
