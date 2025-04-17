@@ -307,4 +307,132 @@ router.post('/inventory-counts/:id/complete', async (req, res) => {
   }
 });
 
+// Löschen einer Inventur
+router.delete('/inventory-counts/:id', async (req, res) => {
+  try {
+    const inventoryCountId = parseInt(req.params.id);
+    
+    // Prüfe, ob die Inventur existiert
+    const inventoryCount = await db.query.inventoryCounts.findFirst({
+      where: eq(schema.inventoryCounts.id, inventoryCountId),
+      with: {
+        warehouse: true
+      }
+    });
+
+    if (!inventoryCount) {
+      return res.status(404).json({ error: 'Inventur nicht gefunden' });
+    }
+
+    // Lösche alle zugehörigen Batches
+    await db.delete(inventoryCountBatches)
+      .where(
+        eq(
+          inventoryCountBatches.inventoryCountItemId,
+          sql`ANY(SELECT id FROM ${inventoryCountItems} WHERE inventory_count_id = ${inventoryCountId})`
+        )
+      );
+
+    // Lösche alle Inventurpositionen
+    await db.delete(inventoryCountItems)
+      .where(eq(schema.inventoryCountItems.inventoryCountId, inventoryCountId));
+
+    // Lösche die Inventur selbst
+    await db.delete(inventoryCounts)
+      .where(eq(schema.inventoryCounts.id, inventoryCountId));
+
+    // Erfolgreiche Antwort
+    return res.status(200).json({ 
+      message: 'Inventur erfolgreich gelöscht',
+      inventoryCountId,
+      warehouseName: inventoryCount.warehouse?.name
+    });
+  } catch (error) {
+    console.error('Fehler beim Löschen der Inventur:', error);
+    return res.status(500).json({ error: 'Serverfehler' });
+  }
+});
+
+// Speichere Inventur (Zwischenstand)
+router.post('/inventory-counts/:id/save', async (req, res) => {
+  try {
+    const inventoryCountId = parseInt(req.params.id);
+    
+    // Prüfe, ob die Inventur existiert
+    const inventoryCount = await db.query.inventoryCounts.findFirst({
+      where: eq(schema.inventoryCounts.id, inventoryCountId),
+      with: {
+        warehouse: true
+      }
+    });
+
+    if (!inventoryCount) {
+      return res.status(404).json({ error: 'Inventur nicht gefunden' });
+    }
+
+    // Aktualisiere den Zeitstempel der Inventur
+    await db.update(inventoryCounts)
+      .set({ 
+        updatedAt: new Date(),
+        notes: req.body.notes || inventoryCount.notes 
+      })
+      .where(eq(schema.inventoryCounts.id, inventoryCountId));
+
+    // Erfolgreiche Antwort
+    return res.status(200).json({ 
+      message: 'Inventur erfolgreich gespeichert',
+      inventoryCountId,
+      warehouseName: inventoryCount.warehouse?.name,
+      savedAt: new Date()
+    });
+  } catch (error) {
+    console.error('Fehler beim Speichern der Inventur:', error);
+    return res.status(500).json({ error: 'Serverfehler' });
+  }
+});
+
+// Starte Inventur (Wechsel von 'pending' zu 'in_progress')
+router.post('/inventory-counts/:id/start', async (req, res) => {
+  try {
+    const inventoryCountId = parseInt(req.params.id);
+    
+    // Prüfe, ob die Inventur existiert und im Status 'pending' ist
+    const inventoryCount = await db.query.inventoryCounts.findFirst({
+      where: and(
+        eq(schema.inventoryCounts.id, inventoryCountId),
+        eq(schema.inventoryCounts.status, 'pending')
+      ),
+      with: {
+        warehouse: true
+      }
+    });
+
+    if (!inventoryCount) {
+      return res.status(404).json({ 
+        error: 'Inventur nicht gefunden oder nicht im Status "Geplant"'
+      });
+    }
+
+    // Aktualisiere den Status auf 'in_progress' und setze startDate
+    await db.update(inventoryCounts)
+      .set({ 
+        status: 'in_progress',
+        startDate: new Date(),
+        updatedAt: new Date() 
+      })
+      .where(eq(schema.inventoryCounts.id, inventoryCountId));
+
+    // Erfolgreiche Antwort
+    return res.status(200).json({ 
+      message: 'Inventur erfolgreich gestartet',
+      inventoryCountId,
+      warehouseName: inventoryCount.warehouse?.name,
+      startedAt: new Date()
+    });
+  } catch (error) {
+    console.error('Fehler beim Starten der Inventur:', error);
+    return res.status(500).json({ error: 'Serverfehler' });
+  }
+});
+
 export default router;
