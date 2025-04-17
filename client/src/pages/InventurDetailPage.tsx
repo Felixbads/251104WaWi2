@@ -191,6 +191,11 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
   
   // State für die MHD-Split-Funktion
   const [isSplitMode, setIsSplitMode] = useState(false);
+  
+  // Sortierungszustand
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [originalItemIds, setOriginalItemIds] = useState<number[]>([]);
 
   // Lade Inventurinformationen
   const { 
@@ -562,7 +567,59 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
     },
   });
 
-  // Gefilterte Inventurpositionen basierend auf Suchbegriff
+  // Funktion zum Sortieren basierend auf einem Feld
+  const sortItems = (items: InventoryCountItem[], field: string | null, direction: 'asc' | 'desc') => {
+    if (!field) {
+      return items;
+    }
+
+    return [...items].sort((a: any, b: any) => {
+      // Sortiere je nach Feld
+      let valueA, valueB;
+      
+      if (field === 'product') {
+        // Sortiere nach Produktname
+        valueA = a.productName || a.product?.productName || '';
+        valueB = b.productName || b.product?.productName || '';
+        return direction === 'asc' 
+          ? valueA.localeCompare(valueB)
+          : valueB.localeCompare(valueA);
+      } 
+      else if (field === 'expectedQuantity') {
+        // Sortiere nach erwartetem Bestand
+        valueA = a.expectedQuantity || 0;
+        valueB = b.expectedQuantity || 0;
+      }
+      else if (field === 'countedQuantity') {
+        // Sortiere nach gezähltem Bestand
+        valueA = a.countedQuantity || 0;
+        valueB = b.countedQuantity || 0;
+      }
+      else {
+        // Fallback: Nach ID sortieren
+        return direction === 'asc' ? a.id - b.id : b.id - a.id;
+      }
+
+      // Numerische Sortierung
+      if (typeof valueA === 'number' && typeof valueB === 'number') {
+        return direction === 'asc' ? valueA - valueB : valueB - valueA;
+      }
+
+      // String-Sortierung (Fallback)
+      return direction === 'asc' 
+        ? String(valueA).localeCompare(String(valueB))
+        : String(valueB).localeCompare(String(valueA));
+    });
+  };
+
+  // Initialisiere originalItemIds, wenn inventurItems sich ändern und originalItemIds leer ist
+  useEffect(() => {
+    if (inventurItems.length > 0 && originalItemIds.length === 0) {
+      setOriginalItemIds(inventurItems.map(item => item.id));
+    }
+  }, [inventurItems, originalItemIds]);
+
+  // Gefilterte und sortierte Inventurpositionen
   const filteredItems = useMemo(() => {
     if (!inventurItems || inventurItems.length === 0) {
       console.log("Keine Inventurelemente vorhanden oder leere Liste");
@@ -570,36 +627,51 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
     }
     
     // Protokolliere alle vorhandenen Elemente zur Fehlersuche
-    console.log(`Inventurelemente vor der Filterung: ${inventurItems.length}`, 
-      inventurItems.map(item => ({
-        id: item.id,
-        productName: item.productName || 'kein Name',
-        expectedQuantity: item.expectedQuantity || 0
-      }))
-    );
+    console.log(`Inventurelemente vor der Filterung: ${inventurItems.length}`);
     
-    // Wenn kein Suchbegriff vorhanden ist, gib alle Elemente zurück, aber sortiert
-    if (!searchTerm.trim()) {
-      return [...inventurItems].sort((a: any, b: any) => {
-        return (a.productName || '').localeCompare(b.productName || '');
+    // Filtere nach Suchbegriff
+    let filtered = [...inventurItems];
+    
+    if (searchTerm.trim()) {
+      const searchLower = searchTerm.toLowerCase();
+      filtered = filtered.filter((item: any) => {
+        return (
+          (item.product?.name && item.product.name.toLowerCase().includes(searchLower)) ||
+          (item.productName && item.productName.toLowerCase().includes(searchLower)) ||
+          (item.product?.productName && item.product.productName.toLowerCase().includes(searchLower)) ||
+          (item.product?.sku && item.product.sku.toLowerCase().includes(searchLower))
+        );
       });
     }
     
-    const searchLower = searchTerm.toLowerCase();
-    return inventurItems.filter((item: any) => {
-      return (
-        (item.product?.name && item.product.name.toLowerCase().includes(searchLower)) ||
-        (item.productName && item.productName.toLowerCase().includes(searchLower)) ||
-        (item.product?.productName && item.product.productName.toLowerCase().includes(searchLower)) ||
-        (item.product?.sku && item.product.sku.toLowerCase().includes(searchLower))
-      );
-    }).sort((a: any, b: any) => {
-      // Sortiere nach Produktname (entweder direkt oder aus product-Objekt)
-      const nameA = a.productName || a.product?.productName || '';
-      const nameB = b.productName || b.product?.productName || '';
-      return nameA.localeCompare(nameB);
-    });
-  }, [inventurItems, searchTerm]);
+    // Wenn sortiert wird, sortiere nach dem ausgewählten Feld
+    if (sortField) {
+      filtered = sortItems(filtered, sortField, sortDirection);
+    } 
+    // Sonst behalte die ursprüngliche Reihenfolge bei, wenn möglich
+    else if (originalItemIds.length > 0) {
+      filtered.sort((a, b) => {
+        const indexA = originalItemIds.indexOf(a.id);
+        const indexB = originalItemIds.indexOf(b.id);
+        
+        // Wenn ein Element nicht in der Original-Liste ist, am Ende anzeigen
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        
+        return indexA - indexB;
+      });
+    } 
+    // Fallback: Alphabetisch nach Produktname
+    else {
+      filtered.sort((a: any, b: any) => {
+        const nameA = a.productName || a.product?.productName || '';
+        const nameB = b.productName || b.product?.productName || '';
+        return nameA.localeCompare(nameB);
+      });
+    }
+    
+    return filtered;
+  }, [inventurItems, searchTerm, sortField, sortDirection, originalItemIds]);
 
   // Berechne Fortschritt
   const progress = useMemo(() => {
@@ -1848,19 +1920,33 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
               </CardDescription>
             </div>
             
-            {/* Nur Hinzufügen erlauben, wenn die Inventur nicht abgeschlossen oder abgebrochen ist */}
-            {(currentStatus === 'pending' || currentStatus === 'in_progress') && (
-              <Button
-                onClick={() => {
-                  setSelectedProductIds([]);
-                  setShowAddDialog(true);
-                }}
-                className="whitespace-nowrap"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Produkte hinzufügen
-              </Button>
-            )}
+            <div className="flex flex-col sm:flex-row gap-2 items-center">
+              {/* Suchfeld für Produkte */}
+              <div className="relative w-full sm:w-auto">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="search"
+                  placeholder="Produkt suchen..."
+                  className="pl-8 w-full sm:w-[260px]"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              
+              {/* Nur Hinzufügen erlauben, wenn die Inventur nicht abgeschlossen oder abgebrochen ist */}
+              {(currentStatus === 'pending' || currentStatus === 'in_progress') && (
+                <Button
+                  onClick={() => {
+                    setSelectedProductIds([]);
+                    setShowAddDialog(true);
+                  }}
+                  className="whitespace-nowrap"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Produkte hinzufügen
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -1868,9 +1954,66 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Produkt</TableHead>
-                  <TableHead className="text-center">Erwarteter Bestand</TableHead>
-                  <TableHead className="text-center">Gezählter Bestand</TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => {
+                      if (sortField === 'product') {
+                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                      } else {
+                        setSortField('product');
+                        setSortDirection('asc');
+                      }
+                    }}
+                  >
+                    <div className="flex items-center">
+                      Produkt
+                      {sortField === 'product' && (
+                        <span className="ml-1">
+                          {sortDirection === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="text-center cursor-pointer hover:bg-muted/50"
+                    onClick={() => {
+                      if (sortField === 'expectedQuantity') {
+                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                      } else {
+                        setSortField('expectedQuantity');
+                        setSortDirection('asc');
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-center">
+                      Erwarteter Bestand
+                      {sortField === 'expectedQuantity' && (
+                        <span className="ml-1">
+                          {sortDirection === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="text-center cursor-pointer hover:bg-muted/50"
+                    onClick={() => {
+                      if (sortField === 'countedQuantity') {
+                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                      } else {
+                        setSortField('countedQuantity');
+                        setSortDirection('asc');
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-center">
+                      Gezählter Bestand
+                      {sortField === 'countedQuantity' && (
+                        <span className="ml-1">
+                          {sortDirection === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </TableHead>
                   <TableHead className="text-center">Differenz</TableHead>
                   <TableHead className="text-center">MHD</TableHead>
                   <TableHead>Notizen</TableHead>
