@@ -660,7 +660,27 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   const openBatchDialog = (item: InventoryCountItem) => {
     console.log("Öffne Batch-Dialog für Item:", item);
     
-    // Wichtig: Dialog-Reihenfolge geändert
+    // Prüfen, ob alle erforderlichen Daten vorhanden sind
+    if (!inventurData?.warehouseId) {
+      console.error("Lager-ID nicht verfügbar");
+      toast({
+        title: "Fehler",
+        description: "Lager-ID noch nicht verfügbar. Bitte kurz warten und erneut versuchen.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (!item.productId) {
+      console.error("Produkt-ID nicht verfügbar");
+      toast({
+        title: "Fehler",
+        description: "Produkt-ID nicht verfügbar. Bitte anderen Artikel auswählen.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     // 1. Item und Batch-ID setzen
     setSelectedItem(item);
     setSelectedBatchId(item.batchId || null);
@@ -668,8 +688,9 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     // 2. Dialog öffnen BEVOR wir die Daten laden oder UI-Status zurücksetzen
     setShowBatchDialog(true);
     
-    // 3. Chargen laden
-    fetch(`/api/products/${item.productId}/batches?warehouseId=${inventurData?.warehouseId}`)
+    // 3. Chargen laden - jetzt mit sichergestellter Warehouse-ID
+    const warehouseId = inventurData.warehouseId;
+    fetch(`/api/products/${item.productId}/batches?warehouseId=${warehouseId}`)
       .then(async response => {
         if (!response.ok) {
           const errorText = await response.text();
@@ -697,8 +718,6 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         // Setze einen leeren Array als Fallback, damit der Dialog trotzdem geöffnet werden kann
         // Das lässt die Möglichkeit, eine neue Charge zu erstellen obwohl Batch-Laden fehlgeschlagen ist
         setAvailableBatches([]);
-        
-        // Auch hier erst nach der Fehlerbehandlung die Formularflächen zurücksetzen
         setShowNewBatchForm(false);
         setShowSplitForm(false);
         setNewBatchNumber('');

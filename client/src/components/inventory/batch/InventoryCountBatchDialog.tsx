@@ -210,21 +210,31 @@ export default function InventoryCountBatchDialog({
 
   // Handler zum Erstellen einer neuen Charge
   const handleCreateNewBatch = () => {
+    // Generiere automatisch eine Chargennummer, wenn keine angegeben wurde
     if (!newBatchNumber) {
+      const autoChargennummer = `CH-${new Date().toISOString().slice(0, 10)}-${Math.floor(Math.random() * 1000)}`;
+      setNewBatchNumber(autoChargennummer);
       toast({
-        title: 'Chargennummer fehlt',
-        description: 'Bitte geben Sie eine Chargennummer an.',
-        variant: 'destructive',
+        title: 'Chargennummer generiert',
+        description: `Es wurde automatisch eine Chargennummer erstellt: ${autoChargennummer}`,
       });
-      return;
     }
 
+    // Wenn expiryDate null ist, legen wir ein Standard-MHD von 3 Monaten in der Zukunft fest
     if (!expiryDate) {
+      const defaultDate = new Date();
+      defaultDate.setMonth(defaultDate.getMonth() + 3);
+      setExpiryDate(defaultDate);
       toast({
-        title: 'MHD fehlt',
-        description: 'Bitte wählen Sie ein Mindesthaltbarkeitsdatum aus.',
-        variant: 'destructive',
+        title: 'Standard-MHD gesetzt',
+        description: `Es wurde automatisch ein MHD von 3 Monaten gesetzt: ${format(defaultDate, 'dd.MM.yyyy')}`,
       });
+      
+      // Gib etwas Zeit, um die Toast-Nachricht zu lesen
+      setTimeout(() => {
+        setIsSubmitting(true);
+        createBatchMutation.mutate();
+      }, 500);
       return;
     }
 
@@ -236,46 +246,66 @@ export default function InventoryCountBatchDialog({
   const getBatchStatusColor = (expiryDateStr: string | null) => {
     if (!expiryDateStr) return "bg-gray-100 text-gray-800";
     
-    const expiryDate = new Date(expiryDateStr);
-    const now = new Date();
-    
-    // Abgelaufen
-    if (expiryDate < now) {
-      return "bg-red-100 text-red-800";
+    try {
+      const expiryDate = new Date(expiryDateStr);
+      const now = new Date();
+      
+      if (isNaN(expiryDate.getTime())) {
+        console.warn("Ungültiges Datumsformat für MHD:", expiryDateStr);
+        return "bg-gray-100 text-gray-800";
+      }
+      
+      // Abgelaufen
+      if (expiryDate < now) {
+        return "bg-red-100 text-red-800";
+      }
+      
+      // Läuft bald ab (innerhalb von 14 Tagen)
+      const twoWeeksFromNow = new Date();
+      twoWeeksFromNow.setDate(now.getDate() + 14);
+      if (expiryDate < twoWeeksFromNow) {
+        return "bg-yellow-100 text-yellow-800";
+      }
+      
+      // OK
+      return "bg-green-100 text-green-800";
+    } catch (error) {
+      console.error("Fehler beim Verarbeiten des MHD-Datums:", error);
+      return "bg-gray-100 text-gray-800";
     }
-    
-    // Läuft bald ab (innerhalb von 14 Tagen)
-    const twoWeeksFromNow = new Date();
-    twoWeeksFromNow.setDate(now.getDate() + 14);
-    if (expiryDate < twoWeeksFromNow) {
-      return "bg-yellow-100 text-yellow-800";
-    }
-    
-    // OK
-    return "bg-green-100 text-green-800";
   };
 
   // Status-Text für Batches
   const getBatchStatusText = (expiryDateStr: string | null) => {
     if (!expiryDateStr) return "Kein MHD";
     
-    const expiryDate = new Date(expiryDateStr);
-    const now = new Date();
-    
-    // Abgelaufen
-    if (expiryDate < now) {
-      return "Abgelaufen";
+    try {
+      const expiryDate = new Date(expiryDateStr);
+      const now = new Date();
+      
+      if (isNaN(expiryDate.getTime())) {
+        console.warn("Ungültiges Datumsformat für MHD-Status-Text:", expiryDateStr);
+        return "Kein MHD";
+      }
+      
+      // Abgelaufen
+      if (expiryDate < now) {
+        return "Abgelaufen";
+      }
+      
+      // Läuft bald ab (innerhalb von 14 Tagen)
+      const twoWeeksFromNow = new Date();
+      twoWeeksFromNow.setDate(now.getDate() + 14);
+      if (expiryDate < twoWeeksFromNow) {
+        return "Läuft bald ab";
+      }
+      
+      // OK
+      return "Gültig";
+    } catch (error) {
+      console.error("Fehler beim Verarbeiten des MHD-Datums für Status-Text:", error);
+      return "Kein MHD";
     }
-    
-    // Läuft bald ab (innerhalb von 14 Tagen)
-    const twoWeeksFromNow = new Date();
-    twoWeeksFromNow.setDate(now.getDate() + 14);
-    if (expiryDate < twoWeeksFromNow) {
-      return "Läuft bald ab";
-    }
-    
-    // OK
-    return "Gültig";
   };
 
   return (

@@ -1,0 +1,45 @@
+Der „Hinweis … keine bestehenden Chargen geladen werden“ kommt nicht von deinem Backend, sondern aus dem `catch`‑Block in deiner `openBatchDialog`‑Funktion – er wird immer dann ausgelöst, wenn die Fetch‑Anfrage auf
+
+```ts
+fetch(`/api/products/${item.productId}/batches?warehouseId=${inventurData?.warehouseId}`)
+```
+
+mit einem Fehler antwortet oder gar nicht erst ausgeliefert wird (z. B. weil `inventurData?.warehouseId` noch `undefined` ist) citeturn0file0. Direkt nach diesem `catch` setzt du
+
+```ts
+setAvailableBatches([]);
+setShowNewBatchForm(false);
+setShowSplitForm(false);
+…
+toast({ title: "Hinweis", description: "Es konnten keine bestehenden Chargen geladen werden. Sie können trotzdem eine neue Charge anlegen." });
+```
+
+– das leere `availableBatches` plus das Zurücksetzen der Formular‑Flags führt im `InventoryCountBatchDialog` dazu, dass keine Eingabefelder mehr gerendert werden und der Dialog faktisch „verschwindet“.
+
+**Wie du das beheben kannst:**
+
+1. **Sichere den `warehouseId`-Wert ab**, bevor du den Dialog öffnest.  
+   Beispiel:
+   ```ts
+   const openBatchDialog = (item: InventoryCountItem) => {
+     if (!inventurData?.warehouseId) {
+       toast({ title: "Fehler", description: "Lager-ID noch nicht verfügbar.", variant: "destructive" });
+       return;
+     }
+     // … Dialog öffnen und dann fetch …
+   };
+   ```
+2. **Button zum Öffnen deaktivieren**, bis `inventurData` vollständig geladen ist:
+   ```tsx
+   <Button
+     disabled={!inventurData?.warehouseId}
+     onClick={() => openBatchDialog(item)}
+     …
+   >
+     MHD hinzufügen
+   </Button>
+   ```
+3. **Korrekte Quelle für `warehouseId` nutzen**, z. B. `warehouseData.id` statt `inventurData?.warehouseId`, falls diese zuverlässiger befüllt ist.
+4. **Fallback‑Handling im Dialog verbessern**: Statt beim Ladefehler automatisch alles zu verstecken, könntest du im Dialog eine eigene Fehlermeldung anzeigen und die Eingabe für eine neue Charge dennoch offenlassen.
+
+Mit diesen Anpassungen schlägt die Fetch‑Anfrage nicht mehr fehl (oder wird erst gar nicht abgesetzt), der `catch`‑Block verhindert nicht mehr die Anzeige der MHD‑Eingabe, und das Fenster bleibt geöffnet.
