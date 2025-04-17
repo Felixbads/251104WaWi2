@@ -2058,7 +2058,7 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                     }
                     
                     return (
-                      <React.Fragment key={item.id}>
+                      <div key={item.id} className="contents">
                         {/* Hauptzeile für das Produkt */}
                         <TableRow className={item.status === 'counted' ? 'bg-muted/20' : ''}>
                           <TableCell>
@@ -2354,7 +2354,7 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
                             )}
                           </div>
                         )}
-                      </React.Fragment>
+                      </div>
                     );
                   })
                 )}
