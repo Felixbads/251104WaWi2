@@ -9,7 +9,7 @@ import {
   Search, TrendingUp, TrendingDown, Equal, Calendar,
   ChevronDown, ChevronUp, ChevronRight, Plus,
   Split, ClockIcon, MoreHorizontal, FileText,
-  CalendarDays, CircleAlert
+  CalendarDays, CircleAlert, ArrowUp, ArrowDown
 } from 'lucide-react';
 
 // UI-Komponenten
@@ -896,11 +896,47 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   
   // Sortiere Inventurpositionen in der ursprünglichen Reihenfolge
   const sortedItems = useMemo(() => {
-    // Wenn noch keine Originalreihenfolge gespeichert wurde, gib die Items unverändert zurück
-    if (originalItemOrder.length === 0) return inventurItems;
+    // Wenn keine Sortierung aktiv ist und noch keine Originalreihenfolge gespeichert wurde, gib die Items unverändert zurück
+    if (!sortField && originalItemOrder.length === 0) return inventurItems;
     
-    // Sortiere die Items entsprechend der ursprünglich gespeicherten Reihenfolge
-    return [...inventurItems].sort((a, b) => {
+    const itemsToSort = [...inventurItems];
+    
+    // Wenn ein Sortierfeld angegeben ist, sortiere nach diesem
+    if (sortField) {
+      return itemsToSort.sort((a, b) => {
+        let valueA, valueB;
+        
+        // Extrahiere die zu vergleichenden Werte je nach Sortierschlüssel
+        if (sortField === 'product') {
+          valueA = a.product?.productName?.toLowerCase() || '';
+          valueB = b.product?.productName?.toLowerCase() || '';
+        } else if (sortField === 'expectedQuantity') {
+          valueA = a.expectedQuantity || 0;
+          valueB = b.expectedQuantity || 0;
+        } else if (sortField === 'countedQuantity') {
+          valueA = a.countedQuantity !== null ? a.countedQuantity : -1;
+          valueB = b.countedQuantity !== null ? b.countedQuantity : -1;
+        } else {
+          // Fallback für andere Felder
+          valueA = (a as any)[sortField] || '';
+          valueB = (b as any)[sortField] || '';
+        }
+        
+        // Tatsächlicher Vergleich mit Berücksichtigung der Sortierrichtung
+        if (typeof valueA === 'string' && typeof valueB === 'string') {
+          return sortDirection === 'asc' 
+            ? valueA.localeCompare(valueB) 
+            : valueB.localeCompare(valueA);
+        } else {
+          return sortDirection === 'asc' 
+            ? (valueA as number) - (valueB as number) 
+            : (valueB as number) - (valueA as number);
+        }
+      });
+    }
+    
+    // Wenn keine Sortierung aktiv ist, behalte die ursprüngliche Reihenfolge bei
+    return itemsToSort.sort((a, b) => {
       const indexA = originalItemOrder.indexOf(a.id);
       const indexB = originalItemOrder.indexOf(b.id);
       
@@ -910,7 +946,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       
       return indexA - indexB;
     });
-  }, [inventurItems, originalItemOrder]);
+  }, [inventurItems, originalItemOrder, sortField, sortDirection]);
   
   // Filtere Inventurpositionen basierend auf Suchbegriff
   const filteredItems = useMemo(() => {
@@ -964,17 +1000,21 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     };
   }, [filteredItems]);
 
-  // Setze showStartButton, wenn der inventurData.status nicht verfügbar oder "pending" ist
+  // Setze showStartButton, wenn der inventurData.status nicht verfügbar oder null/undefined ist
   useEffect(() => {
     console.log('Status der Inventur:', inventurData?.status);
-    if (inventurData?.status === 'pending' || inventurData?.status === null || inventurData?.status === undefined) {
+    // Behandle null oder undefined immer wie einen "pending" Status
+    // aber behalte den originalen Wert in currentStatus bei, 
+    // damit der Status "in_progress" korrekt angezeigt werden kann
+    if (inventurData?.status === null || inventurData?.status === undefined) {
       setShowStartButton(true);
     }
   }, [inventurData?.status]);
 
   // Aktuelle Status-Informationen
-  // Behandle null/undefined als 'pending' für konsistente Anzeige
-  const currentStatus = inventurData?.status || 'pending';
+  // Behandle null/undefined als 'in_progress' für konsistente Anzeige (statt 'pending')
+  // Dies stellt sicher, dass die Aktionsbuttons immer angezeigt werden
+  const currentStatus = inventurData?.status || 'in_progress';
   
   // Wähle das passende Icon, Label und Farbe basierend auf dem Status
   // Verwende die Typindexsignatur für sicheren Zugriff
@@ -1355,9 +1395,66 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Produkt</TableHead>
-                  <TableHead className="text-center">Erwarteter Bestand</TableHead>
-                  <TableHead className="text-center">Gezählter Bestand</TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:text-primary" 
+                    onClick={() => {
+                      if (sortField === 'product') {
+                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                      } else {
+                        setSortField('product');
+                        setSortDirection('asc');
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Produkt
+                      {sortField === 'product' && (
+                        sortDirection === 'asc' ? 
+                          <ArrowUpIcon className="h-4 w-4" /> : 
+                          <ArrowDownIcon className="h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:text-primary text-center"
+                    onClick={() => {
+                      if (sortField === 'expectedQuantity') {
+                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                      } else {
+                        setSortField('expectedQuantity');
+                        setSortDirection('asc');
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      Erwarteter Bestand
+                      {sortField === 'expectedQuantity' && (
+                        sortDirection === 'asc' ? 
+                          <ArrowUpIcon className="h-4 w-4" /> : 
+                          <ArrowDownIcon className="h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:text-primary text-center"
+                    onClick={() => {
+                      if (sortField === 'countedQuantity') {
+                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                      } else {
+                        setSortField('countedQuantity');
+                        setSortDirection('asc');
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      Gezählter Bestand
+                      {sortField === 'countedQuantity' && (
+                        sortDirection === 'asc' ? 
+                          <ArrowUpIcon className="h-4 w-4" /> : 
+                          <ArrowDownIcon className="h-4 w-4" />
+                      )}
+                    </div>
+                  </TableHead>
                   <TableHead className="text-center">Differenz</TableHead>
                   <TableHead className="text-center">MHD</TableHead>
                   <TableHead>Notizen</TableHead>
