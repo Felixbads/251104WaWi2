@@ -74,8 +74,8 @@ export default function InventoryCountBatchDialog({
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('existing');
   const [newBatchNumber, setNewBatchNumber] = useState('');
+  // Setze Standarddatum auf 3 Monate in der Zukunft für neue Chargen
   const [expiryDate, setExpiryDate] = useState<Date | null>(
-    // Default to 3 months in the future
     new Date(new Date().setMonth(new Date().getMonth() + 3))
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -97,7 +97,7 @@ export default function InventoryCountBatchDialog({
   // Mutation zum Erstellen einer neuen Charge
   const createBatchMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedItem || !newBatchNumber || !expiryDate) {
+      if (!selectedItem || !newBatchNumber || !expiryDate || !selectedItem.productId) {
         throw new Error('Fehlende Daten für neue Charge');
       }
 
@@ -156,7 +156,7 @@ export default function InventoryCountBatchDialog({
           });
           
           queryClient.invalidateQueries({ 
-            queryKey: [`/api/products/${selectedItem.productId}/batches`]
+            queryKey: [`/api/products/${selectedItem?.productId}/batches`]
           });
           
           // Erfolgsmeldung anzeigen
