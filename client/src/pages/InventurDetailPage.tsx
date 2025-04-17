@@ -1684,22 +1684,26 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
           </p>
         </div>
         
-        {/* POSITION 2: Buttons in der Kopfzeile */}
+        {/* POSITION 2: Buttons in der Kopfzeile in einer Card */}
         <div className="flex-shrink-0 mt-1 z-50">
-          <InventoryActions 
-            status={currentStatus}
-            onStart={() => startInventurMutation.mutate()}
-            onAddAllProducts={() => addAllProductsMutation.mutate()}
-            onSave={() => saveInventurMutation.mutate()}
-            onComplete={() => setShowCompleteDialog(true)}
-            onCancel={() => updateStatusMutation.mutate('cancelled')}
-            onDelete={() => setShowDeleteDialog(true)}
-            onResume={() => updateStatusMutation.mutate('in_progress')}
-            isStarting={startInventurMutation.isPending}
-            isAdding={addAllProductsMutation.isPending}
-            isSaving={saveInventurMutation.isPending}
-            isUpdating={updateStatusMutation.isPending}
-          />
+          <Card className="border-2 border-primary shadow-lg w-80 mr-4">
+            <CardContent className="p-4">
+              <InventoryActions 
+                status={currentStatus}
+                onStart={() => startInventurMutation.mutate()}
+                onAddAllProducts={() => addAllProductsMutation.mutate()}
+                onSave={() => saveInventurMutation.mutate()}
+                onComplete={() => setShowCompleteDialog(true)}
+                onCancel={() => updateStatusMutation.mutate('cancelled')}
+                onDelete={() => setShowDeleteDialog(true)}
+                onResume={() => updateStatusMutation.mutate('in_progress')}
+                isStarting={startInventurMutation.isPending}
+                isAdding={addAllProductsMutation.isPending}
+                isSaving={saveInventurMutation.isPending}
+                isUpdating={updateStatusMutation.isPending}
+              />
+            </CardContent>
+          </Card>
         </div>
       </div>
       
@@ -1806,23 +1810,31 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
         </Card>
       </div>
 
-      {/* Status-Aktionen vor der Produktliste */}
-      <div className="mb-3 sticky top-2 z-50">
-        <InventoryActions 
-          status={currentStatus}
-          onStart={() => startInventurMutation.mutate()}
-          onAddAllProducts={() => addAllProductsMutation.mutate()}
-          onSave={() => saveInventurMutation.mutate()}
-          onComplete={() => setShowCompleteDialog(true)}
-          onCancel={() => updateStatusMutation.mutate('cancelled')}
-          onDelete={() => setShowDeleteDialog(true)}
-          onResume={() => updateStatusMutation.mutate('in_progress')}
-          isStarting={startInventurMutation.isPending}
-          isAdding={addAllProductsMutation.isPending}
-          isSaving={saveInventurMutation.isPending}
-          isUpdating={updateStatusMutation.isPending}
-        />
-      </div>
+      {/* Status-Aktionen vor der Produktliste in einer Card (POSITION 3) */}
+      <Card className="border-2 border-primary shadow-lg">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium">Inventur-Aktionen</CardTitle>
+          <CardDescription>
+            Führen Sie hier Aktionen für diese Inventur durch
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <InventoryActions 
+            status={currentStatus}
+            onStart={() => startInventurMutation.mutate()}
+            onAddAllProducts={() => addAllProductsMutation.mutate()}
+            onSave={() => saveInventurMutation.mutate()}
+            onComplete={() => setShowCompleteDialog(true)}
+            onCancel={() => updateStatusMutation.mutate('cancelled')}
+            onDelete={() => setShowDeleteDialog(true)}
+            onResume={() => updateStatusMutation.mutate('in_progress')}
+            isStarting={startInventurMutation.isPending}
+            isAdding={addAllProductsMutation.isPending}
+            isSaving={saveInventurMutation.isPending}
+            isUpdating={updateStatusMutation.isPending}
+          />
+        </CardContent>
+      </Card>
       
       {/* Produktliste und Aktionen */}
       <Card>
