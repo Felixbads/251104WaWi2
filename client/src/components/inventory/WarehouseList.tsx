@@ -156,7 +156,7 @@ export default function WarehouseList() {
           </Button>
           
           <Button 
-            onClick={() => window.location.href = '/warehouses/neu'}
+            onClick={() => window.location.href = '/lager-neu'}
           >
             <PlusSquare className="h-4 w-4 mr-2" />
             Neues Lager
@@ -172,7 +172,9 @@ export default function WarehouseList() {
           <p className="text-muted-foreground mt-1 mb-4">
             Es wurden keine Lager für die aktuelle Filterauswahl gefunden.
           </p>
-          <Button>
+          <Button
+            onClick={() => window.location.href = '/lager-neu'}
+          >
             <PlusSquare className="h-4 w-4 mr-2" />
             Neues Lager anlegen
           </Button>
