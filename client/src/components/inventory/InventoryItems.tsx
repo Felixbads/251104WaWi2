@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CircleAlert, Package, Search, PlusCircle, AlarmClock } from 'lucide-react';
+import { CircleAlert, Package, Search, PlusCircle, AlarmClock, RefreshCw, PlusSquare } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function InventoryItems() {
