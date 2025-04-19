@@ -194,7 +194,7 @@ export default function WarehouseDetail() {
     if (!movements || !refills) return [];
     
     // Konvertiere Refills in das Format von Warenbewegungen
-    const refillMovements = refills.flatMap((refill: any) => {
+    const refillMovements = Array.isArray(refills) ? refills.flatMap((refill: any) => {
       if (refill.details && Array.isArray(refill.details)) {
         return refill.details.map((detail: any) => ({
           id: `refill-${refill.id}-${detail.id}`,
@@ -212,7 +212,7 @@ export default function WarehouseDetail() {
         }));
       }
       return [];
-    });
+    }) : [];
     
     // Kombiniere und sortiere nach Datum (neueste zuerst)
     return [...movements, ...refillMovements].sort((a: any, b: any) => {
