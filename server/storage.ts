@@ -2060,8 +2060,8 @@ export class DatabaseStorage implements IStorage {
     // Add timestamps to ensure consistent data if not already set
     const result = await rawDb.query(
       `INSERT INTO sync_logs (sync_type, start_date, end_date, additional_data, errors, 
-         items_found, items_saved, items_updated, sync_status, duplicates, duration_seconds, error_message) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) 
+         items_found, items_saved, items_updated, sync_status, duplicates, duration_seconds, error_message, entity_type) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) 
        RETURNING *`, 
       [
         log.syncType, 
@@ -2075,7 +2075,8 @@ export class DatabaseStorage implements IStorage {
         log.syncStatus || 'started',
         log.duplicates || 0,
         log.durationSeconds || 0,
-        log.errorMessage || null
+        log.errorMessage || null,
+        log.entityType || 'unknown'  // Make sure entity_type is never null
       ]
     );
     
@@ -2158,6 +2159,12 @@ export class DatabaseStorage implements IStorage {
     if (log.errorMessage !== undefined) {
       setClauses.push(`error_message = $${paramIndex}`);
       params.push(log.errorMessage);
+      paramIndex++;
+    }
+    
+    if (log.entityType !== undefined) {
+      setClauses.push(`entity_type = $${paramIndex}`);
+      params.push(log.entityType);
       paramIndex++;
     }
     
