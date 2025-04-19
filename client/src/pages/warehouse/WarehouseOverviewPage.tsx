@@ -17,12 +17,13 @@ const TabsContent = TabsContentBase;
 const TabsList = TabsListBase;
 const TabsTrigger = TabsTriggerBase;
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Package, ArrowDown, ArrowUp, AlertTriangle } from 'lucide-react';
+import { Building2, Package, ArrowDown, ArrowUp, AlertTriangle, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Link } from 'wouter';
+import { WarehouseFormDialog } from '@/components/inventory/WarehouseFormDialog';
 
 /**
  * Hauptseite für die Lagerbestandsübersicht
@@ -30,6 +31,7 @@ import { Link } from 'wouter';
  */
 export default function WarehouseOverviewPage() {
   const [searchTerm, setSearchTerm] = useState('');
+  const [isNewWarehouseDialogOpen, setIsNewWarehouseDialogOpen] = useState(false);
   
   // Lager laden
   const { data: warehouses = [], isLoading: isLoadingWarehouses } = useQuery({
@@ -186,7 +188,15 @@ export default function WarehouseOverviewPage() {
 
   return (
     <div className="container mx-auto px-4 py-6">
-      <h1 className="text-2xl font-bold mb-6">Lagerbestand Übersicht</h1>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
+        <h1 className="text-2xl font-bold">Lagerbestand Übersicht</h1>
+        <Button 
+          onClick={() => setIsNewWarehouseDialogOpen(true)}
+          className="flex items-center gap-2 mt-2 sm:mt-0"
+        >
+          <Plus className="h-4 w-4" /> Lager erstellen
+        </Button>
+      </div>
       
       {/* System-Übersicht oben */}
       <div className="mb-8">
@@ -355,6 +365,14 @@ export default function WarehouseOverviewPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Dialog zum Erstellen eines neuen Lagers */}
+      <WarehouseFormDialog
+        open={isNewWarehouseDialogOpen}
+        onOpenChange={setIsNewWarehouseDialogOpen}
+        warehouse={null}
+        isNew={true}
+      />
     </div>
   );
 }
