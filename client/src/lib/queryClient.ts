@@ -8,9 +8,9 @@ async function throwIfResNotOk(res: Response) {
 }
 
 export async function apiRequest(
-  method: string = "GET",
   url: string,
   data?: any,
+  method: string = "POST",
   options?: {
     headers?: Record<string, string>;
   }
