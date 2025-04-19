@@ -449,11 +449,14 @@ router.post('/items/:itemId/split', async (req: Request, res: Response) => {
   }
 });
 
-// PATCH /api/inventory-count-items/:id/batch - Batch-Informationen für ein Inventurelement aktualisieren
-router.patch('/items/:itemId/batch', async (req: Request, res: Response) => {
+// Sowohl PATCH als auch POST erlauben für /api/inventory-counts/items/:id/batch
+// POST wird vom Frontend beim Erstellen einer neuen Charge verwendet
+router.post('/items/:itemId/batch', async (req: Request, res: Response) => {
   try {
     const itemId = parseInt(req.params.itemId);
     const { batchId } = req.body;
+    
+    console.log(`POST /api/inventory-counts/items/${itemId}/batch`, { batchId });
     
     if (!itemId) {
       return res.status(400).json({ error: "Inventory Count Item ID is required" });
@@ -469,6 +472,7 @@ router.patch('/items/:itemId/batch', async (req: Request, res: Response) => {
     );
     
     if (!updateResult.rows || updateResult.rows.length === 0) {
+      console.error(`Item nicht gefunden: ${itemId}`);
       return res.status(404).json({ error: "Inventory Count Item not found" });
     }
     
@@ -490,6 +494,72 @@ router.patch('/items/:itemId/batch', async (req: Request, res: Response) => {
           receivedDate: row.received_date,
           notes: row.notes
         };
+        console.log(`Charge gefunden: ID=${row.id}, Nummer=${row.batch_number}, MHD=${row.expiry_date}`);
+      } else {
+        console.error(`Charge nicht gefunden: ${batchId}`);
+      }
+    }
+    
+    res.status(200).json({
+      item: updateResult.rows[0],
+      batch
+    });
+  } catch (error) {
+    console.error("Error updating batch for inventory count item:", error);
+    res.status(500).json({ 
+      error: "Failed to update batch for inventory count item", 
+      details: error instanceof Error ? error.message : String(error) 
+    });
+  }
+});
+
+// PATCH /api/inventory-count-items/:id/batch - Batch-Informationen für ein Inventurelement aktualisieren
+router.patch('/items/:itemId/batch', async (req: Request, res: Response) => {
+  try {
+    const itemId = parseInt(req.params.itemId);
+    const { batchId } = req.body;
+    
+    console.log(`PATCH /api/inventory-counts/items/${itemId}/batch`, { batchId });
+    
+    if (!itemId) {
+      return res.status(400).json({ error: "Inventory Count Item ID is required" });
+    }
+    
+    // Aktualisiere das Inventurzählungselement mit der Batch-ID
+    const updateResult = await rawDb.query(
+      `UPDATE inventory_count_items_v3 
+       SET batch_id = $1, updated_at = NOW() 
+       WHERE id = $2 
+       RETURNING *`,
+      [batchId, itemId]
+    );
+    
+    if (!updateResult.rows || updateResult.rows.length === 0) {
+      console.error(`Item nicht gefunden: ${itemId}`);
+      return res.status(404).json({ error: "Inventory Count Item not found" });
+    }
+    
+    // Wenn eine Batch-ID gesetzt wurde, hole weitere Informationen
+    let batch = null;
+    if (batchId) {
+      const batchResult = await rawDb.query(
+        `SELECT * FROM product_batches WHERE id = $1`, 
+        [batchId]
+      );
+      
+      if (batchResult.rows.length > 0) {
+        const row = batchResult.rows[0];
+        batch = {
+          id: row.id,
+          batchNumber: row.batch_number,
+          expiryDate: row.expiry_date,
+          currentQuantity: row.current_quantity,
+          receivedDate: row.received_date,
+          notes: row.notes
+        };
+        console.log(`Charge gefunden: ID=${row.id}, Nummer=${row.batch_number}, MHD=${row.expiry_date}`);
+      } else {
+        console.error(`Charge nicht gefunden: ${batchId}`);
       }
     }
     
