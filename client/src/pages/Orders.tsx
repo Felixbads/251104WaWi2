@@ -662,7 +662,9 @@ export default function Orders() {
   // Filter-Formular
   const filterForm = useForm<FilterValues>({
     resolver: zodResolver(filterSchema),
-    defaultValues: {}
+    defaultValues: {
+      status: 'all'  // 'all' umfasst auch 'draft'-Bestellungen
+    }
   });
   
   // Formular für neue Bestellung

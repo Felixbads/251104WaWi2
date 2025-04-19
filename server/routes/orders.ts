@@ -77,6 +77,18 @@ router.get("/", async (req: Request, res: Response) => {
     // Filtere nach Status
     if (status) {
       whereClause.push(eq(orders.status, status as string));
+    } else {
+      // Wenn kein Status angegeben ist, zeige alle Status einschließlich 'draft' an
+      whereClause.push(
+        or(
+          eq(orders.status, "draft"),
+          eq(orders.status, "open"), 
+          eq(orders.status, "ordered"),
+          eq(orders.status, "partial"),
+          eq(orders.status, "completed"),
+          eq(orders.status, "cancelled")
+        )
+      );
     }
 
     // Filtere nach Lieferanten
