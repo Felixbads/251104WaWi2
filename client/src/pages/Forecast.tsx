@@ -39,22 +39,22 @@ export default function Forecast() {
   const { data: models, isLoading: isLoadingModels } = useQuery({
     queryKey: ["/api/forecast/models"],
     retry: 1,
-    queryFn: () => apiRequest("get", "/api/forecast/models")
+    queryFn: () => apiRequest("/api/forecast/models", undefined, "GET")
   });
 
   // Fetch data coverage information
   const { data: dataCoverage, isLoading: isLoadingCoverage } = useQuery({
     queryKey: ["/api/data-coverage"],
     retry: 1,
-    queryFn: () => apiRequest("get", "/api/data-coverage")
+    queryFn: () => apiRequest("/api/data-coverage", undefined, "GET")
   });
 
   // Sync weather data
   const syncWeatherMutation = useMutation({
     mutationFn: (data: { startDate: string, endDate: string }) => {
-      return apiRequest("post", "/api/weather/sync", {
+      return apiRequest("/api/weather/sync", {
         body: data
-      });
+      }, 'POST');
     },
     onSuccess: () => {
       toast({
@@ -75,9 +75,9 @@ export default function Forecast() {
   // Sync holiday data
   const syncHolidaysMutation = useMutation({
     mutationFn: (data: { year: number, states?: string[] }) => {
-      return apiRequest("post", "/api/holidays/sync", {
+      return apiRequest("/api/holidays/sync", {
         body: data
-      });
+      }, 'POST');
     },
     onSuccess: () => {
       toast({
@@ -98,9 +98,9 @@ export default function Forecast() {
   // Create forecast model
   const createModelMutation = useMutation({
     mutationFn: (data: any) => {
-      return apiRequest("post", "/api/forecast/models", {
+      return apiRequest("/api/forecast/models", {
         body: data
-      });
+      }, 'POST');
     },
     onSuccess: () => {
       toast({
@@ -121,12 +121,12 @@ export default function Forecast() {
   // Train forecast model
   const trainModelMutation = useMutation({
     mutationFn: (data: { modelId: number, startDate: string, endDate: string }) => {
-      return apiRequest("post", `/api/forecast/models/${data.modelId}/train`, {
+      return apiRequest(`/api/forecast/models/${data.modelId}/train`, {
         body: { 
           startDate: data.startDate, 
           endDate: data.endDate 
         }
-      });
+      }, 'POST');
     },
     onSuccess: () => {
       toast({
@@ -148,9 +148,9 @@ export default function Forecast() {
   const createForecastMutation = useMutation({
     mutationFn: (data: { modelId: number, startDate: string, endDate: string }) => {
       console.log("Sende Prognoseerstellungsdaten:", data);
-      return apiRequest("post", "/api/forecast/create", {
+      return apiRequest("/api/forecast/create", {
         body: data,
-      });
+      }, 'POST');
     },
     onSuccess: () => {
       toast({
@@ -178,7 +178,7 @@ export default function Forecast() {
       if (endDate) params.append("endDate", endDate.toISOString().split("T")[0]);
       if (selectedModelId) params.append("modelId", selectedModelId.toString());
       
-      return apiRequest("get", `/api/forecast/data?${params.toString()}`);
+      return apiRequest(`/api/forecast/data?${params.toString()}`, undefined, "GET");
     }
   });
 
