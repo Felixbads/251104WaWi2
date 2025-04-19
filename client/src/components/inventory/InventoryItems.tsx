@@ -22,7 +22,7 @@ export default function InventoryItems() {
   });
 
   // Query für Lagerbestände
-  const { data: inventoryItems, isLoading: itemsLoading, error } = useQuery({
+  const { data: inventoryItems, isLoading: itemsLoading, error, refetch } = useQuery({
     queryKey: ['/api/inventory', { 
       warehouseId: selectedWarehouse !== 'all' ? parseInt(selectedWarehouse) : undefined, 
       critical: showCritical,
@@ -67,6 +67,30 @@ export default function InventoryItems() {
 
   return (
     <div className="space-y-4">
+      {/* Header mit Titel und Buttons */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <h2 className="text-xl font-semibold">Lagerbestand</h2>
+        
+        <div className="flex flex-wrap gap-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => refetch()}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Aktualisieren
+          </Button>
+          
+          <Button 
+            size="sm"
+            onClick={() => window.location.href = '/lager-neu'}
+          >
+            <PlusSquare className="h-4 w-4 mr-2" />
+            Neues Lager
+          </Button>
+        </div>
+      </div>
+      
       {/* Filter-Bereich */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full sm:w-auto">
