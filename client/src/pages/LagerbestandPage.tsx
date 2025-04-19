@@ -143,35 +143,40 @@ export default function LagerbestandPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
-        <h1 className="text-2xl font-bold">Lagerbestand</h1>
+    <div className="max-w-7xl mx-auto">
+      {/* Header mit Titel und Button */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Lagerbestand</h1>
+          <p className="text-muted-foreground mt-1">Verwalten Sie alle Lager und deren Bestände</p>
+        </div>
         <Button 
           onClick={() => setIsNewWarehouseDialogOpen(true)}
-          className="flex items-center gap-2"
+          className="flex items-center gap-2 mt-4 sm:mt-0"
+          size="default"
         >
-          <Plus className="h-4 w-4" /> Lager hinzufügen
+          <Plus className="h-4 w-4" /> Lager erstellen
         </Button>
       </div>
 
       {/* Suchleiste und Filter */}
-      <div className="w-full mb-6 flex flex-col sm:flex-row justify-between gap-3">
-        <div className="relative flex-1">
+      <div className="flex flex-col md:flex-row items-start md:items-center gap-4 mb-6">
+        <div className="relative flex-1 w-full">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             type="search"
             value={searchTerm}
             placeholder="Nach Lagern suchen..."
-            className="pl-8 h-9 w-full"
+            className="pl-8 h-10 w-full"
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full md:w-auto">
           {/* Status-Filter Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="flex items-center gap-2">
+              <Button variant="outline" size="sm" className="flex items-center gap-2 h-10">
                 <Filter className="h-4 w-4" />
                 Status: {statusFilter === "alle" ? "Alle" : statusFilter}
               </Button>
@@ -193,6 +198,7 @@ export default function LagerbestandPage() {
           <Button 
             variant="outline" 
             size="sm"
+            className="h-10"
             onClick={() => queryClient.invalidateQueries({ queryKey: ['/api/warehouses'] })}
           >
             <RefreshCw className="h-4 w-4" />
@@ -202,21 +208,32 @@ export default function LagerbestandPage() {
       
       {/* Aktive Filter anzeigen */}
       {activeFilters.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-4">
+        <div className="flex flex-wrap gap-2 mb-6">
           {activeFilters.map((filter, index) => (
             <div 
               key={index} 
-              className="text-xs py-1 px-2 bg-gray-100 rounded-md flex items-center gap-1.5"
+              className="py-1.5 px-3 bg-muted rounded-md flex items-center gap-2 text-sm"
             >
               {filter}
               <button 
                 onClick={() => clearFilter(filter)}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-muted-foreground hover:text-foreground transition-colors"
               >
-                <X className="h-3 w-3" />
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
           ))}
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="h-8"
+            onClick={() => {
+              setSearchTerm('');
+              setStatusFilter('alle');
+            }}
+          >
+            Alle Filter zurücksetzen
+          </Button>
         </div>
       )}
 
