@@ -359,7 +359,7 @@ router.post('/items/:itemId/split', async (req: Request, res: Response) => {
     
     // Holen Sie das Zählelement
     const inventoryItemResult = await rawDb.query(
-      `SELECT * FROM inventory_count_items_v3 WHERE id = $1`,
+      `SELECT * FROM inventory_count_items WHERE id = $1`,
       [itemId]
     );
     
@@ -390,7 +390,7 @@ router.post('/items/:itemId/split', async (req: Request, res: Response) => {
     
     // Aktualisieren Sie das bestehende Zählelement
     await rawDb.query(
-      `UPDATE inventory_count_items_v3 
+      `UPDATE inventory_count_items 
        SET actual_quantity = actual_quantity - $1, 
            difference = (actual_quantity - $1) - expected_quantity,
            updated_at = NOW()
@@ -400,7 +400,7 @@ router.post('/items/:itemId/split', async (req: Request, res: Response) => {
     
     // Erstellen Sie ein neues Zählelement für die Ziel-Charge
     const createItemResult = await rawDb.query(
-      `INSERT INTO inventory_count_items_v3
+      `INSERT INTO inventory_count_items
        (inventory_count_id, product_id, expected_quantity, actual_quantity, 
         difference, status, batch_id, created_at, updated_at)
        VALUES ($1, $2, 0, $3, $3, 'counted', $4, NOW(), NOW())
@@ -416,7 +416,7 @@ router.post('/items/:itemId/split', async (req: Request, res: Response) => {
     if (!createItemResult.rows || createItemResult.rows.length === 0) {
       // Fehler beim Erstellen des neuen Elements - Zurückrollen der Änderung
       await rawDb.query(
-        `UPDATE inventory_count_items_v3 
+        `UPDATE inventory_count_items 
          SET actual_quantity = $1, 
              difference = $1 - expected_quantity,
              updated_at = NOW()
@@ -464,7 +464,7 @@ router.post('/items/:itemId/batch', async (req: Request, res: Response) => {
     
     // Aktualisiere das Inventurzählungselement mit der Batch-ID
     const updateResult = await rawDb.query(
-      `UPDATE inventory_count_items_v3 
+      `UPDATE inventory_count_items 
        SET batch_id = $1, updated_at = NOW() 
        WHERE id = $2 
        RETURNING *`,
@@ -527,7 +527,7 @@ router.patch('/items/:itemId/batch', async (req: Request, res: Response) => {
     
     // Aktualisiere das Inventurzählungselement mit der Batch-ID
     const updateResult = await rawDb.query(
-      `UPDATE inventory_count_items_v3 
+      `UPDATE inventory_count_items 
        SET batch_id = $1, updated_at = NOW() 
        WHERE id = $2 
        RETURNING *`,
