@@ -27,6 +27,31 @@ export default function MachineAssignments() {
   const [newAssignWarehouse, setNewAssignWarehouse] = useState<number | null>(null);
   const [assignNotes, setAssignNotes] = useState('');
   
+  // Mutation für das Löschen einer Zuordnung
+  const deleteAssignmentMutation = useMutation({
+    mutationFn: async (assignmentId: number) => {
+      return apiRequest(`/api/machine-warehouse-assignments/${assignmentId}`, undefined, 'DELETE');
+    },
+    onSuccess: () => {
+      // Invalidieren des Caches
+      queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
+      
+      toast({
+        title: "Zuordnung entfernt",
+        description: "Die Zuordnung wurde erfolgreich entfernt",
+      });
+    },
+    onError: (error) => {
+      console.error("Fehler beim Löschen der Zuordnung:", error);
+      
+      toast({
+        title: "Fehler",
+        description: `Die Zuordnung konnte nicht entfernt werden: ${error instanceof Error ? error.message : String(error)}`,
+        variant: "destructive",
+      });
+    },
+  });
+  
   // Funktion zum Löschen einer Zuordnung
   const handleDeleteAssignment = async (assignmentId: number) => {
     if (!confirm('Möchten Sie diese Zuordnung wirklich entfernen?')) {
@@ -36,43 +61,13 @@ export default function MachineAssignments() {
     console.log(`Lösche Zuordnung mit ID ${assignmentId}`);
     
     try {
-      // Direkte XMLHttpRequest für die DELETE-Anfrage verwenden
-      // Da fetch-Anfragen in der Anwendung manchmal umgeleitet/verändert werden
-      const xhr = new XMLHttpRequest();
-      xhr.open('DELETE', `/api/machine-warehouse-assignments/${assignmentId}`, true);
-      xhr.setRequestHeader('Content-Type', 'application/json');
-      xhr.withCredentials = true; // Cookies für die Authentifizierung mitsenden
-      
-      // Promise für die Anfrage erstellen
-      const responsePromise = new Promise<void>((resolve, reject) => {
-        xhr.onload = function() {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve();
-          } else {
-            reject(new Error(`Fehler ${xhr.status}: ${xhr.responseText}`));
-          }
-        };
-        xhr.onerror = function() {
-          reject(new Error("Netzwerkfehler bei der Anfrage"));
-        };
-      });
-      
-      // Anfrage senden
-      xhr.send();
-      await responsePromise;
-      
-      // Nach erfolgreicher Löschung die Daten aktualisieren
-      queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
-      
-      toast({
-        title: 'Zuordnung entfernt',
-        description: 'Die Zuordnung wurde erfolgreich entfernt'
-      });
+      // Mutation auslösen
+      deleteAssignmentMutation.mutate(assignmentId);
     } catch (error) {
       console.error("Fehler beim Entfernen der Zuordnung:", error);
       toast({
         title: 'Fehler',
-        description: (error as Error).message || 'Beim Entfernen der Zuordnung ist ein Fehler aufgetreten.',
+        description: error instanceof Error ? error.message : 'Beim Entfernen der Zuordnung ist ein Fehler aufgetreten.',
         variant: 'destructive'
       });
     }
@@ -142,6 +137,55 @@ export default function MachineAssignments() {
     }
   });
   
+  // Mutation für das Erstellen einer neuen Zuordnung
+  const createAssignmentMutation = useMutation({
+    mutationFn: async (assignmentData: {
+      machineId: number;
+      warehouseId: number;
+      isPrimary: boolean;
+      notes?: string;
+    }) => {
+      return apiRequest('/api/machine-warehouse-assignments', assignmentData, 'POST');
+    },
+    onSuccess: (data, variables) => {
+      console.log("Erfolgreich erstellt:", data);
+      
+      // Alle relevanten Anfragen ungültig machen
+      queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
+      
+      // Auch die gefilterte Anfrage ungültig machen
+      if (selectedWarehouse !== 'all') {
+        queryClient.invalidateQueries({ 
+          queryKey: ['/api/machine-warehouse-assignments', { warehouseId: parseInt(selectedWarehouse) }] 
+        });
+      }
+      
+      // Die Inventarliste für das betroffene Lager aktualisieren
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/inventory', { warehouseId: variables.warehouseId }] 
+      });
+      
+      // Erfolgsbenachrichtigung anzeigen
+      toast({
+        title: 'Zuordnung erstellt',
+        description: 'Die Maschine wurde erfolgreich dem Lager zugeordnet'
+      });
+      
+      // Dialog schließen und Zustand zurücksetzen
+      setIsCreatingAssignment(false);
+      closeAndResetDialog();
+    },
+    onError: (error) => {
+      console.error("Fehler bei der Zuordnung:", error);
+      setIsCreatingAssignment(false);
+      toast({
+        title: 'Fehler',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive'
+      });
+    }
+  });
+  
   // Status und Handler für Zuordnungserstellung
   const [isCreatingAssignment, setIsCreatingAssignment] = useState(false);
   
@@ -166,7 +210,7 @@ export default function MachineAssignments() {
     
     setIsCreatingAssignment(true); // Status auf "erstellt" setzen
     
-    // Aktuelle Parameter in der Konsole ausgeben
+    // Zuordnungsdaten zusammenstellen
     const assignmentData = {
       machineId: newAssignMachine,
       warehouseId: newAssignWarehouse,
@@ -176,60 +220,8 @@ export default function MachineAssignments() {
     
     console.log("Sende Zuordnungsdaten:", JSON.stringify(assignmentData));
     
-    // Direkte Fetch-Anfrage mit Cookies für die Authentifizierung
-    fetch('/api/machine-warehouse-assignments', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(assignmentData),
-      credentials: 'include' // Wichtig: Cookies für die Authentifizierung senden
-    })
-    .then(response => {
-      if (!response.ok) {
-        return response.text().then(text => {
-          throw new Error(`Fehler ${response.status}: ${text}`);
-        });
-      }
-      return response.json();
-    })
-    .then(data => {
-      console.log("Erfolgreich erstellt:", data);
-      
-      // Alle relevanten Anfragen ungültig machen
-      queryClient.invalidateQueries({ queryKey: ['/api/machine-warehouse-assignments'] });
-      
-      // Auch die gefilterte Anfrage ungültig machen
-      if (selectedWarehouse !== 'all') {
-        queryClient.invalidateQueries({ 
-          queryKey: ['/api/machine-warehouse-assignments', { warehouseId: parseInt(selectedWarehouse) }] 
-        });
-      }
-      
-      // Die Inventarliste für das betroffene Lager aktualisieren
-      queryClient.invalidateQueries({ 
-        queryKey: ['/api/inventory', { warehouseId: newAssignWarehouse }] 
-      });
-      
-      // Erfolgsbenachrichtigung anzeigen
-      toast({
-        title: 'Zuordnung erstellt',
-        description: 'Die Maschine wurde erfolgreich dem Lager zugeordnet'
-      });
-      
-      // Dialog schließen und Zustand zurücksetzen
-      setIsCreatingAssignment(false);
-      closeAndResetDialog();
-    })
-    .catch(error => {
-      console.error("Fehler bei der Zuordnung:", error);
-      setIsCreatingAssignment(false);
-      toast({
-        title: 'Fehler',
-        description: error.message,
-        variant: 'destructive'
-      });
-    });
+    // Mutation auslösen
+    createAssignmentMutation.mutate(assignmentData);
   };
 
   // Debug: Daten in der Konsole anzeigen, wenn sie sich ändern
