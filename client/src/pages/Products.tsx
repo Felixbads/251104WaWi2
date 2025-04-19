@@ -456,18 +456,39 @@ export default function Products() {
       : [];
   }, [processedVendonProducts]);
 
-  // Nutze nur Vendon-Produkte, da Produkte nur über Vendon-Import kommen
-  const vendonProductsWithoutDuplicates = useMemo(() => {
-    return processedVendonProducts.reduce((acc: Map<string, any>, product: any) => {
+  // Verwende alle regulären Produkte aus der Datenbank und ergänze mit Vendon-Produkten wenn vorhanden
+  const regularProducts = useMemo(() => {
+    // Stelle sicher, dass products ein gültiges Objekt ist
+    if (!products || !products.data) return [];
+    return Array.isArray(products.data) ? products.data : [];
+  }, [products]);
+
+  // Kombiniere die regulären Produkte mit Vendon-Produkten ohne Duplikate
+  const combinedProducts = useMemo(() => {
+    // Zuerst reguläre Produkte verwenden (von der /api/products Endpunkt)
+    const productsMap = new Map<string, any>();
+    
+    // Füge reguläre Produkte hinzu
+    regularProducts.forEach(product => {
       const productId = product.vendonId || product.id?.toString();
-      if (productId && !acc.has(productId)) {
-        acc.set(productId, product);
+      if (productId && !productsMap.has(productId)) {
+        productsMap.set(productId, product);
       }
-      return acc;
-    }, new Map<string, any>());
-  }, [processedVendonProducts]);
-  
-  const combinedProducts = Array.from(vendonProductsWithoutDuplicates.values()) as Product[];
+    });
+    
+    // Füge Vendon-Produkte hinzu (falls vorhanden)
+    processedVendonProducts.forEach(product => {
+      const productId = product.vendonId || product.id?.toString();
+      if (productId && !productsMap.has(productId)) {
+        productsMap.set(productId, product);
+      }
+    });
+    
+    // Debug-Ausgabe hinzufügen
+    console.log(`Produkte in Datenbank: ${regularProducts.length}, Vendon-Produkte: ${processedVendonProducts.length}, Kombiniert: ${productsMap.size}`);
+    
+    return Array.from(productsMap.values()) as Product[];
+  }, [regularProducts, processedVendonProducts]);
   
   // Count-Anzeige für alle Produkte
   const totalProductCount = combinedProducts?.length || 0;
