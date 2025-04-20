@@ -100,6 +100,7 @@ export default function MachineAssignments() {
     enabled: !!newAssignMachine,
     queryFn: async () => {
       if (!newAssignMachine) return [];
+      // Hier ist ein GET-Request, wir verwenden die korrekte Reihenfolge der Parameter
       const response = await apiRequest(`/api/machines/${newAssignMachine}/products`, undefined, 'GET');
       return Array.isArray(response) ? response : [];
     },
@@ -145,7 +146,15 @@ export default function MachineAssignments() {
       isPrimary: boolean;
       notes?: string;
     }) => {
-      return apiRequest('/api/machine-warehouse-assignments', assignmentData, 'POST');
+      try {
+        console.log("Sende Zuordnungsdaten an API:", assignmentData);
+        const result = await apiRequest('/api/machine-warehouse-assignments', assignmentData, 'POST');
+        console.log("API-Antwort erhalten:", result);
+        return result;
+      } catch (error) {
+        console.error("Fehler bei API-Anfrage:", error);
+        throw error;
+      }
     },
     onSuccess: (data, variables) => {
       console.log("Erfolgreich erstellt:", data);
