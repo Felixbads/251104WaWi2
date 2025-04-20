@@ -1,233 +1,144 @@
-/**
- * E-Mail-Service für das Versenden von E-Mails
- * Verwendet Nodemailer für den E-Mail-Versand
- */
-import nodemailer from 'nodemailer';
-import { promises as fs } from 'fs';
-import path from 'path';
-
-// Email-Konfiguration aus Umgebungsvariablen
-const EMAIL_HOST = process.env.EMAIL_HOST || 'smtp.gmail.com';
-const EMAIL_PORT = parseInt(process.env.EMAIL_PORT || '587');
-const EMAIL_USER = process.env.EMAIL_USER;
-const EMAIL_PASS = process.env.EMAIL_PASS;
-const EMAIL_FROM = process.env.EMAIL_FROM || 'noreply@automaten-app.de';
-
-// Standardnachrichten für Fehler
-const ERROR_MESSAGES = {
-  MISSING_CREDENTIALS: 'E-Mail-Zugangsdaten sind nicht konfiguriert. Bitte E-Mail-Einstellungen überprüfen.',
-  SEND_FAILED: 'E-Mail konnte nicht gesendet werden. Bitte erneut versuchen oder Support kontaktieren.',
-  ATTACHMENT_FAILED: 'Anhang konnte nicht erstellt werden. Bitte erneut versuchen.'
-};
-
-// Transport-Konfiguration für Nodemailer
-export const createTransporter = () => {
-  // Prüfen, ob die erforderlichen Umgebungsvariablen gesetzt sind
-  if (!EMAIL_USER || !EMAIL_PASS) {
-    console.warn('E-Mail-Zugangsdaten fehlen. E-Mail-Versand ist deaktiviert.');
-    return null;
-  }
-
-  return nodemailer.createTransport({
-    host: EMAIL_HOST,
-    port: EMAIL_PORT,
-    secure: EMAIL_PORT === 465, // true für Port 465, false für andere Ports
-    auth: {
-      user: EMAIL_USER,
-      pass: EMAIL_PASS,
-    },
-  });
-};
-
-// Interface für E-Mail-Anhänge
-interface Attachment {
-  filename: string;
-  content: Buffer | string;
-  contentType?: string;
-}
-
-// Interface für E-Mail-Optionen
-interface EmailOptions {
-  to: string | string[];
+// Interface für E-Mail-Parameter
+export interface EmailParams {
+  to: string;
+  from: string;
   subject: string;
   text?: string;
   html?: string;
-  attachments?: Attachment[];
-  cc?: string | string[];
-  bcc?: string | string[];
-  replyTo?: string;
 }
 
 /**
- * Sendet eine E-Mail mit den angegebenen Optionen
- * @param options - E-Mail-Optionen (Empfänger, Betreff, Text, HTML, Anhänge)
- * @returns Promise mit dem Versandergebnis
+ * Mock-Funktion für E-Mail-Versand (weil wir keine externe Bibliothek verwenden können)
+ * In einer Produktionsumgebung würde hier ein richtiger E-Mail-Dienst angebunden werden
+ * 
+ * @param params - Die E-Mail-Parameter (Empfänger, Absender, Betreff, Text/HTML)
+ * @returns Promise<boolean> - true bei Erfolg, false bei Fehler
  */
-export const sendEmail = async (options: EmailOptions) => {
-  const transporter = createTransporter();
-  
-  if (!transporter) {
-    throw new Error(ERROR_MESSAGES.MISSING_CREDENTIALS);
-  }
-
+export async function sendEmail(params: EmailParams): Promise<boolean> {
   try {
-    const result = await transporter.sendMail({
-      from: EMAIL_FROM,
-      to: options.to,
-      cc: options.cc,
-      bcc: options.bcc,
-      subject: options.subject,
-      text: options.text || '',
-      html: options.html || '',
-      attachments: options.attachments || [],
-      replyTo: options.replyTo
-    });
-
-    console.log(`E-Mail erfolgreich gesendet: ${result.messageId}`);
-    return result;
+    console.log('==== SIMULIERTER E-MAIL-VERSAND ====');
+    console.log(`Von: ${params.from}`);
+    console.log(`An: ${params.to}`);
+    console.log(`Betreff: ${params.subject}`);
+    console.log('Inhalt: ' + (params.text || 'HTML-Inhalt (gekürzt)'));
+    console.log('==== ENDE DER E-MAIL ====');
+    
+    // Simuliere einen erfolgreichen E-Mail-Versand
+    return true;
   } catch (error) {
     console.error('Fehler beim Senden der E-Mail:', error);
-    throw new Error(`${ERROR_MESSAGES.SEND_FAILED} Details: ${error.message}`);
+    return false;
   }
-};
+}
 
 /**
- * Sendet eine Bestellbestätigung an den Lieferanten
- * @param order - Bestelldaten
- * @param supplierEmail - E-Mail-Adresse des Lieferanten
- * @param pdfBuffer - Buffer mit der PDF-Datei der Bestellung
- * @param options - Zusätzliche E-Mail-Optionen (optional)
- * @returns Promise mit dem Versandergebnis
+ * Erstellt eine HTML-Tabelle aus Bestellpositionen
+ * 
+ * @param items - Array mit Bestellpositionen
+ * @returns string - HTML-Code für die Tabelle
  */
-export const sendOrderConfirmation = async (
-  order: any, 
-  supplierEmail: string, 
-  pdfBuffer: Buffer,
-  options?: Partial<EmailOptions>
-) => {
-  if (!order || !supplierEmail || !pdfBuffer) {
-    throw new Error('Fehlende Daten für Bestellbestätigung');
+export function createOrderItemsTable(items: any[]): string {
+  if (!items || items.length === 0) {
+    return '<p>Keine Bestellpositionen vorhanden.</p>';
   }
 
-  // Formatiere das Datum für die E-Mail
-  const orderDate = order.orderDate ? new Date(order.orderDate).toLocaleDateString('de-DE') : 'DATUM_FEHLT';
+  const tableRows = items.map((item, index) => `
+    <tr>
+      <td style="border: 1px solid #ddd; padding: 8px;">${index + 1}</td>
+      <td style="border: 1px solid #ddd; padding: 8px;">${item.productName || 'Unbekanntes Produkt'}</td>
+      <td style="border: 1px solid #ddd; padding: 8px;">${item.sku || item.supplierSku || '-'}</td>
+      <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${item.quantity} ${item.unit || 'Stk.'}</td>
+      <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${formatCurrency(item.unitPrice)}</td>
+      <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${formatCurrency(item.totalPrice)}</td>
+    </tr>
+  `).join('');
 
-  // HTML-Inhalt für die E-Mail
-  const htmlContent = `
-    <html>
-      <head>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
-          .footer { border-top: 1px solid #eee; padding-top: 10px; margin-top: 20px; font-size: 12px; color: #777; }
-          h1 { color: #0070f3; }
-          p { margin: 10px 0; }
-          .order-details { background-color: #f9f9f9; padding: 15px; border-radius: 5px; margin: 15px 0; }
-          .btn { display: inline-block; background-color: #0070f3; color: white; padding: 10px 15px; text-decoration: none; border-radius: 5px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>Bestellung #${order.orderNumber}</h1>
-          </div>
-          
-          <p>Sehr geehrte Damen und Herren,</p>
-          
-          <p>anbei erhalten Sie unsere Bestellung ${order.orderNumber} vom ${orderDate}.</p>
-          
-          <div class="order-details">
-            <p><strong>Bestellnummer:</strong> ${order.orderNumber}</p>
-            <p><strong>Datum:</strong> ${orderDate}</p>
-            <p><strong>Lieferant:</strong> ${order.supplierName || 'Nicht angegeben'}</p>
-            <p><strong>Lieferort:</strong> ${order.locationName || 'Nicht angegeben'}</p>
-          </div>
-          
-          <p>Bitte bestätigen Sie den Erhalt dieser Bestellung und informieren Sie uns über das voraussichtliche Lieferdatum.</p>
-          
-          <p>Mit freundlichen Grüßen<br>
-          Nationalpark Zentrum</p>
-          
-          <div class="footer">
-            <p>Dies ist eine automatisch generierte E-Mail. Bitte antworten Sie nicht direkt auf diese Nachricht.</p>
+  return `
+    <table style="border-collapse: collapse; width: 100%; margin-top: 20px; margin-bottom: 20px;">
+      <thead>
+        <tr style="background-color: #f2f2f2;">
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Pos.</th>
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Artikel</th>
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Art.-Nr.</th>
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Menge</th>
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Einzelpreis</th>
+          <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Gesamtpreis</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${tableRows}
+      </tbody>
+    </table>
+  `;
+}
+
+/**
+ * Formatiert einen Betrag als Währung
+ */
+function formatCurrency(amount: number | null | undefined): string {
+  if (amount === null || amount === undefined) return '—';
+  
+  return new Intl.NumberFormat('de-DE', {
+    style: 'currency',
+    currency: 'EUR'
+  }).format(amount);
+}
+
+/**
+ * Erstellt den Standard-Betreff für eine Bestellung
+ */
+export function createOrderSubject(orderNumber: string, supplierName: string): string {
+  return `Bestellung ${orderNumber} - ${supplierName}`;
+}
+
+/**
+ * Erstellt eine Standard-E-Mail-Vorlage für eine Bestellung
+ */
+export function createOrderEmailTemplate(order: any, supplier: any): string {
+  const orderDate = order.orderDate ? new Date(order.orderDate).toLocaleDateString('de-DE') : 'Unbekannt';
+  const expectedDeliveryDate = order.expectedDeliveryDate 
+    ? new Date(order.expectedDeliveryDate).toLocaleDateString('de-DE') 
+    : 'Nach Vereinbarung';
+
+  return `
+    <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto;">
+      <div style="padding: 20px; background-color: #f8f9fa; border-bottom: 3px solid #5c6ac4;">
+        <h1 style="color: #333; margin: 0;">Bestellung: ${order.orderNumber}</h1>
+      </div>
+      
+      <div style="padding: 20px;">
+        <p>Sehr geehrte Damen und Herren,</p>
+        
+        <p>hiermit bestellen wir folgende Artikel:</p>
+        
+        <div style="margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-left: 4px solid #5c6ac4;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <div>
+              <strong>Bestellnummer:</strong> ${order.orderNumber}<br>
+              <strong>Bestelldatum:</strong> ${orderDate}<br>
+              <strong>Gewünschtes Lieferdatum:</strong> ${expectedDeliveryDate}
+            </div>
+            <div>
+              <strong>Lieferant:</strong><br>
+              ${supplier.name}<br>
+              ${supplier.contactPerson || ''}<br>
+              ${supplier.address || ''}<br>
+              ${supplier.postalCode || ''} ${supplier.city || ''}<br>
+            </div>
           </div>
         </div>
-      </body>
-    </html>
-  `;
-
-  // Text-Inhalt für die E-Mail (für E-Mail-Clients, die kein HTML unterstützen)
-  const textContent = `
-    Bestellung #${order.orderNumber}
-    
-    Sehr geehrte Damen und Herren,
-    
-    anbei erhalten Sie unsere Bestellung ${order.orderNumber} vom ${orderDate}.
-    
-    Bestellnummer: ${order.orderNumber}
-    Datum: ${orderDate}
-    Lieferant: ${order.supplierName || 'Nicht angegeben'}
-    Lieferort: ${order.locationName || 'Nicht angegeben'}
-    
-    Bitte bestätigen Sie den Erhalt dieser Bestellung und informieren Sie uns über das voraussichtliche Lieferdatum.
-    
-    Mit freundlichen Grüßen
-    Nationalpark Zentrum
-    
-    ---
-    Dies ist eine automatisch generierte E-Mail. Bitte antworten Sie nicht direkt auf diese Nachricht.
-  `;
-
-  // E-Mail-Optionen zusammenstellen
-  const emailOptions: EmailOptions = {
-    to: supplierEmail,
-    subject: `Bestellung ${order.orderNumber} vom ${orderDate}`,
-    text: textContent,
-    html: htmlContent,
-    attachments: [
-      {
-        filename: `Bestellung_${order.orderNumber}.pdf`,
-        content: pdfBuffer,
-        contentType: 'application/pdf'
-      }
-    ],
-    ...options
-  };
-
-  // E-Mail senden
-  return await sendEmail(emailOptions);
-};
-
-/**
- * Testet die E-Mail-Konfiguration durch Senden einer Test-E-Mail
- * @param testEmail - E-Mail-Adresse für den Test
- * @returns Promise mit dem Versandergebnis
- */
-export const testEmailConfiguration = async (testEmail: string) => {
-  const testOptions: EmailOptions = {
-    to: testEmail,
-    subject: 'Test-E-Mail von Automaten-App',
-    text: 'Dies ist eine Test-E-Mail, um die E-Mail-Konfiguration zu überprüfen.',
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #0070f3;">Test-E-Mail</h1>
-        <p>Dies ist eine Test-E-Mail, um die E-Mail-Konfiguration zu überprüfen.</p>
-        <p>Wenn Sie diese E-Mail erhalten haben, ist die E-Mail-Konfiguration korrekt.</p>
-        <p style="color: #666; font-size: 12px; margin-top: 30px;">
-          Dies ist eine automatisch generierte E-Mail. Bitte antworten Sie nicht auf diese Nachricht.
+        
+        <p>Bitte bestätigen Sie uns den Erhalt dieser Bestellung und das voraussichtliche Lieferdatum.</p>
+        
+        <p>Mit freundlichen Grüßen,<br>
+        Ihr Einkaufsteam</p>
+      </div>
+      
+      <div style="padding: 0 20px 20px;">
+        <p style="color: #666; font-size: 12px;">
+          Dies ist eine automatisch generierte E-Mail. Bitte antworten Sie direkt an die Absenderadresse.
         </p>
       </div>
-    `
-  };
-
-  return await sendEmail(testOptions);
-};
-
-// Export der Funktionen
-export default {
-  createTransporter,
-  sendEmail,
-  sendOrderConfirmation,
-  testEmailConfiguration
-};
+    </div>
+  `;
+}

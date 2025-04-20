@@ -17,7 +17,8 @@ import {
   MoreHorizontal,
   Send,
   Truck,
-  ShoppingBag
+  ShoppingBag,
+  Mail
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
