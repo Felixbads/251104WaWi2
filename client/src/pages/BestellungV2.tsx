@@ -386,7 +386,7 @@ const BestellungV2: React.FC = () => {
       // Da wir möglicherweise nicht mehr im gleichen Schritt sind, müssen wir die Bestelldaten erneut abrufen
       let orderData;
       try {
-        const response = await fetch(`/api/orders/${orderId}`);
+        const response = await fetch(`/orders/${orderId}`);
         if (!response.ok) {
           throw new Error(`Fehler beim Abrufen der Bestelldaten: ${response.statusText}`);
         }
@@ -502,7 +502,7 @@ const BestellungV2: React.FC = () => {
       // Verwenden wir eine API-Anfrage, um die tatsächliche E-Mail-Adresse des Lieferanten zu erhalten
       try {
         // Zuerst versuchen wir, die E-Mail des Lieferanten abzurufen
-        const supplierResponse = await fetch(`/api/suppliers/${supplierId}`);
+        const supplierResponse = await fetch(`/suppliers/${supplierId}`);
         if (!supplierResponse.ok) {
           throw new Error(`Fehler beim Abrufen der Lieferantendaten: ${supplierResponse.statusText}`);
         }
