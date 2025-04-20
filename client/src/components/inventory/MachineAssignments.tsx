@@ -207,7 +207,7 @@ export default function MachineAssignments() {
   };
   
   // Handler für das Erstellen einer neuen Zuordnung
-  const handleCreateAssignment = () => {
+  const handleCreateAssignment = async () => {
     if (!newAssignMachine || !newAssignWarehouse) {
       toast({
         title: 'Eingaben unvollständig',
@@ -217,7 +217,7 @@ export default function MachineAssignments() {
       return;
     }
     
-    setIsCreatingAssignment(true); // Status auf "erstellt" setzen
+    setIsCreatingAssignment(true); // Status auf "wird gespeichert" setzen
     
     // Zuordnungsdaten zusammenstellen
     const assignmentData = {
@@ -229,8 +229,23 @@ export default function MachineAssignments() {
     
     console.log("Sende Zuordnungsdaten:", JSON.stringify(assignmentData));
     
-    // Mutation auslösen
-    createAssignmentMutation.mutate(assignmentData);
+    try {
+      // Mutation auslösen
+      await createAssignmentMutation.mutateAsync(assignmentData);
+      
+      // Erfolgsfall wird durch onSuccess im useMutation-Hook bereits behandelt
+    } catch (error) {
+      // Fehlerfall: Dialog trotzdem schließen, damit er nicht hängt
+      console.error("Fehler beim Erstellen der Zuordnung:", error);
+      setIsCreatingAssignment(false);
+      closeAndResetDialog();
+      
+      toast({
+        title: 'Fehler',
+        description: 'Die Zuordnung konnte nicht erstellt werden. Es ist ein Fehler aufgetreten.',
+        variant: 'destructive'
+      });
+    }
   };
 
   // Debug: Daten in der Konsole anzeigen, wenn sie sich ändern
@@ -414,7 +429,7 @@ export default function MachineAssignments() {
                 onClick={handleCreateAssignment}
                 disabled={isCreatingAssignment || !newAssignMachine || !newAssignWarehouse}
               >
-                {isCreatingAssignment ? 'Wird erstellt...' : 'Zuordnung erstellen'}
+                {isCreatingAssignment ? 'Wird gespeichert...' : 'Zuordnung erstellen'}
               </Button>
             </DialogFooter>
           </DialogContent>
