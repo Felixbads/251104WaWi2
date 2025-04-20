@@ -17,6 +17,71 @@ router.get("/statistics", async (req: Request, res: Response) => {
   }
 });
 
+// Bestellung als versendet markieren
+router.post("/:id/mark-sent", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const orderId = parseInt(id);
+    const { sentDate } = req.body;
+
+    if (isNaN(orderId)) {
+      return res.status(400).json({ error: "Ungültige Bestellungs-ID" });
+    }
+
+    // Aktuellen Status der Bestellung prüfen
+    const existingOrder = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+
+    if (!existingOrder || existingOrder.length === 0) {
+      return res.status(404).json({ error: "Bestellung nicht gefunden" });
+    }
+
+    if (existingOrder[0].status !== 'draft') {
+      return res.status(400).json({ 
+        error: "Statusänderung nicht möglich", 
+        message: `Die Bestellung hat bereits den Status '${existingOrder[0].status}' und kann nicht als versendet markiert werden.` 
+      });
+    }
+
+    // Benutzer-Informationen für die Aktualisierung
+    const lastModifiedById = req.user?.id || 1; // Fallback auf System-ID
+    const lastModifiedByName = req.user?.username || "System";
+
+    // Update-Daten vorbereiten
+    const updateData = {
+      status: 'shipped',
+      sentDate: sentDate ? new Date(sentDate) : new Date(),
+      sentById: lastModifiedById,
+      sentByName: lastModifiedByName,
+      lastModifiedById,
+      lastModifiedByName,
+      updatedAt: new Date()
+    };
+
+    // Bestellung aktualisieren
+    const updatedOrder = await storage.updateOrder(orderId, updateData);
+
+    if (!updatedOrder) {
+      return res.status(500).json({ error: "Fehler beim Aktualisieren der Bestellung" });
+    }
+
+    res.json({
+      success: true,
+      message: "Bestellung erfolgreich als versendet markiert",
+      data: updatedOrder
+    });
+  } catch (error) {
+    console.error("Fehler beim Markieren der Bestellung als versendet:", error);
+    res.status(500).json({ 
+      error: "Fehler beim Markieren der Bestellung als versendet", 
+      details: error.message 
+    });
+  }
+});
+
 // Bestellungen nach Lieferanten zählen
 router.get("/countBySupplier", async (req: Request, res: Response) => {
   try {

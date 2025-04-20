@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { format, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { 
@@ -14,9 +14,13 @@ import {
   ExternalLink,
   AlertCircle,
   RefreshCw,
-  MoreHorizontal
+  MoreHorizontal,
+  Send,
+  Truck,
+  ShoppingBag
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
 
 import {
   Table,
@@ -86,6 +90,36 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
     field: 'orderDate', 
     direction: 'desc' 
   });
+  
+  // Mutation zum Ändern des Bestellstatus auf "versendet"
+  const markAsSentMutation = useMutation({
+    mutationFn: (orderData: { id: number, sentDate: Date }) => {
+      return apiRequest(`/api/orders/${orderData.id}/mark-sent`, orderData, 'post');
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Bestellung als versendet markiert',
+        description: 'Die Bestellung wurde erfolgreich als versendet markiert.',
+      });
+      refetch(); // Aktualisiere die Liste der Bestellungen
+    },
+    onError: (error) => {
+      toast({
+        title: 'Fehler beim Markieren der Bestellung',
+        description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
+        variant: 'destructive',
+      });
+    }
+  });
+  
+  // Funktion zum Markieren einer Bestellung als versendet
+  const handleMarkAsSent = (orderId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    markAsSentMutation.mutate({
+      id: orderId,
+      sentDate: new Date()
+    });
+  };
   
   // Abfrage für Bestellungen
   const { data: ordersResponse, isLoading, error, refetch } = useQuery({
@@ -445,6 +479,14 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
                               Details anzeigen
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
+                            {order.status === 'draft' && (
+                              <DropdownMenuItem 
+                                onClick={(e) => handleMarkAsSent(order.id, e)}
+                              >
+                                <Send className="mr-2 h-4 w-4" />
+                                Als versendet markieren
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem 
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -564,18 +606,29 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
                   <ExternalLink className="mr-2 h-4 w-4" />
                   Details
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!['shipped', 'delivered'].includes(order.status)}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onStartWarehouseReceiptProcess(order.id);
-                  }}
-                >
-                  <Package className="mr-2 h-4 w-4" />
-                  Wareneingang
-                </Button>
+                {order.status === 'draft' ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => handleMarkAsSent(order.id, e)}
+                  >
+                    <Send className="mr-2 h-4 w-4" />
+                    Versenden
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!['shipped', 'delivered'].includes(order.status)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onStartWarehouseReceiptProcess(order.id);
+                    }}
+                  >
+                    <Package className="mr-2 h-4 w-4" />
+                    Wareneingang
+                  </Button>
+                )}
               </CardFooter>
             </Card>
           ))
