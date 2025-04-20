@@ -135,7 +135,7 @@ const BestellungV2: React.FC = () => {
   // Email order mutation
   const emailOrderMutation = useMutation({
     mutationFn: (emailData: { orderId: number, supplierEmail: string, pdfBase64: string, additionalNotes: string }) => {
-      return apiRequest('/orders/email', emailData, 'post');
+      return apiRequest('/api/orders/email', emailData, 'post');
     },
     onSuccess: () => {
       toast({
@@ -155,17 +155,61 @@ const BestellungV2: React.FC = () => {
   // Mark order as sent mutation
   const markOrderAsSentMutation = useMutation({
     mutationFn: (orderData: any) => {
-      return apiRequest(`/orders/${orderData.id}/mark-sent`, orderData, 'post');
+      return apiRequest(`/api/orders/${orderData.id}/mark-sent`, orderData, 'post');
     },
     onSuccess: () => {
       toast({
         title: 'Bestellung als versendet markiert',
         description: 'Die Bestellung wurde erfolgreich als versendet markiert.',
       });
+      
+      // Aktualisiere den Status im Frontend
+      if (existingOrderData) {
+        setExistingOrderData({
+          ...existingOrderData,
+          status: 'shipped'
+        });
+      }
     },
     onError: (error) => {
       toast({
         title: 'Fehler beim Markieren der Bestellung',
+        description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
+        variant: 'destructive',
+      });
+    }
+  });
+  
+  // Mark order as delivered mutation
+  const markOrderAsDeliveredMutation = useMutation({
+    mutationFn: (data: { 
+      id: number, 
+      receivedDate: Date,
+      receivedItems: any[],
+      notes?: string 
+    }) => {
+      return apiRequest(`/api/orders/${data.id}/mark-delivered`, data, 'post');
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Wareneingang erfolgreich erfasst',
+        description: 'Die Bestellung wurde als geliefert markiert und die Lagerbestände wurden aktualisiert.',
+      });
+      
+      // Aktualisiere den Status im Frontend
+      if (existingOrderData) {
+        setExistingOrderData({
+          ...existingOrderData,
+          status: 'delivered'
+        });
+      }
+      
+      // Nach erfolgreicher Aktualisierung zur Übersicht navigieren
+      navigate('/bestellungen');
+    },
+    onError: (error) => {
+      toast({
+        title: 'Fehler beim Erfassen des Wareneingangs',
         description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
         variant: 'destructive',
       });
@@ -564,14 +608,22 @@ const BestellungV2: React.FC = () => {
   };
   
   // Handle goods receipt complete
-  const handleGoodsReceiptComplete = () => {
-    // Navigate to the orders page
-    navigate('/bestellungen');
-    
-    toast({
-      title: 'Wareneingang erfolgreich erfasst',
-      description: 'Der Wareneingang wurde erfolgreich erfasst und die Lagerbestände wurden aktualisiert.',
-    });
+  const handleGoodsReceiptComplete = (receivedItems: any[], notes: string, documents: any[]) => {
+    // Bestellung als "geliefert" markieren
+    if (orderId) {
+      markOrderAsDeliveredMutation.mutate({
+        id: orderId,
+        receivedDate: new Date(),
+        receivedItems,
+        notes,
+      });
+    } else {
+      toast({
+        title: 'Fehler beim Erfassen des Wareneingangs',
+        description: 'Es konnte keine Bestellungs-ID gefunden werden.',
+        variant: 'destructive',
+      });
+    }
   };
   
   // Reset the order process
@@ -818,8 +870,8 @@ const BestellungV2: React.FC = () => {
                   }))
                 }}
                 onSubmit={(receivedItems, notes, documents) => {
-                  // Hier würde man die Waren-Eingangs-Daten verarbeiten
-                  handleGoodsReceiptComplete();
+                  // Waren-Eingangs-Daten verarbeiten und Status aktualisieren
+                  handleGoodsReceiptComplete(receivedItems, notes, documents);
                 }}
                 isSubmitting={false}
               />
@@ -919,12 +971,8 @@ const BestellungV2: React.FC = () => {
                     })) : []
                   }}
                   onSubmit={(receivedItems, notes, documents) => {
-                    // Hier würde man die Waren-Eingangs-Daten verarbeiten
-                    toast({
-                      title: 'Wareneingang erfasst',
-                      description: 'Der Wareneingang wurde erfolgreich erfasst und die Bestände aktualisiert.',
-                    });
-                    handleBackToOverview();
+                    // Waren-Eingangs-Daten verarbeiten und Status aktualisieren
+                    handleGoodsReceiptComplete(receivedItems, notes, documents);
                   }}
                   isSubmitting={false}
                 />
