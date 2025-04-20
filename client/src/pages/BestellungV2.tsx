@@ -509,7 +509,7 @@ const BestellungV2: React.FC = () => {
       // Verwenden wir eine API-Anfrage, um die tatsächliche E-Mail-Adresse des Lieferanten zu erhalten
       try {
         // Zuerst versuchen wir, die E-Mail des Lieferanten abzurufen
-        const supplierResponse = await fetch(`/suppliers/${supplierId}`);
+        const supplierResponse = await fetch(`/api/suppliers/${supplierId}`);
         if (!supplierResponse.ok) {
           throw new Error(`Fehler beim Abrufen der Lieferantendaten: ${supplierResponse.statusText}`);
         }
@@ -767,7 +767,7 @@ const BestellungV2: React.FC = () => {
                     </Button>
                   ) : (
                     <Button 
-                      onClick={() => generatePDFAndSendEmail(orderId)}
+                      onClick={() => orderId ? generatePDFAndSendEmail(orderId) : undefined}
                       className="flex-1"
                     >
                       <Send className="mr-2 h-4 w-4" />
