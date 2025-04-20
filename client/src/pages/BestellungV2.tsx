@@ -129,9 +129,9 @@ const BestellungV2: React.FC = () => {
   });
   
   // Email order mutation
-  const emailOrderMutation = useMutation<any, Error, { orderId: number, supplierEmail: string, pdfBase64: string, additionalNotes: string }>({
-    mutationFn: (emailData) => {
-      return apiRequest('post', '/orders/email', emailData);
+  const emailOrderMutation = useMutation({
+    mutationFn: (emailData: { orderId: number, supplierEmail: string, pdfBase64: string, additionalNotes: string }) => {
+      return apiRequest('/orders/email', emailData, 'post');
     },
     onSuccess: () => {
       toast({
