@@ -101,7 +101,8 @@ const BestellungV2: React.FC = () => {
       // Automatisch PDF generieren und E-Mail vorbereiten
       setTimeout(() => {
         // Generiere PDF und leite zum E-Mail-Formular weiter
-        generatePDFAndSendEmail();
+        // Übergebe die ID direkt, anstatt auf State-Update zu warten
+        generatePDFAndSendEmail(data.id);
       }, 500); // Kurze Verzögerung für bessere Benutzererfahrung
     },
     onError: (error: any) => {
@@ -363,9 +364,12 @@ const BestellungV2: React.FC = () => {
   };
   
   // Generate PDF and send by email
-  const generatePDFAndSendEmail = async () => {
+  const generatePDFAndSendEmail = async (specificOrderId?: number) => {
     try {
-      if (!orderId) {
+      // Verwende entweder die übergebene ID oder den State-Wert
+      const orderIdToUse = specificOrderId || orderId;
+      
+      if (!orderIdToUse) {
         toast({
           title: 'Fehler beim Generieren des PDFs',
           description: 'Es liegt keine gültige Bestellungs-ID vor.',
@@ -386,7 +390,7 @@ const BestellungV2: React.FC = () => {
       // Da wir möglicherweise nicht mehr im gleichen Schritt sind, müssen wir die Bestelldaten erneut abrufen
       let orderData;
       try {
-        const response = await fetch(`/orders/${orderId}`);
+        const response = await fetch(`/orders/${orderIdToUse}`);
         if (!response.ok) {
           throw new Error(`Fehler beim Abrufen der Bestelldaten: ${response.statusText}`);
         }
@@ -522,7 +526,7 @@ const BestellungV2: React.FC = () => {
         
         // E-Mail senden
         emailOrderMutation.mutate({
-          orderId: orderId!,
+          orderId: orderIdToUse,
           supplierEmail,
           pdfBase64,
           additionalNotes: additionalInfo.notes || '',
@@ -538,7 +542,7 @@ const BestellungV2: React.FC = () => {
       
       // Mark the order as sent
       markOrderAsSentMutation.mutate({
-        id: orderId!,
+        id: orderIdToUse,
         sentDate: new Date(),
       });
     } catch (error) {
@@ -749,14 +753,14 @@ const BestellungV2: React.FC = () => {
                     <Button 
                       variant="outline"
                       className="flex-1"
-                      onClick={generatePDFAndSendEmail}
+                      onClick={() => generatePDFAndSendEmail(orderId)}
                     >
                       <Send className="mr-2 h-4 w-4" />
                       E-Mail erneut senden
                     </Button>
                   ) : (
                     <Button 
-                      onClick={generatePDFAndSendEmail}
+                      onClick={() => generatePDFAndSendEmail(orderId)}
                       className="flex-1"
                     >
                       <Send className="mr-2 h-4 w-4" />
