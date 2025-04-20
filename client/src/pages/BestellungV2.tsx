@@ -87,7 +87,7 @@ const BestellungV2: React.FC = () => {
   // Create order mutation
   const createOrderMutation = useMutation({
     mutationFn: (orderData: any) => {
-      return apiRequest('POST', '/api/orders', orderData);
+      return apiRequest('post', '/api/orders', orderData);
     },
     onSuccess: (data) => {
       toast({
@@ -131,7 +131,7 @@ const BestellungV2: React.FC = () => {
   // Email order mutation
   const emailOrderMutation = useMutation({
     mutationFn: (emailData: { orderId: number, supplierEmail: string, pdfBase64: string, additionalNotes: string }) => {
-      return apiRequest('POST', '/api/orders/email', emailData);
+      return apiRequest('post', '/api/orders/email', emailData);
     },
     onSuccess: () => {
       toast({
