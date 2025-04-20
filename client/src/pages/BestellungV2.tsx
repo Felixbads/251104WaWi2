@@ -87,7 +87,7 @@ const BestellungV2: React.FC = () => {
   // Create order mutation
   const createOrderMutation = useMutation({
     mutationFn: (orderData: any) => {
-      return apiRequest('post', '/api/orders', orderData);
+      return apiRequest('post', '/orders', orderData);
     },
     onSuccess: (data) => {
       toast({
@@ -129,9 +129,9 @@ const BestellungV2: React.FC = () => {
   });
   
   // Email order mutation
-  const emailOrderMutation = useMutation({
-    mutationFn: (emailData: { orderId: number, supplierEmail: string, pdfBase64: string, additionalNotes: string }) => {
-      return apiRequest('post', '/api/orders/email', emailData);
+  const emailOrderMutation = useMutation<any, Error, { orderId: number, supplierEmail: string, pdfBase64: string, additionalNotes: string }>({
+    mutationFn: (emailData) => {
+      return apiRequest('post', '/orders/email', emailData);
     },
     onSuccess: () => {
       toast({
@@ -151,7 +151,7 @@ const BestellungV2: React.FC = () => {
   // Mark order as sent mutation
   const markOrderAsSentMutation = useMutation({
     mutationFn: (orderData: any) => {
-      return apiRequest('POST', `/api/orders/${orderData.id}/mark-sent`, orderData);
+      return apiRequest('post', `/orders/${orderData.id}/mark-sent`, orderData);
     },
     onSuccess: () => {
       toast({
