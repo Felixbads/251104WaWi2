@@ -83,23 +83,23 @@ const defaultFilters: FilterState = {
 // Formular Schema für Lieferanten
 const supplierFormSchema = z.object({
   name: z.string().min(1, "Lieferantenname ist erforderlich"),
-  contactPerson: z.string().optional().or(z.literal("")),
-  phone: z.string().optional().or(z.literal("")),
-  email: z.string().email("Ungültige E-Mail-Adresse").optional().or(z.literal("")),
-  website: z.string().url("Ungültige Website-URL").optional().or(z.literal("")),
-  address: z.string().optional().or(z.literal("")),
-  city: z.string().optional().or(z.literal("")),
-  postalCode: z.string().optional().or(z.literal("")),
-  country: z.string().default("Deutschland").optional().or(z.literal("")),
+  contactPerson: z.string().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  email: z.string().email("Ungültige E-Mail-Adresse").optional(),
+  website: z.string().url("Ungültige Website-URL").optional().nullable(),
+  address: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
+  postalCode: z.string().optional().nullable(),
+  country: z.string().default("Deutschland").optional().nullable(),
   status: z.string().default("active"),
-  notes: z.string().optional().or(z.literal("")),
-  paymentTerms: z.string().optional().or(z.literal("")),
-  deliveryTerms: z.string().optional().or(z.literal("")),
-  minimumOrderValue: z.number().optional().or(z.literal("").transform(() => undefined)),
-  deliveryDays: z.string().optional().or(z.literal("")),
-  taxId: z.string().optional().or(z.literal("")),
-  accountNumber: z.string().optional().or(z.literal("")),
-  bankDetails: z.string().optional().or(z.literal("")),
+  notes: z.string().optional().nullable(),
+  paymentTerms: z.string().optional().nullable(),
+  deliveryTerms: z.string().optional().nullable(),
+  minimumOrderValue: z.number().optional().nullable(),
+  deliveryDays: z.string().optional().nullable(),
+  taxId: z.string().optional().nullable(),
+  accountNumber: z.string().optional().nullable(),
+  bankDetails: z.string().optional().nullable(),
 });
 
 type SupplierFormValues = z.infer<typeof supplierFormSchema>;
@@ -270,10 +270,17 @@ const SupplierFormDialog = ({ isOpen, onOpenChange, supplier, mode }: SupplierFo
   });
   
   const onSubmit = (values: SupplierFormValues) => {
+    // Prepare data for submission by removing empty strings to allow null values
+    const cleanedValues = Object.entries(values).reduce((acc: any, [key, value]) => {
+      // Convert empty strings to null to prevent validation errors
+      acc[key] = value === '' ? null : value;
+      return acc;
+    }, {});
+    
     if (mode === 'create') {
-      createMutation.mutate(values);
+      createMutation.mutate(cleanedValues);
     } else if (mode === 'edit' && supplier) {
-      updateMutation.mutate({ id: supplier.id, data: values });
+      updateMutation.mutate({ id: supplier.id, data: cleanedValues });
     }
   };
 
@@ -318,6 +325,7 @@ const SupplierFormDialog = ({ isOpen, onOpenChange, supplier, mode }: SupplierFo
                     <FormControl>
                       <Input {...field} value={field.value || ''} />
                     </FormControl>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
