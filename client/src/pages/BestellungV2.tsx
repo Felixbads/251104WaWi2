@@ -98,6 +98,9 @@ const BestellungV2: React.FC = () => {
       // Set the order ID for the next step
       setOrderId(data.id);
       
+      // Zur Wareneingang-Seite navigieren (goodsReceipt)
+      setStep('goodsReceipt');
+      
       // Automatisch PDF generieren und E-Mail vorbereiten
       setTimeout(() => {
         // Generiere PDF und leite zum E-Mail-Formular weiter
@@ -390,7 +393,7 @@ const BestellungV2: React.FC = () => {
       // Da wir möglicherweise nicht mehr im gleichen Schritt sind, müssen wir die Bestelldaten erneut abrufen
       let orderData;
       try {
-        const response = await fetch(`/orders/${orderIdToUse}`);
+        const response = await fetch(`/api/orders/${orderIdToUse}`);
         if (!response.ok) {
           throw new Error(`Fehler beim Abrufen der Bestelldaten: ${response.statusText}`);
         }
@@ -587,12 +590,17 @@ const BestellungV2: React.FC = () => {
   const handleSelectOrder = async (id: number) => {
     try {
       // Bestellung vom Server abrufen
-      const response = await fetch(`/orders/${id}`);
+      const response = await fetch(`/api/orders/${id}`);  // Hinzufügen von /api Präfix
       if (!response.ok) {
         throw new Error(`Fehler beim Laden der Bestellung: ${response.statusText}`);
       }
       
       const orderData = await response.json();
+      
+      // Detaillierte Fehlerbehandlung
+      if (!orderData || typeof orderData !== 'object') {
+        throw new Error('Die Bestelldaten haben ein unerwartetes Format.');
+      }
       
       // Bestelldaten speichern
       setExistingOrderData(orderData);
@@ -603,9 +611,8 @@ const BestellungV2: React.FC = () => {
         // Direkt zum Wareneingang navigieren
         setStep('warehouseReceiptOfExistingOrder');
       } else {
-        // Bestelldaten anzeigen, aber nicht zum Wareneingang navigieren
-        // Hier könnten weitere Details angezeigt werden
-        navigate(`/bestellungen/${id}`);
+        // Zum goodsReceipt-Schritt wechseln, anstatt zu navigieren
+        setStep('goodsReceipt');
       }
       
     } catch (error) {
@@ -628,7 +635,7 @@ const BestellungV2: React.FC = () => {
   const handleStartWarehouseReceiptProcess = async (id: number) => {
     try {
       // Bestellung vom Server abrufen
-      const response = await fetch(`/orders/${id}`);
+      const response = await fetch(`/api/orders/${id}`);
       if (!response.ok) {
         throw new Error(`Fehler beim Laden der Bestellung: ${response.statusText}`);
       }
@@ -753,7 +760,7 @@ const BestellungV2: React.FC = () => {
                     <Button 
                       variant="outline"
                       className="flex-1"
-                      onClick={() => generatePDFAndSendEmail(orderId)}
+                      onClick={() => orderId ? generatePDFAndSendEmail(orderId) : undefined}
                     >
                       <Send className="mr-2 h-4 w-4" />
                       E-Mail erneut senden
