@@ -42,11 +42,29 @@ export const suppliers = pgTable("suppliers", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertSupplierSchema = createInsertSchema(suppliers).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+export const insertSupplierSchema = createInsertSchema(suppliers)
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    name: z.string().min(1, "Lieferantenname ist erforderlich"),
+    contactPerson: z.string().optional().or(z.literal("")),
+    phone: z.string().optional().or(z.literal("")),
+    email: z.string().email("Ungültige E-Mail-Adresse").optional().or(z.literal("")),
+    website: z.string().url("Ungültige Website-URL").optional().or(z.literal("")),
+    address: z.string().optional().or(z.literal("")),
+    city: z.string().optional().or(z.literal("")),
+    postalCode: z.string().optional().or(z.literal("")),
+    notes: z.string().optional().or(z.literal("")),
+    paymentTerms: z.string().optional().or(z.literal("")),
+    deliveryTerms: z.string().optional().or(z.literal("")),
+    deliveryDays: z.string().optional().or(z.literal("")),
+    taxId: z.string().optional().or(z.literal("")),
+    accountNumber: z.string().optional().or(z.literal("")),
+    bankDetails: z.string().optional().or(z.literal("")),
+  });
 
 export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
 export type Supplier = typeof suppliers.$inferSelect;

@@ -83,23 +83,23 @@ const defaultFilters: FilterState = {
 // Formular Schema für Lieferanten
 const supplierFormSchema = z.object({
   name: z.string().min(1, "Lieferantenname ist erforderlich"),
-  contactPerson: z.string().optional(),
-  phone: z.string().optional(),
+  contactPerson: z.string().optional().or(z.literal("")),
+  phone: z.string().optional().or(z.literal("")),
   email: z.string().email("Ungültige E-Mail-Adresse").optional().or(z.literal("")),
   website: z.string().url("Ungültige Website-URL").optional().or(z.literal("")),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  postalCode: z.string().optional(),
-  country: z.string().default("Deutschland"),
+  address: z.string().optional().or(z.literal("")),
+  city: z.string().optional().or(z.literal("")),
+  postalCode: z.string().optional().or(z.literal("")),
+  country: z.string().default("Deutschland").optional().or(z.literal("")),
   status: z.string().default("active"),
-  notes: z.string().optional(),
-  paymentTerms: z.string().optional(),
-  deliveryTerms: z.string().optional(),
+  notes: z.string().optional().or(z.literal("")),
+  paymentTerms: z.string().optional().or(z.literal("")),
+  deliveryTerms: z.string().optional().or(z.literal("")),
   minimumOrderValue: z.number().optional().or(z.literal("").transform(() => undefined)),
-  deliveryDays: z.string().optional(),
-  taxId: z.string().optional(),
-  accountNumber: z.string().optional(),
-  bankDetails: z.string().optional(),
+  deliveryDays: z.string().optional().or(z.literal("")),
+  taxId: z.string().optional().or(z.literal("")),
+  accountNumber: z.string().optional().or(z.literal("")),
+  bankDetails: z.string().optional().or(z.literal("")),
 });
 
 type SupplierFormValues = z.infer<typeof supplierFormSchema>;
@@ -318,7 +318,6 @@ const SupplierFormDialog = ({ isOpen, onOpenChange, supplier, mode }: SupplierFo
                     <FormControl>
                       <Input {...field} value={field.value || ''} />
                     </FormControl>
-                    <FormMessage />
                   </FormItem>
                 )}
               />
