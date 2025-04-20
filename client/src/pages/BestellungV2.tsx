@@ -505,11 +505,17 @@ const BestellungV2: React.FC = () => {
       // Get the PDF as base64
       const pdfBase64 = pdf.output('datauristring').split(',')[1];
       
-      // Lieferanten-Email abrufen
-      // Verwenden wir eine API-Anfrage, um die tatsächliche E-Mail-Adresse des Lieferanten zu erhalten
+      // Lieferanten-Email abrufen oder Dummy-E-Mail verwenden
       try {
+        // Die Lieferanten-ID für diese Bestellung ermitteln
+        const supplierIdToUse = orderData.supplierId || supplierId;
+        
+        if (!supplierIdToUse) {
+          throw new Error('Keine Lieferanten-ID gefunden');
+        }
+        
         // Zuerst versuchen wir, die E-Mail des Lieferanten abzurufen
-        const supplierResponse = await fetch(`/api/suppliers/${supplierId}`);
+        const supplierResponse = await fetch(`/api/suppliers/${supplierIdToUse}`);
         if (!supplierResponse.ok) {
           throw new Error(`Fehler beim Abrufen der Lieferantendaten: ${supplierResponse.statusText}`);
         }
