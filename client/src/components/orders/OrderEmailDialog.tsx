@@ -152,7 +152,7 @@ export function OrderEmailDialog({
             <div className="col-span-4">
               <p className="text-sm text-muted-foreground">
                 <strong>Hinweis:</strong> Die Bestellpositionen werden automatisch als Tabelle in der E-Mail angezeigt. 
-                Fügen Sie die Tabelle mit dem Platzhalter <code>{{orderItems}}</code> ein, oder sie wird automatisch am Ende der Nachricht eingefügt.
+                Fügen Sie die Tabelle mit dem Platzhalter <code>{"{{orderItems}}"}</code> ein, oder sie wird automatisch am Ende der Nachricht eingefügt.
               </p>
             </div>
           </div>

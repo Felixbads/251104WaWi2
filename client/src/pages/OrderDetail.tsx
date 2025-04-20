@@ -763,88 +763,12 @@ Nationalpark Zentrum`);
   };
   
   // E-Mail versenden
-  const handleSendEmail = async () => {
-    if (!order || !pdfBlob) return;
-    
-    try {
-      // PDF in Base64 konvertieren
-      const reader = new FileReader();
-      
-      // Als Promise umwandeln
-      const pdfBase64 = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => {
-          const base64 = reader.result?.toString().split(',')[1];
-          if (base64) {
-            resolve(base64);
-          } else {
-            reject(new Error("Fehler beim Konvertieren der PDF-Datei"));
-          }
-        };
-        reader.onerror = () => reject(reader.error);
-        reader.readAsDataURL(pdfBlob);
-      });
-      
-      // Bestellungs-ID extrahieren
-      const orderId = order.id;
-      
-      // Daten für API-Anfrage vorbereiten
-      const emailData = {
-        orderId: orderId,
-        supplierEmail: emailAddress,
-        pdfBase64: pdfBase64,
-        additionalNotes: emailText
-      };
-      
-      // Lädt-Status anzeigen
-      toast({
-        title: "E-Mail wird gesendet",
-        description: "Bitte warten..."
-      });
-      
-      // API-Anfrage senden
-      const response = await fetch('/api/email/order-confirmation', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(emailData),
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Fehler beim Senden der E-Mail: ${response.statusText}`);
-      }
-      
-      // Erfolgsmeldung anzeigen
-      toast({
-        title: "E-Mail versendet",
-        description: `Die Bestellung wurde per E-Mail an ${emailAddress} gesendet.`
-      });
-      
-      // Bestehende Statushistorie konsistent verarbeiten
-      const currentHistory = parseStatusHistory(order.statusHistory);
-      const newStatusEntry = {
-        status: "ordered",
-        timestamp: new Date().toISOString(),
-        note: `Bestellung per E-Mail an ${emailAddress} gesendet`
-      };
-      
-      // Bestellstatus aktualisieren
-      await updateOrderMutation.mutateAsync({ 
-        status: "ordered", 
-        statusHistory: JSON.stringify([...currentHistory, newStatusEntry]) 
-      });
-      
-      // Dialog schließen
-      setShowEmailDialog(false);
-    } catch (error) {
-      // Fehlermeldung anzeigen
-      toast({
-        title: "Fehler beim Senden der E-Mail",
-        description: (error as Error).message,
-        variant: "destructive"
-      });
-    }
+  /**
+   * Öffnet den E-Mail-Dialog zum Versenden der Bestellung
+   * Wir verwenden jetzt die OrderEmailDialog-Komponente statt der eingebauten Lösung
+   */
+  const handleSendEmail = () => {
+    setShowEmailDialog(true);
   };
   
   // Ladeansicht
@@ -1608,70 +1532,56 @@ Nationalpark Zentrum`);
       </Dialog>
       
       {/* E-Mail Dialog */}
-      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Bestellung per E-Mail versenden</DialogTitle>
-            <DialogDescription>
-              Versenden Sie die Bestellung per E-Mail an den Lieferanten.
-            </DialogDescription>
-          </DialogHeader>
+      <OrderEmailDialog
+        open={showEmailDialog}
+        onOpenChange={setShowEmailDialog}
+        order={order}
+        defaultSubject={`Bestellung ${order?.orderNumber || ""} - ${order?.supplierName || ""}`}
+        defaultContent={`Sehr geehrte Damen und Herren,
+
+hiermit bestellen wir die folgenden Artikel:
+
+{"{{orderItems}}"}
+
+Bestellnummer: ${order?.orderNumber || ""}
+Bestelldatum: ${order?.orderDate ? new Date(order.orderDate).toLocaleDateString('de-DE') : "Unbekannt"}
+Gewünschtes Lieferdatum: ${order?.expectedDeliveryDate ? new Date(order.expectedDeliveryDate).toLocaleDateString('de-DE') : "Nach Vereinbarung"}
+
+Bitte bestätigen Sie uns den Erhalt dieser Bestellung und das voraussichtliche Lieferdatum.
+
+Mit freundlichen Grüßen,
+Ihr Einkaufsteam`}
+        defaultTo={order?.supplier?.email || ""}
+        onSuccess={() => {
+          // Nach erfolgreichem E-Mail-Versand Daten aktualisieren
+          queryClient.invalidateQueries({ queryKey: [`/api/orders/${id}`] });
+          queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
           
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-1 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="email-to">Empfänger</Label>
-                <Input 
-                  id="email-to" 
-                  value={emailAddress} 
-                  onChange={(e) => setEmailAddress(e.target.value)}
-                  placeholder="lieferant@example.com"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="email-subject">Betreff</Label>
-                <Input 
-                  id="email-subject" 
-                  value={emailSubject} 
-                  onChange={(e) => setEmailSubject(e.target.value)}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="email-text">Nachricht</Label>
-                <Textarea 
-                  id="email-text" 
-                  value={emailText} 
-                  onChange={(e) => setEmailText(e.target.value)}
-                  className="min-h-[200px]"
-                />
-              </div>
-              
-              <div className="bg-muted p-3 rounded-md flex items-center gap-3">
-                <FileText className="h-5 w-5 text-muted-foreground" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Bestellung_{order?.orderNumber}.pdf</p>
-                  <p className="text-xs text-muted-foreground">PDF-Datei wird automatisch angehängt</p>
-                </div>
-              </div>
-            </div>
-          </div>
+          // Anzeigen einer Erfolgsmeldung
+          toast({
+            title: "E-Mail gesendet",
+            description: "Die Bestellung wurde erfolgreich per E-Mail versendet."
+          });
           
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowEmailDialog(false)}
-            >
-              Abbrechen
-            </Button>
-            <Button onClick={handleSendEmail}>
-              <Send className="h-4 w-4 mr-2" />
-              E-Mail senden
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          // Status aktualisieren, wenn die Bestellung im Entwurfsstatus ist
+          if (order?.status === 'draft') {
+            // Bestehende Statushistorie konsistent verarbeiten
+            const currentHistory = parseStatusHistory(order.statusHistory);
+            const newStatusEntry = {
+              status: "ordered",
+              timestamp: new Date().toISOString(),
+              note: "Bestellung per E-Mail an Lieferant gesendet"
+            };
+            
+            // Bestellstatus aktualisieren
+            updateOrderMutation.mutateAsync({ 
+              id: order.id,
+              status: "ordered", 
+              statusHistory: JSON.stringify([...currentHistory, newStatusEntry]) 
+            });
+          }
+        }}
+      />
 
       {/* Manual Status Change Dialog */}
       <ManualStatusChange 
