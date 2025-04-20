@@ -583,7 +583,7 @@ const BestellungV2: React.FC = () => {
   const handleSelectOrder = async (id: number) => {
     try {
       // Bestellung vom Server abrufen
-      const response = await fetch(`/api/orders/${id}`);
+      const response = await fetch(`/orders/${id}`);
       if (!response.ok) {
         throw new Error(`Fehler beim Laden der Bestellung: ${response.statusText}`);
       }
@@ -624,7 +624,7 @@ const BestellungV2: React.FC = () => {
   const handleStartWarehouseReceiptProcess = async (id: number) => {
     try {
       // Bestellung vom Server abrufen
-      const response = await fetch(`/api/orders/${id}`);
+      const response = await fetch(`/orders/${id}`);
       if (!response.ok) {
         throw new Error(`Fehler beim Laden der Bestellung: ${response.statusText}`);
       }
