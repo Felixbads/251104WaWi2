@@ -1,8 +1,24 @@
 import { Request, Response, Router } from "express";
 import { db } from "../db";
-import { orders, orderItems, suppliers } from "@shared/schema";
+import { suppliers } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { sendEmail, createOrderSubject, createOrderEmailTemplate, createOrderItemsTable } from "../services/emailService";
+
+// Temporäre Definition für fehlende Tabellen
+const orders = {
+  name: 'orders',
+  id: { name: 'id' },
+  supplierId: { name: 'supplier_id' },
+  status: { name: 'status' },
+  orderNumber: { name: 'order_number' },
+  supplierName: { name: 'supplier_name' },
+  updatedAt: { name: 'updated_at' }
+};
+
+const orderItems = {
+  name: 'order_items',
+  orderId: { name: 'order_id' }
+};
 
 const router = Router();
 
