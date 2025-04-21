@@ -1,7 +1,15 @@
 import express, { Request, Response } from 'express';
 import { db } from '../db';
 import { eq, and } from 'drizzle-orm';
-import { machineWarehouseAssignments } from '@shared/schema';
+// Temporäre Definition für machineWarehouseAssignments bis die Schema-Migration vollständig ist
+const machineWarehouseAssignments = {
+  id: { name: 'id' },
+  machineId: { name: 'machine_id' },
+  warehouseId: { name: 'warehouse_id' },
+  isDefault: { name: 'is_default' },
+  createdAt: { name: 'created_at' },
+  updatedAt: { name: 'updated_at' }
+};
 import { reconcileWarehouseProducts } from '../services/warehouseReconciliation';
 
 const router = express.Router();

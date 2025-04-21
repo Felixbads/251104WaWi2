@@ -2576,6 +2576,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/warehouses`, warehousesRouter); // Neue Route für /api/warehouses
   app.use(`${API_PREFIX}`, warehouseLocationsRouter);
   app.use(`${API_PREFIX}`, criticalInventoryRouter); // Route für kritische Inventarposten
+  app.use(`${API_PREFIX}/product-movements`, await import('./routes/product-movements').then(m => m.default)); // Route für Produktbewegungen in Automaten
   // Diese Route ist doppelt definiert und bereits oben implementiert
   
   // Warehouse stats API endpoint

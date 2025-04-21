@@ -1,1860 +1,322 @@
-import { pgTable, text, serial, integer, boolean, timestamp, real, doublePrecision, unique, primaryKey, date, varchar } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
-import { z } from "zod";
-import { sql } from "drizzle-orm";
-import { relations } from "drizzle-orm";
+import { InferSelectModel, sql } from 'drizzle-orm';
+import { 
+  text, 
+  pgTable, 
+  serial, 
+  integer, 
+  timestamp, 
+  boolean,
+  varchar,
+  date,
+  numeric,
+  uniqueIndex,
+  primaryKey,
+  pgEnum,
+} from 'drizzle-orm/pg-core';
+import { createInsertSchema } from 'drizzle-zod';
+import { z } from 'zod';
 
-// Schema für historische Synchronisierungsoptionen
-export const historicalSyncOptionsSchema = z.object({
-  startDate: z.string().or(z.date()).optional(),
-  endDate: z.string().or(z.date()).optional(),
-  batchSize: z.number().min(1).max(100).default(100),
-  maxTransactions: z.number().min(100).default(10000),
-  syncStep: z.number().min(1).default(30), // Anzahl der Tage pro Synchronisierungsschritt
-  forceUpdate: z.boolean().default(false)
+// Haupttabellen
+
+export const users = pgTable('users', {
+  id: serial('id').primaryKey(),
+  username: text('username').notNull(),
+  email: text('email').notNull(),
+  password: text('password').notNull(),
+  role: text('role').default('user').notNull(),
+  approved: boolean('approved').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
-export type HistoricalSyncOptions = z.infer<typeof historicalSyncOptionsSchema>;
-
-// Updated users table with more fields
-// Suppliers table
-export const suppliers = pgTable("suppliers", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  contactPerson: text("contact_person"),
-  phone: text("phone"),
-  email: text("email"),
-  website: text("website"),
-  address: text("address"),
-  city: text("city"),
-  postalCode: text("postal_code"),
-  country: text("country").default("Deutschland"),
-  status: text("status").default("active"),
-  notes: text("notes"),
-  paymentTerms: text("payment_terms"),
-  deliveryTerms: text("delivery_terms"),
-  minimumOrderValue: real("minimum_order_value"),
-  deliveryDays: text("delivery_days"), // JSON array as string ["monday", "wednesday"]
-  taxId: text("tax_id"),
-  accountNumber: text("account_number"),
-  bankDetails: text("bank_details"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+export const products = pgTable('products', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  sku: text('sku'),
+  description: text('description'),
+  category: text('category'),
+  price: numeric('price', { precision: 10, scale: 2 }),
+  supplierId: integer('supplier_id').references(() => suppliers.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  vendonId: text('vendon_id'),
+  normalizedName: text('normalized_name'),
+  imageUrl: text('image_url'),
+  barcode: text('barcode'),
 });
 
-export const insertSupplierSchema = createInsertSchema(suppliers)
-  .omit({
-    id: true,
-    createdAt: true,
-    updatedAt: true,
-  })
-  .extend({
-    name: z.string().min(1, "Lieferantenname ist erforderlich"),
-    contactPerson: z.string().optional().nullable().or(z.literal("")),
-    phone: z.string().optional().nullable().or(z.literal("")),
-    email: z.string().email("Ungültige E-Mail-Adresse").optional().or(z.literal("")),
-    website: z.string().optional().nullable().or(z.literal("")),
-    address: z.string().optional().nullable().or(z.literal("")),
-    city: z.string().optional().nullable().or(z.literal("")),
-    postalCode: z.string().optional().nullable().or(z.literal("")),
-    country: z.string().optional().nullable().or(z.literal("")),
-    notes: z.string().optional().nullable().or(z.literal("")),
-    paymentTerms: z.string().optional().nullable().or(z.literal("")),
-    deliveryTerms: z.string().optional().nullable().or(z.literal("")),
-    deliveryDays: z.string().optional().nullable().or(z.literal("")),
-    taxId: z.string().optional().nullable().or(z.literal("")),
-    accountNumber: z.string().optional().nullable().or(z.literal("")),
-    bankDetails: z.string().optional().nullable().or(z.literal("")),
-  });
-
-export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
-export type Supplier = typeof suppliers.$inferSelect;
-
-// Users table
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
-  email: text("email").unique(),
-  role: text("role").default("user"),
-  approved: boolean("approved").default(false), // Standardmäßig nicht freigeschaltet
-  approvedBy: integer("approved_by").references(() => users.id),
-  approvedAt: timestamp("approved_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+export const suppliers = pgTable('suppliers', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  contactName: text('contact_name'),
+  email: text('email'),
+  phone: text('phone'),
+  address: text('address'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
-export const insertUserSchema = createInsertSchema(users).omit({
-  id: true,
-  approved: true,
-  approvedBy: true,
-  approvedAt: true,
-  createdAt: true,
-  updatedAt: true,
+export const warehouses = pgTable('warehouses', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  location: text('location'),
+  description: text('description'),
+  managerId: integer('manager_id').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
+export const machines = pgTable('machines', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 255 }).notNull(),
+  location: varchar('location', { length: 255 }),
+  description: text('description'),
+  type: varchar('type', { length: 50 }),
+  status: varchar('status', { length: 50 }).default('active'),
+  warehouseId: integer('warehouse_id').references(() => warehouses.id),
+  vendonId: varchar('vendon_id', { length: 50 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const inventory_items = pgTable('inventory_items', {
+  id: serial('id').primaryKey(),
+  warehouseId: integer('warehouse_id').notNull().references(() => warehouses.id),
+  productId: integer('product_id').notNull().references(() => products.id),
+  quantity: integer('quantity').default(0).notNull(),
+  minQuantity: integer('min_quantity').default(0),
+  maxQuantity: integer('max_quantity').default(0),
+  location: text('location'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const statusEnum = pgEnum('status', [
+  'pending',
+  'in_progress',
+  'completed',
+  'cancelled',
+  'open',
+]);
+
+export const inventory_counts = pgTable('inventory_counts', {
+  id: serial('id').primaryKey(),
+  warehouseId: integer('warehouse_id').notNull().references(() => warehouses.id),
+  userId: integer('user_id').references(() => users.id),
+  name: text('name'),
+  notes: text('notes'),
+  status: statusEnum('status').default('pending').notNull(),
+  startDate: timestamp('start_date').defaultNow(),
+  endDate: timestamp('end_date'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const inventory_count_items = pgTable('inventory_count_items', {
+  id: serial('id').primaryKey(),
+  inventoryCountId: integer('inventory_count_id').notNull().references(() => inventory_counts.id),
+  productId: integer('product_id').notNull().references(() => products.id),
+  expectedQuantity: integer('expected_quantity').default(0),
+  actualQuantity: integer('actual_quantity'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const inventory_batches = pgTable('inventory_batches', {
+  id: serial('id').primaryKey(),
+  inventoryCountId: integer('inventory_count_id').notNull().references(() => inventory_counts.id),
+  productId: integer('product_id').notNull().references(() => products.id),
+  batchNumber: text('batch_number'),
+  expiryDate: date('expiry_date'),
+  quantity: integer('quantity').default(0),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const inventory_transactions = pgTable('inventory_transactions', {
+  id: serial('id').primaryKey(),
+  warehouseId: integer('warehouse_id').notNull().references(() => warehouses.id),
+  productId: integer('product_id').notNull().references(() => products.id),
+  batchId: integer('batch_id').references(() => product_batches.id),
+  quantity: integer('quantity').notNull(),
+  type: text('type').notNull(), // 'in', 'out', 'adjustment'
+  notes: text('notes'),
+  performedBy: integer('performed_by').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const product_batches = pgTable('product_batches', {
+  id: serial('id').primaryKey(),
+  productId: integer('product_id').notNull().references(() => products.id),
+  warehouseId: integer('warehouse_id').references(() => warehouses.id),
+  batchNumber: text('batch_number'),
+  initialQuantity: integer('initial_quantity').default(0),
+  currentQuantity: integer('current_quantity').default(0),
+  expiryDate: date('expiry_date'),
+  receivedDate: date('received_date'),
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Tabelle zur Erfassung von Produktbewegungen in die Automaten
+export const product_movements = pgTable('product_movements', {
+  id: serial('id').primaryKey(),
+  productId: integer('product_id').notNull().references(() => products.id),
+  machineId: integer('machine_id').notNull().references(() => machines.id),
+  batchId: integer('batch_id').references(() => product_batches.id),
+  warehouseId: integer('warehouse_id').references(() => warehouses.id),
+  quantity: integer('quantity').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Ereignisse/Events aus Vendon (oder anderen externen Systemen)
+export const events = pgTable('events', {
+  id: serial('id').primaryKey(),
+  eventId: text('event_id').notNull(),
+  machineId: text('machine_id'),
+  type: text('type'),
+  severity: text('severity'),
+  message: text('message'),
+  timestamp: timestamp('timestamp'),
+  rawData: text('raw_data'),
+  processed: boolean('processed').default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const machine_products = pgTable('machine_products', {
+  id: serial('id').primaryKey(),
+  machineId: integer('machine_id').notNull().references(() => machines.id),
+  productId: integer('product_id').notNull().references(() => products.id),
+  position: integer('position'),
+  quantity: integer('quantity').default(0),
+  maxQuantity: integer('max_quantity').default(0),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const vendon_transactions = pgTable('vendon_transactions', {
+  id: serial('id').primaryKey(),
+  transactionId: text('transaction_id').notNull(),
+  machineId: text('machine_id'),
+  productId: integer('product_id').references(() => products.id),
+  productName: text('product_name'),
+  timestamp: timestamp('timestamp'),
+  price: numeric('price', { precision: 10, scale: 2 }),
+  status: text('status'),
+  rawData: text('raw_data'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Procurement management
+
+export const purchase_orders = pgTable('purchase_orders', {
+  id: serial('id').primaryKey(),
+  supplierId: integer('supplier_id').notNull().references(() => suppliers.id),
+  warehouseId: integer('warehouse_id').references(() => warehouses.id),
+  orderDate: date('order_date').defaultNow().notNull(),
+  expectedDeliveryDate: date('expected_delivery_date'),
+  deliveryDate: date('delivery_date'),
+  status: text('status').default('draft').notNull(), // draft, submitted, received, cancelled
+  notes: text('notes'),
+  totalAmount: numeric('total_amount', { precision: 10, scale: 2 }),
+  createdBy: integer('created_by').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const purchase_order_items = pgTable('purchase_order_items', {
+  id: serial('id').primaryKey(),
+  purchaseOrderId: integer('purchase_order_id').notNull().references(() => purchase_orders.id),
+  productId: integer('product_id').notNull().references(() => products.id),
+  quantity: integer('quantity').notNull(),
+  unitPrice: numeric('unit_price', { precision: 10, scale: 2 }),
+  receivedQuantity: integer('received_quantity').default(0),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const purchase_conditions = pgTable('purchase_conditions', {
+  id: serial('id').primaryKey(),
+  supplierId: integer('supplier_id').notNull().references(() => suppliers.id),
+  productId: integer('product_id').notNull().references(() => products.id),
+  unitPrice: numeric('unit_price', { precision: 10, scale: 2 }),
+  minOrderQuantity: integer('min_order_quantity').default(1),
+  leadTime: integer('lead_time'), // in days
+  notes: text('notes'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Forecast models
+
+export const forecast_models = pgTable('forecast_models', {
+  id: serial('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),
+  type: text('type').notNull(), // 'prophet', 'arima', etc.
+  config: text('config'), // JSON configuration
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const forecast_results = pgTable('forecast_results', {
+  id: serial('id').primaryKey(),
+  modelId: integer('model_id').notNull().references(() => forecast_models.id),
+  productId: integer('product_id').references(() => products.id),
+  machineId: integer('machine_id').references(() => machines.id),
+  startDate: date('start_date').notNull(),
+  endDate: date('end_date').notNull(),
+  forecastData: text('forecast_data'), // JSON with forecast values
+  accuracy: numeric('accuracy', { precision: 5, scale: 2 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Holiday calendar
+export const holidays = pgTable('holidays', {
+  id: serial('id').primaryKey(),
+  date: date('date').notNull(),
+  name: text('name').notNull(),
+  region: text('region').default('DE-SN'), // Default to Saxony
+  isNationalHoliday: boolean('is_national_holiday').default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Define schemas with zod
+export const insertUserSchema = createInsertSchema(users).omit({ id: true });
+export const insertProductSchema = createInsertSchema(products).omit({ id: true });
+export const insertSupplierSchema = createInsertSchema(suppliers).omit({ id: true });
+export const insertWarehouseSchema = createInsertSchema(warehouses).omit({ id: true });
+export const insertMachineSchema = createInsertSchema(machines).omit({ id: true });
+export const insertInventoryItemSchema = createInsertSchema(inventory_items).omit({ id: true });
+export const insertInventoryCountSchema = createInsertSchema(inventory_counts).omit({ id: true });
+export const insertInventoryCountItemSchema = createInsertSchema(inventory_count_items).omit({ id: true });
+export const insertProductBatchSchema = createInsertSchema(product_batches).omit({ id: true });
+export const insertProductMovementSchema = createInsertSchema(product_movements).omit({ id: true });
+export const insertEventSchema = createInsertSchema(events).omit({ id: true });
+export const insertPurchaseConditionSchema = createInsertSchema(purchase_conditions).omit({ id: true });
+
+// Define select types
+export type User = InferSelectModel<typeof users>;
+export type Product = InferSelectModel<typeof products>;
+export type Supplier = InferSelectModel<typeof suppliers>;
+export type Warehouse = InferSelectModel<typeof warehouses>;
+export type Machine = InferSelectModel<typeof machines>;
+export type InventoryItem = InferSelectModel<typeof inventory_items>;
+export type InventoryCount = InferSelectModel<typeof inventory_counts>;
+export type ProductBatch = InferSelectModel<typeof product_batches>;
+export type ProductMovement = InferSelectModel<typeof product_movements>;
+
+// Define insert types
 export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
-
-// Wir verwenden ein In-Memory Token-Store statt einer Token-Tabelle für vereinfachte Implementierung
-
-// Locations table
-export const locations = pgTable("locations", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  address: text("address"),
-  city: text("city"),
-  postalCode: text("postal_code"),
-  country: text("country"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const insertLocationSchema = createInsertSchema(locations).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertLocation = z.infer<typeof insertLocationSchema>;
-export type Location = typeof locations.$inferSelect;
-
-// Machines table based on vendon_machines
-export const machines = pgTable("machines", {
-  id: serial("id").primaryKey(),
-  vendonId: text("vendon_id").notNull(),
-  machineName: text("machine_name").notNull(),
-  machineType: text("machine_type"),
-  status: text("status"),
-  model: text("model"),
-  serialNumber: text("serial_number"),
-  telemetryUnitId: integer("telemetry_unit_id"),
-  power: boolean("power"),
-  powerStatus: text("power_status"),
-  currency: text("currency"),
-  description: text("description"),
-  lastSync: timestamp("last_sync"),
-  additionalData: text("additional_data"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-  locationId: integer("location_id").references(() => locations.id),
-  locationName: text("location_name"),
-  locationAddress: text("location_address"),
-  lastPing: timestamp("last_ping"),
-  lastVend: timestamp("last_vend"),
-  extraData: text("extra_data"),
-});
-
-export const insertMachineSchema = createInsertSchema(machines).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertMachine = z.infer<typeof insertMachineSchema>;
-export type Machine = typeof machines.$inferSelect;
-
-// Products table - Schema aktualisiert für text vendonId
-export const products = pgTable("products", {
-  id: serial("id").primaryKey(),
-  vendonId: text("vendon_id").notNull(),
-  productName: text("product_name").notNull(),
-  price: real("price"),
-  category: text("category"),
-  description: text("description"),
-  status: text("status"),
-  // Weitere Felder für Produktdetails
-  sku: text("sku"),
-  barcode: text("barcode"),
-  // Lieferanten-Informationen
-  supplierId: integer("supplier_id").references(() => suppliers.id),
-  supplierName: text("supplier_name"),
-  supplierSku: text("supplier_sku"),
-  // Neue Zusatzfelder für Lieferanten-Details
-  articleSupplier: text("article_supplier"),      // Artikelnummer des Lieferanten
-  packageSize: text("package_size"),              // Gebindegröße, z.B. "6x0,5L" oder "24x330ml"
-  shelfLifeDays: integer("shelf_life_days"),      // MHD-Haltbarkeit in Tagen ab Lieferung
-  minOrderQuantity: integer("min_order_quantity"), // Mindestbestellmenge
-  // Extracted from additionalData
-  vat: real("vat"),
-  depositPrice: real("deposit_price"),
-  depositVat: real("deposit_vat"),
-  productType: text("product_type"),
-  article: text("article"),
-  tags: text("tags"), // JSON array as string
-  units: text("units"),
-  recipe: text("recipe"),
-  costPrice: real("cost_price"),
-  warehouseLocation: text("warehouse_location"),
-  vendonUpdatedAt: timestamp("vendon_updated_at"),
-  accountId: integer("account_id"),
-  accountName: text("account_name"),
-  accountTimezone: text("account_timezone"),
-  // Machine defaults
-  amountMax: integer("amount_max"),
-  amountStandard: integer("amount_standard"),
-  amountCritical: integer("amount_critical"),
-  refillUnitSize: integer("refill_unit_size"),
-  minRefill: integer("min_refill"),
-  critical: boolean("critical"),
-  // Keep the full JSON for reference and backward compatibility
-  additionalData: text("additional_data"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const insertProductSchema = createInsertSchema(products).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
 export type InsertProduct = z.infer<typeof insertProductSchema>;
-export type Product = typeof products.$inferSelect;
-
-// Transactions table - neu strukturiert basierend auf der Vendon API
-export const transactions = pgTable("transactions", {
-  // Primärschlüssel und Referenzen
-  id: serial("id").primaryKey(),
-  
-  // Vendon API Basis-Felder
-  vendonId: text("vendon_id").notNull(), // transaction_id aus der API
-  machineId: integer("machine_id").references(() => machines.id),
-  machineName: text("machine_name"),
-  
-  // Datum und Zeit
-  datetime: timestamp("datetime").notNull(),                   // In ISO-Format konvertiert
-  transactionDt: timestamp("transaction_dt"),                  // In ISO-Format konvertiert
-  registeredDt: timestamp("registered_dt"),                    // In ISO-Format konvertiert
-  updatedAt: timestamp("updated_at"),                          // In ISO-Format konvertiert
-  
-  // Produkt-Details
-  productId: text("product_id"),                               // Optional: Artikel-ID
-  productName: text("product_name"),                           // Name des Produkts
-  selection: integer("selection"),                             // Auswahlnummer
-  
-  // Lager-Details
-  stockId: integer("stock_id"),                                // Lager-ID
-  article: text("article"),                                    // Artikel (normalerweise null)
-  
-  // Mengen und Preis-Informationen
-  quantity: integer("quantity").default(1),                    // Menge
-  price: real("price").notNull(),                              // Preis
-  priceVat: real("price_vat"),                                 // Mehrwertsteuer-Betrag
-  priceWoVat: real("price_wo_vat"),                            // Preis ohne Mehrwertsteuer
-  vat: real("vat"),                                            // Mehrwertsteuersatz in Prozent
-  currency: text("currency"),                                  // Währung
-  
-  // Rabatt-Informationen
-  discountCode: text("discount_code"),                         // Rabattcode
-  discountAmount: real("discount_amount"),                     // Rabattbetrag
-  
-  // Zahlungsinformationen
-  paymentMethod: text("payment_method"),                       // Zahlungsmethode (CASH, CASHLESS, etc.)
-  paymentType: text("payment_type"),                           // Zahlungstyp (für Legacy-Kompatibilität)
-  
-  // Metadaten
-  source: text("source").default("vendon"),                   // Quelle der Daten (REALTIME, etc.)
-  transactionData: text("transaction_data"),                  // Zusätzliche Transaktionsdaten
-  note: text("note"),                                         // Notizen
-  metadata: text("metadata"),                                 // Metadaten
-  extraData: text("extra_data"),                              // Zusätzliche Daten (für Legacy-Kompatibilität)
-  amount: real("amount"),                                      // Betrag (für Legacy-Kompatibilität)
-  
-  // Standort-Zuordnung
-  locationId: integer("location_id").references(() => locations.id),
-  locationName: text("location_name"),
-  
-  // Weitere Felder für die Anwendungslogik
-  transactionType: text("transaction_type"),                  // Transaktionstyp
-  status: text("status").default("completed"),                // Status der Transaktion
-  coinCredit: real("coin_credit").default(0),                 // Münz-Guthaben
-  cardCredit: real("card_credit").default(0),                 // Karten-Guthaben
-  cashlessCredit: real("cashless_credit").default(0),         // Bargeldloses Guthaben
-  isTest: boolean("is_test").default(false),                  // Ist dies eine Test-Transaktion
-  
-  // Verarbeitungs-Tracking
-  syncedAt: timestamp("synced_at").defaultNow(),              // Wann wurde die Transaktion synchronisiert
-  lastSync: timestamp("last_sync"),                           // Letzte Synchronisation
-  processedAt: timestamp("processed_at"),                     // Wann wurde die Transaktion verarbeitet
-  processingStatus: text("processing_status").default("pending"), // Verarbeitungsstatus: pending, processed, error
-  processingError: text("processing_error"),                   // Fehlermeldung bei der Verarbeitung
-  
-  // Datensatz-Tracking
-  createdAt: timestamp("created_at").defaultNow(),            // Wann wurde der Datensatz erstellt
-}, (table) => {
-  return {
-    vendonIdx: unique().on(table.vendonId),                   // Eindeutiger Index auf Vendon-ID
-  };
-});
-
-export const insertTransactionSchema = createInsertSchema(transactions).omit({
-  id: true,
-});
-
-export type InsertTransaction = z.infer<typeof insertTransactionSchema>;
-export type Transaction = typeof transactions.$inferSelect;
-
-// Refills table based on vendon_refills
-export const refills = pgTable("refills", {
-  id: serial("id").primaryKey(),
-  vendonId: text("vendon_id").notNull(),
-  machineId: integer("machine_id").notNull().references(() => machines.id), // Maschinen-ID muss vorhanden sein
-  machineName: text("machine_name").default(''), // Default-Wert für machineName
-  datetime: timestamp("datetime").notNull(), // Datum/Uhrzeit muss vorhanden sein
-  operator: text("operator").default(''), // Operator kann leer sein, Standardwert ist leerer String
-  status: text("status").default('completed'), // Status kann leer sein, Standardwert ist 'completed'
-  // Zusätzliche Felder basierend auf der API-Dokumentation und Implementierung
-  refillType: text("refill_type").default(''),        // Typ der Nachfüllung mit Standardwert
-  plannedAmount: integer("planned_amount").default(0), // Geplante Menge mit Standardwert 0
-  actualAmount: integer("actual_amount").default(0),   // Tatsächliche Menge mit Standardwert 0
-  totalProducts: integer("total_products").default(0), // Anzahl der Produkte mit Standardwert 0
-  notes: text("notes").default(''),                    // Notizen mit Standardwert
-  refillNumber: text("refill_number").default(''),     // Refill-Nummer mit Standardwert
-  accountId: integer("account_id").default(0),         // Konto-ID mit Standardwert 0
-  accountName: text("account_name").default(''),       // Kontoname mit Standardwert
-  timezone: text("timezone").default(''),              // Zeitzone mit Standardwert
-  createdBy: text("created_by").default(''),           // Erstellt von mit Standardwert
-  lastModifiedBy: text("last_modified_by").default(''), // Zuletzt geändert von mit Standardwert
-  vendonCreatedAt: timestamp("vendon_created_at").defaultNow(), // Erstellt am mit aktuellem Datum als Standardwert
-  vendonUpdatedAt: timestamp("vendon_updated_at").defaultNow(), // Aktualisiert am mit aktuellem Datum als Standardwert
-  extraData: text("extra_data").default('{}'),         // JSON mit allen zusätzlichen Daten, Standardwert leeres JSON
-  source: text("source").default("vendon"),            // Quelle der Daten
-  locationId: integer("location_id").references(() => locations.id), // Standort-ID
-  totalAmount: real("total_amount").default(0),        // Gesamtbetrag mit Standardwert 0
-  processedAt: timestamp("processed_at"),              // Wann wurde der Refill verarbeitet
-  processStatus: text("process_status").default("pending"), // Verarbeitungsstatus: pending, processed, failed
-  errorMessage: text("error_message").default(''),     // Fehlermeldung bei der Verarbeitung
-  createdAt: timestamp("created_at").defaultNow(),     // Wann wurde der Datensatz erstellt
-  updatedAt: timestamp("updated_at").defaultNow(),     // Wann wurde der Datensatz aktualisiert
-}, (table) => {
-  return {
-    vendonIdx: unique().on(table.vendonId, table.machineId, table.datetime),
-  };
-});
-
-export const insertRefillSchema = createInsertSchema(refills).omit({
-  id: true,
-});
-
-export type InsertRefill = z.infer<typeof insertRefillSchema>;
-export type Refill = typeof refills.$inferSelect;
-
-// Refill details table based on vendon_refill_details
-export const refillDetails = pgTable("refill_details", {
-  id: serial("id").primaryKey(),
-  refillId: integer("refill_id").references(() => refills.id).notNull(),
-  productId: text("product_id"), // Text statt Integer, kein direkter Verweis auf products.id mehr
-  productName: text("product_name").default(''),
-  quantity: integer("quantity").default(0),
-  price: real("price").default(0),
-  datetime: timestamp("datetime").defaultNow(),
-  // Felder für hinzugefügte und entfernte Produkte
-  added: integer("added").default(0),                      // Anzahl der hinzugefügten Produkte
-  removed: integer("removed").default(0),                  // Anzahl der entfernten Produkte
-  // Zusätzliche Felder für detaillierte Produktinformationen in einer Nachfüllung
-  vendonProductId: text("vendon_product_id").default(''),   // Vendon Produkt-ID
-  position: text("position").default(''),                   // Position im Automaten (z.B. A1, B3)
-  planogramPosition: text("planogram_position").default(''), // Planogramm-Position
-  productSku: text("product_sku").default(''),              // Produkt-SKU
-  productBarcode: text("product_barcode").default(''),      // Produkt-Barcode
-  productCategory: text("product_category").default(''),    // Produkt-Kategorie
-  vat: real("vat").default(0),                              // Mehrwertsteuer
-  depositPrice: real("deposit_price").default(0),           // Pfandpreis
-  depositVat: real("deposit_vat").default(0),               // Mehrwertsteuer auf Pfand
-  previousStock: integer("previous_stock").default(0),      // Vorheriger Bestand
-  currentStock: integer("current_stock").default(0),        // Aktueller Bestand
-  amountMax: integer("amount_max").default(0),              // Maximale Menge
-  amountStandard: integer("amount_standard").default(0),    // Standardmenge
-  amountCritical: integer("amount_critical").default(0),    // Kritische Menge
-  refillUnitSize: integer("refill_unit_size").default(0),   // Größe der Nachfülleinheit
-  minRefill: integer("min_refill").default(0),              // Mindestmenge für Nachfüllung
-  critical: boolean("critical").default(false),             // Kritischer Bestand?
-  extraData: text("extra_data").default('{}'),              // JSON mit allen zusätzlichen Daten
-  createdAt: timestamp("created_at").defaultNow(),          // Erstellungsdatum
-  updatedAt: timestamp("updated_at").defaultNow(),          // Aktualisierungsdatum
-});
-
-export const insertRefillDetailSchema = createInsertSchema(refillDetails).omit({
-  id: true,
-});
-
-export type InsertRefillDetail = z.infer<typeof insertRefillDetailSchema>;
-export type RefillDetail = typeof refillDetails.$inferSelect;
-
-// Events table based on vendon_events
-export const events = pgTable("events", {
-  id: serial("id").primaryKey(),
-  vendonId: text("vendon_id").notNull(),
-  eventType: text("event_type"),
-  eventName: text("event_name"),
-  description: text("description"),
-  machineId: integer("machine_id").references(() => machines.id),
-  machineName: text("machine_name"),
-  datetime: timestamp("datetime").notNull(),
-  status: text("status"),
-  resolvedAt: timestamp("resolved_at"),
-  severity: text("severity"),
-  extraData: text("extra_data"),
-  locationId: integer("location_id").references(() => locations.id),
-  locationName: text("location_name"),
-}, (table) => {
-  return {
-    vendonIdx: unique().on(table.vendonId, table.machineId, table.datetime),
-  };
-});
-
-export const insertEventSchema = createInsertSchema(events).omit({
-  id: true,
-});
-
-export type InsertEvent = z.infer<typeof insertEventSchema>;
-export type Event = typeof events.$inferSelect;
-
-// Stock table - Tabelle für Lagerbestand und Produkte im Lager
-export const stocks = pgTable("stocks", {
-  id: serial("id").primaryKey(),
-  vendonId: text("vendon_id").notNull(),        // Vendon Stock ID
-  productName: text("product_name").notNull(),  // Produktname
-  sku: text("sku"),                            // Artikelnummer
-  barcode: text("barcode"),                    // Barcode
-  price: real("price"),                         // Preis
-  vat: real("vat"),                             // Mehrwertsteuer
-  status: text("status").default("active"),     // Status
-  units: text("units"),                         // Einheiten
-  warehouseLocation: text("warehouse_location"), // Lagerort
-  description: text("description"),             // Beschreibung
-  productType: text("product_type"),            // Produkttyp
-  // Machine defaults
-  amountMax: integer("amount_max"),             // Maximale Menge
-  amountStandard: integer("amount_standard"),   // Standardmenge
-  amountCritical: integer("amount_critical"),   // Kritische Menge
-  refillUnitSize: integer("refill_unit_size"),  // Größe der Nachfülleinheit
-  minRefill: integer("min_refill"),             // Mindestmenge für Nachfüllung
-  // Speichere alle Rohdaten als JSON
-  rawData: text("raw_data"),                    // Alle Rohdaten der API-Antwort
-  lastSync: timestamp("last_sync"),             // Letzte Synchronisation
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-}, (table) => {
-  return {
-    vendonIdx: unique().on(table.vendonId),     // Eindeutiger Index auf Vendon-ID
-  };
-});
-
-export const insertStockSchema = createInsertSchema(stocks).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertStock = z.infer<typeof insertStockSchema>;
-export type Stock = typeof stocks.$inferSelect;
-
-// Machine Stock table - Tabelle für den aktuellen Lagerbestand in den Automaten
-export const machineStocks = pgTable("machine_stocks", {
-  id: serial("id").primaryKey(),
-  machineId: integer("machine_id").references(() => machines.id).notNull(), // Maschinen-ID
-  machineVendonId: text("machine_vendon_id").notNull(),         // Vendon Maschinen-ID
-  productVendonId: text("product_vendon_id"),                   // Vendon Produkt-ID
-  selectionNumber: text("selection_number"),                    // Auswahlnummer in der Maschine
-  quantity: integer("quantity").default(0),                      // Aktuelle Menge
-  status: text("status").default("active"),                      // Status
-  lastFilled: timestamp("last_filled"),                          // Letzte Auffüllung
-  // Speichere alle Rohdaten als JSON
-  rawData: text("raw_data"),                                     // Alle Rohdaten der API-Antwort
-  lastSync: timestamp("last_sync"),                              // Letzte Synchronisation
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-}, (table) => {
-  return {
-    // Eindeutiger Index für Maschine + Produkt + Auswahl
-    uniqueSelection: unique().on(table.machineId, table.productVendonId, table.selectionNumber),
-  };
-});
-
-export const insertMachineStockSchema = createInsertSchema(machineStocks).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertMachineStock = z.infer<typeof insertMachineStockSchema>;
-export type MachineStock = typeof machineStocks.$inferSelect;
-
-// Sync log table based on vendon_sync_log
-export const syncLogs = pgTable("sync_logs", {
-  id: serial("id").primaryKey(),
-  syncType: text("sync_type").notNull(),
-  startDate: timestamp("start_date"),
-  endDate: timestamp("end_date"),
-  itemsFound: integer("items_found").default(0),
-  itemsSaved: integer("items_saved").default(0),
-  itemsUpdated: integer("items_updated").default(0),
-  duplicates: integer("duplicates").default(0),
-  errors: integer("errors").default(0),
-  durationSeconds: real("duration_seconds").default(0),
-  syncStatus: text("sync_status").default("running"),
-  errorMessage: text("error_message"),
-  additionalData: text("additional_data"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const insertSyncLogSchema = createInsertSchema(syncLogs).omit({
-  id: true,
-  createdAt: true,
-});
-
-export type InsertSyncLog = z.infer<typeof insertSyncLogSchema>;
-export type SyncLog = typeof syncLogs.$inferSelect;
-
-// Define relations
-export const suppliersRelations = relations(suppliers, ({ many }) => ({
-  products: many(products),
-  purchaseConditions: many(purchaseConditions),
-}));
-
-// Purchase Conditions Tabelle - Beziehungen zwischen Produkten und Lieferanten
-export const purchaseConditions = pgTable("purchase_conditions", {
-  id: serial("id").primaryKey(),
-  productId: integer("product_id").notNull().references(() => products.id),
-  supplierId: integer("supplier_id").notNull().references(() => suppliers.id),
-  unitPrice: real("unit_price").notNull(),
-  taxRate: real("tax_rate").default(19), // Standardmäßig 19% MwSt
-  grossPrice: real("gross_price"), // Brutto-Preis (berechnet aus unitPrice und taxRate)
-  minQuantity: integer("min_quantity").default(0),
-  packagingUnit: text("packaging_unit"), // Beschreibung der Verpackungseinheit (z.B. "Karton mit 6 Flaschen")
-  packagingQuantity: integer("packaging_quantity").default(1), // Anzahl der Einheiten pro Verpackung
-  deliveryTime: text("delivery_time"), // Lieferzeit (z.B. "2-3 Tage")
-  validFrom: timestamp("valid_from"), // Gültigkeit von
-  validTo: timestamp("valid_to"), // Gültigkeit bis
-  isPreferred: boolean("is_preferred").default(false), // Ist dies der bevorzugte Lieferant für dieses Produkt
-  notes: text("notes"), // Notizen zu dieser Einkaufsbedingung
-  leadTime: integer("lead_time"), // Vorlaufzeit in Tagen
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-// Erstellung des Schemas für Einkaufsbedingungen mit Anpassung der Datumsfelder
-export const insertPurchaseConditionSchema = createInsertSchema(purchaseConditions)
-  .omit({
-    id: true,
-    createdAt: true,
-    updatedAt: true,
-  })
-  .extend({
-    // Erlaube sowohl Date-Objekte als auch ISO-Datums-Strings für validFrom
-    validFrom: z.union([
-      z.date(),
-      z.string().transform((str) => new Date(str))
-    ]).optional(),
-    // Erlaube sowohl Date-Objekte als auch ISO-Datums-Strings für validTo
-    validTo: z.union([
-      z.date(),
-      z.string().transform((str) => new Date(str))
-    ]).optional(),
-  });
-
-export type InsertPurchaseCondition = z.infer<typeof insertPurchaseConditionSchema>;
-export type PurchaseCondition = typeof purchaseConditions.$inferSelect;
-
-export const productsRelations = relations(products, ({ one, many }) => ({
-  supplier: one(suppliers, {
-    fields: [products.supplierId],
-    references: [suppliers.id],
-  }),
-  purchaseConditions: many(purchaseConditions),
-}));
-
-export const machinesRelations = relations(machines, ({ one }) => ({
-  location: one(locations, {
-    fields: [machines.locationId],
-    references: [locations.id],
-  }),
-}));
-
-export const transactionsRelations = relations(transactions, ({ one }) => ({
-  machine: one(machines, {
-    fields: [transactions.machineId],
-    references: [machines.id],
-  }),
-  location: one(locations, {
-    fields: [transactions.locationId],
-    references: [locations.id],
-  }),
-}));
-
-export const refillsRelations = relations(refills, ({ one, many }) => ({
-  machine: one(machines, {
-    fields: [refills.machineId],
-    references: [machines.id],
-  }),
-  location: one(locations, {
-    fields: [refills.locationId],
-    references: [locations.id],
-  }),
-  details: many(refillDetails),
-}));
-
-// Neue Tabelle für die Protokollierung von Refill-Batch-Bewegungen
-export const refillBatchMovements = pgTable("refill_batch_movements", {
-  id: serial("id").primaryKey(),
-  refillId: integer("refill_id").references(() => refills.id).notNull(),
-  refillDetailId: integer("refill_detail_id").references(() => refillDetails.id).notNull(),
-  batchId: integer("batch_id").references(() => inventoryBatches.id).notNull(),
-  warehouseId: integer("warehouse_id").references(() => warehouses.id).notNull(),
-  productId: integer("product_id").references(() => products.id).notNull(),
-  quantity: integer("quantity").notNull(),
-  batchNumber: text("batch_number").notNull(),
-  expiryDate: date("expiry_date").notNull(),
-  warehouseBefore: integer("warehouse_before").notNull(),
-  warehouseAfter: integer("warehouse_after").notNull(),
-  movementType: text("movement_type").default("REFILL").notNull(),
-  status: text("status").default("completed").notNull(),
-  performedBy: integer("performed_by").references(() => users.id),
-  performedAt: timestamp("performed_at").defaultNow(),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const insertRefillBatchMovementSchema = createInsertSchema(refillBatchMovements).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertRefillBatchMovement = z.infer<typeof insertRefillBatchMovementSchema>;
-export type RefillBatchMovement = typeof refillBatchMovements.$inferSelect;
-
-export const refillDetailsRelations = relations(refillDetails, ({ one, many }) => ({
-  refill: one(refills, {
-    fields: [refillDetails.refillId],
-    references: [refills.id],
-  }),
-  batchMovements: many(refillBatchMovements),
-  // Entfernt Relation zu product, da productId jetzt ein Text ist und kein direkter Verweis auf products.id mehr existiert
-}));
-
-// Relationen für refillBatchMovements definieren
-export const refillBatchMovementsRelations = relations(refillBatchMovements, ({ one }) => ({
-  refill: one(refills, {
-    fields: [refillBatchMovements.refillId],
-    references: [refills.id],
-  }),
-  refillDetail: one(refillDetails, {
-    fields: [refillBatchMovements.refillDetailId],
-    references: [refillDetails.id],
-  }),
-  batch: one(inventoryBatches, {
-    fields: [refillBatchMovements.batchId],
-    references: [inventoryBatches.id],
-  }),
-  warehouse: one(warehouses, {
-    fields: [refillBatchMovements.warehouseId],
-    references: [warehouses.id],
-  }),
-  product: one(products, {
-    fields: [refillBatchMovements.productId],
-    references: [products.id],
-  }),
-  performer: one(users, {
-    fields: [refillBatchMovements.performedBy],
-    references: [users.id],
-  }),
-}));
-
-export const eventsRelations = relations(events, ({ one }) => ({
-  machine: one(machines, {
-    fields: [events.machineId],
-    references: [machines.id],
-  }),
-  location: one(locations, {
-    fields: [events.locationId],
-    references: [locations.id],
-  }),
-}));
-
-// Stock- und MachineStock-Relationen
-export const machineStocksRelations = relations(machineStocks, ({ one }) => ({
-  machine: one(machines, {
-    fields: [machineStocks.machineId],
-    references: [machines.id],
-  }),
-}));
-
-// Wetterdaten-Tabelle für historische und zukünftige Daten (Meteostat-basiert)
-export const weatherData = pgTable("weather_data", {
-  id: serial("id").primaryKey(),
-  // Zeitstempel für den Datenpunkt
-  timestamp: timestamp("timestamp").notNull(),
-  // Datum (nur Tag)
-  date: date("date").notNull(),
-  // Stunde (0-23)
-  hour: integer("hour").notNull(),
-  // Temperatur in Celsius
-  temp: real("temp"),
-  // Gefühlte Temperatur in Celsius
-  feels_like: real("feels_like"),
-  // Minimale Temperatur
-  temp_min: real("temp_min"),
-  // Maximale Temperatur
-  temp_max: real("temp_max"),
-  // Druck auf Meereshöhe, hPa
-  pressure: integer("pressure"),
-  // Luftfeuchtigkeit, %
-  humidity: integer("humidity"),
-  // Windgeschwindigkeit, meter/sec
-  wind_speed: real("wind_speed"),
-  // Windrichtung, Grad (meteorologisch)
-  wind_deg: integer("wind_deg"),
-  // Windböe, m/s
-  wind_gust: real("wind_gust"),
-  // Wolkigkeit, %
-  clouds: integer("clouds"),
-  // Sichtweite, Meter
-  visibility: integer("visibility"),
-  // Niederschlagsmenge letzte Stunde, mm
-  precipitation: real("precipitation"),
-  // Regenvolumen letzte Stunde, mm
-  rain_1h: real("rain_1h"),
-  // Schneevolumen letzte Stunde, mm
-  snow_1h: real("snow_1h"),
-  // Wetterbedingung-ID
-  weather_id: integer("weather_id"),
-  // Wetterbedingung-Hauptkategorie
-  weather_main: text("weather_main"),
-  // Wetterbedingung-Beschreibung
-  weather_description: text("weather_description"),
-  // Wetterbedingung-Symbol
-  weather_icon: text("weather_icon"),
-  // Datenquelle (historisch, vorhersage, aktuell)
-  source: text("source").notNull().default("historical"),
-  // Station ID
-  station_id: text("station_id"),
-  // Station Name
-  station_name: text("station_name"),
-  // Land
-  country: text("country"),
-  // Weitere Metadaten im JSON-Format
-  metadata: text("metadata"),
-  // Synchronisations-Status
-  sync_status: text("sync_status").default("pending"),
-  // Zeitpunkt der Erstellung
-  created_at: timestamp("created_at").defaultNow(),
-  // Zeitpunkt der letzten Aktualisierung
-  updated_at: timestamp("updated_at").defaultNow(),
-}, (table) => {
-  return {
-    // Eindeutiger Index für Datum, Stunde und Station
-    datetimeIdx: unique().on(table.date, table.hour, table.station_id),
-  };
-});
-
-export const insertWeatherDataSchema = createInsertSchema(weatherData).omit({
-  id: true,
-  created_at: true,
-  updated_at: true,
-});
-
-export type InsertWeatherData = z.infer<typeof insertWeatherDataSchema>;
-export type WeatherData = typeof weatherData.$inferSelect;
-
-// Wettervorhersage-Tabelle (OpenWeather-basiert)
-export const weatherForecasts = pgTable("weather_forecasts", {
-  id: serial("id").primaryKey(),
-  // Datum
-  date: date("date").notNull(),
-  // Stunde im Format "HH:00"
-  hour: text("hour").notNull(),
-  // Typ (current, forecast)
-  type: text("type").notNull(),
-  // Temperatur in Celsius
-  temperature: real("temperature"),
-  // Gefühlte Temperatur in Celsius
-  feels_like: real("feels_like"),
-  // Luftdruck auf Meereshöhe, hPa
-  pressure: integer("pressure"),
-  // Luftfeuchtigkeit, %
-  humidity: integer("humidity"),
-  // Taupunkt
-  dew_point: real("dew_point"),
-  // Wolkigkeit, %
-  clouds: integer("clouds"),
-  // UV-Index
-  uvi: real("uvi"),
-  // Sichtweite, Meter
-  visibility: integer("visibility"),
-  // Windgeschwindigkeit, m/s
-  wind_speed: real("wind_speed"),
-  // Windrichtung, Grad (meteorologisch)
-  wind_deg: integer("wind_deg"),
-  // Windböe, m/s
-  wind_gust: real("wind_gust"),
-  // Wetterbedingung-ID
-  weather_id: integer("weather_id"),
-  // Wetterbedingung-Hauptkategorie
-  weather_main: text("weather_main"),
-  // Wetterbedingung-Beschreibung
-  weather_description: text("weather_description"),
-  // Wetterbedingung-Symbol
-  weather_icon: text("weather_icon"),
-  // Niederschlagswahrscheinlichkeit (0-1)
-  pop: real("pop"),
-  // Regenvolumen letzte Stunde, mm
-  rain_1h: real("rain_1h"),
-  // Schneevolumen letzte Stunde, mm
-  snow_1h: real("snow_1h"),
-  // UNIX-Timestamp
-  timestamp: integer("timestamp"),
-  // Sonnenaufgang (UNIX-Timestamp)
-  sunrise: integer("sunrise"),
-  // Sonnenuntergang (UNIX-Timestamp)
-  sunset: integer("sunset"),
-  // Mondaufgang (UNIX-Timestamp)
-  moonrise: integer("moonrise"),
-  // Monduntergang (UNIX-Timestamp)
-  moonset: integer("moonset"),
-  // Mondphase (0-1)
-  moon_phase: real("moon_phase"),
-  // Datenquelle
-  source: text("source").notNull(),
-  // Breitengrad
-  lat: real("lat"),
-  // Längengrad
-  lon: real("lon"),
-  // Zeitzone
-  timezone: text("timezone"),
-  // Zeitzonenverschiebung in Sekunden
-  timezone_offset: integer("timezone_offset"),
-  // Weitere Metadaten im JSON-Format
-  metadata: text("metadata"),
-  // Zeitpunkt der Erstellung
-  created_at: timestamp("created_at").defaultNow(),
-  // Zeitpunkt der letzten Aktualisierung
-  updated_at: timestamp("updated_at").defaultNow(),
-}, (table) => {
-  return {
-    // Eindeutiger Index für Datum, Stunde und Typ
-    datetimeTypeIdx: unique().on(table.date, table.hour, table.type),
-  };
-});
-
-export const insertWeatherForecastSchema = createInsertSchema(weatherForecasts).omit({
-  id: true,
-  created_at: true,
-  updated_at: true,
-});
-
-export type InsertWeatherForecast = z.infer<typeof insertWeatherForecastSchema>;
-export type WeatherForecast = typeof weatherForecasts.$inferSelect;
-
-// Historische Wetterdaten-Tabelle (OpenWeather-basiert)
-export const weatherHistorical = pgTable("weather_historical", {
-  id: serial("id").primaryKey(),
-  // Datum
-  date: date("date").notNull(),
-  // Stunde im Format "HH:00"
-  hour: text("hour").notNull(),
-  // Temperatur in Celsius
-  temperature: real("temperature"),
-  // Gefühlte Temperatur in Celsius
-  feels_like: real("feels_like"),
-  // Luftdruck auf Meereshöhe, hPa
-  pressure: integer("pressure"),
-  // Luftfeuchtigkeit, %
-  humidity: integer("humidity"),
-  // Taupunkt
-  dew_point: real("dew_point"),
-  // Wolkigkeit, %
-  clouds: integer("clouds"),
-  // Sichtweite, Meter
-  visibility: integer("visibility"),
-  // Windgeschwindigkeit, m/s
-  wind_speed: real("wind_speed"),
-  // Windrichtung, Grad (meteorologisch)
-  wind_deg: integer("wind_deg"),
-  // Windböe, m/s
-  wind_gust: real("wind_gust"),
-  // Wetterbedingung-ID
-  weather_id: integer("weather_id"),
-  // Wetterbedingung-Hauptkategorie
-  weather_main: text("weather_main"),
-  // Wetterbedingung-Beschreibung
-  weather_description: text("weather_description"),
-  // Wetterbedingung-Symbol
-  weather_icon: text("weather_icon"),
-  // Regenvolumen letzte Stunde, mm
-  rain_1h: real("rain_1h"),
-  // Schneevolumen letzte Stunde, mm
-  snow_1h: real("snow_1h"),
-  // UNIX-Timestamp
-  timestamp: integer("timestamp"),
-  // Sonnenaufgang (UNIX-Timestamp)
-  sunrise: integer("sunrise"),
-  // Sonnenuntergang (UNIX-Timestamp)
-  sunset: integer("sunset"),
-  // Datenquelle
-  source: text("source").notNull(),
-  // Breitengrad
-  lat: real("lat"),
-  // Längengrad
-  lon: real("lon"),
-  // Zeitzone
-  timezone: text("timezone"),
-  // Zeitzonenverschiebung in Sekunden
-  timezone_offset: integer("timezone_offset"),
-  // Weitere Metadaten im JSON-Format
-  metadata: text("metadata"),
-  // Zeitpunkt der Erstellung
-  created_at: timestamp("created_at").defaultNow(),
-  // Zeitpunkt der letzten Aktualisierung
-  updated_at: timestamp("updated_at").defaultNow(),
-}, (table) => {
-  return {
-    // Eindeutiger Index für Datum und Stunde
-    datetimeIdx: unique().on(table.date, table.hour),
-  };
-});
-
-export const insertWeatherHistoricalSchema = createInsertSchema(weatherHistorical).omit({
-  id: true,
-  created_at: true,
-  updated_at: true,
-});
-
-export type InsertWeatherHistorical = z.infer<typeof insertWeatherHistoricalSchema>;
-export type WeatherHistorical = typeof weatherHistorical.$inferSelect;
-
-// Feiertage- und Urlaube-Tabelle
-export const holidays = pgTable("holidays", {
-  id: serial("id").primaryKey(),
-  // Datum des Feiertags
-  date: date("date").notNull(),
-  // Name des Feiertags
-  name: text("name").notNull(),
-  // Beschreibung
-  description: text("description"),
-  // Art des Feiertags (federal, state, regional, school, public)
-  type: text("type").notNull(),
-  // Ist es ein offizieller Feiertag?
-  is_official: boolean("is_official").default(true),
-  // Land
-  country: text("country").default("DE"),
-  // Bundesland
-  state: text("state"),
-  // Region/Stadt (für lokale Feiertage)
-  region: text("region"),
-  // Jahr
-  year: integer("year").notNull(),
-  // Trimester (1-4)
-  trimester: integer("trimester"),
-  // Monat (1-12)
-  month: integer("month").notNull(),
-  // Tag (1-31)
-  day: integer("day").notNull(),
-  // Wochentag (1-7, wobei 1=Montag)
-  weekday: integer("weekday"),
-  // Name des Wochentags (z.B. "Montag", "Dienstag")
-  weekday_name: text("weekday_name"),
-  // Woche des Jahres (1-52)
-  week: integer("week"),
-  // Weitere Metadaten im JSON-Format
-  metadata: text("metadata"),
-  // Zeitpunkt der Erstellung
-  created_at: timestamp("created_at").defaultNow(),
-  // Zeitpunkt der letzten Aktualisierung
-  updated_at: timestamp("updated_at").defaultNow(),
-}, (table) => {
-  return {
-    // Eindeutiger Index für Datum und Land/Staat
-    dateRegionIdx: unique().on(table.date, table.country, table.state),
-  };
-});
-
-export const insertHolidaySchema = createInsertSchema(holidays).omit({
-  id: true,
-  created_at: true,
-  updated_at: true,
-});
-
-export type InsertHoliday = z.infer<typeof insertHolidaySchema>;
-export type Holiday = typeof holidays.$inferSelect;
-
-// Prognosemodell-Tabelle für zukünftige Verkäufe
-export const forecastModels = pgTable("forecast_models", {
-  id: serial("id").primaryKey(),
-  // Name des Modells
-  name: text("name").notNull(),
-  // Beschreibung
-  description: text("description"),
-  // Modell-Typ (regression, time_series, machine_learning)
-  model_type: text("model_type").notNull(),
-  // Modell-Konfiguration im JSON-Format
-  configuration: text("configuration").notNull(),
-  // Trainings-Parameter im JSON-Format
-  training_parameters: text("training_parameters"),
-  // Trainings-Zeitraum Start
-  training_period_start: date("training_period_start"),
-  // Trainings-Zeitraum Ende
-  training_period_end: date("training_period_end"),
-  // Modell-Genauigkeit (0-1)
-  accuracy: real("accuracy"),
-  // Modell-Status (training, ready, deprecated)
-  status: text("status").default("training"),
-  // Basiert auf Maschinendaten?
-  uses_machine_data: boolean("uses_machine_data").default(true),
-  // Basiert auf Wetterdaten?
-  uses_weather_data: boolean("uses_weather_data").default(true),
-  // Basiert auf Urlaubsdaten?
-  uses_holiday_data: boolean("uses_holiday_data").default(true),
-  // Version des Modells
-  version: text("version").default("1.0"),
-  // Erstellt von
-  created_by: text("created_by"),
-  // Speicherort des Modells (Pfad oder URL)
-  model_path: text("model_path"),
-  // Erstellt am
-  created_at: timestamp("created_at").defaultNow(),
-  // Aktualisiert am
-  updated_at: timestamp("updated_at").defaultNow(),
-  // Zuletzt verwendet am
-  last_used_at: timestamp("last_used_at"),
-});
-
-export const insertForecastModelSchema = createInsertSchema(forecastModels).omit({
-  id: true,
-  created_at: true,
-  updated_at: true,
-});
-
-export type InsertForecastModel = z.infer<typeof insertForecastModelSchema>;
-export type ForecastModel = typeof forecastModels.$inferSelect;
-
-// Vorhersage-Tabelle für einzelne Prognosen
-export const forecasts = pgTable("forecasts", {
-  id: serial("id").primaryKey(),
-  // Fremdschlüssel zum Modell
-  model_id: integer("model_id").references(() => forecastModels.id).notNull(),
-  // Datum der Vorhersage (für welches Datum gilt die Vorhersage)
-  forecast_date: date("forecast_date").notNull(),
-  // Stunde der Vorhersage (0-23, optional für stündliche Vorhersagen)
-  forecast_hour: integer("forecast_hour"),
-  // Fremdschlüssel zum Produkt
-  product_id: text("product_id"), 
-  // Fremdschlüssel zur Maschine
-  machine_id: integer("machine_id").references(() => machines.id),
-  // Standort-ID
-  location_id: integer("location_id").references(() => locations.id),
-  // Prognostizierte Menge
-  predicted_quantity: real("predicted_quantity").notNull(),
-  // Prognosegenauigkeit (0-1)
-  confidence: real("confidence"),
-  // Untere Grenze des Konfidenzintervalls
-  lower_bound: real("lower_bound"),
-  // Obere Grenze des Konfidenzintervalls
-  upper_bound: real("upper_bound"),
-  // Tatsächliche Menge (wird später gefüllt, wenn bekannt)
-  actual_quantity: real("actual_quantity"),
-  // Fehler (tatsächlich - vorhergesagt)
-  error: real("error"),
-  // Wetterinformationen für diesen Zeitpunkt (zusammengefasst)
-  weather_summary: text("weather_summary"),
-  // Ist es ein Feiertag/Urlaub?
-  is_holiday: boolean("is_holiday").default(false),
-  // Name des Feiertags/Urlaubs
-  holiday_name: text("holiday_name"),
-  // Feiertagstyp
-  holiday_type: text("holiday_type"),
-  // Zusätzliche Faktoren, die in die Vorhersage eingeflossen sind
-  features: text("features"),
-  // Erstellt am
-  created_at: timestamp("created_at").defaultNow(),
-  // Aktualisiert am
-  updated_at: timestamp("updated_at").defaultNow(),
-});
-
-export const insertForecastSchema = createInsertSchema(forecasts).omit({
-  id: true,
-  created_at: true,
-  updated_at: true,
-});
-
-export type InsertForecast = z.infer<typeof insertForecastSchema>;
-export type Forecast = typeof forecasts.$inferSelect;
-
-// Daten-Abdeckungs-Tabelle (für die Frontend-Anzeige der verfügbaren Daten)
-export const dataCoverage = pgTable("data_coverage", {
-  id: serial("id").primaryKey(),
-  // Datentyp (weather, holiday, transaction)
-  data_type: text("data_type").notNull(),
-  // Frühestes verfügbares Datum
-  earliest_date: date("earliest_date"),
-  // Spätestes verfügbares Datum
-  latest_date: date("latest_date"),
-  // Anzahl der Datenpunkte
-  data_points: integer("data_points").default(0),
-  // Datenqualität (0-100%)
-  data_quality: integer("data_quality"),
-  // Abdeckung in Prozent (0-100%)
-  coverage_percentage: integer("coverage_percentage"),
-  // Letzte Synchronisation
-  last_sync: timestamp("last_sync"),
-  // Erstellt am
-  created_at: timestamp("created_at").defaultNow(),
-  // Aktualisiert am
-  updated_at: timestamp("updated_at").defaultNow(),
-}, (table) => {
-  return {
-    // Eindeutiger Index für Datentyp
-    dataTypeIdx: unique().on(table.data_type),
-  };
-});
-
-export const insertDataCoverageSchema = createInsertSchema(dataCoverage).omit({
-  id: true,
-  created_at: true,
-  updated_at: true,
-});
-
-export type InsertDataCoverage = z.infer<typeof insertDataCoverageSchema>;
-export type DataCoverage = typeof dataCoverage.$inferSelect;
-
-// Beziehungen für die neuen Tabellen
-export const forecastModelsRelations = relations(forecastModels, ({ many }) => ({
-  forecasts: many(forecasts),
-}));
-
-export const forecastsRelations = relations(forecasts, ({ one }) => ({
-  model: one(forecastModels, {
-    fields: [forecasts.model_id],
-    references: [forecastModels.id],
-  }),
-  machine: one(machines, {
-    fields: [forecasts.machine_id],
-    references: [machines.id],
-  }),
-  location: one(locations, {
-    fields: [forecasts.location_id],
-    references: [locations.id],
-  }),
-}));
-
-// ================================ Bestellungen ================================
-
-// Bestellungen-Tabelle
-export const orders = pgTable("orders", {
-  id: serial("id").primaryKey(),
-  
-  // Allgemeine Bestellinformationen
-  orderNumber: text("order_number").notNull(), // Bestellnummer (z.B. ORD-YYYY-MM-DD-XXXX)
-  supplierId: integer("supplier_id").references(() => suppliers.id), // Lieferant
-  supplierName: text("supplier_name"), // Name des Lieferanten (für Redundanz)
-  
-  // Ziel & Empfänger
-  locationId: integer("location_id").references(() => locations.id), // Ziel-Lagerstandort
-  locationName: text("location_name"), // Name des Standorts (für Redundanz)
-  
-  // Status und Termine
-  status: text("status").notNull().default("open"), // Status: open, ordered, delivered, canceled, etc.
-  orderDate: timestamp("order_date").notNull().defaultNow(), // Datum der Bestellung
-  expectedDeliveryDate: timestamp("expected_delivery_date"), // Erwartetes Lieferdatum
-  actualDeliveryDate: timestamp("actual_delivery_date"), // Tatsächliches Lieferdatum
-  
-  // Finanzen
-  totalAmount: real("total_amount").notNull().default(0), // Gesamtbetrag
-  currency: text("currency").default("EUR"), // Währung (EUR)
-  vatAmount: real("vat_amount").default(0), // MwSt-Betrag
-  discountAmount: real("discount_amount").default(0), // Rabattbetrag
-  shippingCost: real("shipping_cost").default(0), // Versandkosten
-  
-  // Zahlungsinformationen
-  paymentTerms: text("payment_terms"), // Zahlungsbedingungen
-  paymentStatus: text("payment_status").default("pending"), // Zahlungsstatus: pending, paid, partial, etc.
-  paymentDate: timestamp("payment_date"), // Zahlungsdatum
-  paymentMethod: text("payment_method"), // Zahlungsmethode
-  
-  // Zuständigkeiten
-  createdById: integer("created_by_id").references(() => users.id), // Erstellt von (Benutzer-ID)
-  createdByName: text("created_by_name"), // Erstellt von (Name)
-  lastModifiedById: integer("last_modified_by_id").references(() => users.id), // Zuletzt geändert von (Benutzer-ID)
-  lastModifiedByName: text("last_modified_by_name"), // Zuletzt geändert von (Name)
-  
-  // Notizen und Kommentare
-  notes: text("notes"), // Notizen zur Bestellung
-  internalNotes: text("internal_notes"), // Interne Notizen
-  
-  // Dokumente
-  documents: text("documents"), // Dokumente als JSON-Array (Pfade/URLs zu Bestellformularen, Lieferscheinen, etc.)
-  
-  // Statusverlauf
-  statusHistory: text("status_history"), // Verlauf der Statusänderungen als JSON-Array
-  
-  // Audit
-  createdAt: timestamp("created_at").notNull().defaultNow(), // Erstellungsdatum
-  updatedAt: timestamp("updated_at").notNull().defaultNow(), // Aktualisierungsdatum
-  
-  // Automatisierung und Intelligenz
-  isAutoGenerated: boolean("is_auto_generated").default(false), // Automatisch generierte Bestellung?
-  forecastId: integer("forecast_id").references(() => forecastModels.id), // Referenz zur Prognose
-  priority: text("priority").default("normal"), // Priorität: low, normal, high, urgent
-});
-
-export const insertOrderSchema = createInsertSchema(orders).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-  totalAmount: true // wird aus den Positionen berechnet
-});
-
-export type InsertOrder = z.infer<typeof insertOrderSchema>;
-export type Order = typeof orders.$inferSelect;
-
-// Bestellpositionen-Tabelle
-export const orderItems = pgTable("order_items", {
-  id: serial("id").primaryKey(),
-  
-  // Zuordnung zur Bestellung
-  orderId: integer("order_id").notNull().references(() => orders.id), // Bestellungs-ID
-  
-  // Produkt-Informationen
-  productId: integer("product_id").references(() => products.id), // Produkt-ID (kann null sein bei manuellen Einträgen)
-  productName: text("product_name").notNull(), // Produktname (notwendig, auch wenn Produkt-ID vorhanden)
-  sku: text("sku"), // Artikelnummer
-  supplierSku: text("supplier_sku"), // Lieferanten-Artikelnummer
-  
-  // Mengen
-  quantity: integer("quantity").notNull().default(1), // Bestellmenge
-  unit: text("unit").default("stk"), // Einheit (Stück, Kiste, Palette, etc.)
-  quantityDelivered: integer("quantity_delivered").default(0), // Tatsächlich gelieferte Menge
-  
-  // Preise
-  unitPrice: real("unit_price").notNull(), // Einzelpreis
-  totalPrice: real("total_price").notNull(), // Gesamtpreis (Menge * Einzelpreis)
-  vatRate: real("vat_rate").default(19), // MwSt-Satz (in Prozent)
-  vatAmount: real("vat_amount"), // MwSt-Betrag
-  discount: real("discount").default(0), // Rabatt (in Prozent)
-  discountAmount: real("discount_amount").default(0), // Rabattbetrag
-
-  // Position und Status
-  positionNumber: integer("position_number"), // Position in der Bestellung (1, 2, 3, ...)
-  status: text("status").default("pending"), // Status: pending, delivered, partial, backordered, etc.
-  
-  // Notizen
-  notes: text("notes"), // Notizen zur Position
-  
-  // Lager und Maschinen
-  targetMachineId: integer("target_machine_id").references(() => machines.id), // Ziel-Automat
-  targetMachineName: text("target_machine_name"), // Name des Ziel-Automaten
-  
-  // Audit
-  createdAt: timestamp("created_at").notNull().defaultNow(), // Erstellungsdatum
-  updatedAt: timestamp("updated_at").notNull().defaultNow(), // Aktualisierungsdatum
-});
-
-export const insertOrderItemSchema = createInsertSchema(orderItems).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-  totalPrice: true, // wird automatisch berechnet
-  vatAmount: true, // wird automatisch berechnet
-  discountAmount: true // wird automatisch berechnet
-});
-
-export type InsertOrderItem = z.infer<typeof insertOrderItemSchema>;
-export type OrderItem = typeof orderItems.$inferSelect;
-
-// Order - OrderItems Relation
-export const orderRelations = relations(orders, ({ many, one }) => ({
-  orderItems: many(orderItems),
-  supplier: one(suppliers, {
-    fields: [orders.supplierId],
-    references: [suppliers.id],
-  }),
-  location: one(locations, {
-    fields: [orders.locationId],
-    references: [locations.id],
-  }),
-  creator: one(users, {
-    fields: [orders.createdById],
-    references: [users.id],
-  }),
-  lastModifier: one(users, {
-    fields: [orders.lastModifiedById],
-    references: [users.id],
-  }),
-  forecast: one(forecastModels, {
-    fields: [orders.forecastId],
-    references: [forecastModels.id],
-  }),
-}));
-
-// OrderItem - Order Relation
-export const orderItemRelations = relations(orderItems, ({ one }) => ({
-  order: one(orders, {
-    fields: [orderItems.orderId],
-    references: [orders.id],
-  }),
-  product: one(products, {
-    fields: [orderItems.productId],
-    references: [products.id],
-  }),
-  targetMachine: one(machines, {
-    fields: [orderItems.targetMachineId],
-    references: [machines.id],
-  }),
-}));
-
-// Lager (Warehouses) table
-export const warehouses = pgTable("warehouses", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  description: text("description"),
-  address: text("address"),
-  city: text("city"),
-  postalCode: text("postal_code"),
-  country: text("country").default("Deutschland"),
-  contactPerson: text("contact_person"),
-  phone: text("phone"),
-  email: text("email"),
-  isActive: boolean("is_active").default(true),
-  status: text("status").default("active"),
-  type: text("type").default("main"), // main, branch, temporary, etc.
-  notes: text("notes"),
-  locationId: integer("location_id").references(() => locations.id),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const insertWarehouseSchema = createInsertSchema(warehouses).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
+export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
 export type InsertWarehouse = z.infer<typeof insertWarehouseSchema>;
-export type Warehouse = typeof warehouses.$inferSelect;
-
-// Inventory Items table
-export const inventoryItems = pgTable("inventory_items", {
-  id: serial("id").primaryKey(),
-  warehouseId: integer("warehouse_id").notNull().references(() => warehouses.id),
-  productId: integer("product_id").notNull().references(() => products.id),
-  quantity: integer("quantity").default(0),
-  minQuantity: integer("min_quantity").default(0),
-  maxQuantity: integer("max_quantity"),
-  reorderPoint: integer("reorder_point").default(0),
-  reorderQuantity: integer("reorder_quantity"),
-  locationInWarehouse: text("location_in_warehouse"),
-  status: text("status").default("active"), // active, inactive, discontinued
-  lastCountDate: timestamp("last_count_date"),
-  notes: text("notes"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-}, (table) => {
-  return {
-    // Eindeutiger Index für Lager + Produkt Kombination
-    uniqueProductWarehouse: unique().on(table.warehouseId, table.productId)
-  };
-});
-
-export const insertInventoryItemSchema = createInsertSchema(inventoryItems).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
+export type InsertMachine = z.infer<typeof insertMachineSchema>;
 export type InsertInventoryItem = z.infer<typeof insertInventoryItemSchema>;
-export type InventoryItem = typeof inventoryItems.$inferSelect;
-
-// Produktchargen (Product Batches) table - verbesserte Tabelle für Chargen und MHD-Verwaltung
-export const productBatches = pgTable("product_batches", {
-  id: serial("id").primaryKey(),
-  // Produkt- und Lagerinformationen
-  productId: integer("product_id").notNull().references(() => products.id),
-  warehouseId: integer("warehouse_id").notNull().references(() => warehouses.id),
-  
-  // Chargeninformationen
-  batchNumber: text("batch_number").notNull(), // Eindeutige Chargennummer innerhalb des Systems
-  supplierBatchNumber: text("supplier_batch_number"), // Chargennummer des Lieferanten (optional)
-  
-  // Mengen und Bestand
-  initialQuantity: integer("initial_quantity").notNull(), // Ursprüngliche Menge bei Eingang
-  currentQuantity: integer("current_quantity").notNull(), // Aktuelle Menge nach Entnahmen
-  
-  // Zeitliche Informationen
-  receivedDate: date("received_date").notNull().defaultNow(), // Eingangsdatum
-  manufacturingDate: date("manufacturing_date"), // Herstellungsdatum
-  expiryDate: date("expiry_date").notNull(), // Mindesthaltbarkeitsdatum
-  
-  // Zusätzliche Informationen
-  orderId: integer("order_id").references(() => orders.id), // Bestellung, durch die die Charge eingegangen ist
-  supplierId: integer("supplier_id").references(() => suppliers.id), // Lieferant
-  
-  // Status und Lagerort
-  status: text("status").default("active").notNull(), // active, consumed, expired, quarantine, reserved
-  locationInWarehouse: text("location_in_warehouse"), // Lagerort im Lager (Regal, Fach, etc.)
-  notes: text("notes"), // Anmerkungen zur Charge
-  
-  // Metadaten
-  createdBy: integer("created_by").references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-}, (table) => {
-  return {
-    batchProductWarehouseIdx: unique().on(table.batchNumber, table.productId, table.warehouseId),
-  };
-});
-
-export const insertProductBatchSchema = createInsertSchema(productBatches).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertProductBatch = z.infer<typeof insertProductBatchSchema>;
-export type ProductBatch = typeof productBatches.$inferSelect;
-
-// Ursprüngliche Inventory Batches Tabelle für Kompatibilität beibehalten
-export const inventoryBatches = pgTable("inventory_batches", {
-  id: serial("id").primaryKey(),
-  warehouseId: integer("warehouse_id").notNull().references(() => warehouses.id),
-  productId: integer("product_id").notNull().references(() => products.id),
-  quantity: integer("quantity").default(0).notNull(),
-  batchNumber: text("batch_number").notNull(), // Chargennummer
-  expiryDate: date("expiry_date").notNull(), // MHD-Datum
-  incomingDate: date("incoming_date").defaultNow().notNull(), // Eingangsdatum
-  status: text("status").default("active").notNull(), // active, consumed, expired, quarantine
-  supplierBatchNumber: text("supplier_batch_number"), // Charge des Lieferanten (optional)
-  notes: text("notes"),
-  locationInWarehouse: text("location_in_warehouse"), // Lagerort im Lager
-  createdBy: integer("created_by").references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-}, (table) => {
-  return {
-    batchProductWarehouseIdx: unique().on(table.batchNumber, table.productId, table.warehouseId),
-  };
-});
-
-export const insertInventoryBatchSchema = createInsertSchema(inventoryBatches).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertInventoryBatch = z.infer<typeof insertInventoryBatchSchema>;
-export type InventoryBatch = typeof inventoryBatches.$inferSelect;
-
-// Verbesserte Inventory Movements Tabelle mit Unterstützung für Produktchargen und Batch-basiertes Tracking
-export const productMovements = pgTable("product_movements", {
-  id: serial("id").primaryKey(),
-  
-  // Quelle und Ziel - jetzt flexible Zuordnung zu Lager oder Automat
-  sourceType: text("source_type"), // "warehouse" oder "machine"
-  sourceId: integer("source_id"),  // ID des Quell-Lagers oder -Automaten
-  destinationType: text("destination_type"), // "warehouse" oder "machine"
-  destinationId: integer("destination_id"), // ID des Ziel-Lagers oder -Automaten
-  
-  // Produkt- und Mengeninformationen
-  productId: integer("product_id").notNull().references(() => products.id),
-  productBatchId: integer("product_batch_id").references(() => productBatches.id), // Neue Tabelle für Produktchargen
-  quantity: integer("quantity").notNull(),
-  
-  // Bewegungstyp und Referenz
-  movementType: text("movement_type").notNull(), // IN, OUT, TRANSFER, ADJUSTMENT, REFILL
-  referenceType: text("reference_type"), // ORDER, REFILL, INVENTORY_COUNT, MANUAL
-  referenceId: text("reference_id"), // ID der Bestellung, Auffüllung, etc.
-  
-  // Bestandsdokumentation für Audit-Trail
-  previousStock: integer("previous_stock"), // Vorheriger Lagerbestand
-  currentStock: integer("current_stock"), // Aktueller Lagerbestand nach der Entnahme
-  
-  // Status und Metadaten
-  status: text("status").default("completed"),
-  notes: text("notes"),
-  performedBy: integer("performed_by").references(() => users.id),
-  performedAt: timestamp("performed_at").defaultNow(),
-  
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const insertProductMovementSchema = createInsertSchema(productMovements).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertProductMovement = z.infer<typeof insertProductMovementSchema>;
-export type ProductMovement = typeof productMovements.$inferSelect;
-
-// Ursprüngliche Tabelle für Kompatibilität beibehalten
-export const inventoryMovements = pgTable("inventory_movements", {
-  id: serial("id").primaryKey(),
-  sourceWarehouseId: integer("source_warehouse_id").references(() => warehouses.id),
-  destinationWarehouseId: integer("destination_warehouse_id").references(() => warehouses.id),
-  productId: integer("product_id").notNull().references(() => products.id),
-  quantity: integer("quantity").notNull(),
-  movementType: text("movement_type").notNull(), // IN, OUT, TRANSFER, ADJUSTMENT, REFILL, INTERNAL
-  direction: text("direction"), // IN, OUT, INTERNAL
-  referenceType: text("reference_type"), // ORDER, REFILL, INVENTORY_COUNT, MANUAL
-  referenceId: text("reference_id"), // ID of the order, refill, etc.
-  status: text("status").default("completed"),
-  notes: text("notes"),
-  performedBy: integer("performed_by").references(() => users.id),
-  performedAt: timestamp("performed_at").defaultNow(),
-  machineId: integer("machine_id").references(() => machines.id),
-  
-  // Neue Felder für Chargen- und MHD-Tracking
-  batchId: integer("batch_id").references(() => inventoryBatches.id),
-  batchNumber: text("batch_number"), // Kopie der Chargen-Nummer für einfache Abfragen
-  expiryDate: date("expiry_date"),   // MHD-Datum für diese Bewegung
-  
-  // Neue Felder für interne Umlagerungen
-  locationFrom: text("location_from"), // Ursprünglicher Lagerplatz innerhalb des Lagers
-  locationTo: text("location_to"),     // Ziel-Lagerplatz innerhalb des Lagers
-  previousStock: integer("previous_stock"), // Bestand vor der Bewegung
-  currentStock: integer("current_stock"),   // Bestand nach der Bewegung
-  
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const insertInventoryMovementSchema = createInsertSchema(inventoryMovements).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertInventoryMovement = z.infer<typeof insertInventoryMovementSchema>;
-export type InventoryMovement = typeof inventoryMovements.$inferSelect;
-
-// Inventory Count table
-export const inventoryCounts = pgTable("inventory_counts", {
-  id: serial("id").primaryKey(),
-  warehouseId: integer("warehouse_id").notNull().references(() => warehouses.id),
-  status: text("status").default("pending"), // pending, in_progress, completed, cancelled
-  scheduledDate: timestamp("scheduled_date"),
-  startDate: timestamp("start_date"),
-  endDate: timestamp("end_date"),
-  notes: text("notes"),
-  initiatedBy: integer("initiated_by").references(() => users.id),
-  completedBy: integer("completed_by").references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const insertInventoryCountSchema = createInsertSchema(inventoryCounts).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
 export type InsertInventoryCount = z.infer<typeof insertInventoryCountSchema>;
-export type InventoryCount = typeof inventoryCounts.$inferSelect;
-
-// Inventory Count Items table
-export const inventoryCountItems = pgTable("inventory_count_items", {
-  id: serial("id").primaryKey(),
-  inventoryCountId: integer("inventory_count_id").notNull().references(() => inventoryCounts.id),
-  productId: integer("product_id").notNull().references(() => products.id),
-  expectedQuantity: integer("expected_quantity").default(0),
-  actualQuantity: integer("actual_quantity"),
-  countedQuantity: integer("counted_quantity"), // Gezählte Menge, die vom Benutzer eingegeben wurde
-  difference: integer("difference"),
-  notes: text("notes"),
-  status: text("status").default("pending"), // pending, counted, adjusted, skipped
-  countedBy: integer("counted_by").references(() => users.id),
-  countedAt: timestamp("counted_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const insertInventoryCountItemSchema = createInsertSchema(inventoryCountItems).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertInventoryCountItem = z.infer<typeof insertInventoryCountItemSchema>;
-export type InventoryCountItem = typeof inventoryCountItems.$inferSelect;
-
-// Inventurchargen - Verbindet Inventurpositionen mit Chargen und MHD
-export const inventoryCountBatches = pgTable("inventory_count_batches", {
-  id: serial("id").primaryKey(),
-  inventoryCountItemId: integer("inventory_count_item_id")
-    .notNull()
-    .references(() => inventoryCountItems.id),
-  batchNumber: text("batch_number").notNull(),
-  expiryDate: date("expiry_date"), // MHD-Datum (optional)
-  quantity: integer("quantity").notNull(),
-  notes: text("notes"),
-  status: text("status").default("pending"), // pending, counted, adjusted, transferred
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const insertInventoryCountBatchSchema = createInsertSchema(inventoryCountBatches).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertInventoryCountBatch = z.infer<typeof insertInventoryCountBatchSchema>;
-export type InventoryCountBatch = typeof inventoryCountBatches.$inferSelect;
-
-// Machine-Warehouse Assignment table
-export const machineWarehouseAssignments = pgTable("machine_warehouse_assignments", {
-  id: serial("id").primaryKey(),
-  machineId: integer("machine_id").notNull().references(() => machines.id),
-  warehouseId: integer("warehouse_id").notNull().references(() => warehouses.id),
-  isPrimary: boolean("is_primary").default(true),
-  notes: text("notes"),
-  assignedBy: integer("assigned_by").references(() => users.id),
-  assignedAt: timestamp("assigned_at").defaultNow(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-}, (table) => {
-  return {
-    machineWarehouseUnique: unique().on(table.machineId, table.warehouseId),
-  };
-});
-
-export const insertMachineWarehouseAssignmentSchema = createInsertSchema(machineWarehouseAssignments).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertMachineWarehouseAssignment = z.infer<typeof insertMachineWarehouseAssignmentSchema>;
-export type MachineWarehouseAssignment = typeof machineWarehouseAssignments.$inferSelect;
-
-// Define relations
-export const warehouseRelations = relations(warehouses, ({ one, many }) => ({
-  location: one(locations, {
-    fields: [warehouses.locationId],
-    references: [locations.id],
-  }),
-  inventoryItems: many(inventoryItems),
-  inventoryBatches: many(inventoryBatches),
-  machineAssignments: many(machineWarehouseAssignments),
-  disposals: many(productDisposals),
-}));
-
-export const inventoryItemRelations = relations(inventoryItems, ({ one, many }) => ({
-  warehouse: one(warehouses, {
-    fields: [inventoryItems.warehouseId],
-    references: [warehouses.id],
-  }),
-  product: one(products, {
-    fields: [inventoryItems.productId],
-    references: [products.id],
-  }),
-  movements: many(inventoryMovements),
-}));
-
-// Neue Relationen für inventoryBatches
-export const inventoryBatchRelations = relations(inventoryBatches, ({ one, many }) => ({
-  warehouse: one(warehouses, {
-    fields: [inventoryBatches.warehouseId],
-    references: [warehouses.id],
-  }),
-  product: one(products, {
-    fields: [inventoryBatches.productId],
-    references: [products.id],
-  }),
-  movements: many(inventoryMovements, { relationName: "batch_movements" }),
-}));
-
-export const inventoryMovementRelations = relations(inventoryMovements, ({ one }) => ({
-  sourceWarehouse: one(warehouses, {
-    fields: [inventoryMovements.sourceWarehouseId],
-    references: [warehouses.id],
-    relationName: "source_warehouse",
-  }),
-  destinationWarehouse: one(warehouses, {
-    fields: [inventoryMovements.destinationWarehouseId],
-    references: [warehouses.id],
-    relationName: "destination_warehouse",
-  }),
-  product: one(products, {
-    fields: [inventoryMovements.productId],
-    references: [products.id],
-  }),
-  machine: one(machines, {
-    fields: [inventoryMovements.machineId],
-    references: [machines.id],
-  }),
-  batch: one(inventoryBatches, {
-    fields: [inventoryMovements.batchId],
-    references: [inventoryBatches.id],
-    relationName: "batch_movements",
-  }),
-}));
-
-export const machineWarehouseAssignmentRelations = relations(machineWarehouseAssignments, ({ one }) => ({
-  machine: one(machines, {
-    fields: [machineWarehouseAssignments.machineId],
-    references: [machines.id],
-  }),
-  warehouse: one(warehouses, {
-    fields: [machineWarehouseAssignments.warehouseId],
-    references: [warehouses.id],
-  }),
-}));
-
-export const inventoryCountRelations = relations(inventoryCounts, ({ one, many }) => ({
-  warehouse: one(warehouses, {
-    fields: [inventoryCounts.warehouseId],
-    references: [warehouses.id],
-  }),
-  items: many(inventoryCountItems),
-}));
-
-export const inventoryCountItemRelations = relations(inventoryCountItems, ({ one, many }) => ({
-  inventoryCount: one(inventoryCounts, {
-    fields: [inventoryCountItems.inventoryCountId],
-    references: [inventoryCounts.id],
-  }),
-  product: one(products, {
-    fields: [inventoryCountItems.productId],
-    references: [products.id],
-  }),
-  batches: many(inventoryCountBatches),
-}));
-
-export const inventoryCountBatchRelations = relations(inventoryCountBatches, ({ one }) => ({
-  inventoryCountItem: one(inventoryCountItems, {
-    fields: [inventoryCountBatches.inventoryCountItemId],
-    references: [inventoryCountItems.id],
-  }),
-}));
-
-// Product Disposals (Warenentnahme) schema
-export const productDisposals = pgTable("product_disposals", {
-  id: serial("id").primaryKey(),
-  warehouseId: varchar("warehouse_id", { length: 50 }).notNull(), // ID des Lagers
-  warehouseName: varchar("warehouse_name", { length: 255 }).notNull(), // Name des Lagers
-  reason: varchar("reason", { length: 50 }).notNull(), // Grund der Entnahme (z.B. "expired", "damaged", "quality_issues")
-  description: text("description"), // Optionale Beschreibung
-  status: varchar("status", { length: 20 }).default("pending").notNull(), // Status (pending, completed, cancelled)
-  createdById: integer("created_by_id"), // User ID, der die Entnahme erstellt hat
-  createdByName: varchar("created_by_name", { length: 100 }), // Username, der die Entnahme erstellt hat
-  completedAt: timestamp("completed_at"), // Wann wurde die Entnahme abgeschlossen
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-export const productDisposalItems = pgTable("product_disposal_items", {
-  id: serial("id").primaryKey(),
-  disposalId: integer("disposal_id").notNull().references(() => productDisposals.id),
-  productId: varchar("product_id", { length: 50 }).notNull(), // Produkt-ID
-  productName: varchar("product_name", { length: 255 }).notNull(), // Produktname
-  quantity: integer("quantity").notNull(), // Menge der entnommenen Produkte
-  reason: varchar("reason", { length: 100 }), // Spezifischer Grund für dieses Produkt (optional)
-  previousStock: integer("previous_stock"), // Vorheriger Lagerbestand
-  currentStock: integer("current_stock"), // Aktueller Lagerbestand nach der Entnahme
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
-
-// Product Disposals relations
-export const productDisposalsRelations = relations(productDisposals, ({ many, one }) => ({
-  items: many(productDisposalItems),
-  warehouse: one(warehouses, {
-    fields: [productDisposals.warehouseId],
-    references: [warehouses.id],
-  }),
-}));
-
-export const productDisposalItemsRelations = relations(productDisposalItems, ({ one }) => ({
-  disposal: one(productDisposals, {
-    fields: [productDisposalItems.disposalId],
-    references: [productDisposals.id],
-  }),
-}));
-
-export const insertProductDisposalSchema = createInsertSchema(productDisposals).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-  completedAt: true,
-});
-
-export const insertProductDisposalItemSchema = createInsertSchema(productDisposalItems).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export type InsertProductDisposal = z.infer<typeof insertProductDisposalSchema>;
-export type ProductDisposal = typeof productDisposals.$inferSelect;
-
-export type InsertProductDisposalItem = z.infer<typeof insertProductDisposalItemSchema>;
-export type ProductDisposalItem = typeof productDisposalItems.$inferSelect;
-
-// Relationen für purchaseConditions definieren
-export const purchaseConditionsRelations = relations(purchaseConditions, ({ one }) => ({
-  product: one(products, {
-    fields: [purchaseConditions.productId],
-    references: [products.id],
-  }),
-  supplier: one(suppliers, {
-    fields: [purchaseConditions.supplierId],
-    references: [suppliers.id],
-  }),
-}));
-
-// Add warehouse relations to existing relations object
-// Relationen für die neuen Chargen- und Bewegungstabellen
-export const productBatchRelations = relations(productBatches, ({ one, many }) => ({
-  product: one(products, {
-    fields: [productBatches.productId],
-    references: [products.id],
-  }),
-  warehouse: one(warehouses, {
-    fields: [productBatches.warehouseId],
-    references: [warehouses.id],
-  }),
-  supplier: one(suppliers, {
-    fields: [productBatches.supplierId],
-    references: [suppliers.id],
-  }),
-  order: one(orders, {
-    fields: [productBatches.orderId],
-    references: [orders.id],
-  }),
-  movements: many(productMovements),
-}));
-
-export const productMovementRelations = relations(productMovements, ({ one }) => ({
-  product: one(products, {
-    fields: [productMovements.productId],
-    references: [products.id],
-  }),
-  productBatch: one(productBatches, {
-    fields: [productMovements.productBatchId],
-    references: [productBatches.id],
-  }),
-}));
-
-export const allRelations = {
-  orderRelations,
-  orderItemRelations,
-  warehouseRelations,
-  inventoryItemRelations,
-  inventoryBatchRelations,
-  inventoryMovementRelations,
-  machineWarehouseAssignmentRelations,
-  inventoryCountRelations,
-  inventoryCountItemRelations,
-  inventoryCountBatchRelations,
-  productDisposalsRelations,
-  productDisposalItemsRelations,
-  purchaseConditionsRelations,
-  refillDetailsRelations,
-  refillBatchMovementsRelations,
-  productBatchRelations,
-  productMovementRelations,
-};
+export type InsertProductBatch = z.infer<typeof insertProductBatchSchema>;
+export type InsertProductMovement = z.infer<typeof insertProductMovementSchema>;

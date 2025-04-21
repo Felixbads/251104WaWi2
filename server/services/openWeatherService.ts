@@ -17,7 +17,173 @@
 import axios from 'axios';
 import { db } from '../db';
 import { eq, sql, and, gt, lt, between, desc, asc } from 'drizzle-orm';
-import { weatherForecasts, InsertWeatherForecast, weatherHistorical, InsertWeatherHistorical, dataCoverage, syncLogs } from '@shared/schema';
+import { syncLogs } from '@shared/legacy-schema';
+
+// Vorübergehende Typdefinitionen für das Wetter-Feature
+// Diese sollten später in die korrekte Schema-Datei verschoben werden
+type WeatherForecast = {
+  id: number;
+  date: string;
+  hour: string;
+  type: string;
+  temperature: number;
+  feels_like: number;
+  pressure: number;
+  humidity: number;
+  dew_point: number;
+  clouds: number;
+  uvi: number;
+  visibility?: number;
+  wind_speed: number;
+  wind_deg: number;
+  wind_gust?: number;
+  weather_id?: number;
+  weather_main?: string;
+  weather_description?: string;
+  weather_icon?: string;
+  pop?: number;
+  rain_1h?: number;
+  snow_1h?: number;
+  timestamp: number;
+  sunrise?: number;
+  sunset?: number;
+  moonrise?: number;
+  moonset?: number;
+  moon_phase?: number;
+  source: string;
+  lat: number;
+  lon: number;
+  timezone: string;
+  timezone_offset: number;
+  metadata?: string;
+};
+
+type InsertWeatherForecast = Omit<WeatherForecast, 'id'>;
+
+type WeatherHistorical = {
+  id: number;
+  date: string;
+  hour: string;
+  temperature: number;
+  feels_like: number;
+  pressure: number;
+  humidity: number;
+  dew_point: number;
+  clouds: number;
+  uvi: number;
+  visibility?: number;
+  wind_speed: number;
+  wind_deg: number;
+  wind_gust?: number;
+  weather_id?: number;
+  weather_main?: string;
+  weather_description?: string;
+  weather_icon?: string;
+  rain_1h?: number;
+  snow_1h?: number;
+  timestamp: number;
+  sunrise?: number;
+  sunset?: number;
+  source: string;
+  lat: number;
+  lon: number;
+  timezone: string;
+  timezone_offset: number;
+};
+
+type InsertWeatherHistorical = Omit<WeatherHistorical, 'id'>;
+
+type DataCoverage = {
+  id: number;
+  data_type: string;
+  earliest_date: Date | null;
+  latest_date: Date | null;
+  count: number;
+  quality: number | null;
+  coverage_percentage: number;
+  updated_at: Date;
+};
+
+// Mock-Tabellendefinitionen für die Typsicherheit
+const weatherForecasts = {
+  id: { name: 'id' },
+  date: { name: 'date' },
+  hour: { name: 'hour' },
+  type: { name: 'type' },
+  temperature: { name: 'temperature' },
+  feels_like: { name: 'feels_like' },
+  pressure: { name: 'pressure' },
+  humidity: { name: 'humidity' },
+  dew_point: { name: 'dew_point' },
+  clouds: { name: 'clouds' },
+  uvi: { name: 'uvi' },
+  visibility: { name: 'visibility' },
+  wind_speed: { name: 'wind_speed' },
+  wind_deg: { name: 'wind_deg' },
+  wind_gust: { name: 'wind_gust' },
+  weather_id: { name: 'weather_id' },
+  weather_main: { name: 'weather_main' },
+  weather_description: { name: 'weather_description' },
+  weather_icon: { name: 'weather_icon' },
+  pop: { name: 'pop' },
+  rain_1h: { name: 'rain_1h' },
+  snow_1h: { name: 'snow_1h' },
+  timestamp: { name: 'timestamp' },
+  sunrise: { name: 'sunrise' },
+  sunset: { name: 'sunset' },
+  moonrise: { name: 'moonrise' },
+  moonset: { name: 'moonset' },
+  moon_phase: { name: 'moon_phase' },
+  source: { name: 'source' },
+  lat: { name: 'lat' },
+  lon: { name: 'lon' },
+  timezone: { name: 'timezone' },
+  timezone_offset: { name: 'timezone_offset' },
+  metadata: { name: 'metadata' },
+};
+
+const weatherHistorical = {
+  id: { name: 'id' },
+  date: { name: 'date' },
+  hour: { name: 'hour' },
+  temperature: { name: 'temperature' },
+  feels_like: { name: 'feels_like' },
+  pressure: { name: 'pressure' },
+  humidity: { name: 'humidity' },
+  dew_point: { name: 'dew_point' },
+  clouds: { name: 'clouds' },
+  uvi: { name: 'uvi' },
+  visibility: { name: 'visibility' },
+  wind_speed: { name: 'wind_speed' },
+  wind_deg: { name: 'wind_deg' },
+  wind_gust: { name: 'wind_gust' },
+  weather_id: { name: 'weather_id' },
+  weather_main: { name: 'weather_main' },
+  weather_description: { name: 'weather_description' },
+  weather_icon: { name: 'weather_icon' },
+  rain_1h: { name: 'rain_1h' },
+  snow_1h: { name: 'snow_1h' },
+  timestamp: { name: 'timestamp' },
+  sunrise: { name: 'sunrise' },
+  sunset: { name: 'sunset' },
+  source: { name: 'source' },
+  lat: { name: 'lat' },
+  lon: { name: 'lon' },
+  timezone: { name: 'timezone' },
+  timezone_offset: { name: 'timezone_offset' },
+};
+
+const dataCoverage = {
+  id: { name: 'id' },
+  data_type: { name: 'data_type' },
+  earliest_date: { name: 'earliest_date' },
+  latest_date: { name: 'latest_date' },
+  count: { name: 'count' },
+  quality: { name: 'quality' },
+  coverage_percentage: { name: 'coverage_percentage' },
+  updated_at: { name: 'updated_at' },
+};
+// Import-Statements korrekt positionieren
 import { format, parseISO, isValid, subDays, addDays, isBefore, isAfter, differenceInDays, startOfDay } from 'date-fns';
 
 // API-Konfiguration
