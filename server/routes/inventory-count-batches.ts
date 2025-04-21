@@ -138,11 +138,13 @@ router.post('/product-batches', async (req: Request, res: Response) => {
       });
     }
 
-    // Verwende einen garantiert positiven Wert für quantity
-    const finalQuantity = initialQuantity > 0 ? initialQuantity : 1;
-    console.log("Finaler Quantity-Wert:", finalQuantity, "initialQuantity:", initialQuantity);
+    // Verwende einen garantiert positiven Wert für initial und current quantity
+    const finalInitialQuantity = initialQuantity > 0 ? initialQuantity : 1;
+    const finalCurrentQuantity = currentQuantity > 0 ? currentQuantity : finalInitialQuantity;
+    console.log("Finaler Initial Quantity-Wert:", finalInitialQuantity, "Finaler Current Quantity-Wert:", finalCurrentQuantity);
     
     // Baue die SQL-Abfrage dynamisch auf basierend auf vorhandenen Spalten
+    // Die quantity-Spalte wurde entfernt, jetzt verwenden wir initial_quantity und current_quantity
     let columnsString = 'product_id, warehouse_id, batch_number, expiry_date';
     let valuesString = '$1, $2, $3, $4';
     let valuesArray = [productId, warehouseId, batchNumber, parsedExpiryDate];
@@ -180,13 +182,12 @@ router.post('/product-batches', async (req: Request, res: Response) => {
       valuesString += ', NULL';
     }
     
-    // HINWEIS: Da quantity bereits in der Abfrage enthalten ist, müssen wir es hier nicht noch einmal hinzufügen
-    // Dies wurde entfernt, um eine Duplizierung der Spalte zu vermeiden:
+    // Hinweis: Die Spalte "quantity" wurde aus der Datenbank entfernt und durch initial_quantity und current_quantity ersetzt
     
-    // Füge remaining columns hinzu
+    // Füge initial_quantity und current_quantity hinzu (anstelle von quantity)
     columnsString += `, initial_quantity, current_quantity, notes`;
     valuesString += `, $${valueIndex}, $${valueIndex + 1}, $${valueIndex + 2}`;
-    valuesArray.push(initialQuantity, currentQuantity, notes);
+    valuesArray.push(finalInitialQuantity, finalCurrentQuantity, notes);
     valueIndex += 3;
     
     // Füge Status hinzu, wenn die Spalte existiert
