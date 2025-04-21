@@ -1327,10 +1327,11 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   useEffect(() => {
     console.log('Status der Inventur:', inventurData?.status);
     
-    // Der Status kann entweder 'null'/'undefined', 'pending', 'in_progress', 'completed' oder ein unbekannter Wert sein
+    // Der Status kann entweder 'null'/'undefined', 'pending', 'open', 'in_progress', 'completed' oder ein unbekannter Wert sein
     
-    // Standardverhalten: Zeige Start-Button für 'null', 'undefined' oder 'pending'
-    if (inventurData?.status === null || inventurData?.status === undefined || inventurData?.status === 'pending') {
+    // Standardverhalten: Zeige Start-Button für 'null', 'undefined', 'pending' oder 'open'
+    if (inventurData?.status === null || inventurData?.status === undefined 
+        || inventurData?.status === 'pending' || inventurData?.status === 'open') {
       setShowStartButton(true);
       
       // Bei neuen Inventuren (null/undefined), setze Status auf 'pending'
@@ -1449,8 +1450,8 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
             </>
           )}
           
-          {/* Status: in_progress */}
-          {currentStatus === 'in_progress' && (
+          {/* Status: in_progress oder open */}
+          {(currentStatus === 'in_progress' || currentStatus === 'open') && (
             <>
               <Button 
                 variant="default"
@@ -1537,7 +1538,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       </div>
       
       {/* Suchfeld wenn relevant */}
-      {(currentStatus === 'in_progress' || currentStatus === 'pending') && (
+      {(currentStatus === 'in_progress' || currentStatus === 'pending' || currentStatus === 'open') && (
         <div className="mb-4 max-w-sm">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -1710,7 +1711,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
             </div>
             
             {/* Nur Hinzufügen erlauben, wenn die Inventur nicht abgeschlossen oder abgebrochen ist */}
-            {(currentStatus === 'pending' || currentStatus === 'in_progress') && (
+            {(currentStatus === 'pending' || currentStatus === 'in_progress' || currentStatus === 'open') && (
               <Button
                 onClick={() => {
                   setSelectedProductIds([]);
@@ -1878,7 +1879,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                             {expectedQuantity} {item.product?.unit || 'Stk.'}
                           </TableCell>
                           <TableCell className="text-center">
-                            {currentStatus === 'pending' || currentStatus === 'in_progress' ? (
+                            {currentStatus === 'pending' || currentStatus === 'in_progress' || currentStatus === 'open' ? (
                               <div className="flex justify-center items-center space-x-2">
                                 <Input
                                   type="number" 
