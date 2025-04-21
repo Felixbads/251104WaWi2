@@ -249,6 +249,54 @@ router.post('/product-batches', async (req: Request, res: Response) => {
       updatedAt: batch.updated_at
     };
     
+    // Aktualisiere oder erstelle einen entsprechenden Eintrag in inventory_items
+    try {
+      // Prüfe, ob bereits ein Inventareintrag existiert
+      const inventoryResult = await rawDb.query(
+        `SELECT * FROM inventory_items 
+         WHERE product_id = $1 AND warehouse_id = $2`,
+        [batch.product_id, batch.warehouse_id]
+      );
+      
+      if (inventoryResult.rows.length > 0) {
+        // Vorhandenen Eintrag aktualisieren - Berechne den Bestand aller aktiven Chargen
+        const totalQuantityResult = await rawDb.query(
+          `SELECT SUM(current_quantity) as total_quantity 
+           FROM product_batches 
+           WHERE product_id = $1 
+           AND warehouse_id = $2 
+           AND status = 'active'`,
+          [batch.product_id, batch.warehouse_id]
+        );
+        
+        const totalQuantity = totalQuantityResult.rows[0].total_quantity || 0;
+        
+        // Aktualisiere den inventory_items Eintrag
+        await rawDb.query(
+          `UPDATE inventory_items 
+           SET quantity = $1, 
+               updated_at = NOW() 
+           WHERE product_id = $2 AND warehouse_id = $3`,
+          [totalQuantity, batch.product_id, batch.warehouse_id]
+        );
+        
+        console.log(`Inventarbestand für Produkt ${batch.product_id} im Lager ${batch.warehouse_id} auf ${totalQuantity} aktualisiert`);
+      } else {
+        // Neuen Eintrag erstellen
+        await rawDb.query(
+          `INSERT INTO inventory_items 
+           (product_id, warehouse_id, quantity, min_quantity, status, last_count_date, created_at, updated_at)
+           VALUES ($1, $2, $3, 5, 'active', NOW(), NOW(), NOW())`,
+          [batch.product_id, batch.warehouse_id, batch.current_quantity]
+        );
+        
+        console.log(`Neuer Inventarbestand für Produkt ${batch.product_id} im Lager ${batch.warehouse_id} mit Menge ${batch.current_quantity} erstellt`);
+      }
+    } catch (inventoryError) {
+      console.error("Fehler bei der Aktualisierung des Lagerbestands:", inventoryError);
+      // Wir geben trotzdem die erfolgreich erstellte Charge zurück
+    }
+    
     console.log("Batch successfully created:", formattedBatch.id);
     res.status(201).json(formattedBatch);
   } catch (error) {
@@ -554,6 +602,68 @@ router.patch('/items/:itemId/batch', async (req: Request, res: Response) => {
           notes: row.notes
         };
         console.log(`Charge gefunden: ID=${row.id}, Nummer=${row.batch_number}, MHD=${row.expiry_date}`);
+        
+        // Nach der Aktualisierung der Batch-ID sollten wir den Lagerbestand synchronisieren
+        try {
+          // Hole die Produkt-ID und Lager-ID aus dem Inventurzählungselement
+          const inventoryCountItem = updateResult.rows[0];
+          const productId = inventoryCountItem.product_id;
+          
+          // Hole das Lager aus der Inventur
+          const inventoryCountResult = await rawDb.query(
+            `SELECT warehouse_id FROM inventory_counts WHERE id = $1`,
+            [inventoryCountItem.inventory_count_id]
+          );
+          
+          if (inventoryCountResult.rows.length > 0) {
+            const warehouseId = inventoryCountResult.rows[0].warehouse_id;
+            
+            // Berechne den Gesamtbestand aller aktiven Chargen dieses Produkts im Lager
+            const totalQuantityResult = await rawDb.query(
+              `SELECT SUM(current_quantity) as total_quantity 
+               FROM product_batches 
+               WHERE product_id = $1 
+               AND warehouse_id = $2 
+               AND status = 'active'`,
+              [productId, warehouseId]
+            );
+            
+            const totalQuantity = totalQuantityResult.rows[0].total_quantity || 0;
+            
+            // Überprüfe, ob ein Inventareintrag existiert
+            const inventoryItemResult = await rawDb.query(
+              `SELECT * FROM inventory_items 
+               WHERE product_id = $1 AND warehouse_id = $2`,
+              [productId, warehouseId]
+            );
+            
+            if (inventoryItemResult.rows.length > 0) {
+              // Aktualisiere den vorhandenen Eintrag
+              await rawDb.query(
+                `UPDATE inventory_items 
+                 SET quantity = $1, 
+                     updated_at = NOW() 
+                 WHERE product_id = $2 AND warehouse_id = $3`,
+                [totalQuantity, productId, warehouseId]
+              );
+              
+              console.log(`Inventarbestand für Produkt ${productId} im Lager ${warehouseId} auf ${totalQuantity} aktualisiert`);
+            } else {
+              // Erstelle einen neuen Inventareintrag
+              await rawDb.query(
+                `INSERT INTO inventory_items 
+                 (product_id, warehouse_id, quantity, min_quantity, status, last_count_date, created_at, updated_at)
+                 VALUES ($1, $2, $3, 5, 'active', NOW(), NOW(), NOW())`,
+                [productId, warehouseId, totalQuantity]
+              );
+              
+              console.log(`Neuer Inventarbestand für Produkt ${productId} im Lager ${warehouseId} mit Menge ${totalQuantity} erstellt`);
+            }
+          }
+        } catch (inventoryError) {
+          console.error("Fehler bei der Aktualisierung des Lagerbestands nach Batch-Änderung:", inventoryError);
+          // Wir fahren trotzdem fort, da die eigentliche Batch-Aktualisierung erfolgreich war
+        }
       } else {
         console.error(`Charge nicht gefunden: ${batchId}`);
       }
