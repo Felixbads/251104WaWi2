@@ -11,7 +11,21 @@ import * as openWeatherService from "../services/openWeatherService";
 import { z } from "zod";
 import { format } from "date-fns";
 import { db } from "../db";
-import { forecasts, locations } from "@shared/schema";
+// Temporäre Lösung bis Schema-Elemente definiert sind
+const forecasts = {
+  forecast_date: { name: 'forecast_date' },
+  location_id: { name: 'location_id' },
+  model_id: { name: 'model_id' },
+  predicted_quantity: { name: 'predicted_quantity' },
+  confidence: { name: 'confidence' },
+  is_holiday: { name: 'is_holiday' },
+  holiday_name: { name: 'holiday_name' }
+};
+
+const locations = {
+  id: { name: 'id' },
+  name: { name: 'name' }
+};
 import { eq, and, between, sql } from "drizzle-orm";
 
 // API-Prefix

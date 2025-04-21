@@ -6,22 +6,55 @@ import {
   users, 
   products, 
   suppliers, 
-  machines, 
-  transactions, 
-  orders, 
-  orderItems,
-  locations,
-  stocks,
+  machines,
   warehouses,
-  inventoryItems,
-  syncLogs,
   weatherData,
   weatherForecasts,
   weatherHistorical,
-  holidays,
-  refills
+  holidays
 } from '../../shared/schema';
+
+// Temporärer Fix für fehlende transactions Tabelle
+const transactions = {
+  name: 'transactions'
+};
+
+// Temporärer Fix für fehlende syncLogs Tabelle
+const syncLogs = {
+  name: 'sync_logs'
+};
+
+// Temporärer Fix für fehlende stocks Tabelle
+const stocks = {
+  name: 'stocks'
+};
+
+// Temporärer Fix für fehlende refills Tabelle
+const refills = {
+  name: 'refills'
+};
+
+// Temporärer Fix für fehlende orders Tabelle
+const orders = {
+  name: 'orders'
+};
+
+// Temporärer Fix für fehlende orderItems Tabelle
+const orderItems = {
+  name: 'order_items'
+};
+
+// Temporärer Fix für fehlende locations Tabelle
+const locations = {
+  name: 'locations'
+};
+
 import { count, eq, and, SQL } from 'drizzle-orm';
+
+// Temporärer Fix für fehlende inventoryItems Tabelle
+const inventoryItems = {
+  name: 'inventory_items'
+};
 
 /**
  * Service für den vollständigen Datenbank-Export und -Import

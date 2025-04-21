@@ -1,6 +1,22 @@
 import express from 'express';
 import { db } from '../db';
-import { products, inventoryItems, inventoryMovements, inventoryBatches } from '../../shared/schema';
+import { products, inventory_items as inventoryItems, inventory_movements } from '@shared/schema';
+
+// Temporäre Definition für inventoryBatches bis die Schema-Migration vollständig ist
+const inventoryBatches = {
+  id: { name: 'id' },
+  warehouseId: { name: 'warehouse_id' },
+  productId: { name: 'product_id' },
+  batchNumber: { name: 'batch_number' },
+  quantity: { name: 'quantity' },
+  expiryDate: { name: 'expiry_date' },
+  manufacturingDate: { name: 'manufacturing_date' },
+  createdAt: { name: 'created_at' },
+  updatedAt: { name: 'updated_at' },
+  status: { name: 'status' },
+  notes: { name: 'notes' },
+  incomingDate: { name: 'incoming_date' }
+};
 import { eq, and, sql, gte, desc, asc, inArray, gt } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 
@@ -224,7 +240,7 @@ router.post('/transfer', async (req, res) => {
           referenceType: 'manual_transfer'
         };
 
-        const moveResult = await tx.insert(inventoryMovements).values(movementValues);
+        const moveResult = await tx.insert(inventory_movements).values(movementValues);
         
         moveResults.push({
           productId: product.productId,

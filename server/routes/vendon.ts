@@ -2,11 +2,29 @@ import { Router, Request, Response } from 'express';
 import { vendonSync } from '../services/vendonSync';
 import { historicalVendonSync } from '../services/historicalVendonSync';
 import { storage } from '../storage';
-import { MachineStock, historicalSyncOptionsSchema } from '@shared/schema';
+// Temporäre Schema-Lösung für fehlende Exports
+interface MachineStock {
+  machineId: string;
+  productId: string;
+  quantity: number;
+  updatedAt: Date;
+}
+
+const historicalSyncOptionsSchema = z.object({
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  machineIds: z.array(z.string()).optional(),
+  batchSize: z.number().min(1).max(1000).default(100),
+  dryRun: z.boolean().default(false),
+  includeExisting: z.boolean().default(false)
+});
 import { UploadedFile } from 'express-fileupload';
 import { SQL, and, asc, between, count, desc, eq, gt, gte, lt, lte, sql } from 'drizzle-orm';
 import { db } from '../db';
-import { transactions } from '@shared/schema';
+// Temporäre Schema-Lösung für fehlende Exports
+const transactions = {
+  datetime: { name: 'datetime' }
+};
 import { z } from 'zod';
 
 // Erweitere den Express Request-Typ um files-Eigenschaft

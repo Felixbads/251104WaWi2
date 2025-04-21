@@ -16,6 +16,15 @@ import {
 import { createInsertSchema } from 'drizzle-zod';
 import { z } from 'zod';
 
+// Definiere Status-Enum für Inventuren und Chargen
+export const inventoryStatusEnum = pgEnum('inventory_status', [
+  'pending',   // Ausstehend
+  'in_progress', // In Bearbeitung
+  'completed',  // Abgeschlossen
+  'cancelled',  // Abgebrochen
+  'open'       // Offen
+]);
+
 // Haupttabellen
 
 export const users = pgTable('users', {
@@ -92,13 +101,7 @@ export const inventory_items = pgTable('inventory_items', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
-export const statusEnum = pgEnum('status', [
-  'pending',
-  'in_progress',
-  'completed',
-  'cancelled',
-  'open',
-]);
+// Dieses Enum ist bereits weiter oben definiert
 
 export const inventory_counts = pgTable('inventory_counts', {
   id: serial('id').primaryKey(),
@@ -106,7 +109,7 @@ export const inventory_counts = pgTable('inventory_counts', {
   userId: integer('user_id').references(() => users.id),
   name: text('name'),
   notes: text('notes'),
-  status: statusEnum('status').default('pending').notNull(),
+  status: inventoryStatusEnum('status').default('pending').notNull(),
   startDate: timestamp('start_date').defaultNow(),
   endDate: timestamp('end_date'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -170,6 +173,27 @@ export const product_movements = pgTable('product_movements', {
   batchId: integer('batch_id').references(() => product_batches.id),
   warehouseId: integer('warehouse_id').references(() => warehouses.id),
   quantity: integer('quantity').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Tabelle zur Erfassung von Warenbewegungen (Lagerbestände)
+export const inventory_movements = pgTable('inventory_movements', {
+  id: serial('id').primaryKey(),
+  productId: integer('product_id').notNull().references(() => products.id),
+  warehouseId: integer('warehouse_id').references(() => warehouses.id),
+  quantity: integer('quantity').notNull(),
+  movementType: text('movement_type').notNull(), // 'IN', 'OUT', 'TRANSFER', etc.
+  sourceType: text('source_type'), // 'warehouse', 'machine', 'supplier', 'external', etc.
+  sourceId: integer('source_id'), // ID der Quelle (z.B. Lager-ID, Automat-ID, etc.)
+  destinationType: text('destination_type'), // 'warehouse', 'machine', 'external', etc.
+  destinationId: integer('destination_id'), // ID des Ziels
+  referenceType: text('reference_type'), // 'order', 'return', 'inventory', 'manual_transfer', etc.
+  referenceId: text('reference_id'), // ID der Referenz
+  batchId: integer('batch_id').references(() => product_batches.id),
+  performedBy: integer('performed_by').references(() => users.id),
+  performedAt: timestamp('performed_at').defaultNow(),
+  notes: text('notes'),
+  status: text('status').default('completed').notNull(), // 'pending', 'completed', 'cancelled', etc.
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -296,6 +320,7 @@ export const insertInventoryCountSchema = createInsertSchema(inventory_counts).o
 export const insertInventoryCountItemSchema = createInsertSchema(inventory_count_items).omit({ id: true });
 export const insertProductBatchSchema = createInsertSchema(product_batches).omit({ id: true });
 export const insertProductMovementSchema = createInsertSchema(product_movements).omit({ id: true });
+export const insertInventoryMovementSchema = createInsertSchema(inventory_movements).omit({ id: true });
 export const insertEventSchema = createInsertSchema(events).omit({ id: true });
 export const insertPurchaseConditionSchema = createInsertSchema(purchase_conditions).omit({ id: true });
 
@@ -309,6 +334,7 @@ export type InventoryItem = InferSelectModel<typeof inventory_items>;
 export type InventoryCount = InferSelectModel<typeof inventory_counts>;
 export type ProductBatch = InferSelectModel<typeof product_batches>;
 export type ProductMovement = InferSelectModel<typeof product_movements>;
+export type InventoryMovement = InferSelectModel<typeof inventory_movements>;
 
 // Define insert types
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -320,3 +346,4 @@ export type InsertInventoryItem = z.infer<typeof insertInventoryItemSchema>;
 export type InsertInventoryCount = z.infer<typeof insertInventoryCountSchema>;
 export type InsertProductBatch = z.infer<typeof insertProductBatchSchema>;
 export type InsertProductMovement = z.infer<typeof insertProductMovementSchema>;
+export type InsertInventoryMovement = z.infer<typeof insertInventoryMovementSchema>;
