@@ -802,8 +802,8 @@ export default function InventurDetailPage({ params }: InventurDetailPageProps) 
   // Aktuellen Status ermitteln
   const currentStatus = inventurData?.status || 'pending';
   const StatusIcon = inventurStatusTypes[currentStatus as keyof typeof inventurStatusTypes]?.icon || ClockIcon;
-  const statusLabel = inventurStatusTypes[currentStatus as keyof typeof inventurStatusTypes]?.label || 'Unbekannt';
-  const statusColor = inventurStatusTypes[currentStatus as keyof typeof inventurStatusTypes]?.color || 'bg-gray-100 text-gray-800 hover:bg-gray-200';
+  const statusLabel = inventurStatusTypes[currentStatus as keyof typeof inventurStatusTypes]?.label || 'Ausstehend';
+  const statusColor = inventurStatusTypes[currentStatus as keyof typeof inventurStatusTypes]?.color || 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200';
 
   // Mutation zum Aktualisieren der Notizen eines Inventurprodukts
   const updateNotesMutation = useMutation({
