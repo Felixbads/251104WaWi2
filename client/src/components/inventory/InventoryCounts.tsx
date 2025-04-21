@@ -191,6 +191,7 @@ export default function InventoryCounts() {
               <SelectItem value="all">Alle Status</SelectItem>
               <SelectItem value="pending">Ausstehend</SelectItem>
               <SelectItem value="in_progress">In Bearbeitung</SelectItem>
+              <SelectItem value="open">In Bearbeitung</SelectItem>
               <SelectItem value="completed">Abgeschlossen</SelectItem>
               <SelectItem value="cancelled">Abgebrochen</SelectItem>
             </SelectContent>
@@ -350,6 +351,12 @@ export default function InventoryCounts() {
                       )}
                       
                       {count.status === 'in_progress' && (
+                        <Badge variant="default" className="bg-amber-100 text-amber-700 hover:bg-amber-100">
+                          In Bearbeitung
+                        </Badge>
+                      )}
+                      
+                      {count.status === 'open' && (
                         <Badge variant="default" className="bg-amber-100 text-amber-700 hover:bg-amber-100">
                           In Bearbeitung
                         </Badge>
