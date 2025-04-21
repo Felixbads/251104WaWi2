@@ -117,8 +117,8 @@ export default function InventoryCountBatchDialog({
         expiryDate: format(expiryDate, 'yyyy-MM-dd'),
         receivedDate: format(new Date(), 'yyyy-MM-dd'),
         initialQuantity: selectedItem.countedQuantity || 1, // Mindestens 1
-        currentQuantity: selectedItem.countedQuantity || 1, // Mindestens 1
-        quantity: selectedItem.countedQuantity || 1 // Mindestens 1
+        currentQuantity: selectedItem.countedQuantity || 1  // Mindestens 1
+        // quantity wird nicht verwendet, da DB Schema initial_quantity und current_quantity verwendet
       };
       
       console.log("Sende Chargen-Daten:", JSON.stringify(batchData, null, 2));
