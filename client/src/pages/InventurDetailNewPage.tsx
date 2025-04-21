@@ -1919,7 +1919,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                             )}
                           </TableCell>
                           <TableCell className="text-center">
-                            {(currentStatus === 'pending' || currentStatus === 'in_progress') ? (
+                            {(currentStatus === 'pending' || currentStatus === 'in_progress' || currentStatus === 'open') ? (
                               <Button 
                                 variant="outline" 
                                 size="sm" 
@@ -1984,7 +1984,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                                   {expandedItems[item.id] ? 'MHD verbergen' : 'MHD anzeigen'}
                                 </DropdownMenuItem>
                                 
-                                {(currentStatus === 'pending' || currentStatus === 'in_progress') && (
+                                {(currentStatus === 'pending' || currentStatus === 'in_progress' || currentStatus === 'open') && (
                                   <>
                                     <DropdownMenuItem
                                       onClick={() => openBatchDialog(item)}
@@ -2038,7 +2038,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                                 </div>
                                 
                                 {/* Button für MHD-Split (bei aktiver Inventur) */}
-                                {(currentStatus === 'pending' || currentStatus === 'in_progress') && countedQuantity !== null && countedQuantity !== undefined && countedQuantity > 0 && (
+                                {(currentStatus === 'pending' || currentStatus === 'in_progress' || currentStatus === 'open') && countedQuantity !== null && countedQuantity !== undefined && countedQuantity > 0 && (
                                   <div className="mt-3 flex justify-center">
                                     <Button 
                                       variant="outline" 
