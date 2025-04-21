@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Table,
@@ -44,6 +44,11 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
   const [sortColumn, setSortColumn] = useState<string>('productName');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
+  // Debug-Funktion zum Loggen von wichtigen Informationen
+  const debug = useCallback((message: string, data?: any) => {
+    console.log(`[DEBUG] ${message}`, data || '');
+  }, []);
+  
   // API-Abfrage für Inventardaten
   const { data: inventory = [], isLoading, error } = useQuery({
     queryKey: [`/api/inventory/warehouse/${warehouseId}`],
@@ -54,11 +59,28 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
     queryKey: [`/api/product-batches`, warehouseId],
     queryFn: async () => {
       try {
+        debug(`Lade Batches für Lager ${warehouseId}...`);
         const response = await fetch(`/api/product-batches?warehouseId=${warehouseId}`);
-        if (!response.ok) return [];
-        return response.json();
+        if (!response.ok) {
+          debug(`Fehler beim Laden der Batches, Status: ${response.status}`);
+          return [];
+        }
+        
+        const data = await response.json();
+        debug(`${data.length} Batches geladen`);
+        
+        // Teste speziell nach Produkt 21
+        const product21Batches = data.filter((batch: any) => batch.productId === 21);
+        if (product21Batches.length > 0) {
+          debug(`${product21Batches.length} Batches für Produkt 21 gefunden`, product21Batches);
+        } else {
+          debug(`Keine Batches für Produkt 21 in der API-Antwort gefunden`);
+        }
+        
+        return data;
       } catch (error) {
         console.error("Fehler beim Laden der Batches:", error);
+        debug(`Exception beim Laden der Batches: ${error}`);
         return [];
       }
     },
@@ -69,8 +91,13 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
   const batchesByProduct = React.useMemo(() => {
     const groupedBatches: Record<number, any[]> = {};
     
+    debug(`Verarbeite ${allBatches.length} Batches zum Gruppieren`);
+    
     allBatches.forEach((batch: any) => {
-      if (!batch.productId) return;
+      if (!batch.productId) {
+        debug(`Batch ohne productId gefunden:`, batch);
+        return;
+      }
       
       if (!groupedBatches[batch.productId]) {
         groupedBatches[batch.productId] = [];
@@ -79,8 +106,19 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
       groupedBatches[batch.productId].push(batch);
     });
     
+    // Debug-Log für Produkt 21
+    if (allBatches.length > 0 && groupedBatches[21]) {
+      debug(`Batches für Produkt 21 gefunden: ${groupedBatches[21].length}`, groupedBatches[21]);
+    } else if (allBatches.length > 0) {
+      debug(`Keine Batches für Produkt 21 gefunden`);
+      
+      // Suche manuell nach Produkt 21
+      const product21Batches = allBatches.filter((batch: any) => batch.productId === 21);
+      debug(`Manuelle Suche nach Produkt 21: ${product21Batches.length} Batches gefunden`, product21Batches);
+    }
+    
     return groupedBatches;
-  }, [allBatches]);
+  }, [allBatches, debug]);
   
   // Filtern und Sortieren der Inventardaten
   const filteredAndSortedInventory = React.useMemo(() => {
@@ -461,7 +499,7 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                         
                         {isExpanded && (
                           <TableRow>
-                            <TableCell colSpan={9} className="py-0 bg-muted/10">
+                            <TableCell colSpan={8} className="py-0 bg-muted/10">
                               <div className="px-4 py-2">
                                 <div className="flex items-center justify-between mb-2">
                                   <h4 className="text-sm font-medium">Chargen</h4>
@@ -538,7 +576,7 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={9} className="h-24 text-center">
+                    <TableCell colSpan={8} className="h-24 text-center">
                       {searchTerm ? (
                         <div className="flex flex-col items-center justify-center text-muted-foreground">
                           <Search className="h-8 w-8 mb-2" />
