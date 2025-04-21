@@ -27,7 +27,19 @@ import {
   ArrowUpDown, 
   ArrowDown,
   ArrowUp,
+  MoreVertical,
+  ExternalLink,
+  History,
+  Truck
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import ProductBatchDialog from './batch/ProductBatchDialog';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -422,6 +434,7 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                   </TableHead>
                   <TableHead className="font-medium text-center">MHD</TableHead>
                   <TableHead className="font-medium text-center">Status</TableHead>
+                  <TableHead className="w-8"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -495,11 +508,54 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                           <TableCell className="text-center">
                             {getStockStatusBadge(item)}
                           </TableCell>
+                          <TableCell className="w-8 p-2">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button 
+                                  className="p-1 rounded-sm hover:bg-muted" 
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <MoreVertical className="h-4 w-4 text-muted-foreground" />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-48">
+                                <DropdownMenuLabel>Aktionen</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    window.location.href = `/produkte/${productId}`;
+                                  }}
+                                >
+                                  <ExternalLink className="h-4 w-4 mr-2" />
+                                  Produkt aufrufen
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    window.location.href = `/warenbewegungen?productId=${productId}`;
+                                  }}
+                                >
+                                  <Truck className="h-4 w-4 mr-2" />
+                                  Warenbewegung
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    window.location.href = `/lager/bewegungshistorie/${productId}`;
+                                  }}
+                                >
+                                  <History className="h-4 w-4 mr-2" />
+                                  Bewegungshistorie
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
                         </TableRow>
                         
                         {isExpanded && (
                           <TableRow>
-                            <TableCell colSpan={8} className="py-0 bg-muted/10">
+                            <TableCell colSpan={9} className="py-0 bg-muted/10">
                               <div className="px-4 py-2">
                                 <div className="flex items-center justify-between mb-2">
                                   <h4 className="text-sm font-medium">Chargen</h4>
@@ -576,7 +632,7 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={8} className="h-24 text-center">
+                    <TableCell colSpan={9} className="h-24 text-center">
                       {searchTerm ? (
                         <div className="flex flex-col items-center justify-center text-muted-foreground">
                           <Search className="h-8 w-8 mb-2" />
