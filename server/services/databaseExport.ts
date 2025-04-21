@@ -8,9 +8,6 @@ import {
   suppliers, 
   machines,
   warehouses,
-  weatherData,
-  weatherForecasts,
-  weatherHistorical,
   holidays
 } from '../../shared/schema';
 
@@ -54,6 +51,21 @@ import { count, eq, and, SQL } from 'drizzle-orm';
 // Temporärer Fix für fehlende inventoryItems Tabelle
 const inventoryItems = {
   name: 'inventory_items'
+};
+
+// Temporärer Fix für fehlende weatherData Tabelle
+const weatherData = {
+  name: 'weather_data'
+};
+
+// Temporärer Fix für fehlende weatherForecasts Tabelle
+const weatherForecasts = {
+  name: 'weather_forecasts'
+};
+
+// Temporärer Fix für fehlende weatherHistorical Tabelle
+const weatherHistorical = {
+  name: 'weather_historical'
 };
 
 /**
