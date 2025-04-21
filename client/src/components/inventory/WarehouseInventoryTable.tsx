@@ -531,7 +531,7 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                                                 {batch.receivedDate ? new Date(batch.receivedDate).toLocaleDateString('de-DE') : 'Unbekannt'}
                                               </TableCell>
                                               <TableCell className="py-1.5 text-xs text-right font-medium">
-                                                {batch.quantity || 0}
+                                                {batch.currentQuantity || batch.quantity || 0}
                                               </TableCell>
                                             </TableRow>
                                           );
