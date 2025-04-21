@@ -51,10 +51,10 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
   
   // API-Abfrage für alle Batches des Lagers
   const { data: allBatches = [], isLoading: isBatchesLoading } = useQuery({
-    queryKey: [`/api/inventory-batches`, warehouseId],
+    queryKey: [`/api/product-batches`, warehouseId],
     queryFn: async () => {
       try {
-        const response = await fetch(`/api/inventory-batches?warehouseId=${warehouseId}`);
+        const response = await fetch(`/api/product-batches?warehouseId=${warehouseId}`);
         if (!response.ok) return [];
         return response.json();
       } catch (error) {
@@ -333,22 +333,7 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                       )}
                     </div>
                   </TableHead>
-                  <TableHead 
-                    className="font-medium cursor-pointer hover:bg-muted/20"
-                    onClick={() => toggleSort('sku')}
-                  >
-                    <div className="flex items-center">
-                      SKU
-                      {sortColumn === 'sku' && (
-                        sortDirection === 'asc' ? 
-                          <ArrowUp className="ml-1 h-4 w-4" /> : 
-                          <ArrowDown className="ml-1 h-4 w-4" />
-                      )}
-                      {sortColumn !== 'sku' && (
-                        <ArrowUpDown className="ml-1 h-4 w-4 opacity-50" />
-                      )}
-                    </div>
-                  </TableHead>
+
                   <TableHead 
                     className="font-medium text-right cursor-pointer hover:bg-muted/20"
                     onClick={() => toggleSort('batchCount')}
@@ -449,7 +434,6 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                           </TableCell>
                           <TableCell className="font-medium">{item.productName || item.product_name || '-'}</TableCell>
                           <TableCell>{item.category || '-'}</TableCell>
-                          <TableCell>{item.sku || '-'}</TableCell>
                           <TableCell className="text-right">
                             {item.batchCount || item.batch_count || productBatches.length || 0}
                           </TableCell>
