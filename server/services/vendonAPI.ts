@@ -133,9 +133,56 @@ export class VendonAPI {
   /**
    * Ruft alle verfügbaren Lagerprodukte ab
    * Wichtig: Dies ist der verbesserte, direkte API-Endpunkt für Produkte
+   * 
+   * Der Vendon-API Endpunkt hat sich wahrscheinlich geändert. Wir versuchen 
+   * verschiedene Varianten, beginnend mit dem aktuellsten API-Pfad
    */
   async getProducts() {
-    return this.makeRequest<any[]>('GET', '/products', {});
+    try {
+      // Erster Versuch mit dem neuesten Endpunkt
+      console.log("Versuche Produkte über den neuesten API-Pfad /products abzurufen...");
+      return await this.makeRequest<any[]>('GET', '/products', {});
+    } catch (error) {
+      console.warn("Fehler beim Abrufen über /products, versuche alternativen Pfad:", error);
+      
+      try {
+        // Zweiter Versuch mit einem älteren Endpunkt
+        console.log("Versuche Produkte über alternativen API-Pfad /stock/products abzurufen...");
+        return await this.makeRequest<any[]>('GET', '/stock/products', {});
+      } catch (error2) {
+        console.warn("Fehler beim Abrufen über /stock/products, versuche letzten Fallback:", error2);
+        
+        // Dritter Versuch als letzter Fallback
+        console.log("Versuche Produkte über Fallback-Methode abzurufen...");
+        const machinesResponse = await this.getMachines();
+        const machines = machinesResponse || [];
+        
+        // Extrahiere Produkte aus allen Automaten (alter Weg)
+        const allProducts: any[] = [];
+        for (const machine of machines) {
+          try {
+            const stockResponse = await this.getMachineStock(machine.id);
+            const stockProducts = stockResponse || [];
+            
+            // Füge nur eindeutige Produkte hinzu
+            for (const product of stockProducts) {
+              if (!allProducts.some(p => p.id === product.product_id)) {
+                allProducts.push({
+                  id: product.product_id,
+                  name: product.name,
+                  price: product.price,
+                  // Weitere Felder könnten hier hinzugefügt werden
+                });
+              }
+            }
+          } catch (machineError) {
+            console.error(`Fehler beim Abrufen des Lagerbestands für Automat ${machine.id}:`, machineError);
+          }
+        }
+        
+        return allProducts;
+      }
+    }
   }
 
   /**
