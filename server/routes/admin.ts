@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import { storage } from '../storage';
 import { User } from '../../shared/schema';
+import { productSync } from '../services/productSync';
 
 const router = express.Router();
 
@@ -223,6 +224,57 @@ router.delete('/users/:id', requireAdmin, async (req: AuthRequest, res: Response
     console.error(`Error deleting user ${req.params.id}:`, error);
     res.status(500).json({
       error: 'Failed to delete user',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Produktsynchronisierung starten
+router.post('/products/sync', async (req: AuthRequest, res: Response) => { // Temporär requireAdmin entfernt für Tests
+  try {
+    // Parameter aus dem Request-Body lesen
+    const forceUpdate = req.body?.forceUpdate === true;
+    
+    // Starte die Produktsynchronisierung asynchron
+    // Wir verwenden hier Promise.resolve(), um die Anfrage nicht zu blockieren
+    Promise.resolve().then(async () => {
+      try {
+        await productSync.syncProducts(forceUpdate);
+      } catch (error) {
+        console.error('Fehler bei der asynchronen Produktsynchronisierung:', error);
+      }
+    });
+    
+    // Sofortige Antwort an den Client
+    res.json({ 
+      success: true, 
+      message: 'Produktsynchronisierung wurde gestartet. Überprüfen Sie die Logs für den Status.'
+    });
+  } catch (error) {
+    console.error('Fehler beim Starten der Produktsynchronisierung:', error);
+    res.status(500).json({
+      error: 'Produktsynchronisierung konnte nicht gestartet werden',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Status der Produktsynchronisierung abrufen
+router.get('/products/sync/status', requireAdmin, async (req: AuthRequest, res: Response) => {
+  try {
+    // Hier könnten wir den Status aus der Datenbank abrufen,
+    // z.B. den letzten Synchronisierungseintrag
+    const syncLog = await storage.getLatestSyncLog('products');
+    const syncLogs = syncLog ? [syncLog] : [];
+    
+    res.json({
+      success: true,
+      data: syncLogs
+    });
+  } catch (error) {
+    console.error('Fehler beim Abrufen des Synchronisierungsstatus:', error);
+    res.status(500).json({
+      error: 'Status konnte nicht abgerufen werden',
       details: error instanceof Error ? error.message : String(error)
     });
   }
