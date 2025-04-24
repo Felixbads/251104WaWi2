@@ -7,6 +7,7 @@
  */
 
 import { vendonSync } from './services/vendonSync';
+import { productSync } from './services/productSync'; // Neuer optimierter Product-Sync-Service
 import { syncWeatherForecast, syncHistoricalWeatherBatch } from './services/openWeatherService';
 import { syncMissingHolidays } from './services/holidayService';
 import { reconcileWarehouseProducts } from './services/warehouseReconciliation';
@@ -64,7 +65,9 @@ async function performSync(syncType: string): Promise<void> {
         result = await vendonSync.syncMachines();
         break;
       case 'products':
-        result = await vendonSync.syncProducts();
+        // Verwende den neuen optimierten ProductSync-Service anstatt der alten Implementierung
+        result = await productSync.syncProducts();
+        console.log("Optimierte Produktsynchronisierung abgeschlossen.");
         break;
       case 'events':
         // Synchronisiere Events der letzten 24 Stunden
