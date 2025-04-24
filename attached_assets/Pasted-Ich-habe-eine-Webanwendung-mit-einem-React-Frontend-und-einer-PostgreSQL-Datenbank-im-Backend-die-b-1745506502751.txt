@@ -1,0 +1,30 @@
+Ich habe eine Webanwendung mit einem React-Frontend und einer PostgreSQL-Datenbank im Backend, die bei jedem Deployment über Rapplet aktualisiert wird. Meine Anforderungen:
+
+1. **Systematische Datenbankanalyse**  
+   - Untersuche alle relevanten Tabellen und ihre Beziehungen.  
+   - Identifiziere die Tabellen, die für die konsistente Speicherung der Kerndaten verantwortlich sind (z. B. Produkte, Transaktionen, Maschinen, Events, Refill).  
+   - Dokumentiere Struktur, Spalten, Indizes und bestehende Constraints.
+
+2. **Datenpersistenz bei Deployments**  
+   - Stelle sicher, dass bei jedem Rapplet-Deployment die bestehenden Online-Daten nicht überschrieben oder gelöscht werden.  
+   - Prüfe, welche Migrations- oder Seed-Skripte aktuell ausgeführt werden, und passe sie so an, dass nur schema-, nie aber datenrelevante Änderungen automatisch angewendet werden.  
+   - Gib eine praxisbewährte Strategie vor, wie Schema-Änderungen einzuspielen sind, ohne Produktionsdaten zu gefährden.
+
+3. **Online-Daten als Quelle der Wahrheit**  
+   - Konfiguriere die Datenbank so, dass stets mit dem aktuellsten Online-Datenbestand gearbeitet wird.  
+   - Verhindere lokale oder staging-basiertes Überschreiben; jede Änderung am Frontend oder Code darf Daten nur ergänzen oder anpassen, nicht rücksetzen.
+
+4. **Regelmäßige Backups und Wiederherstellung**  
+   - Entwerfe einen Backup-Plan: Frequenz (z. B. täglich, stündlich), Aufbewahrungsdauer und Speicherort.  
+   - Automatisiere das Backup, inklusive Voll- und inkrementeller Snapshots.  
+   - Stelle eine Wiederherstellungsprozedur bereit, die sowohl einzelne Tabellen als auch den gesamten Datenbankstand online wiederherstellen kann.
+
+5. **Monitoring und Alarmierung**  
+   - Implementiere Monitoring für Backup-Fehler, fehlgeschlagene Deployments und unvorhergesehene Datenverluste.  
+   - Richte Alerting ein (E-Mail, Slack o. Ä.), wenn Backups ausbleiben oder Deployments Datensätze verändern.
+
+6. **Dokumentation und Best Practices**  
+   - Erstelle eine Schritt-für-Schritt-Dokumentation aller Abläufe (Deployment, Backup, Restore).  
+   - Gib Empfehlungen für das Change-Management (z. B. Feature Flags, Migrations-Reviews), um Datenintegrität zu gewährleisten.
+
+Ziel ist eine robuste Datenbank-Infrastruktur, die bei jedem Rapplet-Deployment unverändert online bleibt, regelmäßig gesichert wird und im Notfall schnell wiederherstellbar ist.```
