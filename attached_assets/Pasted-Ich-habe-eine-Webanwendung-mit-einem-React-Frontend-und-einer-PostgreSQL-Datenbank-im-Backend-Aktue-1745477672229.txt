@@ -1,0 +1,33 @@
+Ich habe eine Webanwendung mit einem React-Frontend und einer PostgreSQL-Datenbank im Backend. Aktuell treten schwerwiegende Probleme bei der Synchronisierung mit der Vendorn-API auf. Es gibt zahlreiche API-Abrufe, unter anderem für Transaktionen, Produkte, Maschinen, Events und Refill. Ich benötige eine umfassende Analyse und Verbesserung dieser Abläufe:
+
+1. **Bestandsaufnahme vorab**  
+   - Ermittle und dokumentiere alle bestehenden Datenbanken und Tabellen.  
+   - Zähle die Einträge in jeder Tabelle und protokolliere den aktuellen Datenzustand.
+
+2. **API-Synchronisierung und Datenfluss**  
+   - Analysiere jeden Vendorn-API-Abruf (z. B. Transaktionen, Maschinen, Events, Refill).  
+   - Zeige auf, welche Endpunkte aufgerufen werden, mit welchen Parametern und wie oft.  
+   - Verfolge den kompletten Datenfluss von der API-Antwort über den Backend-Service bis zur Speicherung in der Datenbank.
+
+3. **Speicherungslogik und -integrität**  
+   - Identifiziere alle Stellen im Code, an denen Daten aus den API-Antworten persistiert werden.  
+   - Überprüfe, ob jede Speicherung korrekt funktioniert (z. B. Transaktionen werden vollständig abgelegt, keine Verbindungsabbrüche).  
+   - Finde heraus, warum die Tabelle „Products“ nicht wie erwartet gefüllt wird.
+
+4. **Fehlerhistorie und falsche Prozesse**  
+   - Untersuche den alten Prozess, der Produkte aus Transaktionsdaten extrahiert hat.  
+   - Erkläre, warum dieser Ansatz fehlerhaft ist und storniere bzw. entferne ihn.
+
+5. **Empfohlene Extraktionsmethode**  
+   - Implementiere stattdessen einen direkten Abruf der Produkte über den Vendorn-API-Endpunkt `getProducts`.  
+   - Dokumentiere alle erforderlichen Parameter und Authentifizierungsmechanismen.
+
+6. **Regelmäßige Aktualisierung und Duplikat-Prüfung**  
+   - Richte einen geplanten Job ein, der in definierten Intervallen (z. B. alle X Minuten/Stunden) `getProducts` ausführt.  
+   - Sorge dafür, dass bei jedem Lauf nur neue oder geänderte Produkte gespeichert werden, ohne Duplikate zu erzeugen (z. B. anhand einer eindeutigen Produkt-ID).
+
+7. **Stabilitäts- und Qualitätssicherung**  
+   - Führe automatisierte Tests gegen die API-Integration und die Speicherroutinen durch.  
+   - Erstelle Monitoring-Alerts, wenn API-Abrufe fehlschlagen oder Datenmengen unerwartet abweichen.
+
+Ziel ist es, eine stabile, nachvollziehbare und wartbare Synchronisierung zwischen Vendorn-API und unserer PostgreSQL-Datenbank sicherzustellen, die regelmäßig aktuellste Produktdaten enthält und keine Duplikate erzeugt.
