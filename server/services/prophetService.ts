@@ -10,7 +10,7 @@ import { spawn } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import { db } from '../db';
-import { forecast_models as forecastModels, forecast_results as forecasts } from '@shared/schema';
+import { forecastModels, forecasts } from '@shared/schema';
 import { eq, and, between } from 'drizzle-orm';
 
 /**

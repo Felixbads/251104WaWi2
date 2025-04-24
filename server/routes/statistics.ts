@@ -1,46 +1,9 @@
 import { Router } from 'express';
 import { db } from '../db';
-// Temporäre Schema-Lösung für fehlende Exports
-const transactions = {
-  datetime: { name: 'datetime' },
-  machineId: { name: 'machineId' },
-  machineName: { name: 'machineName' },
-  productName: { name: 'productName' },
-  productId: { name: 'productId' },
-  price: { name: 'price' },
-  paymentMethod: { name: 'paymentMethod' },
-  priceVat: { name: 'priceVat' }
-};
-
-const orders = {
-  status: { name: 'status' }
-};
-
-const products = {
-  as: () => ({
-    vendon_id: { name: 'vendon_id' },
-    cost_price: { name: 'cost_price' },
-    deposit_price: { name: 'deposit_price' }
-  })
-};
-
-const machines = {
-};
-
-const suppliers = {
-};
-
-const events = {
-};
-
-const refills = {
-};
-
-const refillDetails = {
-};
-
-const weatherData = {
-};
+import { 
+  transactions, orders, products, machines, suppliers, events, 
+  refills, refillDetails, weatherData 
+} from '../../shared/schema';
 import { count, eq, sql, desc, and, gt, lt, gte, lte, sum, avg, asc, isNotNull } from 'drizzle-orm';
 import { 
   startOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, 

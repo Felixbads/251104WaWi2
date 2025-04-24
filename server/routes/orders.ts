@@ -1,48 +1,6 @@
 import { Request, Response, Router } from "express";
 import { db } from "../db";
-// Temporäre Definition, bis die korrekte Schema-Struktur implementiert ist
-const orders = {
-  id: { name: 'id' },
-  orderNumber: { name: 'order_number' },
-  status: { name: 'status' },
-  supplierId: { name: 'supplier_id' },
-  supplierName: { name: 'supplier_name' },
-  locationId: { name: 'location_id' },
-  locationName: { name: 'location_name' },
-  orderDate: { name: 'order_date' },
-  expectedDeliveryDate: { name: 'expected_delivery_date' },
-  totalAmount: { name: 'total_amount' },
-  vatAmount: { name: 'vat_amount' },
-  discountAmount: { name: 'discount_amount' },
-  shippingCost: { name: 'shipping_cost' },
-  notes: { name: 'notes' },
-  createdById: { name: 'created_by_id' },
-  createdByName: { name: 'created_by_name' },
-  sentById: { name: 'sent_by_id' },
-  sentByName: { name: 'sent_by_name' },
-  sentDate: { name: 'sent_date' },
-  paymentStatus: { name: 'payment_status' },
-  lastModifiedById: { name: 'last_modified_by_id' },
-  lastModifiedByName: { name: 'last_modified_by_name' },
-  createdAt: { name: 'created_at' },
-  updatedAt: { name: 'updated_at' }
-};
-
-const orderItems = {
-  id: { name: 'id' },
-  orderId: { name: 'order_id' },
-  productId: { name: 'product_id' },
-  productName: { name: 'product_name' },
-  positionNumber: { name: 'position_number' },
-  quantity: { name: 'quantity' },
-  unitPrice: { name: 'unit_price' },
-  totalPrice: { name: 'total_price' },
-  unit: { name: 'unit' },
-  vatRate: { name: 'vat_rate' },
-  notes: { name: 'notes' },
-  createdAt: { name: 'created_at' },
-  updatedAt: { name: 'updated_at' }
-};
+import { orders, orderItems } from "@shared/schema";
 import { storage } from "../storage";
 import { eq, and, like, ilike, or, desc, asc, isNull, isNotNull, sql, count } from "drizzle-orm";
 

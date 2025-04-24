@@ -3,186 +3,36 @@ import { db, rawDb } from "./db";
 // Define rawSql as a local alias for sql
 const rawSql = sql;
 import { normalizeProductName } from "./utils/stringUtils";
-// Import aktuelle Schema-Definitionen
 import { 
   users, type User, type InsertUser,
-  products, type Product, type InsertProduct,
-  suppliers, type Supplier, type InsertSupplier,
-  warehouses, type Warehouse, type InsertWarehouse,
   machines, type Machine, type InsertMachine,
-  inventory_items as inventoryItems, type InventoryItem, type InsertInventoryItem,
-  inventory_counts as inventoryCounts, type InventoryCount, type InsertInventoryCount,
-  inventory_count_items as inventoryCountItems, type InventoryCountItem, type InsertInventoryCountItem,
-  inventory_batches as inventoryBatches, type InventoryBatch, type InsertInventoryBatch,
-  inventory_transactions as inventoryTransactions,
-  product_batches as productBatches, type ProductBatch, type InsertProductBatch,
-  product_movements as productMovements, type ProductMovement, type InsertProductMovement,
-  machine_products as machineProducts,
-  purchase_orders as purchaseOrders, type Order, type InsertOrder,
-  purchase_order_items as purchaseOrderItems, type OrderItem, type InsertOrderItem,
-  purchase_conditions as purchaseConditions, type PurchaseCondition, type InsertPurchaseCondition,
-  events, type Event, type InsertEvent,
-} from '@shared/schema';
-
-// Legacy-Schema-Definitionen importieren
-import {
   transactions, type Transaction, type InsertTransaction,
+  products, type Product, type InsertProduct,
   refills, type Refill, type InsertRefill,
   refillDetails, type RefillDetail, type InsertRefillDetail,
+  events, type Event, type InsertEvent,
   syncLogs, type SyncLog, type InsertSyncLog,
+  locations, type Location, type InsertLocation,
+  suppliers, type Supplier, type InsertSupplier,
+  warehouses, type Warehouse, type InsertWarehouse,
+  inventoryItems, type InventoryItem, type InsertInventoryItem,
+  inventoryBatches, type InventoryBatch, type InsertInventoryBatch,
+  inventoryMovements, type InventoryMovement, type InsertInventoryMovement,
+  inventoryCounts, type InventoryCount, type InsertInventoryCount,
+  inventoryCountItems, type InventoryCountItem, type InsertInventoryCountItem,
+  machineWarehouseAssignments, type MachineWarehouseAssignment, type InsertMachineWarehouseAssignment,
+  productDisposals, type ProductDisposal, type InsertProductDisposal,
+  productDisposalItems, type ProductDisposalItem, type InsertProductDisposalItem,
   stocks, type Stock, type InsertStock,
   machineStocks, type MachineStock, type InsertMachineStock,
-  locations, type Location, type InsertLocation
-} from '@shared/legacy-schema';
-
-// Definition temporärer Typen
-// Typen, die noch nicht in schema.ts definiert sind
-type RefillBatchMovement = {
-  id: number;
-  refillId: number;
-  refillDetailId: number;
-  batchId: number;
-  warehouseId: number;
-  productId: number;
-  quantity: number;
-  batchNumber: string;
-  expiryDate: Date;
-  warehouseBefore: number;
-  warehouseAfter: number;
-  movementType: string;
-  status: string;
-  performedAt: Date;
-  createdAt?: Date;
-  updatedAt?: Date;
-};
-
-type InsertRefillBatchMovement = Omit<RefillBatchMovement, 'id' | 'createdAt' | 'updatedAt'>;
-
-type InventoryMovement = {
-  id: number;
-  sourceWarehouseId: number;
-  destinationWarehouseId?: number;
-  productId: number;
-  quantity: number;
-  movementType: string;
-  referenceType: string;
-  referenceId: string;
-  performedAt: Date;
-  performedBy?: number;
-  status: string;
-  notes?: string;
-  createdAt?: Date;
-  updatedAt?: Date;
-};
-
-type InsertInventoryMovement = Omit<InventoryMovement, 'id' | 'createdAt' | 'updatedAt'>;
-
-type MachineWarehouseAssignment = {
-  id: number;
-  machineId: number;
-  warehouseId: number;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
-type InsertMachineWarehouseAssignment = Omit<MachineWarehouseAssignment, 'id' | 'createdAt' | 'updatedAt'>;
-
-type ProductDisposal = {
-  id: number;
-  warehouseId: number;
-  reason: string;
-  notes?: string;
-  status: string;
-  disposalDate: Date;
-  performedBy?: number;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
-type InsertProductDisposal = Omit<ProductDisposal, 'id' | 'createdAt' | 'updatedAt'>;
-
-type ProductDisposalItem = {
-  id: number;
-  disposalId: number;
-  productId: number;
-  quantity: number;
-  reason?: string;
-  batchId?: number;
-  expiryDate?: Date;
-  createdAt: Date;
-  updatedAt: Date;
-};
-
-type InsertProductDisposalItem = Omit<ProductDisposalItem, 'id' | 'createdAt' | 'updatedAt'>;
-
-// Temporäre Tabellen-Definitionen (ersetzt später durch schema.ts)
-const refillBatchMovements = {
-  id: { name: 'id' },
-  refillId: { name: 'refill_id' },
-  refillDetailId: { name: 'refill_detail_id' },
-  batchId: { name: 'batch_id' },
-  warehouseId: { name: 'warehouse_id' },
-  productId: { name: 'product_id' },
-  quantity: { name: 'quantity' },
-  batchNumber: { name: 'batch_number' },
-  expiryDate: { name: 'expiry_date' },
-  warehouseBefore: { name: 'warehouse_before' },
-  warehouseAfter: { name: 'warehouse_after' },
-  movementType: { name: 'movement_type' },
-  status: { name: 'status' },
-  performedAt: { name: 'performed_at' },
-  createdAt: { name: 'created_at' },
-  updatedAt: { name: 'updated_at' },
-};
-
-const inventoryMovements = {
-  id: { name: 'id' },
-  sourceWarehouseId: { name: 'source_warehouse_id' },
-  destinationWarehouseId: { name: 'destination_warehouse_id' },
-  productId: { name: 'product_id' },
-  quantity: { name: 'quantity' },
-  movementType: { name: 'movement_type' },
-  referenceType: { name: 'reference_type' },
-  referenceId: { name: 'reference_id' },
-  performedAt: { name: 'performed_at' },
-  performedBy: { name: 'performed_by' },
-  status: { name: 'status' },
-  notes: { name: 'notes' },
-  createdAt: { name: 'created_at' },
-  updatedAt: { name: 'updated_at' },
-};
-
-const machineWarehouseAssignments = {
-  id: { name: 'id' },
-  machineId: { name: 'machine_id' },
-  warehouseId: { name: 'warehouse_id' },
-  createdAt: { name: 'created_at' },
-  updatedAt: { name: 'updated_at' },
-};
-
-const productDisposals = {
-  id: { name: 'id' },
-  warehouseId: { name: 'warehouse_id' },
-  reason: { name: 'reason' },
-  notes: { name: 'notes' },
-  status: { name: 'status' },
-  disposalDate: { name: 'disposal_date' },
-  performedBy: { name: 'performed_by' },
-  createdAt: { name: 'created_at' },
-  updatedAt: { name: 'updated_at' },
-};
-
-const productDisposalItems = {
-  id: { name: 'id' },
-  disposalId: { name: 'disposal_id' },
-  productId: { name: 'product_id' },
-  quantity: { name: 'quantity' },
-  reason: { name: 'reason' },
-  batchId: { name: 'batch_id' },
-  expiryDate: { name: 'expiry_date' },
-  createdAt: { name: 'created_at' },
-  updatedAt: { name: 'updated_at' },
-};
+  orders, type Order, type InsertOrder,
+  orderItems, type OrderItem, type InsertOrderItem,
+  purchaseConditions, type PurchaseCondition, type InsertPurchaseCondition,
+  refillBatchMovements, type RefillBatchMovement, type InsertRefillBatchMovement,
+  // Neue Tabellen für verbessertes Lagerverwaltungssystem
+  productBatches, type ProductBatch, type InsertProductBatch,
+  productMovements, type ProductMovement, type InsertProductMovement
+} from "@shared/schema";
 
 // Interface defining all storage operations
 export interface IStorage {

@@ -1,25 +1,10 @@
 import { Router } from "express";
 import { storage } from "../storage";
-// Temporäre Schema-Lösung für fehlende Exports
+import {
+  insertProductDisposalSchema,
+  insertProductDisposalItemSchema,
+} from "@shared/schema";
 import { z } from "zod";
-
-const insertProductDisposalSchema = z.object({
-  warehouseId: z.number().int().positive(),
-  description: z.string().optional(),
-  reason: z.string().optional(),
-  performedBy: z.number().int().optional(),
-  status: z.enum(["pending", "completed", "cancelled"]).default("pending")
-});
-
-const insertProductDisposalItemSchema = z.object({
-  disposalId: z.number().int().positive(),
-  productId: z.string(),
-  productName: z.string(),
-  quantity: z.number().int().positive(),
-  reason: z.string().optional(),
-  previousStock: z.number().int().optional(),
-  currentStock: z.number().int().optional()
-});
 
 const router = Router();
 

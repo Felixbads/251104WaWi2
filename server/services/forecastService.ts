@@ -11,27 +11,16 @@
 
 import { db } from '../db';
 import { 
-  forecast_models as forecastModels, 
-  forecast_results as forecasts, 
-  vendon_transactions as transactions, 
+  forecastModels, 
+  forecasts, 
+  transactions, 
+  weatherData, 
   holidays, 
-  machines
+  machines, 
+  locations,
+  insertForecastModelSchema,
+  insertForecastSchema
 } from '@shared/schema';
-
-// Temporäre Lösung bis weather_data im Schema definiert ist
-const weatherData = {
-  date: { name: 'date' },
-  temp: { name: 'temp' },
-  humidity: { name: 'humidity' },
-  precipitation: { name: 'precipitation' }
-};
-// Schemas müssen noch erstellt werden
-const insertForecastModelSchema = {
-  parse: (data: any) => data
-};
-const insertForecastSchema = {
-  parse: (data: any) => data
-};
 import { eq, and, between, count, desc, asc, sql, inArray } from 'drizzle-orm';
 import { format, parse, parseISO, isValid, eachDayOfInterval, addDays, subDays } from 'date-fns';
 import * as prophetService from './prophetService';

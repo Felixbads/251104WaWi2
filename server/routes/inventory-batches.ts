@@ -1,7 +1,7 @@
 import { Request, Response, Router } from 'express';
 import { db, rawDb } from '../db';
 import { eq, and, or, gt, lt, desc, asc, sql } from 'drizzle-orm';
-import { inventory_batches as inventoryBatches, products } from '@shared/schema';
+import { inventoryBatches, products } from '@shared/schema';
 
 const router = Router();
 

@@ -7,10 +7,7 @@ import { insertWarehouseSchema, insertMachineWarehouseAssignmentSchema,
          insertInventoryMovementSchema, insertInventoryCountSchema,
          insertInventoryCountItemSchema, insertRefillTrackingSchema, 
          insertRefillTrackingItemSchema } from "../../shared/warehouse3.schema";
-// Temporäre Schema-Lösung für fehlende Exports
-const products = {
-  id: { name: 'id' }
-};
+import { products } from "../../shared/schema";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { productBatches, inventoryMovements, warehouses } from "../../shared/warehouse3.schema";
 

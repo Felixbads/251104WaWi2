@@ -2,66 +2,13 @@ import { Router, type Request, type Response } from "express";
 import * as XLSX from "xlsx";
 import { storage } from "../storage";
 import { z } from "zod";
-import fileUpload from "express-fileupload";
-// Temporäre Schema-Lösung für fehlende Exports
-
-const insertSupplierSchema = z.object({
-  id: z.number().optional(),
-  name: z.string(),
-  contactPerson: z.string().optional(),
-  email: z.string().email().optional(),
-  phone: z.string().optional(),
-  address: z.string().optional(),
-  notes: z.string().optional(),
-  active: z.boolean().default(true)
-});
-
-const insertProductSchema = z.object({
-  id: z.number().optional(),
-  name: z.string(),
-  description: z.string().optional(),
-  category: z.string().optional(),
-  sku: z.string().optional(),
-  price: z.string().optional(),
-  supplierId: z.number().optional(),
-  vendonId: z.string().optional(),
-  imageUrl: z.string().optional(),
-  barcode: z.string().optional()
-});
-
-const insertOrderSchema = z.object({
-  id: z.number().optional(),
-  supplierId: z.number(),
-  orderDate: z.date().or(z.string()),
-  status: z.enum(["pending", "approved", "shipped", "delivered", "cancelled"]).default("pending"),
-  deliveryDate: z.date().or(z.string()).optional(),
-  notes: z.string().optional(),
-  total: z.number().optional(),
-  createdBy: z.number().optional()
-});
-
-const insertOrderItemSchema = z.object({
-  id: z.number().optional(),
-  orderId: z.number(),
-  productId: z.number(),
-  quantity: z.number(),
-  unitPrice: z.number().optional(),
-  subtotal: z.number().optional(),
-  notes: z.string().optional()
-});
-
-const insertTransactionSchema = z.object({
-  id: z.number().optional(),
-  datetime: z.date().or(z.string()),
-  machineId: z.string(),
-  productId: z.number().optional(),
-  vendonProductId: z.string().optional(),
-  productName: z.string().optional(),
-  amount: z.number(),
-  paymentMethod: z.string().optional(),
-  transactionId: z.string().optional(),
-  status: z.string().optional()
-});
+import { 
+  insertSupplierSchema, 
+  insertProductSchema,
+  insertOrderSchema,
+  insertOrderItemSchema,
+  insertTransactionSchema
+} from "@shared/schema";
 import fileUpload from "express-fileupload";
 
 const router = Router();

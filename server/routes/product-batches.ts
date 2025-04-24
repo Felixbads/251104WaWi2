@@ -1,24 +1,7 @@
 import express, { Request, Response } from 'express';
 import { db } from '../db';
 import { eq, and, gte, desc, asc, lt, isNull, min, sql } from 'drizzle-orm';
-import { products, warehouses } from '@shared/schema';
-
-// Temporäre Definition für productBatches bis die Schema-Migration vollständig ist
-const productBatches = {
-  id: { name: 'id' },
-  productId: { name: 'product_id' },
-  warehouseId: { name: 'warehouse_id' },
-  batchNumber: { name: 'batch_number' },
-  initialQuantity: { name: 'initial_quantity' },
-  currentQuantity: { name: 'current_quantity' },
-  expiryDate: { name: 'expiry_date' },
-  manufacturingDate: { name: 'manufacturing_date' },
-  notes: { name: 'notes' },
-  status: { name: 'status' },
-  createdAt: { name: 'created_at' },
-  updatedAt: { name: 'updated_at' },
-  locationInWarehouse: { name: 'location_in_warehouse' }
-};
+import { productBatches, products, warehouses } from '@shared/schema';
 
 const router = express.Router();
 

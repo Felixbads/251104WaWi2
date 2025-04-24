@@ -7,24 +7,7 @@
 
 import axios from 'axios';
 import { db } from '../db';
-// Temporäre Lösung bis fehlende Schema-Elemente definiert sind
-const weatherData = {
-  date: { name: 'date' },
-  hour: { name: 'hour' },
-  station_id: { name: 'station_id' }
-};
-
-const dataCoverage = {
-  data_type: { name: 'data_type' }
-};
-
-const insertWeatherDataSchema = {
-  parse: (data: any) => data
-};
-
-const insertDataCoverageSchema = {
-  parse: (data: any) => data
-};
+import { weatherData, dataCoverage, insertWeatherDataSchema, insertDataCoverageSchema } from '@shared/schema';
 import { eq, and, between, count } from 'drizzle-orm';
 import { format, parseISO, isValid, addDays, subDays, isAfter, addHours } from 'date-fns';
 

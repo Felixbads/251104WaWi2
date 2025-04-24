@@ -1,25 +1,7 @@
 import express, { Request, Response } from 'express';
 import { storage } from '../storage';
 import { db, rawDb } from '../db';
-import { products, warehouses, inventory_items as inventoryItemsSchema } from '@shared/schema';
-
-// Temporäre Definition bis die Schema-Migration vollständig ist
-// Diese sollte später zur shared/schema.ts hinzugefügt werden
-const productBatches = {
-  id: { name: 'id' },
-  productId: { name: 'product_id' },
-  warehouseId: { name: 'warehouse_id' },
-  batchNumber: { name: 'batch_number' },
-  initialQuantity: { name: 'initial_quantity' },
-  currentQuantity: { name: 'current_quantity' },
-  expiryDate: { name: 'expiry_date' },
-  manufacturingDate: { name: 'manufacturing_date' },
-  notes: { name: 'notes' },
-  status: { name: 'status' },
-  createdAt: { name: 'created_at' },
-  updatedAt: { name: 'updated_at' },
-  locationInWarehouse: { name: 'location_in_warehouse' }
-};
+import { productBatches, products, warehouses, inventoryItems as inventoryItemsSchema } from '@shared/schema';
 import { eq, and, gt, inArray, asc, min, sql, isNotNull, desc } from 'drizzle-orm';
 
 // Definiere eine Interface für das formatierte Inventar-Item
