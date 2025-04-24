@@ -4,6 +4,15 @@ import { z } from "zod";
 import { sql } from "drizzle-orm";
 import { relations } from "drizzle-orm";
 
+// Sync-Locks Tabelle für den Synchronisierungs-Sperrmechanismus
+export const syncLocks = pgTable("sync_locks", {
+  id: serial("id").primaryKey(),
+  syncType: varchar("sync_type", { length: 50 }).notNull(),
+  lockedAt: timestamp("locked_at").defaultNow().notNull(),
+  lockedUntil: timestamp("locked_until").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Schema für historische Synchronisierungsoptionen
 export const historicalSyncOptionsSchema = z.object({
   startDate: z.string().or(z.date()).optional(),

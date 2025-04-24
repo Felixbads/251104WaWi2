@@ -1,83 +1,117 @@
 /**
- * Synchronisierungs-Sperrsystem
- * 
- * Dieses Modul hilft dabei, zu verhindern, dass mehrere Synchronisierungsprozesse gleichzeitig laufen,
- * was zu Duplikaten führen kann.
+ * Synchronisierungs-Sperrmechanismus
+ * Verhindert, dass mehrere Synchronisierungsprozesse desselben Typs gleichzeitig laufen
  */
-import { storage } from "../storage";
 
-// In-Memory-Locks für verschiedene Synchronisationsprozesse
-const locks: Record<string, boolean> = {};
+import { db } from '../db';
+import { sql } from 'drizzle-orm';
 
-/**
- * Konstanten für verschiedene Synchronisationstypen
- */
+// Konstanten für Sync-Typen
 export const SYNC_TYPE = {
   PRODUCTS: 'products',
   TRANSACTIONS: 'transactions',
   MACHINES: 'machines',
   EVENTS: 'events',
   REFILLS: 'refills',
+  HISTORICAL: 'historical'
 };
 
+// Timeout für Sperren in Millisekunden (60 Minuten)
+const LOCK_TIMEOUT_MS = 60 * 60 * 1000;
+
 /**
- * Versucht, eine Sperre für den angegebenen Synchronisationstyp zu erhalten
- * 
- * @param syncType Der Typ der Synchronisation, für die eine Sperre benötigt wird
- * @param maxLockTimeMinutes Maximale Zeit in Minuten, für die ein Lock als aktiv betrachtet wird
- * @returns true, wenn die Sperre erfolgreich erhalten wurde, sonst false
+ * Versucht, eine Sperre für einen bestimmten Synchronisationstyp zu erwerben
+ * @param syncType - Der Typ der Synchronisation
+ * @returns True, wenn die Sperre erfolgreich erworben wurde, sonst False
  */
-export async function acquireSyncLock(syncType: string, maxLockTimeMinutes: number = 10): Promise<boolean> {
-  // Prüfe zuerst das In-Memory Lock (für den aktuellen Server)
-  if (locks[syncType]) {
-    console.log(`In-Memory-Lock für ${syncType} ist bereits aktiv, überspringe Synchronisation`);
-    return false;
-  }
-  
+export async function acquireSyncLock(syncType: string): Promise<boolean> {
   try {
-    // Prüfe dann das Datenbanklock (für alle Server-Instanzen)
-    // Finde den neuesten Sync-Log-Eintrag für diesen Typ
-    const runningSync = await storage.getLatestRunningSyncLog(syncType);
+    // Prüfen, ob bereits eine aktive Sperre existiert
+    const existingLocks = await db.execute(
+      sql`SELECT * FROM sync_locks WHERE sync_type = ${syncType} AND locked_until > NOW()`
+    );
+
+    // db.execute gibt ein Ergebnis zurück, das wir als Array behandeln müssen
+    const existingLocksArray = existingLocks as unknown as any[];
     
-    if (runningSync) {
-      // Prüfe, ob die Synchronisation vor zu langer Zeit gestartet wurde
-      // (möglicherweise abgestürzt oder hängengeblieben)
-      const now = new Date();
-      const lockStartTime = new Date(runningSync.startDate);
-      const diffMinutes = (now.getTime() - lockStartTime.getTime()) / (1000 * 60);
-      
-      if (diffMinutes < maxLockTimeMinutes) {
-        // Der Lock ist noch aktiv, überspringe
-        console.log(`Datenbanklock für ${syncType} ist aktiv (gestartet vor ${diffMinutes.toFixed(2)} Minuten), überspringe Synchronisation`);
-        return false;
-      } else {
-        // Der Lock ist zu alt, markiere als fehlgeschlagen und erlaube eine neue Synchronisation
-        console.log(`Datenbanklock für ${syncType} ist zu alt (${diffMinutes.toFixed(2)} Minuten), markiere als fehlgeschlagen`);
-        await storage.updateSyncLog(runningSync.id, {
-          syncStatus: 'error',
-          endDate: new Date(),
-          errorMessage: `Synchronisation wurde automatisch als fehlgeschlagen markiert nach ${maxLockTimeMinutes} Minuten Inaktivität`
-        });
-      }
+    if (existingLocksArray.length > 0) {
+      console.log(`Eine Sperre für ${syncType} existiert bereits und ist noch aktiv.`);
+      return false;
     }
+
+    // Alte abgelaufene Sperren löschen
+    await db.execute(
+      sql`DELETE FROM sync_locks WHERE sync_type = ${syncType} OR locked_until <= NOW()`
+    );
+
+    // Neue Sperre erstellen
+    const lockedUntil = new Date(Date.now() + LOCK_TIMEOUT_MS);
     
-    // Setze das In-Memory Lock
-    locks[syncType] = true;
+    await db.execute(
+      sql`INSERT INTO sync_locks (sync_type, locked_at, locked_until) 
+          VALUES (${syncType}, NOW(), ${lockedUntil})`
+    );
+    
+    console.log(`Sperre für ${syncType} erfolgreich erworben. Gültig bis ${lockedUntil}.`);
     return true;
   } catch (error) {
-    console.error(`Fehler beim Erwerben des Synchronisationslocks für ${syncType}:`, error);
+    console.error(`Fehler beim Erwerben der Sperre für ${syncType}:`, error);
+    
+    // Bei Datenbankproblemen besser durchlassen als blockieren
+    return true;
+  }
+}
+
+/**
+ * Gibt eine Sperre für einen bestimmten Synchronisationstyp frei
+ * @param syncType - Der Typ der Synchronisation
+ */
+export async function releaseSyncLock(syncType: string): Promise<void> {
+  try {
+    await db.execute(
+      sql`DELETE FROM sync_locks WHERE sync_type = ${syncType}`
+    );
+    console.log(`Sperre für ${syncType} freigegeben.`);
+  } catch (error) {
+    console.error(`Fehler beim Freigeben der Sperre für ${syncType}:`, error);
+  }
+}
+
+/**
+ * Überprüft, ob eine Sperre für einen bestimmten Synchronisationstyp aktiv ist
+ * @param syncType - Der Typ der Synchronisation
+ * @returns True, wenn eine aktive Sperre existiert, sonst False
+ */
+export async function isSyncLocked(syncType: string): Promise<boolean> {
+  try {
+    const existingLocks = await db.execute(
+      sql`SELECT * FROM sync_locks WHERE sync_type = ${syncType} AND locked_until > NOW()`
+    );
+    
+    // db.execute gibt ein Ergebnis zurück, das wir als Array behandeln müssen
+    const existingLocksArray = existingLocks as unknown as any[];
+    
+    return existingLocksArray.length > 0;
+  } catch (error) {
+    console.error(`Fehler beim Überprüfen der Sperre für ${syncType}:`, error);
+    // Bei Fehlern vorsichtshalber als "nicht gesperrt" betrachten
     return false;
   }
 }
 
 /**
- * Gibt die Sperre für den angegebenen Synchronisationstyp frei
- * 
- * @param syncType Der Typ der Synchronisation, für die die Sperre freigegeben werden soll
+ * Gibt alle aktiven Sperren zurück
+ * @returns Eine Liste aller aktiven Sperren
  */
-export function releaseSyncLock(syncType: string): void {
-  // Gib nur das In-Memory Lock frei
-  // Der Datenbanklock wird durch den Sync-Status im Log-Eintrag gesteuert
-  locks[syncType] = false;
-  console.log(`Synchronisationslock für ${syncType} freigegeben`);
+export async function getAllSyncLocks(): Promise<any[]> {
+  try {
+    const result = await db.execute(
+      sql`SELECT * FROM sync_locks WHERE locked_until > NOW()`
+    );
+    // Konvertiere das Ergebnis in ein Array für die Rückgabe
+    return result as unknown as any[];
+  } catch (error) {
+    console.error('Fehler beim Abrufen aller Sperren:', error);
+    return [];
+  }
 }
