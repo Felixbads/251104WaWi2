@@ -51,6 +51,23 @@ router.get('/', async (req, res) => {
       byDate: [] as {date: string, count: number}[]
     };
     
+    // Prüfen, ob removedProducts ein Array ist
+    if (!Array.isArray(removedProducts)) {
+      console.log("removedProducts ist kein Array:", removedProducts);
+      // Falls kein Array, setze als leeres Array
+      const emptyArray = [];
+      
+      res.json({
+        products: emptyArray,
+        analytics: {
+          byProduct: [],
+          byMachine: [],
+          byDate: []
+        }
+      });
+      return;
+    }
+    
     // Produkten-Zählung
     const productCounts: Record<string, number> = {};
     removedProducts.forEach(product => {
