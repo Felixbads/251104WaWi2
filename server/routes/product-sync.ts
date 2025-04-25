@@ -38,8 +38,8 @@ router.get('/status', async function(req: Request, res: Response) {
     if (latestSyncLogs.length === 0) {
       // Zeige Informationen zur Anzahl der Produkte an, auch wenn keine Synchronisierungslogs vorhanden sind
       const { products } = await import('@shared/schema');
-      const productsCount = await db.select({ count: sql<number>`count(*)` }).from(products);
-      const totalProducts = productsCount[0]?.count || 0;
+      const productsList = await db.select().from(products);
+      const totalProducts = productsList.length;
       
       return res.json({
         lastSync: null,
@@ -53,8 +53,8 @@ router.get('/status', async function(req: Request, res: Response) {
     
     // Gesamtzahl der Produkte abrufen
     const { products } = await import('@shared/schema');
-    const productsCount = await db.select({ count: sql<number>`count(*)` }).from(products);
-    const totalProducts = productsCount[0]?.count || 0;
+    const productsList = await db.select().from(products);
+    const totalProducts = productsList.length;
     
     return res.json({
       lastSync: {
