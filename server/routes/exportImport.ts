@@ -221,9 +221,28 @@ router.get("/export/transactions", async (req: Request, res: Response) => {
 
 // Import-Routen
 
-// Validierungsschema für den Lieferantenimport
+// Flexibles Validierungsschema für den Lieferantenimport
 const supplierImportSchema = z.array(
-  insertSupplierSchema.omit({ id: true })
+  z.object({
+    name: z.string().min(1, "Lieferantenname ist erforderlich"),
+    contactPerson: z.string().optional().nullable().or(z.literal("")),
+    phone: z.string().optional().nullable().or(z.literal("")),
+    email: z.string().optional().nullable().or(z.literal("")),
+    website: z.string().optional().nullable().or(z.literal("")),
+    address: z.string().optional().nullable().or(z.literal("")),
+    city: z.string().optional().nullable().or(z.literal("")),
+    postalCode: z.string().optional().nullable().or(z.literal("")),
+    country: z.string().optional().nullable().or(z.literal("")),
+    status: z.enum(["active", "inactive"]).default("active").optional(),
+    notes: z.string().optional().nullable().or(z.literal("")),
+    paymentTerms: z.string().optional().nullable().or(z.literal("")),
+    deliveryTerms: z.string().optional().nullable().or(z.literal("")),
+    minimumOrderValue: z.number().optional().nullable(),
+    deliveryDays: z.string().optional().nullable().or(z.literal("")),
+    taxId: z.string().optional().nullable().or(z.literal("")),
+    accountNumber: z.string().optional().nullable().or(z.literal("")),
+    bankDetails: z.string().optional().nullable().or(z.literal("")),
+  }).passthrough() // Erlaubt zusätzliche Felder, die in der Excel-Datei vorhanden sein könnten
 );
 
 // Import von Lieferanten
@@ -243,11 +262,84 @@ router.post("/import/suppliers", async (req: Request, res: Response) => {
     const worksheet = workbook.Sheets[workbook.SheetNames[0]];
     
     // In JSON konvertieren
-    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+    const rawData = XLSX.utils.sheet_to_json(worksheet);
+    
+    console.log("Rohdaten aus Excel:", JSON.stringify(rawData.slice(0, 3), null, 2));
+    
+    // Daten normalisieren für die Validierung
+    const normalizedData = rawData.map(row => {
+      // Hilfsmap zur Umwandlung der möglichen Feldnamen
+      const fieldMapping: Record<string, string> = {
+        'Name': 'name',
+        'Lieferant': 'name',
+        'Firma': 'name',
+        'Lieferantenname': 'name',
+        'Ansprechpartner': 'contactPerson',
+        'Kontaktperson': 'contactPerson',
+        'E-Mail': 'email',
+        'Email': 'email',
+        'E-mail': 'email',
+        'Telefon': 'phone',
+        'Tel': 'phone',
+        'Telefonnummer': 'phone',
+        'Website': 'website',
+        'Webseite': 'website',
+        'URL': 'website',
+        'Adresse': 'address',
+        'Straße': 'address',
+        'Stadt': 'city',
+        'Ort': 'city',
+        'PLZ': 'postalCode',
+        'Postleitzahl': 'postalCode',
+        'Land': 'country',
+        'Status': 'status',
+        'Notizen': 'notes',
+        'Bemerkungen': 'notes',
+        'Zahlungsbedingungen': 'paymentTerms',
+        'Lieferbedingungen': 'deliveryTerms',
+        'Mindestbestellwert': 'minimumOrderValue',
+        'Liefertage': 'deliveryDays',
+        'Steuernummer': 'taxId',
+        'USt-ID': 'taxId',
+        'Kontonummer': 'accountNumber',
+        'Bankverbindung': 'bankDetails'
+      };
+      
+      // Normalisiertes Zeilenobject
+      const normalizedRow: Record<string, any> = {};
+      
+      // Iteriere über die Originalfelder und wende die Mapping-Logik an
+      Object.entries(row).forEach(([key, value]) => {
+        // Standardisieren des Feldnamens
+        const standardKey = fieldMapping[key] || key;
+        
+        // Typkonvertierungen für spezielle Felder
+        if (standardKey === 'status' && typeof value === 'string') {
+          // Status-Werte normalisieren
+          normalizedRow[standardKey] = value.toLowerCase() === 'inaktiv' ? 'inactive' : 'active';
+        } else if (standardKey === 'minimumOrderValue' && value !== null && value !== undefined) {
+          // Zahlen-String in Number konvertieren
+          const numValue = Number(value);
+          normalizedRow[standardKey] = isNaN(numValue) ? null : numValue;
+        } else {
+          // Standardfall
+          normalizedRow[standardKey] = value;
+        }
+      });
+      
+      // Stelle sicher, dass name immer ein String ist
+      if (!normalizedRow.name || typeof normalizedRow.name !== 'string') {
+        normalizedRow.name = String(normalizedRow.name || '');
+      }
+      
+      return normalizedRow;
+    });
+    
+    console.log("Normalisierte Daten:", JSON.stringify(normalizedData.slice(0, 3), null, 2));
     
     // Daten validieren
     try {
-      const validatedData = supplierImportSchema.parse(jsonData);
+      const validatedData = supplierImportSchema.parse(normalizedData);
       
       // Ergebnisse für den Import speichern
       const results = {
@@ -259,11 +351,35 @@ router.post("/import/suppliers", async (req: Request, res: Response) => {
       // Jede Zeile in der Datenbank speichern
       for (const supplier of validatedData) {
         try {
-          await storage.createSupplier(supplier);
+          // Nur die benötigten Felder auswählen, um zu verhindern, dass zusätzliche Felder
+          // die beim .passthrough() durchgerutscht sind, an die Datenbank übergeben werden
+          const insertData = {
+            name: supplier.name,
+            contactPerson: supplier.contactPerson || null,
+            phone: supplier.phone || null,
+            email: supplier.email || null,
+            website: supplier.website || null,
+            address: supplier.address || null,
+            city: supplier.city || null,
+            postalCode: supplier.postalCode || null,
+            country: supplier.country || 'Deutschland',
+            status: supplier.status || 'active',
+            notes: supplier.notes || null,
+            paymentTerms: supplier.paymentTerms || null,
+            deliveryTerms: supplier.deliveryTerms || null,
+            minimumOrderValue: supplier.minimumOrderValue || null,
+            deliveryDays: supplier.deliveryDays || null,
+            taxId: supplier.taxId || null,
+            accountNumber: supplier.accountNumber || null,
+            bankDetails: supplier.bankDetails || null
+          };
+          
+          await storage.createSupplier(insertData);
           results.success++;
         } catch (error) {
           results.errors++;
           results.errorMessages.push(`Fehler beim Importieren von ${supplier.name}: ${error}`);
+          console.error(`Fehler beim Importieren von ${supplier.name}:`, error);
         }
       }
       
