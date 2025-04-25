@@ -7,7 +7,7 @@
  */
 
 import { db } from '../db';
-import { calendarDays, calendarOverview, InsertCalendarOverview, DayType } from '@shared/schema';
+import { calendarDays as calendarDaysTable, calendarOverview, InsertCalendarOverview, DayType } from '@shared/schema';
 import { format, addDays, eachDayOfInterval, isBefore, isAfter } from 'date-fns';
 import { and, between, desc, eq, gte, lte, sql } from 'drizzle-orm';
 
