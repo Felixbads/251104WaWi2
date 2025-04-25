@@ -219,6 +219,16 @@ export class ProductSyncService {
       throw error;
     }
   }
+
+  /**
+   * Synchronisiert Produkte von der Vendon API (für Scheduler-Kompatibilität)
+   * @param forceUpdate Erzwinge Aktualisierung auch wenn keine Änderungen vorliegen
+   * @returns Synchronisierungsergebnis
+   */
+  async syncProducts(forceUpdate = false): Promise<any> {
+    console.log(`Produkt-Synchronisierung gestartet (forceUpdate: ${forceUpdate})`);
+    return this.syncAllProducts();
+  }
 }
 
 // Exportiere eine Instanz der Klasse für einfache Verwendung

@@ -113,4 +113,54 @@ router.post('/sync-product/:id', async (req, res) => {
   }
 });
 
+/**
+ * @route GET /api/product-sync/debug
+ * @desc Debug-Endpunkt für die Vendon API-Verbindung und Produktsynchronisierung
+ */
+router.get('/debug', async (req, res) => {
+  try {
+    console.log('Starting product sync debug test...');
+    
+    // 1. Teste die Vendon API-Verbindung
+    const { vendonAPI } = await import('../services/vendonAPI');
+    console.log('Testing Vendon API connection...');
+    
+    // Teste die API-Verbindung durch Abrufen der Produkte
+    console.log('Fetching products from Vendon API...');
+    const vendonProducts = await vendonAPI.getProducts();
+    
+    console.log(`Vendon API returned ${vendonProducts?.length || 0} products`);
+    
+    // Prüfe vorhandene Produkte in der Datenbank
+    const dbProducts = await req.storage.getProducts(1000, 0);
+    const dbProductCount = dbProducts?.length || 0;
+    
+    // 3. Sammle Debug-Informationen über die Vendon API-Verbindung
+    return res.json({
+      status: 'success',
+      apiConnection: vendonProducts ? 'connected' : 'error',
+      vendonProductCount: vendonProducts?.length || 0,
+      databaseProductCount: dbProductCount,
+      vendonApiKey: process.env.VENDON_API_KEY ? 'configured' : 'missing',
+      sampleVendonProduct: vendonProducts?.length > 0 ? {
+        id: vendonProducts[0].id,
+        name: vendonProducts[0].name,
+        price: vendonProducts[0].price
+      } : null,
+      error: null
+    });
+  } catch (error) {
+    console.error('Debug API error:', error);
+    return res.status(500).json({
+      status: 'error',
+      apiConnection: 'failed',
+      vendonProductCount: 0,
+      databaseProductCount: 0,
+      sampleVendonProduct: null,
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined
+    });
+  }
+});
+
 export default router;
