@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { queryClient } from "@/lib/queryClient";
+import { format } from "date-fns";
+import { de } from "date-fns/locale";
 import { 
   ShoppingBag, 
   Search, 
@@ -31,6 +33,12 @@ import {
   Upload,
   FileSpreadsheet
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import PageHeader from "@/components/layout/PageHeader";
 import { ExportImportButtons } from "@/components/ExportImportButtons";
 import { Button } from "@/components/ui/button";
@@ -54,7 +62,6 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -74,6 +81,26 @@ import {
   SyncStatus
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+
+// Formatierungsfunktion für Datumsangaben
+const formatDateTime = (dateString: string | Date | null, type: 'date' | 'time' | 'datetime' = 'date') => {
+  if (!dateString) return '-';
+  
+  const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+  
+  try {
+    if (type === 'date') {
+      return format(date, 'dd.MM.yyyy', { locale: de });
+    } else if (type === 'time') {
+      return format(date, 'HH:mm', { locale: de });
+    } else {
+      return format(date, 'dd.MM.yyyy HH:mm', { locale: de });
+    }
+  } catch (error) {
+    console.error('Fehler bei der Datums-Formatierung:', error);
+    return String(dateString);
+  }
+};
 
 // Filter Dialog Komponente
 interface FilterDialogProps {
@@ -851,6 +878,20 @@ export default function Products() {
     // Daten nach dem Import neu laden
     queryClient.invalidateQueries({ queryKey: ['/api/products'] });
   };
+  
+  // Abrufen des aktuellen Synchronisierungsstatus beim Laden
+  useEffect(() => {
+    const fetchSyncStatus = async () => {
+      try {
+        const status = await getProductSyncStatus();
+        setSyncStatus(status);
+      } catch (error) {
+        console.error('Fehler beim Abrufen des Synchronisierungsstatus', error);
+      }
+    };
+    
+    fetchSyncStatus();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -867,12 +908,49 @@ export default function Products() {
           />
         </div>
         
-        {/* Export/Import Buttons */}
-        <ExportImportButtons 
-          type="products" 
-          label="Produkte" 
-          onSuccessfulImport={handleSuccessfulImport}
-        />
+        <div className="flex gap-2">
+          {/* Synchronisierungs-Button */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleSyncProducts}
+                  disabled={isSyncing}
+                  className="flex items-center gap-1.5"
+                >
+                  {isSyncing ? (
+                    <>
+                      <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full"></div>
+                      <span>Synchronisiere...</span>
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4" />
+                      <span>Vendon Sync</span>
+                    </>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Synchronisiere Produkte mit der Vendon API</p>
+                {syncStatus?.lastSync && (
+                  <p className="text-xs text-gray-500">
+                    Letzte Synchronisierung: {formatDateTime(syncStatus.lastSync, 'datetime')}
+                  </p>
+                )}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          
+          {/* Export/Import Buttons */}
+          <ExportImportButtons 
+            type="products" 
+            label="Produkte" 
+            onSuccessfulImport={handleSuccessfulImport}
+          />
+        </div>
       </div>
       
       {/* Aktive Filter anzeigen */}
