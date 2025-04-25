@@ -8,6 +8,7 @@
 import { Router, Request, Response } from 'express';
 import { db, rawDb } from '../db';
 import { format, parseISO, subDays } from 'date-fns';
+import { transactions } from '@shared/schema';
 
 const router = Router();
 
@@ -170,6 +171,68 @@ router.get('/gap-check', async (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/vendon/import/recent-transactions
+ * 
+ * Liefert die zuletzt importierten Transaktionen für Echtzeit-Monitoring
+ */
+router.get('/recent-transactions', async (req: Request, res: Response) => {
+  try {
+    // Anzahl der zurückzugebenden Transaktionen (Default: 50)
+    const limit = parseInt(req.query.limit as string) || 50;
+    
+    // Nur "history-import" Transaktionen, wenn requested
+    const sourceFilter = req.query.source === 'history' ? "AND source = 'history-import'" : "";
+    
+    // SQL für die letzten Transaktionen
+    const query = `
+      SELECT 
+        id,
+        vendon_id,
+        machine_id,
+        machine_name,
+        product_id,
+        name as product_name,
+        datetime,
+        price,
+        payment_method,
+        source,
+        created_at
+      FROM transactions
+      WHERE 1=1 ${sourceFilter}
+      ORDER BY created_at DESC
+      LIMIT $1
+    `;
+    
+    const result = await rawDb.query(query, [limit]);
+    
+    res.json({
+      success: true,
+      count: result.rows.length,
+      transactions: result.rows.map(tx => ({
+        id: tx.id,
+        vendonId: tx.vendon_id,
+        machineId: tx.machine_id,
+        machineName: tx.machine_name,
+        productId: tx.product_id,
+        productName: tx.product_name,
+        datetime: tx.datetime,
+        price: parseFloat(tx.price),
+        paymentMethod: tx.payment_method,
+        source: tx.source,
+        createdAt: tx.created_at
+      }))
+    });
+  } catch (error) {
+    console.error('Fehler beim Abrufen der letzten Transaktionen:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Fehler beim Abrufen der letzten Transaktionen',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+/**
  * Hilfsfunktion: Ruft allgemeine Import-Statistiken ab
  */
 async function getGeneralImportStats() {
@@ -300,7 +363,7 @@ async function getRecentSyncLogs() {
     LIMIT 10
   `;
   
-  const result = await pool.query(query);
+  const result = await rawDb.query(query);
   
   return result.rows;
 }

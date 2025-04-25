@@ -1,5 +1,5 @@
 import { eq, desc, and, or, gte, lte, like, asc, count, aliasedTable, sql, gt, ilike, isNull, isNotNull, inArray, between } from "drizzle-orm";
-import { db, rawDb } from "./db";
+import { db, rawDb, rawSql } from "./db";
 // Import the database storage implementation
 import { DatabaseStorage } from './storage/database-storage';
 import { normalizeProductName } from "./utils/stringUtils";
