@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
-import { format, parseISO, subDays } from 'date-fns';
+import { format, parseISO, subDays, isValid } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -92,9 +92,10 @@ export default function SyncDashboard() {
     if (!dateString) return 'Nie';
     try {
       const date = new Date(dateString);
+      if (!isValid(date)) return 'Ungültiges Datum';
       return format(date, 'PPpp', { locale: de });
     } catch (error) {
-      return String(dateString);
+      return 'Fehler beim Formatieren';
     }
   };
 
@@ -468,8 +469,18 @@ export default function SyncDashboard() {
                       Number(databaseStatsQuery.data?.transactions?.count || 0).toLocaleString('de-DE')}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Letzte: {databaseStatsQuery.data?.transactions?.latest && typeof databaseStatsQuery.data.transactions.latest === 'string' ? 
-                      format(parseISO(databaseStatsQuery.data.transactions.latest), 'dd.MM.yyyy') : 'N/A'}
+                    Letzte: {(() => {
+                      const latest = databaseStatsQuery.data?.transactions?.latest;
+                      if (!latest) return 'N/A';
+                      if (typeof latest !== 'string') return 'Format ungültig';
+                      try {
+                        const date = parseISO(latest);
+                        if (!isValid(date)) return 'Datum ungültig';
+                        return format(date, 'dd.MM.yyyy');
+                      } catch (error) {
+                        return 'Fehler beim Formatieren';
+                      }
+                    })()}
                   </p>
                 </div>
                 

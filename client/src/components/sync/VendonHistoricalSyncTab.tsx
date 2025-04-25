@@ -64,7 +64,9 @@ type FormData = z.infer<typeof historicalImportSchema>;
 const formatDate = (dateString: string | null) => {
   if (!dateString) return 'N/A';
   try {
-    return format(parseISO(dateString), 'dd.MM.yyyy HH:mm:ss', { locale: de });
+    const date = parseISO(dateString);
+    if (!date || isNaN(date.getTime())) return 'Ungültiges Datum';
+    return format(date, 'dd.MM.yyyy HH:mm:ss', { locale: de });
   } catch (e) {
     return 'Ungültiges Datum';
   }
@@ -337,7 +339,15 @@ const VendonHistoricalSyncTab: React.FC = () => {
               <div className="text-xs text-muted-foreground">Letztes importiertes Datum</div>
               <div className="text-sm font-medium flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-primary" />
-                {cursor?.lastDate ? format(new Date(cursor.lastDate), 'dd.MM.yyyy') : 'Nicht verfügbar'}
+                {cursor?.lastDate ? (() => {
+                  try {
+                    const date = new Date(cursor.lastDate);
+                    if (isNaN(date.getTime())) return 'Ungültiges Datum';
+                    return format(date, 'dd.MM.yyyy');
+                  } catch (e) {
+                    return 'Fehler beim Formatieren';
+                  }
+                })() : 'Nicht verfügbar'}
               </div>
             </div>
             
@@ -387,9 +397,25 @@ const VendonHistoricalSyncTab: React.FC = () => {
                   <div className="space-y-1">
                     <div className="text-xs text-muted-foreground">Zeitraum</div>
                     <div className="text-sm font-medium">
-                      {lastRun.startDate ? format(new Date(lastRun.startDate), 'dd.MM.yyyy HH:mm') : 'N/A'}
+                      {lastRun.startDate ? (() => {
+                        try {
+                          const date = new Date(lastRun.startDate);
+                          if (isNaN(date.getTime())) return 'Ungültiges Datum';
+                          return format(date, 'dd.MM.yyyy HH:mm');
+                        } catch (e) {
+                          return 'Fehler';
+                        }
+                      })() : 'N/A'}
                       {' '} bis {' '}
-                      {lastRun.endDate ? format(new Date(lastRun.endDate), 'dd.MM.yyyy HH:mm') : 'N/A'}
+                      {lastRun.endDate ? (() => {
+                        try {
+                          const date = new Date(lastRun.endDate);
+                          if (isNaN(date.getTime())) return 'Ungültiges Datum';
+                          return format(date, 'dd.MM.yyyy HH:mm');
+                        } catch (e) {
+                          return 'Fehler';
+                        }
+                      })() : 'N/A'}
                     </div>
                   </div>
                   
