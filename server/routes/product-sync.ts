@@ -8,7 +8,7 @@ import express, { Request as ExpressRequest, Response } from 'express';
 import { productSyncService } from '../services/productSyncService';
 import { z } from 'zod';
 import { User } from '../../shared/schema';
-import { vendonAPI } from '../services/vendonAPI';
+import { VendonAPI } from '../services/vendonAPI';
 
 // Erweitern der Request-Schnittstelle für Storage-Zugriff
 interface Request extends ExpressRequest {
@@ -131,7 +131,12 @@ router.get('/debug', async (req: Request, res: Response) => {
     
     // Prüfen ob API-Key und Base-URL konfiguriert sind
     const configuredApiKey = process.env.VENDON_API_KEY || '';
-    const apiBaseUrl = process.env.VENDON_API_BASE_URL || 'https://api.vendon.net/v1';
+    const apiBaseUrl = process.env.VENDON_API_BASE_URL || 'https://cloud.vendon.net/rest/v1.8.0';
+    
+    // Direktes Prüfen der vendonAPI
+    const apiInstance = vendonAPI;
+    const apiInstanceCheck = apiInstance ? "API-Instanz vorhanden" : "API-Instanz FEHLT";
+    console.log("API-Instanz Check:", apiInstanceCheck);
     
     // Versuche, die Produkte abzurufen - fange spezifisch Netzwerkfehler ab
     let vendonProducts: any[] = [];
@@ -140,8 +145,15 @@ router.get('/debug', async (req: Request, res: Response) => {
     
     try {
       console.log('Fetching products from Vendon API...');
-      vendonProducts = await vendonAPI.getProducts();
-      console.log(`Vendon API returned ${vendonProducts?.length || 0} products`);
+      
+      // Sichere Ausführung mit instanzprüfung
+      if (apiInstance && typeof apiInstance.getProducts === 'function') {
+        vendonProducts = await apiInstance.getProducts();
+        console.log(`Vendon API returned ${vendonProducts?.length || 0} products`);
+      } else {
+        console.error('vendonAPI oder getProducts Methode nicht gefunden');
+        throw new Error('vendonAPI oder getProducts Methode nicht gefunden');
+      }
     } catch (apiErr) {
       console.error('Error fetching products:', apiErr);
       apiError = apiErr;
@@ -168,6 +180,7 @@ router.get('/debug', async (req: Request, res: Response) => {
     return res.json({
       status: networkError ? 'error' : (vendonProducts.length > 0 ? 'success' : 'warning'),
       apiConnection: networkError ? 'failed' : (vendonProducts.length > 0 ? 'connected' : 'no_data'),
+      apiInstanceCheck,
       vendonProductCount: vendonProducts?.length || 0,
       databaseProductCount: dbProductCount,
       vendonApiKey: configuredApiKey ? 'configured' : 'missing',
@@ -189,7 +202,7 @@ router.get('/debug', async (req: Request, res: Response) => {
       vendonProductCount: 0,
       databaseProductCount: 0,
       vendonApiKey: process.env.VENDON_API_KEY ? 'configured' : 'missing',
-      apiBaseUrl: process.env.VENDON_API_BASE_URL || 'https://api.vendon.net/v1',
+      apiBaseUrl: process.env.VENDON_API_BASE_URL || 'https://cloud.vendon.net/rest/v1.8.0',
       sampleVendonProduct: null,
       networkError: null,
       error: error instanceof Error ? error.message : String(error),

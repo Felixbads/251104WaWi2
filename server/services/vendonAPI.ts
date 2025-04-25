@@ -77,7 +77,8 @@ export class VendonAPI {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            'Authorization': `Bearer ${this.apiKey}`
+            // Verwende 'Token' statt 'Bearer' wie in vendonSync.ts
+            'Authorization': `Token ${this.apiKey}`
           }
         };
         
