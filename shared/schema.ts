@@ -13,6 +13,34 @@ export const syncLocks = pgTable("sync_locks", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Sync-Logs Tabelle für die Protokollierung von Synchronisierungsprozessen
+export const syncLogs = pgTable("sync_logs", {
+  id: serial("id").primaryKey(),
+  syncType: varchar("sync_type", { length: 50 }).notNull(),
+  startDate: timestamp("start_date").defaultNow().notNull(),
+  endDate: timestamp("end_date"),
+  itemsFound: integer("items_found"),
+  itemsSaved: integer("items_saved"),
+  itemsUpdated: integer("items_updated"),
+  duplicates: integer("duplicates"),
+  errors: integer("errors"),
+  durationSeconds: real("duration_seconds"),
+  syncStatus: varchar("sync_status", { length: 20 }).default("running").notNull(),
+  errorMessage: text("error_message"),
+  additionalData: text("additional_data"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertSyncLogSchema = createInsertSchema(syncLogs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertSyncLog = z.infer<typeof insertSyncLogSchema>;
+export type SyncLog = typeof syncLogs.$inferSelect;
+
 // Schema für historische Synchronisierungsoptionen
 export const historicalSyncOptionsSchema = z.object({
   startDate: z.string().or(z.date()).optional(),
@@ -491,31 +519,7 @@ export const insertMachineStockSchema = createInsertSchema(machineStocks).omit({
 export type InsertMachineStock = z.infer<typeof insertMachineStockSchema>;
 export type MachineStock = typeof machineStocks.$inferSelect;
 
-// Sync log table based on vendon_sync_log
-export const syncLogs = pgTable("sync_logs", {
-  id: serial("id").primaryKey(),
-  syncType: text("sync_type").notNull(),
-  startDate: timestamp("start_date"),
-  endDate: timestamp("end_date"),
-  itemsFound: integer("items_found").default(0),
-  itemsSaved: integer("items_saved").default(0),
-  itemsUpdated: integer("items_updated").default(0),
-  duplicates: integer("duplicates").default(0),
-  errors: integer("errors").default(0),
-  durationSeconds: real("duration_seconds").default(0),
-  syncStatus: text("sync_status").default("running"),
-  errorMessage: text("error_message"),
-  additionalData: text("additional_data"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-export const insertSyncLogSchema = createInsertSchema(syncLogs).omit({
-  id: true,
-  createdAt: true,
-});
-
-export type InsertSyncLog = z.infer<typeof insertSyncLogSchema>;
-export type SyncLog = typeof syncLogs.$inferSelect;
+// Note: The sync_logs table is already defined at the top of the file
 
 // Define relations
 export const suppliersRelations = relations(suppliers, ({ many }) => ({

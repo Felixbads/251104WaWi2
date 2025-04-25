@@ -1,7 +1,7 @@
 import { eq, desc, and, or, gte, lte, like, asc, count, aliasedTable, sql, gt, ilike, isNull, isNotNull, inArray, between } from "drizzle-orm";
 import { db, rawDb } from "./db";
-// Define rawSql as a local alias for sql
-const rawSql = sql;
+// Import the database storage implementation
+import { DatabaseStorage } from './storage/database-storage';
 import { normalizeProductName } from "./utils/stringUtils";
 import { 
   users, type User, type InsertUser,
@@ -4202,4 +4202,5 @@ class DatabaseStorageWithStock extends DatabaseStorage {
   }
 }
 
-export const storage = new DatabaseStorageWithStock();
+// Export an instance of the DatabaseStorage implementation
+export const storage = new DatabaseStorage();
