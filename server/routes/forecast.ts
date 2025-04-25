@@ -883,6 +883,11 @@ export function registerForecastRoutes(app: Express): void {
     includeSchoolHolidays: z.boolean().default(true)
   });
 
+  // Die Feiertags-Routen wurden in die holidays.ts verschoben
+  // Dort werden sie über einen express.Router() definiert und in der routes.ts registriert
+  // Die folgenden Routen wurden auskommentiert, um Konflikte zu vermeiden
+  
+  /*
   // Öffentliche Feiertage synchronisieren
   app.post(`${API_PREFIX}/holidays/sync`, async (req: Request, res: Response) => {
     try {
@@ -924,6 +929,7 @@ export function registerForecastRoutes(app: Express): void {
       res.status(500).json({ error: "Interner Serverfehler" });
     }
   });
+  */
 
   // Alle Feiertagstypen synchronisieren
   app.post(`${API_PREFIX}/holidays/sync-all`, async (req: Request, res: Response) => {
