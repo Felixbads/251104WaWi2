@@ -1,0 +1,179 @@
+Auftrag: Vollständiger Historien-Import für Vendon-Transaktionen
+
+⸻
+
+Kontext und Ausgangssituation
+
+In unserer Applikation existiert eine funktionierende Routine, die aktuelle Vendor-Transaktionen via
+GET /rest/v1.8.0/stats/vends in 100er-Batches abruft und in der Datenbank speichert. Zusätzlich wurden in der Vergangenheit mehrere Historien-Jobs geschrieben, aber alle scheitern oder liefern unvollständige Daten.
+
+WICHTIG:
+	1.	Die bestehende Live-Import-Logik darf in keiner Weise verändert werden.
+	2.	Alte, fehlerhafte Historien-Implementierungen sind zu dokumentieren und anschließend komplett durch eine neue, robuste Lösung zu ersetzen.
+
+⸻
+
+1. Phase 1 – Analyse der Ist-Situation
+	1.	Inventarisierung aller Historien-Jobs
+	•	Finde alle Klassen/Skripte/Jobs, die historische Daten abrufen sollten (z. B. HistoricalVendLoader, BackfillJob, etc.).
+	•	Dokumentiere für jede Instanz:
+	•	Aufrufplan (Cron, manuell, CI-Trigger)
+	•	API-Endpunkt, genutzte Parameter (from_timestamp, to_timestamp, limit, offset, search_time)
+	•	Datenbank-Tabelle(n) und Mapping (welche JSON-Felder auf welche Spalten)
+	•	beobachtete Symptome (Timeouts, Lücken, Duplikate, Deadlocks)
+	2.	Live-Logik prüfen
+	•	Identifiziere das Modul, das aktuelle Transaktionen lädt.
+	•	Verstehe: Authentifizierung, Fehlerbehandlung, Batch-Größe, Paginierung.
+	•	Notiere die genutzten Mapper- oder DAO-Klassen, um später dasselbe JSON→Spalten-Mapping zu verwenden.
+	3.	Festhalten der Anforderungen
+	•	Support für alle historischen Daten ab historyStartDate (z. B. 2015-01-01) bis heute.
+	•	Batch-Größe: 100 (limit=100), Steuerung via offset.
+	•	Idempotentes Speichern: transaction_id als PRIMARY KEY + ON CONFLICT DO NOTHING.
+	•	Wiederaufnahme bei Abbruch: Speicherung von last_date + last_offset in einer sync_state-Tabelle.
+
+Lieferable: analysis.md mit vollständigem Ist-Zustand und Problemdiagnose.
+
+⸻
+
+2. Phase 2 – Planung und Design
+	1.	Architekturübersicht
+	•	Separate Komponente/Package: historyloader
+	•	Einstiegspunkt: CLI-Befehl oder Batch-Job runHistoricalLoad(), der unabhängig vom Live-Job läuft.
+	•	Gemeinsame Persistenz-Utilities und JSON-Mapper aus Live-Job wiederverwenden, um Konsistenz zu garantieren.
+	2.	Sequenzdiagramm / Pseudocode
+
+historyStart = config.historyStartDate      # Datum
+(cursorDate, cursorOffset) = loadSyncState()
+
+for day in eachDateFrom(historyStart to today):
+    if day < cursorDate: continue
+
+    from_ts = unix(day 00:00:00)
+    to_ts   = unix(day 23:59:59)
+    offset  = (day == cursorDate ? cursorOffset : 0)
+
+    // Paging-Loop
+    do {
+        response = GET /stats/vends
+            ? from_timestamp=from_ts
+            & to_timestamp=to_ts
+            & limit=100
+            & offset=offset
+            & search_time=vend
+
+        rows = response.result
+        saveJsonRowsAsColumns(rows)  // INSERT … ON CONFLICT DO NOTHING
+
+        offset += len(rows)
+        updateSyncState(day, offset)
+    } while len(rows) == 100
+
+    // Tagesabschluss: reset offset, advance date
+    resetOffsetForNextDay()
+
+
+	3.	Datenbank-Erweiterungen
+	•	Tabelle vendor_transactions: Sicherstellen, dass transaction_id BIGINT PRIMARY KEY vorhanden ist.
+	•	Tabelle sync_state:
+
+CREATE TABLE IF NOT EXISTS sync_state (
+  job_name    TEXT PRIMARY KEY,
+  last_date   DATE    NOT NULL,
+  last_offset INT     NOT NULL,
+  updated_at  TIMESTAMP DEFAULT now()
+);
+
+
+	•	Migration(en) für neue Felder aus API, falls notwendig.
+
+	4.	Progress- und Vollständigkeits-Checks
+	•	sync_state → aktuelles Datum + Offset.
+	•	Structured Logs pro Batch: {job, date, offset, rows, duration_ms}.
+	•	Prometheus-Metrics:
+	•	hist_loader_batches_total (Counter)
+	•	hist_loader_rows_total (Counter)
+	•	hist_loader_day_progress{date} (Gauge = offset/total)
+	•	Vollständigkeits-Prüfungen nach jedem Tageslauf (Automatisch):
+	1.	API-paging.total vs. tatsächlich gespeicherte Rows.
+	2.	SQL-Check auf Duplikate:
+
+SELECT transaction_id, COUNT(*)
+FROM vendor_transactions
+GROUP BY transaction_id
+HAVING COUNT(*)>1;
+
+
+	3.	Datums-Lücken-Check:
+
+WITH days AS (
+  SELECT generate_series(historyStart, CURRENT_DATE, interval '1 day') AS day
+)
+SELECT day
+FROM days
+LEFT JOIN (
+  SELECT DISTINCT DATE(datetime) AS day FROM vendor_transactions
+) v ON v.day = day
+WHERE v.day IS NULL;
+
+
+	4.	Summen-Check gegen /stats/vendsTotals.
+
+	5.	Fehler-Handling & Retry
+	•	Exponentielles Back-off bei HTTP 429 / 5xx.
+	•	Nach 5 Fehlversuchen pro Batch → Alert & Pause.
+
+Lieferable: design.md mit UML/Pseudocode, DB-Schema, Monitoring-Plan.
+
+⸻
+
+3. Phase 3 – Implementierung
+	1.	Einrichtung
+	•	Branch feature/historical-vend-loader vom Hauptbranch.
+	•	CI-Pipeline anpassen: neuer Job historical-load definieren (manuell triggerbar).
+	2.	Coding
+	•	Neue Klasse HistoryVendLoader (oder Script in historyloader-Package).
+	•	Implementiere Paginierungs-Loop, JSON→Spalten-Mapping identisch zum Live-Loader.
+	•	Interagiere mit sync_state-Tabelle.
+	•	Baue Prometheus-Metrics & strukturierte Logs ein.
+	3.	Datenbank-Migrationen
+	•	Migration für sync_state + ggf. neue Spalten in vendor_transactions.
+	4.	Unit- & Integration-Tests
+	•	Unit-Tests: Mock-API liefert X Datensätze in mehreren Seiten → prüfe DB-Inserts & sync_state.
+	•	Integration-Test: Verbinde zu Sandbox-API, lade 3 Tage, verifiziere Vollständigkeit und Duplikat-Freiheit.
+	•	Performance-Test: Simuliere 1 Jahr Daten in Staging, messe Laufzeit (< 15 min).
+	5.	Code-Review & Merge
+	•	Review durch mindestens zwei Kollegen, Fokusthemen: idempotentes Verhalten, Fehler-Handling, keine Änderung der Live-Logik.
+
+⸻
+
+4. Phase 4 – Rollout & Monitoring
+	1.	Voll-Import starten (Timeline & Verantwortliche kommunizieren).
+	2.	Fortschritt beobachten via Dashboard (Grafana/Kibana).
+	3.	Nach Abschluss:
+	•	Deaktiviere oder archiviere den Loader-Job.
+	•	Dokumentiere das finale sync_state (letzter importierter Tag).
+	•	Richte einen täglichen Inkrement-Job ein (siehe readme).
+	4.	Alerting-Regeln
+	•	SLA: Lag ≤ 1 Tag.
+	•	Duplikate > 0 → High-Priority Alarm.
+	•	API-Error-Rate > 5 % → PagerDuty.
+
+⸻
+
+5. Phase 5 – Abschluss und Dokumentation
+	•	README: Übersicht, Voraussetzungen, Konfiguration (API-Key, Start-Datum), Ausführung, Troubleshooting.
+	•	Runbook: Befehle zum manuellen Start, Stoppen, Cursor-Reset.
+	•	Changelog: SQL-Migrationen, neue Klassen, Monitoring-Setup.
+
+⸻
+
+Akzeptanzkriterien
+	1.	Live-Import: Keine Regression gegenüber der bisherigen Produktion.
+	2.	Historien-Job: Lädt alle Transaktionen batch-weise (100er) vollständig und idempotent.
+	3.	Progress-Dashboard: Zeigt %-Fertigung pro Tag, Latenzen, Fehlerraten.
+	4.	Vollständigkeitstests: Lücken- und Duplikat-Checks alle grün.
+	5.	Dokumentation: Vollständig, verständlich, auffindbar im Haupt-Repo.
+
+⸻
+
+Ergebnis: Ein schlanker, wartbarer Historien-Loader, der Batch für Batch alle historischen Vendor-Transaktionen zuverlässig in die Datenbank schreibt und dabei jede JSON-Eigenschaft präzise in die entsprechenden Spalten auflöst.
