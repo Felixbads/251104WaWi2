@@ -29,6 +29,7 @@ import warehousesRouter from './routes/warehouses';
 import { criticalInventoryRouter } from './routes/critical-inventory';
 import productSyncRouter from './routes/product-sync';
 import vendonImportStatsRouter from './routes/vendonImportStats';
+import vendonHistoricalImportRouter from './routes/vendonHistoricalImport';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -2780,6 +2781,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Registriere Vendon Import-Statistiken Routen
   app.use(`${API_PREFIX}/vendon/import`, vendonImportStatsRouter);
+  
+  // Registriere Vendon historischer Import Routen
+  app.use(`${API_PREFIX}`, vendonHistoricalImportRouter);
 
   return httpServer;
 }
