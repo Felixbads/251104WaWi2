@@ -42,12 +42,13 @@ const WEEKDAY_NAMES = [
   'Donnerstag', 'Freitag', 'Samstag'
 ];
 
-// Enum für Tagestypen
+// Enum für primäre Tagestypen
+// Die Priorität für die Anzeige ist: PUBLIC_HOLIDAY > WEEKEND > SCHOOL_HOLIDAY > WORKDAY
 enum DayType {
-  WORKDAY = 'WORKDAY',
-  WEEKEND = 'WEEKEND',
-  SCHOOL_HOLIDAY = 'SCHOOL_HOLIDAY',
-  PUBLIC_HOLIDAY = 'PUBLIC_HOLIDAY'
+  WORKDAY = 'WORKDAY',           // Normaler Arbeitstag (keine der anderen Eigenschaften)
+  WEEKEND = 'WEEKEND',           // Wochenende (Sa-So)
+  SCHOOL_HOLIDAY = 'SCHOOL_HOLIDAY', // Schulferientermin an einem Wochentag
+  PUBLIC_HOLIDAY = 'PUBLIC_HOLIDAY'  // Gesetzlicher Feiertag (höchste Priorität)
 }
 
 /**
@@ -275,6 +276,56 @@ class CalendarService {
       }
     }
     
+    // Fallback für Deutschland-weite Feiertage, falls keine API funktioniert
+    if (!holidaysData || holidaysData.length === 0) {
+      console.log('Fallback: Verwende fest codierte wichtige Feiertage für Deutschland...');
+      
+      // Standard-Feiertage, die in fast allen Bundesländern gelten
+      const standardHolidays = [
+        { date: `${year}-01-01`, name: 'Neujahr', global: true },
+        { date: `${year}-05-01`, name: 'Tag der Arbeit', global: true },
+        { date: `${year}-10-03`, name: 'Tag der Deutschen Einheit', global: true },
+        { date: `${year}-12-25`, name: 'Erster Weihnachtstag', global: true },
+        { date: `${year}-12-26`, name: 'Zweiter Weihnachtstag', global: true },
+      ];
+      
+      // Ostern und davon abhängige Feiertage (vereinfachte Berechnung)
+      const easter = this.calculateEaster(year);
+      if (easter) {
+        const karfreitag = new Date(easter);
+        karfreitag.setDate(easter.getDate() - 2);
+        
+        const ostermontag = new Date(easter);
+        ostermontag.setDate(easter.getDate() + 1);
+        
+        const christiHimmelfahrt = new Date(easter);
+        christiHimmelfahrt.setDate(easter.getDate() + 39);
+        
+        const pfingstmontag = new Date(easter);
+        pfingstmontag.setDate(easter.getDate() + 50);
+        
+        standardHolidays.push(
+          { date: format(karfreitag, 'yyyy-MM-dd'), name: 'Karfreitag', global: true },
+          { date: format(easter, 'yyyy-MM-dd'), name: 'Ostersonntag', global: true },
+          { date: format(ostermontag, 'yyyy-MM-dd'), name: 'Ostermontag', global: true },
+          { date: format(christiHimmelfahrt, 'yyyy-MM-dd'), name: 'Christi Himmelfahrt', global: true },
+          { date: format(pfingstmontag, 'yyyy-MM-dd'), name: 'Pfingstmontag', global: true }
+        );
+      }
+      
+      // Konvertieren in das erwartete Format
+      holidaysData = standardHolidays.map(holiday => ({
+        date: holiday.date,
+        localName: holiday.name,
+        name: holiday.name,
+        countryCode: 'DE',
+        fixed: true,
+        global: holiday.global,
+        counties: holiday.global ? states : [],
+        type: 'Public'
+      }));
+    }
+    
     // Wenn keine Daten gefunden wurden, Fehler zurückgeben
     if (!holidaysData || holidaysData.length === 0) {
       console.error(`Keine Feiertagsdaten für ${year} gefunden!`);
@@ -283,6 +334,36 @@ class CalendarService {
     
     // Verarbeite die erhaltenen Daten und aktualisiere die Datenbank
     return await this.processAndSaveHolidays(holidaysData, year, states);
+  }
+  
+  /**
+   * Berechnet das Osterdatum für ein gegebenes Jahr
+   * Implementierung des Gaußschen Algorithmus
+   */
+  private calculateEaster(year: number): Date | null {
+    try {
+      // Gaußscher Algorithmus zur Berechnung des Ostersonntags
+      const a = year % 19;
+      const b = Math.floor(year / 100);
+      const c = year % 100;
+      const d = Math.floor(b / 4);
+      const e = b % 4;
+      const f = Math.floor((b + 8) / 25);
+      const g = Math.floor((b - f + 1) / 3);
+      const h = (19 * a + b - d - g + 15) % 30;
+      const i = Math.floor(c / 4);
+      const k = c % 4;
+      const l = (32 + 2 * e + 2 * i - h - k) % 7;
+      const m = Math.floor((a + 11 * h + 22 * l) / 451);
+      const month = Math.floor((h + l - 7 * m + 114) / 31);
+      const day = ((h + l - 7 * m + 114) % 31) + 1;
+      
+      // Erstelle das Datum
+      return new Date(year, month - 1, day);
+    } catch (error) {
+      console.error(`Fehler bei der Berechnung des Osterdatums für ${year}:`, error);
+      return null;
+    }
   }
   
   /**
@@ -514,14 +595,27 @@ class CalendarService {
               const formattedDate = format(currentDate, 'yyyy-MM-dd');
               
               // Aktualisiere den Kalendertag
+              // Priorität der Tagestypen: PUBLIC_HOLIDAY > WEEKEND > SCHOOL_HOLIDAY > WORKDAY
+              // Schulferien-Flag setzen, aber Tag-Typ nur ändern, wenn höhere Priorität
               await db.update(calendarDays)
                 .set({
                   is_school_holiday: true,
-                  day_type: eq(calendarDays.is_public_holiday, true) ? 
-                           DayType.PUBLIC_HOLIDAY : 
-                           (eq(calendarDays.is_weekend, true) ? DayType.WEEKEND : DayType.SCHOOL_HOLIDAY),
-                  holiday_name: eq(calendarDays.holiday_name, null) ? 
-                               holidayName : calendarDays.holiday_name,
+                  // day_type Priorität: PUBLIC_HOLIDAY > WEEKEND > SCHOOL_HOLIDAY > WORKDAY
+                  // Ändere den day_type nur, wenn es kein PUBLIC_HOLIDAY und kein WEEKEND ist
+                  day_type: sql`
+                    CASE 
+                      WHEN ${calendarDays.is_public_holiday} = true THEN '${DayType.PUBLIC_HOLIDAY}'
+                      WHEN ${calendarDays.is_weekend} = true THEN '${DayType.WEEKEND}'
+                      ELSE '${DayType.SCHOOL_HOLIDAY}'
+                    END
+                  `,
+                  // Feriename nur setzen, wenn noch kein Name vorhanden ist (Feiertagsname hat Vorrang)
+                  holiday_name: sql`
+                    CASE 
+                      WHEN ${calendarDays.holiday_name} IS NULL THEN ${holidayName}
+                      ELSE ${calendarDays.holiday_name}
+                    END
+                  `,
                   updated_at: sql`CURRENT_TIMESTAMP`
                 })
                 .where(
