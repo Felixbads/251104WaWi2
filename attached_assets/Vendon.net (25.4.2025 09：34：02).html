@@ -1,0 +1,587 @@
+<!DOCTYPE html> <html lang=en style><!--
+ Page saved with SingleFile 
+ url: https://cloud.vendon.net/rest/v1.8.0/docs/stock 
+ saved date: Fri Apr 25 2025 09:34:02 GMT+0200 (Mitteleuropäische Sommerzeit)
+--><meta charset=utf-8>
+<style>/*!
+ * Bootstrap v3.1.1 (http://getbootstrap.com)
+ * Copyright 2011-2014 Twitter, Inc.
+ * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
+ *//*! normalize.css v3.0.0 | MIT License | git.io/normalize */html{font-family:sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}body{margin:0}a{background:transparent}a:active,a:hover{outline:0}b,strong{font-weight:bold}h1{margin:.67em 0}img{border:0}pre{overflow:auto}select{margin:0;font:inherit}select{text-transform:none}table{border-spacing:0}*{-webkit-box-sizing:border-box;-moz-box-sizing:border-box;box-sizing:border-box}*:before,*:after{-webkit-box-sizing:border-box;-moz-box-sizing:border-box;box-sizing:border-box}html{font-size:62.5%;-webkit-tap-highlight-color:rgba(0,0,0,0)}body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:14px;line-height:1.42857143;color:#333;background-color:#fff}select{font-family:inherit}a{color:#428bca;text-decoration:none}a:hover,a:focus{color:#2a6496;text-decoration:underline}a:focus{outline:thin dotted;outline:5px auto -webkit-focus-ring-color;outline-offset:-2px}img{vertical-align:middle}h1,h2,h3{font-family:inherit;font-weight:500;line-height:1.1;color:inherit}h1,h2{margin-bottom:10px}@media (min-width:768px){}ul{margin-top:0}@media (min-width:768px){}code,pre{font-family:Menlo,Monaco,Consolas,"Courier New",monospace}code{padding:2px 4px;font-size:90%;color:#c7254e;white-space:nowrap;background-color:#f9f2f4;border-radius:4px}pre{display:block;margin:0 0 10px;line-height:1.42857143;word-break:break-all;word-wrap:break-word;border:1px solid #ccc}@media (min-width:768px){}@media (min-width:992px){}@media (min-width:1200px){}.container-fluid{padding-right:15px;padding-left:15px;margin-right:auto;margin-left:auto}.row{margin-right:-15px;margin-left:-15px}.col-sm-3,.col-md-9,.col-md-10{position:relative;min-height:1px;padding-right:15px;padding-left:15px}@media (min-width:768px){.col-sm-3,.col-sm-9{float:left}.col-sm-9{width:75%}.col-sm-3{width:25%}.col-sm-offset-3{margin-left:25%}}@media (min-width:992px){.col-md-2,.col-md-9,.col-md-10{float:left}.col-md-10{width:83.33333333%}.col-md-9{width:75%}.col-md-2{width:16.66666667%}.col-md-offset-2{margin-left:16.66666667%}}@media (min-width:1200px){}table{max-width:100%;background-color:transparent}@media (max-width:767px){}.form-control{display:block;width:100%;height:34px;padding:6px 12px;font-size:14px;line-height:1.42857143;color:#555;background-color:#fff;background-image:none;border:1px solid #ccc;border-radius:4px;-webkit-box-shadow:inset 0 1px 1px rgba(0,0,0,.075);box-shadow:inset 0 1px 1px rgba(0,0,0,.075);-webkit-transition:border-color ease-in-out .15s,box-shadow ease-in-out .15s;transition:border-color ease-in-out .15s,box-shadow ease-in-out .15s}.form-control:focus{border-color:#66afe9;outline:0;-webkit-box-shadow:inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(102,175,233,.6);box-shadow:inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(102,175,233,.6)}.form-control::-webkit-input-placeholder{color:#999}@media (min-width:768px){}@media (min-width:768px){}@media (min-width:768px){}.nav{padding-left:0;margin-bottom:0;list-style:none}.nav>li{position:relative;display:block}.nav>li>a{position:relative;display:block;padding:10px 15px}.nav>li>a:hover,.nav>li>a:focus{text-decoration:none;background-color:#eee}.nav-tabs{border-bottom:1px solid #ddd}.nav-tabs>li{float:left;margin-bottom:-1px}.nav-tabs>li>a{margin-right:2px;line-height:1.42857143;border:1px solid transparent;border-radius:4px 4px 0 0}.nav-tabs>li>a:hover{border-color:#eee #eee #ddd}.nav-tabs>li.active>a,.nav-tabs>li.active>a:hover,.nav-tabs>li.active>a:focus{color:#555;cursor:default;background-color:#fff;border:1px solid #ddd;border-bottom-color:transparent}@media (min-width:768px){}@media (min-width:768px){}@media (min-width:768px){}@media (min-width:768px){}.navbar{min-height:50px;margin-bottom:20px;border:1px solid transparent}@media (min-width:768px){.navbar{border-radius:4px}}@media (min-width:768px){.navbar-header{float:left}}@media (min-width:768px){}.container-fluid>.navbar-header{margin-right:-15px;margin-left:-15px}@media (min-width:768px){.container-fluid>.navbar-header{margin-right:0;margin-left:0}}@media (min-width:768px){}.navbar-fixed-top{position:fixed;right:0;left:0;z-index:1030}@media (min-width:768px){.navbar-fixed-top{border-radius:0}}.navbar-fixed-top{top:0;border-width:0 0 1px}.navbar-brand{float:left;height:50px;padding:15px 15px;font-size:18px;line-height:20px}.navbar-brand:hover,.navbar-brand:focus{text-decoration:none}@media (min-width:768px){.navbar>.container-fluid .navbar-brand{margin-left:-15px}}@media (min-width:768px){}@media (max-width:767px){}@media (min-width:768px){}@media (min-width:768px){}@media (min-width:768px){}@media (max-width:767px){}@media (min-width:768px){}@media (min-width:768px){}@media (max-width:767px){}.navbar-inverse{background-color:#222;border-color:#080808}.navbar-inverse .navbar-brand{color:#999}.navbar-inverse .navbar-brand:hover,.navbar-inverse .navbar-brand:focus{color:#fff;background-color:transparent}@media (max-width:767px){}@media screen and (min-width:768px){}@-webkit-keyframes progress-bar-stripes{from{background-position:40px 0}to{background-position:0 0}}@keyframes progress-bar-stripes{from{background-position:40px 0}to{background-position:0 0}}@media (min-width:768px){}@media (min-width:992px){}@media screen and (min-width:768px){}.clearfix:before,.clearfix:after,.container:before,.container:after,.container-fluid:before,.container-fluid:after,.row:before,.row:after,.form-horizontal .form-group:before,.form-horizontal .form-group:after,.btn-toolbar:before,.btn-toolbar:after,.btn-group-vertical>.btn-group:before,.btn-group-vertical>.btn-group:after,.nav:before,.nav:after,.navbar:before,.navbar:after,.navbar-header:before,.navbar-header:after,.navbar-collapse:before,.navbar-collapse:after,.pager:before,.pager:after,.panel-body:before,.panel-body:after,.modal-footer:before,.modal-footer:after{display:table;content:" "}.clearfix:after,.container:after,.container-fluid:after,.row:after,.form-horizontal .form-group:after,.btn-toolbar:after,.btn-group-vertical>.btn-group:after,.nav:after,.navbar:after,.navbar-header:after,.navbar-collapse:after,.pager:after,.panel-body:after,.modal-footer:after{clear:both}@-ms-viewport{width:device-width}@media (max-width:767px){}@media (min-width:768px) and (max-width:991px){}@media (min-width:992px) and (max-width:1199px){}@media (min-width:1200px){}@media (max-width:767px){}@media (min-width:768px) and (max-width:991px){}@media (min-width:992px) and (max-width:1199px){}@media (min-width:1200px){}</style>
+<style>body{padding-top:50px}@media (min-width:768px){.sidebar{position:fixed;top:51px;bottom:0;left:0;z-index:1000;display:block;padding:20px;overflow-x:hidden;overflow-y:auto;background-color:#f5f5f5;border-right:1px solid #eee}}.nav-sidebar{margin-right:-21px;margin-bottom:20px;margin-left:-20px}.nav-sidebar>li>a{padding-right:20px;padding-left:20px}.nav-sidebar>.active>a{color:#fff;background-color:#428bca}pre.jsonFormat{padding:2px 4px;font-size:90%;color:#c7254e;background-color:#f9f2f4;border-radius:4px}</style>
+<title>Vendon.net</title>
+<meta name=referrer content=no-referrer><link type=image/x-icon rel="shortcut icon" href="data:image/x-icon;base64,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pqU4t6j/OLeo/zi3qP84t6j/NrWn0TOyoR4AAAAAAAAAADa2ow42tqe3OLeo/zi3qP84t6j/N7an+TW1p1oAAAAAAAAAAAAAAAAAAAAAAAAAANauABPWqACq1qgA/tepAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/1qgA/tWoAI2/fwAEAAAAAAAAAAAAAAAAAAAAAAAAAAE2tqaCOLeo/zi3qP84t6j/OLeo/ze0p5QAf38EAAAAAAAAAAAAAAAANramcTe2p/44t6j/OLeo/ze3p/I3t6dAAAAAAAAAAAAAAAAAAAAAAAAAAADWqABw16kA+tepAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/WqADr1agAUAAAAAAAAAAAAAAAAAAAAAAAAAAANrSlZze2p/s4t6j/OLeo/ze2p/IztKRPAAAAAAAAAAAAAAAAAAAAADG0pyk3tafYOLeo/zi3qP83t6fqNLamMQAAAAAAAAAAAAAAAAAAAADTpwAp16gAzNepAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9eoAK7SpQARAAAAAAAAAAAAAAAAAAAAADe1pVM3t6f4OLeo/zi3qP82tqe3LbSlEQAAAAAAAAAAAAAAAAAAAAAAAAAANrWmhze2p/44t6j/N7ao4jS3qicAAAAAAAAAAAAAAAD//wAB1agAgdaoAP7XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/WqAD31qgAXgAAAAAAAAAAAAAAAAAAAAA3tqhKOLeo9Ti3qP83t6f5NreoZwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADG1pjQ2tqjaOLeo/ze2qOI0sKMnAAAAAAAAAAAAAAAA1qcAJtWnANPXqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9aoALHMqgAPAAAAAAAAAAAAAAAAN7OlSji3qPU4t6j/N7WovDO3oxkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf38CNramgje2p/43tqjlNbGmKwAAAAAAAAAAAAAAANanAGzXqAD716kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/WqADw2KoASAAAAAAAAAAAAAAAADW1p0w4t6j1N7en+DW1pmUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADO2pyM3tqfBNran7TW1pjQAAAAAAAAAANCiAAvWqACw16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9WoAI1/fwACAAAAAAAAAAA3tqhYN7eo+De2pqInsJwNAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAANrWlXje2p+Y1t6hHAAAAAAAAAADSpgAu1qgA49epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqADG1q4AEwAAAAAAAAAANbSmbja2p9czt6dAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqqqgY2t6aHNrSkYwAAAAAAAAAA1aoAXdaoAPvXqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/1qgA69mqADYAAAAAAH9/AjW2poU3tadvAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAL7enIDW3pTkA//8B//8AAdapAInWqAD+16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9aoAPzUpgBfAAAAAB+fnwgztKRBH7+fCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAktpEHAAAAANSqAAbWqACq16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/WqAD+1qgAf/8AAAEAAAAAJLaRBwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADIowAO1qcAvtepAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/1qgA/teoAJb/fwACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA2qMADtaoAKrXqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9aoAP7WqACKqqoAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADVpwBD1qgAvdepAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/WpwCp1aYAMQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAANeqADPVpwCn1qkA/depAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9apAPfXqQCP1KoAHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA1KoAGNanAIPWqADp16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9eoANnVpgBu1KoABgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/qgAD06UAU9aoALfWqAD+16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/1qcA+daoAKPTqABBAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADXpgAa1qcAd9aoAM/WqAD916kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9ep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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////w=="><style>.sf-hidden{display:none!important}</style><link rel=canonical href=https://cloud.vendon.net/rest/v1.8.0/docs/stock><meta http-equiv=content-security-policy content="default-src 'none'; font-src 'self' data:; img-src 'self' data:; style-src 'unsafe-inline'; media-src 'self' data:; script-src 'unsafe-inline' data:; object-src 'self' data:; frame-src 'self' data:;"></head>
+<body>
+ <div class="navbar navbar-inverse navbar-fixed-top" role=navigation>
+ <div class=container-fluid>
+ <div class=navbar-header>
+ <button type=button class="navbar-toggle sf-hidden" data-toggle=collapse data-target=.navbar-collapse>
+ 
+ 
+ 
+ 
+ </button>
+ <a class=navbar-brand href=http://vendon.net/>
+ <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyMTcuODkgNTMuMjMiPjxkZWZzPjxzdHlsZT4uY2xzLTF7ZmlsbDojYThiNzM3O30uY2xzLTJ7ZmlsbDojZmZmZmZmO30uY2xzLTN7ZmlsbDojMDBiN2U4O30uY2xzLTMsLmNscy01e29wYWNpdHk6MC41O30uY2xzLTR7ZmlsbDojMDBhN2Q0O30uY2xzLTV7ZmlsbDojYjBjMDNhO308L3N0eWxlPjwvZGVmcz48dGl0bGU+dmVuZG9uX2xvZ29fZmxhdDwvdGl0bGU+PGcgaWQ9IkxheWVyXzIiIGRhdGEtbmFtZT0iTGF5ZXIgMiI+PHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMTkwLjkxLDczLjA4YzAtNC42MywyLjI2LTkuNDUsNy40OS05LjQ1czcuMyw1LjIzLDcuMyw5LjM1YzAsNS40OC0zLjE3LDkuNDUtNy4zOSw5LjQ1cy03LjM5LTQtNy4zOS05LjM1bS00LjQ3LjE1YzAsNy42OSw1LjA3LDEyLjUxLDExLjY2LDEyLjUxLDUuODgsMCwxMi4xMS0zLjkyLDEyLjExLTEyLjkyLDAtNy40NC00LjczLTEyLjUxLTExLjcyLTEyLjUxLTYuNzMsMC0xMi4wNiw0Ljc3LTEyLjA2LDEyLjkyIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMTguNjEgLTQ0LjI1KSIvPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTIxOS41MSw2MC44N2gtMy45MmMuMTUsMiwuMjEsNC4wNy4yMSw2LjU5Vjg1LjJoNC40MlY3MC41N2MwLS43My0uMTQtNS4xLjA1LTUuOTIsMCwwLDUuNjQtLjIsNS45NS0uMiw0LjE3LDAsNS44NywyLDUuODcsNi43MnYxNGg0LjQzVjcwLjY3YzAtOC4zNC00LjktMTAtOC4yNi0xMC00LDAtOC43My4yMi04LjczLjIyIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMTguNjEgLTQ0LjI1KSIvPjxwYXRoIGNsYXNzPSJjbHMtMiIgZD0iTTg0Ljc4LDYwLjg3bDQuNzcsMTMuNjdhNjIuOTQsNjIuOTQsMCwwLDEsMiw2LjIzaC4xNWMuNTUtMiwxLjI2LTQsMi4wNi02LjIzbDQuNzItMTMuNjdoNC42M0w5My41Myw4NS4ySDg5LjMxTDgwLjA2LDYwLjg3WiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTE4LjYxIC00NC4yNSkiLz48cGF0aCBjbGFzcz0iY2xzLTIiIGQ9Ik0xMDkuMjEsNzMuODRjLjEsNiwzLjkyLDguNDUsOC4zNSw4LjQ1QTE2LDE2LDAsMCwwLDEyNC4zLDgxbC43NSwzLjE3QTE5LjU2LDE5LjU2LDAsMCwxLDExNyw4NS43NWMtNy40OSwwLTEyLTUtMTItMTIuMzJzNC4zMi0xMy4xMiwxMS40MS0xMy4xMmM3Ljk0LDAsMTAuMDUsNywxMC4wNSwxMS40NmExNi4zLDE2LjMsMCwwLDEtLjE1LDIuMDZabTEzLTMuMTdjLjA1LTIuODItMS4xNi03LjE5LTYuMTMtNy4xOS00LjQ4LDAtNi40NCw0LjEzLTYuNzksNy4xOVoiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0xOC42MSAtNDQuMjUpIi8+PHBhdGggY2xhc3M9ImNscy0yIiBkPSJNMTQ0LjYsNjAuNjVjLTQsMC04LjczLjIyLTguNzMuMjJIMTMyYy4xNSwyLC4yLDQuMDcuMiw2LjU4Vjg1LjJoNC40M1Y3MC41N2MwLS43My0uMTQtNS4xLDAtNS45MiwwLDAsNS42NS0uMiw1Ljk1LS4yLDQuMTcsMCw1Ljg3LDIsNS44Nyw2LjcydjE0aDQuNDJWNzAuNjdjMC04LjM0LTQuODktMTAtOC4yNi0xMCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTE4LjYxIC00NC4yNSkiLz48cGF0aCBjbGFzcz0iY2xzLTIiIGQ9Ik0xODAuODUsNTAuNTdoLTQuNDJ2OS42OGMtMS44NywwLTMuODIuMDYtNi41Ny4wNmwtLjM1LDAtLjUyLDBhMTAuMTIsMTAuMTIsMCwwLDAtNi43MSwyLjUzYy0yLjc1LDIuMi00LjQ5LDUuNzQtNC40OSwxMC40YTEzLDEzLDAsMCwwLDIuOTMsOC42NCw5LDksMCwwLDAsNy41NCwzLjY1bDEyLjgtLjMyYy0uMTUtMS42Ni0uMi00LjEzLS4yLTYuMjlabS00LjUsMzEuM2E1NC40Nyw1NC40NywwLDAsMS02LjYxLjMyYy00Ljc4LDAtNy4xOS00LjA3LTcuMTktOSwwLTUuMzgsMi43Mi05LjQsNy4yOS05LjQsMy4zMiwwLDQuNTcsMCw2LjUsMCwuMTUuNTUuMDksNi40Ny4wOSw3Vjc1YzAsLjcxLjA3LDYuMjctLjA4LDYuODciIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0xOC42MSAtNDQuMjUpIi8+PHBvbHlnb24gY2xhc3M9ImNscy0zIiBwb2ludHM9IjI2LjMxIDMxIDI2LjMxIDMwLjk5IDI2LjMxIDMxIDI2LjMxIDMxIi8+PHBhdGggY2xhc3M9ImNscy00IiBkPSJNMjYuNzcsNTIuMTZhMjYuMjMsMjYuMjMsMCwwLDEsMzYuMywwYzAsMTEuMjktMTMsMjAuNi0xOC4xNSwyMy4wOUMzOS43NSw3Mi43NiwyNi43OSw2My40NSwyNi43Nyw1Mi4xNloiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0xOC42MSAtNDQuMjUpIi8+PHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMTguNjEsNzEuMTdBMjYuMzEsMjYuMzEsMCwxLDAsNjUuMjYsNTQuNDlDNjguOTMsNzIuMTYsNTEsODMuNjksNDQuOTIsODYuNzZjLTYtMy4wNy0yNC0xNC41OS0yMC4zNC0zMi4yN0EyNi4yLDI2LjIsMCwwLDAsMTguNjEsNzEuMTdaIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMTguNjEgLTQ0LjI1KSIvPjxwb2x5Z29uIGNsYXNzPSJjbHMtNSIgcG9pbnRzPSIyNi4zIDAgMjYuMzEgMCAyNi4zMSAwIDI2LjMgMCIvPjwvZz48L3N2Zz4=" style=height:32px;margin-top:-6px>
+ </a>
+ </div>
+ </div>
+ </div>
+ <div class=container-fluid>
+ <div class=row>
+ <div class="col-sm-3 col-md-2 sidebar">
+ <select class=form-control>
+    <option value=0>Choose API version</option>
+    <option selected value=v1.8.0>v1.8.0<option value=v1.7.0>v1.7.0<option value=v1.6.0>v1.6.0<option value=v1.5.0>v1.5.0<option value=v1.4.0>v1.4.0<option value=v1.3.14>v1.3.14<option value=v1.3.13>v1.3.13<option value=v1.3.12>v1.3.12<option value=v1.3.11>v1.3.11<option value=v1.3.9>v1.3.9<option value=v1.3.8>v1.3.8<option value=v1.3.7>v1.3.7<option value=v1.3.6>v1.3.6<option value=v1.1.1>v1.1.1</select><br>
+ 
+<ul class="nav nav-sidebar">
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/index>
+ About the Vendon API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/audit>
+ Audit API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/client>
+ Client API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/discount>
+ Discount API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/employee>
+ Employee API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/encashment>
+ Encashment API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/event>
+ Events API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/location>
+ Location API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/machine>
+ Machine API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/quickpik>
+ QuickPik API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/payment>
+ Payment API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/product>
+ Product API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/refills>
+ Refills API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/resources>
+ Resources API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/route>
+ Route API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/sensor>
+ Sensor API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/stats>
+ Stats API </a>
+ </li>
+ <li class=active>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/stock>
+ Stock API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/telemetryUnit>
+ Telemetry Unit API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/user>
+ User API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/schedule>
+ Schedule API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/warehouse>
+ Warehouse API </a>
+ </li>
+ </ul>
+ </div>
+ <div class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main">
+ <style class=sf-hidden>#apiDocs{font-size:16px;line-height:20px}#apiDocs h1{font-size:32px;line-height:40px;margin-top:30px}#apiDocs h2{margin-top:5px}#apiDocs div.description{margin-top:0;font-size:16px;color:#6f6f6f;line-height:25px}#apiDocs p{margin:6px 0}#apiDocs span.code{font-family:monospace;background:#eee;border:1px solid #ddd}#apiDocs span.code{padding:0 2px}.apiRequest{border:1px solid #dfdfdf;border-radius:10px;margin-top:30px}.apiRequest .nav{padding-left:10px}.apiRequest div.tab{padding:20px}.apiRequest div.tab.active{display:block}#apiDocs .apiRequest h2{font-size:20px;margin:10px 20px;line-height:20px;padding:0}#apiDocs .apiRequest h3{font-size:14px;background:#eee;margin-bottom:10px;margin-top:0;padding:5px 20px}#apiDocs .apiRequest h3 b{font-size:16px}#apiDocs .apiRequest h3 span{font-weight:normal;color:#888}#apiDocs .apiRequest h3 i{color:#669}.apiTable{width:100%;font-size:14px;line-height:18px;border-collapse:collapse;margin-bottom:20px;margin-top:5px}.apiTable:last-child{margin-bottom:0}.apiTable .apiTable{margin-top:0;margin-bottom:0}.apiTable tr.childRow>td{padding-left:30px}.apiTable .apiTable tr:first-child td{border-top-width:0}.apiTable .apiTable tr:last-child td{border-bottom-width:0}.apiTable td{border:1px solid #dfdfdf;padding:6px}.apiTable td.property{font-weight:bold;padding-left:20px}.apiTable td.description{width:400px}.apiTable td.type{width:150px}.apiTable .apiTable td:last-child{border-right-width:0}.apiTable .childRow>td{padding:0}.apiTable .docsToggle{color:black;text-decoration:underline}.apiTable .docsToggle:hover{color:#f0473d}.apiTable .docsToggle:before{float:left;content:"▷";font-size:10px;margin-left:-15px}.apiTable .docsToggle.opened:before{content:"▽"}</style>
+<div id=apiDocs class="col-md-9 padding-vertical-30 content">
+ <h1>Stock API</h1>
+ <p>
+ Stock API contains information about client defined items for product configuration
+ </p>
+ <a name=GET:/rest/v1.8.0/stock></a>
+<div class=apiRequest>
+ <h2>Stock products</h2>
+ <h3><b>GET</b> <span>/rest/v1.8.0</span>/stock</h3>
+ <ul class="nav nav-tabs">
+ <li class=acti§><a href=#docs-1 data-toggle=tab>Description</a></li>
+ <li class=active><a href=#docs-2 data-toggle=tab>Data format</a></li>
+ <li><a href=#docs-3 data-toggle=tab>Try it</a></li>
+ </ul>
+ <div class="tab description sf-hidden" id=docs-1>
+ Returns client defined stock products </div>
+ <div class="tab active" id=docs-2>
+ <b>Input parameters:</b> <table class=apiTable>
+ <tbody><tr>
+ <td class="property optional">id</td>
+ <td class=type>integer [ ]</td>
+ <td class=description>Array of stock ids OR integer with single id</td>
+ </tr>
+ <tr>
+ <td class="property optional">not_in_warehouse_id</td>
+ <td class=type>integer </td>
+ <td class=description>Warehouse id. Stock items that are present in given warehouse will be excluded.</td>
+ </tr>
+ <tr>
+ <td class="property optional">article</td>
+ <td class=type>string </td>
+ <td class=description></td>
+ </tr>
+ <tr>
+ <td class="property optional">search</td>
+ <td class=type>string </td>
+ <td class=description>Search substring in Stock names/ID/Article/Price/VAT</td>
+ </tr>
+ <tr>
+ <td class="property optional">vat_min</td>
+ <td class=type>number </td>
+ <td class=description></td>
+ </tr>
+ <tr>
+ <td class="property optional">vat_max</td>
+ <td class=type>number </td>
+ <td class=description></td>
+ </tr>
+ <tr>
+ <td class="property optional">price_min</td>
+ <td class=type>number </td>
+ <td class=description></td>
+ </tr>
+ <tr>
+ <td class="property optional">price_max</td>
+ <td class=type>number </td>
+ <td class=description></td>
+ </tr>
+ <tr>
+ <td class="property optional">tags</td>
+ <td class=type>integer [ ]</td>
+ <td class=description>Array of stock tag ids</td>
+ </tr>
+ <tr>
+ <td class="property optional">type</td>
+ <td class=type> [ ]</td>
+ <td class=description>Array of filter by type. Valid values: COMPONENT, COMPOSITE_PRODUCT, PRODUCT, PRESELECTION</td>
+ </tr>
+ <tr>
+ <td class="property optional">offset</td>
+ <td class=type>integer </td>
+ <td class=description>Pagination offset</td>
+ </tr>
+ <tr>
+ <td class="property optional">limit</td>
+ <td class=type>integer </td>
+ <td class=description>Pagination limit</td>
+ </tr>
+ <tr>
+ <td class="property optional">sort</td>
+ <td class=type>string </td>
+ <td class=description>Sort results by fields (comma separated list of fields, prefix with `-` to sort descending). Default <strong>id</strong>, possible values: id, name, article, price, vat, units</td>
+ </tr>
+ <tr>
+ <td class="property optional">updated_from</td>
+ <td class=type>integer </td>
+ <td class=description>Unix timestamp</td>
+ </tr>
+ <tr>
+ <td class="property optional">updated_to</td>
+ <td class=type>integer </td>
+ <td class=description>Unix timestamp</td>
+ </tr>
+ </table>
+ <b>Response format:</b><table class=apiTable>
+ <tbody><tr>
+ <td class="property optional">code</td>
+ <td class=type>integer</td>
+ <td class=description>Response status code <span class=code>200</span></td>
+ </tr>
+ <tr>
+ <td class="property optional"><a class="docsToggle opened" href=# data-id=docs-5>result</a></td>
+ <td class=type>stockItem [ ]</td>
+ <td class=description></td>
+ </tr>
+ <tr class=childRow id=docs-5>
+ <td colspan=3><table class=apiTable>
+ <tbody><tr>
+ <td class="property optional">id</td>
+ <td class=type>integer</td>
+ <td class=description>Stock item id</td>
+ </tr>
+ <tr>
+ <td class="property optional">name</td>
+ <td class=type>string</td>
+ <td class=description>Stock item name</td>
+ </tr>
+ <tr>
+ <td class="property optional">article</td>
+ <td class=type>string</td>
+ <td class=description>Item article number (can be used for connection with own ERP)</td>
+ </tr>
+ <tr>
+ <td class="property optional">type</td>
+ <td class=type>enum<br>["COMPONENT", "COMPOSITE_PRODUCT", "PRODUCT", "PRESELECTION"]</td>
+ <td class=description>Item type</td>
+ </tr>
+ <tr>
+ <td class="property optional">price</td>
+ <td class=type>double|null</td>
+ <td class=description>Price of the item</td>
+ </tr>
+ <tr>
+ <td class="property optional">vat</td>
+ <td class=type>double|null</td>
+ <td class=description>Item Value Added Tax. VAT is not applied for component</td>
+ </tr>
+ <tr>
+ <td class="property optional">deposit_price</td>
+ <td class=type>double|null</td>
+ <td class=description>Item deposit fee, only for PRODUCT</td>
+ </tr>
+ <tr>
+ <td class="property optional">deposit_vat</td>
+ <td class=type>double|null</td>
+ <td class=description>Item deposit value added tax, only for PRODUCT</td>
+ </tr>
+ <tr>
+ <td class="property optional">units</td>
+ <td class=type>enum<br>["", "g", "ml", "pcs"]</td>
+ <td class=description>Item measurement unit, only for COMPONENT</td>
+ </tr>
+ <tr>
+ <td class="property optional"><a class="docsToggle opened" href=# data-id=docs-6>recipe</a></td>
+ <td class=type>stockRecipeComponent [ ]</td>
+ <td class=description>return recipe if type is COMPOSITE_PRODUCT or <code>null</code> if item type is not COMPOSITE_PRODUCT or recipe not defined</td>
+ </tr>
+ <tr class=childRow id=docs-6>
+ <td colspan=3><table class=apiTable>
+ <tbody><tr>
+ <td class="property optional">component_id</td>
+ <td class=type>integer</td>
+ <td class=description>Stock item id</td>
+ </tr>
+ <tr>
+ <td class="property optional">amount</td>
+ <td class=type>double</td>
+ <td class=description>Component amount in recipe, units from stock item</td>
+ </tr>
+ </table>
+</tr> <tr>
+ <td class="property optional">tags</td>
+ <td class=type> [ ]</td>
+ <td class=description>array of assigned stock item tag id's</td>
+ </tr>
+ <tr>
+ <td class="property optional"><a class="docsToggle opened" href=# data-id=docs-7>machine_defaults</a></td>
+ <td class=type>StockMachineDefault</td>
+ <td class=description>Item defaults to prefill when creating a machine product</td>
+ </tr>
+ <tr class=childRow id=docs-7>
+ <td colspan=3><table class=apiTable>
+ <tbody><tr>
+ <td class="property optional">amount_max</td>
+ <td class=type>number|null</td>
+ <td class=description>Max capacity of PRODUCT or COMPONENT in machine</td>
+ </tr>
+ <tr>
+ <td class="property optional">amount_standart</td>
+ <td class=type>number|null</td>
+ <td class=description>Product refill level of PRODUCT or COMPONENT</td>
+ </tr>
+ <tr>
+ <td class="property optional">amount_critical</td>
+ <td class=type>number|null</td>
+ <td class=description>Critical level of item in machine of PRODUCT or COMPONENT</td>
+ </tr>
+ <tr>
+ <td class="property optional">refill_unit_size</td>
+ <td class=type>number|null</td>
+ <td class=description>The amount or step by which the product is refilled (PRODUCT or COMPONENT)</td>
+ </tr>
+ <tr>
+ <td class="property optional">min_refill</td>
+ <td class=type>number|null</td>
+ <td class=description>Minimum amount needed to refill machine (PRODUCT or COMPONENT)</td>
+ </tr>
+ <tr>
+ <td class="property optional">ingredient_line</td>
+ <td class=type>string|null</td>
+ <td class=description>EVA DTS ingredient line for PRESELECTION or COMPONENT</td>
+ </tr>
+ <tr>
+ <td class="property optional">critical</td>
+ <td class=type>boolean|null</td>
+ <td class=description>Whether PRODUCT, COMPOSITE_PRODUCT or COMPONENT is consider critical for route planing</td>
+ </tr>
+ <tr>
+ <td class="property optional">refillable</td>
+ <td class=type>boolean|null</td>
+ <td class=description>Whether COMPONENT is refillable</td>
+ </tr>
+ </table>
+</tr> <tr>
+ <td class="property optional"><a class="docsToggle opened" href=# data-id=docs-8>account</a></td>
+ <td class=type>account</td>
+ <td class=description>Client account information</td>
+ </tr>
+ <tr class=childRow id=docs-8>
+ <td colspan=3><table class=apiTable>
+ <tbody><tr>
+ <td class="property optional">id</td>
+ <td class=type>integer</td>
+ <td class=description>Account id</td>
+ </tr>
+ <tr>
+ <td class="property optional">name</td>
+ <td class=type>string</td>
+ <td class=description>Account name</td>
+ </tr>
+ <tr>
+ <td class="property optional">timezone</td>
+ <td class=type>string</td>
+ <td class=description>Account timezone</td>
+ </tr>
+ </table>
+</tr> <tr>
+ <td class="property optional">cost_price</td>
+ <td class=type>double|null</td>
+ <td class=description>Cost price of the item. For type PRODUCT (per 1 product) and COMPONENT (per 1000 units) only. Ignored if Cost price module not enabled.</td>
+ </tr>
+ <tr>
+ <td class="property optional">warehouse_location</td>
+ <td class=type>string|null</td>
+ <td class=description>Warehouse location of stock item for COMPONENT, PRODUCT, PRESELECTION; displayed in Pack list.</td>
+ </tr>
+ <tr>
+ <td class="property optional">updated_at</td>
+ <td class=type>int|null</td>
+ <td class=description>Timestamp when stock item was updated</td>
+ </tr>
+ </table>
+</tr> <tr>
+ <td class="property optional"><a class="docsToggle opened" href=# data-id=docs-9>paging</a></td>
+ <td class=type>Paging</td>
+ <td class=description>Paging information</td>
+ </tr>
+ <tr class=childRow id=docs-9>
+ <td colspan=3><table class=apiTable>
+ <tbody><tr>
+ <td class="property optional">total</td>
+ <td class=type>integer</td>
+ <td class=description>Total items available</td>
+ </tr>
+ <tr>
+ <td class="property optional">offset</td>
+ <td class=type>integer</td>
+ <td class=description>Current result set page offset</td>
+ </tr>
+ <tr>
+ <td class="property optional">limit</td>
+ <td class=type>integer</td>
+ <td class=description>Max number of items per page</td>
+ </tr>
+ </table>
+</tr> </table>
+ </div>
+ <div class="tab sf-hidden" id=docs-3>
+ 
+ 
+ </div>
+ <div class="tab apiResult sf-hidden" id=docs-4>
+ </div>
+</div>
+<a name=GET:/rest/v1.8.0/stock/deleted></a>
+<div class=apiRequest>
+ <h2>List of deleted stock products</h2>
+ <h3><b>GET</b> <span>/rest/v1.8.0</span>/stock/deleted</h3>
+ <ul class="nav nav-tabs">
+ <li class=acti§><a href=#docs-10 data-toggle=tab>Description</a></li>
+ <li><a href=#docs-11 data-toggle=tab>Data format</a></li>
+ <li><a href=#docs-12 data-toggle=tab>Try it</a></li>
+ </ul>
+ <div class="tab description active" id=docs-10>
+ List of deleted stock products </div>
+ <div class="tab sf-hidden" id=docs-11>
+ 
+ 
+ </div>
+ <div class="tab sf-hidden" id=docs-12>
+ 
+ 
+ </div>
+ <div class="tab apiResult sf-hidden" id=docs-13>
+ </div>
+</div>
+<a name=PUT:/rest/v1.8.0/stock/item></a>
+<div class=apiRequest>
+ <h2>Add stock product</h2>
+ <h3><b>PUT</b> <span>/rest/v1.8.0</span>/stock/item</h3>
+ <ul class="nav nav-tabs">
+ <li class=acti§><a href=#docs-16 data-toggle=tab>Description</a></li>
+ <li><a href=#docs-17 data-toggle=tab>Data format</a></li>
+ <li><a href=#docs-18 data-toggle=tab>Try it</a></li>
+ </ul>
+ <div class="tab description active" id=docs-16>
+ Created new stock product.<br>Sample request body for adding new composite product<br>
+<pre class=jsonFormat>{
+    'name':'Black Coffee',
+    'article':'COFFEE_BLACK',
+    'type':'COMPOSITE_PRODUCT',
+    'price':1.2,
+    'vat':21.00,
+    'recipe':[
+        {
+            'component_id':123,
+            'amount':15
+        },
+        {
+            'component_id':124,
+            'amount':300
+        },
+        {
+            'component_id':125,
+            'amount':1
+        }
+    ],
+    'machine_defaults': {
+        'critical': false
+    }
+}</pre> </div>
+ <div class="tab sf-hidden" id=docs-17>
+ 
+ 
+ </div>
+ <div class="tab sf-hidden" id=docs-18>
+ 
+ 
+ </div>
+ <div class="tab apiResult sf-hidden" id=docs-19>
+ </div>
+</div>
+<a name=POST:/rest/v1.8.0/stock/item></a>
+<div class=apiRequest>
+ <h2>Edit stock product</h2>
+ <h3><b>POST</b> <span>/rest/v1.8.0</span>/stock/item</h3>
+ <ul class="nav nav-tabs">
+ <li class=acti§><a href=#docs-27 data-toggle=tab>Description</a></li>
+ <li><a href=#docs-28 data-toggle=tab>Data format</a></li>
+ <li><a href=#docs-29 data-toggle=tab>Try it</a></li>
+ </ul>
+ <div class="tab description active" id=docs-27>
+ Edit stock product.<br>Sample request body for composite product update<br>
+<pre class=jsonFormat>{
+       'id':12345,
+       'name':'Black Coffee',
+       'article':'COFFEE_BLACK',
+       'type':'COMPOSITE_PRODUCT',
+       'price':1.2,
+       'vat':21.00,
+       'recipe':[
+           {
+             'component_id':123,
+             'amount':15
+           },
+           {
+             'component_id':124,
+             'amount':300
+           },
+           {
+             'component_id':125,
+             'amount':1
+           }
+       ],
+        'machine_defaults': {
+            'critical': false
+        }
+}</pre> </div>
+ <div class="tab sf-hidden" id=docs-28>
+ 
+ 
+ </div>
+ <div class="tab sf-hidden" id=docs-29>
+ 
+ 
+ </div>
+ <div class="tab apiResult sf-hidden" id=docs-30>
+ </div>
+</div>
+<a name=PUT:/rest/v1.8.0/stock/{id}/tags></a>
+<div class=apiRequest>
+ <h2>Add tags</h2>
+ <h3><b>PUT</b> <span>/rest/v1.8.0</span>/stock/<i>{id}</i>/tags</h3>
+ <ul class="nav nav-tabs">
+ <li class=acti§><a href=#docs-38 data-toggle=tab>Description</a></li>
+ <li><a href=#docs-39 data-toggle=tab>Data format</a></li>
+ <li><a href=#docs-40 data-toggle=tab>Try it</a></li>
+ </ul>
+ <div class="tab description active" id=docs-38>
+ Inserts stock tags </div>
+ <div class="tab sf-hidden" id=docs-39>
+ 
+ 
+ </div>
+ <div class="tab sf-hidden" id=docs-40>
+ 
+ 
+ </div>
+ <div class="tab apiResult sf-hidden" id=docs-41>
+ </div>
+</div>
+<a name=DELETE:/rest/v1.8.0/stock/{id}/tags/{tag_id}></a>
+<div class=apiRequest>
+ <h2>Delete tags</h2>
+ <h3><b>DELETE</b> <span>/rest/v1.8.0</span>/stock/<i>{id}</i>/tags/<i>{tag_id}</i></h3>
+ <ul class="nav nav-tabs">
+ <li class=acti§><a href=#docs-47 data-toggle=tab>Description</a></li>
+ <li><a href=#docs-48 data-toggle=tab>Data format</a></li>
+ <li><a href=#docs-49 data-toggle=tab>Try it</a></li>
+ </ul>
+ <div class="tab description active" id=docs-47>
+ Deletes stock tags </div>
+ <div class="tab sf-hidden" id=docs-48>
+ 
+ 
+ </div>
+ <div class="tab sf-hidden" id=docs-49>
+ 
+ 
+ </div>
+ <div class="tab apiResult sf-hidden" id=docs-50>
+ </div>
+</div>
+</div>
+ </div>
+ </div>
+ </div>
+<single-file-infobar style="accent-color: initial !important; place-content: initial !important; place-items: initial !important; place-self: initial !important; alignment-baseline: initial !important; animation-composition: initial !important; animation: initial !important; appearance: initial !important; aspect-ratio: initial !important; backdrop-filter: initial !important; backface-visibility: initial !important; background: initial !important; background-blend-mode: initial !important; baseline-shift: initial !important; block-size: initial !important; border-block: initial !important; border: initial !important; border-radius: initial !important; border-collapse: initial !important; border-end-end-radius: initial !important; border-end-start-radius: initial !important; border-inline: initial !important; border-start-end-radius: initial !important; border-start-start-radius: initial !important; inset: initial !important; box-shadow: initial !important; box-sizing: initial !important; break-after: initial !important; break-before: initial !important; break-inside: initial !important; buffered-rendering: initial !important; caption-side: initial !important; caret-color: initial !important; clear: initial !important; clip: initial !important; clip-path: initial !important; clip-rule: initial !important; color: initial !important; color-interpolation: initial !important; color-interpolation-filters: initial !important; color-scheme: initial !important; column-count: initial !important; column-fill: initial !important; gap: initial !important; column-rule-color: initial !important; column-rule-style: initial !important; column-rule-width: initial !important; column-span: initial !important; column-width: initial !important; contain: initial !important; contain-intrinsic-block-size: initial !important; contain-intrinsic-size: initial !important; contain-intrinsic-inline-size: initial !important; container-name: initial !important; container-type: initial !important; content: initial !important; content-visibility: initial !important; counter-increment: initial !important; counter-reset: initial !important; counter-set: initial !important; cursor: initial !important; cx: initial !important; cy: initial !important; direction: initial !important; display: initial !important; dominant-baseline: initial !important; empty-cells: initial !important; fill: initial !important; fill-opacity: initial !important; fill-rule: initial !important; filter: initial !important; flex: initial !important; flex-flow: initial !important; float: initial !important; flood-color: initial !important; flood-opacity: initial !important; font-family: initial !important; font-feature-settings: initial !important; font-kerning: initial !important; font-optical-sizing: initial !important; font-palette: initial !important; font-size: initial !important; font-size-adjust: initial !important; font-style: initial !important; font-synthesis-small-caps: initial !important; font-synthesis-style: initial !important; font-synthesis-weight: initial !important; font-variant-alternates: initial !important; font-variant-caps: initial !important; font-variant-east-asian: initial !important; font-variant-ligatures: initial !important; font-variant-numeric: initial !important; font-variant-position: initial !important; font-variation-settings: initial !important; font-weight: initial !important; font-width: initial !important; glyph-orientation-horizontal: initial !important; glyph-orientation-vertical: initial !important; grid: initial !important; grid-column-end: initial !important; grid-column-start: initial !important; grid-row-end: initial !important; grid-row-start: initial !important; hanging-punctuation: initial !important; height: initial !important; hyphenate-character: initial !important; hyphens: initial !important; image-orientation: initial !important; image-rendering: initial !important; inline-size: initial !important; inset-block: initial !important; inset-inline: initial !important; isolation: initial !important; letter-spacing: initial !important; lighting-color: initial !important; line-break: initial !important; line-height: initial !important; list-style: initial !important; margin-block: initial !important; margin: initial !important; margin-inline: initial !important; margin-trim: initial !important; marker: initial !important; mask: initial !important; mask-composite: initial !important; mask-mode: initial !important; mask-size: initial !important; mask-type: initial !important; math-style: initial !important; max-block-size: initial !important; max-height: initial !important; max-inline-size: initial !important; max-width: initial !important; min-block-size: initial !important; min-height: initial !important; min-inline-size: initial !important; min-width: initial !important; mix-blend-mode: initial !important; object-fit: initial !important; object-position: initial !important; offset-anchor: initial !important; offset-distance: initial !important; offset-path: initial !important; offset-position: initial !important; offset-rotate: initial !important; opacity: initial !important; order: initial !important; orphans: initial !important; outline: initial !important; outline-offset: initial !important; overflow-wrap: initial !important; overflow: initial !important; overscroll-behavior-block: initial !important; overscroll-behavior-inline: initial !important; overscroll-behavior: initial !important; padding-block: initial !important; padding: initial !important; padding-inline: initial !important; paint-order: initial !important; perspective: initial !important; perspective-origin: initial !important; pointer-events: initial !important; position: initial !important; print-color-adjust: initial !important; quotes: initial !important; r: initial !important; resize: initial !important; rotate: initial !important; ruby-align: initial !important; ruby-overhang: initial !important; ruby-position: initial !important; rx: initial !important; ry: initial !important; scale: initial !important; scroll-behavior: initial !important; scroll-margin-block: initial !important; scroll-margin: initial !important; scroll-margin-inline: initial !important; scroll-padding-block: initial !important; scroll-padding: initial !important; scroll-padding-inline: initial !important; scroll-snap-align: initial !important; scroll-snap-stop: initial !important; scroll-snap-type: initial !important; scrollbar-gutter: initial !important; scrollbar-width: initial !important; shape-image-threshold: initial !important; shape-margin: initial !important; shape-outside: initial !important; shape-rendering: initial !important; speak-as: initial !important; stop-color: initial !important; stop-opacity: initial !important; stroke: initial !important; stroke-color: initial !important; stroke-dasharray: initial !important; stroke-dashoffset: initial !important; stroke-linecap: initial !important; stroke-linejoin: initial !important; stroke-miterlimit: initial !important; stroke-opacity: initial !important; stroke-width: initial !important; tab-size: initial !important; table-layout: initial !important; text-align: initial !important; text-align-last: initial !important; text-anchor: initial !important; text-autospace: initial !important; text-box: initial !important; text-combine-upright: initial !important; text-decoration-color: initial !important; text-decoration: initial !important; text-decoration-skip-ink: initial !important; text-decoration-style: initial !important; text-decoration-thickness: initial !important; text-emphasis-color: initial !important; text-emphasis-position: initial !important; text-emphasis-style: initial !important; text-indent: initial !important; text-orientation: initial !important; text-overflow: initial !important; text-rendering: initial !important; text-shadow: initial !important; text-transform: initial !important; text-underline-offset: initial !important; text-underline-position: initial !important; text-wrap: initial !important; touch-action: initial !important; transform: initial !important; transform-box: initial !important; transform-origin: initial !important; transform-style: initial !important; transition: initial !important; translate: initial !important; unicode-bidi: initial !important; vector-effect: initial !important; vertical-align: initial !important; view-transition-class: initial !important; view-transition-name: initial !important; visibility: initial !important; white-space: initial !important; widows: initial !important; width: initial !important; will-change: initial !important; word-break: initial !important; word-spacing: initial !important; writing-mode: initial !important; x: initial !important; y: initial !important; z-index: initial !important; zoom: initial !important; -apple-pay-button-style: initial !important; -apple-pay-button-type: initial !important; border-spacing: initial !important; -webkit-box-align: initial !important; -webkit-box-decoration-break: initial !important; -webkit-box-direction: initial !important; -webkit-box-flex: initial !important; -webkit-box-flex-group: initial !important; -webkit-box-lines: initial !important; -webkit-box-ordinal-group: initial !important; -webkit-box-orient: initial !important; -webkit-box-pack: initial !important; -webkit-box-reflect: initial !important; -webkit-column-axis: initial !important; -webkit-column-progression: initial !important; -webkit-cursor-visibility: initial !important; -webkit-font-smoothing: initial !important; -webkit-hyphenate-limit-after: initial !important; -webkit-hyphenate-limit-before: initial !important; -webkit-hyphenate-limit-lines: initial !important; -webkit-initial-letter: initial !important; -webkit-line-align: initial !important; -webkit-line-box-contain: initial !important; -webkit-line-clamp: initial !important; -webkit-line-grid: initial !important; -webkit-line-snap: initial !important; -webkit-locale: initial !important; -webkit-nbsp-mode: initial !important; -webkit-overflow-scrolling: initial !important; -webkit-rtl-ordering: initial !important; -webkit-tap-highlight-color: initial !important; -webkit-text-fill-color: initial !important; -webkit-text-security: initial !important; -webkit-text-size-adjust: initial !important; -webkit-text-stroke-color: initial !important; -webkit-text-stroke-width: initial !important; -webkit-text-zoom: initial !important; -webkit-touch-callout: initial !important; -webkit-user-drag: initial !important; -webkit-user-modify: initial !important; -webkit-user-select: initial !important;"><template shadowrootmode=open><div><style>.infobar,.infobar .infobar-icon,.infobar .infobar-link-icon {min-inline-size:28px;min-block-size:28px;box-sizing:border-box;}.infobar,.infobar .infobar-close-icon,.infobar .infobar-link-icon {opacity:0.7;transition:opacity 250ms;}.infobar:hover,.infobar .infobar-close-icon:hover,.infobar .infobar-link-icon:hover {opacity:1;}.infobar,.infobar-content {display:flex;}.infobar {position:fixed;max-height:calc(100% - 32px);top:16px;right:16px;margin-inline-start:16px;margin-block-end:16px;color:#2d2d2d;background-color:#737373;border:2px solid;border-color:#eee;border-radius:16px;z-index:2147483647;animation-name:flash;animation-duration:.5s;animation-timing-function:cubic-bezier(0.39,0.58,0.57,1);animation-delay:1s;animation-iteration-count:2;}.infobar:valid,.infobar:not(:focus-within):not(.infobar-focus) .infobar-content {display:none;}.infobar:focus-within,.infobar.infobar-focus {background-color:#f9f9f9;border-color:#878787;border-radius:8px;opacity:1;transition-property:opacity,background-color,border-color,border-radius,color;}.infobar-content {border:2px solid;border-color:#f9f9f9;border-radius:6px;background-color:#f9f9f9;overflow:auto;}.infobar-content span {font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:18px;word-break:break-word;white-space:pre-wrap;margin-inline:4px;margin-block:4px;}.infobar .infobar-icon,.infobar .infobar-close-icon,.infobar .infobar-link-icon {cursor:pointer;background-position:center;background-repeat:no-repeat;}.infobar .infobar-close-icon,.infobar .infobar-link-icon {align-self:flex-start;}.infobar .infobar-icon {position:absolute;min-inline-size:24px;min-block-size:24px;}@keyframes flash {0%,100% {	background-color:#737373;}50% {	background-color:#dd6a00;}}.infobar:focus-within .infobar-icon,.infobar.infobar-focus .infobar-icon {z-index:-1;background-image:none;margin:4px;}.infobar .infobar-close-icon {min-inline-size:22px;min-block-size:22px;}.infobar .infobar-icon {background-color:transparent;background-size:70%;background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABABAMAAABYR2ztAAABhmlDQ1BJQ0MgcHJvZmlsZQAAKJF9kj1Iw0AYht+mSkUrDnYQcchQnSyIijqWKhbBQmkrtOpgcukfNGlIUlwcBdeCgz+LVQcXZ10dXAVB8AfEydFJ0UVK/C4ptIjx4LiH9+59+e67A4RGhalm1wSgapaRisfEbG5VDLyiDwEAvZiVmKkn0osZeI6ve/j4ehfhWd7n/hz9St5kgE8kjjLdsIg3iGc2LZ3zPnGIlSSF+Jx43KACiR+5Lrv8xrnosMAzQ0YmNU8cIhaLHSx3MCsZKvE0cVhRNcoXsi4rnLc4q5Uaa9XJbxjMaytprtMcQRxLSCAJETJqKKMCCxFaNVJMpGg/5uEfdvxJcsnkKoORYwFVqJAcP/gb/O6tWZiadJOCMaD7xbY/RoHALtCs2/b3sW03TwD/M3Cltf3VBjD3SXq9rYWPgIFt4OK6rcl7wOUOMPSkS4bkSH6aQqEAvJ/RM+WAwVv6EGtu31r7OH0AMtSr5Rvg4BAYK1L2use9ezr79u+ZVv9+AFlNcp0UUpiqAAAACXBIWXMAAC4jAAAuIwF4pT92AAAAB3RJTUUH5AsHADIRLMaOHwAAABl0RVh0Q29tbWVudABDcmVhdGVkIHdpdGggR0lNUFeBDhcAAAAPUExURQAAAIqKioyNjY2OjvDw8L2y1DEAAAABdFJOUwBA5thmAAAAAWJLR0QB/wIt3gAAAGNJREFUSMdjYCAJsLi4OBCQx6/CBQwIGIDPCBcXAkYQUsACU+AwlBVQHg6Eg5pgZBGOboIJZugDFwRwoJECJCUOhJI1wZwzqmBUwagCuipgIqTABG9h7YIKaKGAURAFEF/6AQAO4HqSoDP8bgAAAABJRU5ErkJggg==);}.infobar .infobar-link-icon {right:4px;background-size:60%;background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABAAgMAAADXB5lNAAABhmlDQ1BJQ0MgcHJvZmlsZQAAKJF9kj1Iw0AYht+mSkUrDnYQcchQnSyIijqWKhbBQmkrtOpgcukfNGlIUlwcBdeCgz+LVQcXZ10dXAVB8AfEydFJ0UVK/C4ptIjx4LiH9+59+e67A4RGhalm1wSgapaRisfEbG5VDLyiDwEAvZiVmKkn0osZeI6ve/j4ehfhWd7n/hz9St5kgE8kjjLdsIg3iGc2LZ3zPnGIlSSF+Jx43KACiR+5Lrv8xrnosMAzQ0YmNU8cIhaLHSx3MCsZKvE0cVhRNcoXsi4rnLc4q5Uaa9XJbxjMaytprtMcQRxLSCAJETJqKKMCCxFaNVJMpGg/5uEfdvxJcsnkKoORYwFVqJAcP/gb/O6tWZiadJOCMaD7xbY/RoHALtCs2/b3sW03TwD/M3Cltf3VBjD3SXq9rYWPgIFt4OK6rcl7wOUOMPSkS4bkSH6aQqEAvJ/RM+WAwVv6EGtu31r7OH0AMtSr5Rvg4BAYK1L2use9ezr79u+ZVv9+AFlNcp0UUpiqAAAACXBIWXMAAC4jAAAuIwF4pT92AAAAB3RJTUUH5AsHAB8H+DhhoQAAABl0RVh0Q29tbWVudABDcmVhdGVkIHdpdGggR0lNUFeBDhcAAAAJUExURQAAAICHi4qKioTuJAkAAAABdFJOUwBA5thmAAAAAWJLR0QCZgt8ZAAAAJJJREFUOI3t070NRCEMA2CnYAOyDyPwpHj/Va7hJ3FzV7zy3ET5JIwoAF6Jk4wzAJAkzxAYG9YRTgB+24wBgKmfrGAKTcEfAY4KRlRoIeBTgKOCERVaCPgU4Khge2GqKOBTgKOCERVaAEC/4PNcnyoSWHpjqkhwKxbcig0Q6AorXYF/+A6eIYD1lVbwG/jdA6/kA2THRAURVubcAAAAAElFTkSuQmCC);}.infobar .infobar-close-icon {appearance:none;background-size:80%;background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABAAgMAAADXB5lNAAABhmlDQ1BJQ0MgcHJvZmlsZQAAKJF9kj1Iw0AYht+mSkUrDnYQcchQnSyIijqWKhbBQmkrtOpgcukfNGlIUlwcBdeCgz+LVQcXZ10dXAVB8AfEydFJ0UVK/C4ptIjx4LiH9+59+e67A4RGhalm1wSgapaRisfEbG5VDLyiDwEAvZiVmKkn0osZeI6ve/j4ehfhWd7n/hz9St5kgE8kjjLdsIg3iGc2LZ3zPnGIlSSF+Jx43KACiR+5Lrv8xrnosMAzQ0YmNU8cIhaLHSx3MCsZKvE0cVhRNcoXsi4rnLc4q5Uaa9XJbxjMaytprtMcQRxLSCAJETJqKKMCCxFaNVJMpGg/5uEfdvxJcsnkKoORYwFVqJAcP/gb/O6tWZiadJOCMaD7xbY/RoHALtCs2/b3sW03TwD/M3Cltf3VBjD3SXq9rYWPgIFt4OK6rcl7wOUOMPSkS4bkSH6aQqEAvJ/RM+WAwVv6EGtu31r7OH0AMtSr5Rvg4BAYK1L2use9ezr79u+ZVv9+AFlNcp0UUpiqAAAACXBIWXMAAC4jAAAuIwF4pT92AAAAB3RJTUUH5AsHAB8VC4EQ6QAAABl0RVh0Q29tbWVudABDcmVhdGVkIHdpdGggR0lNUFeBDhcAAAAJUExURQAAAICHi4qKioTuJAkAAAABdFJOUwBA5thmAAAAAWJLR0QCZgt8ZAAAAJtJREFUOI3NkrsBgCAMRLFwBPdxBArcfxXFkO8rbKWAAJfHJ9faf9vuYX/749T5NmShm3bEwbe2SxeuM4+2oxDL1cDoKtVUjRy+tH78Cv2CS+wIiQNC1AEhk4AQeUTMWUJMfUJMSEJMSEY8kIx4IONroaYAimNxsXp1PA7PxwfVL8QnowwoVC0lig07wDDVUjAdbAnjwtow/z/bDW7eI4M2KruJAAAAAElFTkSuQmCC);}.infobar { top:16px; bottom:auto; }.infobar { right:16px; left:auto; }</style><form class="infobar"><span tabindex="-1" class="infobar-icon"></span><span tabindex="-1" class="infobar-content"><input type="checkbox" required="" class="infobar-close-icon" title="Close"><span>Fri Apr 25 2025 09:34:02 GMT+0200 (Mitteleuropäische Sommerzeit)</span><a class="infobar-link-icon" target="_blank" rel="noopener noreferrer" title="Open source URL: https://cloud.vendon.net/rest/v1.8.0/docs/stock" href="https://cloud.vendon.net/rest/v1.8.0/docs/stock"></a></span></form><script>function Wo(n,{saveUrl:e,infobarContent:t,saveDate:a}){if(e){const o=n.querySelector("single-file-infobar").shadowRoot;o.querySelector(".infobar-content span").textContent=t||a;const i=o.querySelector(".infobar-content .infobar-link-icon");i.href=e,i.title="Open source URL: "+e}};function Ho(n,e=No){const t=n.evaluate("//comment()",n,null,XPathResult.FIRST_ORDERED_NODE_TYPE,null);let a=t&&t.singleNodeValue;if(a&&a.nodeType==Node.COMMENT_NODE&&a.textContent.includes(e)){const n=a.textContent.split("\n"),[,,e,...t]=n,o=e.match(/^ url: (.*) ?$/),i=o&&o[1];if(i){let n,e;if(t.length&&(e=t[0].split("saved date: ")[1],e&&t.shift(),t.length>1)){let e=t[0].split("info: ")[1].trim();for(let n=1;n<t.length-1;n++)e+="\n"+t[n].trim();n=e.trim()}return{saveUrl:i,infobarContent:n,saveDate:e}}}};(function Go(n,e){const t=Ho(n,e);t&&t.saveUrl&&Wo(n,t)})(document, "SingleFile");</script></div></template></single-file-infobar><script data-template-shadow-root>(()=>{document.currentScript.remove();processNode(document);function processNode(node){node.querySelectorAll("template[shadowrootmode]").forEach(element=>{let shadowRoot = element.parentElement.shadowRoot;if (!shadowRoot) {try {shadowRoot=element.parentElement.attachShadow({mode:element.getAttribute("shadowrootmode"),delegatesFocus:element.getAttribute("shadowrootdelegatesfocus")!=null,clonable:element.getAttribute("shadowrootclonable")!=null,serializable:element.getAttribute("shadowrootserializable")!=null});shadowRoot.innerHTML=element.innerHTML;element.remove()} catch (error) {} if (shadowRoot) {processNode(shadowRoot)}}})}})()</script>
