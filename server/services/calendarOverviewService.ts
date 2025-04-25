@@ -86,17 +86,17 @@ export class CalendarOverviewService {
     const formattedDate = format(dateObj, 'yyyy-MM-dd');
 
     // Alle Kalender-Tage für dieses Datum holen (einen pro Bundesland)
-    const calendarDays = await db.select()
-      .from(calendarDays)
-      .where(eq(calendarDays.date, formattedDate));
+    const calendarDaysEntries = await db.select()
+      .from(calendarDaysTable)
+      .where(eq(calendarDaysTable.date, formattedDate));
 
-    if (calendarDays.length === 0) {
+    if (calendarDaysEntries.length === 0) {
       console.warn(`Keine Kalendertage für ${formattedDate} gefunden. Übersicht kann nicht erstellt werden.`);
       return;
     }
 
     // Einen beliebigen Eintrag nehmen, um allgemeine Tagesinformationen zu bekommen
-    const firstDay = calendarDays[0];
+    const firstDay = calendarDaysEntries[0];
 
     // Globale Eigenschaften ermitteln (is_weekend ist für alle gleich)
     const isWeekend = firstDay.is_weekend || false;
@@ -106,7 +106,7 @@ export class CalendarOverviewService {
     let hasAnySchoolHoliday = false;
     
     // Für jedes Bundesland Status prüfen
-    for (const day of calendarDays) {
+    for (const day of calendarDaysEntries) {
       if (day.is_public_holiday) {
         hasAnyPublicHoliday = true;
       }
@@ -148,7 +148,7 @@ export class CalendarOverviewService {
     }
     
     // Mit den tatsächlichen Daten aus der DB überschreiben
-    for (const day of calendarDays) {
+    for (const day of calendarDaysEntries) {
       // State aus dem Datensatz extrahieren (z.B. 'BY' für Bayern)
       const stateCode = day.state;
       

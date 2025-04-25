@@ -56,7 +56,7 @@ async function testCalendarSync() {
 // Funktion zum Aufrufen der Synchronisierung nach Jahren
 async function syncCalendarOverviewByYear(startYear, endYear) {
   const response = await fetch(
-    `http://localhost:5000/api/calendar/overview/sync?startYear=${startYear}&endYear=${endYear}`,
+    `http://localhost:3000/api/calendar/overview/sync?startYear=${startYear}&endYear=${endYear}`,
     { method: 'POST' }
   );
   
@@ -70,7 +70,7 @@ async function syncCalendarOverviewByYear(startYear, endYear) {
 // Funktion zum Abrufen der Kalenderübersichtsdaten
 async function getCalendarOverview(startDate, endDate) {
   const response = await fetch(
-    `http://localhost:5000/api/calendar/overview?startDate=${startDate}&endDate=${endDate}`
+    `http://localhost:3000/api/calendar/overview?startDate=${startDate}&endDate=${endDate}`
   );
   
   if (!response.ok) {
