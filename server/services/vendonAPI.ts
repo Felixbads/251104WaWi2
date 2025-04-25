@@ -256,6 +256,30 @@ export class VendonAPI {
   }
   
   /**
+   * Holt Transaktionen mit mehr Parametern und paginiert
+   * @param params Parameter für die Anfrage
+   * @returns API-Antwort mit Ergebnissen
+   */
+  async getVendTransactions(params: {
+    from_timestamp: number;
+    to_timestamp: number;
+    limit?: number;
+    offset?: number;
+    machine_id?: string | number;
+  }): Promise<any> {
+    try {
+      console.log(`Verwende Zeitraum: ${new Date(params.from_timestamp * 1000).toISOString()} bis ${new Date(params.to_timestamp * 1000).toISOString()}`);
+      console.log(`Timestamps: ${params.from_timestamp} bis ${params.to_timestamp}`);
+      
+      // Vollständige API-Antwort zurückgeben, um den Statuscode zu prüfen
+      return await this.request('/stats/vends', params, 'GET');
+    } catch (error) {
+      console.error('Fehler beim Abrufen der Vendon-Transaktionen:', error);
+      throw error; // Fehler weiterreichen für bessere Fehlerbehandlung
+    }
+  }
+  
+  /**
    * Holt alle Lagerbestände für einen bestimmten Automaten
    * @param machineId Die Automaten-ID
    * @returns Liste der Lagerbestände oder null im Fehlerfall

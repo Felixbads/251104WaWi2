@@ -1,11 +1,452 @@
-import axios from 'axios';
-import pg from 'pg';
+import { HistoricalSyncOptions, insertSyncLogSchema } from '@shared/schema';
+import { db, rawSql, rawDb } from '../db';
+import { vendonAPI } from './vendonAPI';
+import { formatISO } from 'date-fns';
+import { eq } from 'drizzle-orm';
+import { syncLogs, syncState } from '@shared/schema';
+import { sql } from 'drizzle-orm';
 
-// Type definition for pool
-type PoolType = pg.Pool;
+/**
+ * VendonHistoryImporter - Service zur tageweisen Synchronisierung historischer Vendon-Transaktionen
+ * 
+ * Diese Klasse implementiert den Import historischer Transaktionsdaten von Vendon mit:
+ * - Tag-für-Tag Pagination für bessere Performance und Fehlerbehandlung
+ * - Speicherung des Cursor-Zustands in der sync_state Tabelle
+ * - Idempotente Transaktion-Speicherung mit ON CONFLICT Handling
+ * - Detailliertes Logging und Metriken für Monitoring
+ */
+export class VendonHistoryImporter {
+  
+  /**
+   * Hilfsmethode für Datum-zu-String-Konvertierung für die Datenbank
+   * Sorgt für einheitliche Formatierung aller Datumsfelder
+   */
+  private static formatDate(date: Date): string {
+    return formatISO(date);
+  }
+  private readonly vendonApi: typeof vendonAPI;
+  private readonly jobName: string = 'vendon_history_import';
+  private syncLogId: number | null = null;
+  
+  // Statistiken für den aktuellen Import
+  private stats = {
+    totalProcessed: 0,
+    totalSaved: 0,
+    totalDuplicates: 0,
+    totalErrors: 0,
+    pagesProcessed: 0,
+    daysProcessed: 0,
+  };
 
-// Konfiguration für den Import
-interface ImportConfig {
+  constructor() {
+    this.vendonApi = vendonAPI;
+  }
+
+  /**
+   * Startet den historischen Import mit den angegebenen Optionen
+   * @param options Import-Optionen (Startdatum, Enddatum, Batch-Größe, etc.)
+   */
+  async startImport(options: HistoricalSyncOptions) {
+    console.log(`Starte historischen Vendon-Import mit folgenden Optionen:`, options);
+
+    try {
+      // Sync-Log für den Import erstellen
+      await this.createSyncLog('vendon_history_import', 'transactions');
+
+      // Cursor-Status aus der Datenbank laden oder initialisieren
+      const syncState = await this.getSyncState();
+      
+      // Import durchführen
+      await this.performImport(options, syncState);
+
+      // Sync-Log aktualisieren
+      await this.updateSyncLog('completed');
+      
+      console.log(`Historischer Vendon-Import abgeschlossen.`);
+      console.log(`Statistik: ${this.stats.totalProcessed} Transaktionen verarbeitet, ${this.stats.totalSaved} gespeichert, ${this.stats.totalDuplicates} Duplikate, ${this.stats.totalErrors} Fehler`);
+      return this.stats;
+    } catch (error) {
+      console.error(`Fehler beim historischen Vendon-Import:`, error);
+      
+      // Sync-Log als fehlgeschlagen markieren
+      await this.updateSyncLog('failed', error instanceof Error ? error.message : String(error));
+      
+      throw error;
+    }
+  }
+
+  /**
+   * Führt den eigentlichen Import durch
+   */
+  private async performImport(options: HistoricalSyncOptions, syncState: any) {
+    // Startdatum festlegen: Entweder aus den Optionen oder aus dem gespeicherten Status
+    let currentDate = options.startDate 
+      ? new Date(options.startDate) 
+      : new Date(syncState.lastDate);
+
+    // Enddatum festlegen: Entweder aus den Optionen oder heute
+    const endDate = options.endDate 
+      ? new Date(options.endDate) 
+      : new Date();
+    
+    // Überprüfen, ob Startdatum vor Enddatum liegt
+    if (currentDate > endDate) {
+      throw new Error(`Startdatum (${currentDate.toISOString()}) liegt nach Enddatum (${endDate.toISOString()})`);
+    }
+    
+    console.log(`Importiere Transaktionen von ${currentDate.toISOString()} bis ${endDate.toISOString()}`);
+    
+    // Tageweise durch den Zeitraum iterieren
+    while (currentDate <= endDate) {
+      console.log(`Verarbeite Tag: ${currentDate.toISOString().split('T')[0]}`);
+      
+      // Initialoffset verwenden, wenn es der Startdatum ist, sonst bei 0 beginnen
+      const initialOffset = currentDate.toISOString().split('T')[0] === syncState.lastDate.toISOString().split('T')[0]
+        ? syncState.lastOffset
+        : 0;
+      
+      // Transaktionen für den aktuellen Tag importieren
+      await this.importTransactionsForDay(currentDate, options, initialOffset);
+      
+      // Zum nächsten Tag gehen
+      currentDate.setDate(currentDate.getDate() + 1);
+      this.stats.daysProcessed++;
+      
+      // Sync-Status mit dem neuen Tag und Offset 0 aktualisieren
+      await this.updateSyncState(currentDate, 0);
+      
+      // Optional: Synchronisierung bei maximaler Anzahl von Transaktionen stoppen
+      if (options.maxTransactions && this.stats.totalProcessed >= options.maxTransactions) {
+        console.log(`Maximale Anzahl von Transaktionen (${options.maxTransactions}) erreicht. Beende Import.`);
+        break;
+      }
+    }
+  }
+
+  /**
+   * Importiert Transaktionen für einen bestimmten Tag mit Pagination
+   */
+  private async importTransactionsForDay(date: Date, options: HistoricalSyncOptions, initialOffset = 0) {
+    // Tageszeiträume (Mitternacht bis Mitternacht) in Unix-Timestamps umwandeln
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    // Unix-Timestamps für die Vendon API
+    const fromTimestamp = Math.floor(startOfDay.getTime() / 1000);
+    const toTimestamp = Math.floor(endOfDay.getTime() / 1000);
+    
+    console.log(`Importiere Transaktionen für ${date.toISOString().split('T')[0]}`);
+    console.log(`Zeitraum: ${startOfDay.toISOString()} bis ${endOfDay.toISOString()}`);
+    
+    let offset = initialOffset;
+    let hasMoreTransactions = true;
+    let pageCount = 0;
+    
+    // Pagination: Hole 'batchSize' Transaktionen pro Anfrage, bis keine mehr vorhanden sind
+    while (hasMoreTransactions) {
+      pageCount++;
+      console.log(`Hole Transaktionen für ${date.toISOString().split('T')[0]}, Seite ${pageCount} (Offset: ${offset}, Limit: ${options.batchSize || 100})`);
+      
+      try {
+        // API-Aufruf für Transaktionen im angegebenen Zeitraum
+        const response = await this.vendonApi.getVendTransactions({
+          from_timestamp: fromTimestamp,
+          to_timestamp: toTimestamp,
+          limit: options.batchSize || 100,
+          offset: offset
+        });
+        
+        if (!response || !response.result || !Array.isArray(response.result)) {
+          console.error(`Ungültige Antwort von der Vendon API:`, response);
+          throw new Error('Ungültige Antwort von der Vendon API');
+        }
+        
+        const transactions = response.result;
+        const transactionCount = transactions.length;
+        
+        console.log(`${transactionCount} Transaktionen für ${date.toISOString().split('T')[0]}, Seite ${pageCount} gefunden`);
+        
+        this.stats.totalProcessed += transactionCount;
+        this.stats.pagesProcessed++;
+        
+        // Keine weiteren Transaktionen, wenn weniger als 'batchSize' zurückgegeben wurden
+        hasMoreTransactions = transactionCount >= (options.batchSize || 100);
+        
+        // Transaktionen speichern
+        for (const transaction of transactions) {
+          try {
+            await this.saveTransaction(transaction);
+          } catch (error) {
+            console.error(`Fehler beim Speichern der Transaktion ${transaction.transaction_id}:`, error);
+            this.stats.totalErrors++;
+          }
+        }
+        
+        // Cursor für die nächste Seite aktualisieren
+        offset += transactionCount;
+        
+        // Sync-Status aktualisieren
+        await this.updateSyncState(date, offset);
+        
+        // Optional: Warten, um die API nicht zu überlasten
+        if (hasMoreTransactions) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      } catch (error) {
+        console.error(`Fehler beim Abrufen der Transaktionen für ${date.toISOString().split('T')[0]}, Seite ${pageCount}:`, error);
+        this.stats.totalErrors++;
+        
+        // Bei einem Fehler den Import für diesen Tag abbrechen
+        hasMoreTransactions = false;
+      }
+    }
+    
+    console.log(`Import für ${date.toISOString().split('T')[0]} abgeschlossen. ${offset - initialOffset} Transaktionen verarbeitet.`);
+  }
+
+  /**
+   * Speichert eine einzelne Transaktion in der Datenbank mit Idempotenz durch ON CONFLICT
+   */
+  private async saveTransaction(transaction: any) {
+    // Prüfen, ob die Transaktion bereits existiert
+    try {
+      // Vendon-ID für die Transaktion extrahieren
+      const vendonId = String(transaction.transaction_id);
+      
+      // Prüfen, ob die Transaktion bereits existiert
+      console.log(`Prüfe, ob Transaktion ${vendonId} bereits existiert...`);
+      
+      // Direkte SQL-Abfrage mit ON CONFLICT für Effizienz
+      const insertQuery = `
+        INSERT INTO transactions (
+          vendon_id, machine_id, machine_name, 
+          datetime, transaction_dt, registered_dt,
+          product_id, product_name, selection,
+          stock_id, article, 
+          quantity, price, price_vat, price_wo_vat, vat, currency,
+          discount_code, discount_amount,
+          payment_method, source
+        ) 
+        VALUES (
+          $1, $2, $3, 
+          to_timestamp($4), to_timestamp($5), to_timestamp($6),
+          $7, $8, $9,
+          $10, $11,
+          $12, $13, $14, $15, $16, $17,
+          $18, $19,
+          $20, $21
+        )
+        ON CONFLICT (vendon_id) DO NOTHING
+        RETURNING id
+      `;
+      
+      // Parameter für die Abfrage
+      const params = [
+        vendonId,
+        transaction.machine_id,
+        transaction.machine_name,
+        transaction.datetime,
+        transaction.transaction_dt || transaction.datetime,
+        transaction.registered_dt || transaction.datetime,
+        transaction.stock_id?.toString() || null,
+        transaction.name,
+        transaction.selection,
+        transaction.stock_id,
+        transaction.article,
+        transaction.quantity || 1,
+        transaction.price,
+        transaction.price_vat,
+        transaction.price_wo_vat,
+        transaction.vat,
+        transaction.currency,
+        transaction.discount_code,
+        transaction.discount_amount,
+        transaction.payment_method,
+        'history-import'  // Markierung als historischer Import
+      ];
+      
+      // Ausführen der Abfrage mit sql.raw
+      const { rows } = await db.execute(sql`${insertQuery}`);
+      // Fallback für leeres Ergebnis
+      const resultRows = rows || [];
+      
+      // Wenn ein Ergebnis zurückgegeben wird, wurde eine neue Transaktion eingefügt
+      if (resultRows.length > 0) {
+        this.stats.totalSaved++;
+        // Bei vielen Transaktionen Log reduzieren
+        if (this.stats.totalSaved % 100 === 0 || this.stats.totalSaved < 10) {
+          console.log(`Transaktion ${vendonId} mit ID ${resultRows[0].id} gespeichert.`);
+        }
+      } else {
+        // Wenn kein Ergebnis, wurde die Transaktion aufgrund von ON CONFLICT übersprungen
+        this.stats.totalDuplicates++;
+        console.log(`Echtes Duplikat gefunden: ${vendonId} mit Datum ${new Date(transaction.datetime * 1000).toISOString()}`);
+      }
+      
+      return resultRows.length > 0;
+    } catch (error) {
+      console.error(`Fehler beim Speichern der Transaktion:`, error);
+      this.stats.totalErrors++;
+      throw error;
+    }
+  }
+
+  /**
+   * Holt den aktuellen Sync-Status aus der Datenbank oder erstellt einen Initialzustand
+   */
+  private async getSyncState() {
+    try {
+      const [state] = await db
+        .select()
+        .from(syncState)
+        .where(eq(syncState.jobName, this.jobName));
+      
+      if (state) {
+        console.log(`Fortsetzen des Imports ab Datum ${state.lastDate} mit Offset ${state.lastOffset}`);
+        return state;
+      }
+      
+      // Initialzustand, wenn kein Sync-State gefunden wurde
+      const initialState = {
+        jobName: this.jobName,
+        lastDate: new Date('2020-01-01'), // Beginne mit einem sinnvollen Standardwert
+        lastOffset: 0,
+        updatedAt: new Date()
+      };
+      
+      console.log(`Kein vorheriger Import-Status gefunden. Beginne mit Initialzustand: `, initialState);
+      
+      // Initialzustand in der Datenbank speichern
+      await db.insert(syncState).values({
+        jobName: initialState.jobName,
+        lastDate: formatISO(initialState.lastDate),
+        lastOffset: initialState.lastOffset,
+        updatedAt: formatISO(initialState.updatedAt)
+      });
+      
+      return initialState;
+    } catch (error) {
+      console.error(`Fehler beim Abrufen des Sync-Status:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Aktualisiert den Sync-Status in der Datenbank
+   */
+  private async updateSyncState(date: Date, offset: number) {
+    try {
+      await db
+        .update(syncState)
+        .set({
+          lastDate: formatISO(date),
+          lastOffset: offset,
+          updatedAt: formatISO(new Date())
+        })
+        .where(eq(syncState.jobName, this.jobName));
+      
+      console.log(`Sync-Status aktualisiert: Datum=${date.toISOString()}, Offset=${offset}`);
+    } catch (error) {
+      console.error(`Fehler beim Aktualisieren des Sync-Status:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Erstellt einen Sync-Log-Eintrag für den Import-Prozess
+   */
+  private async createSyncLog(syncType: string, entityType: string) {
+    try {
+      const data = {
+        syncType,
+        entityType,
+        syncStatus: 'running',
+        startDate: new Date(),
+        itemsFound: 0,
+        itemsSaved: 0,
+        duplicates: 0,
+        errors: 0,
+      };
+      
+      const [syncLog] = await db
+        .insert(syncLogs)
+        .values(data)
+        .returning();
+      
+      this.syncLogId = syncLog.id;
+      console.log(`Sync-Log erstellt mit ID ${this.syncLogId}`);
+    } catch (error) {
+      console.error(`Fehler beim Erstellen des Sync-Logs:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Aktualisiert den Sync-Log-Eintrag mit aktuellen Statistiken
+   */
+  private async updateSyncLog(status: 'completed' | 'failed' | 'running', errorMessage?: string) {
+    if (!this.syncLogId) return;
+    
+    try {
+      const endDate = status !== 'running' ? new Date() : undefined;
+      const duration = endDate 
+        ? (endDate.getTime() - new Date(await this.getSyncLogStartDate()).getTime()) / 1000
+        : undefined;
+      
+      await db
+        .update(syncLogs)
+        .set({
+          syncStatus: status,
+          endDate,
+          durationSeconds: duration,
+          itemsFound: this.stats.totalProcessed,
+          itemsSaved: this.stats.totalSaved,
+          duplicates: this.stats.totalDuplicates,
+          errors: this.stats.totalErrors,
+          errorMessage,
+          additionalData: JSON.stringify({
+            pagesProcessed: this.stats.pagesProcessed,
+            daysProcessed: this.stats.daysProcessed,
+          }),
+        })
+        .where(eq(syncLogs.id, this.syncLogId));
+      
+      console.log(`Sync-Log ${this.syncLogId} aktualisiert mit Status "${status}"`);
+    } catch (error) {
+      console.error(`Fehler beim Aktualisieren des Sync-Logs:`, error);
+    }
+  }
+
+  /**
+   * Hilfsmethode zum Abrufen des Startdatums des Sync-Logs
+   */
+  private async getSyncLogStartDate(): Promise<Date> {
+    if (!this.syncLogId) return new Date();
+    
+    try {
+      const [log] = await db
+        .select()
+        .from(syncLogs)
+        .where(eq(syncLogs.id, this.syncLogId));
+      
+      return log?.startDate || new Date();
+    } catch (error) {
+      console.error(`Fehler beim Abrufen des Sync-Log-Startdatums:`, error);
+      return new Date();
+    }
+  }
+}
+
+// Singleton-Instanz exportieren
+export const vendonHistoryImporter = new VendonHistoryImporter();
+
+/**
+ * Funktion zum Starten des historischen Imports mit Konfigurationsparametern
+ * Für die Verwendung in der API-Route
+ */
+export async function importVendonHistory(pool: any, config: {
   startDate: string;
   endDate?: string;
   batchSize: number;
@@ -13,329 +454,35 @@ interface ImportConfig {
   maxRetries: number;
   retryDelay: number;
   saveProgressInterval: number;
-}
-
-// Status des Importvorgangs
-interface ImportStatus {
-  lastDate: string;
-  lastOffset: number;
-  isCompleted: boolean;
-}
-
-// Zusammenfassung des Importergebnisses
-interface ImportSummary {
-  daysProcessed: number;
-  totalItems: number;
-  savedItems: number;
-  duplicateItems: number;
-  errorItems: number;
-  startTime: Date;
-  endTime: Date;
-  durationSeconds: number;
-}
-
-// Ergebnisobjekt des Importers
-interface ImportResult {
-  status: ImportStatus;
-  summary: ImportSummary;
-}
-
-/**
- * Hilfsfunktion zum Verzögern der Ausführung
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-/**
- * Liest den aktuellen Sync-Status aus der Datenbank
- */
-async function getSyncState(pool: PoolType, jobName: string): Promise<ImportStatus | null> {
+}) {
+  // Adapter-Funktion für die API-Route
   try {
-    const result = await pool.query(
-      'SELECT job_name, last_date, last_offset FROM sync_state WHERE job_name = $1',
-      [jobName]
-    );
+    console.log('Start historischer Import mit Konfiguration:', config);
     
-    if (result.rowCount && result.rowCount > 0) {
-      const { last_date, last_offset } = result.rows[0];
-      return {
-        lastDate: last_date,
-        lastOffset: last_offset,
-        isCompleted: false
-      };
-    }
+    const options: HistoricalSyncOptions = {
+      startDate: config.startDate,
+      endDate: config.endDate,
+      batchSize: config.batchSize,
+      maxTransactions: 10000, // Sinnvoller Standardwert
+      syncStep: 30, // Standardmäßig 30 Tage pro Synchronisierungsschritt
+      forceUpdate: false
+    };
     
-    return null;
+    const stats = await vendonHistoryImporter.startImport(options);
+    
+    return {
+      success: true,
+      summary: {
+        daysProcessed: stats.daysProcessed,
+        totalItems: stats.totalProcessed,
+        savedItems: stats.totalSaved,
+        duplicateItems: stats.totalDuplicates,
+        errorItems: stats.totalErrors,
+        durationSeconds: 0 // Wird aus dem Sync-Log geholt
+      }
+    };
   } catch (error) {
-    console.error('Fehler beim Abrufen des Sync-Status:', error);
+    console.error('Fehler beim historischen Import:', error);
     throw error;
   }
-}
-
-/**
- * Speichert den aktuellen Sync-Status in der Datenbank
- */
-async function saveSyncState(pool: PoolType, jobName: string, status: ImportStatus): Promise<void> {
-  try {
-    await pool.query(
-      `INSERT INTO sync_state (job_name, last_date, last_offset, updated_at) 
-       VALUES ($1, $2, $3, NOW())
-       ON CONFLICT (job_name) 
-       DO UPDATE SET last_date = $2, last_offset = $3, updated_at = NOW()`,
-      [jobName, status.lastDate, status.lastOffset]
-    );
-    console.log(`Sync-Status gespeichert: ${status.lastDate}, Offset: ${status.lastOffset}`);
-  } catch (error) {
-    console.error('Fehler beim Speichern des Sync-Status:', error);
-    throw error;
-  }
-}
-
-/**
- * Ruft die Vendon API auf, um Transaktionen für einen bestimmten Tag und Offset abzurufen
- */
-async function fetchVendonTransactions(date: string, offset: number, limit: number, retryCount = 0, maxRetries = 3, retryDelay = 5000): Promise<any> {
-  try {
-    // API-Endpunkt für die Vendon-API
-    const apiUrl = 'http://api.vendon.net/rest/v1.8.0/stats/vends';
-    
-    // Authentifizierungstoken aus der Umgebungsvariable
-    const authToken = process.env.VENDON_API_TOKEN;
-    
-    if (!authToken) {
-      throw new Error('VENDON_API_TOKEN Umgebungsvariable nicht gesetzt');
-    }
-    
-    console.log(`API-Anfrage: GET ${apiUrl} für Datum ${date}, Offset: ${offset}, Limit: ${limit}`);
-    
-    // API-Anfrage mit Datum, Offset und Limit
-    const response = await axios.get(apiUrl, {
-      headers: {
-        'Authorization': `Bearer ${authToken}`,
-        'Content-Type': 'application/json'
-      },
-      params: {
-        date_from: date,
-        date_to: date,
-        offset: offset,
-        limit: limit,
-        expand: 'machine,product',
-        sort: 'id'
-      }
-    });
-    
-    // API-Antwort enthält die Transaktionen, die Gesamtzahl und einen Status
-    return response.data;
-  } catch (error) {
-    console.error(`Fehler beim Abrufen der Vendon-Transaktionen für ${date}, Offset ${offset}:`, error);
-    
-    // Bei Netzwerkfehlern oder API-Fehlern, Wiederholungen durchführen
-    if (retryCount < maxRetries) {
-      console.log(`Wiederhole Anfrage in ${retryDelay}ms (Versuch ${retryCount + 1}/${maxRetries})`);
-      await sleep(retryDelay);
-      return fetchVendonTransactions(date, offset, limit, retryCount + 1, maxRetries, retryDelay);
-    }
-    
-    throw error;
-  }
-}
-
-/**
- * Speichert die Transaktionen in der Datenbank
- */
-async function saveTransactions(pool: PoolType, transactions: any[]): Promise<{ saved: number, duplicates: number, errors: number }> {
-  let saved = 0;
-  let duplicates = 0;
-  let errors = 0;
-  
-  if (!transactions || transactions.length === 0) {
-    return { saved, duplicates, errors };
-  }
-  
-  // Transaktionen einzeln in die Datenbank einfügen
-  // Wir verwenden ON CONFLICT DO NOTHING, um Duplikate zu ignorieren
-  for (const transaction of transactions) {
-    try {
-      // Prüfe, ob die Transaktion bereits existiert
-      const vendonId = transaction.id;
-      const checkResult = await pool.query(
-        'SELECT id FROM transactions WHERE vendon_id = $1',
-        [vendonId]
-      );
-      
-      if (checkResult.rowCount && checkResult.rowCount > 0) {
-        console.log(`Transaktion ${vendonId} existiert bereits.`);
-        duplicates++;
-        continue;
-      }
-      
-      // Produktname aus der Transaktion extrahieren
-      const productName = transaction.name || 
-                          (transaction.product && transaction.product.name) || 
-                          'Unbekanntes Produkt';
-      
-      console.log(`Produktname direkt aus transaction.name: "${productName}"`);
-      
-      // Maschinendaten aus der Transaktion extrahieren
-      const machineId = transaction.machine_id || 
-                         (transaction.machine && transaction.machine.id) || 
-                         null;
-      const machineName = (transaction.machine && transaction.machine.name) || 
-                          'Unbekannte Maschine';
-      
-      // Datum und Preis extrahieren
-      const datetime = transaction.date || new Date().toISOString();
-      const price = parseFloat(transaction.price) || 0;
-      
-      // Transaktion in die Datenbank einfügen
-      await pool.query(
-        `INSERT INTO transactions (
-          vendon_id, datetime, machine_id, machine_name, 
-          product_id, product_name, quantity, price, source, created_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
-        ON CONFLICT (vendon_id) DO NOTHING`,
-        [
-          vendonId,
-          datetime,
-          machineId,
-          machineName,
-          transaction.product_id || null,
-          productName,
-          transaction.quantity || 1,
-          price,
-          'history-import', // Quelle als "history-import" markieren
-        ]
-      );
-      
-      saved++;
-    } catch (error) {
-      console.error(`Fehler beim Speichern der Transaktion:`, error);
-      errors++;
-    }
-  }
-  
-  return { saved, duplicates, errors };
-}
-
-/**
- * Importiert die Vendon-Transaktionen für einen bestimmten Zeitraum
- */
-export async function importVendonHistory(pool: PoolType, config: ImportConfig): Promise<ImportResult> {
-  console.log('Starte Vendon Historical Import mit Konfiguration:', config);
-  
-  const jobName = 'vendon_history_import';
-  const startTime = new Date();
-  const summary: ImportSummary = {
-    daysProcessed: 0,
-    totalItems: 0,
-    savedItems: 0,
-    duplicateItems: 0,
-    errorItems: 0,
-    startTime,
-    endTime: startTime,
-    durationSeconds: 0
-  };
-  
-  // Importstatus abrufen oder initialisieren
-  let status = await getSyncState(pool, jobName) || {
-    lastDate: config.startDate,
-    lastOffset: 0,
-    isCompleted: false
-  };
-  
-  console.log(`Import wird fortgesetzt ab Datum ${status.lastDate}, Offset ${status.lastOffset}`);
-  
-  // Aktuelles Datum als Enddatum verwenden, wenn keines angegeben ist
-  const endDate = config.endDate || new Date().toISOString().split('T')[0];
-  
-  // Datum in Date-Objekt konvertieren
-  let currentDate = new Date(status.lastDate);
-  const targetEndDate = new Date(endDate);
-  
-  // Schleife über alle Tage
-  while (currentDate <= targetEndDate) {
-    const dateStr = currentDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
-    let currentOffset = currentDate.getTime() === new Date(status.lastDate).getTime() ? status.lastOffset : 0;
-    let hasMoreItems = true;
-    
-    console.log(`Verarbeite Datum: ${dateStr}, beginnend bei Offset: ${currentOffset}`);
-    
-    while (hasMoreItems) {
-      try {
-        // Hole Transaktionen vom Vendon API
-        const response = await fetchVendonTransactions(dateStr, currentOffset, config.batchSize, 0, config.maxRetries, config.retryDelay);
-        
-        const transactions = response.vends || [];
-        const totalCount = response.total || 0;
-        
-        // Aktualisiere den Fortschrittszähler
-        currentOffset += transactions.length;
-        
-        // Speichere die Transaktionen in der Datenbank
-        const { saved, duplicates, errors } = await saveTransactions(pool, transactions);
-        
-        summary.totalItems += transactions.length;
-        summary.savedItems += saved;
-        summary.duplicateItems += duplicates;
-        summary.errorItems += errors;
-        
-        // Überprüfe, ob weitere Elemente abgerufen werden müssen
-        hasMoreItems = currentOffset < totalCount;
-        
-        // Aktualisiere den Status
-        status.lastDate = dateStr;
-        status.lastOffset = currentOffset;
-        
-        console.log(`Für Datum ${dateStr}: ${saved} neue Transaktionen gespeichert, ${duplicates} Duplikate gefunden, ${errors} Fehler.`);
-        console.log(`Aktuelle Anzahl: ${currentOffset}, Limit: ${config.batchSize}, Gesamt: ${totalCount}`);
-        
-        // Status regelmäßig speichern
-        if (summary.totalItems % (config.batchSize * config.saveProgressInterval) === 0) {
-          await saveSyncState(pool, jobName, status);
-        }
-        
-        // Kurze Pause zwischen den API-Anfragen
-        if (hasMoreItems) {
-          await sleep(config.requestDelay);
-        }
-      } catch (error) {
-        console.error(`Fehler beim Verarbeiten des Datums ${dateStr} mit Offset ${currentOffset}:`, error);
-        
-        // Bei einem Fehler den aktuellen Status speichern und fortfahren
-        await saveSyncState(pool, jobName, status);
-        
-        // Weitermachen mit dem nächsten Tag
-        hasMoreItems = false;
-        summary.errorItems++;
-      }
-    }
-    
-    // Nächster Tag
-    currentDate.setDate(currentDate.getDate() + 1);
-    summary.daysProcessed++;
-    
-    // Status für den neuen Tag aktualisieren
-    status.lastDate = currentDate.toISOString().split('T')[0];
-    status.lastOffset = 0;
-    
-    // Status nach jedem verarbeiteten Tag speichern
-    await saveSyncState(pool, jobName, status);
-  }
-  
-  // Import-Abschluss
-  status.isCompleted = true;
-  const endTime = new Date();
-  summary.endTime = endTime;
-  summary.durationSeconds = Math.floor((endTime.getTime() - startTime.getTime()) / 1000);
-  
-  console.log(`Vendon Historical Import abgeschlossen:`);
-  console.log(`- Tage verarbeitet: ${summary.daysProcessed}`);
-  console.log(`- Gesamt Transaktionen: ${summary.totalItems}`);
-  console.log(`- Gespeichert: ${summary.savedItems}`);
-  console.log(`- Duplikate: ${summary.duplicateItems}`);
-  console.log(`- Fehler: ${summary.errorItems}`);
-  console.log(`- Dauer: ${summary.durationSeconds} Sekunden`);
-  
-  return { status, summary };
 }
