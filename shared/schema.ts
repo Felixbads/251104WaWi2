@@ -1002,8 +1002,8 @@ export const calendarOverview = pgTable("calendar_overview", {
   date: date("date").notNull(),
   // Wochentag als Zahl (1-7, wobei 1=Montag)
   day_of_week: integer("day_of_week").notNull(),
-  // Wochentag als Name (z.B. "Montag", "Dienstag")
-  day_name: text("day_name").notNull(),
+  // Kalenderwoche des Jahres
+  week_of_year: integer("week_of_year").notNull(),
   // Ist es ein Wochenendtag?
   is_weekend: boolean("is_weekend").notNull(),
   // Jahr
