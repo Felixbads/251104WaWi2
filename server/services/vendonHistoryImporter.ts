@@ -221,7 +221,7 @@ async function saveTransactions(pool: PoolType, transactions: any[]): Promise<{ 
 /**
  * Importiert die Vendon-Transaktionen für einen bestimmten Zeitraum
  */
-export async function importVendonHistory(pool: Pool, config: ImportConfig): Promise<ImportResult> {
+export async function importVendonHistory(pool: PoolType, config: ImportConfig): Promise<ImportResult> {
   console.log('Starte Vendon Historical Import mit Konfiguration:', config);
   
   const jobName = 'vendon_history_import';
