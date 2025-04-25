@@ -44,7 +44,8 @@ import {
   Play,
   Loader,
   CheckCircle,
-  XCircle
+  XCircle,
+  DownloadCloud
 } from 'lucide-react';
 
 // Schema for the historical import form
@@ -52,7 +53,7 @@ const historicalImportSchema = z.object({
   startDate: z.string().min(1, 'Startdatum ist erforderlich'),
   endDate: z.string().optional(),
   batchSize: z.number().min(10).max(1000).default(100),
-  maxTransactions: z.number().optional(),
+  maxTransactions: z.number().int().min(1000).default(20000),
   forceUpdate: z.boolean().default(false),
   syncStep: z.number().optional(),
 });
@@ -104,14 +105,14 @@ const VendonHistoricalSyncTab: React.FC = () => {
   const [refreshCounter, setRefreshCounter] = useState(0);
   const { toast } = useToast();
 
-  // Form setup
+  // Form setup with improved defaults
   const form = useForm<FormData>({
     resolver: zodResolver(historicalImportSchema),
     defaultValues: {
       startDate: '2020-01-01',
       endDate: '',
       batchSize: 100,
-      maxTransactions: 5000,
+      maxTransactions: 20000, // Set higher for more transactions
       forceUpdate: false,
       syncStep: 30,
     },
