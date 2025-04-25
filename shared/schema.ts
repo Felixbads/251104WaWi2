@@ -950,6 +950,60 @@ export type InsertWeatherHistorical = z.infer<typeof insertWeatherHistoricalSche
 export type WeatherHistorical = typeof weatherHistorical.$inferSelect;
 
 // Feiertage- und Urlaube-Tabelle
+// Erweiterte Kalendertage-Tabelle für tägliche Statusübersicht
+export const calendarDays = pgTable("calendar_days", {
+  id: serial("id").primaryKey(),
+  // Datum des Kalendertags
+  date: date("date").notNull(),
+  // Wochentag als Zahl (1-7, wobei 1=Montag)
+  day_of_week: integer("day_of_week").notNull(),
+  // Wochentag als Name (z.B. "Montag", "Dienstag")
+  day_name: text("day_name").notNull(),
+  // Ist es ein Wochenendtag?
+  is_weekend: boolean("is_weekend").notNull(),
+  // Ist es ein Schulferientag?
+  is_school_holiday: boolean("is_school_holiday").default(false),
+  // Ist es ein gesetzlicher Feiertag?
+  is_public_holiday: boolean("is_public_holiday").default(false),
+  // Kategorisierung (normal, weekend, school_holiday, public_holiday)
+  day_type: text("day_type").notNull(),
+  // Bundesland (für Feiertags- und Ferienrelevanz)
+  state: text("state").notNull(),
+  // Name des Feiertags/Ferientags (falls zutreffend)
+  holiday_name: text("holiday_name"),
+  // Land (Standard: Deutschland)
+  country: text("country").default("DE"),
+  // Jahr
+  year: integer("year").notNull(),
+  // Monat (1-12)
+  month: integer("month").notNull(),
+  // Tag des Monats (1-31)
+  day: integer("day").notNull(),
+  // Kalenderwoche
+  week: integer("week"),
+  // Weitere Metadaten (für spezielle Ereignisse)
+  metadata: text("metadata"),
+  // Zeitpunkt der Erstellung
+  created_at: timestamp("created_at").defaultNow(),
+  // Zeitpunkt der letzten Aktualisierung
+  updated_at: timestamp("updated_at").defaultNow(),
+}, (table) => {
+  return {
+    // Eindeutiger Index für Datum und Bundesland
+    dateStateIdx: unique().on(table.date, table.state),
+  };
+});
+
+export const insertCalendarDaySchema = createInsertSchema(calendarDays).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export type InsertCalendarDay = z.infer<typeof insertCalendarDaySchema>;
+export type CalendarDay = typeof calendarDays.$inferSelect;
+
+// Ursprüngliche Feiertags-Tabelle (beibehalten für Kompatibilität)
 export const holidays = pgTable("holidays", {
   id: serial("id").primaryKey(),
   // Datum des Feiertags

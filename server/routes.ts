@@ -13,6 +13,7 @@ import { syncWeatherForecast } from './services/openWeatherService';
 import { holidayService } from './services/holidayService';
 import ordersRouter from './routes/orders';
 import holidaysRouter from './routes/holidays';
+import calendarRoutes from './routes/calendar';
 import adminRouter from './routes/admin';
 import inventoryRouter from './routes/inventory';
 import warehouseInventoryRouter from './routes/warehouse-inventory';
@@ -2636,6 +2637,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/removed-products`, removedProductsRoutes);
   app.use(`${API_PREFIX}/weather`, weatherRoutes);
   app.use(`${API_PREFIX}/holidays`, holidaysRoutes);
+  app.use(`${API_PREFIX}/calendar`, calendarRoutes);
   app.use(`${API_PREFIX}/bulk`, bulkSyncRoutes);
   app.use(`${API_PREFIX}/db`, dbExportRoutes);
   app.use(`${API_PREFIX}/email`, emailRoutes);
