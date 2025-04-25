@@ -1,0 +1,920 @@
+<!DOCTYPE html> <html lang=en style><!--
+ Page saved with SingleFile 
+ url: https://cloud.vendon.net/rest/v1.8.0/docs/index 
+ saved date: Fri Apr 25 2025 11:06:30 GMT+0200 (Mitteleuropäische Sommerzeit)
+--><meta charset=utf-8>
+<style>/*!
+ * Bootstrap v3.1.1 (http://getbootstrap.com)
+ * Copyright 2011-2014 Twitter, Inc.
+ * Licensed under MIT (https://github.com/twbs/bootstrap/blob/master/LICENSE)
+ *//*! normalize.css v3.0.0 | MIT License | git.io/normalize */html{font-family:sans-serif;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%}body{margin:0}a{background:transparent}a:active,a:hover{outline:0}strong{font-weight:bold}h1{margin:.67em 0}img{border:0}hr{height:0;-moz-box-sizing:content-box;box-sizing:content-box}pre{overflow:auto}select{margin:0;font:inherit}select{text-transform:none}*{-webkit-box-sizing:border-box;-moz-box-sizing:border-box;box-sizing:border-box}*:before,*:after{-webkit-box-sizing:border-box;-moz-box-sizing:border-box;box-sizing:border-box}html{font-size:62.5%;-webkit-tap-highlight-color:rgba(0,0,0,0)}body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:14px;line-height:1.42857143;color:#333;background-color:#fff}select{font-family:inherit}a{color:#428bca;text-decoration:none}a:hover,a:focus{color:#2a6496;text-decoration:underline}a:focus{outline:thin dotted;outline:5px auto -webkit-focus-ring-color;outline-offset:-2px}img{vertical-align:middle}hr{margin-top:20px;margin-bottom:20px;border:0;border-top:1px solid #eee}h1,h2,h3{font-family:inherit;font-weight:500;line-height:1.1;color:inherit}h1,h2,h3{margin-bottom:10px}@media (min-width:768px){}ul,ol{margin-top:0;margin-bottom:10px}ul ul,ul ol{margin-bottom:0}@media (min-width:768px){}code,pre{font-family:Menlo,Monaco,Consolas,"Courier New",monospace}code{padding:2px 4px;font-size:90%;color:#c7254e;white-space:nowrap;background-color:#f9f2f4;border-radius:4px}pre{display:block;margin:0 0 10px;font-size:13px;line-height:1.42857143;color:#333;word-break:break-all;word-wrap:break-word;background-color:#f5f5f5;border-radius:4px}@media (min-width:768px){}@media (min-width:992px){}@media (min-width:1200px){}.container-fluid{padding-right:15px;padding-left:15px;margin-right:auto;margin-left:auto}.row{margin-right:-15px;margin-left:-15px}.col-sm-3,.col-md-9,.col-md-10{position:relative;min-height:1px;padding-right:15px;padding-left:15px}@media (min-width:768px){.col-sm-3,.col-sm-9{float:left}.col-sm-9{width:75%}.col-sm-3{width:25%}.col-sm-offset-3{margin-left:25%}}@media (min-width:992px){.col-md-2,.col-md-9,.col-md-10{float:left}.col-md-10{width:83.33333333%}.col-md-9{width:75%}.col-md-2{width:16.66666667%}.col-md-offset-2{margin-left:16.66666667%}}@media (min-width:1200px){}@media (max-width:767px){}.form-control{display:block;width:100%;height:34px;padding:6px 12px;font-size:14px;line-height:1.42857143;color:#555;background-color:#fff;background-image:none;border:1px solid #ccc;border-radius:4px;-webkit-box-shadow:inset 0 1px 1px rgba(0,0,0,.075);box-shadow:inset 0 1px 1px rgba(0,0,0,.075);-webkit-transition:border-color ease-in-out .15s,box-shadow ease-in-out .15s;transition:border-color ease-in-out .15s,box-shadow ease-in-out .15s}.form-control:focus{border-color:#66afe9;outline:0;-webkit-box-shadow:inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(102,175,233,.6);box-shadow:inset 0 1px 1px rgba(0,0,0,.075),0 0 8px rgba(102,175,233,.6)}.form-control::-webkit-input-placeholder{color:#999}@media (min-width:768px){}@media (min-width:768px){}@media (min-width:768px){}.nav{padding-left:0;list-style:none}.nav>li{position:relative;display:block}.nav>li>a{position:relative;display:block;padding:10px 15px}.nav>li>a:hover,.nav>li>a:focus{text-decoration:none;background-color:#eee}@media (min-width:768px){}@media (min-width:768px){}@media (min-width:768px){}@media (min-width:768px){}.navbar{min-height:50px;margin-bottom:20px;border:1px solid transparent}@media (min-width:768px){.navbar{border-radius:4px}}@media (min-width:768px){.navbar-header{float:left}}@media (min-width:768px){}.container-fluid>.navbar-header{margin-right:-15px;margin-left:-15px}@media (min-width:768px){.container-fluid>.navbar-header{margin-right:0;margin-left:0}}@media (min-width:768px){}.navbar-fixed-top{position:fixed;right:0;left:0;z-index:1030}@media (min-width:768px){.navbar-fixed-top{border-radius:0}}.navbar-fixed-top{top:0;border-width:0 0 1px}.navbar-brand{float:left;height:50px;padding:15px 15px;font-size:18px;line-height:20px}.navbar-brand:hover,.navbar-brand:focus{text-decoration:none}@media (min-width:768px){.navbar>.container-fluid .navbar-brand{margin-left:-15px}}@media (min-width:768px){}@media (max-width:767px){}@media (min-width:768px){}@media (min-width:768px){}@media (min-width:768px){}@media (max-width:767px){}@media (min-width:768px){}@media (min-width:768px){}@media (max-width:767px){}.navbar-inverse{background-color:#222;border-color:#080808}.navbar-inverse .navbar-brand{color:#999}.navbar-inverse .navbar-brand:hover,.navbar-inverse .navbar-brand:focus{color:#fff;background-color:transparent}@media (max-width:767px){}.label{display:inline;padding:.2em .6em .3em;font-size:75%;font-weight:bold;line-height:1;color:#fff;text-align:center;white-space:nowrap;vertical-align:baseline;border-radius:.25em}.label:empty{display:none}.label-danger{background-color:#d9534f}@media screen and (min-width:768px){}.alert{padding:15px;margin-bottom:20px;border:1px solid transparent;border-radius:4px}.alert-info{color:#31708f;background-color:#d9edf7;border-color:#bce8f1}@-webkit-keyframes progress-bar-stripes{from{background-position:40px 0}to{background-position:0 0}}@keyframes progress-bar-stripes{from{background-position:40px 0}to{background-position:0 0}}@media (min-width:768px){}@media (min-width:992px){}@media screen and (min-width:768px){}.clearfix:before,.clearfix:after,.container:before,.container:after,.container-fluid:before,.container-fluid:after,.row:before,.row:after,.form-horizontal .form-group:before,.form-horizontal .form-group:after,.btn-toolbar:before,.btn-toolbar:after,.btn-group-vertical>.btn-group:before,.btn-group-vertical>.btn-group:after,.nav:before,.nav:after,.navbar:before,.navbar:after,.navbar-header:before,.navbar-header:after,.navbar-collapse:before,.navbar-collapse:after,.pager:before,.pager:after,.panel-body:before,.panel-body:after,.modal-footer:before,.modal-footer:after{display:table;content:" "}.clearfix:after,.container:after,.container-fluid:after,.row:after,.form-horizontal .form-group:after,.btn-toolbar:after,.btn-group-vertical>.btn-group:after,.nav:after,.navbar:after,.navbar-header:after,.navbar-collapse:after,.pager:after,.panel-body:after,.modal-footer:after{clear:both}@-ms-viewport{width:device-width}@media (max-width:767px){}@media (min-width:768px) and (max-width:991px){}@media (min-width:992px) and (max-width:1199px){}@media (min-width:1200px){}@media (max-width:767px){}@media (min-width:768px) and (max-width:991px){}@media (min-width:992px) and (max-width:1199px){}@media (min-width:1200px){}</style>
+<style>.hljs-string{color:#800}.hljs-comment{color:#888}.hljs-number{color:#080}</style>
+<style>body{padding-top:50px}@media (min-width:768px){.sidebar{position:fixed;top:51px;bottom:0;left:0;z-index:1000;display:block;padding:20px;overflow-x:hidden;overflow-y:auto;background-color:#f5f5f5;border-right:1px solid #eee}}.nav-sidebar{margin-right:-21px;margin-bottom:20px;margin-left:-20px}.nav-sidebar>li>a{padding-right:20px;padding-left:20px}.nav-sidebar>.active>a{color:#fff;background-color:#428bca}</style>
+<title>Vendon.net</title>
+<meta name=referrer content=no-referrer><link type=image/x-icon rel="shortcut icon" href="data:image/x-icon;base64,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pqU4t6j/OLeo/zi3qP84t6j/NrWn0TOyoR4AAAAAAAAAADa2ow42tqe3OLeo/zi3qP84t6j/N7an+TW1p1oAAAAAAAAAAAAAAAAAAAAAAAAAANauABPWqACq1qgA/tepAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/1qgA/tWoAI2/fwAEAAAAAAAAAAAAAAAAAAAAAAAAAAE2tqaCOLeo/zi3qP84t6j/OLeo/ze0p5QAf38EAAAAAAAAAAAAAAAANramcTe2p/44t6j/OLeo/ze3p/I3t6dAAAAAAAAAAAAAAAAAAAAAAAAAAADWqABw16kA+tepAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/WqADr1agAUAAAAAAAAAAAAAAAAAAAAAAAAAAANrSlZze2p/s4t6j/OLeo/ze2p/IztKRPAAAAAAAAAAAAAAAAAAAAADG0pyk3tafYOLeo/zi3qP83t6fqNLamMQAAAAAAAAAAAAAAAAAAAADTpwAp16gAzNepAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9eoAK7SpQARAAAAAAAAAAAAAAAAAAAAADe1pVM3t6f4OLeo/zi3qP82tqe3LbSlEQAAAAAAAAAAAAAAAAAAAAAAAAAANrWmhze2p/44t6j/N7ao4jS3qicAAAAAAAAAAAAAAAD//wAB1agAgdaoAP7XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/WqAD31qgAXgAAAAAAAAAAAAAAAAAAAAA3tqhKOLeo9Ti3qP83t6f5NreoZwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADG1pjQ2tqjaOLeo/ze2qOI0sKMnAAAAAAAAAAAAAAAA1qcAJtWnANPXqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9aoALHMqgAPAAAAAAAAAAAAAAAAN7OlSji3qPU4t6j/N7WovDO3oxkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAf38CNramgje2p/43tqjlNbGmKwAAAAAAAAAAAAAAANanAGzXqAD716kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/WqADw2KoASAAAAAAAAAAAAAAAADW1p0w4t6j1N7en+DW1pmUAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADO2pyM3tqfBNran7TW1pjQAAAAAAAAAANCiAAvWqACw16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9WoAI1/fwACAAAAAAAAAAA3tqhYN7eo+De2pqInsJwNAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAANrWlXje2p+Y1t6hHAAAAAAAAAADSpgAu1qgA49epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqADG1q4AEwAAAAAAAAAANbSmbja2p9czt6dAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqqqgY2t6aHNrSkYwAAAAAAAAAA1aoAXdaoAPvXqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/1qgA69mqADYAAAAAAH9/AjW2poU3tadvAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAL7enIDW3pTkA//8B//8AAdapAInWqAD+16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9aoAPzUpgBfAAAAAB+fnwgztKRBH7+fCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAktpEHAAAAANSqAAbWqACq16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/WqAD+1qgAf/8AAAEAAAAAJLaRBwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADIowAO1qcAvtepAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/1qgA/teoAJb/fwACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA2qMADtaoAKrXqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9aoAP7WqACKqqoAAwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADVpwBD1qgAvdepAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/WpwCp1aYAMQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAANeqADPVpwCn1qkA/depAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9apAPfXqQCP1KoAHgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA1KoAGNanAIPWqADp16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9eoANnVpgBu1KoABgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD/qgAD06UAU9aoALfWqAD+16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/1qcA+daoAKPTqABBAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADXpgAa1qcAd9aoAM/WqAD916kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9epAP/XqQD/16kA/9ep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AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////w=="><style>.sf-hidden{display:none!important}</style><link rel=canonical href=https://cloud.vendon.net/rest/v1.8.0/docs/index><meta http-equiv=content-security-policy content="default-src 'none'; font-src 'self' data:; img-src 'self' data:; style-src 'unsafe-inline'; media-src 'self' data:; script-src 'unsafe-inline' data:; object-src 'self' data:; frame-src 'self' data:;"></head>
+<body>
+ <div class="navbar navbar-inverse navbar-fixed-top" role=navigation>
+ <div class=container-fluid>
+ <div class=navbar-header>
+ <button type=button class="navbar-toggle sf-hidden" data-toggle=collapse data-target=.navbar-collapse>
+ 
+ 
+ 
+ 
+ </button>
+ <a class=navbar-brand href=http://vendon.net/>
+ <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyMTcuODkgNTMuMjMiPjxkZWZzPjxzdHlsZT4uY2xzLTF7ZmlsbDojYThiNzM3O30uY2xzLTJ7ZmlsbDojZmZmZmZmO30uY2xzLTN7ZmlsbDojMDBiN2U4O30uY2xzLTMsLmNscy01e29wYWNpdHk6MC41O30uY2xzLTR7ZmlsbDojMDBhN2Q0O30uY2xzLTV7ZmlsbDojYjBjMDNhO308L3N0eWxlPjwvZGVmcz48dGl0bGU+dmVuZG9uX2xvZ29fZmxhdDwvdGl0bGU+PGcgaWQ9IkxheWVyXzIiIGRhdGEtbmFtZT0iTGF5ZXIgMiI+PHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMTkwLjkxLDczLjA4YzAtNC42MywyLjI2LTkuNDUsNy40OS05LjQ1czcuMyw1LjIzLDcuMyw5LjM1YzAsNS40OC0zLjE3LDkuNDUtNy4zOSw5LjQ1cy03LjM5LTQtNy4zOS05LjM1bS00LjQ3LjE1YzAsNy42OSw1LjA3LDEyLjUxLDExLjY2LDEyLjUxLDUuODgsMCwxMi4xMS0zLjkyLDEyLjExLTEyLjkyLDAtNy40NC00LjczLTEyLjUxLTExLjcyLTEyLjUxLTYuNzMsMC0xMi4wNiw0Ljc3LTEyLjA2LDEyLjkyIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMTguNjEgLTQ0LjI1KSIvPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0iTTIxOS41MSw2MC44N2gtMy45MmMuMTUsMiwuMjEsNC4wNy4yMSw2LjU5Vjg1LjJoNC40MlY3MC41N2MwLS43My0uMTQtNS4xLjA1LTUuOTIsMCwwLDUuNjQtLjIsNS45NS0uMiw0LjE3LDAsNS44NywyLDUuODcsNi43MnYxNGg0LjQzVjcwLjY3YzAtOC4zNC00LjktMTAtOC4yNi0xMC00LDAtOC43My4yMi04LjczLjIyIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMTguNjEgLTQ0LjI1KSIvPjxwYXRoIGNsYXNzPSJjbHMtMiIgZD0iTTg0Ljc4LDYwLjg3bDQuNzcsMTMuNjdhNjIuOTQsNjIuOTQsMCwwLDEsMiw2LjIzaC4xNWMuNTUtMiwxLjI2LTQsMi4wNi02LjIzbDQuNzItMTMuNjdoNC42M0w5My41Myw4NS4ySDg5LjMxTDgwLjA2LDYwLjg3WiIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTE4LjYxIC00NC4yNSkiLz48cGF0aCBjbGFzcz0iY2xzLTIiIGQ9Ik0xMDkuMjEsNzMuODRjLjEsNiwzLjkyLDguNDUsOC4zNSw4LjQ1QTE2LDE2LDAsMCwwLDEyNC4zLDgxbC43NSwzLjE3QTE5LjU2LDE5LjU2LDAsMCwxLDExNyw4NS43NWMtNy40OSwwLTEyLTUtMTItMTIuMzJzNC4zMi0xMy4xMiwxMS40MS0xMy4xMmM3Ljk0LDAsMTAuMDUsNywxMC4wNSwxMS40NmExNi4zLDE2LjMsMCwwLDEtLjE1LDIuMDZabTEzLTMuMTdjLjA1LTIuODItMS4xNi03LjE5LTYuMTMtNy4xOS00LjQ4LDAtNi40NCw0LjEzLTYuNzksNy4xOVoiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0xOC42MSAtNDQuMjUpIi8+PHBhdGggY2xhc3M9ImNscy0yIiBkPSJNMTQ0LjYsNjAuNjVjLTQsMC04LjczLjIyLTguNzMuMjJIMTMyYy4xNSwyLC4yLDQuMDcuMiw2LjU4Vjg1LjJoNC40M1Y3MC41N2MwLS43My0uMTQtNS4xLDAtNS45MiwwLDAsNS42NS0uMiw1Ljk1LS4yLDQuMTcsMCw1Ljg3LDIsNS44Nyw2LjcydjE0aDQuNDJWNzAuNjdjMC04LjM0LTQuODktMTAtOC4yNi0xMCIgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoLTE4LjYxIC00NC4yNSkiLz48cGF0aCBjbGFzcz0iY2xzLTIiIGQ9Ik0xODAuODUsNTAuNTdoLTQuNDJ2OS42OGMtMS44NywwLTMuODIuMDYtNi41Ny4wNmwtLjM1LDAtLjUyLDBhMTAuMTIsMTAuMTIsMCwwLDAtNi43MSwyLjUzYy0yLjc1LDIuMi00LjQ5LDUuNzQtNC40OSwxMC40YTEzLDEzLDAsMCwwLDIuOTMsOC42NCw5LDksMCwwLDAsNy41NCwzLjY1bDEyLjgtLjMyYy0uMTUtMS42Ni0uMi00LjEzLS4yLTYuMjlabS00LjUsMzEuM2E1NC40Nyw1NC40NywwLDAsMS02LjYxLjMyYy00Ljc4LDAtNy4xOS00LjA3LTcuMTktOSwwLTUuMzgsMi43Mi05LjQsNy4yOS05LjQsMy4zMiwwLDQuNTcsMCw2LjUsMCwuMTUuNTUuMDksNi40Ny4wOSw3Vjc1YzAsLjcxLjA3LDYuMjctLjA4LDYuODciIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0xOC42MSAtNDQuMjUpIi8+PHBvbHlnb24gY2xhc3M9ImNscy0zIiBwb2ludHM9IjI2LjMxIDMxIDI2LjMxIDMwLjk5IDI2LjMxIDMxIDI2LjMxIDMxIi8+PHBhdGggY2xhc3M9ImNscy00IiBkPSJNMjYuNzcsNTIuMTZhMjYuMjMsMjYuMjMsMCwwLDEsMzYuMywwYzAsMTEuMjktMTMsMjAuNi0xOC4xNSwyMy4wOUMzOS43NSw3Mi43NiwyNi43OSw2My40NSwyNi43Nyw1Mi4xNloiIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0xOC42MSAtNDQuMjUpIi8+PHBhdGggY2xhc3M9ImNscy0xIiBkPSJNMTguNjEsNzEuMTdBMjYuMzEsMjYuMzEsMCwxLDAsNjUuMjYsNTQuNDlDNjguOTMsNzIuMTYsNTEsODMuNjksNDQuOTIsODYuNzZjLTYtMy4wNy0yNC0xNC41OS0yMC4zNC0zMi4yN0EyNi4yLDI2LjIsMCwwLDAsMTguNjEsNzEuMTdaIiB0cmFuc2Zvcm09InRyYW5zbGF0ZSgtMTguNjEgLTQ0LjI1KSIvPjxwb2x5Z29uIGNsYXNzPSJjbHMtNSIgcG9pbnRzPSIyNi4zIDAgMjYuMzEgMCAyNi4zMSAwIDI2LjMgMCIvPjwvZz48L3N2Zz4=" style=height:32px;margin-top:-6px>
+ </a>
+ </div>
+ </div>
+ </div>
+ <div class=container-fluid>
+ <div class=row>
+ <div class="col-sm-3 col-md-2 sidebar">
+ <select class=form-control>
+    <option value=0>Choose API version</option>
+    <option selected value=v1.8.0>v1.8.0<option value=v1.7.0>v1.7.0<option value=v1.6.0>v1.6.0<option value=v1.5.0>v1.5.0<option value=v1.4.0>v1.4.0<option value=v1.3.14>v1.3.14<option value=v1.3.13>v1.3.13<option value=v1.3.12>v1.3.12<option value=v1.3.11>v1.3.11<option value=v1.3.9>v1.3.9<option value=v1.3.8>v1.3.8<option value=v1.3.7>v1.3.7<option value=v1.3.6>v1.3.6<option value=v1.1.1>v1.1.1</select><br>
+ 
+<ul class="nav nav-sidebar">
+ <li class=active>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/index>
+ About the Vendon API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/audit>
+ Audit API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/client>
+ Client API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/discount>
+ Discount API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/employee>
+ Employee API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/encashment>
+ Encashment API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/event>
+ Events API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/location>
+ Location API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/machine>
+ Machine API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/quickpik>
+ QuickPik API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/payment>
+ Payment API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/product>
+ Product API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/refills>
+ Refills API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/resources>
+ Resources API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/route>
+ Route API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/sensor>
+ Sensor API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/stats>
+ Stats API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/stock>
+ Stock API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/telemetryUnit>
+ Telemetry Unit API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/user>
+ User API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/schedule>
+ Schedule API </a>
+ </li>
+ <li>
+ <a href=https://cloud.vendon.net/rest/v1.8.0/docs/warehouse>
+ Warehouse API </a>
+ </li>
+ </ul>
+ </div>
+ <div class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main">
+ <style class=sf-hidden>#apiDocs{font-size:16px;line-height:20px}#apiDocs h1{font-size:32px;line-height:40px;margin-top:30px}#apiDocs h2{margin-top:5px;font-size:22px;line-height:40px}#apiDocs h3{margin-top:10px;font-size:17px}#apiDocs p{margin:6px 0}#apiDocs span.code,#apiDocs pre.code{font-family:monospace;background:#eee;border:1px solid #ddd;padding:5px}#apiDocs span.code{padding:0 2px}</style>
+<div id=apiDocs class="col-md-9 padding-vertical-30 content">
+ <h1 class=no-margin-top>About the Vendon API</h1>
+ <p>The Vendon API is a RESTful API, that uses a HTTP protocol for communication. HTTP GET, POST, PUT and DELETE
+ methods are used to access the API.
+ </p>
+ <h2>How to start</h2>
+ <p>
+ To begin using Vendon API request API key from <a href=mailto:support@vendon.net>support team</a>
+ </p>
+ <h2>API key</h2>
+ <p>The API key is a secret key unique to each user that is used to access the API.</p>
+ <p>Keep the API key in secret, and never expose it in any public website's client-side code.</p>
+ <h2>Authentication</h2>
+ <p>All API requests are available with an API key</p>
+ <p>Vendon uses HTTP token authentication for the API requests.</p>
+ <p>To perform authorization, you need to add the <span class=code>Authorization</span> header with a API key when
+ performing a request. So if the API key is <span class=code>5f4ec0c9cda34558c3c340d4c2aa50b9</span>,
+ then you need to add this header to the API request:</p>
+<pre class=code>Authorization: Token 5f4ec0c9cda34558c3c340d4c2aa50b9
+</pre>
+ <p><span class="label label-danger">Please note</span> - access to API functionality is based only on accessible devices for user that API key is generated for. Restrictions for functionality like remote credit, discounts, price writing, etc. should be implemented on clients side.</p>
+ <h2>Request endpoint</h2>
+ <p>All API requests have to be sent to this URL:</p>
+<pre class="alert alert-info"><strong>https://cloud.vendon.net/rest/v1.8.0/</strong>
+</pre>
+ <p>Connecting by HTTP is available as well, but for security reasons, use of HTTPS is highly recommended.</p>
+ <h2>Request parameters</h2>
+ <p>Some mandatory parameters (like object identifiers) must be included in the request URL path:</p>
+<pre class=code>GET /rest/v1.8.0/device/123
+</pre>
+ <p>Additional parameters can be passed as GET variables:</p>
+<pre class=code>GET /vends?offset=10&amp;limit=5
+</pre>
+ <p>For POST and PUT requests, a more complex data structure can be passed as JSON encoded data in the request
+ body:</p>
+<pre class="code javascript">POST /vends
+
+{<span class=hljs-string>"items"</span>:[...]}
+</pre>
+ <h2>Response body</h2>
+ <p>The response body is always a JSON object that contains a response status code (identical to the HTTP status
+ code) and the result of the action. If the status code is 200, then the action was successful.</p>
+<pre class="code javascript">{
+   <span class=hljs-string>"code"</span>: <span class=hljs-number>200</span>, <span class=hljs-comment>//Response status code</span>
+   <span class=hljs-string>"result"</span>:{
+      <span class=hljs-comment>//API method return data</span>
+	  <span class=hljs-comment>//...</span>
+   }
+}
+</pre>
+<a name=paging></a>
+ <h2>Paging</h2>
+ <p>Sometimes the response includes paging information to allow to browse larger result sets by adding <span class=code>offset</span> and <span class=code>limit</span> GET parameters to the request URL.</p>
+<pre class="code javascript">{
+   <span class=hljs-string>"code"</span>: <span class=hljs-number>200</span>, <span class=hljs-comment>//Response status code</span>
+   <span class=hljs-string>"result"</span>:[
+	   {
+	      <span class=hljs-comment>//Item 11</span>
+	   },
+	   {
+	      <span class=hljs-comment>//Item 12</span>
+	   }
+   ]
+   <span class=hljs-string>"paging"</span>: {
+      <span class=hljs-string>"total"</span>: <span class=hljs-number>12</span>,  <span class=hljs-comment>//Total items available</span>
+      <span class=hljs-string>"offset"</span>: <span class=hljs-number>10</span>, <span class=hljs-comment>//Items skipped from the beginning</span>
+      <span class=hljs-string>"limit"</span>: <span class=hljs-number>20</span>   <span class=hljs-comment>//Number of items per page</span>
+   }
+}
+</pre>
+ <h2>Error response</h2>
+ <p>If the API call is not successful, then the response code is not in the 2xx range and the <span class=code>result</span>
+ attribute contains an error description text (see exception for <a href=#error-422>status code 422</a>).</p>
+<pre class="code javascript">{
+   <span class=hljs-string>"code"</span>: <span class=hljs-number>404</span>, <span class=hljs-comment>//Response status code</span>
+   <span class=hljs-string>"result"</span>:<span class=hljs-string>"Item not found"</span> <span class=hljs-comment>//Error text</span>
+}
+</pre>
+ <p>In general, response codes in the 4xx range indicate an error that resulted from the provided information (e.g. a
+ required parameter was missing, etc.), and codes in the 5xx range indicate an error with Vendon servers.</p>
+ <h2 id=error-422>Multiple validation errors (status code: 422)</h2>
+ <p>To return multiple validation errors at once, an error response with status code 422 can be returned. 
+ The body of such response is different to all other error bodies ("result" key will contain an object, not a string) and will look similar to following example:</p>
+<pre class="code javascript">{
+  <span class=hljs-string>"code"</span>: <span class=hljs-number>422</span>, <span class=hljs-comment>//Response status code</span>
+  <span class=hljs-string>"result"</span>: {
+    <span class=hljs-string>"errors"</span>: {
+      <span class=hljs-string>"client_id"</span>: [
+        <span class=hljs-string>"Client cannot be blank."</span>
+      ],
+      <span class=hljs-string>"name"</span>: [
+        <span class=hljs-string>"Name is too long (maximum is 50 characters)."</span>
+      ],
+      <span class=hljs-string>"email"</span>: [
+        <span class=hljs-string>"E-mail is not a valid email address."</span>,
+        <span class=hljs-string>"E-mail is too long (maximum is 100 characters)."</span>
+      ],
+      <span class=hljs-string>"phone"</span>: [
+        <span class=hljs-string>"Phone is too long (maximum is 20 characters)."</span>,
+        <span class=hljs-string>"Phone must be a number."</span>
+      ],
+    }
+  }
+}
+</pre>
+ <h2>Timestamps</h2>
+ <p>All timestamps from the API are returned as integers in UNIX timestamp format.</p>
+ <h1>Changelog</h1>
+<h3>Added</h3>
+<ul>
+<li>Machine API
+<ul>
+<li>/machine/{id}/refills <strong>GET</strong> - Added response fields <strong>selections</strong> for product and <strong>status</strong> for refill.</li>
+<li>/machine/{id}/status <strong>GET</strong> - Added response field <strong>last_audit_readout</strong>.</li>
+<li>/machine/overview <strong>GET</strong> - Added response field <strong>last_audit_readout</strong>.</li>
+</ul></li>
+<li>Refills API
+<ul>
+<li>/refills <strong>GET</strong> - Added request parameter <strong>status</strong>, response fields <strong>status</strong>, <strong>can_reverse</strong>, <strong>reverse_reason</strong>.</li>
+<li>/refills/reverse <strong>POST</strong>.</li>
+<li>/refills/{id} <strong>GET</strong> - Added response field <strong>selections</strong> for machine products.</li>
+</ul></li>
+<li>Warehouse API
+<ul>
+<li>/warehouse/{id}/refills <strong>GET</strong> - Added response field <strong>status</strong>.</li>
+</ul></li>
+</ul>
+<h2>In development</h2>
+<h3>Added</h3>
+<ul>
+<li>Machine API
+<ul>
+<li>/machine/overview <strong>GET</strong> - Added extra values to sort by.</li>
+</ul></li>
+</ul>
+<h2><a href=https://cloud.vendon.net/rest/v1.8.0/docs>1.8.0</a> - 2024-01-21</h2>
+<h3>Added</h3>
+<ul>
+<li>Machine API
+<ul>
+<li>/machine <strong>GET</strong> - Added sort field <strong>last_purchase</strong></li>
+</ul></li>
+<li>Event Api
+<ul>
+<li>/event <strong>GET</strong> - Added request parameter <strong>warehouse_id</strong> for filtering warehouse events</li>
+</ul></li>
+<li>Stock API
+<ul>
+<li>/stock <strong>GET</strong> - Added request parameter <strong>not_in_warehouse_id</strong> for filtering out items already present in given warehouse</li>
+</ul></li>
+<li>Warehouse API
+<ul>
+<li>/warehouse/{id} <strong>PUT</strong>/<strong>DELETE</strong></li>
+<li>/warehouse/{id}/products <strong>POST</strong></li>
+<li>/warehouse/{id}/products <strong>GET</strong> - Added new response fields <strong>id</strong>, <strong>machine_count</strong>, <strong>route_planing_expiry_date</strong>, <strong>last_purchase</strong>, <strong>last_refill</strong></li>
+<li>/warehouse/expiryDates <strong>POST</strong></li>
+</ul></li>
+<li>Route API
+<ul>
+<li>/route/routerefillvalues <strong>GET</strong> added <strong>update_products</strong>, <strong>show_actual</strong>. <strong>POST</strong> added <strong>update_products</strong>.</li>
+</ul></li>
+<li>Location API
+<ul>
+<li>/location/ <strong>POST</strong>/<strong>PUT</strong>/<strong>GET</strong> - Added new response field <strong>working_schedules</strong></li>
+<li>/location/{id} <strong>GET</strong> - Added new response field <strong>working_schedules</strong></li>
+<li>/location/{id}/schedule <strong>POST</strong>/<strong>GET</strong></li>
+<li>/location/{id}/schedule/{schedule_id} <strong>PUT</strong>/<strong>DELETE</strong>/<strong>GET</strong></li>
+</ul></li>
+</ul>
+<h3>Changes</h3>
+<ul>
+<li>Warehouse API
+<ul>
+<li>/warehouse <strong>POST</strong>/<strong>GET</strong> - Changed request and response, refer to documentation</li>
+<li>/warehouse/{id} <strong>GET</strong> - Changed request and response, refer to documentation</li>
+</ul></li>
+<li>Stats API
+<ul>
+<li>/sales Changed request parameter <strong>payment_type</strong>, refer to documentation</li>
+</ul></li>
+<li>Machine API
+<ul>
+<li>/machine/ <strong>GET</strong>/<strong>PUT</strong> Changed response field <strong>account</strong>, refer to documentation.</li>
+<li>/machine/{id} <strong>GET</strong>/<strong>DELETE</strong> Changed response field <strong>account</strong>, refer to documentation.</li>
+<li>/machine/{id}/picture <strong>POST</strong> Changed response field <strong>account</strong>, refer to documentation.</li>
+</ul></li>
+</ul>
+<h3>Removed</h3>
+<ul>
+<li>Warehouse API
+<ul>
+<li>/warehouse/expirydate <strong>POST</strong>/<strong>PUT</strong>/<strong>GET</strong></li>
+</ul></li>
+<li>Location API
+<ul>
+<li>/location <strong>POST</strong>/<strong>PUT</strong>/<strong>GET</strong> - Removed <strong>working_from</strong>, <strong>working_till</strong>, <strong>on_weekends</strong> request parameters and response fields.</li>
+</ul></li>
+</ul>
+<h2><a href=https://cloud.vendon.net/rest/v1.7.0/docs>1.7.0</a> - 2023-11-29</h2>
+<h3>Added</h3>
+<ul>
+<li>Cleaning API
+<ul>
+<li>/cleaning/cleanings <strong>GET</strong></li>
+<li>/cleaning/totals <strong>GET</strong></li>
+<li>/cleaning/usedAfterCleaning <strong>GET</strong></li>
+<li>/cleaning/cleaningInstances <strong>GET</strong></li>
+</ul></li>
+<li>Employee API
+<ul>
+<li>/employee <strong>GET</strong> add search_by parameter for search by name or last name</li>
+</ul></li>
+<li>Machine API
+<ul>
+<li><strong>stock_warehouse_location</strong> field added to Product object</li>
+<li>/machine <strong>GET</strong> added <strong>functionality</strong> parameter</li>
+<li>/machine/bulkCopySettings <strong>POST</strong> added optional parameter <strong>selected_advanced_settings</strong></li>
+<li>/machine/cash <strong>GET</strong> new request param <strong>sort</strong>, new response params <strong>refillable</strong>, <strong>value_of_refill</strong></li>
+</ul></li>
+<li>Route API
+<ul>
+<li>/route/routeBulkDelete <strong>DELETE</strong> New endpoint for bulk deletion of routes</li>
+<li>/route/list <strong>POST</strong> added <strong>sort</strong>, <strong>search</strong> parameters</li>
+<li>/route/generatetasklist added <strong>multiple_routes</strong>, <strong>cash_control_subtasks</strong> parameters</li>
+<li>/route/routeexportsettings <strong>GET</strong>, <strong>PUT</strong></li>
+<li>/route/filters added <strong>GET</strong> <strong>sort</strong>, <strong>search</strong>, <strong>offset</strong>, <strong>limit</strong>, <strong>employee_id</strong> parameters and <strong>POST</strong>, <strong>PUT</strong> added <strong>machines</strong>, <strong>strict_match</strong>, <strong>warehouses</strong>, <strong>available_machines</strong> parameters</li>
+<li>/route/filtersbulkdelete <strong>DELETE</strong></li>
+<li>/route/changeemployee <strong>POST</strong> new parameters <strong>route_id</strong>, <strong>locations_ids</strong> and changed request structure</li>
+<li>/route/routelist <strong>POST</strong> added <strong>machines</strong>, <strong>strict_match</strong>, <strong>available_machines</strong>, <strong>cash_control_subtasks</strong>, <strong>warehouses</strong> parameters</li>
+<li>/route/routerefillvalues <strong>GET</strong> added <strong>critical</strong>, <strong>expiry</strong></li>
+<li>/route/routerefilltasks <strong>GET</strong> added <strong>critical</strong>, <strong>expiry</strong></li>
+<li>/route/{id}/subtasksBulkDelete <strong>DELETE</strong></li>
+<li>/route/{id}/routeMaintenanceTasksBulkDelete <strong>DELETE</strong></li>
+<li>/route/stockRemoveFromTask <strong>DELETE</strong></li>
+<li>/route/getaudits <strong>GET</strong>, <strong>POST</strong>, <strong>PUT</strong></li>
+</ul></li>
+<li>Stats API
+<ul>
+<li>/stats/cleaningLog <strong>POST</strong></li>
+<li>/stats/topMachines <strong>GET</strong> added multi account support parameter</li>
+<li>/stats/countersReport <strong>POST</strong></li>
+<li>/stats/vends <strong>GET</strong> added <strong>machine_contains_all_tags</strong>, <strong>selections</strong>, <strong>labels</strong>, <strong>products</strong>, <strong>product_tags</strong>, <strong>product_contains_all_tags</strong>, <strong>articles</strong>, <strong>currencies</strong>, <strong>managers</strong>, <strong>machine_types</strong>, <strong>source</strong></li>
+<li>/stats/vends <strong>GET</strong> added multiple value support for <strong>machine_id</strong>, <strong>location_id</strong>, <strong>client_id</strong>, <strong>payment_type_group</strong> </li>
+<li>/stats/vends <strong>GET</strong> added new boolean field to response <strong>is_quickpik</strong></li>
+<li>/stats/vendsTotals <strong>GET</strong> added <strong>machine_contains_all_tags</strong>, <strong>selections</strong>, <strong>labels</strong>, <strong>products</strong>, <strong>product_tags</strong>, <strong>product_contains_all_tags</strong>, <strong>articles</strong>, <strong>currencies</strong>, <strong>managers</strong>, <strong>machine_types</strong>, <strong>source</strong> </li>
+<li>/stats/vendsTotals <strong>GET</strong> added multiple value support for <strong>machine_id</strong>, <strong>location_id</strong>, <strong>client_id</strong>, <strong>payment_type_group</strong> </li>
+<li>/stats/customSalesReportTemplate <strong>POST</strong>/<strong>PUT</strong>/<strong>GET</strong></li>
+<li>/stats/customSalesReportTemplates <strong>GET</strong>/<strong>DELETE</strong></li>
+<li>/stats/customSalesReportAvailableFeatures <strong>GET</strong></li>
+</ul></li>
+<li>Resources API
+<ul>
+<li>/resources/selections <strong>GET</strong></li>
+<li>/resources/label <strong>GET</strong></li>
+</ul></li>
+<li>QuickPik API
+<ul>
+<li>/quickpik/cloudUsersDelete <strong>DELETE</strong> Delete QuickPik users from Cloud in bulk</li>
+<li>/quickpik/topUpHistory <strong>GET</strong> History of user Top Ups</li>
+<li>/quickpik/topUpHistoryTotal <strong>GET</strong> Total top ups for each currency</li>
+</ul></li>
+<li>User API
+<ul>
+<li>/user/settings <strong>GET</strong>/<strong>POST</strong> added <strong>other</strong> sub_setting</li>
+</ul></li>
+<li>Warehouse API
+<ul>
+<li>/warehouse/{id}/routeRefillTemplate <strong>GET</strong></li>
+<li><strong>stock_warehouse_location</strong> field added to WarehouseProduct object</li>
+</ul></li>
+<li>Refill API
+<ul>
+<li>/refills <strong>GET</strong> refill_type parameter</li>
+<li>/refills/totals <strong>GET</strong> refill_type parameter</li>
+</ul></li>
+<li>Event API
+<ul>
+<li>/event/downtime <strong>GET</strong> response parameters <strong>lost_sales</strong>, <strong>lost_revenue</strong>, <strong>currency</strong> and request params <strong>min_duration</strong>, <strong>max_duration</strong>, <strong>now_timestamp</strong></li>
+<li>/event/downtimetotal <strong>GET</strong> response parameters <strong>lost_sales</strong>, <strong>lost_revenue</strong>, <strong>currency</strong> and request params <strong>min_duration</strong>, <strong>max_duration</strong>, <strong>now_timestamp</strong></li>
+</ul></li>
+</ul>
+<h3>Changes</h3>
+<ul>
+<li>Route API
+<ul>
+<li>/route/routeplanpacking <strong>GET</strong> Supports excel type report</li>
+</ul></li>
+<li>Stats API
+<ul>
+<li>stats/inventoryReport method changed from <strong>GET</strong> to <strong>PUT</strong></li>
+<li>stats/inventoryReportDetails method changed from <strong>GET</strong> to <strong>PUT</strong></li>
+</ul></li>
+</ul>
+<h2><a href=https://cloud.vendon.net/rest/v1.6.0/docs>1.6.0</a> - 2022-05-19</h2>
+<h3>Deprecated</h3>
+<ul>
+<li>machine <strong>GET</strong> - Request parameter <strong>power</strong> </li>
+</ul>
+<h3>Changes</h3>
+<ul>
+<li>Refills API
+<ul>
+<li>refill <strong>reason</strong>, <strong>comment</strong> fields added to refillDetails object</li>
+</ul></li>
+<li>Audit API
+<ul>
+<li>/audit <strong>GET</strong> - Added <strong>client_id</strong> parameter</li>
+</ul></li>
+<li>Route API
+<ul>
+<li>/route/generatetasklist <strong>PUT</strong> - Added new route type Todo (4) and request body parameter 'todo_items'</li>
+<li>/route/{id}/routeplanpacking <strong>GET</strong> - returns route plan packing pdf file</li>
+<li>/route/list <strong>POST</strong> - Added <strong>statuses</strong> parameter</li>
+<li>/route/filters <strong>POST</strong>/<strong>PUT</strong>/<strong>GET</strong> Added <strong>todo_tasks</strong>, <strong>todo_lists</strong> as parameters</li>
+</ul></li>
+<li>Stats API
+<ul>
+<li>stats/inventoryReport <strong>GET</strong></li>
+<li>stats/inventoryReportDetails <strong>GET</strong></li>
+<li>stats/cashLog <strong>GET</strong> - Added <strong>machine_id</strong>, <strong>location_id</strong> parameters</li>
+<li>stats/cashLogTotals <strong>GET</strong> - Added <strong>machine_id</strong>, <strong>location_id</strong> parameters</li>
+<li>stats/vends <strong>GET</strong> - Added new response field <strong>discount_code</strong></li>
+<li>sales <strong>GET</strong> - Added <strong>sort</strong> parameter</li>
+<li>stats/vends <strong>GET</strong> - Added new response field <strong>discount_amount</strong></li>
+</ul></li>
+<li>Machine API
+<ul>
+<li>machine/{id}/cash <strong>GET</strong> added <strong>coins_in_cashbox</strong>, <strong>bills_in_stacker</strong></li>
+<li><strong>route_planing_expiry_date</strong> field for Product object</li>
+<li>machine/{id}/expirydates <strong>POST</strong></li>
+<li><strong>has_pricelists_enabled</strong>, <strong>decimal_point_position</strong>, <strong>supports_eva_dts_price_writing</strong> fields for Machine object</li>
+<li><strong>reverse</strong> option for <strong>type</strong> field</li>
+<li>machine <strong>GET</strong> - Added new option for type - <strong>reverse</strong></li>
+<li>machine <strong>GET</strong> - Request parameter <strong>power_status</strong></li>
+<li>machine/{id}/refilltemplate <strong>GET</strong> Added new option <strong>refill_template_id</strong> get refill template by id</li>
+<li>machine/{id}/refilltemplate <strong>PUT</strong>/<strong>POST</strong>/<strong>DELETE</strong></li>
+<li>machine/{id}/refillTemplateDefault <strong>POST</strong>/<strong>DELETE</strong></li>
+<li>machine/monitoring <strong>GET</strong> - Added option <strong>response_type</strong> for exporting data as excel, pdf or csv file</li>
+<li>machine/monitoring <strong>GET</strong> - Request parameters <strong>machine_id</strong>, <strong>machine_tags</strong>, <strong>client_id</strong>, <strong>country</strong></li>
+<li>machine/{id}/pushmasterprices <strong>PUT</strong> - Added option <strong>price_group_selections</strong> for pushing prices by PLU number when Franke 4+ or Faema interface enabled</li>
+<li>machine/{id}/refill <strong>POST</strong> - Request parameter <strong>event</strong> for creating All Products Refilled event. Completely changed request body - refer to documentation.</li>
+<li>machine <strong>GET</strong> added <strong>has_ecommerce_terminal</strong></li>
+</ul></li>
+<li>Telemetry Unit API
+<ul>
+<li><strong>supports_pricelists</strong>, <strong>supports_age_verification</strong> <strong>supports_deposit_fee</strong> fields for TelemetryUnit object</li>
+</ul></li>
+<li>User API 
+<ul>
+<li><strong>type_title</strong> field for User object</li>
+<li>user/rolesBulkDelete <strong>DELETE</strong></li>
+</ul></li>
+<li>News Notification API
+<ul>
+<li>/newsNotification <strong>GET</strong>/<strong>POST</strong> get posted notifications and save which posts have been viewed</li>
+</ul></li>
+<li>Stock API
+<ul>
+<li>stock/articles <strong>GET</strong> get list of articles by type</li>
+<li>stock/item <strong>PUT</strong>/<strong>POST</strong> new fields for stock item <strong>deposit_price</strong>, <strong>deposit_vat</strong>, <strong>warehouse_location</strong></li>
+</ul></li>
+<li>Encashment API
+<ul>
+<li>encashment <strong>GET</strong> - Added <strong>client_id</strong> parameter</li>
+<li>encashment <strong>GET</strong> - Added response parameter <strong>actual_values_completed</strong> for determining if any of actual encashment values entered</li>
+<li>encashment/totals <strong>GET</strong> - Added <strong>client_id</strong> parameter</li>
+</ul></li>
+<li>Location API
+<ul>
+<li>location <strong>GET</strong> - Added new model property and parameter <strong>task_manager</strong> </li>
+</ul></li>
+<li>Report Generator API
+-/reportGenerator/reportBulkDelete <strong>DELETE</strong></li>
+<li>QuickPik API
+<ul>
+<li>/quickpik/users <strong>GET</strong> - Added <strong>fields</strong> parameter</li>
+<li>/quickpik/users <strong>GET</strong> - Optimization. Limit should not exceed 200 for most effective search.</li>
+<li>/quickpik/transactions <strong>GET</strong> - Optimization. Limit should not exceed 200 for most effective search.</li>
+</ul></li>
+<li>Payments API
+<ul>
+<li>paymentApproveModel - added new status "ignore"</li>
+</ul></li>
+</ul>
+<h3>Removed</h3>
+<ul>
+<li>Machine API
+<ul>
+<li>machine/{id}/expirydate</li>
+</ul></li>
+</ul>
+<h2><a href=https://cloud.vendon.net/rest/v1.5.0/docs>1.5.0</a> - 2021-02-23</h2>
+<h3>Changes</h3>
+<ul>
+<li>Encashment API
+<ul>
+<li>encashment/details <strong>POST</strong> and <strong>PUT</strong> - Response body is now consistent with <strong>GET</strong> response structure for
+same endpoint. Added moneybag_number request parameter/response field.</li>
+</ul></li>
+<li>Stats API
+<ul>
+<li>stats/vends <strong>GET</strong> - Changed <strong>sort</strong> parameter default value to <strong>-transaction_id</strong></li>
+</ul></li>
+<li>Telemetry unit API
+<ul>
+<li>telemetryUnit <strong>GET</strong> - Fixed units not being sorted</li>
+</ul></li>
+<li>Machine API
+<ul>
+<li>machine/{id}/status <strong>GET</strong> - stock_level now shows value from warehouse when warehouse_id is set</li>
+<li>machine/{id}/pushMasterPrices <strong>PUT</strong> Added <strong>time_end</strong> parameter passing in request body fields</li>
+</ul></li>
+</ul>
+<h3>Added</h3>
+<ul>
+<li>Encashment API
+<ul>
+<li>encashment/lastEncashmentMoneybag <strong>POST</strong> - Add moneybag_number to machine last encashment</li>
+<li>encashment/details <strong>GET</strong> - Add vendon_recharge which is used for QuickPik top-up</li>
+</ul></li>
+<li>Machine API
+<ul>
+<li>machine <strong>GET</strong> - Sort by distance</li>
+<li>machine <strong>GET</strong> - Response field <strong>distance</strong></li>
+<li>machine <strong>GET</strong> - Request parameters <strong>distance_from</strong>, <strong>manufacturer_id</strong>, <strong>online</strong>, <strong>power</strong></li>
+<li>machine/{id}/settings <strong>GET</strong>/<strong>POST</strong> - New response data key and request parameter - <strong>plu_interface</strong></li>
+<li>machine/products <strong>GET</strong> - Added new response field <strong>product_price_group</strong></li>
+<li>machine/deleted <strong>GET</strong></li>
+<li><strong>has_route_planing_expiry_date</strong> field for Product object</li>
+<li><strong>updated_at</strong> field for Machine object</li>
+</ul></li>
+<li>Stats API
+<ul>
+<li>stats/vends <strong>GET</strong> - Added new option for search_time - <strong>updated</strong></li>
+<li>stats/vendsTotals <strong>GET</strong> - Added new option for search_time - <strong>updated</strong></li>
+<li><strong>updated_at</strong> field added to vendsStats object</li>
+</ul></li>
+<li>Stock API
+<ul>
+<li>machine/deleted <strong>GET</strong></li>
+<li><strong>updated_at</strong> field for StockItem object</li>
+</ul></li>
+<li>Resources API
+<ul>
+<li>resources/manufacturers <strong>GET</strong> - Request parameter <strong>machines_available</strong></li>
+</ul></li>
+<li>User API
+<ul>
+<li>/user <strong>GET</strong> - Response field <strong>account</strong></li>
+</ul></li>
+<li>Client API
+<ul>
+<li>/client <strong>GET</strong> - Response field <strong>account</strong></li>
+</ul></li>
+<li>Payment API
+<ul>
+<li>payment/credit <strong>POST</strong> - Added optional request parameter <strong>remote_vend</strong></li>
+</ul></li>
+<li>Card payments API added</li>
+</ul>
+<h2><a href=https://cloud.vendon.net/rest/v1.4.0/docs>1.4.0</a> - 2020-07-23</h2>
+<h3>Added</h3>
+<ul>
+<li>Telemetry Unit API
+<ul>
+<li>telemetryUnit/{id}/relay <strong>POST</strong> - Send Relay Command</li>
+</ul></li>
+</ul>
+<h3>Changes</h3>
+<ul>
+<li>Event API
+<ul>
+<li>event <strong>GET</strong> - Response field <strong>metadata</strong> added</li>
+</ul></li>
+<li>Stats API
+<ul>
+<li>stats/vends <strong>GET</strong> - Response field <strong>metadata</strong> added</li>
+</ul></li>
+<li>Machine API
+<ul>
+<li>machine/{id}/cash <strong>GET</strong> - Response fields <strong>cash_box</strong>, <strong>bill_stacker</strong>, <strong>overpay</strong>, <strong>tokens</strong>, 
+<strong>tokens_value</strong>, <strong>value_of_tubes</strong> value can be null</li>
+</ul></li>
+<li>User API
+<ul>
+<li>user <strong>GET</strong> - new request parameters - <strong>limit</strong>, <strong>offset</strong>, <strong>sort</strong>, <strong>search</strong>, <strong>filter_blocked</strong> 
+and <strong>response_type</strong>. Added response fields <strong>created_at</strong>, <strong>last_login_at</strong>.</li>
+<li>user <strong>POST</strong>/<strong>PUT</strong> - new request body fields - <strong>blocked</strong>, <strong>blocked_text</strong>, <strong>can_access_all_machines</strong>, 
+<strong>access_machine_tags</strong>, <strong>access_subclients</strong>, <strong>access_locations</strong>, <strong>access_machines</strong>, <strong>custom_permissions</strong>.
+Added response fields <strong>blocked</strong>, <strong>blocked_text</strong>, <strong>can_access_all_machines</strong>, <strong>access_machine_tags</strong>, 
+<strong>access_subclients</strong>, <strong>access_locations</strong>, <strong>access_machines</strong>, <strong>custom_permissions</strong>.</li>
+</ul></li>
+<li>Route API
+<ul>
+<li>route/list <strong>POST</strong> - parameters - <strong>offset</strong> and <strong>limit</strong>.</li>
+</ul></li>
+<li>Sensor API
+<ul>
+<li>sensor/temperature <strong>GET</strong> - new request parameters <strong>response_type</strong></li>
+</ul></li>
+</ul>
+<h2><a href=https://cloud.vendon.net/rest/v1.3.14/docs>1.3.14</a> - 2019-10-17</h2>
+<ul>
+<li>Product API
+<ul>
+<li>product/lowLevel **GET<em>type</em> - returns lowest product / component for each machine or warehouse</li>
+</ul></li>
+</ul>
+<h3>Added</h3>
+<ul>
+<li>Employee API
+<ul>
+<li>employee has a new attribute - <strong>holiday</strong></li>
+<li>employee/{id}/holiday - <strong>PUT</strong> /<strong>GET</strong></li>
+<li>employee/{id}/holiday/{holiday_id} - <strong>POST</strong> / <strong>DELETE</strong></li>
+</ul></li>
+<li>Location API
+<ul>
+<li>location has a new attribute - <strong>holiday</strong></li>
+<li>location has a new attributes for service time - <strong>refill_time</strong>, <strong>encashment_time</strong>, <strong>maintenance_time</strong> </li>
+<li>location/{id}/holiday - <strong>PUT</strong> /<strong>GET</strong> </li>
+<li>location/{id}/holiday/{holiday_id} - <strong>POST</strong> / <strong>DELETE</strong></li>
+</ul></li>
+<li>Machine API
+<ul>
+<li>machine/{id}/refilltemplates - <strong>GET</strong> all refill templates </li>
+<li>machine has new option <strong>expiry date</strong> on stock product </li>
+<li>machine/{id}/expirydate - <strong>PUT</strong> / <strong>GET</strong> / <strong>POST</strong></li>
+<li>machine/{id}/expirydate/{expirydate_id} - <strong>DELETE</strong></li>
+</ul></li>
+<li>Warehouse API<br>
+<ul>
+<li><strong>/warehouse</strong> - warehouse and sub warehouse api</li>
+</ul></li>
+<li>Route API
+<ul>
+<li>route/filters - <strong>PUT</strong> / <strong>GET</strong> / <strong>POST</strong> / <strong>DELETE</strong> action with route filters</li>
+<li>route/generatetasklist <strong>PUT</strong> - generate route plan task list</li>
+<li>route/list - <strong>POST</strong> - list of saved route plan routes</li>
+<li>route/changeemployee - <strong>POST</strong> - change employee for route or routes</li>
+<li>route/routelist - <strong>POST</strong> - returns list of vending machines or warehouses for route plan generation</li>
+<li>route/routeplansettings - <strong>PUT</strong> / <strong>GET</strong> - client sorting column for picklist</li>
+<li>route/triggers - <strong>GET</strong> - list of route plan filter triggers</li>
+<li>route/types - <strong>GET</strong> - route plan types</li>
+<li>route/{id}/routeencashmenttasks - <strong>GET</strong> / <strong>POST</strong> / <strong>DELETE</strong> - information about route encashment tasks</li>
+<li>route/{id}/routemaintenancetasks - <strong>GET</strong> / <strong>POST</strong> - route maintenance information</li>
+<li>route/{id}/routeplan - <strong>GET</strong> / <strong>DELETE</strong> - details for route plan route</li>
+<li>route/{id}/routeplandata - <strong>GET</strong> - route plan picklist data</li>
+<li>route/{id}/routeplandetails - <strong>GET</strong> - full route plan route details</li>
+<li>route/{id}/routerefilltasks - <strong>GET</strong> / <strong>POST</strong> - information about route refill task values</li>
+<li>route/{id}/routeremovetask - <strong>DELETE</strong> - safe delete route task</li>
+<li>route/{id}/tasks - <strong>GET</strong> - list of tasks in route</li>
+<li>route/{id}/subtasks - <strong>GET</strong> - route task subtasks</li>
+</ul></li>
+<li>Sensor API
+<ul>
+<li>sensor/hydracsfilter - <strong>PUT</strong> / <strong>POST</strong> / <strong>DELETE</strong> action with Hydracs filter</li>
+<li>sensor/hydracsfiltercapacity - <strong>GET</strong> list of Hydracs filters capacity</li>
+<li>sensor/hydracsfilters - <strong>GET</strong> list of device Hydracs filters</li>
+<li>sensor/hydracsmanufacturer - <strong>GET</strong> list of Hydracs filters manufacturers</li>
+<li>sensor/hydracsmodel - <strong>GET</strong> list of Hydracs filters models</li>
+<li>sensor/hydracsmodeltype - <strong>GET</strong> list of Hydracs filters types</li>
+</ul></li>
+</ul>
+<h2><a href=https://cloud.vendon.net/rest/v1.3.13/docs>1.3.13</a> - 2017-11-06</h2>
+<h3>Added</h3>
+<ul>
+<li>/encashment/transactionData <strong>PUT</strong> - encashment transaction data from last encashment</li>
+<li>/stats/vends object field <strong>transaction_data</strong> added items <strong>stan_numer</strong>,<strong>pan_number</strong> </li>
+<li>/machine/lastAuditFiles?from_timestamp={from_timestamp}&amp;to_timestamp={to_timestamp}&amp;type={type} - 
+<strong>GET</strong> returns list of last full audits in period</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li>AuditFile model added field <strong>machine_id</strong></li>
+</ul>
+<h2><a href=https://cloud.vendon.net/rest/v1.3.12/docs>1.3.12</a> - 2017-08-22</h2>
+<h3>Added</h3>
+<ul>
+<li>event/ <strong>GET</strong> machine tag filter added</li>
+<li>event/ <strong>GET</strong> event tag filter added</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li>/machine/{id}/products selection price lists output</li>
+</ul>
+<h2><a href=https://cloud.vendon.net/rest/v1.3.11/docs>1.3.11</a> - 2017-07-27</h2>
+<h3>Added</h3>
+<ul>
+<li>/resources/models field <strong>type</strong></li>
+</ul>
+<h2>[1.3.10] - 2017-05-06</h2>
+<h3>Added</h3>
+<ul>
+<li>new product type - <strong>preselection</strong></li>
+<li>/machine/{id}/product add field <strong>ingredient_line</strong></li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li>/machine/{id}/product <strong>recipe</strong> required for product type <strong>preselection</strong></li>
+</ul>
+<h3>Removed</h3>
+<ul>
+<li>/stats/vends object <strong>card_transaction_data</strong></li>
+</ul>
+<h2><a href=https://cloud.vendon.net/rest/v1.3.9/docs>1.3.9</a> - 2017-04-07</h2>
+<h3>Deprecated</h3>
+<ul>
+<li>/stats/vends object <strong>card_transaction_data</strong> item. <strong>Will be removed in next release</strong></li>
+</ul>
+<h3>Added</h3>
+<ul>
+<li>/machine/{id}/settings - <strong>GET</strong> / <strong>POST</strong></li>
+<li>/machine/{id}/collectCash add field <strong>reset</strong></li>
+<li>/machine object field <strong>software_version</strong></li>
+<li>/stats/vends object <strong>transaction_data</strong> item</li>
+<li>/payment/validate object <strong>auth_code</strong> item</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li>/machine/{id} <strong>PUT</strong> - software version added</li>
+<li>/machine/{id} <strong>POST</strong> - edit machine software version</li>
+<li>/stats/issues <strong>GET</strong> - fixed total count</li>
+</ul>
+<h2><a href=https://cloud.vendon.net/rest/v1.3.8/docs>1.3.8</a> - 2017-01-10</h2>
+<h3>Added</h3>
+<ul>
+<li>/resources/stockTags - <strong>GET</strong> / <strong>PUT</strong></li>
+<li>/stock/{id}/tags - <strong>DELETE</strong> / <strong>PUT</strong></li>
+<li>/machine object field <strong>inactive</strong></li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li>/machine/{id}/refill <strong>PUT</strong> - product validation added</li>
+</ul>
+<h2><a href=https://cloud.vendon.net/rest/v1.3.7/docs>1.3.7</a> - 2016-10-13</h2>
+<h3>Added</h3>
+<ul>
+<li>/stats/vends object <strong>vat</strong> item</li>
+<li>/encashment/details - <strong>PUT</strong> specify actual money collected</li>
+<li>/encashment/details - <strong>POST</strong> edit actual money collected</li>
+<li>/encashment/details - <strong>GET</strong> - returns encashment details</li>
+<li>/users object <strong>blocked</strong> item - if blocked, user account is not deleted, but user can not login</li>
+<li>/telemetryUnit/{id}/sendFile <strong>POST</strong> - send file to Telemetry Unit</li>
+<li>/telemetryUnit/{id}/SendFileStatus <strong>GET</strong> - get send file status and progress</li>
+<li>/machine/{id}/pushMasterPrices <strong>PUT</strong> - write price lists </li>
+<li>/stats/vends object <strong>card_transaction_data</strong> item</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li>/stats - machine_id for requests now are <strong>mandatory</strong></li>
+<li>/payment API callback description</li>
+<li>/encashment object fields - <strong>cashlees1</strong>, <strong>cashlees1_value</strong>, <strong>cashlees2</strong>, <strong>cashlees2_value</strong>,
+<strong>actual_cash</strong>, <strong>actual_bills</strong>, <strong>actual_comment</strong></li>
+<li>/stock/item - <strong>PUT</strong>, <strong>POST</strong> - bad request response format changed, VAT - decimal</li>
+<li>/machine - <strong>PUT</strong> - manufacturer_id required</li>
+<li>Documentation updated:
+<ol>
+<li>Stock API</li>
+<li>Machine API</li>
+</ol></li>
+</ul>
+<h2><a href=https://cloud.vendon.net/rest/v1.3.6/docs>1.3.6</a> - 2016-05-30</h2>
+<h3>Added</h3>
+<ul>
+<li>/encashment - encashments API</li>
+<li>/stats/vends object <strong>transaction_id</strong> item</li>
+<li>/location <strong>email</strong> item </li>
+<li>/stats/vends request parameter <strong>search_time</strong></li>
+<li>/machine object fields - description, serial and machine_id can be cleared if sending empty string. In previous version this was not possible.</li>
+<li>/discount API</li>
+<li>/event - events can be filtered by event registration datetime, <strong>from_timestamp</strong> and <strong>to_timestamp</strong> parameters is optional for now, but recomended</li>
+</ul>
+<h2>[1.3.5] - 2016-02-25</h2>
+<h3>Added</h3>
+<ul>
+<li>/telemetryUnit object <strong>reference</strong> item - can be used for integrations</li>
+<li>/telemetryUnit object <strong>type</strong> item</li>
+<li>/machine <strong>PUT</strong> request <strong>telemetry_unit_type</strong> option. Can be used to create device AND telemetry unit. Unit types described in telemetryUnit documentation</li>
+<li>/stats/components - Components usage for each machine, not grouped for choosen period</li>
+<li>/stats/vends - Individual vends for period</li>
+</ul>
+<h2>[1.3.4] - 2015-11-30</h2>
+<h3>Added</h3>
+<ul>
+<li>/event - <strong>PUT</strong> method for creating new event</li>
+</ul>
+<h2>[1.3.3] - 2015-11-24</h2>
+<h3>Added</h3>
+<ul>
+<li>/employee object items <strong>street</strong>, <strong>house_number</strong>, <strong>postal_code</strong>, <strong>city</strong>, <strong>country</strong>. Not used in web application.</li>
+<li><strong>/stats/componentsUsage</strong> - components usage stats, grouped by machine and component stock id</li>
+<li>/machine/{id}/<strong>registerVend</strong> - register vends from API</li>
+</ul>
+<h2>[1.3.2] - 2015-10-26</h2>
+<h3>Added</h3>
+<ul>
+<li><strong>/client</strong> - List of clients</li>
+<li><strong>/employee</strong> - List of employees used for alerts configuration and location roles</li>
+<li>/location/{id} <strong>GET</strong> request for single location information by id and <strong>DELETE</strong> request for location delete</li>
+<li>/machine object <strong>machine_id</strong> item - custom machine id</li>
+<li>/machine/{id} <strong>DELETE</strong> request</li>
+<li>/location object <strong>client_id</strong> item - linked client id to location</li>
+<li>/location - additional info about location (items added - phone, fax)</li>
+<li><strong>/machine/{id}/product/{product_id}</strong> - GET AND DELETE requests</li>
+<li>/user/{id} - <strong>GET</strong> and <strong>DELETE</strong> requests</li>
+<li>/resources/models - <strong>PUT</strong> method for creating new model</li>
+<li>/stats/topMachines</li>
+</ul>
+<h3>Removed</h3>
+<ul>
+<li>/machine object items <strong>manufacturer</strong> and <strong>model</strong></li>
+</ul>
+<h3>Deprecated</h3>
+<ul>
+<li><strong>DELETE</strong> request to /machine/{id}/product. will be replaced with <strong>DELETE /machine/{id}/product/{product_id}</strong></li>
+</ul>
+<hr>
+<h2>[1.3.1] - 2015-09-15</h2>
+<h3>Added</h3>
+<ul>
+<li>/stock - object <strong>recipe</strong> item</li>
+<li>/stock - item add/edit functionality</li>
+<li>/machine/{id}/products - object <strong>recipe</strong> item</li>
+<li>/machine/{id}/<strong>product</strong> - <strong>PUT</strong> (for new), <strong>POST</strong> (for update), <strong>DELETE</strong> requests</li>
+<li>/machine, /machine/{id} - added <strong>telemetry_unit</strong> object, <strong>manufacturer_id</strong> and <strong>model_id</strong> items, to machine object</li>
+<li><strong>/resources</strong> - List of object used for configuration, like /resources/manufacturers list and /resources/models list, used for machine manufacturer and model display</li>
+<li>/machine/{id}/<strong>peripheraldevices</strong> - List of machine configured and active peripheral devices</li>
+<li>/machine/{id} - <strong>POST</strong> - request for machine data update</li>
+<li>/telemetryUnit - request parameter <strong>unassigned</strong> (true/false). If true, returns only units that are not assigned to machine</li>
+<li>/telemetryUnit - telemetryUnit object <strong>protocol_name</strong> (string) and <strong>audit_protocol</strong> (array) items</li>
+<li>/location - additional info about location (items added - type, working_from, working_till,on_weekends)</li>
+<li>/stats/sales - sales stats for period</li>
+<li>/stats/topLocations - top locations by vends</li>
+<li>/resources/* - various resources used in api, for example, all manufacturer list</li>
+</ul>
+<h3>Deprecated</h3>
+<ul>
+<li>/machine object items <strong>manufacturer</strong> and <strong>model</strong> will be removed in next release, </li>
+</ul>
+<hr>
+<h2>[1.3.0] - 2015-08-18</h2>
+<h3>Added</h3>
+<ul>
+<li>paging - /machine, /telemetryUnit, /route, /event and /location now has enabled results paging. Max items returned in single request is 100. See below about <a href=#paging>paging</a></li>
+<li>/machine/{id}/products object <strong>stock_article</strong> item</li>
+<li>/location object <strong>machines</strong> item - count of machines assigned to location</li>
+<li>/machine/{id}/cash description</li>
+<li><strong>/stock</strong> - List of stock items used for product configuration</li>
+<li><strong>/event</strong> - List of events created by vending machine or vendon system</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li>/machine/{id}/cash item <strong>device_id</strong> changed to <strong>machine_id</strong></li>
+</ul>
+<hr>
+<h2>[1.2.0] - 2015-06-01</h2>
+<h3>Added</h3>
+<ul>
+<li>/route/{id}/tasks object <strong>product_type</strong> item</li>
+</ul>
+<h3>Changed</h3>
+<ul>
+<li>/machine/{id}/products object <strong>selection</strong> item structure to</li>
+</ul>
+<p><code>"selections":[[
+ "selection" : 1,
+ "label" : "A1"
+ "price" : 0.90
+ ],[
+ "selection" : 2,
+ "label" : "A2"
+ "price" : 0.60
+ ]]</code></p>
+<p>so each selection can have different price</p>
+<ul>
+<li>/route/{id}/tasks object <strong>machine_product_selections</strong> item structure changed to the same as <strong>machine/{id}/products</strong></li>
+</ul>
+<h3>Removed</h3>
+<ul>
+<li>/machine/{id}/products object <strong>price</strong> item</li>
+<li>/machine/{id}/products object <strong>labels</strong> item</li>
+<li>/route/{id}/tasks object <strong>machine_product_labels</strong> item</li>
+</ul>
+<hr>
+</div>
+ </div>
+ </div>
+ </div>
+<single-file-infobar style="accent-color: initial !important; place-content: initial !important; place-items: initial !important; place-self: initial !important; alignment-baseline: initial !important; animation-composition: initial !important; animation: initial !important; appearance: initial !important; aspect-ratio: initial !important; backdrop-filter: initial !important; backface-visibility: initial !important; background: initial !important; background-blend-mode: initial !important; baseline-shift: initial !important; block-size: initial !important; border-block: initial !important; border: initial !important; border-radius: initial !important; border-collapse: initial !important; border-end-end-radius: initial !important; border-end-start-radius: initial !important; border-inline: initial !important; border-start-end-radius: initial !important; border-start-start-radius: initial !important; inset: initial !important; box-shadow: initial !important; box-sizing: initial !important; break-after: initial !important; break-before: initial !important; break-inside: initial !important; buffered-rendering: initial !important; caption-side: initial !important; caret-color: initial !important; clear: initial !important; clip: initial !important; clip-path: initial !important; clip-rule: initial !important; color: initial !important; color-interpolation: initial !important; color-interpolation-filters: initial !important; color-scheme: initial !important; column-count: initial !important; column-fill: initial !important; gap: initial !important; column-rule-color: initial !important; column-rule-style: initial !important; column-rule-width: initial !important; column-span: initial !important; column-width: initial !important; contain: initial !important; contain-intrinsic-block-size: initial !important; contain-intrinsic-size: initial !important; contain-intrinsic-inline-size: initial !important; container-name: initial !important; container-type: initial !important; content: initial !important; content-visibility: initial !important; counter-increment: initial !important; counter-reset: initial !important; counter-set: initial !important; cursor: initial !important; cx: initial !important; cy: initial !important; direction: initial !important; display: initial !important; dominant-baseline: initial !important; empty-cells: initial !important; fill: initial !important; fill-opacity: initial !important; fill-rule: initial !important; filter: initial !important; flex: initial !important; flex-flow: initial !important; float: initial !important; flood-color: initial !important; flood-opacity: initial !important; font-family: initial !important; font-feature-settings: initial !important; font-kerning: initial !important; font-optical-sizing: initial !important; font-palette: initial !important; font-size: initial !important; font-size-adjust: initial !important; font-style: initial !important; font-synthesis-small-caps: initial !important; font-synthesis-style: initial !important; font-synthesis-weight: initial !important; font-variant-alternates: initial !important; font-variant-caps: initial !important; font-variant-east-asian: initial !important; font-variant-ligatures: initial !important; font-variant-numeric: initial !important; font-variant-position: initial !important; font-variation-settings: initial !important; font-weight: initial !important; font-width: initial !important; glyph-orientation-horizontal: initial !important; glyph-orientation-vertical: initial !important; grid: initial !important; grid-column-end: initial !important; grid-column-start: initial !important; grid-row-end: initial !important; grid-row-start: initial !important; hanging-punctuation: initial !important; height: initial !important; hyphenate-character: initial !important; hyphens: initial !important; image-orientation: initial !important; image-rendering: initial !important; inline-size: initial !important; inset-block: initial !important; inset-inline: initial !important; isolation: initial !important; letter-spacing: initial !important; lighting-color: initial !important; line-break: initial !important; line-height: initial !important; list-style: initial !important; margin-block: initial !important; margin: initial !important; margin-inline: initial !important; margin-trim: initial !important; marker: initial !important; mask: initial !important; mask-composite: initial !important; mask-mode: initial !important; mask-size: initial !important; mask-type: initial !important; math-style: initial !important; max-block-size: initial !important; max-height: initial !important; max-inline-size: initial !important; max-width: initial !important; min-block-size: initial !important; min-height: initial !important; min-inline-size: initial !important; min-width: initial !important; mix-blend-mode: initial !important; object-fit: initial !important; object-position: initial !important; offset-anchor: initial !important; offset-distance: initial !important; offset-path: initial !important; offset-position: initial !important; offset-rotate: initial !important; opacity: initial !important; order: initial !important; orphans: initial !important; outline: initial !important; outline-offset: initial !important; overflow-wrap: initial !important; overflow: initial !important; overscroll-behavior-block: initial !important; overscroll-behavior-inline: initial !important; overscroll-behavior: initial !important; padding-block: initial !important; padding: initial !important; padding-inline: initial !important; paint-order: initial !important; perspective: initial !important; perspective-origin: initial !important; pointer-events: initial !important; position: initial !important; print-color-adjust: initial !important; quotes: initial !important; r: initial !important; resize: initial !important; rotate: initial !important; ruby-align: initial !important; ruby-overhang: initial !important; ruby-position: initial !important; rx: initial !important; ry: initial !important; scale: initial !important; scroll-behavior: initial !important; scroll-margin-block: initial !important; scroll-margin: initial !important; scroll-margin-inline: initial !important; scroll-padding-block: initial !important; scroll-padding: initial !important; scroll-padding-inline: initial !important; scroll-snap-align: initial !important; scroll-snap-stop: initial !important; scroll-snap-type: initial !important; scrollbar-gutter: initial !important; scrollbar-width: initial !important; shape-image-threshold: initial !important; shape-margin: initial !important; shape-outside: initial !important; shape-rendering: initial !important; speak-as: initial !important; stop-color: initial !important; stop-opacity: initial !important; stroke: initial !important; stroke-color: initial !important; stroke-dasharray: initial !important; stroke-dashoffset: initial !important; stroke-linecap: initial !important; stroke-linejoin: initial !important; stroke-miterlimit: initial !important; stroke-opacity: initial !important; stroke-width: initial !important; tab-size: initial !important; table-layout: initial !important; text-align: initial !important; text-align-last: initial !important; text-anchor: initial !important; text-autospace: initial !important; text-box: initial !important; text-combine-upright: initial !important; text-decoration-color: initial !important; text-decoration: initial !important; text-decoration-skip-ink: initial !important; text-decoration-style: initial !important; text-decoration-thickness: initial !important; text-emphasis-color: initial !important; text-emphasis-position: initial !important; text-emphasis-style: initial !important; text-indent: initial !important; text-orientation: initial !important; text-overflow: initial !important; text-rendering: initial !important; text-shadow: initial !important; text-transform: initial !important; text-underline-offset: initial !important; text-underline-position: initial !important; text-wrap: initial !important; touch-action: initial !important; transform: initial !important; transform-box: initial !important; transform-origin: initial !important; transform-style: initial !important; transition: initial !important; translate: initial !important; unicode-bidi: initial !important; vector-effect: initial !important; vertical-align: initial !important; view-transition-class: initial !important; view-transition-name: initial !important; visibility: initial !important; white-space: initial !important; widows: initial !important; width: initial !important; will-change: initial !important; word-break: initial !important; word-spacing: initial !important; writing-mode: initial !important; x: initial !important; y: initial !important; z-index: initial !important; zoom: initial !important; -apple-pay-button-style: initial !important; -apple-pay-button-type: initial !important; border-spacing: initial !important; -webkit-box-align: initial !important; -webkit-box-decoration-break: initial !important; -webkit-box-direction: initial !important; -webkit-box-flex: initial !important; -webkit-box-flex-group: initial !important; -webkit-box-lines: initial !important; -webkit-box-ordinal-group: initial !important; -webkit-box-orient: initial !important; -webkit-box-pack: initial !important; -webkit-box-reflect: initial !important; -webkit-column-axis: initial !important; -webkit-column-progression: initial !important; -webkit-cursor-visibility: initial !important; -webkit-font-smoothing: initial !important; -webkit-hyphenate-limit-after: initial !important; -webkit-hyphenate-limit-before: initial !important; -webkit-hyphenate-limit-lines: initial !important; -webkit-initial-letter: initial !important; -webkit-line-align: initial !important; -webkit-line-box-contain: initial !important; -webkit-line-clamp: initial !important; -webkit-line-grid: initial !important; -webkit-line-snap: initial !important; -webkit-locale: initial !important; -webkit-nbsp-mode: initial !important; -webkit-overflow-scrolling: initial !important; -webkit-rtl-ordering: initial !important; -webkit-tap-highlight-color: initial !important; -webkit-text-fill-color: initial !important; -webkit-text-security: initial !important; -webkit-text-size-adjust: initial !important; -webkit-text-stroke-color: initial !important; -webkit-text-stroke-width: initial !important; -webkit-text-zoom: initial !important; -webkit-touch-callout: initial !important; -webkit-user-drag: initial !important; -webkit-user-modify: initial !important; -webkit-user-select: initial !important;"><template shadowrootmode=open><div><style>.infobar,.infobar .infobar-icon,.infobar .infobar-link-icon {min-inline-size:28px;min-block-size:28px;box-sizing:border-box;}.infobar,.infobar .infobar-close-icon,.infobar .infobar-link-icon {opacity:0.7;transition:opacity 250ms;}.infobar:hover,.infobar .infobar-close-icon:hover,.infobar .infobar-link-icon:hover {opacity:1;}.infobar,.infobar-content {display:flex;}.infobar {position:fixed;max-height:calc(100% - 32px);top:16px;right:16px;margin-inline-start:16px;margin-block-end:16px;color:#2d2d2d;background-color:#737373;border:2px solid;border-color:#eee;border-radius:16px;z-index:2147483647;animation-name:flash;animation-duration:.5s;animation-timing-function:cubic-bezier(0.39,0.58,0.57,1);animation-delay:1s;animation-iteration-count:2;}.infobar:valid,.infobar:not(:focus-within):not(.infobar-focus) .infobar-content {display:none;}.infobar:focus-within,.infobar.infobar-focus {background-color:#f9f9f9;border-color:#878787;border-radius:8px;opacity:1;transition-property:opacity,background-color,border-color,border-radius,color;}.infobar-content {border:2px solid;border-color:#f9f9f9;border-radius:6px;background-color:#f9f9f9;overflow:auto;}.infobar-content span {font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:18px;word-break:break-word;white-space:pre-wrap;margin-inline:4px;margin-block:4px;}.infobar .infobar-icon,.infobar .infobar-close-icon,.infobar .infobar-link-icon {cursor:pointer;background-position:center;background-repeat:no-repeat;}.infobar .infobar-close-icon,.infobar .infobar-link-icon {align-self:flex-start;}.infobar .infobar-icon {position:absolute;min-inline-size:24px;min-block-size:24px;}@keyframes flash {0%,100% {	background-color:#737373;}50% {	background-color:#dd6a00;}}.infobar:focus-within .infobar-icon,.infobar.infobar-focus .infobar-icon {z-index:-1;background-image:none;margin:4px;}.infobar .infobar-close-icon {min-inline-size:22px;min-block-size:22px;}.infobar .infobar-icon {background-color:transparent;background-size:70%;background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABABAMAAABYR2ztAAABhmlDQ1BJQ0MgcHJvZmlsZQAAKJF9kj1Iw0AYht+mSkUrDnYQcchQnSyIijqWKhbBQmkrtOpgcukfNGlIUlwcBdeCgz+LVQcXZ10dXAVB8AfEydFJ0UVK/C4ptIjx4LiH9+59+e67A4RGhalm1wSgapaRisfEbG5VDLyiDwEAvZiVmKkn0osZeI6ve/j4ehfhWd7n/hz9St5kgE8kjjLdsIg3iGc2LZ3zPnGIlSSF+Jx43KACiR+5Lrv8xrnosMAzQ0YmNU8cIhaLHSx3MCsZKvE0cVhRNcoXsi4rnLc4q5Uaa9XJbxjMaytprtMcQRxLSCAJETJqKKMCCxFaNVJMpGg/5uEfdvxJcsnkKoORYwFVqJAcP/gb/O6tWZiadJOCMaD7xbY/RoHALtCs2/b3sW03TwD/M3Cltf3VBjD3SXq9rYWPgIFt4OK6rcl7wOUOMPSkS4bkSH6aQqEAvJ/RM+WAwVv6EGtu31r7OH0AMtSr5Rvg4BAYK1L2use9ezr79u+ZVv9+AFlNcp0UUpiqAAAACXBIWXMAAC4jAAAuIwF4pT92AAAAB3RJTUUH5AsHADIRLMaOHwAAABl0RVh0Q29tbWVudABDcmVhdGVkIHdpdGggR0lNUFeBDhcAAAAPUExURQAAAIqKioyNjY2OjvDw8L2y1DEAAAABdFJOUwBA5thmAAAAAWJLR0QB/wIt3gAAAGNJREFUSMdjYCAJsLi4OBCQx6/CBQwIGIDPCBcXAkYQUsACU+AwlBVQHg6Eg5pgZBGOboIJZugDFwRwoJECJCUOhJI1wZwzqmBUwagCuipgIqTABG9h7YIKaKGAURAFEF/6AQAO4HqSoDP8bgAAAABJRU5ErkJggg==);}.infobar .infobar-link-icon {right:4px;background-size:60%;background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABAAgMAAADXB5lNAAABhmlDQ1BJQ0MgcHJvZmlsZQAAKJF9kj1Iw0AYht+mSkUrDnYQcchQnSyIijqWKhbBQmkrtOpgcukfNGlIUlwcBdeCgz+LVQcXZ10dXAVB8AfEydFJ0UVK/C4ptIjx4LiH9+59+e67A4RGhalm1wSgapaRisfEbG5VDLyiDwEAvZiVmKkn0osZeI6ve/j4ehfhWd7n/hz9St5kgE8kjjLdsIg3iGc2LZ3zPnGIlSSF+Jx43KACiR+5Lrv8xrnosMAzQ0YmNU8cIhaLHSx3MCsZKvE0cVhRNcoXsi4rnLc4q5Uaa9XJbxjMaytprtMcQRxLSCAJETJqKKMCCxFaNVJMpGg/5uEfdvxJcsnkKoORYwFVqJAcP/gb/O6tWZiadJOCMaD7xbY/RoHALtCs2/b3sW03TwD/M3Cltf3VBjD3SXq9rYWPgIFt4OK6rcl7wOUOMPSkS4bkSH6aQqEAvJ/RM+WAwVv6EGtu31r7OH0AMtSr5Rvg4BAYK1L2use9ezr79u+ZVv9+AFlNcp0UUpiqAAAACXBIWXMAAC4jAAAuIwF4pT92AAAAB3RJTUUH5AsHAB8H+DhhoQAAABl0RVh0Q29tbWVudABDcmVhdGVkIHdpdGggR0lNUFeBDhcAAAAJUExURQAAAICHi4qKioTuJAkAAAABdFJOUwBA5thmAAAAAWJLR0QCZgt8ZAAAAJJJREFUOI3t070NRCEMA2CnYAOyDyPwpHj/Va7hJ3FzV7zy3ET5JIwoAF6Jk4wzAJAkzxAYG9YRTgB+24wBgKmfrGAKTcEfAY4KRlRoIeBTgKOCERVaCPgU4Khge2GqKOBTgKOCERVaAEC/4PNcnyoSWHpjqkhwKxbcig0Q6AorXYF/+A6eIYD1lVbwG/jdA6/kA2THRAURVubcAAAAAElFTkSuQmCC);}.infobar .infobar-close-icon {appearance:none;background-size:80%;background-image:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABAAgMAAADXB5lNAAABhmlDQ1BJQ0MgcHJvZmlsZQAAKJF9kj1Iw0AYht+mSkUrDnYQcchQnSyIijqWKhbBQmkrtOpgcukfNGlIUlwcBdeCgz+LVQcXZ10dXAVB8AfEydFJ0UVK/C4ptIjx4LiH9+59+e67A4RGhalm1wSgapaRisfEbG5VDLyiDwEAvZiVmKkn0osZeI6ve/j4ehfhWd7n/hz9St5kgE8kjjLdsIg3iGc2LZ3zPnGIlSSF+Jx43KACiR+5Lrv8xrnosMAzQ0YmNU8cIhaLHSx3MCsZKvE0cVhRNcoXsi4rnLc4q5Uaa9XJbxjMaytprtMcQRxLSCAJETJqKKMCCxFaNVJMpGg/5uEfdvxJcsnkKoORYwFVqJAcP/gb/O6tWZiadJOCMaD7xbY/RoHALtCs2/b3sW03TwD/M3Cltf3VBjD3SXq9rYWPgIFt4OK6rcl7wOUOMPSkS4bkSH6aQqEAvJ/RM+WAwVv6EGtu31r7OH0AMtSr5Rvg4BAYK1L2use9ezr79u+ZVv9+AFlNcp0UUpiqAAAACXBIWXMAAC4jAAAuIwF4pT92AAAAB3RJTUUH5AsHAB8VC4EQ6QAAABl0RVh0Q29tbWVudABDcmVhdGVkIHdpdGggR0lNUFeBDhcAAAAJUExURQAAAICHi4qKioTuJAkAAAABdFJOUwBA5thmAAAAAWJLR0QCZgt8ZAAAAJtJREFUOI3NkrsBgCAMRLFwBPdxBArcfxXFkO8rbKWAAJfHJ9faf9vuYX/749T5NmShm3bEwbe2SxeuM4+2oxDL1cDoKtVUjRy+tH78Cv2CS+wIiQNC1AEhk4AQeUTMWUJMfUJMSEJMSEY8kIx4IONroaYAimNxsXp1PA7PxwfVL8QnowwoVC0lig07wDDVUjAdbAnjwtow/z/bDW7eI4M2KruJAAAAAElFTkSuQmCC);}.infobar { top:16px; bottom:auto; }.infobar { right:16px; left:auto; }</style><form class="infobar"><span tabindex="-1" class="infobar-icon"></span><span tabindex="-1" class="infobar-content"><input type="checkbox" required="" class="infobar-close-icon" title="Close"><span>Fri Apr 25 2025 11:06:30 GMT+0200 (Mitteleuropäische Sommerzeit)</span><a class="infobar-link-icon" target="_blank" rel="noopener noreferrer" title="Open source URL: https://cloud.vendon.net/rest/v1.8.0/docs/index" href="https://cloud.vendon.net/rest/v1.8.0/docs/index"></a></span></form><script>function Wo(n,{saveUrl:e,infobarContent:t,saveDate:a}){if(e){const o=n.querySelector("single-file-infobar").shadowRoot;o.querySelector(".infobar-content span").textContent=t||a;const i=o.querySelector(".infobar-content .infobar-link-icon");i.href=e,i.title="Open source URL: "+e}};function Ho(n,e=No){const t=n.evaluate("//comment()",n,null,XPathResult.FIRST_ORDERED_NODE_TYPE,null);let a=t&&t.singleNodeValue;if(a&&a.nodeType==Node.COMMENT_NODE&&a.textContent.includes(e)){const n=a.textContent.split("\n"),[,,e,...t]=n,o=e.match(/^ url: (.*) ?$/),i=o&&o[1];if(i){let n,e;if(t.length&&(e=t[0].split("saved date: ")[1],e&&t.shift(),t.length>1)){let e=t[0].split("info: ")[1].trim();for(let n=1;n<t.length-1;n++)e+="\n"+t[n].trim();n=e.trim()}return{saveUrl:i,infobarContent:n,saveDate:e}}}};(function Go(n,e){const t=Ho(n,e);t&&t.saveUrl&&Wo(n,t)})(document, "SingleFile");</script></div></template></single-file-infobar><script data-template-shadow-root>(()=>{document.currentScript.remove();processNode(document);function processNode(node){node.querySelectorAll("template[shadowrootmode]").forEach(element=>{let shadowRoot = element.parentElement.shadowRoot;if (!shadowRoot) {try {shadowRoot=element.parentElement.attachShadow({mode:element.getAttribute("shadowrootmode"),delegatesFocus:element.getAttribute("shadowrootdelegatesfocus")!=null,clonable:element.getAttribute("shadowrootclonable")!=null,serializable:element.getAttribute("shadowrootserializable")!=null});shadowRoot.innerHTML=element.innerHTML;element.remove()} catch (error) {} if (shadowRoot) {processNode(shadowRoot)}}})}})()</script>

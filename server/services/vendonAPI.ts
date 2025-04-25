@@ -7,7 +7,7 @@
  */
 
 const DEFAULT_API_KEY = process.env.VENDON_API_KEY || '';
-// Verwende die gleiche API-Basis-URL wie in vendonSync.ts
+// Basierend auf der API-Dokumentation
 const DEFAULT_API_BASE_URL = 'https://cloud.vendon.net/rest/v1.8.0';
 
 // Anzahl der maximalen Wiederholungsversuche
@@ -27,6 +27,12 @@ export class VendonAPI {
     this.apiKey = apiKey || DEFAULT_API_KEY;
     this.apiBaseUrl = apiBaseUrl || DEFAULT_API_BASE_URL;
     
+    // Masking des API-Keys für Logs
+    const maskedKey = this.apiKey.length >= 4 ? 
+      "****" + this.apiKey.slice(-4) : "****";
+    console.log(`Vendon API initialisiert mit Basis-URL: ${this.apiBaseUrl}`);
+    console.log(`API-Schlüssel: ${maskedKey}`);
+    
     // Reset des Request-Counters alle 60 Sekunden
     setInterval(() => {
       this.requestCount = 0;
@@ -45,7 +51,7 @@ export class VendonAPI {
   async request(
     endpoint: string,
     params: Record<string, any> = {},
-    method: 'GET' | 'POST' = 'GET',
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
     body?: any
   ): Promise<any> {
     let retries = 0;
@@ -55,10 +61,6 @@ export class VendonAPI {
         // Ratenbegrenzung prüfen
         await this.checkRateLimit();
         
-        // Aktuellen Versuch protokollieren
-        console.log(`API-Anfrage: ${method} ${endpoint} (Versuch ${retries + 1}/${MAX_RETRIES})`);
-        console.log(`Parameter: ${JSON.stringify(params)}`);
-        
         // URL mit Parametern aufbauen
         let url = `${this.apiBaseUrl}${endpoint}`;
         
@@ -66,7 +68,14 @@ export class VendonAPI {
         if (method === 'GET' && Object.keys(params).length > 0) {
           const queryParams = new URLSearchParams();
           for (const [key, value] of Object.entries(params)) {
-            queryParams.append(key, String(value));
+            if (Array.isArray(value)) {
+              // Arrays werden als wiederholte Parameter übergeben
+              for (const item of value) {
+                queryParams.append(`${key}[]`, String(item));
+              }
+            } else {
+              queryParams.append(key, String(value));
+            }
           }
           url += `?${queryParams.toString()}`;
         }
@@ -77,36 +86,43 @@ export class VendonAPI {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            // Verwende 'Token' statt 'Bearer' wie in vendonSync.ts
+            // Laut API-Dokumentation wird "Token" verwendet
             'Authorization': `Token ${this.apiKey}`
           }
         };
         
-        // Für POST-Anfragen Body hinzufügen
-        if (method === 'POST') {
+        // Für POST/PUT-Anfragen Body hinzufügen
+        if (method === 'POST' || method === 'PUT') {
           options.body = JSON.stringify(body || params);
         }
         
         // API-Anfrage ausführen
         console.log(`API-Anfrage: ${method} ${endpoint} (Versuch ${retries + 1}/${MAX_RETRIES})`);
-        console.log(`Parameter: ${JSON.stringify(method === 'GET' ? params : body || params)}`);
+        console.log(`Parameter: ${JSON.stringify(method === 'GET' ? params : {})}`);
         
         const response = await fetch(url, options);
         this.requestCount++;
         
-        // Fehlerbehandlung basierend auf HTTP-Status
-        if (!response.ok) {
-          throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
+        // Prüfen für leere Antwort
+        if (response.status === 204) {
+          return null; // No Content
         }
         
         // Antwort parsen
         const data = await response.json();
         
-        // API-spezifische Fehlerbehandlung
-        if (data.code !== 200) {
-          throw new Error(`API-Fehler: ${data.code} ${data.message || 'Unbekannter Fehler'}`);
+        // Fehlerbehandlung basierend auf HTTP-Status
+        if (!response.ok) {
+          console.error(`API-Fehler Response: ${JSON.stringify(data)}`);
+          throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
         }
         
+        // API-spezifische Fehlerbehandlung gemäß Dokumentation
+        if (data.code !== 200) {
+          throw new Error(`API-Fehler: ${data.code} ${data.result || 'Unbekannter Fehler'}`);
+        }
+        
+        console.log(`API-Antwort: Erfolg (Code ${data.code})`);
         return data.result;
       } catch (error) {
         retries++;
@@ -147,13 +163,13 @@ export class VendonAPI {
   
   /**
    * Holt alle Produkte von der API
+   * Basierend auf der API-Dokumentation
    * @returns Liste aller Produkte
    */
   async getProducts(): Promise<any[]> {
     try {
-      // Verwende den gleichen Pfad wie in vendonSync.ts
-      // Statt '/products' verwenden wir '/product/list'
-      return await this.request('/product/list', { limit: 1000 });
+      // Korrekte Endpoint entsprechend der Dokumentation
+      return await this.request('/stock', { limit: 1000 });
     } catch (error) {
       console.error('Fehler beim Abrufen der Produkte:', error);
       return [];
@@ -167,7 +183,8 @@ export class VendonAPI {
    */
   async getProduct(id: string): Promise<any | null> {
     try {
-      return await this.request(`/products/${id}`);
+      // ID als Parameter verwenden
+      return await this.request('/stock', { id });
     } catch (error) {
       console.error(`Fehler beim Abrufen des Produkts ${id}:`, error);
       return null;
@@ -180,10 +197,24 @@ export class VendonAPI {
    */
   async getMachines(): Promise<any[]> {
     try {
-      return await this.request('/machines', { limit: 500 });
+      return await this.request('/machine', { limit: 500 });
     } catch (error) {
       console.error('Fehler beim Abrufen der Automaten:', error);
       return [];
+    }
+  }
+  
+  /**
+   * Holt einen Automaten anhand seiner ID
+   * @param id Die Automaten-ID
+   * @returns Automatendetails oder null im Fehlerfall
+   */
+  async getMachine(id: string): Promise<any | null> {
+    try {
+      return await this.request(`/machine/${id}`);
+    } catch (error) {
+      console.error(`Fehler beim Abrufen des Automaten ${id}:`, error);
+      return null;
     }
   }
   
@@ -221,7 +252,7 @@ export class VendonAPI {
    */
   async getMachineStock(machineId: string): Promise<any[] | null> {
     try {
-      return await this.request(`/machines/${machineId}/stock`);
+      return await this.request(`/machine/${machineId}/stock`);
     } catch (error) {
       console.error(`Fehler beim Abrufen der Lagerbestände für Automat ${machineId}:`, error);
       return null;

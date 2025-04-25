@@ -129,44 +129,30 @@ router.get('/debug', async (req: Request, res: Response) => {
   try {
     console.log('Starting product sync debug test...');
     
-    // Verwende die Implementierung aus vendonSync.ts, die nachweislich funktioniert
+    // Importiere die VendonAPI aus services/vendonAPI.ts
+    const { vendonAPI } = await import('../services/vendonAPI');
     const apiKey = process.env.VENDON_API_KEY || '';
-    const baseUrl = 'https://cloud.vendon.net/rest/v1.8.0';
+    const baseUrl = vendonAPI.apiBaseUrl || 'https://cloud.vendon.net/rest/v1.8.0';
     
-    // Erstelle einfachen Fetch-Request direkt
+    // Initialisierung der Variablen
     let products = [];
     let dbProducts = [];
     let apiError = null;
     let networkError = null;
     
-    // Manueller Request zur Vendon API
+    // Verwende die aktualisierte VendonAPI-Klasse
     try {
-      const url = `${baseUrl}/product/list`;
-      const headers = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': `Token ${apiKey}`  // Wie in vendonSync.ts
-      };
+      console.log('Abrufen von Produkten über die aktualisierte VendonAPI...');
+      products = await vendonAPI.getProducts();
       
-      console.log('Direkter Zugriff auf Vendon API...');
-      const response = await fetch(url, { 
-        method: 'GET',
-        headers: headers
-      });
-      
-      if (!response.ok) {
-        throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      if (data && data.result) {
-        products = data.result;
+      if (Array.isArray(products)) {
         console.log(`Vendon API gab ${products.length} Produkte zurück`);
       } else {
-        console.error('Unerwartetes API-Antwortformat');
+        console.warn('Unerwartetes API-Antwortformat: Keine Array-Antwort');
+        products = [];
       }
     } catch (err) {
-      console.error('Fehler beim direkten API-Zugriff:', err);
+      console.error('Fehler beim API-Zugriff mit VendonAPI:', err);
       apiError = err;
     }
     
@@ -191,6 +177,7 @@ router.get('/debug', async (req: Request, res: Response) => {
       console.error('Fehler beim Laden der Datenbankprodukte:', dbErr);
     }
     
+    // Status-JSON mit detaillierten Informationen zurückgeben
     return res.json({
       status: apiError ? 'error' : (products.length > 0 ? 'success' : 'warning'),
       apiConnection: apiError ? 'failed' : (products.length > 0 ? 'connected' : 'no_data'),
@@ -204,7 +191,8 @@ router.get('/debug', async (req: Request, res: Response) => {
         price: products[0].price
       } : null,
       networkError,
-      error: apiError instanceof Error ? apiError.message : null
+      error: apiError instanceof Error ? apiError.message : null,
+      apiImplementation: 'Using updated VendonAPI class with Stock API endpoint'
     });
   } catch (error) {
     console.error('Debug API error:', error);
