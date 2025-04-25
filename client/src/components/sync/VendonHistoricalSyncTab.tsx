@@ -69,30 +69,33 @@ const formatDate = (dateString: string | null) => {
   }
 };
 
+// Interface für Sync-Status
+interface SyncStatus {
+  lastRun: {
+    id: number;
+    status: string;
+    startDate: string;
+    endDate: string;
+    durationSeconds: number;
+    itemsFound: number;
+    itemsSaved: number;
+    duplicates: number;
+    errors: number;
+    additionalData: string;
+  } | null;
+  cursor: {
+    lastDate: string;
+    lastOffset: number;
+    lastId: number | null;
+    updatedAt: string;
+  } | null;
+  isRunning: boolean;
+}
+
 // Interface für die API-Antwort
 interface SyncStatusResponse {
   success: boolean;
-  status: {
-    lastRun: {
-      id: number;
-      status: string;
-      startDate: string;
-      endDate: string;
-      durationSeconds: number;
-      itemsFound: number;
-      itemsSaved: number;
-      duplicates: number;
-      errors: number;
-      additionalData: string;
-    } | null;
-    cursor: {
-      lastDate: string;
-      lastOffset: number;
-      lastId: number | null;
-      updatedAt: string;
-    } | null;
-    isRunning: boolean;
-  }
+  status: SyncStatus;
 }
 
 const VendonHistoricalSyncTab: React.FC = () => {

@@ -91,7 +91,7 @@ const historyImportSchema = z.object({
 });
 
 const VendonSyncDashboard: React.FC = () => {
-  const [selectedTab, setSelectedTab] = useState<string>('overview');
+  const [selectedTab, setSelectedTab] = useState<string>('history-import');
   const [refreshCounter, setRefreshCounter] = useState<number>(0);
   const [isImporting, setIsImporting] = useState<boolean>(false);
   const { toast } = useToast();
