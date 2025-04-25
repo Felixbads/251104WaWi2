@@ -213,20 +213,31 @@ const VendonHistoricalSyncTab: React.FC = () => {
   const calculateProgress = () => {
     if (!syncStatus?.cursor?.lastDate) return 0;
     
-    const startDate = new Date("2020-01-01");
-    const endDate = new Date();
-    const currentDate = new Date(syncStatus.cursor.lastDate);
-    
-    // If currentDate is in the future, use endDate instead
-    if (currentDate > endDate) return 100;
-    
-    // Total days in range
-    const totalMilliseconds = endDate.getTime() - startDate.getTime();
-    // Current progress in days
-    const progressMilliseconds = currentDate.getTime() - startDate.getTime();
-    
-    // Calculate percentage (cap at 100%)
-    return Math.min(Math.round((progressMilliseconds / totalMilliseconds) * 100), 100);
+    try {
+      const startDate = new Date("2020-01-01");
+      const endDate = new Date();
+      const currentDate = new Date(syncStatus.cursor.lastDate);
+      
+      // Check if date is valid
+      if (isNaN(currentDate.getTime())) return 0;
+      
+      // If currentDate is in the future, use endDate instead
+      if (currentDate > endDate) return 100;
+      
+      // Total days in range
+      const totalMilliseconds = endDate.getTime() - startDate.getTime();
+      if (totalMilliseconds <= 0) return 0;
+      
+      // Current progress in days
+      const progressMilliseconds = currentDate.getTime() - startDate.getTime();
+      if (progressMilliseconds < 0) return 0;
+      
+      // Calculate percentage (cap at 100%)
+      return Math.min(Math.round((progressMilliseconds / totalMilliseconds) * 100), 100);
+    } catch (error) {
+      console.error("Fehler bei der Fortschrittsberechnung:", error);
+      return 0;
+    }
   };
 
   // Parse additionalData

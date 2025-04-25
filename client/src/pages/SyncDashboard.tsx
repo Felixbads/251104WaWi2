@@ -57,6 +57,7 @@ export default function SyncDashboard() {
     queryKey: ['/api/database/stats'],
     queryFn: async () => {
       const response = await axios.get('/api/database/stats');
+      console.log('Datenbank-Statistiken:', response.data);
       return response.data;
     },
     refetchInterval: 30000  // Aktualisiere alle 30 Sekunden
@@ -462,28 +463,46 @@ export default function SyncDashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {/* TRANSAKTIONEN */}
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-muted-foreground">Transaktionen</p>
                   <p className="text-2xl font-bold">
-                    {databaseStatsQuery.isLoading ? '...' : 
-                      Number(databaseStatsQuery.data?.transactions?.count || 0).toLocaleString('de-DE')}
+                    {databaseStatsQuery.isLoading 
+                      ? '...' 
+                      : (() => {
+                          const transactions = databaseStatsQuery.data?.transactions;
+                          if (!transactions) return '0';
+                          if (typeof transactions === 'number') return transactions.toLocaleString('de-DE');
+                          if (typeof transactions === 'object' && transactions.count) {
+                            return Number(transactions.count).toLocaleString('de-DE');
+                          }
+                          return '0';
+                        })()
+                    }
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Letzte: {(() => {
-                      const latest = databaseStatsQuery.data?.transactions?.latest;
-                      if (!latest) return 'N/A';
-                      if (typeof latest !== 'string') return 'Format ungültig';
-                      try {
-                        const date = parseISO(latest);
-                        if (!isValid(date)) return 'Datum ungültig';
-                        return format(date, 'dd.MM.yyyy');
-                      } catch (error) {
-                        return 'Fehler beim Formatieren';
+                      const transactions = databaseStatsQuery.data?.transactions;
+                      if (!transactions) return 'N/A';
+                      if (typeof transactions === 'object' && transactions.latest) {
+                        const latest = transactions.latest;
+                        if (typeof latest === 'string') {
+                          try {
+                            const date = parseISO(latest);
+                            if (!isValid(date)) return 'Datum ungültig';
+                            return format(date, 'dd.MM.yyyy');
+                          } catch (error) {
+                            return 'Datum-Fehler';
+                          }
+                        }
+                        return 'Format ungültig';
                       }
+                      return 'N/A';
                     })()}
                   </p>
                 </div>
                 
+                {/* PRODUKTE */}
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-muted-foreground">Produkte</p>
                   <p className="text-2xl font-bold">
@@ -494,6 +513,7 @@ export default function SyncDashboard() {
                   </p>
                 </div>
                 
+                {/* AUTOMATEN */}
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-muted-foreground">Automaten</p>
                   <p className="text-2xl font-bold">
@@ -504,17 +524,21 @@ export default function SyncDashboard() {
                   </p>
                 </div>
                 
+                {/* WETTERDATEN */}
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-muted-foreground">Wetterdaten</p>
                   <p className="text-2xl font-bold">
-                    {databaseStatsQuery.isLoading ? '...' : 
-                      (databaseStatsQuery.data?.weatherForecasts || 0) + (databaseStatsQuery.data?.weatherHistorical || 0)}
+                    {databaseStatsQuery.isLoading 
+                      ? '...' 
+                      : ((databaseStatsQuery.data?.weatherForecasts || 0) + (databaseStatsQuery.data?.weatherHistorical || 0))
+                    }
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {databaseStatsQuery.data?.weatherForecasts || 0} Vorhersagen, {databaseStatsQuery.data?.weatherHistorical || 0} Historisch
                   </p>
                 </div>
                 
+                {/* AUFFÜLLUNGEN */}
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-muted-foreground">Auffüllungen</p>
                   <p className="text-2xl font-bold">
@@ -525,6 +549,7 @@ export default function SyncDashboard() {
                   </p>
                 </div>
                 
+                {/* FEIERTAGE */}
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-muted-foreground">Feiertage</p>
                   <p className="text-2xl font-bold">
@@ -535,6 +560,7 @@ export default function SyncDashboard() {
                   </p>
                 </div>
                 
+                {/* SYNCHRONISIERUNGEN */}
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-muted-foreground">Synchronisierungen</p>
                   <p className="text-2xl font-bold">
@@ -545,6 +571,7 @@ export default function SyncDashboard() {
                   </p>
                 </div>
                 
+                {/* PROGNOSEMODELLE */}
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-muted-foreground">Prognosemodelle</p>
                   <p className="text-2xl font-bold">
