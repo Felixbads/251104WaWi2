@@ -325,7 +325,7 @@ router.post('/sync-all', async (req: Request, res: Response) => {
       includeSchoolHolidays = true
     } = req.body;
     
-    const statesToSync = allStates ? ALL_STATES.map(s => s.code) : states;
+    const statesToSync = allStates ? ALL_STATES.map((s: BundeslandInfo) => s.code) : states;
     
     console.log(`Synchronisiere alle Feiertage und Schulferien für Jahr ${year} und Bundesländer ${statesToSync.join(', ')}`);
     const result = await holidayService.syncHolidaysForYear(year, statesToSync);
@@ -358,7 +358,7 @@ router.post('/sync-school', async (req: Request, res: Response) => {
       allStates = false
     } = req.body;
     
-    const statesToSync = allStates ? ALL_STATES.map(s => s.code) : states;
+    const statesToSync = allStates ? ALL_STATES.map((s: BundeslandInfo) => s.code) : states;
     
     console.log(`Synchronisiere nur Schulferien für Jahr ${year} und Bundesländer ${statesToSync.join(', ')}`);
     // Da die bestehende Funktion beide Typen synchronisiert, können wir später hier eine spezialisierte Funktion hinzufügen

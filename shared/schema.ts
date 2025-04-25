@@ -32,6 +32,16 @@ export const syncLogs = pgTable("sync_logs", {
   entityType: varchar("entity_type", { length: 50 }).default("unknown"),
 });
 
+// Sync-State Tabelle für die Speicherung von Importfortschrittsdaten
+export const syncState = pgTable("sync_state", {
+  jobName: varchar("job_name", { length: 50 }).primaryKey(), // Name des Import-Jobs (z.B. 'vendon_history_import')
+  lastDate: date("last_date").notNull(),                    // Letztes verarbeitetes Datum
+  lastOffset: integer("last_offset").notNull(),             // Letzter Offset innerhalb dieses Datums
+  lastId: varchar("last_id", { length: 100 }),              // Optional: Letzte verarbeitete ID (für bestimmte Importe)
+  additionalState: text("additional_state"),                // Optional: Zusätzliche Zustandsinformationen als JSON
+  updatedAt: timestamp("updated_at").defaultNow().notNull(), // Zeitpunkt der letzten Aktualisierung
+});
+
 export const insertSyncLogSchema = createInsertSchema(syncLogs).omit({
   id: true,
   createdAt: true,
