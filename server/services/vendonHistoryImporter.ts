@@ -210,7 +210,6 @@ export class VendonHistoryImporter {
    * Speichert eine einzelne Transaktion in der Datenbank mit Idempotenz durch ON CONFLICT
    */
   private async saveTransaction(transaction: any) {
-    // Prüfen, ob die Transaktion bereits existiert
     try {
       // Vendon-ID für die Transaktion extrahieren
       const vendonId = String(transaction.transaction_id);
@@ -218,9 +217,9 @@ export class VendonHistoryImporter {
       // Prüfen, ob die Transaktion bereits existiert
       console.log(`Prüfe, ob Transaktion ${vendonId} bereits existiert...`);
       
-      // Direkte SQL-Abfrage mit ON CONFLICT für Effizienz
-      const insertQuery = `
-        INSERT INTO transactions (
+      // Direktes SQL mit parametrisierter Abfrage für Sicherheit
+      const result = await rawDb.query(
+        `INSERT INTO transactions (
           vendon_id, machine_id, machine_name, 
           datetime, transaction_dt, registered_dt,
           product_id, product_name, selection,
@@ -239,45 +238,38 @@ export class VendonHistoryImporter {
           $20, $21
         )
         ON CONFLICT (vendon_id) DO NOTHING
-        RETURNING id
-      `;
-      
-      // Parameter für die Abfrage
-      const params = [
-        vendonId,
-        transaction.machine_id,
-        transaction.machine_name,
-        transaction.datetime,
-        transaction.transaction_dt || transaction.datetime,
-        transaction.registered_dt || transaction.datetime,
-        transaction.stock_id?.toString() || null,
-        transaction.name,
-        transaction.selection,
-        transaction.stock_id,
-        transaction.article,
-        transaction.quantity || 1,
-        transaction.price,
-        transaction.price_vat,
-        transaction.price_wo_vat,
-        transaction.vat,
-        transaction.currency,
-        transaction.discount_code,
-        transaction.discount_amount,
-        transaction.payment_method,
-        'history-import'  // Markierung als historischer Import
-      ];
-      
-      // Ausführen der Abfrage mit sql.raw
-      const { rows } = await db.execute(sql`${insertQuery}`);
-      // Fallback für leeres Ergebnis
-      const resultRows = rows || [];
+        RETURNING id`,
+        [
+          vendonId,
+          transaction.machine_id,
+          transaction.machine_name,
+          transaction.datetime,
+          transaction.transaction_dt || transaction.datetime,
+          transaction.registered_dt || transaction.datetime,
+          transaction.stock_id?.toString() || null,
+          transaction.name,
+          transaction.selection,
+          transaction.stock_id,
+          transaction.article,
+          transaction.quantity || 1,
+          transaction.price,
+          transaction.price_vat,
+          transaction.price_wo_vat,
+          transaction.vat,
+          transaction.currency,
+          transaction.discount_code,
+          transaction.discount_amount,
+          transaction.payment_method,
+          'history-import'  // Markierung als historischer Import
+        ]
+      );
       
       // Wenn ein Ergebnis zurückgegeben wird, wurde eine neue Transaktion eingefügt
-      if (resultRows.length > 0) {
+      if (result.rows && result.rows.length > 0) {
         this.stats.totalSaved++;
         // Bei vielen Transaktionen Log reduzieren
         if (this.stats.totalSaved % 100 === 0 || this.stats.totalSaved < 10) {
-          console.log(`Transaktion ${vendonId} mit ID ${resultRows[0].id} gespeichert.`);
+          console.log(`Transaktion ${vendonId} mit ID ${result.rows[0].id} gespeichert.`);
         }
       } else {
         // Wenn kein Ergebnis, wurde die Transaktion aufgrund von ON CONFLICT übersprungen
@@ -285,7 +277,7 @@ export class VendonHistoryImporter {
         console.log(`Echtes Duplikat gefunden: ${vendonId} mit Datum ${new Date(transaction.datetime * 1000).toISOString()}`);
       }
       
-      return resultRows.length > 0;
+      return result.rows && result.rows.length > 0;
     } catch (error) {
       console.error(`Fehler beim Speichern der Transaktion:`, error);
       this.stats.totalErrors++;
@@ -298,14 +290,23 @@ export class VendonHistoryImporter {
    */
   private async getSyncState() {
     try {
-      const [state] = await db
-        .select()
-        .from(syncState)
-        .where(eq(syncState.jobName, this.jobName));
+      // Direkte SQL-Abfrage für bessere Kontrolle
+      const result = await rawDb.query(
+        'SELECT * FROM sync_state WHERE job_name = $1 LIMIT 1',
+        [this.jobName]
+      );
       
-      if (state) {
-        console.log(`Fortsetzen des Imports ab Datum ${state.lastDate} mit Offset ${state.lastOffset}`);
-        return state;
+      if (result.rows && result.rows.length > 0) {
+        const state = result.rows[0];
+        console.log(`Fortsetzen des Imports ab Datum ${state.last_date} mit Offset ${state.last_offset}`);
+        return {
+          jobName: state.job_name,
+          lastDate: new Date(state.last_date),
+          lastOffset: state.last_offset,
+          updatedAt: new Date(state.updated_at),
+          lastId: state.last_id,
+          additionalState: state.additional_state
+        };
       }
       
       // Initialzustand, wenn kein Sync-State gefunden wurde
@@ -318,13 +319,16 @@ export class VendonHistoryImporter {
       
       console.log(`Kein vorheriger Import-Status gefunden. Beginne mit Initialzustand: `, initialState);
       
-      // Initialzustand in der Datenbank speichern
-      await db.insert(syncState).values({
-        jobName: initialState.jobName,
-        lastDate: formatISO(initialState.lastDate),
-        lastOffset: initialState.lastOffset,
-        updatedAt: formatISO(initialState.updatedAt)
-      });
+      // Initialzustand in der Datenbank speichern mit direktem SQL
+      await rawDb.query(
+        `INSERT INTO sync_state (job_name, last_date, last_offset, updated_at) VALUES ($1, $2, $3, $4)`,
+        [
+          initialState.jobName, 
+          initialState.lastDate.toISOString(), 
+          initialState.lastOffset, 
+          initialState.updatedAt.toISOString()
+        ]
+      );
       
       return initialState;
     } catch (error) {
@@ -338,14 +342,11 @@ export class VendonHistoryImporter {
    */
   private async updateSyncState(date: Date, offset: number) {
     try {
-      await db
-        .update(syncState)
-        .set({
-          lastDate: formatISO(date),
-          lastOffset: offset,
-          updatedAt: formatISO(new Date())
-        })
-        .where(eq(syncState.jobName, this.jobName));
+      // Direktes SQL für Update
+      await rawDb.query(
+        `UPDATE sync_state SET last_date = $1, last_offset = $2, updated_at = $3 WHERE job_name = $4`,
+        [date.toISOString(), offset, new Date().toISOString(), this.jobName]
+      );
       
       console.log(`Sync-Status aktualisiert: Datum=${date.toISOString()}, Offset=${offset}`);
     } catch (error) {
@@ -359,24 +360,30 @@ export class VendonHistoryImporter {
    */
   private async createSyncLog(syncType: string, entityType: string) {
     try {
-      const data = {
-        syncType,
-        entityType,
-        syncStatus: 'running',
-        startDate: new Date(),
-        itemsFound: 0,
-        itemsSaved: 0,
-        duplicates: 0,
-        errors: 0,
-      };
+      const startDate = new Date();
       
-      const [syncLog] = await db
-        .insert(syncLogs)
-        .values(data)
-        .returning();
+      // Direktes SQL für bessere Kontrolle
+      const result = await rawDb.query(
+        `INSERT INTO sync_logs 
+          (sync_type, entity_type, sync_status, start_date, items_found, items_saved, duplicates, errors) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+         RETURNING id`,
+        [
+          syncType, 
+          entityType, 
+          'running', 
+          startDate.toISOString(), 
+          0, 
+          0, 
+          0, 
+          0
+        ]
+      );
       
-      this.syncLogId = syncLog.id;
-      console.log(`Sync-Log erstellt mit ID ${this.syncLogId}`);
+      if (result.rows && result.rows.length > 0) {
+        this.syncLogId = result.rows[0].id;
+        console.log(`Sync-Log erstellt mit ID ${this.syncLogId}`);
+      }
     } catch (error) {
       console.error(`Fehler beim Erstellen des Sync-Logs:`, error);
       throw error;
@@ -390,28 +397,43 @@ export class VendonHistoryImporter {
     if (!this.syncLogId) return;
     
     try {
-      const endDate = status !== 'running' ? new Date() : undefined;
+      const endDate = status !== 'running' ? new Date() : null;
+      const startDate = await this.getSyncLogStartDate();
       const duration = endDate 
-        ? (endDate.getTime() - new Date(await this.getSyncLogStartDate()).getTime()) / 1000
-        : undefined;
+        ? (endDate.getTime() - startDate.getTime()) / 1000
+        : null;
       
-      await db
-        .update(syncLogs)
-        .set({
-          syncStatus: status,
-          endDate,
-          durationSeconds: duration,
-          itemsFound: this.stats.totalProcessed,
-          itemsSaved: this.stats.totalSaved,
-          duplicates: this.stats.totalDuplicates,
-          errors: this.stats.totalErrors,
-          errorMessage,
-          additionalData: JSON.stringify({
-            pagesProcessed: this.stats.pagesProcessed,
-            daysProcessed: this.stats.daysProcessed,
-          }),
-        })
-        .where(eq(syncLogs.id, this.syncLogId));
+      const additionalData = JSON.stringify({
+        pagesProcessed: this.stats.pagesProcessed,
+        daysProcessed: this.stats.daysProcessed,
+      });
+      
+      // Direktes SQL für Update
+      await rawDb.query(
+        `UPDATE sync_logs 
+         SET sync_status = $1, 
+             end_date = $2, 
+             duration_seconds = $3, 
+             items_found = $4, 
+             items_saved = $5, 
+             duplicates = $6, 
+             errors = $7, 
+             error_message = $8, 
+             additional_data = $9
+         WHERE id = $10`,
+        [
+          status,
+          endDate ? endDate.toISOString() : null,
+          duration,
+          this.stats.totalProcessed,
+          this.stats.totalSaved,
+          this.stats.totalDuplicates,
+          this.stats.totalErrors,
+          errorMessage || null,
+          additionalData,
+          this.syncLogId
+        ]
+      );
       
       console.log(`Sync-Log ${this.syncLogId} aktualisiert mit Status "${status}"`);
     } catch (error) {
@@ -426,12 +448,16 @@ export class VendonHistoryImporter {
     if (!this.syncLogId) return new Date();
     
     try {
-      const [log] = await db
-        .select()
-        .from(syncLogs)
-        .where(eq(syncLogs.id, this.syncLogId));
+      const result = await rawDb.query(
+        'SELECT start_date FROM sync_logs WHERE id = $1',
+        [this.syncLogId]
+      );
       
-      return log?.startDate || new Date();
+      if (result.rows && result.rows.length > 0) {
+        return new Date(result.rows[0].start_date);
+      }
+      
+      return new Date();
     } catch (error) {
       console.error(`Fehler beim Abrufen des Sync-Log-Startdatums:`, error);
       return new Date();
