@@ -5,7 +5,12 @@ import { z } from 'zod';
 const router = express.Router();
 
 // Liste aller deutschen Bundesländer
-const ALL_STATES = [
+interface BundeslandInfo {
+  code: string;
+  name: string;
+}
+
+const ALL_STATES: BundeslandInfo[] = [
   { code: "SN", name: "Sachsen" },
   { code: "BB", name: "Brandenburg" },
   { code: "BE", name: "Berlin" },
@@ -82,7 +87,10 @@ router.get('/', async (req: Request, res: Response) => {
       endDate = maxEndDate;
     }
 
-    const holidays = await holidayService.getHolidaysInRange(startDate, endDate);
+    const holidays = await holidayService.getHolidaysByDateRange(
+      startDate.toISOString().split('T')[0], 
+      endDate.toISOString().split('T')[0]
+    );
     
     return res.json({
       success: true,
@@ -122,7 +130,10 @@ router.get('/upcoming', async (req: Request, res: Response) => {
     const endDate = new Date(today);
     endDate.setDate(today.getDate() + days);
     
-    let holidays = await holidayService.getHolidaysInRange(today, endDate);
+    let holidays = await holidayService.getHolidaysByDateRange(
+      today.toISOString().split('T')[0], 
+      endDate.toISOString().split('T')[0]
+    );
     
     // Nach Typ filtern, falls angegeben
     if (type) {
@@ -165,7 +176,9 @@ router.get('/by-date/:date', async (req: Request, res: Response) => {
     }
     
     const date = new Date(validatedDate.data);
-    const holidays = await holidayService.getHolidaysForDate(date);
+    const startDate = date.toISOString().split('T')[0];
+    const endDate = date.toISOString().split('T')[0];
+    const holidays = await holidayService.getHolidaysByDateRange(startDate, endDate);
     
     return res.json({
       success: true,
@@ -278,7 +291,7 @@ router.post('/sync', async (req: Request, res: Response) => {
       includeSchoolHolidays = true
     } = req.body;
     
-    const states = allStates ? ALL_STATES.map(s => s.code) : [state];
+    const states = allStates ? ALL_STATES.map((s: { code: string }) => s.code) : [state];
     
     console.log(`Synchronisiere Feiertage für Jahr ${year} und ${allStates ? 'alle Bundesländer' : `Bundesland ${state}`}`);
     const result = await holidayService.syncHolidaysForYear(year, states);
