@@ -518,7 +518,8 @@ class CalendarService {
                 .set({
                   is_school_holiday: true,
                   day_type: eq(calendarDays.is_public_holiday, true) ? 
-                           DayType.PUBLIC_HOLIDAY : DayType.SCHOOL_HOLIDAY,
+                           DayType.PUBLIC_HOLIDAY : 
+                           (eq(calendarDays.is_weekend, true) ? DayType.WEEKEND : DayType.SCHOOL_HOLIDAY),
                   holiday_name: eq(calendarDays.holiday_name, null) ? 
                                holidayName : calendarDays.holiday_name,
                   updated_at: sql`CURRENT_TIMESTAMP`
