@@ -468,7 +468,7 @@ export default function SyncDashboard() {
                       Number(databaseStatsQuery.data?.transactions?.count || 0).toLocaleString('de-DE')}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Letzte: {databaseStatsQuery.data?.transactions?.latest ? 
+                    Letzte: {databaseStatsQuery.data?.transactions?.latest && typeof databaseStatsQuery.data.transactions.latest === 'string' ? 
                       format(parseISO(databaseStatsQuery.data.transactions.latest), 'dd.MM.yyyy') : 'N/A'}
                   </p>
                 </div>
