@@ -273,8 +273,28 @@ const VendonHistoricalSyncTab: React.FC = () => {
   const cursor = syncStatus?.cursor;
   const isRunning = syncStatus?.isRunning || false;
 
+  // Calculate database status for display
+  const transactionsSaved = lastRun?.itemsSaved || 0;
+  const isImportNeeded = transactionsSaved < 1000;
+
   return (
     <div className="space-y-6">
+      {/* Quick Start Guide */}
+      {isImportNeeded && (
+        <Alert className="bg-blue-50 border-blue-200">
+          <DownloadCloud className="h-5 w-5 text-blue-500" />
+          <AlertTitle className="text-blue-800">Mehr als 120.000 Transaktionen importieren</AlertTitle>
+          <AlertDescription className="text-blue-700">
+            Um alle historischen Transaktionen zu importieren, bitte:
+            <ol className="list-decimal pl-5 mt-2 space-y-1">
+              <li>Stellen Sie sicher, dass das Startdatum weit genug in der Vergangenheit liegt (z.B. 2020-01-01)</li>
+              <li>Setzen Sie die maximale Anzahl der Transaktionen auf mindestens 20.000</li>
+              <li>Klicken Sie auf "Import starten" und warten Sie, bis die Transaktionen geladen sind</li>
+            </ol>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Current Status Card */}
       <Card>
         <CardHeader className="pb-2">
@@ -433,12 +453,12 @@ const VendonHistoricalSyncTab: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Import Configuration Card */}
+      {/* Import Configuration Card - Simplified */}
       <Card>
         <CardHeader>
-          <CardTitle>Historischen Import konfigurieren</CardTitle>
+          <CardTitle>Historischen Import starten</CardTitle>
           <CardDescription>
-            Starten Sie einen Import historischer Vendon-Transaktionen für einen bestimmten Zeitraum
+            Importiere über 120.000 historische Vendon-Transaktionen
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -464,59 +484,19 @@ const VendonHistoricalSyncTab: React.FC = () => {
                 
                 <FormField
                   control={form.control}
-                  name="endDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Enddatum (optional)</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormDescription>
-                        Wenn leer, werden Daten bis heute importiert
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="batchSize"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Batch-Größe</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          {...field} 
-                          onChange={e => field.onChange(parseInt(e.target.value))}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        Anzahl der Transaktionen pro API-Anfrage (10-1000)
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
                   name="maxTransactions"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Max. Transaktionen (optional)</FormLabel>
+                      <FormLabel>Max. Transaktionen</FormLabel>
                       <FormControl>
                         <Input 
                           type="number" 
                           {...field} 
-                          onChange={e => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                          onChange={e => field.onChange(e.target.value ? parseInt(e.target.value) : 20000)}
                         />
                       </FormControl>
                       <FormDescription>
-                        Maximale Anzahl an Transaktionen für diesen Import
+                        <strong>Mindestens 20.000 empfohlen</strong> für umfassenden Import
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -524,53 +504,95 @@ const VendonHistoricalSyncTab: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="syncStep"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tage pro Schritt (optional)</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          {...field} 
-                          onChange={e => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        Anzahl der Tage, die pro Synchronisierungsschritt importiert werden
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="forceUpdate"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 p-4">
-                      <FormControl>
-                        <Checkbox
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                      <div className="space-y-1 leading-none">
-                        <FormLabel>
-                          Erzwinge Aktualisierung
-                        </FormLabel>
+              {/* Advanced Options Section - Hidden by Default */}
+              <details className="mt-4">
+                <summary className="cursor-pointer text-sm font-medium">Erweiterte Einstellungen</summary>
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="endDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Enddatum (optional)</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
                         <FormDescription>
-                          Bestehende Transaktionen erneut importieren (überschreiben)
+                          Wenn leer, werden Daten bis heute importiert
                         </FormDescription>
-                      </div>
-                    </FormItem>
-                  )}
-                />
-              </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="batchSize"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Batch-Größe</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            {...field} 
+                            onChange={e => field.onChange(parseInt(e.target.value))}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Anzahl der Transaktionen pro API-Anfrage (10-1000)
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="syncStep"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tage pro Schritt (optional)</FormLabel>
+                        <FormControl>
+                          <Input 
+                            type="number" 
+                            {...field} 
+                            onChange={e => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Anzahl der Tage, die pro Schritt importiert werden
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="forceUpdate"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0 p-4">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel>
+                            Erzwinge Aktualisierung
+                          </FormLabel>
+                          <FormDescription>
+                            Bestehende Transaktionen erneut importieren
+                          </FormDescription>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </details>
 
-              <div className="flex justify-between pt-4">
+              <div className="flex justify-between pt-6">
                 <Button
                   type="button"
                   variant="outline"
@@ -590,15 +612,16 @@ const VendonHistoricalSyncTab: React.FC = () => {
                   type="submit"
                   disabled={isImporting}
                   className="gap-2"
+                  size="lg"
                 >
                   {isImporting ? (
                     <>
-                      <Loader className="h-4 w-4 animate-spin" />
+                      <Loader className="h-5 w-5 animate-spin" />
                       Import läuft...
                     </>
                   ) : (
                     <>
-                      <Play className="h-4 w-4" />
+                      <DownloadCloud className="h-5 w-5" />
                       Import starten
                     </>
                   )}
