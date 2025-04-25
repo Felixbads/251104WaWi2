@@ -121,10 +121,33 @@ export async function triggerHistoricalSync(options: HistoricalSyncOptions = {})
 }
 
 // Funktion zum Abrufen aller Vendon-Produkte direkt von der Stock-API (ca. 109 Produkte)
-export async function getAllVendonProducts(page = 0, limit = 100) {
-  // Die korrekte Route ist /vendon/stocks
-  console.log('Abrufen der Vendon-Stock-Produkte vom Server...');
+// Die verbesserte Funktion unterstützt sowohl den traditionellen Aufruf mit Parametern
+// als auch den Aufruf ohne Parameter, der die /vendon/products Endpunkt verwendet
+export async function getAllVendonProducts(page?: number, limit?: number): Promise<any> {
+  console.log('Abrufen der Vendon-Produkte vom Server...');
+  
+  // Wenn keine Parameter übergeben werden, verwende den neuen Endpunkt
+  if (page === undefined && limit === undefined) {
+    try {
+      const response = await apiRequest<VendonProductsResponse>('get', '/vendon/products');
+      return response;
+    } catch (error: any) {
+      console.error('Fehler beim Abrufen der Vendon-Produkte:', error);
+      return {
+        code: 500,
+        result: [],
+        status: 'error',
+        message: error.message || 'Fehler beim Abrufen der Vendon-Produkte'
+      };
+    }
+  }
+  
+  // Andernfalls verwende den traditionellen Ansatz mit Stock-API und Paginierung
   try {
+    // Standardwerte setzen
+    page = page ?? 0;
+    limit = limit ?? 100;
+    
     // Frage die ersten 100 Produkte ab
     const batch1Response = await axios.get(`${API_BASE_URL}/vendon/stocks?page=0&limit=${limit}`);
     let allProducts = batch1Response.data;
@@ -155,43 +178,7 @@ export async function getAllVendonProducts(page = 0, limit = 100) {
   }
 }
 
-// Interface für Synchronisierungsstatus
-export interface SyncStatus {
-  status: 'idle' | 'running' | 'success' | 'error';
-  lastSync: string | null;
-  message?: string;
-  itemsFound?: number;
-  itemsSaved?: number;
-  itemsUpdated?: number;
-  errors?: number;
-}
-
-// Funktion zum manuellen Synchronisieren aller Produkte mit der Vendon API
-export async function syncProductsWithVendon(): Promise<SyncStatus> {
-  console.log('Starte manuelle Produktsynchronisierung mit Vendon API...');
-  try {
-    const response = await axios.post(`${API_BASE_URL}/product-sync/sync-all`);
-    return response.data;
-  } catch (error) {
-    console.error('Fehler bei der manuellen Produktsynchronisierung:', error);
-    throw error;
-  }
-}
-
-// Funktion zum Abrufen des Synchronisierungsstatus
-export async function getProductSyncStatus(): Promise<SyncStatus> {
-  try {
-    const response = await axios.get(`${API_BASE_URL}/product-sync/status`);
-    return response.data;
-  } catch (error) {
-    console.error('Fehler beim Abrufen des Synchronisierungsstatus:', error);
-    return { 
-      status: 'error', 
-      lastSync: null, 
-      message: 'Statusabfrage fehlgeschlagen' 
-    };
-  }
-}
+// Interface für Synchronisierungsstatus (ersetzt durch ProductSyncStatus)
 
 // Hilfsfunktionen
 export function formatDateTime(dateString: string | Date, format: 'date' | 'datetime' | 'time' = 'datetime'): string {
@@ -343,6 +330,16 @@ export interface SyncLog {
   itemsFound: number;
   itemsSaved: number;
   errorMessage?: string;
+}
+
+export interface ProductSyncStatus {
+  status: 'success' | 'error' | 'running';
+  lastSync: string | null;
+  message?: string;
+  itemsFound?: number;
+  itemsSaved?: number;
+  itemsUpdated?: number;
+  errors?: number;
 }
 
 export interface Event {
@@ -704,6 +701,61 @@ export interface ProductsResponse {
     pages: number;
   }
 }
+
+// Vendon Produkte
+export interface VendonProductsResponse {
+  code: number;
+  result: any[];
+  status: string;
+  message?: string;
+}
+
+// Produkte mit Vendon synchronisieren
+export async function syncProductsWithVendon(): Promise<ProductSyncStatus> {
+  try {
+    const response = await apiRequest<ProductSyncStatus>('post', '/product-sync/sync-all');
+    return response;
+  } catch (error: any) {
+    console.error('Fehler bei der Produkt-Synchronisierung:', error);
+    return {
+      status: 'error',
+      lastSync: null,
+      message: error.message || 'Fehler bei der Produkt-Synchronisierung'
+    };
+  }
+}
+
+// Einzelnes Produkt mit Vendon synchronisieren
+export async function syncProductById(vendonId: string): Promise<ProductSyncStatus> {
+  try {
+    const response = await apiRequest<ProductSyncStatus>('post', `/product-sync/sync-product/${vendonId}`);
+    return response;
+  } catch (error: any) {
+    console.error(`Fehler bei der Synchronisierung des Produkts ${vendonId}:`, error);
+    return {
+      status: 'error',
+      lastSync: null,
+      message: error.message || `Fehler bei der Synchronisierung des Produkts ${vendonId}`
+    };
+  }
+}
+
+// Status der Produktsynchronisierung abrufen
+export async function getProductSyncStatus(): Promise<ProductSyncStatus> {
+  try {
+    const response = await apiRequest<ProductSyncStatus>('get', '/product-sync/status');
+    return response;
+  } catch (error: any) {
+    console.error('Fehler beim Abrufen des Synchronisierungsstatus:', error);
+    return {
+      status: 'error',
+      lastSync: null,
+      message: error.message || 'Fehler beim Abrufen des Synchronisierungsstatus'
+    };
+  }
+}
+
+// Der Kommentar wurde entfernt, da die Funktion bereits weiter oben definiert ist
 
 // Zweite Deklaration wurde entfernt, die Funktion ist bereits oben definiert
 

@@ -78,7 +78,7 @@ import {
   syncProductsWithVendon,
   getProductSyncStatus,
   Product,
-  SyncStatus
+  ProductSyncStatus
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
@@ -371,7 +371,7 @@ export default function Products() {
   const { toast } = useToast();
   
   // Synchronisierungs-Status
-  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  const [syncStatus, setSyncStatus] = useState<ProductSyncStatus | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   
   // Pagination state
@@ -444,14 +444,14 @@ export default function Products() {
     }),
   });
   
-  // Alle Vendon-Produkte abrufen (mit Paginierung)
+  // Alle Vendon-Produkte abrufen
   const { 
     data: vendonProducts, 
     isLoading: isLoadingVendonProducts,
     error: vendonProductsError
   } = useQuery({
     queryKey: ['/api/vendon/products'],
-    queryFn: () => getAllVendonProducts(0, 500) // Erster Parameter ist 'page', zweiter ist 'limit'
+    queryFn: () => getAllVendonProducts() // Ruft alle verfügbaren Produkte ab
   });
   
   // Logging in einem Effekt statt in den Query-Optionen
