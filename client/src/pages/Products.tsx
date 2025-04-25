@@ -68,7 +68,10 @@ import {
   getAllVendonProducts, 
   exportProductsAsExcel, 
   importProductsFromExcel,
-  Product 
+  syncProductsWithVendon,
+  getProductSyncStatus,
+  Product,
+  SyncStatus
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
@@ -340,9 +343,57 @@ export default function Products() {
   const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
   const { toast } = useToast();
   
+  // Synchronisierungs-Status
+  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [limit] = useState(200); // Erhöht auf 200, um mehr Produkte zu laden
+  
+  // Funktion zum Synchronisieren der Produkte mit Vendon API
+  const handleSyncProducts = async () => {
+    try {
+      setIsSyncing(true);
+      setSyncStatus({ status: 'running', lastSync: null, message: 'Synchronisierung läuft...' });
+      
+      const result = await syncProductsWithVendon();
+      setSyncStatus(result);
+      
+      // Aktualisiere die Produkte nach erfolgreicher Synchronisierung
+      if (result.status === 'success') {
+        queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/vendon/products'] });
+        
+        toast({
+          title: 'Synchronisierung erfolgreich',
+          description: `${result.itemsSaved || 0} neue Produkte hinzugefügt, ${result.itemsUpdated || 0} Produkte aktualisiert`,
+          variant: 'default',
+        });
+      } else {
+        toast({
+          title: 'Synchronisierung fehlgeschlagen',
+          description: result.message || 'Unbekannter Fehler bei der Synchronisierung',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Fehler bei der Produktsynchronisierung:', error);
+      setSyncStatus({ 
+        status: 'error', 
+        lastSync: null, 
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+      });
+      
+      toast({
+        title: 'Synchronisierung fehlgeschlagen',
+        description: error instanceof Error ? error.message : 'Unbekannter Fehler bei der Synchronisierung',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
   
   // Filterzustand
   const [filters, setFilters] = useState<FilterState>({

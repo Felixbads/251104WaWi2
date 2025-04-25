@@ -155,6 +155,44 @@ export async function getAllVendonProducts(page = 0, limit = 100) {
   }
 }
 
+// Interface für Synchronisierungsstatus
+export interface SyncStatus {
+  status: 'idle' | 'running' | 'success' | 'error';
+  lastSync: string | null;
+  message?: string;
+  itemsFound?: number;
+  itemsSaved?: number;
+  itemsUpdated?: number;
+  errors?: number;
+}
+
+// Funktion zum manuellen Synchronisieren aller Produkte mit der Vendon API
+export async function syncProductsWithVendon(): Promise<SyncStatus> {
+  console.log('Starte manuelle Produktsynchronisierung mit Vendon API...');
+  try {
+    const response = await axios.post(`${API_BASE_URL}/product-sync/sync-all`);
+    return response.data;
+  } catch (error) {
+    console.error('Fehler bei der manuellen Produktsynchronisierung:', error);
+    throw error;
+  }
+}
+
+// Funktion zum Abrufen des Synchronisierungsstatus
+export async function getProductSyncStatus(): Promise<SyncStatus> {
+  try {
+    const response = await axios.get(`${API_BASE_URL}/product-sync/status`);
+    return response.data;
+  } catch (error) {
+    console.error('Fehler beim Abrufen des Synchronisierungsstatus:', error);
+    return { 
+      status: 'error', 
+      lastSync: null, 
+      message: 'Statusabfrage fehlgeschlagen' 
+    };
+  }
+}
+
 // Hilfsfunktionen
 export function formatDateTime(dateString: string | Date, format: 'date' | 'datetime' | 'time' = 'datetime'): string {
   const date = new Date(dateString);
