@@ -8,8 +8,10 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, Loader2, CheckCircle2 } from 'lucide-react';
+import { Calendar, Loader2, CheckCircle2, History, ArrowRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import axios from 'axios';
 
 interface HolidaySyncTabProps {
   // Optional props if needed
@@ -41,6 +43,11 @@ export const HolidaySyncTab: React.FC<HolidaySyncTabProps> = () => {
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [includeSchoolHolidays, setIncludeSchoolHolidays] = useState<boolean>(true);
   const [syncAllStates, setSyncAllStates] = useState<boolean>(true);
+
+  // Für historischen Daten-Import
+  const [startYear, setStartYear] = useState<number>(2023);
+  const [endYear, setEndYear] = useState<number>(new Date().getFullYear());
+  const [historicalSyncLoading, setHistoricalSyncLoading] = useState<boolean>(false);
 
   // Holiday sync mutation
   const holidaySyncMutation = useMutation({
@@ -75,8 +82,52 @@ export const HolidaySyncTab: React.FC<HolidaySyncTabProps> = () => {
     },
   });
 
+  // Funktion für die historische Synchronisierung
+  const handleHistoricalSync = async () => {
+    try {
+      setHistoricalSyncLoading(true);
+      
+      const statesList = ALL_STATES.map(state => state.code);
+      
+      // Die vollständige historische Synchronisierung durchführen
+      const response = await axios.post('/api/holidays/sync-range', {
+        startYear: startYear,
+        endYear: endYear,
+        states: statesList,
+        includeSchoolHolidays: true
+      });
+      
+      if (response.data.success) {
+        queryClient.invalidateQueries({ queryKey: ['/api/database/stats'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/data-coverage'] });
+        
+        toast({
+          title: "Historische Feiertagssynchronisierung erfolgreich",
+          description: `Es wurden ${response.data.data.addedEntries} Feiertage und Ferien für den Zeitraum ${startYear}-${endYear} für alle Bundesländer synchronisiert.`,
+          variant: "success",
+        });
+      } else {
+        toast({
+          title: "Fehler bei der historischen Synchronisierung",
+          description: response.data.error || "Es ist ein unbekannter Fehler aufgetreten.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Fehler bei der historischen Synchronisierung:", error);
+      toast({
+        title: "Fehler bei der historischen Synchronisierung",
+        description: error instanceof Error ? error.message : "Ein unbekannter Fehler ist aufgetreten.",
+        variant: "destructive",
+      });
+    } finally {
+      setHistoricalSyncLoading(false);
+    }
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Aktuelle Feiertagssynchronisierung */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
@@ -166,6 +217,102 @@ export const HolidaySyncTab: React.FC<HolidaySyncTabProps> = () => {
               <>
                 <Calendar className="h-5 w-5 mr-2" />
                 Feiertage für {selectedYear} synchronisieren
+              </>
+            )}
+          </Button>
+        </CardFooter>
+      </Card>
+      
+      {/* Historische Feiertagssynchronisierung */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            Historische Feiertage & Ferien importieren
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert className="bg-amber-50 border-amber-200">
+            <AlertTitle className="text-amber-800">Wichtig</AlertTitle>
+            <AlertDescription className="text-amber-700">
+              Für eine korrekte Analyse von Verkaufsdaten im Zeitverlauf ist es wichtig, 
+              dass Feiertage und Schulferien für alle Bundesländer seit 2023 synchronisiert sind. 
+              Dieser Prozess kann einige Minuten dauern.
+            </AlertDescription>
+          </Alert>
+          
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="start-year">Startjahr</Label>
+              <Select 
+                value={startYear.toString()} 
+                onValueChange={(value) => setStartYear(parseInt(value))}
+                disabled={historicalSyncLoading}
+              >
+                <SelectTrigger id="start-year">
+                  <SelectValue placeholder="Startjahr auswählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 5 }, (_, i) => 2020 + i).map(year => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="end-year">Endjahr</Label>
+              <Select 
+                value={endYear.toString()} 
+                onValueChange={(value) => setEndYear(parseInt(value))}
+                disabled={historicalSyncLoading}
+              >
+                <SelectTrigger id="end-year">
+                  <SelectValue placeholder="Endjahr auswählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 7 }, (_, i) => new Date().getFullYear() - 2 + i).map(year => (
+                    <SelectItem key={year} value={year.toString()}>
+                      {year}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between border rounded-md p-3 bg-gray-50">
+            <div className="flex-grow">
+              <div className="text-sm font-medium">Synchronisierungszeitraum</div>
+              <div className="text-sm text-gray-600 flex items-center mt-1">
+                <span>{startYear}</span>
+                <ArrowRight className="mx-2 h-3 w-3" />
+                <span>{endYear}</span>
+                <Badge variant="outline" className="ml-2">
+                  Alle Bundesländer
+                </Badge>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+        <CardFooter>
+          <Button 
+            variant="secondary" 
+            onClick={handleHistoricalSync} 
+            disabled={historicalSyncLoading}
+            className="w-full"
+          >
+            {historicalSyncLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Historische Daten werden synchronisiert...
+              </>
+            ) : (
+              <>
+                <History className="mr-2 h-4 w-4" />
+                Historische Feiertage synchronisieren
               </>
             )}
           </Button>
