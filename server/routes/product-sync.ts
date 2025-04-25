@@ -133,10 +133,9 @@ router.get('/debug', async (req: Request, res: Response) => {
     const configuredApiKey = process.env.VENDON_API_KEY || '';
     const apiBaseUrl = process.env.VENDON_API_BASE_URL || 'https://cloud.vendon.net/rest/v1.8.0';
     
-    // Direktes Prüfen der vendonAPI
-    const apiInstance = vendonAPI;
-    const apiInstanceCheck = apiInstance ? "API-Instanz vorhanden" : "API-Instanz FEHLT";
-    console.log("API-Instanz Check:", apiInstanceCheck);
+    // Direkte Erstellung einer neuen API-Instanz
+    const directApiInstance = new VendonAPI(configuredApiKey, apiBaseUrl);
+    console.log("Neue VendonAPI-Instanz erstellt mit URL:", apiBaseUrl);
     
     // Versuche, die Produkte abzurufen - fange spezifisch Netzwerkfehler ab
     let vendonProducts: any[] = [];
@@ -145,15 +144,8 @@ router.get('/debug', async (req: Request, res: Response) => {
     
     try {
       console.log('Fetching products from Vendon API...');
-      
-      // Sichere Ausführung mit instanzprüfung
-      if (apiInstance && typeof apiInstance.getProducts === 'function') {
-        vendonProducts = await apiInstance.getProducts();
-        console.log(`Vendon API returned ${vendonProducts?.length || 0} products`);
-      } else {
-        console.error('vendonAPI oder getProducts Methode nicht gefunden');
-        throw new Error('vendonAPI oder getProducts Methode nicht gefunden');
-      }
+      vendonProducts = await directApiInstance.getProducts();
+      console.log(`Vendon API returned ${vendonProducts?.length || 0} products`);
     } catch (apiErr) {
       console.error('Error fetching products:', apiErr);
       apiError = apiErr;
@@ -173,14 +165,25 @@ router.get('/debug', async (req: Request, res: Response) => {
     }
     
     // Prüfe vorhandene Produkte in der Datenbank
-    const dbProducts = await req.storage.getProducts(1000, 0);
-    const dbProductCount = dbProducts?.length || 0;
+    let dbProducts = [];
+    let dbProductCount = 0;
+    
+    try {
+      if (req.storage && typeof req.storage.getProducts === 'function') {
+        dbProducts = await req.storage.getProducts(1000, 0) || [];
+        dbProductCount = dbProducts.length;
+        console.log(`Erfolgreich ${dbProductCount} Produkte aus der Datenbank geladen`);
+      } else {
+        console.error('req.storage.getProducts Methode nicht verfügbar');
+      }
+    } catch (dbErr) {
+      console.error('Fehler beim Laden der Datenbankprodukte:', dbErr);
+    }
     
     // Sammle Debug-Informationen über die Vendon API-Verbindung
     return res.json({
       status: networkError ? 'error' : (vendonProducts.length > 0 ? 'success' : 'warning'),
       apiConnection: networkError ? 'failed' : (vendonProducts.length > 0 ? 'connected' : 'no_data'),
-      apiInstanceCheck,
       vendonProductCount: vendonProducts?.length || 0,
       databaseProductCount: dbProductCount,
       vendonApiKey: configuredApiKey ? 'configured' : 'missing',
