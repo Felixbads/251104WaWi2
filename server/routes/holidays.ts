@@ -4,6 +4,26 @@ import { z } from 'zod';
 
 const router = express.Router();
 
+// Liste aller deutschen Bundesländer
+const ALL_STATES = [
+  { code: "SN", name: "Sachsen" },
+  { code: "BB", name: "Brandenburg" },
+  { code: "BE", name: "Berlin" },
+  { code: "BW", name: "Baden-Württemberg" },
+  { code: "BY", name: "Bayern" },
+  { code: "HB", name: "Bremen" },
+  { code: "HE", name: "Hessen" },
+  { code: "HH", name: "Hamburg" },
+  { code: "MV", name: "Mecklenburg-Vorpommern" },
+  { code: "NI", name: "Niedersachsen" },
+  { code: "NW", name: "Nordrhein-Westfalen" },
+  { code: "RP", name: "Rheinland-Pfalz" },
+  { code: "SH", name: "Schleswig-Holstein" },
+  { code: "SL", name: "Saarland" },
+  { code: "ST", name: "Sachsen-Anhalt" },
+  { code: "TH", name: "Thüringen" }
+];
+
 // Validierungsschema für Datumsparameter
 const dateSchema = z.string().refine((date) => {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) && !isNaN(new Date(date).getTime());
@@ -243,6 +263,108 @@ router.post('/sync-range', async (req: Request, res: Response) => {
     return res.status(500).json({
       success: false,
       error: 'Fehler beim Synchronisieren der Feiertage für den Zeitraum',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// POST /api/holidays/sync - Generische Synchronisierung von Feiertagen
+router.post('/sync', async (req: Request, res: Response) => {
+  try {
+    const { 
+      year = new Date().getFullYear(),
+      state = 'SN',
+      allStates = false,
+      includeSchoolHolidays = true
+    } = req.body;
+    
+    const states = allStates ? ALL_STATES.map(s => s.code) : [state];
+    
+    console.log(`Synchronisiere Feiertage für Jahr ${year} und ${allStates ? 'alle Bundesländer' : `Bundesland ${state}`}`);
+    const result = await holidayService.syncHolidaysForYear(year, states);
+    console.log(`Synchronisierung abgeschlossen. ${result} Einträge hinzugefügt.`);
+    
+    return res.json({
+      success: true,
+      data: {
+        year,
+        states,
+        addedEntries: result
+      }
+    });
+  } catch (error) {
+    console.error('Error syncing holidays:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Fehler beim Synchronisieren der Feiertage',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// POST /api/holidays/sync-all - Synchronisierung aller Feiertage
+router.post('/sync-all', async (req: Request, res: Response) => {
+  try {
+    const { 
+      year = new Date().getFullYear(),
+      states = ['SN'],
+      allStates = false,
+      includeSchoolHolidays = true
+    } = req.body;
+    
+    const statesToSync = allStates ? ALL_STATES.map(s => s.code) : states;
+    
+    console.log(`Synchronisiere alle Feiertage und Schulferien für Jahr ${year} und Bundesländer ${statesToSync.join(', ')}`);
+    const result = await holidayService.syncHolidaysForYear(year, statesToSync);
+    console.log(`Synchronisierung abgeschlossen. ${result} Einträge hinzugefügt.`);
+    
+    return res.json({
+      success: true,
+      data: {
+        year,
+        states: statesToSync,
+        addedEntries: result
+      }
+    });
+  } catch (error) {
+    console.error('Error syncing all holidays:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Fehler beim Synchronisieren aller Feiertage',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// POST /api/holidays/sync-school - Synchronisierung nur Schulferien
+router.post('/sync-school', async (req: Request, res: Response) => {
+  try {
+    const { 
+      year = new Date().getFullYear(),
+      states = ['SN'],
+      allStates = false
+    } = req.body;
+    
+    const statesToSync = allStates ? ALL_STATES.map(s => s.code) : states;
+    
+    console.log(`Synchronisiere nur Schulferien für Jahr ${year} und Bundesländer ${statesToSync.join(', ')}`);
+    // Da die bestehende Funktion beide Typen synchronisiert, können wir später hier eine spezialisierte Funktion hinzufügen
+    const result = await holidayService.syncHolidaysForYear(year, statesToSync);
+    console.log(`Synchronisierung abgeschlossen. ${result} Einträge hinzugefügt.`);
+    
+    return res.json({
+      success: true,
+      data: {
+        year,
+        states: statesToSync,
+        addedEntries: result
+      }
+    });
+  } catch (error) {
+    console.error('Error syncing school holidays:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Fehler beim Synchronisieren der Schulferien',
       details: error instanceof Error ? error.message : String(error)
     });
   }
