@@ -125,8 +125,7 @@ router.post('/sync-product/:id', async (req, res) => {
  * @route GET /api/product-sync/debug
  * @desc Debug-Endpunkt für die Vendon API-Verbindung und Produktsynchronisierung
  */
-// Direkt importieren statt dynamisch oder mit require
-import { vendonAPI } from '../services/vendonAPI';
+// vendonAPI ist bereits am Anfang der Datei importiert
 
 router.get('/debug', async (req, res) => {
   try {
