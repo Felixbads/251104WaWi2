@@ -32,8 +32,25 @@ router.get('/status', async function(req: Request, res: Response) {
     const { syncLogs: syncLogsTable } = await import('@shared/schema');
     
     // Verwende Drizzle anstelle von direktem SQL für Typsicherheit
+    // Wähle nur die Felder aus, die in der Datenbank existieren
     const latestSyncLogs = await db
-      .select()
+      .select({
+        id: syncLogsTable.id,
+        syncType: syncLogsTable.syncType,
+        startDate: syncLogsTable.startDate,
+        endDate: syncLogsTable.endDate,
+        itemsFound: syncLogsTable.itemsFound,
+        itemsSaved: syncLogsTable.itemsSaved,
+        itemsUpdated: syncLogsTable.itemsUpdated,
+        duplicates: syncLogsTable.duplicates,
+        errors: syncLogsTable.errors,
+        durationSeconds: syncLogsTable.durationSeconds,
+        syncStatus: syncLogsTable.syncStatus,
+        errorMessage: syncLogsTable.errorMessage,
+        additionalData: syncLogsTable.additionalData,
+        createdAt: syncLogsTable.createdAt,
+        entityType: syncLogsTable.entityType
+      })
       .from(syncLogsTable)
       .where(eq(syncLogsTable.syncType, 'products'))
       .orderBy(desc(syncLogsTable.id))
