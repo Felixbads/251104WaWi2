@@ -403,7 +403,13 @@ export default function SyncDashboard() {
                     <p className="text-sm font-medium text-muted-foreground">Transaktionen</p>
                     <p className="text-2xl font-bold">
                       {databaseStatsQuery.isLoading ? '...' : 
-                        Number(databaseStatsQuery.data?.transactions?.count || 0).toLocaleString('de-DE')}
+                        (databaseStatsQuery.data?.transactions && 
+                         typeof databaseStatsQuery.data.transactions === 'object' && 
+                         'count' in databaseStatsQuery.data.transactions ?
+                          Number(databaseStatsQuery.data.transactions.count || 0) :
+                          typeof databaseStatsQuery.data?.transactions === 'number' ?
+                          databaseStatsQuery.data.transactions : 0
+                        ).toString()}
                     </p>
                   </div>
                   <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -490,7 +496,7 @@ export default function SyncDashboard() {
                     <p className="text-2xl font-bold">
                       {databaseStatsQuery.isLoading ? '...' : 
                         (typeof databaseStatsQuery.data?.holidays === 'number' ? 
-                         databaseStatsQuery.data.holidays : 0).toLocaleString('de-DE')}
+                         databaseStatsQuery.data.holidays : 0).toString()}
                     </p>
                   </div>
                   <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -542,7 +548,7 @@ export default function SyncDashboard() {
                           
                           // Wenn es eine Zahl ist, direkt formatieren
                           if (typeof data.transactions === 'number') {
-                            return Number(data.transactions).toLocaleString('de-DE');
+                            return String(data.transactions);
                           }
                           
                           // Typ-Guard für Objekte mit count Eigenschaft
@@ -560,7 +566,7 @@ export default function SyncDashboard() {
                           
                           // Jetzt mit dem Typ-Guard prüfen
                           if (isCountObject(data.transactions)) {
-                            return data.transactions.count.toLocaleString('de-DE');
+                            return String(data.transactions.count);
                           }
                           
                           return '0';
@@ -594,7 +600,7 @@ export default function SyncDashboard() {
                   <p className="text-sm font-medium text-muted-foreground">Produkte</p>
                   <p className="text-2xl font-bold">
                     {databaseStatsQuery.isLoading ? '...' : 
-                      (databaseStatsQuery.data?.products?.count || 0).toLocaleString('de-DE')}
+                      (databaseStatsQuery.data?.products?.count || 0).toString()}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Aktiv
@@ -606,7 +612,7 @@ export default function SyncDashboard() {
                   <p className="text-sm font-medium text-muted-foreground">Automaten</p>
                   <p className="text-2xl font-bold">
                     {databaseStatsQuery.isLoading ? '...' : 
-                      (databaseStatsQuery.data?.machines?.count || 0).toLocaleString('de-DE')}
+                      (databaseStatsQuery.data?.machines?.count || 0).toString()}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Aktiv
@@ -632,7 +638,7 @@ export default function SyncDashboard() {
                   <p className="text-sm font-medium text-muted-foreground">Auffüllungen</p>
                   <p className="text-2xl font-bold">
                     {databaseStatsQuery.isLoading ? '...' : 
-                      (databaseStatsQuery.data?.refills?.count || 0).toLocaleString('de-DE')}
+                      (databaseStatsQuery.data?.refills?.count || 0).toString()}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Gesamt
