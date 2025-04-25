@@ -2784,7 +2784,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/vendon/import`, vendonImportStatsRouter);
   
   // Registriere Vendon historischer Import Routen
-  app.use(`${API_PREFIX}`, vendonHistoricalImportRouter);
+  app.use(`${API_PREFIX}/vendon/historical-import`, vendonHistoricalImportRouter);
 
   return httpServer;
 }

@@ -21,7 +21,11 @@ router.post('/', async (req: Request, res: Response) => {
       requestDelay: z.number().int().min(0).max(10000).default(1000),
       maxRetries: z.number().int().min(0).max(10).default(3),
       retryDelay: z.number().int().min(0).max(10000).default(2000),
-      saveProgressInterval: z.number().int().min(10).max(1000).default(100)
+      saveProgressInterval: z.number().int().min(10).max(1000).default(100),
+      // Zusätzliche Parameter für vendonHistoryImporter
+      maxTransactions: z.number().int().min(0).max(100000).optional(),
+      syncStep: z.number().int().min(1).max(365).optional(),
+      forceUpdate: z.boolean().optional()
     });
     
     const validatedConfig = configSchema.parse(req.body);

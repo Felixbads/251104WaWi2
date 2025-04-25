@@ -489,12 +489,22 @@ export async function importVendonHistory(pool: any, config: {
       startDate: config.startDate,
       endDate: config.endDate,
       batchSize: config.batchSize,
-      maxTransactions: 10000, // Sinnvoller Standardwert
-      syncStep: 30, // Standardmäßig 30 Tage pro Synchronisierungsschritt
-      forceUpdate: false
+      maxTransactions: config.maxTransactions || 10000, // Sinnvoller Standardwert
+      syncStep: config.syncStep || 30, // Standardmäßig 30 Tage pro Synchronisierungsschritt
+      forceUpdate: config.forceUpdate || false
     };
     
     const stats = await vendonHistoryImporter.startImport(options);
+    
+    // Sync-Log aus der Datenbank holen für genaue Dauer
+    const syncLogQuery = await pool.query(
+      `SELECT * FROM sync_logs 
+       WHERE sync_type = 'vendon_history_import' 
+       ORDER BY id DESC LIMIT 1`
+    );
+    
+    const syncLog = syncLogQuery.rows[0];
+    const durationSeconds = syncLog?.duration_seconds || 0;
     
     return {
       success: true,
@@ -504,8 +514,11 @@ export async function importVendonHistory(pool: any, config: {
         savedItems: stats.totalSaved,
         duplicateItems: stats.totalDuplicates,
         errorItems: stats.totalErrors,
-        durationSeconds: 0 // Wird aus dem Sync-Log geholt
-      }
+        durationSeconds,
+        startDate: syncLog?.start_date,
+        endDate: syncLog?.end_date
+      },
+      syncLog
     };
   } catch (error) {
     console.error('Fehler beim historischen Import:', error);
