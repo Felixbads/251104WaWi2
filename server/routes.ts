@@ -2284,8 +2284,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Database statistics endpoint
   app.get(`${API_PREFIX}/database/stats`, async (_req: Request, res: Response) => {
     try {
-      const stats = await storage.getDatabaseStats();
-      res.json(stats);
+      // Hilfsfunktionen für Konvertierung und Verarbeitung
+      const formatDate = (date: Date | null): string | null => {
+        if (!date) return null;
+        return date.toISOString();
+      };
+      
+      const parseCount = (countValue: any): number => {
+        if (typeof countValue === 'number') return countValue;
+        if (typeof countValue === 'string') return parseInt(countValue) || 0;
+        if (countValue && typeof countValue === 'object' && 'count' in countValue) {
+          return parseCount(countValue.count);
+        }
+        return 0;
+      };
+
+      // Daten sammeln
+      const [
+        baseStats, 
+        transactionStats, 
+        weatherStats,
+        syncLogs,
+        forecastModels,
+        holidays
+      ] = await Promise.all([
+        storage.getDatabaseStats(),
+        storage.getTransactionStatistics(),
+        storage.getWeatherStatistics().catch(() => ({ count: 0, earliest_date: null, latest_date: null, coverage_percentage: 0 })),
+        db.select({ count: count() }).from(syncLogs),
+        db.select({ count: count() }).from(sql`forecast_models`).catch(() => [{ count: 0 }]),
+        db.select({ count: count() }).from(sql`holidays`).catch(() => [{ count: 0 }])
+      ]);
+      
+      // Erweiterte Statistiken erstellen
+      const formattedStats = {
+        // Grundlegende Tabellenzahlen
+        transactions: {
+          count: parseCount(baseStats.transactions.count),
+          latest: formatDate(baseStats.transactions.latest)
+        },
+        machines: {
+          count: parseCount(baseStats.machines.count),
+          latest: formatDate(baseStats.machines.latest)
+        },
+        refills: {
+          count: parseCount(baseStats.refills.count),
+          latest: formatDate(baseStats.refills.latest)
+        },
+        events: {
+          count: parseCount(baseStats.events.count),
+          latest: formatDate(baseStats.events.latest)
+        },
+        products: {
+          count: parseCount(baseStats.products.count),
+          latest: formatDate(baseStats.products.latest)
+        },
+        
+        // Erweiterte Statistiken
+        transactionStats: {
+          earliest: transactionStats.earliest_date,
+          latest: transactionStats.latest_date,
+          count: parseCount(transactionStats.count),
+          coverage: Math.round(transactionStats.coverage_percentage || 0) 
+        },
+        
+        // Wetterdaten
+        weatherForecasts: 0, // Wird später gefüllt
+        weatherHistorical: parseCount(weatherStats.count),
+        
+        // Zusätzliche Statistiken
+        holidays: parseCount(holidays[0]?.count),
+        syncLogs: parseCount(syncLogs[0]?.count),
+        forecastModels: parseCount(forecastModels[0]?.count)
+      };
+      
+      // Hier fügen wir noch speziell die Anzahl der Wettervorhersagen hinzu
+      try {
+        const forecastsResult = await db.select({ count: count() }).from(sql`weather_forecasts`);
+        formattedStats.weatherForecasts = parseCount(forecastsResult[0]?.count);
+      } catch (error) {
+        console.log("Wettervorhersagen-Tabelle existiert möglicherweise nicht:", error);
+      }
+      
+      res.json(formattedStats);
     } catch (error) {
       console.error("Error fetching database statistics:", error);
       res.status(500).json({ 
