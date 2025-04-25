@@ -132,36 +132,49 @@ export class ProductSyncService {
         .where(eq(products.vendonId, vendonProduct.id.toString()))
         .limit(1);
 
-      // Bereite die Produktdaten für die Datenbank vor
+      // Extrahiere Daten aus dem Vendon-Produkt
+      // Basierend auf der Stock API Dokumentation mapper
       const productData: Partial<InsertProduct> = {
         vendonId: vendonProduct.id.toString(),
-        productName: vendonProduct.name,
-        price: vendonProduct.price || 0,
-        category: vendonProduct.category_name || 'Unbekannt',
+        productName: vendonProduct.name || 'Unbenanntes Produkt',
+        price: typeof vendonProduct.price === 'number' ? vendonProduct.price : 0,
+        // Map die Daten entsprechend der API Dokumentation
+        category: vendonProduct.category_name || vendonProduct.catalog_name || 'Unbekannt',
         status: vendonProduct.status || 'active',
         description: vendonProduct.description || '',
-        sku: vendonProduct.plu || '',
+        sku: vendonProduct.plu || vendonProduct.article || '',
         barcode: vendonProduct.ean || '',
-        // Extrahiere weitere Daten aus dem Produkt oder additionalData
-        vat: vendonProduct.vat || 19,
+        // Extrahiere weitere Daten aus dem Produkt
+        vat: typeof vendonProduct.vat === 'number' ? vendonProduct.vat : 19,
         depositPrice: vendonProduct.deposit_price || 0,
         depositVat: vendonProduct.deposit_vat || 19,
-        productType: vendonProduct.product_type || 'standard',
+        productType: vendonProduct.type || 'PRODUCT',
         article: vendonProduct.article || '',
-        tags: vendonProduct.tags ? JSON.stringify(vendonProduct.tags) : '',
+        // Tags können als Array oder String zurückgegeben werden
+        tags: Array.isArray(vendonProduct.tags) 
+          ? JSON.stringify(vendonProduct.tags) 
+          : (vendonProduct.tags || ''),
         units: vendonProduct.units || '',
         costPrice: vendonProduct.cost_price || 0,
-        amountMax: vendonProduct.amount_max || 10,
-        amountStandard: vendonProduct.amount_standard || 5,
-        amountCritical: vendonProduct.amount_critical || 2,
-        refillUnitSize: vendonProduct.refill_unit_size || 1,
+        // Extract machine_defaults wenn vorhanden
+        amountMax: vendonProduct.machine_defaults?.max_amount || 
+          vendonProduct.amount_max || 10,
+        amountStandard: vendonProduct.machine_defaults?.default_amount || 
+          vendonProduct.amount_standard || 5,
+        amountCritical: vendonProduct.machine_defaults?.critical_amount || 
+          vendonProduct.amount_critical || 2,
+        refillUnitSize: vendonProduct.machine_defaults?.refill_unit_size || 
+          vendonProduct.refill_unit_size || 1,
         minRefill: vendonProduct.min_refill || 1,
-        critical: vendonProduct.critical || false,
+        critical: vendonProduct.machine_defaults?.critical || 
+          vendonProduct.critical || false,
         // Speichere die vollständigen Rohdaten für spätere Referenz
         additionalData: JSON.stringify(vendonProduct),
         vendonUpdatedAt: vendonProduct.updated_at 
           ? new Date(vendonProduct.updated_at * 1000) 
-          : new Date(),
+          : (vendonProduct.updated 
+              ? new Date(vendonProduct.updated * 1000) 
+              : new Date()),
       };
 
       let result;

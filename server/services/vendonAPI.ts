@@ -19,7 +19,8 @@ const MAX_REQUESTS_PER_MINUTE = 60;
 
 export class VendonAPI {
   private apiKey: string;
-  private apiBaseUrl: string;
+  // Mache apiBaseUrl öffentlich zugänglich für Debug-Endpunkte
+  public readonly apiBaseUrl: string;
   private requestCount: number = 0;
   private lastResetTime: number = Date.now();
   
@@ -184,7 +185,16 @@ export class VendonAPI {
   async getProduct(id: string): Promise<any | null> {
     try {
       // ID als Parameter verwenden
-      return await this.request('/stock', { id });
+      const products = await this.request('/stock', { id });
+      
+      // Die API gibt ein Array zurück, auch wenn nur ein Produkt angefordert wurde
+      if (Array.isArray(products) && products.length > 0) {
+        console.log(`Produkt mit ID ${id} erfolgreich abgerufen`);
+        return products[0]; // Wir nehmen das erste Element
+      } else {
+        console.warn(`Kein Produkt mit ID ${id} gefunden`);
+        return null;
+      }
     } catch (error) {
       console.error(`Fehler beim Abrufen des Produkts ${id}:`, error);
       return null;

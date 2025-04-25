@@ -4,11 +4,10 @@
  * Bietet Endpunkte zur Steuerung der Produktsynchronisierung mit der Vendon API
  */
 
-import express, { Request as ExpressRequest, Response } from 'express';
+import express, { Request as ExpressRequest, Response, Router } from 'express';
 import { productSyncService } from '../services/productSyncService';
 import { z } from 'zod';
 import { User } from '../../shared/schema';
-import { VendonAPI } from '../services/vendonAPI';
 
 // Erweitern der Request-Schnittstelle für Storage-Zugriff
 interface Request extends ExpressRequest {
@@ -16,13 +15,13 @@ interface Request extends ExpressRequest {
   storage: any; // Typ aus storage.ts
 }
 
-const router = express.Router();
+const router: Router = express.Router();
 
 /**
  * @route GET /api/product-sync/status
  * @desc Abrufen des aktuellen Status der Produktsynchronisierung
  */
-router.get('/status', async (req: Request, res: Response) => {
+router.get('/status', async function(req: Request, res: Response) {
   try {
     // Hier würde man normalerweise den Status der letzten Synchronisierung abrufen
     // Da wir keine spezifische Methode dafür haben, verwenden wir eine Hilfslösung
