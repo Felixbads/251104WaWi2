@@ -852,11 +852,42 @@ class HolidayService {
   // Helfer-Methode zum Formatieren von Datumsangaben
   formatDate(date: Date | string, forDisplay: boolean = false): string {
     try {
-      const dateObj = typeof date === 'string' ? new Date(date) : date;
+      if (!date) {
+        console.warn('Warnung: Leeres Datum an formatDate übergeben');
+        return forDisplay ? '2025-01-01' : '2025-01-01 00:00:00';
+      }
+      
+      let dateObj: Date;
+      
+      if (typeof date === 'string') {
+        // Wenn es ein leerer String ist, verwenden wir ein Standarddatum
+        if (date.trim() === '') {
+          console.warn('Warnung: Leerer String an formatDate übergeben');
+          return forDisplay ? '2025-01-01' : '2025-01-01 00:00:00';
+        }
+        
+        // Versuchen, das Datum zu parsen
+        dateObj = new Date(date);
+        
+        // Überprüfen, ob das Datum gültig ist
+        if (isNaN(dateObj.getTime())) {
+          console.warn(`Warnung: Ungültiges Datum "${date}" an formatDate übergeben`);
+          return forDisplay ? '2025-01-01' : '2025-01-01 00:00:00';
+        }
+      } else {
+        dateObj = date;
+        
+        // Überprüfen, ob das Datum gültig ist
+        if (isNaN(dateObj.getTime())) {
+          console.warn('Warnung: Ungültiges Date-Objekt an formatDate übergeben');
+          return forDisplay ? '2025-01-01' : '2025-01-01 00:00:00';
+        }
+      }
+      
       return format(dateObj, forDisplay ? 'yyyy-MM-dd' : 'yyyy-MM-dd HH:mm:ss');
     } catch (error) {
       console.error('Fehler beim Formatieren des Datums:', error);
-      return '';
+      return forDisplay ? '2025-01-01' : '2025-01-01 00:00:00';
     }
   }
 }
