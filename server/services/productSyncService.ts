@@ -78,19 +78,19 @@ export class ProductSyncService {
         }
       }
 
-      // Aktualisiere Zähler
-      syncLog.itemsSaved = itemsSaved;
-      syncLog.itemsUpdated = itemsUpdated;
-      syncLog.errors = errors;
-
-      // 4. Aktualisiere den SyncLog mit den Ergebnissen
-      syncLog.endDate = new Date();
-      syncLog.syncStatus = 'success';
-      syncLog.durationSeconds = syncLog.startDate ? 
-        (syncLog.endDate.getTime() - syncLog.startDate.getTime()) / 1000 : 0;
+      // Aktualisiere Zähler in einem neuen Objekt, das der tatsächlichen Datenbankstruktur entspricht
+      const updatedSyncLog = {
+        itemsSaved: itemsSaved,
+        itemsUpdated: itemsUpdated,
+        errors: errors,
+        endDate: new Date(),
+        syncStatus: 'success',
+        durationSeconds: syncLog.startDate ? 
+          (new Date().getTime() - syncLog.startDate.getTime()) / 1000 : 0
+      };
       
-      await storage.updateSyncLog(syncLogEntry.id, syncLog);
-      console.log(`Produktsynchronisierung abgeschlossen: ${syncLog.itemsSaved} neue, ${syncLog.itemsUpdated} aktualisierte Produkte, ${syncLog.errors} Fehler`);
+      await storage.updateSyncLog(syncLogEntry.id, updatedSyncLog);
+      console.log(`Produktsynchronisierung abgeschlossen: ${updatedSyncLog.itemsSaved} neue, ${updatedSyncLog.itemsUpdated} aktualisierte Produkte, ${updatedSyncLog.errors} Fehler`);
 
       return {
         ...syncLogEntry,
@@ -104,14 +104,16 @@ export class ProductSyncService {
     } catch (error) {
       console.error('Fehler bei der Produktsynchronisierung:', error);
       
-      // Aktualisiere den SyncLog mit den Fehlern
-      syncLog.endDate = new Date();
-      syncLog.syncStatus = 'error';
-      syncLog.durationSeconds = syncLog.startDate ? 
-        (syncLog.endDate.getTime() - syncLog.startDate.getTime()) / 1000 : 0;
-      syncLog.errorMessage = error instanceof Error ? error.message : String(error);
+      // Aktualisiere den SyncLog mit den Fehlern in einem neuen Objekt
+      const updatedErrorLog = {
+        endDate: new Date(),
+        syncStatus: 'error',
+        durationSeconds: syncLog.startDate ? 
+          (new Date().getTime() - syncLog.startDate.getTime()) / 1000 : 0,
+        errorMessage: error instanceof Error ? error.message : String(error)
+      };
       
-      await storage.updateSyncLog(syncLogEntry.id, syncLog);
+      await storage.updateSyncLog(syncLogEntry.id, updatedErrorLog);
       
       throw error;
     }

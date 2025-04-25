@@ -29,13 +29,13 @@ export const syncLogs = pgTable("sync_logs", {
   errorMessage: text("error_message"),
   additionalData: text("additional_data"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  entityType: varchar("entity_type", { length: 50 }).default("unknown"),
 });
 
 export const insertSyncLogSchema = createInsertSchema(syncLogs).omit({
   id: true,
   createdAt: true,
-  updatedAt: true,
+  entityType: true,
 });
 
 export type InsertSyncLog = z.infer<typeof insertSyncLogSchema>;
