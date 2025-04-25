@@ -290,9 +290,9 @@ export const HolidaySyncTab: React.FC<HolidaySyncTabProps> = () => {
                 <span>{startYear}</span>
                 <ArrowRight className="mx-2 h-3 w-3" />
                 <span>{endYear}</span>
-                <Badge variant="outline" className="ml-2">
+                <span className="ml-2 text-xs font-medium border border-gray-200 rounded-full px-2 py-0.5">
                   Alle Bundesländer
-                </Badge>
+                </span>
               </div>
             </div>
           </div>

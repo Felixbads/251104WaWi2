@@ -516,12 +516,27 @@ export default function SyncDashboard() {
                           const data = databaseStatsQuery.data;
                           if (!data || !data.transactions) return '0';
                           
+                          // Wenn es eine Zahl ist, direkt formatieren
                           if (typeof data.transactions === 'number') {
                             return data.transactions.toLocaleString('de-DE');
                           }
                           
-                          if (typeof data.transactions === 'object' && 'count' in data.transactions && data.transactions.count) {
-                            return Number(data.transactions.count).toLocaleString('de-DE');
+                          // Typ-Guard für Objekte mit count Eigenschaft
+                          interface CountObject {
+                            count: number;
+                          }
+                          
+                          // Sicherstellen, dass es ein Objekt mit count ist
+                          function isCountObject(obj: any): obj is CountObject {
+                            return typeof obj === 'object' 
+                              && obj !== null
+                              && 'count' in obj 
+                              && typeof obj.count === 'number';
+                          }
+                          
+                          // Jetzt mit dem Typ-Guard prüfen
+                          if (isCountObject(data.transactions)) {
+                            return data.transactions.count.toLocaleString('de-DE');
                           }
                           
                           return '0';

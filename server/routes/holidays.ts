@@ -264,12 +264,37 @@ router.post('/sync-range', async (req: Request, res: Response) => {
     } = req.body;
     
     console.log(`Synchronisiere Feiertage für Zeitraum ${startYear}-${endYear} und Bundesländer ${states.join(', ')}`);
-    const result = await syncMissingHolidays(startYear, endYear, states, includeSchoolHolidays);
-    console.log(`Synchronisierung abgeschlossen. ${result.addedEntries} Einträge hinzugefügt.`);
+    
+    // Wir führen die Synchronisierung für jedes Jahr im angegebenen Bereich durch
+    let totalAddedEntries = 0;
+    const processedYears = [];
+    
+    // Für jedes Jahr im angegebenen Bereich
+    for (let year = startYear; year <= endYear; year++) {
+      console.log(`Verarbeite Jahr ${year} für ${states.length} Bundesländer...`);
+      try {
+        // Verwende die vorhandene syncHolidaysForYear-Funktion für dieses Jahr
+        const yearEntries = await holidayService.syncHolidaysForYear(year, states);
+        totalAddedEntries += yearEntries;
+        processedYears.push({ year, addedEntries: yearEntries });
+        console.log(`Jahr ${year} abgeschlossen. ${yearEntries} Einträge hinzugefügt.`);
+      } catch (yearError) {
+        console.error(`Fehler bei der Verarbeitung von Jahr ${year}:`, yearError);
+        // Wir ignorieren Fehler für einzelne Jahre und fahren mit dem nächsten fort
+      }
+    }
+    
+    console.log(`Synchronisierung abgeschlossen. Insgesamt ${totalAddedEntries} Einträge hinzugefügt.`);
     
     return res.json({
       success: true,
-      data: result
+      data: {
+        startYear,
+        endYear,
+        states,
+        addedEntries: totalAddedEntries,
+        processedYears
+      }
     });
   } catch (error) {
     console.error('Error syncing holidays range:', error);
