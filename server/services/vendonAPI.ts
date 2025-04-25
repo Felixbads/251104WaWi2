@@ -1,280 +1,229 @@
-import { default as axios, AxiosInstance, AxiosRequestConfig } from 'axios';
-
 /**
- * Verbesserte Vendon API Client Klasse
- * Extrahiert aus der vendonSync.ts, um eine klare Trennung zwischen API und Sync-Logik zu schaffen
+ * Verbesserte Vendon API Klasse
+ * Bietet einen zuverlässigen Zugriff auf die Vendon API mit
+ * - Robusten Fehlerbehandlungsstrategien
+ * - Automatischen Wiederholungsversuchen
+ * - Ratenbegrenzung zur Vermeidung von API-Limits
  */
+
+const DEFAULT_API_KEY = process.env.VENDON_API_KEY || '';
+const DEFAULT_API_BASE_URL = 'https://api.vendon.net/v1';
+
+// Anzahl der maximalen Wiederholungsversuche
+const MAX_RETRIES = 3;
+// Timeout zwischen Wiederholungsversuchen in ms (exponential backoff)
+const RETRY_BASE_DELAY = 1000;
+// Rate limiting: Anzahl der API-Anfragen pro Minute
+const MAX_REQUESTS_PER_MINUTE = 60;
+
 export class VendonAPI {
-  private readonly BASE_URL = "https://cloud.vendon.net/rest/v1.8.0";
-  private readonly headers: Record<string, string>;
-  private readonly client: AxiosInstance;
-  private readonly apiKey: string;
-
-  constructor(apiKey?: string) {
-    this.apiKey = apiKey || process.env.VENDON_API_KEY || '';
+  private apiKey: string;
+  private apiBaseUrl: string;
+  private requestCount: number = 0;
+  private lastResetTime: number = Date.now();
+  
+  constructor(apiKey?: string, apiBaseUrl?: string) {
+    this.apiKey = apiKey || DEFAULT_API_KEY;
+    this.apiBaseUrl = apiBaseUrl || DEFAULT_API_BASE_URL;
     
-    if (!this.apiKey) {
-      console.error('Fehler: Kein Vendon API-Schlüssel gefunden. Bitte stellen Sie sicher, dass VENDON_API_KEY in der .env-Datei definiert ist.');
-    }
-
-    this.headers = {
-      'Content-Type': 'application/json',
-      'X-Api-Key': this.apiKey,
-    };
-
-    this.client = axios.create({
-      baseURL: this.BASE_URL,
-      headers: this.headers,
-      timeout: 30000, // 30 Sekunden Timeout
-    });
+    // Reset des Request-Counters alle 60 Sekunden
+    setInterval(() => {
+      this.requestCount = 0;
+      this.lastResetTime = Date.now();
+    }, 60000);
   }
-
+  
   /**
-   * Führt eine API-Anfrage mit Wiederholungsversuchen durch
+   * Führt eine API-Anfrage mit automatischen Wiederholungen und Ratenbegrenzung durch
+   * @param endpoint API-Endpunkt (ohne Basis-URL)
+   * @param params Optionale Parameter
+   * @param method HTTP-Methode (default: GET)
+   * @param body Optionaler Request-Body für POST-Anfragen
+   * @returns API-Antwort oder null im Fehlerfall
    */
-  private async makeRequest<T>(
-    method: string,
+  async request(
     endpoint: string,
     params: Record<string, any> = {},
-    maxRetries = 3,
-    retryDelay = 1000
-  ): Promise<T> {
-    let attempt = 1;
-    let lastError: any;
-
-    while (attempt <= maxRetries) {
+    method: 'GET' | 'POST' = 'GET',
+    body?: any
+  ): Promise<any> {
+    let retries = 0;
+    
+    while (retries < MAX_RETRIES) {
       try {
-        console.log(`API-Anfrage: ${method} ${endpoint} (Versuch ${attempt}/${maxRetries})`);
+        // Ratenbegrenzung prüfen
+        await this.checkRateLimit();
+        
+        // Aktuellen Versuch protokollieren
+        console.log(`API-Anfrage: ${method} ${endpoint} (Versuch ${retries + 1}/${MAX_RETRIES})`);
         console.log(`Parameter: ${JSON.stringify(params)}`);
-
-        const config: AxiosRequestConfig = {
-          method,
-          url: endpoint,
-        };
-
-        // Bei GET-Anfragen verwenden wir params, bei anderen data
-        if (method.toUpperCase() === 'GET') {
-          config.params = params;
-        } else {
-          config.data = params;
-        }
-
-        const response = await this.client.request<{result: T}>(config);
         
-        // Gekürzte API-Antwort für bessere Lesbarkeit
-        const responseData = JSON.stringify(response.data).substring(0, 200);
-        console.log(`API-Antwort: ${responseData}${responseData.length >= 200 ? '...' : ''} `);
+        // URL mit Parametern aufbauen
+        let url = `${this.apiBaseUrl}${endpoint}`;
         
-        // Überprüfen, ob das result-Feld vorhanden ist
-        if (!response.data || !('result' in response.data)) {
-          throw new Error(`Ungültige API-Antwort: 'result'-Feld fehlt`);
-        }
-
-        return response.data.result;
-      } catch (error: any) {
-        console.error(`Fehler bei API-Anfrage (Versuch ${attempt}/${maxRetries}):`, error.message);
-        lastError = error;
-        
-        // Erhöhe den Retry-Delay bei jedem Versuch
-        await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
-        attempt++;
-      }
-    }
-
-    // Nach allen Wiederholungsversuchen werfen wir den letzten Fehler
-    throw lastError || new Error(`API-Anfrage fehlgeschlagen nach ${maxRetries} Versuchen`);
-  }
-
-  /**
-   * Hilfsmethode zur Konvertierung von Datum in UNIX-Zeitstempel (Sekunden)
-   */
-  private convertToTimestamp(date: Date | string | number): number {
-    let timestamp: number;
-    
-    if (typeof date === 'string') {
-      timestamp = Math.floor(new Date(date).getTime() / 1000);
-    } else if (date instanceof Date) {
-      timestamp = Math.floor(date.getTime() / 1000);
-    } else {
-      timestamp = Math.floor(date / 1000);
-    }
-    
-    return timestamp;
-  }
-
-  /**
-   * Ruft alle Automaten (Maschinen) von der Vendon API ab
-   */
-  async getMachines() {
-    return this.makeRequest<any[]>('GET', '/machines', {});
-  }
-
-  /**
-   * Ruft Details zu einem bestimmten Automaten ab
-   */
-  async getMachineDetail(machineId: string) {
-    return this.makeRequest<any>('GET', `/machines/${machineId}`, {});
-  }
-
-  /**
-   * Ruft aktuelle Probleme bei Automaten ab
-   */
-  async getMachineIssues() {
-    return this.makeRequest<any[]>('GET', '/machines/issues', {});
-  }
-
-  /**
-   * Ruft den Lagerbestand eines bestimmten Automaten ab
-   */
-  async getMachineStock(machineId: string) {
-    return this.makeRequest<any[]>('GET', `/machines/${machineId}/stock`, {});
-  }
-
-  /**
-   * Ruft alle verfügbaren Lagerprodukte ab
-   * Wichtig: Dies ist der verbesserte, direkte API-Endpunkt für Produkte
-   * 
-   * Der Vendon-API Endpunkt hat sich wahrscheinlich geändert. Wir versuchen 
-   * verschiedene Varianten, beginnend mit dem aktuellsten API-Pfad
-   */
-  async getProducts() {
-    try {
-      // Erster Versuch mit dem neuesten Endpunkt
-      console.log("Versuche Produkte über den neuesten API-Pfad /products abzurufen...");
-      return await this.makeRequest<any[]>('GET', '/products', {});
-    } catch (error) {
-      console.warn("Fehler beim Abrufen über /products, versuche alternativen Pfad:", error);
-      
-      try {
-        // Zweiter Versuch mit einem älteren Endpunkt
-        console.log("Versuche Produkte über alternativen API-Pfad /stock/products abzurufen...");
-        return await this.makeRequest<any[]>('GET', '/stock/products', {});
-      } catch (error2) {
-        console.warn("Fehler beim Abrufen über /stock/products, versuche letzten Fallback:", error2);
-        
-        // Dritter Versuch als letzter Fallback
-        console.log("Versuche Produkte über Fallback-Methode abzurufen...");
-        const machinesResponse = await this.getMachines();
-        const machines = machinesResponse || [];
-        
-        // Extrahiere Produkte aus allen Automaten (alter Weg)
-        const allProducts: any[] = [];
-        for (const machine of machines) {
-          try {
-            const stockResponse = await this.getMachineStock(machine.id);
-            const stockProducts = stockResponse || [];
-            
-            // Füge nur eindeutige Produkte hinzu
-            for (const product of stockProducts) {
-              if (!allProducts.some(p => p.id === product.product_id)) {
-                allProducts.push({
-                  id: product.product_id,
-                  name: product.name,
-                  price: product.price,
-                  // Weitere Felder könnten hier hinzugefügt werden
-                });
-              }
-            }
-          } catch (machineError) {
-            console.error(`Fehler beim Abrufen des Lagerbestands für Automat ${machine.id}:`, machineError);
+        // Für GET-Anfragen Parameter an URL anhängen
+        if (method === 'GET' && Object.keys(params).length > 0) {
+          const queryParams = new URLSearchParams();
+          for (const [key, value] of Object.entries(params)) {
+            queryParams.append(key, String(value));
           }
+          url += `?${queryParams.toString()}`;
+        }
+
+        // Request-Optionen
+        const options: RequestInit = {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${this.apiKey}`
+          }
+        };
+        
+        // Für POST-Anfragen Body hinzufügen
+        if (method === 'POST') {
+          options.body = JSON.stringify(body || params);
         }
         
-        return allProducts;
+        // API-Anfrage ausführen
+        console.log(`API-Anfrage: ${method} ${endpoint} (Versuch ${retries + 1}/${MAX_RETRIES})`);
+        console.log(`Parameter: ${JSON.stringify(method === 'GET' ? params : body || params)}`);
+        
+        const response = await fetch(url, options);
+        this.requestCount++;
+        
+        // Fehlerbehandlung basierend auf HTTP-Status
+        if (!response.ok) {
+          throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
+        }
+        
+        // Antwort parsen
+        const data = await response.json();
+        
+        // API-spezifische Fehlerbehandlung
+        if (data.code !== 200) {
+          throw new Error(`API-Fehler: ${data.code} ${data.message || 'Unbekannter Fehler'}`);
+        }
+        
+        return data.result;
+      } catch (error) {
+        retries++;
+        console.error(`API-Fehler (Versuch ${retries}/${MAX_RETRIES}):`, error);
+        
+        // Nach dem letzten Versuch den Fehler weiterreichen
+        if (retries >= MAX_RETRIES) {
+          throw error;
+        }
+        
+        // Exponential Backoff für den nächsten Versuch
+        const delay = RETRY_BASE_DELAY * Math.pow(2, retries - 1);
+        console.log(`Warte ${delay}ms vor dem nächsten Versuch...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    
+    // Sollte nicht erreicht werden, da im letzten Versuch ein Fehler geworfen würde
+    return null;
+  }
+  
+  /**
+   * Prüft Ratenbegrenzung und wartet gegebenenfalls
+   */
+  private async checkRateLimit(): Promise<void> {
+    if (this.requestCount >= MAX_REQUESTS_PER_MINUTE) {
+      const now = Date.now();
+      const timeElapsed = now - this.lastResetTime;
+      
+      // Wenn fast eine Minute vorbei ist, warte bis zum Reset
+      if (timeElapsed < 60000) {
+        const waitTime = 60000 - timeElapsed + 100; // +100ms Puffer
+        console.log(`Rate-Limit erreicht, warte ${waitTime}ms...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
       }
     }
   }
-
+  
   /**
-   * Ruft Details zu einem bestimmten Produkt ab
+   * Holt alle Produkte von der API
+   * @returns Liste aller Produkte
    */
-  async getProductDetail(productId: string) {
-    return this.makeRequest<any>('GET', `/products/${productId}`, {});
+  async getProducts(): Promise<any[]> {
+    try {
+      return await this.request('/products', { limit: 1000 });
+    } catch (error) {
+      console.error('Fehler beim Abrufen der Produkte:', error);
+      return [];
+    }
   }
-
+  
   /**
-   * Ruft alle Stock-Produkte ab (kombinierte Produktliste)
+   * Holt ein Produkt anhand seiner ID
+   * @param id Die Produkt-ID
+   * @returns Produktdetails oder null im Fehlerfall
    */
-  async getStockProducts() {
-    return this.makeRequest<any[]>('GET', '/stock/products', {});
+  async getProduct(id: string): Promise<any | null> {
+    try {
+      return await this.request(`/products/${id}`);
+    } catch (error) {
+      console.error(`Fehler beim Abrufen des Produkts ${id}:`, error);
+      return null;
+    }
   }
-
+  
   /**
-   * Ruft Transaktionen ab
+   * Holt alle Automaten von der API
+   * @returns Liste aller Automaten
+   */
+  async getMachines(): Promise<any[]> {
+    try {
+      return await this.request('/machines', { limit: 500 });
+    } catch (error) {
+      console.error('Fehler beim Abrufen der Automaten:', error);
+      return [];
+    }
+  }
+  
+  /**
+   * Holt alle Transaktionen innerhalb eines Zeitraums
+   * @param fromDate Startdatum
+   * @param toDate Enddatum (optional, default: jetzt)
+   * @param limit Anzahl der zurückzugebenden Ergebnisse (max. 1000)
+   * @returns Liste der Transaktionen
    */
   async getTransactions(
-    fromDate?: Date | string | number,
-    toDate?: Date | string | number,
-    offset = 0,
-    limit = 100
-  ) {
-    const now = new Date();
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    const fromTimestamp = fromDate ? this.convertToTimestamp(fromDate) : this.convertToTimestamp(yesterday);
-    const toTimestamp = toDate ? this.convertToTimestamp(toDate) : this.convertToTimestamp(now);
-
-    return this.makeRequest<any[]>('GET', '/stats/vends', {
-      from_timestamp: fromTimestamp,
-      to_timestamp: toTimestamp,
-      offset,
-      limit
-    });
+    fromDate: Date,
+    toDate: Date = new Date(),
+    limit: number = 1000
+  ): Promise<any[]> {
+    try {
+      const fromTimestamp = Math.floor(fromDate.getTime() / 1000);
+      const toTimestamp = Math.floor(toDate.getTime() / 1000);
+      
+      return await this.request('/stats/vends', {
+        from_timestamp: fromTimestamp,
+        to_timestamp: toTimestamp,
+        limit
+      });
+    } catch (error) {
+      console.error('Fehler beim Abrufen der Transaktionen:', error);
+      return [];
+    }
   }
-
+  
   /**
-   * Ruft Events (Ereignisse) ab
+   * Holt alle Lagerbestände für einen bestimmten Automaten
+   * @param machineId Die Automaten-ID
+   * @returns Liste der Lagerbestände oder null im Fehlerfall
    */
-  async getEvents(
-    fromDate?: Date | string | number,
-    toDate?: Date | string | number,
-    offset = 0,
-    limit = 100
-  ) {
-    const now = new Date();
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    const fromTimestamp = fromDate ? this.convertToTimestamp(fromDate) : this.convertToTimestamp(yesterday);
-    const toTimestamp = toDate ? this.convertToTimestamp(toDate) : this.convertToTimestamp(now);
-
-    return this.makeRequest<any[]>('GET', '/stats/events', {
-      from_timestamp: fromTimestamp,
-      to_timestamp: toTimestamp,
-      offset,
-      limit
-    });
-  }
-
-  /**
-   * Ruft Refills (Auffüllvorgänge) ab
-   */
-  async getRefills(
-    fromDate?: Date | string | number,
-    toDate?: Date | string | number,
-    offset = 0,
-    limit = 100
-  ) {
-    const now = new Date();
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    const fromTimestamp = fromDate ? this.convertToTimestamp(fromDate) : this.convertToTimestamp(yesterday);
-    const toTimestamp = toDate ? this.convertToTimestamp(toDate) : this.convertToTimestamp(now);
-
-    return this.makeRequest<any[]>('GET', '/refills', {
-      from: fromTimestamp,
-      to: toTimestamp,
-      offset,
-      limit
-    });
-  }
-
-  /**
-   * Ruft Details zu einem bestimmten Refill ab
-   */
-  async getRefillDetail(refillId: string) {
-    return this.makeRequest<any[]>('GET', `/refills/${refillId}`, {});
+  async getMachineStock(machineId: string): Promise<any[] | null> {
+    try {
+      return await this.request(`/machines/${machineId}/stock`);
+    } catch (error) {
+      console.error(`Fehler beim Abrufen der Lagerbestände für Automat ${machineId}:`, error);
+      return null;
+    }
   }
 }
+
+// Exportiere eine Default-Instanz
+export const vendonAPI = new VendonAPI();

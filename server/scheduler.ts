@@ -7,10 +7,10 @@
  */
 
 import { vendonSync } from './services/vendonSync';
-import { productSync } from './services/productSync'; // Neuer optimierter Product-Sync-Service
 import { syncWeatherForecast, syncHistoricalWeatherBatch } from './services/openWeatherService';
 import { syncMissingHolidays } from './services/holidayService';
 import { reconcileWarehouseProducts } from './services/warehouseReconciliation';
+import { productSyncService } from './services/productSyncService'; // Neuer verbesserter Product-Sync-Service
 
 // Speichern der Timeout-IDs zur späteren Verwaltung
 const timers: Record<string, NodeJS.Timeout> = {};
@@ -65,9 +65,9 @@ async function performSync(syncType: string): Promise<void> {
         result = await vendonSync.syncMachines();
         break;
       case 'products':
-        // Verwende den neuen optimierten ProductSync-Service anstatt der alten Implementierung
-        result = await productSync.syncProducts();
-        console.log("Optimierte Produktsynchronisierung abgeschlossen.");
+        // Verwende den neuen verbesserten ProductSyncService
+        result = await productSyncService.syncProducts(false);
+        console.log("Verbesserte Produktsynchronisierung mit direktem API-Zugriff abgeschlossen.");
         break;
       case 'events':
         // Synchronisiere Events der letzten 24 Stunden
@@ -113,8 +113,9 @@ async function performSync(syncType: string): Promise<void> {
         break;
       case 'all':
         result = await vendonSync.syncAll();
-        // Auch Wetter und Feiertage synchronisieren
+        // Auch Wetter, Feiertage und Produkte synchronisieren
         await syncWeatherForecast(50.9196, 14.1524);
+        await productSyncService.syncProducts(false);
         const currentYearForAll = new Date().getFullYear();
         await syncMissingHolidays(currentYearForAll, currentYearForAll + 1, undefined, true);
         break;
