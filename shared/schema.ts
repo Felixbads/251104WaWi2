@@ -1132,6 +1132,23 @@ export const insertCalendarDaySchema = createInsertSchema(calendarDays).omit({
 export type InsertCalendarDay = z.infer<typeof insertCalendarDaySchema>;
 export type CalendarDay = typeof calendarDays.$inferSelect;
 
+// Definiere Enum für Tagestypen
+export enum DayType {
+  WORKDAY = "WORKDAY",
+  WEEKEND = "WEEKEND",
+  SCHOOL_HOLIDAY = "SCHOOL_HOLIDAY",
+  PUBLIC_HOLIDAY = "PUBLIC_HOLIDAY"
+}
+
+export const insertCalendarOverviewSchema = createInsertSchema(calendarOverview).omit({
+  id: true,
+  created_at: true,
+  updated_at: true,
+});
+
+export type InsertCalendarOverview = z.infer<typeof insertCalendarOverviewSchema>;
+export type CalendarOverview = typeof calendarOverview.$inferSelect;
+
 // Ursprüngliche Feiertags-Tabelle (beibehalten für Kompatibilität)
 export const holidays = pgTable("holidays", {
   id: serial("id").primaryKey(),
