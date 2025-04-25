@@ -1010,8 +1010,6 @@ export const calendarOverview = pgTable("calendar_overview", {
   year: integer("year").notNull(),
   // Monat (1-12)
   month: integer("month").notNull(),
-  // Tag des Monats (1-31)
-  day: integer("day").notNull(),
   // Kalenderwoche
   week: integer("week"),
   
