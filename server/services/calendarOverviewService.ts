@@ -31,6 +31,26 @@ const germanStates = [
   'thueringen'
 ];
 
+// Mapping der Bundesland-Codes (wie BW, BY, usw.) zu vollständigen Namen
+const stateCodes: Record<string, string> = {
+  'BW': 'baden_wuerttemberg',
+  'BY': 'bayern',
+  'BE': 'berlin',
+  'BB': 'brandenburg',
+  'HB': 'bremen',
+  'HH': 'hamburg',
+  'HE': 'hessen',
+  'MV': 'mecklenburg_vorpommern',
+  'NI': 'niedersachsen',
+  'NW': 'nordrhein_westfalen',
+  'RP': 'rheinland_pfalz',
+  'SL': 'saarland',
+  'SN': 'sachsen',
+  'ST': 'sachsen_anhalt',
+  'SH': 'schleswig_holstein',
+  'TH': 'thueringen'
+};
+
 /**
  * Erstellt die Kalender-Übersichtstabelle
  */
@@ -49,6 +69,13 @@ export class CalendarOverviewService {
     if (isSchoolHoliday) return DayType.SCHOOL_HOLIDAY;
     return DayType.WORKDAY;
   }
+  
+  /**
+   * Konvertiert einen Bundesland-Code (z.B. 'BY') in den entsprechenden Namen (z.B. 'bayern')
+   */
+  private getStateNameFromCode(stateCode: string): string | undefined {
+    return stateCodes[stateCode];
+  }
 
   /**
    * Erstellt einen neuen Eintrag in der Kalenderübersicht
@@ -58,62 +85,95 @@ export class CalendarOverviewService {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
     const formattedDate = format(dateObj, 'yyyy-MM-dd');
 
-    // Kalender-Tag aus vorhandener Tabelle holen
-    const [calendarDay] = await db.select()
+    // Alle Kalender-Tage für dieses Datum holen (einen pro Bundesland)
+    const calendarDays = await db.select()
       .from(calendarDays)
       .where(eq(calendarDays.date, formattedDate));
 
-    if (!calendarDay) {
-      console.warn(`Kein Kalendertag für ${formattedDate} gefunden. Übersicht kann nicht erstellt werden.`);
+    if (calendarDays.length === 0) {
+      console.warn(`Keine Kalendertage für ${formattedDate} gefunden. Übersicht kann nicht erstellt werden.`);
       return;
     }
+
+    // Einen beliebigen Eintrag nehmen, um allgemeine Tagesinformationen zu bekommen
+    const firstDay = calendarDays[0];
+
+    // Globale Eigenschaften ermitteln (is_weekend ist für alle gleich)
+    const isWeekend = firstDay.is_weekend || false;
+    
+    // Aggregierte Eigenschaften (über alle Bundesländer)
+    let hasAnyPublicHoliday = false;
+    let hasAnySchoolHoliday = false;
+    
+    // Für jedes Bundesland Status prüfen
+    for (const day of calendarDays) {
+      if (day.is_public_holiday) {
+        hasAnyPublicHoliday = true;
+      }
+      if (day.is_school_holiday) {
+        hasAnySchoolHoliday = true;
+      }
+    }
+
+    // Gesamt-Tagestyp bestimmen
+    const dayType = this.determineDayType(
+      hasAnyPublicHoliday,
+      isWeekend,
+      hasAnySchoolHoliday
+    );
 
     // Grundlegende Daten für den Eintrag
     const overviewEntry: InsertCalendarOverview = {
       date: formattedDate,
-      day_type: this.determineDayType(
-        calendarDay.is_public_holiday || false,
-        calendarDay.is_weekend || false,
-        calendarDay.is_school_holiday || false
-      ),
-      day_of_week: calendarDay.day_of_week,
-      week_of_year: calendarDay.week_of_year,
-      month: calendarDay.month,
-      year: calendarDay.year,
-      is_workday: !calendarDay.is_public_holiday && !calendarDay.is_weekend,
-      is_weekend: calendarDay.is_weekend || false,
-      is_school_holiday: calendarDay.is_school_holiday || false,
-      is_public_holiday: calendarDay.is_public_holiday || false,
+      day_type: dayType,
+      day_of_week: firstDay.day_of_week,
+      week_of_year: firstDay.week_of_year,
+      month: firstDay.month,
+      year: firstDay.year,
+      is_workday: !hasAnyPublicHoliday && !isWeekend,
+      is_weekend: isWeekend,
+      is_school_holiday: hasAnySchoolHoliday,
+      is_public_holiday: hasAnyPublicHoliday,
     };
 
-    // Für jedes Bundesland den Status und die Feiertags-/Ferieninfos setzen
+    // Bundesland-spezifische Informationen
+    const overviewEntryAny = overviewEntry as any;
+    
+    // Initialwerte für alle Bundesländer setzen
     for (const state of germanStates) {
-      // Typecasting für dynamische Schlüsselzugriffe
-      const calendarDayAny = calendarDay as any;
+      overviewEntryAny[`${state}_status`] = isWeekend ? DayType.WEEKEND : DayType.WORKDAY;
+      overviewEntryAny[`${state}_holiday_name`] = null;
+      overviewEntryAny[`${state}_is_school_holiday`] = false;
+      overviewEntryAny[`${state}_is_public_holiday`] = false;
+    }
+    
+    // Mit den tatsächlichen Daten aus der DB überschreiben
+    for (const day of calendarDays) {
+      // State aus dem Datensatz extrahieren (z.B. 'BY' für Bayern)
+      const stateCode = day.state;
       
-      // Entsprechende Flags aus den calendar_days holen
-      const isPublicHolidayInState = calendarDayAny[`is_public_holiday_${state}`] || false;
-      const isSchoolHolidayInState = calendarDayAny[`is_school_holiday_${state}`] || false;
+      // Entsprechendes Bundesland im Array finden
+      const stateName = this.getStateNameFromCode(stateCode);
+      if (!stateName) {
+        console.warn(`Unbekanntes Bundesland: ${stateCode}`);
+        continue;
+      }
       
-      // Status für das Bundesland bestimmen
+      // Status für dieses Bundesland bestimmen
       let status = DayType.WORKDAY;
-      if (isPublicHolidayInState) {
+      if (day.is_public_holiday) {
         status = DayType.PUBLIC_HOLIDAY;
-      } else if (calendarDay.is_weekend) {
+      } else if (day.is_weekend) {
         status = DayType.WEEKEND;
-      } else if (isSchoolHolidayInState) {
+      } else if (day.is_school_holiday) {
         status = DayType.SCHOOL_HOLIDAY;
       }
-
-      // Feriename (nur wenn es ein Feiertag ist)
-      const holidayName = isPublicHolidayInState ? calendarDayAny[`holiday_name_${state}`] || null : null;
-
-      // Bundesland-spezifische Felder setzen mit Typecasting
-      const overviewEntryAny = overviewEntry as any;
-      overviewEntryAny[`${state}_status`] = status;
-      overviewEntryAny[`${state}_holiday_name`] = holidayName;
-      overviewEntryAny[`${state}_is_school_holiday`] = isSchoolHolidayInState;
-      overviewEntryAny[`${state}_is_public_holiday`] = isPublicHolidayInState;
+      
+      // Daten für dieses Bundesland setzen
+      overviewEntryAny[`${stateName}_status`] = status;
+      overviewEntryAny[`${stateName}_holiday_name`] = day.is_public_holiday ? day.holiday_name : null;
+      overviewEntryAny[`${stateName}_is_school_holiday`] = day.is_school_holiday || false;
+      overviewEntryAny[`${stateName}_is_public_holiday`] = day.is_public_holiday || false;
     }
 
     // Prüfen, ob der Eintrag bereits existiert
