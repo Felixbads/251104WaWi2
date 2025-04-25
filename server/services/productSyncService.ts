@@ -157,13 +157,21 @@ export class ProductSyncService {
         console.log("Hole bestehende Produkte aus der Datenbank...");
         
         // Optimiert mit Indizes: nach vendonId und nach normalisiertem Namen
-        const existingProducts = await storage.getProducts(0);
+        const productsResult = await storage.getProducts(0);
+        
+        // Extrahiere die tatsächliche Produktliste
+        let productList: Product[] = [];
+        if (Array.isArray(productsResult)) {
+          productList = productsResult;
+        } else if (productsResult && 'data' in productsResult && Array.isArray(productsResult.data)) {
+          productList = productsResult.data;
+        }
         
         // Maps für schnellen Zugriff erstellen
         const existingByVendonId: Record<string, Product> = {};
         const existingByNormalizedName: Record<string, Product> = {};
         
-        for (const product of existingProducts) {
+        for (const product of productList) {
           if (product.vendonId) {
             existingByVendonId[product.vendonId] = product;
           }
@@ -174,7 +182,7 @@ export class ProductSyncService {
           }
         }
         
-        console.log(`${existingProducts.length} bestehende Produkte gefunden`);
+        console.log(`${productList.length} bestehende Produkte gefunden`);
 
         // 2. Rufe alle Produkte über die Vendon API ab
         console.log("Rufe Produkte von der Vendon API ab...");
@@ -271,15 +279,14 @@ export class ProductSyncService {
                 console.log(`Aktualisiere Produkt: ${productName} (ID: ${existingProduct.id}, vendonId: ${vendonId})`);
                 
                 // Zugehörige Produkt-ID verwenden
-                const updatedProduct = await storage.updateProduct(existingProduct.id, {
-                  ...productData,
-                  updatedAt: new Date()
-                });
+                const updatedProduct = await storage.updateProduct(existingProduct.id, productData);
                 
                 // Aktualisiere die lokalen Caches für nachfolgende Vergleiche
-                existingByVendonId[vendonId] = updatedProduct;
-                if (normalizedName) {
-                  existingByNormalizedName[normalizedName] = updatedProduct;
+                if (updatedProduct) {
+                  existingByVendonId[vendonId] = updatedProduct;
+                  if (normalizedName) {
+                    existingByNormalizedName[normalizedName] = updatedProduct;
+                  }
                 }
                 
                 itemsUpdated++;
@@ -290,11 +297,7 @@ export class ProductSyncService {
               // Neues Produkt erstellen
               console.log(`Erstelle neues Produkt: ${productName} (vendonId: ${vendonId})`);
               
-              const newProduct = await storage.createProduct({
-                ...productData,
-                createdAt: new Date(),
-                updatedAt: new Date()
-              });
+              const newProduct = await storage.createProduct(productData);
               
               // Aktualisiere die Caches
               existingByVendonId[vendonId] = newProduct;
@@ -353,7 +356,7 @@ export class ProductSyncService {
         await storage.updateSyncLog(syncLogId, {
           endDate: new Date(),
           syncStatus: 'error',
-          syncMessage: error instanceof Error ? error.message : String(error)
+          errorMessage: error instanceof Error ? error.message : String(error)
         });
         
         return {
