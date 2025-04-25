@@ -557,8 +557,84 @@ class CalendarService {
         }
       }
       
-      return [];
+      // Fallback: Generierte Standard-Schulferien für Deutschland, wenn alle API-Abfragen fehlschlagen
+      console.log(`Fallback: Verwende fest codierte Standard-Schulferien für ${year}...`);
+      return this.generateDefaultSchoolHolidays(stateCode, year);
     }
+  }
+  
+  /**
+   * Generiert Standard-Schulferien für ein gegebenes Jahr und Bundesland,
+   * wenn keine Daten von der API verfügbar sind
+   */
+  private generateDefaultSchoolHolidays(stateCode: string, year: number): any[] {
+    // Typische Ferienperioden für deutsche Bundesländer
+    // Dies ist nur eine Näherung und sollte durch tatsächliche Daten ersetzt werden!
+    const holidays = [
+      // Weihnachtsferien des Vorjahres (enden in diesem Jahr)
+      {
+        name: [{ language: 'DE', text: 'Weihnachtsferien' }],
+        startDate: `${year-1}-12-23`,
+        endDate: `${year}-01-06`
+      },
+      // Winterferien / Fasching (nicht überall, aber verbreitet)
+      {
+        name: [{ language: 'DE', text: 'Winterferien' }],
+        startDate: `${year}-02-01`,
+        endDate: `${year}-02-15`
+      },
+      // Osterferien
+      {
+        name: [{ language: 'DE', text: 'Osterferien' }],
+        startDate: `${year}-04-01`,
+        endDate: `${year}-04-15`
+      },
+      // Pfingstferien (nicht überall, aber in vielen Bundesländern)
+      {
+        name: [{ language: 'DE', text: 'Pfingstferien' }],
+        startDate: `${year}-05-25`,
+        endDate: `${year}-06-05`
+      },
+      // Sommerferien (variieren stark, aber ca. 6 Wochen im Sommer)
+      {
+        name: [{ language: 'DE', text: 'Sommerferien' }],
+        startDate: `${year}-07-15`,
+        endDate: `${year}-08-25`
+      },
+      // Herbstferien
+      {
+        name: [{ language: 'DE', text: 'Herbstferien' }],
+        startDate: `${year}-10-01`,
+        endDate: `${year}-10-15`
+      },
+      // Weihnachtsferien dieses Jahr (beginnen in diesem Jahr, enden im nächsten)
+      {
+        name: [{ language: 'DE', text: 'Weihnachtsferien' }],
+        startDate: `${year}-12-23`,
+        endDate: `${year+1}-01-06`
+      }
+    ];
+    
+    // Konvertieren in das von der API erwartete Format
+    return holidays.map(holiday => ({
+      id: `generated-${stateCode}-${holiday.name[0].text}-${year}`,
+      startDate: holiday.startDate,
+      endDate: holiday.endDate,
+      name: holiday.name,
+      comment: 'Generierte Schulferiendaten (Fallback)',
+      type: 'SchoolHoliday',
+      version: '1.0',
+      validFrom: `${year}-01-01`,
+      validTo: `${year}-12-31`,
+      country: {
+        code: 'DE',
+        name: [{ language: 'DE', text: 'Deutschland' }]
+      },
+      subdivision: {
+        code: `DE-${stateCode}`,
+        name: [{ language: 'DE', text: STATES_MAP[stateCode] || stateCode }]
+      }
+    }));
   }
   
   /**
