@@ -7,7 +7,7 @@
  */
 
 import { db } from '../db';
-import { calendarDays as calendarDaysTable, calendarOverview, InsertCalendarOverview, DayType } from '@shared/schema';
+import { calendarDays, calendarOverview, InsertCalendarOverview, DayType } from '@shared/schema';
 import { format, addDays, eachDayOfInterval, isBefore, isAfter } from 'date-fns';
 import { and, between, desc, eq, gte, lte, sql } from 'drizzle-orm';
 
@@ -87,8 +87,8 @@ export class CalendarOverviewService {
 
     // Alle Kalender-Tage für dieses Datum holen (einen pro Bundesland)
     const calendarDaysEntries = await db.select()
-      .from(calendarDaysTable)
-      .where(eq(calendarDaysTable.date, formattedDate));
+      .from(calendarDays)
+      .where(eq(calendarDays.date, formattedDate));
 
     if (calendarDaysEntries.length === 0) {
       console.warn(`Keine Kalendertage für ${formattedDate} gefunden. Übersicht kann nicht erstellt werden.`);
