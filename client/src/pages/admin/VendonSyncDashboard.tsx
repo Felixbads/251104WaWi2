@@ -69,6 +69,9 @@ import {
   Info
 } from 'lucide-react';
 
+// Import der neuen Komponente für den historischen Import
+import VendonHistoricalSyncTab from '@/components/sync/VendonHistoricalSyncTab';
+
 // Format date helper
 const formatDate = (dateString: string | null) => {
   if (!dateString) return 'N/A';
@@ -416,156 +419,7 @@ const VendonSyncDashboard: React.FC = () => {
         
         {/* Historical Import Tab */}
         <TabsContent value="history-import" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Historischen Import konfigurieren</CardTitle>
-              <CardDescription>
-                Starten Sie einen Import historischer Vendon-Transaktionen für einen bestimmten Zeitraum.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Form {...historyImportForm}>
-                <form onSubmit={historyImportForm.handleSubmit(startHistoricalImport)} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={historyImportForm.control}
-                      name="startDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Startdatum</FormLabel>
-                          <FormControl>
-                            <Input type="date" {...field} />
-                          </FormControl>
-                          <FormDescription>
-                            Datum, ab dem Transaktionen importiert werden sollen
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={historyImportForm.control}
-                      name="endDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Enddatum (optional)</FormLabel>
-                          <FormControl>
-                            <Input type="date" {...field} />
-                          </FormControl>
-                          <FormDescription>
-                            Wenn leer, werden Daten bis heute importiert
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={historyImportForm.control}
-                      name="batchSize"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Batch-Größe</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              min={1} 
-                              max={100}
-                              {...field} 
-                              onChange={(e) => field.onChange(parseInt(e.target.value))}
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            Anzahl der Transaktionen pro API-Anfrage (max. 100)
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={historyImportForm.control}
-                      name="requestDelay"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>API-Verzögerung (ms)</FormLabel>
-                          <FormControl>
-                            <Input 
-                              type="number" 
-                              min={100} 
-                              max={10000}
-                              {...field} 
-                              onChange={(e) => field.onChange(parseInt(e.target.value))}
-                            />
-                          </FormControl>
-                          <FormDescription>
-                            Verzögerung zwischen API-Anfragen in Millisekunden
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  
-                  <div className="flex justify-between pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={resetSyncState}
-                    >
-                      <History className="mr-2 h-4 w-4" />
-                      Fortschritt zurücksetzen
-                    </Button>
-                    
-                    <Button type="submit" disabled={isImporting}>
-                      {isImporting ? (
-                        <>
-                          <Loader className="mr-2 h-4 w-4 animate-spin" />
-                          Importiere...
-                        </>
-                      ) : (
-                        <>
-                          <Play className="mr-2 h-4 w-4" />
-                          Import starten
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Info className="h-5 w-5 text-primary" />
-                Über den historischen Import
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground space-y-3">
-              <p>
-                Der historische Import lädt Vendon-Transaktionen tagesweise von einem bestimmten Startdatum bis heute.
-                Der Prozess speichert seinen Fortschritt und kann jederzeit unterbrochen und fortgesetzt werden.
-              </p>
-              <p>
-                Für große Datenmengen empfehlen wir die Ausführung des Befehls auf der Kommandozeile für
-                mehr Kontrolle und detailliertere Logs:
-              </p>
-              <div className="bg-secondary p-2 rounded-md">
-                <code className="text-xs md:text-sm">
-                  node import_vendon_history.js --start-date=2023-01-01 --end-date=2023-12-31
-                </code>
-              </div>
-              <p>
-                Der Import verwendet ON CONFLICT DO NOTHING für idempotentes Verhalten, sodass ein
-                wiederholter Import keine Duplikate erzeugt.
-              </p>
-            </CardContent>
-          </Card>
+          <VendonHistoricalSyncTab />
         </TabsContent>
         
         {/* Transactions Tab */}
