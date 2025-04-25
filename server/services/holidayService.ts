@@ -324,20 +324,30 @@ class HolidayService {
             // Das wird dann in der Datenbank automatisch in ein Date umgewandelt
             const formattedDate = this.formatDate(holiday.date, true);
             
+            // Sicherstellen, dass alle Pflichtfelder (Jahr, Tag, Monat) vorhanden sind
+            const parsedDate = formattedDate ? new Date(formattedDate) : new Date();
+            const holidayYear = holiday.year || parsedDate.getFullYear();
+            const holidayMonth = holiday.month || parsedDate.getMonth() + 1;
+            const holidayDay = holiday.day || parsedDate.getDate();
+            
+            // Sicherstellen, dass type und name gültige Werte haben
+            const holidayType = holiday.type || 'public';
+            const holidayName = holiday.name || 'Unbekannter Feiertag';
+            
             await db.insert(holidays).values({
               date: formattedDate, // Als String im Format YYYY-MM-DD
-              name: holiday.name,
-              description: holiday.description,
-              type: holiday.type,
-              is_official: holiday.is_official,
-              country: holiday.country,
-              state: holiday.state,
-              region: holiday.region,
-              year: holiday.year,
-              month: holiday.month,
-              day: holiday.day,
-              weekday: holiday.weekday,
-              weekday_name: holiday.weekday_name,
+              name: holidayName,
+              description: holiday.description || '',
+              type: holidayType,
+              is_official: holiday.is_official || true,
+              country: holiday.country || 'DE',
+              state: holiday.state || states[0] || 'SN',
+              region: holiday.region || '',
+              year: holidayYear,
+              month: holidayMonth,
+              day: holidayDay,
+              weekday: holiday.weekday || parsedDate.getDay(),
+              weekday_name: holiday.weekday_name || this.getWeekdayNamePublic(parsedDate.getDay()),
               week: holiday.week,
               metadata: holiday.metadata || null
             });
