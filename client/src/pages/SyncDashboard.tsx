@@ -53,38 +53,31 @@ export default function SyncDashboard() {
   });
 
   // Typdefinitionen für API-Antwort
+  interface StatsEntity {
+    count: number;
+    latest: string | null;
+  }
+
+  interface TransactionStats {
+    earliest: string | null;
+    latest: string | null;
+    count: number;
+    coverage: number;
+  }
+
   interface DatabaseStats {
-    transactions: {
-      count: number;
-      latest: string | null;
-    };
-    machines: {
-      count: number;
-      latest: string | null;
-    };
-    refills: {
-      count: number;
-      latest: string | null;
-    };
-    events: {
-      count: number;
-      latest: string | null;
-    };
-    products: {
-      count: number;
-      latest: string | null;
-    };
-    transactionStats?: {
-      earliest: string | null;
-      latest: string | null;
-      count: number;
-      coverage: number;
-    };
+    transactions: StatsEntity;
+    machines: StatsEntity;
+    refills: StatsEntity;
+    events: StatsEntity;
+    products: StatsEntity;
+    transactionStats?: TransactionStats;
     weatherForecasts?: number;
     weatherHistorical?: number;
     holidays?: number;
     syncLogs?: number;
     forecastModels?: number;
+    [key: string]: StatsEntity | TransactionStats | number | undefined;
   }
 
   // Hole Datenbankstatistiken
@@ -345,7 +338,8 @@ export default function SyncDashboard() {
                   <div className="space-y-1">
                     <p className="text-sm font-medium text-muted-foreground">Automaten</p>
                     <p className="text-2xl font-bold">
-                      {databaseStatsQuery.isLoading ? '...' : databaseStatsQuery.data?.machines || 0}
+                      {databaseStatsQuery.isLoading ? '...' : 
+                        (databaseStatsQuery.data?.machines?.count || 0).toLocaleString('de-DE')}
                     </p>
                   </div>
                   <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -470,7 +464,9 @@ export default function SyncDashboard() {
                   <div className="space-y-1">
                     <p className="text-sm font-medium text-muted-foreground">Feiertage & Ferien</p>
                     <p className="text-2xl font-bold">
-                      {databaseStatsQuery.isLoading ? '...' : databaseStatsQuery.data?.holidays || 0}
+                      {databaseStatsQuery.isLoading ? '...' : 
+                        (typeof databaseStatsQuery.data?.holidays === 'number' ? 
+                         databaseStatsQuery.data.holidays : 0).toLocaleString('de-DE')}
                     </p>
                   </div>
                   <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -517,12 +513,17 @@ export default function SyncDashboard() {
                     {databaseStatsQuery.isLoading 
                       ? '...' 
                       : (() => {
-                          const transactions = databaseStatsQuery.data?.transactions;
-                          if (!transactions) return '0';
-                          if (typeof transactions === 'number') return transactions.toLocaleString('de-DE');
-                          if (typeof transactions === 'object' && transactions.count) {
-                            return Number(transactions.count).toLocaleString('de-DE');
+                          const data = databaseStatsQuery.data;
+                          if (!data || !data.transactions) return '0';
+                          
+                          if (typeof data.transactions === 'number') {
+                            return data.transactions.toLocaleString('de-DE');
                           }
+                          
+                          if (typeof data.transactions === 'object' && 'count' in data.transactions && data.transactions.count) {
+                            return Number(data.transactions.count).toLocaleString('de-DE');
+                          }
+                          
                           return '0';
                         })()
                     }
@@ -553,7 +554,8 @@ export default function SyncDashboard() {
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-muted-foreground">Produkte</p>
                   <p className="text-2xl font-bold">
-                    {databaseStatsQuery.isLoading ? '...' : databaseStatsQuery.data?.products || 0}
+                    {databaseStatsQuery.isLoading ? '...' : 
+                      (databaseStatsQuery.data?.products?.count || 0).toLocaleString('de-DE')}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Aktiv
@@ -564,7 +566,8 @@ export default function SyncDashboard() {
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-muted-foreground">Automaten</p>
                   <p className="text-2xl font-bold">
-                    {databaseStatsQuery.isLoading ? '...' : databaseStatsQuery.data?.machines || 0}
+                    {databaseStatsQuery.isLoading ? '...' : 
+                      (databaseStatsQuery.data?.machines?.count || 0).toLocaleString('de-DE')}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Aktiv
@@ -589,7 +592,8 @@ export default function SyncDashboard() {
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-muted-foreground">Auffüllungen</p>
                   <p className="text-2xl font-bold">
-                    {databaseStatsQuery.isLoading ? '...' : databaseStatsQuery.data?.refills || 0}
+                    {databaseStatsQuery.isLoading ? '...' : 
+                      (databaseStatsQuery.data?.refills?.count || 0).toLocaleString('de-DE')}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Gesamt
