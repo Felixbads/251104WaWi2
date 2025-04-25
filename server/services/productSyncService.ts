@@ -2,9 +2,8 @@ import { storage } from "../storage";
 import { InsertProduct, InsertSyncLog, Product } from "@shared/schema";
 import { VendonAPI } from "./vendonAPI";
 import { acquireSyncLock, releaseSyncLock, SYNC_TYPE } from './syncLock';
-import { db, rawSql } from '../db';
+import { db } from '../db';
 import { eq } from 'drizzle-orm';
-import { products } from '@shared/schema';
 
 /**
  * Verbesserter Service für Produktsynchronisierung
