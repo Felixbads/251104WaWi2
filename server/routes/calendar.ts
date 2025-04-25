@@ -5,10 +5,35 @@ import calendarService from '../services/calendarService';
 const router = Router();
 
 /**
+ * @route GET /api/calendar/status
+ * @desc Status des Kalenderdienstes abrufen
+ */
+router.get('/status', async (_req: Request, res: Response) => {
+  try {
+    // Einfache Statusabfrage, um zu prüfen, ob der Dienst aktiv ist
+    res.json({
+      success: true,
+      service: "calendar",
+      status: "active",
+      version: "1.0.0",
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Fehler beim Abrufen des Kalenderdienst-Status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Interner Serverfehler',
+      message: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+/**
  * @route POST /api/calendar/initialize
  * @desc Initialisiert die Kalendertage für einen bestimmten Zeitraum
  */
 router.post('/initialize', async (req: Request, res: Response) => {
+  console.log('Kalendertage-Initialisierung gestartet...');
   try {
     const schema = z.object({
       startYear: z.number().int().min(2000).default(2023),
@@ -17,12 +42,14 @@ router.post('/initialize', async (req: Request, res: Response) => {
     });
     
     const { startYear, endYear, states } = schema.parse(req.body);
+    console.log(`Initialisiere Kalendertage von ${startYear} bis ${endYear} für ${states?.length || 'alle'} Bundesländer`);
     
     const startDate = new Date(`${startYear}-01-01`);
     const endDate = new Date(`${endYear}-12-31`);
     
     const result = await calendarService.initializeCalendarDays(startDate, endDate, states);
     
+    console.log(`Kalendertage-Initialisierung abgeschlossen: ${result} Einträge aktualisiert.`);
     res.json({
       success: true,
       message: `${result} Kalendertage wurden initialisiert oder aktualisiert.`,
