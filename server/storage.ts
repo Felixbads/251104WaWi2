@@ -930,81 +930,150 @@ export class DatabaseStorage implements IStorage {
 
   // Database statistics operations
   async getDatabaseStats(): Promise<{
-    transactions: { count: number; latest: Date | null };
-    machines: { count: number; latest: Date | null };
-    refills: { count: number; latest: Date | null };
-    refillDetails: { count: number; latest: Date | null };
-    events: { count: number; latest: Date | null };
-    products: { count: number; latest: Date | null };
-    stocks: { count: number; latest: Date | null };
-    machineStocks: { count: number; latest: Date | null };
+    transactions: { count: number; latest: string | null };
+    machines: { count: number; latest: string | null };
+    refills: { count: number; latest: string | null };
+    refillDetails: { count: number; latest: string | null };
+    events: { count: number; latest: string | null };
+    products: { count: number; latest: string | null };
+    stocks: { count: number; latest: string | null };
+    machineStocks: { count: number; latest: string | null };
+    holidays?: number;
+    syncLogs?: number;
+    forecastModels?: number;
+    lastUpdated: string;
   }> {
-    // Get transaction count and latest date
-    const transCountResult = await db.select({ count: count() }).from(transactions);
-    const [latestTrans] = await db.select().from(transactions).orderBy(desc(transactions.datetime)).limit(1);
-    
-    // Get machine count and latest update
-    const machineCountResult = await db.select({ count: count() }).from(machines);
-    const [latestMachine] = await db.select().from(machines).orderBy(desc(machines.updatedAt)).limit(1);
-    
-    // Get refill count and latest date
-    const refillCountResult = await db.select({ count: count() }).from(refills);
-    const [latestRefill] = await db.select().from(refills).orderBy(desc(refills.datetime)).limit(1);
-    
-    // Get refill detail count and latest date
-    const refillDetailCountResult = await db.select({ count: count() }).from(refillDetails);
-    const [latestRefillDetail] = await db.select().from(refillDetails).orderBy(desc(refillDetails.createdAt)).limit(1);
-    
-    // Get event count and latest date
-    const eventCountResult = await db.select({ count: count() }).from(events);
-    const [latestEvent] = await db.select().from(events).orderBy(desc(events.datetime)).limit(1);
-    
-    // Get product count and latest update
-    const productCountResult = await db.select({ count: count() }).from(products);
-    const [latestProduct] = await db.select().from(products).orderBy(desc(products.updatedAt)).limit(1);
-    
-    // Get stock count and latest update
-    const stockCountResult = await db.select({ count: count() }).from(stocks);
-    const [latestStock] = await db.select().from(stocks).orderBy(desc(stocks.updatedAt)).limit(1);
-    
-    // Get machine stock count and latest update
-    const machineStockCountResult = await db.select({ count: count() }).from(machineStocks);
-    const [latestMachineStock] = await db.select().from(machineStocks).orderBy(desc(machineStocks.updatedAt)).limit(1);
-    
-    return {
-      transactions: {
-        count: parseInt(transCountResult[0]?.count?.toString() || '0'),
-        latest: latestTrans?.datetime || null
-      },
-      machines: {
-        count: parseInt(machineCountResult[0]?.count?.toString() || '0'),
-        latest: latestMachine?.updatedAt || null
-      },
-      refills: {
-        count: parseInt(refillCountResult[0]?.count?.toString() || '0'),
-        latest: latestRefill?.datetime || null
-      },
-      refillDetails: {
-        count: parseInt(refillDetailCountResult[0]?.count?.toString() || '0'),
-        latest: latestRefillDetail?.createdAt || null
-      },
-      events: {
-        count: parseInt(eventCountResult[0]?.count?.toString() || '0'),
-        latest: latestEvent?.datetime || null
-      },
-      products: {
-        count: parseInt(productCountResult[0]?.count?.toString() || '0'),
-        latest: latestProduct?.updatedAt || null
-      },
-      stocks: {
-        count: parseInt(stockCountResult[0]?.count?.toString() || '0'),
-        latest: latestStock?.updatedAt || null
-      },
-      machineStocks: {
-        count: parseInt(machineStockCountResult[0]?.count?.toString() || '0'),
-        latest: latestMachineStock?.updatedAt || null
-      }
-    };
+    try {
+      console.log("Getting database statistics...");
+      
+      // Führen wir alle Abfragen parallel aus für bessere Performance
+      const [
+        transCountResult,
+        machineCountResult,
+        refillCountResult,
+        refillDetailCountResult,
+        eventCountResult,
+        productCountResult,
+        stockCountResult,
+        machineStockCountResult,
+        holidaysCountResult,
+        syncLogsCountResult,
+        forecastModelsCountResult,
+        latestTrans,
+        latestMachine,
+        latestRefill,
+        latestRefillDetail,
+        latestEvent,
+        latestProduct,
+        latestStock,
+        latestMachineStock
+      ] = await Promise.all([
+        // Zählung aller Entitäten
+        db.select({ count: count() }).from(transactions),
+        db.select({ count: count() }).from(machines),
+        db.select({ count: count() }).from(refills),
+        db.select({ count: count() }).from(refillDetails),
+        db.select({ count: count() }).from(events),
+        db.select({ count: count() }).from(products),
+        db.select({ count: count() }).from(stocks),
+        db.select({ count: count() }).from(machineStocks),
+        
+        // Zusätzliche Statistiken für die Sync-Dashboard-Seite
+        this.executeRawQuery("SELECT COUNT(*) FROM holidays"),
+        this.executeRawQuery("SELECT COUNT(*) FROM sync_logs"),
+        this.executeRawQuery("SELECT COUNT(*) FROM forecast_models"),
+        
+        // Neueste Einträge
+        db.select().from(transactions).orderBy(desc(transactions.datetime)).limit(1),
+        db.select().from(machines).orderBy(desc(machines.updatedAt)).limit(1),
+        db.select().from(refills).orderBy(desc(refills.datetime)).limit(1),
+        db.select().from(refillDetails).orderBy(desc(refillDetails.createdAt)).limit(1),
+        db.select().from(events).orderBy(desc(events.datetime)).limit(1),
+        db.select().from(products).orderBy(desc(products.updatedAt)).limit(1),
+        db.select().from(stocks).orderBy(desc(stocks.updatedAt)).limit(1),
+        db.select().from(machineStocks).orderBy(desc(machineStocks.updatedAt)).limit(1)
+      ]);
+      
+      // Sicherstellen, dass Datumswerte immer als Strings zurückgegeben werden
+      const formatDate = (date: Date | null): string | null => {
+        if (!date) return null;
+        return date instanceof Date ? date.toISOString() : String(date);
+      };
+      
+      // Parsen von Zählergebnissen
+      const parseCount = (result: any): number => {
+        if (!result || !result[0]) return 0;
+        
+        if (result[0].count !== undefined) {
+          return parseInt(result[0].count?.toString() || '0');
+        }
+        
+        if (result.rows && result.rows[0] && result.rows[0].count !== undefined) {
+          return parseInt(result.rows[0].count?.toString() || '0');
+        }
+        
+        return 0;
+      };
+      
+      const stats = {
+        transactions: {
+          count: parseCount(transCountResult),
+          latest: formatDate(latestTrans?.[0]?.datetime || null)
+        },
+        machines: {
+          count: parseCount(machineCountResult),
+          latest: formatDate(latestMachine?.[0]?.updatedAt || null)
+        },
+        refills: {
+          count: parseCount(refillCountResult),
+          latest: formatDate(latestRefill?.[0]?.datetime || null)
+        },
+        refillDetails: {
+          count: parseCount(refillDetailCountResult),
+          latest: formatDate(latestRefillDetail?.[0]?.createdAt || null)
+        },
+        events: {
+          count: parseCount(eventCountResult),
+          latest: formatDate(latestEvent?.[0]?.datetime || null)
+        },
+        products: {
+          count: parseCount(productCountResult),
+          latest: formatDate(latestProduct?.[0]?.updatedAt || null)
+        },
+        stocks: {
+          count: parseCount(stockCountResult),
+          latest: formatDate(latestStock?.[0]?.updatedAt || null)
+        },
+        machineStocks: {
+          count: parseCount(machineStockCountResult),
+          latest: formatDate(latestMachineStock?.[0]?.updatedAt || null)
+        },
+        holidays: holidaysCountResult?.rows?.[0]?.count ? parseInt(holidaysCountResult.rows[0].count) : 0,
+        syncLogs: syncLogsCountResult?.rows?.[0]?.count ? parseInt(syncLogsCountResult.rows[0].count) : 0,
+        forecastModels: forecastModelsCountResult?.rows?.[0]?.count ? parseInt(forecastModelsCountResult.rows[0].count) : 0,
+        lastUpdated: new Date().toISOString()
+      };
+      
+      console.log("Database statistics retrieved successfully.");
+      return stats;
+    } catch (error) {
+      console.error("Error getting database statistics:", error);
+      // Fallback für Fehlerfälle
+      return {
+        transactions: { count: 0, latest: null },
+        machines: { count: 0, latest: null },
+        refills: { count: 0, latest: null },
+        refillDetails: { count: 0, latest: null },
+        events: { count: 0, latest: null },
+        products: { count: 0, latest: null },
+        stocks: { count: 0, latest: null },
+        machineStocks: { count: 0, latest: null },
+        holidays: 0,
+        syncLogs: 0,
+        forecastModels: 0,
+        lastUpdated: new Date().toISOString()
+      };
+    }
   }
 
   // User operations
