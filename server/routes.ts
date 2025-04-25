@@ -27,6 +27,7 @@ import warehouseLocationsRouter from './routes/warehouse-locations';
 import inventoryCountBatchesRouter from './routes/inventory-count-batches';
 import warehousesRouter from './routes/warehouses';
 import { criticalInventoryRouter } from './routes/critical-inventory';
+import productSyncRouter from './routes/product-sync';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -2772,6 +2773,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Registriere Export/Import-Routen
   app.use(`${API_PREFIX}`, exportImportRoutes);
+  
+  // Registriere Produkt-Synchronisierung Routen
+  app.use(`${API_PREFIX}/product-sync`, productSyncRouter);
 
   return httpServer;
 }
