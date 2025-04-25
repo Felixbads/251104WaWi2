@@ -1774,15 +1774,28 @@ export class DatabaseStorage implements IStorage {
       console.log(`Abfrage für Zeitraum: ${effectiveStartDate.toISOString()} bis ${effectiveEndDate.toISOString()}`);
 
       // Direkte SQL-Abfrage mit Template ausführen
-      const results = await rawSql`
+      // Erstelle parametrisierte Abfrage statt Tagged Template
+      let query = `
         SELECT r.*, m.machine_name as "machineName" 
         FROM refills r
         LEFT JOIN machines m ON r.machine_id = m.id
-        WHERE r.datetime >= ${effectiveStartDate} AND r.datetime <= ${effectiveEndDate}
-        ${machineId && !isNaN(parseInt(machineId)) ? rawSql`AND r.machine_id = ${parseInt(machineId)}` : rawSql``}
-        ORDER BY r.datetime DESC 
-        LIMIT ${limit} OFFSET ${offset}
+        WHERE r.datetime >= $1 AND r.datetime <= $2
       `;
+      
+      const params: any[] = [effectiveStartDate, effectiveEndDate];
+      
+      // Füge Machine ID Filter hinzu wenn vorhanden
+      if (machineId && !isNaN(parseInt(machineId))) {
+        query += ` AND r.machine_id = $3`;
+        params.push(parseInt(machineId));
+      }
+      
+      // Füge Sortierung und Limit hinzu
+      query += ` ORDER BY r.datetime DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+      params.push(limit, offset);
+      
+      const result = await rawDb.query(query, params);
+      const results = result.rows;
       
       console.log("Abfrage für Refills erfolgreich mit", results.length, "Ergebnissen");
       return results;
@@ -1829,40 +1842,40 @@ export class DatabaseStorage implements IStorage {
     
     console.log(`Abfrage für Lager ${warehouseId} mit ${machineIds.length} Automaten (IDs: ${machineIds.join(', ')})`);
     
-    // Basisparameter für die Abfrage
-    const params = {
-      limit,
-      offset
-    };
+    // Basisparameter für die Abfrage (wird nicht mehr benötigt)
     
-    // Erstelle direkte SQL-Abfrage mit Parameterbindung
-    let query = rawSql`
+    // Erstelle parametrisierte Abfrage
+    let query = `
       SELECT r.*, m.machine_name as "machineName" 
       FROM refills r
       LEFT JOIN machines m ON r.machine_id = m.id
-      WHERE r.machine_id = ANY(${machineIds})
+      WHERE r.machine_id = ANY($1)
     `;
+    
+    // Parameter für die Abfrage
+    const params: any[] = [machineIds];
     
     // Zeitraumbedingungen hinzufügen wenn vorhanden
     if (startDate && endDate) {
-      query = rawSql`${query} AND r.datetime >= ${new Date(startDate)} AND r.datetime <= ${new Date(endDate)}`;
+      query += ` AND r.datetime >= $2 AND r.datetime <= $3`;
+      params.push(new Date(startDate), new Date(endDate));
     } else if (startDate) {
-      query = rawSql`${query} AND r.datetime >= ${new Date(startDate)}`;
+      query += ` AND r.datetime >= $2`;
+      params.push(new Date(startDate));
     } else if (endDate) {
-      query = rawSql`${query} AND r.datetime <= ${new Date(endDate)}`;
+      query += ` AND r.datetime <= $2`;
+      params.push(new Date(endDate));
     }
     
     // Sortierung und Limits hinzufügen
-    query = rawSql`
-      ${query}
-      ORDER BY r.datetime DESC 
-      LIMIT ${limit} OFFSET ${offset}
-    `;
+    query += ` ORDER BY r.datetime DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    params.push(limit, offset);
     
     console.log("Abfrage für Refills im Lager wird ausgeführt");
     
     try {
-      const results = await query;
+      const result = await rawDb.query(query, params);
+      const results = result.rows;
       console.log(`Abfrage für Lager ${warehouseId} erfolgreich mit ${results.length} Ergebnissen`);
       return results;
     } catch (error) {
