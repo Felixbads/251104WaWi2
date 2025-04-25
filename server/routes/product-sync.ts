@@ -23,19 +23,39 @@ const router: Router = express.Router();
  */
 router.get('/status', async function(req: Request, res: Response) {
   try {
-    // Hier würde man normalerweise den Status der letzten Synchronisierung abrufen
-    // Da wir keine spezifische Methode dafür haben, verwenden wir eine Hilfslösung
-    const syncLogs = await req.storage.getSyncLogsByType('products', 1);
+    // Importiere db und syncLogs aus schema
+    const { db } = await import('../db');
+    const { syncLogs } = await import('@shared/schema');
+    const { desc, eq } = await import('drizzle-orm');
     
-    if (syncLogs.length === 0) {
+    // Den neuesten Synchronisierungseintrag für Produkte abrufen
+    const latestSyncLogs = await db.select()
+      .from(syncLogs)
+      .where(eq(syncLogs.syncType, 'products'))
+      .orderBy(desc(syncLogs.id))
+      .limit(1);
+    
+    if (latestSyncLogs.length === 0) {
+      // Zeige Informationen zur Anzahl der Produkte an, auch wenn keine Synchronisierungslogs vorhanden sind
+      const { products } = await import('@shared/schema');
+      const productsCount = await db.select({ count: sql<number>`count(*)` }).from(products);
+      const totalProducts = productsCount[0]?.count || 0;
+      
       return res.json({
         lastSync: null,
         status: 'never_run',
-        message: 'Keine Produktsynchronisierung gefunden'
+        message: 'Keine Produktsynchronisierung gefunden',
+        productCount: totalProducts
       });
     }
     
-    const lastSync = syncLogs[0];
+    const lastSync = latestSyncLogs[0];
+    
+    // Gesamtzahl der Produkte abrufen
+    const { products } = await import('@shared/schema');
+    const productsCount = await db.select({ count: sql<number>`count(*)` }).from(products);
+    const totalProducts = productsCount[0]?.count || 0;
+    
     return res.json({
       lastSync: {
         id: lastSync.id,
@@ -44,11 +64,14 @@ router.get('/status', async function(req: Request, res: Response) {
         status: lastSync.syncStatus,
         itemsFound: lastSync.itemsFound,
         itemsSaved: lastSync.itemsSaved,
+        itemsUpdated: lastSync.itemsUpdated,
         errors: lastSync.errors,
-        durationSeconds: lastSync.durationSeconds
+        durationSeconds: lastSync.durationSeconds,
+        errorMessage: lastSync.errorMessage
       },
       status: lastSync.syncStatus,
-      message: lastSync.errorMessage || 'OK'
+      message: lastSync.errorMessage || 'OK',
+      productCount: totalProducts
     });
   } catch (error) {
     console.error('Fehler beim Abrufen des Produktsynchronisierungsstatus:', error);
@@ -155,22 +178,21 @@ router.get('/debug', async (req: Request, res: Response) => {
       apiError = err;
     }
     
-    // Datenbank-Produkte abrufen
+    // Datenbank-Produkte direkt aus der Datenbank abrufen
     try {
-      // Verwende storage vom Express Request
-      if (req.storage) {
-        dbProducts = await req.storage.getProducts({limit: 1000, offset: 0});
-        if (Array.isArray(dbProducts)) {
-          console.log(`Erfolgreich ${dbProducts.length} Produkte aus der Datenbank geladen`);
-        } else if (dbProducts && typeof dbProducts === 'object' && dbProducts.data) {
-          dbProducts = dbProducts.data;
-          console.log(`Erfolgreich ${dbProducts.length} Produkte aus dem Datenbank-Objekt geladen`);
-        } else {
-          console.warn('Datenbank gab ein ungültiges Format zurück');
-          dbProducts = [];
-        }
+      // Importiere db und products aus schema
+      const { db } = await import('../db');
+      const { products } = await import('@shared/schema');
+      
+      // Abrufen aller Produkte direkt aus der Datenbank mit Drizzle
+      const productsFromDb = await db.select().from(products).limit(1000);
+      
+      if (Array.isArray(productsFromDb)) {
+        dbProducts = productsFromDb;
+        console.log(`Erfolgreich ${dbProducts.length} Produkte direkt aus der Datenbank geladen`);
       } else {
-        console.error('req.storage ist nicht verfügbar');
+        console.warn('Datenbank gab ein ungültiges Format zurück');
+        dbProducts = [];
       }
     } catch (dbErr) {
       console.error('Fehler beim Laden der Datenbankprodukte:', dbErr);
