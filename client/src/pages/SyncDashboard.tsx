@@ -38,6 +38,27 @@ import {
 // Importiere Vendon Historical Sync Tab für die direkte Einbindung
 import VendonHistoricalSyncTab from '@/components/sync/VendonHistoricalSyncTab';
 
+// Definiere die Typen für die Datenbankstatistiken
+interface StatsEntity {
+  count: number;
+  latest?: string | null;
+}
+
+interface DatabaseStats {
+  transactions: number | StatsEntity;
+  machines?: StatsEntity;
+  refills?: StatsEntity;
+  events?: StatsEntity;
+  products?: StatsEntity;
+  weatherForecasts?: number;
+  weatherHistorical?: number;
+  holidays?: number;
+  syncLogs?: number;
+  forecastModels?: number;
+  openOrders?: number;
+  lastUpdated?: string;
+}
+
 export default function SyncDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
   const { toast } = useToast();
@@ -80,8 +101,11 @@ export default function SyncDashboard() {
     [key: string]: StatsEntity | TransactionStats | number | undefined;
   }
 
+  // Typsicherheit für Datenbankstatistiken
+  type DatabaseStatsResponse = DatabaseStats;
+  
   // Hole Datenbankstatistiken
-  const databaseStatsQuery = useQuery<DatabaseStats>({
+  const databaseStatsQuery = useQuery<DatabaseStatsResponse>({
     queryKey: ['/api/database/stats'],
     queryFn: async () => {
       try {
@@ -518,7 +542,7 @@ export default function SyncDashboard() {
                           
                           // Wenn es eine Zahl ist, direkt formatieren
                           if (typeof data.transactions === 'number') {
-                            return data.transactions.toLocaleString('de-DE');
+                            return Number(data.transactions).toLocaleString('de-DE');
                           }
                           
                           // Typ-Guard für Objekte mit count Eigenschaft
@@ -744,15 +768,15 @@ export default function SyncDashboard() {
                       Verbleibende Anfragen: {weatherApiQuery.data?.remaining || 0} von {weatherApiQuery.data?.limit || 1000}
                     </p>
                   </div>
-                  <Badge className={
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                     weatherApiQuery.data?.remaining > 0.8 * weatherApiQuery.data?.limit ? 
                       'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' :
                     weatherApiQuery.data?.remaining > 0.3 * weatherApiQuery.data?.limit ? 
                       'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300' :
                       'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
-                  }>
+                  }`}>
                     {Math.round((weatherApiQuery.data?.remaining / weatherApiQuery.data?.limit) * 100) || 0}% verfügbar
-                  </Badge>
+                  </span>
                 </div>
                 
                 <Progress 
@@ -904,8 +928,8 @@ export default function SyncDashboard() {
                 <div className="space-y-1">
                   <p className="text-sm font-medium text-muted-foreground">Datentypen</p>
                   <div className="flex gap-2 mt-1">
-                    <Badge className="bg-blue-100 text-blue-800">Gesetzliche Feiertage</Badge>
-                    <Badge className="bg-amber-100 text-amber-800">Schulferien</Badge>
+                    <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-blue-100 text-blue-800">Gesetzliche Feiertage</span>
+                    <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-800">Schulferien</span>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
                     Inkludiert
