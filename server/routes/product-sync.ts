@@ -29,10 +29,14 @@ router.get('/status', async function(req: Request, res: Response) {
     const { desc, eq } = await import('drizzle-orm');
     
     // Den neuesten Synchronisierungseintrag für Produkte abrufen
-    const latestSyncLogs = await db.select()
-      .from(syncLogs)
-      .where(eq(syncLogs.syncType, 'products'))
-      .orderBy(desc(syncLogs.id))
+    const { syncLogs: syncLogsTable } = await import('@shared/schema');
+    
+    // Verwende Drizzle anstelle von direktem SQL für Typsicherheit
+    const latestSyncLogs = await db
+      .select()
+      .from(syncLogsTable)
+      .where(eq(syncLogsTable.syncType, 'products'))
+      .orderBy(desc(syncLogsTable.id))
       .limit(1);
     
     if (latestSyncLogs.length === 0) {
