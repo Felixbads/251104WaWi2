@@ -52,13 +52,60 @@ export default function SyncDashboard() {
     refetchInterval: 15000  // Aktualisiere alle 15 Sekunden
   });
 
+  // Typdefinitionen für API-Antwort
+  interface DatabaseStats {
+    transactions: {
+      count: number;
+      latest: string | null;
+    };
+    machines: {
+      count: number;
+      latest: string | null;
+    };
+    refills: {
+      count: number;
+      latest: string | null;
+    };
+    events: {
+      count: number;
+      latest: string | null;
+    };
+    products: {
+      count: number;
+      latest: string | null;
+    };
+    transactionStats?: {
+      earliest: string | null;
+      latest: string | null;
+      count: number;
+      coverage: number;
+    };
+    weatherForecasts?: number;
+    weatherHistorical?: number;
+    holidays?: number;
+    syncLogs?: number;
+    forecastModels?: number;
+  }
+
   // Hole Datenbankstatistiken
-  const databaseStatsQuery = useQuery({
+  const databaseStatsQuery = useQuery<DatabaseStats>({
     queryKey: ['/api/database/stats'],
     queryFn: async () => {
-      const response = await axios.get('/api/database/stats');
-      console.log('Datenbank-Statistiken:', response.data);
-      return response.data;
+      try {
+        const response = await axios.get('/api/database/stats');
+        console.log('Datenbank-Statistiken:', response.data);
+        return response.data;
+      } catch (error) {
+        console.error('Fehler beim Abrufen der Datenbankstatistiken:', error);
+        // Return a safe default object with null values
+        return {
+          transactions: { count: 0, latest: null },
+          machines: { count: 0, latest: null },
+          refills: { count: 0, latest: null },
+          events: { count: 0, latest: null },
+          products: { count: 0, latest: null }
+        };
+      }
     },
     refetchInterval: 30000  // Aktualisiere alle 30 Sekunden
   });
