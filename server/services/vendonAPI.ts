@@ -7,7 +7,8 @@
  */
 
 const DEFAULT_API_KEY = process.env.VENDON_API_KEY || '';
-const DEFAULT_API_BASE_URL = 'https://api.vendon.net/v1';
+// Verwende die gleiche API-Basis-URL wie in vendonSync.ts
+const DEFAULT_API_BASE_URL = 'https://cloud.vendon.net/rest/v1.8.0';
 
 // Anzahl der maximalen Wiederholungsversuche
 const MAX_RETRIES = 3;
@@ -149,7 +150,9 @@ export class VendonAPI {
    */
   async getProducts(): Promise<any[]> {
     try {
-      return await this.request('/products', { limit: 1000 });
+      // Verwende den gleichen Pfad wie in vendonSync.ts
+      // Statt '/products' verwenden wir '/product/list'
+      return await this.request('/product/list', { limit: 1000 });
     } catch (error) {
       console.error('Fehler beim Abrufen der Produkte:', error);
       return [];

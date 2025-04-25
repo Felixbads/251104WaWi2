@@ -4,7 +4,7 @@
  * Bietet Endpunkte zur Steuerung der Produktsynchronisierung mit der Vendon API
  */
 
-import express, { Request as ExpressRequest } from 'express';
+import express, { Request as ExpressRequest, Response } from 'express';
 import { productSyncService } from '../services/productSyncService';
 import { z } from 'zod';
 import { User } from '../../shared/schema';
@@ -22,7 +22,7 @@ const router = express.Router();
  * @route GET /api/product-sync/status
  * @desc Abrufen des aktuellen Status der Produktsynchronisierung
  */
-router.get('/status', async (req: Request, res) => {
+router.get('/status', async (req: Request, res: Response) => {
   try {
     // Hier würde man normalerweise den Status der letzten Synchronisierung abrufen
     // Da wir keine spezifische Methode dafür haben, verwenden wir eine Hilfslösung
@@ -64,7 +64,7 @@ router.get('/status', async (req: Request, res) => {
  * @route POST /api/product-sync/sync-all
  * @desc Startet eine vollständige Synchronisierung aller Produkte
  */
-router.post('/sync-all', async (req, res) => {
+router.post('/sync-all', async (req: Request, res: Response) => {
   try {
     // Starte die Synchronisierung asynchron, damit die Anfrage nicht blockiert wird
     const syncPromise = productSyncService.syncAllProducts();
@@ -97,7 +97,7 @@ router.post('/sync-all', async (req, res) => {
  * @route POST /api/product-sync/sync-product/:id
  * @desc Synchronisiert ein einzelnes Produkt anhand seiner Vendon-ID
  */
-router.post('/sync-product/:id', async (req, res) => {
+router.post('/sync-product/:id', async (req: Request, res: Response) => {
   try {
     const schema = z.object({
       id: z.string().min(1, 'Produkt-ID ist erforderlich')
@@ -125,20 +125,15 @@ router.post('/sync-product/:id', async (req, res) => {
  * @route GET /api/product-sync/debug
  * @desc Debug-Endpunkt für die Vendon API-Verbindung und Produktsynchronisierung
  */
-// vendonAPI ist bereits am Anfang der Datei importiert
-
-router.get('/debug', async (req, res) => {
+router.get('/debug', async (req: Request, res: Response) => {
   try {
     console.log('Starting product sync debug test...');
-    
-    // 1. Direkt den importierten vendonAPI verwenden
-    console.log('Testing Vendon API connection...');
     
     // Prüfen ob API-Key und Base-URL konfiguriert sind
     const configuredApiKey = process.env.VENDON_API_KEY || '';
     const apiBaseUrl = process.env.VENDON_API_BASE_URL || 'https://api.vendon.net/v1';
     
-    // 2. Versuche, die Produkte abzurufen - fange spezifisch Netzwerkfehler ab
+    // Versuche, die Produkte abzurufen - fange spezifisch Netzwerkfehler ab
     let vendonProducts: any[] = [];
     let networkError = null;
     let apiError = null;
@@ -165,11 +160,11 @@ router.get('/debug', async (req, res) => {
       }
     }
     
-    // 3. Prüfe vorhandene Produkte in der Datenbank
+    // Prüfe vorhandene Produkte in der Datenbank
     const dbProducts = await req.storage.getProducts(1000, 0);
     const dbProductCount = dbProducts?.length || 0;
     
-    // 4. Sammle Debug-Informationen über die Vendon API-Verbindung
+    // Sammle Debug-Informationen über die Vendon API-Verbindung
     return res.json({
       status: networkError ? 'error' : (vendonProducts.length > 0 ? 'success' : 'warning'),
       apiConnection: networkError ? 'failed' : (vendonProducts.length > 0 ? 'connected' : 'no_data'),
