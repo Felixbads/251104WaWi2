@@ -129,69 +129,79 @@ router.get('/debug', async (req: Request, res: Response) => {
   try {
     console.log('Starting product sync debug test...');
     
-    // Prüfen ob API-Key und Base-URL konfiguriert sind
-    const configuredApiKey = process.env.VENDON_API_KEY || '';
-    const apiBaseUrl = process.env.VENDON_API_BASE_URL || 'https://cloud.vendon.net/rest/v1.8.0';
+    // Verwende die Implementierung aus vendonSync.ts, die nachweislich funktioniert
+    const apiKey = process.env.VENDON_API_KEY || '';
+    const baseUrl = 'https://cloud.vendon.net/rest/v1.8.0';
     
-    // Direkte Erstellung einer neuen API-Instanz
-    const directApiInstance = new VendonAPI(configuredApiKey, apiBaseUrl);
-    console.log("Neue VendonAPI-Instanz erstellt mit URL:", apiBaseUrl);
-    
-    // Versuche, die Produkte abzurufen - fange spezifisch Netzwerkfehler ab
-    let vendonProducts: any[] = [];
-    let networkError = null;
+    // Erstelle einfachen Fetch-Request direkt
+    let products = [];
+    let dbProducts = [];
     let apiError = null;
+    let networkError = null;
     
+    // Manueller Request zur Vendon API
     try {
-      console.log('Fetching products from Vendon API...');
-      vendonProducts = await directApiInstance.getProducts();
-      console.log(`Vendon API returned ${vendonProducts?.length || 0} products`);
-    } catch (apiErr) {
-      console.error('Error fetching products:', apiErr);
-      apiError = apiErr;
+      const url = `${baseUrl}/product/list`;
+      const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Token ${apiKey}`  // Wie in vendonSync.ts
+      };
       
-      // Netzwerkfehler abfangen
-      if (apiErr instanceof Error && apiErr.cause && typeof apiErr.cause === 'object') {
-        const cause = apiErr.cause as any;
-        if (cause.code === 'ENOTFOUND' || cause.code === 'ETIMEDOUT') {
-          networkError = {
-            code: cause.code,
-            hostname: cause.hostname,
-            syscall: cause.syscall,
-            message: `Netzwerkfehler: ${cause.code} für ${cause.hostname}`
-          };
-        }
+      console.log('Direkter Zugriff auf Vendon API...');
+      const response = await fetch(url, { 
+        method: 'GET',
+        headers: headers
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
       }
+      
+      const data = await response.json();
+      if (data && data.result) {
+        products = data.result;
+        console.log(`Vendon API gab ${products.length} Produkte zurück`);
+      } else {
+        console.error('Unerwartetes API-Antwortformat');
+      }
+    } catch (err) {
+      console.error('Fehler beim direkten API-Zugriff:', err);
+      apiError = err;
     }
     
-    // Prüfe vorhandene Produkte in der Datenbank
-    let dbProducts = [];
-    let dbProductCount = 0;
-    
+    // Datenbank-Produkte abrufen
     try {
-      if (req.storage && typeof req.storage.getProducts === 'function') {
-        dbProducts = await req.storage.getProducts(1000, 0) || [];
-        dbProductCount = dbProducts.length;
-        console.log(`Erfolgreich ${dbProductCount} Produkte aus der Datenbank geladen`);
+      // Verwende storage vom Express Request
+      if (req.storage) {
+        dbProducts = await req.storage.getProducts({limit: 1000, offset: 0});
+        if (Array.isArray(dbProducts)) {
+          console.log(`Erfolgreich ${dbProducts.length} Produkte aus der Datenbank geladen`);
+        } else if (dbProducts && typeof dbProducts === 'object' && dbProducts.data) {
+          dbProducts = dbProducts.data;
+          console.log(`Erfolgreich ${dbProducts.length} Produkte aus dem Datenbank-Objekt geladen`);
+        } else {
+          console.warn('Datenbank gab ein ungültiges Format zurück');
+          dbProducts = [];
+        }
       } else {
-        console.error('req.storage.getProducts Methode nicht verfügbar');
+        console.error('req.storage ist nicht verfügbar');
       }
     } catch (dbErr) {
       console.error('Fehler beim Laden der Datenbankprodukte:', dbErr);
     }
     
-    // Sammle Debug-Informationen über die Vendon API-Verbindung
     return res.json({
-      status: networkError ? 'error' : (vendonProducts.length > 0 ? 'success' : 'warning'),
-      apiConnection: networkError ? 'failed' : (vendonProducts.length > 0 ? 'connected' : 'no_data'),
-      vendonProductCount: vendonProducts?.length || 0,
-      databaseProductCount: dbProductCount,
-      vendonApiKey: configuredApiKey ? 'configured' : 'missing',
-      apiBaseUrl,
-      sampleVendonProduct: vendonProducts?.length > 0 ? {
-        id: vendonProducts[0].id,
-        name: vendonProducts[0].name,
-        price: vendonProducts[0].price
+      status: apiError ? 'error' : (products.length > 0 ? 'success' : 'warning'),
+      apiConnection: apiError ? 'failed' : (products.length > 0 ? 'connected' : 'no_data'),
+      vendonProductCount: products.length,
+      databaseProductCount: dbProducts.length,
+      vendonApiKey: apiKey ? 'configured' : 'missing',
+      apiBaseUrl: baseUrl,
+      sampleVendonProduct: products.length > 0 ? {
+        id: products[0].id,
+        name: products[0].name,
+        price: products[0].price
       } : null,
       networkError,
       error: apiError instanceof Error ? apiError.message : null
@@ -205,7 +215,7 @@ router.get('/debug', async (req: Request, res: Response) => {
       vendonProductCount: 0,
       databaseProductCount: 0,
       vendonApiKey: process.env.VENDON_API_KEY ? 'configured' : 'missing',
-      apiBaseUrl: process.env.VENDON_API_BASE_URL || 'https://cloud.vendon.net/rest/v1.8.0',
+      apiBaseUrl: 'https://cloud.vendon.net/rest/v1.8.0',
       sampleVendonProduct: null,
       networkError: null,
       error: error instanceof Error ? error.message : String(error),
