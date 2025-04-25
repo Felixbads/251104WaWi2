@@ -12,9 +12,8 @@ import AutomatDetail from "@/pages/AutomatDetail"; // Detail-Ansicht eines Autom
 import RefillDetail from "@/pages/RefillDetail"; // Detail-Ansicht einer Auffüllung
 import Products from "@/pages/Products";
 import ProductDetail from "@/pages/ProductDetail"; // Detail-Ansicht eines Produkts
-import Synchronization from "@/pages/Synchronization";
+import SyncDashboard from "@/pages/SyncDashboard";
 import SyncHistory from "@/pages/SyncHistory";
-import SyncPage from "@/pages/SyncPage";
 import Settings from "@/pages/Settings";
 import MailSettings from "@/pages/MailSettings"; // Neue Email-Einstellungen-Seite
 import Forecast from "@/pages/Forecast";
@@ -358,7 +357,7 @@ function AuthenticatedRouter() {
         
         <Route path="/synchronization" component={props => (
           <ApprovedUserRoute>
-            <Synchronization {...props} />
+            <SyncDashboard {...props} />
           </ApprovedUserRoute>
         )} />
         
@@ -370,7 +369,7 @@ function AuthenticatedRouter() {
         
         <Route path="/sync" component={props => (
           <ApprovedUserRoute>
-            <SyncPage {...props} />
+            <SyncDashboard {...props} />
           </ApprovedUserRoute>
         )} />
         
