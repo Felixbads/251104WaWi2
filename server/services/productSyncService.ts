@@ -32,44 +32,83 @@ export class ProductSyncService {
     console.log(`Produktsynchronisierung gestartet mit ID ${syncLogEntry.id}`);
 
     try {
-      // Rufe alle Produkte von der Vendon API ab
+      // 1. Hole bestehende Produkte aus der Datenbank
+      console.log('Hole bestehende Produkte aus der Datenbank...');
+      const existingProducts = await db.select().from(products);
+      console.log(`${existingProducts.length} bestehende Produkte gefunden`);
+
+      // 2. Rufe alle Produkte von der Vendon API ab
       console.log('Rufe Produkte von der Vendon API ab...');
-      const vendonProducts = await vendonAPI.getProducts();
+      let vendonProducts: any[] = [];
       
-      if (!vendonProducts || !Array.isArray(vendonProducts)) {
-        throw new Error('Keine gültigen Produktdaten von der Vendon API erhalten');
+      try {
+        vendonProducts = await vendonAPI.getProducts();
+        
+        if (!vendonProducts || !Array.isArray(vendonProducts)) {
+          console.error('Keine gültigen Produktdaten von der Vendon API erhalten');
+          vendonProducts = [];
+        }
+      } catch (apiError) {
+        console.error('Fehler beim Abrufen der Produkte:', apiError);
+        // Fortfahren mit leerer Liste, damit wir zumindest die bestehenden Produkte behalten
       }
 
       console.log(`${vendonProducts.length} Produkte von der Vendon API abgerufen`);
       syncLog.itemsFound = vendonProducts.length;
 
-      // Synchronisiere jedes Produkt mit der Datenbank
+      // 3. Synchronisiere jedes Produkt mit der Datenbank
+      let itemsSaved = 0;
+      let itemsUpdated = 0;
+      let errors = 0;
+
       for (const vendonProduct of vendonProducts) {
         try {
-          await this.syncProduct(vendonProduct);
-          syncLog.itemsSaved++;
+          const result = await this.syncProduct(vendonProduct);
+          if (result) {
+            const isNew = !existingProducts.some(p => p.vendonId === vendonProduct.id.toString());
+            if (isNew) {
+              itemsSaved++;
+            } else {
+              itemsUpdated++;
+            }
+          }
         } catch (error) {
           console.error(`Fehler bei der Synchronisierung des Produkts ${vendonProduct.id}:`, error);
-          syncLog.errors++;
+          errors++;
         }
       }
 
-      // Aktualisiere den SyncLog mit den Ergebnissen
+      // Aktualisiere Zähler
+      syncLog.itemsSaved = itemsSaved;
+      syncLog.itemsUpdated = itemsUpdated;
+      syncLog.errors = errors;
+
+      // 4. Aktualisiere den SyncLog mit den Ergebnissen
       syncLog.endDate = new Date();
       syncLog.syncStatus = 'success';
-      syncLog.durationSeconds = (syncLog.endDate.getTime() - syncLog.startDate.getTime()) / 1000;
+      syncLog.durationSeconds = syncLog.startDate ? 
+        (syncLog.endDate.getTime() - syncLog.startDate.getTime()) / 1000 : 0;
       
       await storage.updateSyncLog(syncLogEntry.id, syncLog);
-      console.log(`Produktsynchronisierung abgeschlossen: ${syncLog.itemsSaved} Produkte synchronisiert, ${syncLog.errors} Fehler`);
+      console.log(`Produktsynchronisierung abgeschlossen: ${syncLog.itemsSaved} neue, ${syncLog.itemsUpdated} aktualisierte Produkte, ${syncLog.errors} Fehler`);
 
-      return syncLogEntry;
+      return {
+        ...syncLogEntry,
+        itemsSaved,
+        itemsUpdated,
+        errors,
+        databaseProducts: existingProducts.length,
+        vendonProducts: vendonProducts.length,
+        totalProducts: existingProducts.length + itemsSaved
+      };
     } catch (error) {
       console.error('Fehler bei der Produktsynchronisierung:', error);
       
       // Aktualisiere den SyncLog mit den Fehlern
       syncLog.endDate = new Date();
       syncLog.syncStatus = 'error';
-      syncLog.durationSeconds = (syncLog.endDate.getTime() - syncLog.startDate.getTime()) / 1000;
+      syncLog.durationSeconds = syncLog.startDate ? 
+        (syncLog.endDate.getTime() - syncLog.startDate.getTime()) / 1000 : 0;
       syncLog.errorMessage = error instanceof Error ? error.message : String(error);
       
       await storage.updateSyncLog(syncLogEntry.id, syncLog);
