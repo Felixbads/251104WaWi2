@@ -12,6 +12,7 @@ import AutomatDetail from "@/pages/AutomatDetail"; // Detail-Ansicht eines Autom
 import RefillDetail from "@/pages/RefillDetail"; // Detail-Ansicht einer Auffüllung
 import Products from "@/pages/Products";
 import ProductDetail from "@/pages/ProductDetail"; // Detail-Ansicht eines Produkts
+import WarenbewegungNewPage from "@/pages/WarenbewegungNewPage"; // Neue Warenumlagerung-Komponente
 import SyncDashboard from "@/pages/SyncDashboard";
 import SyncHistory from "@/pages/SyncHistory";
 import Settings from "@/pages/Settings";
@@ -29,6 +30,7 @@ import Layout from "@/components/layout/Layout";
 import { AuthProvider, useAuth } from "@/lib";
 import AdminRoute from "@/components/auth/AdminRoute"; // Route nur für Admins
 import ApprovedUserRoute from "@/components/auth/ApprovedUserRoute"; // Route für genehmigte Benutzer
+import { InventoryCartProvider } from "@/components/inventory/InventoryCartContext";
 
 /**
  * HOC, der eine geschützte Route mit Benutzerfreigabe-Prüfung erstellt
@@ -281,9 +283,9 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
         
-        <Route path="/warenbewegung" component={props => (
+        <Route path="/warenumlagerung" component={props => (
           <ApprovedUserRoute>
-            <WarehouseMovement {...props} />
+            <WarenbewegungNewPage {...props} />
           </ApprovedUserRoute>
         )} />
         
@@ -441,8 +443,10 @@ function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <MainRouter />
-          <Toaster />
+          <InventoryCartProvider>
+            <MainRouter />
+            <Toaster />
+          </InventoryCartProvider>
         </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>

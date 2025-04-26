@@ -1,103 +1,105 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 
-// Types
 export interface CartItem {
-  productId: string;
+  id: number;
+  productId: number;
   productName: string;
   quantity: number;
-  currentStock?: number;
-  sku?: string;
+  maxQuantity: number;
+  warehouseId: number;
 }
 
 interface InventoryCartContextType {
-  items: CartItem[];
-  addItem: (item: CartItem) => void;
-  updateItem: (productId: string, quantity: number) => void;
-  removeItem: (productId: string) => void;
+  cartItems: CartItem[];
+  addToCart: (item: CartItem) => void;
+  removeFromCart: (id: number) => void;
+  updateQuantity: (id: number, quantity: number) => void;
   clearCart: () => void;
-  itemCount: number;
-  isInCart: (productId: string) => boolean;
+  isInCart: (id: number) => boolean;
+  cartTotal: number;
 }
 
-// Create context
 const InventoryCartContext = createContext<InventoryCartContextType | undefined>(undefined);
 
-// Provider component
-export const InventoryCartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [items, setItems] = useState<CartItem[]>([]);
+export function InventoryCartProvider({ children }: { children: React.ReactNode }) {
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
-  // Add item to cart
-  const addItem = (item: CartItem) => {
-    setItems(prevItems => {
-      // Check if item already exists
-      const existingItemIndex = prevItems.findIndex(i => i.productId === item.productId);
+  // Gesamtmenge aller Waren im Warenkorb berechnen
+  const cartTotal = cartItems.reduce((total, item) => total + item.quantity, 0);
+
+  // Produkt zum Warenkorb hinzufügen oder Menge aktualisieren, wenn es bereits vorhanden ist
+  const addToCart = (item: CartItem) => {
+    setCartItems(prevItems => {
+      const existingItemIndex = prevItems.findIndex(cartItem => cartItem.id === item.id);
       
-      if (existingItemIndex >= 0) {
-        // Update existing item
+      if (existingItemIndex > -1) {
+        // Artikel bereits im Warenkorb, Menge aktualisieren
         const updatedItems = [...prevItems];
+        const existingItem = updatedItems[existingItemIndex];
+        const newQuantity = existingItem.quantity + item.quantity;
+        
+        // Stellen Sie sicher, dass die Menge nicht die maximal verfügbare Menge überschreitet
         updatedItems[existingItemIndex] = {
-          ...updatedItems[existingItemIndex],
-          quantity: updatedItems[existingItemIndex].quantity + item.quantity
+          ...existingItem,
+          quantity: Math.min(newQuantity, item.maxQuantity)
         };
+        
         return updatedItems;
       } else {
-        // Add new item
+        // Neuen Artikel zum Warenkorb hinzufügen
         return [...prevItems, item];
       }
     });
   };
 
-  // Update item quantity
-  const updateItem = (productId: string, quantity: number) => {
-    setItems(prevItems => 
+  // Prüfen, ob ein Produkt bereits im Warenkorb ist
+  const isInCart = (id: number) => {
+    return cartItems.some(item => item.id === id);
+  };
+
+  // Produkt aus dem Warenkorb entfernen
+  const removeFromCart = (id: number) => {
+    setCartItems(prevItems => prevItems.filter(item => item.id !== id));
+  };
+
+  // Menge eines Produkts im Warenkorb aktualisieren
+  const updateQuantity = (id: number, quantity: number) => {
+    setCartItems(prevItems => 
       prevItems.map(item => 
-        item.productId === productId 
-          ? { ...item, quantity } 
+        item.id === id 
+          ? { ...item, quantity: Math.min(quantity, item.maxQuantity) } 
           : item
       )
     );
   };
 
-  // Remove item from cart
-  const removeItem = (productId: string) => {
-    setItems(prevItems => prevItems.filter(item => item.productId !== productId));
-  };
-
-  // Clear cart
+  // Warenkorb leeren
   const clearCart = () => {
-    setItems([]);
+    setCartItems([]);
   };
 
-  // Check if item is in cart
-  const isInCart = (productId: string) => {
-    return items.some(item => item.productId === productId);
+  const value = {
+    cartItems,
+    addToCart,
+    removeFromCart,
+    updateQuantity,
+    clearCart,
+    isInCart,
+    cartTotal
   };
-
-  // Get total item count
-  const itemCount = items.length;
 
   return (
-    <InventoryCartContext.Provider 
-      value={{ 
-        items, 
-        addItem, 
-        updateItem, 
-        removeItem, 
-        clearCart, 
-        itemCount,
-        isInCart
-      }}
-    >
+    <InventoryCartContext.Provider value={value}>
       {children}
     </InventoryCartContext.Provider>
   );
-};
+}
 
-// Custom hook to use the cart context
-export const useInventoryCart = () => {
+// Custom Hook für den einfachen Zugriff auf den Warenkorb-Kontext
+export function useInventoryCart() {
   const context = useContext(InventoryCartContext);
   if (context === undefined) {
     throw new Error('useInventoryCart must be used within an InventoryCartProvider');
   }
   return context;
-};
+}

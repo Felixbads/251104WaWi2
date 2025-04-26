@@ -27,7 +27,7 @@ export const menuItems = {
   ],
   storage: [
     { title: 'Lagerbestand', icon: <Building2 className="h-5 w-5 mr-3" />, path: '/lagerbestand' },
-    { title: 'Warenbewegung', icon: <MoveHorizontal className="h-5 w-5 mr-3" />, path: '/warenbewegung' },
+    { title: 'Warenumlagerung', icon: <MoveHorizontal className="h-5 w-5 mr-3" />, path: '/warenumlagerung' },
     { title: 'Inventur', icon: <ClipboardCheck className="h-5 w-5 mr-3" />, path: '/inventur' },
     { title: 'Bestellungen', icon: <ShoppingCart className="h-5 w-5 mr-3" />, path: '/bestellungen/neu-v2' },
   ],
@@ -117,8 +117,8 @@ export default function AppShell({ children }: AppShellProps) {
         return "Lager (Neu)";
       case "/lagerhaltung":
         return "Lagerhaltung";
-      case "/warenbewegung":
-        return "Warenbewegung";
+      case "/warenumlagerung":
+        return "Warenumlagerung";
       case "/auswertungen":
         return "Auswertungen";
       case "/erweiterte-analyse":

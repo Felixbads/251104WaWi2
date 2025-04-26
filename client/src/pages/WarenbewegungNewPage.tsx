@@ -1,335 +1,338 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation } from 'wouter';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  ArrowLeft,
-  ArrowRightLeft,
-  Loader2,
-  RefreshCw,
-  ShoppingCart,
-  Warehouse as WarehouseIcon,
-  AlertTriangle
-} from 'lucide-react';
-
-// UI Components
-import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card';
+import { useState, useEffect } from 'react';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
-import { useToast } from '@/hooks/use-toast';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { queryClient } from '@/lib/queryClient';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle, MoveHorizontal } from "lucide-react";
+import { useInventoryCart } from "@/components/inventory/InventoryCartContext";
+import InventoryCart from "@/components/inventory/InventoryCart";
+import InventoryProductsTable from "@/components/inventory/InventoryProductsTable";
+import LoadingSpinner from "@/components/LoadingSpinner";
 
-// Custom components
-import { InventoryCartProvider } from '@/components/inventory/InventoryCartContext';
-import InventoryCart from '@/components/inventory/InventoryCart';
-import InventoryProductsTable, { InventoryProduct } from '@/components/inventory/InventoryProductsTable';
+// Definiere Warehouse und InventoryProduct Typen
+interface Warehouse {
+  id: number;
+  name: string;
+  location?: string;
+  status?: string;
+}
 
-// API functions (assuming these exist, we'll check and adapt as needed)
-import { 
-  getWarehouses, 
-  getWarehouseInventory,
-  createInventoryTransfer
-} from '@/lib/api';
+interface InventoryProduct {
+  id: number;
+  productId: number;
+  productName: string;
+  quantity: number;
+  warehouseId: number;
+  warehouseName?: string;
+  status?: string;
+}
 
 export default function WarenbewegungNewPage() {
-  const [, setLocation] = useLocation();
-  const queryClient = useQueryClient();
+  const [sourceWarehouseId, setSourceWarehouseId] = useState<string>("");
+  const [targetWarehouseId, setTargetWarehouseId] = useState<string>("");
+  const [showResults, setShowResults] = useState(false);
   const { toast } = useToast();
-  
-  // State
-  const [sourceWarehouseId, setSourceWarehouseId] = useState<string | null>(null);
-  const [targetWarehouseId, setTargetWarehouseId] = useState<string | null>(null);
-  const [notes, setNotes] = useState<string>("");
-  
-  // Load warehouses
-  const {
-    data: warehouses,
-    isLoading: isLoadingWarehouses,
-    error: warehousesError
-  } = useQuery({
+  const { 
+    cartItems, 
+    addToCart, 
+    removeFromCart, 
+    updateQuantity, 
+    clearCart, 
+    cartTotal 
+  } = useInventoryCart();
+
+  // Hole alle Lager
+  const { data: warehouses, isLoading: warehousesLoading } = useQuery({
     queryKey: ['/api/warehouses'],
-    queryFn: getWarehouses
+    select: (data: Warehouse[]) => data.filter(w => w.status === 'active')
   });
-  
-  // Load source warehouse inventory
-  const {
-    data: sourceInventory,
-    isLoading: isLoadingSourceInventory,
-    error: sourceInventoryError,
-    refetch: refetchSourceInventory
-  } = useQuery({
-    queryKey: ['/api/warehouses', sourceWarehouseId, 'inventory'],
-    queryFn: () => sourceWarehouseId 
-      ? getWarehouseInventory(sourceWarehouseId, { includeZeroStock: false })
-      : Promise.reject('No source warehouse selected'),
-    enabled: !!sourceWarehouseId
+
+  // Hole Produkte für das ausgewählte Quelllager
+  const { data: sourceProducts, isLoading: sourceProductsLoading } = useQuery({
+    queryKey: ['/api/warehouse-products', sourceWarehouseId, { includeZeroStock: false }],
+    enabled: !!sourceWarehouseId,
+    select: (data: any[]) => {
+      return data
+        .filter(item => item.quantity > 0) // Nur Produkte mit Bestand anzeigen
+        .map(item => ({
+          id: Number(item.id),
+          productId: Number(item.productId),
+          productName: item.productName,
+          quantity: Number(item.quantity),
+          warehouseId: Number(item.warehouseId),
+          warehouseName: item.warehouseName,
+          status: item.status
+        }));
+    }
   });
-  
-  // Load target warehouse inventory (for reference)
-  const {
-    data: targetInventory,
-    isLoading: isLoadingTargetInventory,
-    error: targetInventoryError
-  } = useQuery({
-    queryKey: ['/api/warehouses', targetWarehouseId, 'inventory'],
-    queryFn: () => targetWarehouseId 
-      ? getWarehouseInventory(targetWarehouseId, { includeZeroStock: true })
-      : Promise.reject('No target warehouse selected'),
-    enabled: !!targetWarehouseId
-  });
-  
-  // Create inventory transfer mutation
-  const createTransferMutation = useMutation({
-    mutationFn: (data: any) => createInventoryTransfer(data),
+
+  // Hook für die Übertragung
+  const transferMutation = useMutation({
+    mutationFn: async (transferData: any) => {
+      const response = await fetch('/api/inventory-transfers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(transferData),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Fehler bei der Übertragung');
+      }
+      
+      return response.json();
+    },
     onSuccess: () => {
       toast({
-        title: "Erfolg",
-        description: "Die Warenbewegung wurde erfolgreich durchgeführt.",
-        variant: "success"
+        title: "Warenumlagerung erfolgreich erstellt",
+        description: "Die Waren wurden erfolgreich umgelagert.",
       });
       
-      // Invalidate relevant queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ['/api/warehouses'] });
-      if (sourceWarehouseId) {
-        queryClient.invalidateQueries({ queryKey: ['/api/warehouses', sourceWarehouseId] });
-      }
-      if (targetWarehouseId) {
-        queryClient.invalidateQueries({ queryKey: ['/api/warehouses', targetWarehouseId] });
-      }
+      // Leere den Warenkorb
+      clearCart();
       
-      // Navigate back to the warehouse movement overview
-      setLocation('/lager');
+      // Aktualisiere die Produktliste
+      queryClient.invalidateQueries({ queryKey: ['/api/warehouse-products'] });
+      
+      // Zurücksetzen
+      setShowResults(false);
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
-        title: "Fehler",
-        description: `Fehler beim Erstellen der Warenbewegung: ${error.message || 'Unbekannter Fehler'}`,
-        variant: "destructive"
+        title: "Fehler bei der Warenumlagerung",
+        description: error.message,
+        variant: "destructive",
       });
     }
   });
   
-  // Format products for table
-  const formattedInventory: InventoryProduct[] = sourceInventory ? 
-    sourceInventory.map(item => ({
-      id: item.id,
-      productId: item.productId.toString(),
-      productName: item.productName || "Unbekanntes Produkt",
-      quantity: item.quantity || 0,
-      sku: item.sku,
-      category: item.category,
-      minQuantity: item.minQuantity || 0,
-      price: item.price,
-      warehouseId: item.warehouseId,
-      warehouseName: item.warehouseName
-    }))
-    : [];
-    
-  // Find warehouses that can be selected as target (exclude source warehouse)
-  const availableTargetWarehouses = warehouses ? 
-    warehouses.filter(w => w.id.toString() !== sourceWarehouseId)
-    : [];
-  
-  // Effects
-  // Reset target warehouse when source changes to prevent selecting the same warehouse
-  useEffect(() => {
-    if (sourceWarehouseId && targetWarehouseId && sourceWarehouseId === targetWarehouseId) {
-      setTargetWarehouseId(null);
-    }
-  }, [sourceWarehouseId, targetWarehouseId]);
-  
-  // Handle submit
-  const handleSubmitTransfer = (items: any[]) => {
-    if (!sourceWarehouseId || !targetWarehouseId || items.length === 0) {
+  // Wird aufgerufen, wenn die Übertragung abgeschlossen werden soll
+  const handleTransfer = () => {
+    if (!sourceWarehouseId || !targetWarehouseId) {
       toast({
-        title: "Fehler",
-        description: "Bitte wählen Sie Quell- und Ziellager sowie mindestens ein Produkt aus.",
-        variant: "destructive"
+        title: "Fehlende Informationen",
+        description: "Bitte wählen Sie ein Quell- und Ziellager aus.",
+        variant: "destructive",
       });
       return;
     }
     
-    // Format the data for the API
+    if (cartItems.length === 0) {
+      toast({
+        title: "Warenkorb ist leer",
+        description: "Bitte fügen Sie Produkte zum Warenkorb hinzu.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Überprüfe, ob Quell- und Ziellager unterschiedlich sind
+    if (sourceWarehouseId === targetWarehouseId) {
+      toast({
+        title: "Gleiche Lager ausgewählt",
+        description: "Quell- und Ziellager müssen unterschiedlich sein.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Erstelle Transferdaten
     const transferData = {
-      sourceWarehouseId,
-      targetWarehouseId,
-      notes: notes || undefined,
-      items: items.map(item => ({
+      sourceWarehouseId: parseInt(sourceWarehouseId),
+      targetWarehouseId: parseInt(targetWarehouseId),
+      status: "pending",
+      notes: "Warenumlagung über Webschnittstelle",
+      items: cartItems.map(item => ({
         productId: item.productId,
-        quantity: item.quantity
+        productName: item.productName,
+        quantity: item.quantity,
+        reason: "Umlagerung"
       }))
     };
     
-    // Submit the transfer
-    createTransferMutation.mutate(transferData);
+    // Führe die Übertragung durch
+    transferMutation.mutate(transferData);
   };
-  
-  // Get inventory quantity for a product
-  const getInventoryQuantity = (productId: string): number => {
-    if (!sourceInventory) return 0;
-    const product = sourceInventory.find(p => p.productId.toString() === productId);
-    return product ? product.quantity || 0 : 0;
-  };
-  
-  // Build a map of product IDs to their available quantities
-  const availableQuantities: Record<string, number> = {};
-  if (sourceInventory) {
-    sourceInventory.forEach(item => {
-      availableQuantities[item.productId.toString()] = item.quantity || 0;
-    });
-  }
-  
+
+  // Quelle oder Ziel geändert -> Ergebnisse zurücksetzen
+  useEffect(() => {
+    setShowResults(!!sourceWarehouseId);
+  }, [sourceWarehouseId]);
+
   return (
-    <InventoryCartProvider>
-      <div className="container py-6 space-y-6">
-        {/* Header with back button */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => setLocation('/lager')}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Zurück
-            </Button>
-            <h1 className="text-xl font-semibold">Neue Warenbewegung</h1>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            {sourceWarehouseId && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => refetchSourceInventory()}
-                disabled={isLoadingSourceInventory}
-              >
-                <RefreshCw className={`mr-2 h-4 w-4 ${isLoadingSourceInventory ? 'animate-spin' : ''}`} />
-                Aktualisieren
-              </Button>
-            )}
-          </div>
-        </div>
-        
-        {/* Warehouse Selection */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <WarehouseIcon className="h-5 w-5" />
-              Lager auswählen
-            </CardTitle>
-            <CardDescription>
-              Wählen Sie ein Quell- und Ziellager für die Warenbewegung
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col sm:flex-row gap-6">
-              <div className="flex-1 space-y-2">
-                <div className="font-medium text-sm">Quelllager</div>
-                <Select
-                  value={sourceWarehouseId || ""}
-                  onValueChange={setSourceWarehouseId}
-                  disabled={isLoadingWarehouses}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Quelllager auswählen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {warehouses?.map(warehouse => (
-                      <SelectItem 
-                        key={warehouse.id} 
-                        value={warehouse.id.toString()}
-                      >
-                        {warehouse.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+    <div className="container mx-auto py-6">
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* Linke Spalte */}
+        <div className="w-full lg:w-2/3 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MoveHorizontal className="h-6 w-6" />
+                Warenumlagerung
+              </CardTitle>
+              <CardDescription>
+                Wählen Sie ein Quell- und Ziellager aus, um Produkte zwischen Lagern zu bewegen.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col md:flex-row gap-4 mb-6">
+                {/* Quelllager Auswahl */}
+                <div className="w-full md:w-1/2">
+                  <Label htmlFor="sourceWarehouse">Quelllager</Label>
+                  <Select 
+                    value={sourceWarehouseId}
+                    onValueChange={value => setSourceWarehouseId(value)}
+                  >
+                    <SelectTrigger id="sourceWarehouse" className="w-full">
+                      <SelectValue placeholder="Wählen Sie ein Quelllager aus" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Verfügbare Lager</SelectLabel>
+                        {!warehousesLoading && warehouses && warehouses.map(warehouse => (
+                          <SelectItem 
+                            key={warehouse.id} 
+                            value={warehouse.id.toString()}
+                            disabled={targetWarehouseId === warehouse.id.toString()}
+                          >
+                            {warehouse.name}
+                            {warehouse.location ? ` (${warehouse.location})` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                {/* Ziellager Auswahl */}
+                <div className="w-full md:w-1/2">
+                  <Label htmlFor="targetWarehouse">Ziellager</Label>
+                  <Select 
+                    value={targetWarehouseId}
+                    onValueChange={value => setTargetWarehouseId(value)}
+                  >
+                    <SelectTrigger id="targetWarehouse" className="w-full">
+                      <SelectValue placeholder="Wählen Sie ein Ziellager aus" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Verfügbare Lager</SelectLabel>
+                        {!warehousesLoading && warehouses && warehouses.map(warehouse => (
+                          <SelectItem 
+                            key={warehouse.id} 
+                            value={warehouse.id.toString()}
+                            disabled={sourceWarehouseId === warehouse.id.toString()}
+                          >
+                            {warehouse.name}
+                            {warehouse.location ? ` (${warehouse.location})` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               
-              <div className="flex items-center justify-center">
-                <div className="hidden sm:block">
-                  <ArrowRightLeft className="h-6 w-6 text-muted-foreground" />
+              {!showResults ? (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Information</AlertTitle>
+                  <AlertDescription>
+                    Bitte wählen Sie ein Quelllager aus, um verfügbare Produkte anzuzeigen.
+                  </AlertDescription>
+                </Alert>
+              ) : sourceProductsLoading ? (
+                <div className="h-40 flex items-center justify-center">
+                  <LoadingSpinner />
                 </div>
-                <div className="sm:hidden">
-                  <Separator />
-                </div>
-              </div>
-              
-              <div className="flex-1 space-y-2">
-                <div className="font-medium text-sm">Ziellager</div>
-                <Select
-                  value={targetWarehouseId || ""}
-                  onValueChange={setTargetWarehouseId}
-                  disabled={isLoadingWarehouses || !sourceWarehouseId || availableTargetWarehouses.length === 0}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Ziellager auswählen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableTargetWarehouses.map(warehouse => (
-                      <SelectItem 
-                        key={warehouse.id} 
-                        value={warehouse.id.toString()}
-                      >
-                        {warehouse.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* Show cart and products only when warehouses are selected */}
-        {sourceWarehouseId && targetWarehouseId && (
-          <>
-            {/* Cart */}
-            <InventoryCart 
-              title="Warenkorb für Umlagerung"
-              description="Produkte für die Umlagerung"
-              submitLabel="Umlagerung durchführen"
-              onSubmit={() => {
-                const { items } = require('@/components/inventory/InventoryCartContext').useInventoryCart();
-                handleSubmitTransfer(items);
-              }}
-              isLoading={createTransferMutation.isPending}
-              maxStock={availableQuantities}
-            />
-            
-            {/* Product selection */}
-            <InventoryProductsTable
-              products={formattedInventory}
-              isLoading={isLoadingSourceInventory}
-              error={sourceInventoryError}
-              title="Produkte im Quelllager"
-              description="Wählen Sie Produkte für die Umlagerung aus"
-            />
-          </>
-        )}
-        
-        {/* Initial state - no warehouses selected */}
-        {(!sourceWarehouseId || !targetWarehouseId) && (
-          <Card className="bg-muted/30">
-            <CardContent className="flex flex-col items-center justify-center py-10 text-center">
-              <ShoppingCart className="h-16 w-16 mb-4 text-muted-foreground/30" />
-              <h3 className="text-lg font-medium">Bitte wählen Sie ein Quell- und Ziellager</h3>
-              <p className="text-muted-foreground mt-1">
-                Um Produkte umzulagern, müssen Sie zuerst ein Quell- und Ziellager auswählen.
-              </p>
+              ) : sourceProducts && sourceProducts.length > 0 ? (
+                <InventoryProductsTable 
+                  products={sourceProducts}
+                  onAddToCart={(product, quantity) => {
+                    // Konvertiere das InventoryProduct zu einem CartItem
+                    addToCart({
+                      id: product.id,
+                      productId: product.productId,
+                      productName: product.productName,
+                      quantity: quantity,
+                      maxQuantity: product.quantity,
+                      warehouseId: product.warehouseId
+                    });
+                  }}
+                  warehouseId={parseInt(sourceWarehouseId)}
+                />
+              ) : (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Keine Produkte verfügbar</AlertTitle>
+                  <AlertDescription>
+                    Im ausgewählten Lager sind keine Produkte mit Bestand vorhanden.
+                  </AlertDescription>
+                </Alert>
+              )}
             </CardContent>
           </Card>
-        )}
+        </div>
+        
+        {/* Rechte Spalte - Warenkorb */}
+        <div className="w-full lg:w-1/3">
+          <Card className="sticky top-4">
+            <CardHeader>
+              <CardTitle>Warenkorb</CardTitle>
+              <CardDescription>
+                Produkte zur Umlagerung ({cartItems.length} Positionen)
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <InventoryCart 
+                cartItems={cartItems}
+                onRemove={removeFromCart}
+                onUpdateQuantity={updateQuantity}
+                onClearCart={clearCart}
+                footer={
+                  <div className="mt-4 flex flex-col gap-2">
+                    <div className="flex justify-between font-medium">
+                      <span>Gesamtanzahl:</span>
+                      <span>{cartTotal} Einheiten</span>
+                    </div>
+                    <Button 
+                      className="w-full" 
+                      onClick={handleTransfer}
+                      disabled={
+                        transferMutation.isPending || 
+                        cartItems.length === 0 || 
+                        !sourceWarehouseId || 
+                        !targetWarehouseId ||
+                        sourceWarehouseId === targetWarehouseId
+                      }
+                    >
+                      {transferMutation.isPending ? (
+                        <>Übertrage Waren...</>
+                      ) : (
+                        <>Umlagerung durchführen</>
+                      )}
+                    </Button>
+                  </div>
+                }
+              />
+            </CardContent>
+          </Card>
+        </div>
       </div>
-    </InventoryCartProvider>
+    </div>
   );
 }
