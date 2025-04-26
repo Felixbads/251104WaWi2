@@ -283,8 +283,8 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
 
-        {/* Neue Warenbewegung Route */}
-        <Route path="/warenbewegung/new" component={props => (
+        {/* Warenbewegung (Warenumlagerung) Route */}
+        <Route path="/warenbewegung" component={props => (
           <ApprovedUserRoute>
             <WarenbewegungNewPage {...props} />
           </ApprovedUserRoute>
