@@ -77,7 +77,7 @@ async function updateTaxRates() {
     
     // 3. Prüfe, ob es Einkaufsbedingungen gibt, die nicht aktualisiert wurden und noch den Standardsatz haben
     const remainingConditions = await client.query(`
-      SELECT pc.id, p.name as product_name, pc.tax_rate
+      SELECT pc.id, p.product_name, pc.tax_rate
       FROM purchase_conditions pc
       JOIN products p ON pc.product_id = p.id
       WHERE pc.tax_rate IS NULL OR pc.tax_rate = 0
