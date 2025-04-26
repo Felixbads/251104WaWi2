@@ -29,6 +29,9 @@ const purchaseConditionSchema = z.object({
   unitPrice: z.coerce.number().min(0, {
     message: "Preis muss mindestens 0 sein",
   }),
+  taxRate: z.coerce.number().min(0, {
+    message: "MwSt-Satz muss mindestens 0 sein",
+  }).default(19),
   minQuantity: z.coerce.number().min(1, {
     message: "Mindestmenge muss mindestens 1 sein",
   }),
@@ -69,11 +72,13 @@ export function PurchaseConditionForm({
           ...existingCondition,
           validFrom: existingCondition.validFrom ? new Date(existingCondition.validFrom) : null,
           validTo: existingCondition.validTo ? new Date(existingCondition.validTo) : null,
+          taxRate: existingCondition.taxRate || 19
         }
       : {
           productId,
           supplierId,
           unitPrice: 0,
+          taxRate: 19,
           minQuantity: 1,
           packagingUnit: "",
           deliveryTime: "",
@@ -224,15 +229,50 @@ export function PurchaseConditionForm({
             name="unitPrice"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Einheitspreis (€)</FormLabel>
+                <FormLabel>Einheitspreis (€, netto)</FormLabel>
                 <FormControl>
                   <Input type="number" step="0.01" {...field} />
                 </FormControl>
+                <FormDescription>
+                  Nettopreis ohne Mehrwertsteuer
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
           />
 
+          {/* Mehrwertsteuer */}
+          <FormField
+            control={form.control}
+            name="taxRate"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Mehrwertsteuer (%)</FormLabel>
+                <FormControl>
+                  <Input 
+                    type="number" 
+                    step="0.1" 
+                    min="0" 
+                    max="19" 
+                    placeholder="19" 
+                    {...field} 
+                    value={field.value || 19}
+                    onChange={(e) => {
+                      const value = parseFloat(e.target.value);
+                      field.onChange(isNaN(value) ? 19 : value);
+                    }}
+                  />
+                </FormControl>
+                <FormDescription>
+                  19% für allgemeine Waren, 7% für Lebensmittel
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Mindestmenge */}
           <FormField
             control={form.control}
@@ -247,6 +287,25 @@ export function PurchaseConditionForm({
               </FormItem>
             )}
           />
+
+          {/* Berechneter Bruttopreis (nur Anzeige) */}
+          <div className="border rounded-md p-3">
+            <div className="text-sm font-medium">Bruttopreis (inkl. MwSt)</div>
+            <div className="text-2xl font-bold mt-1">
+              {(() => {
+                const unitPrice = form.watch("unitPrice") || 0;
+                const taxRate = form.watch("taxRate") || 19;
+                const grossPrice = unitPrice * (1 + taxRate / 100);
+                return new Intl.NumberFormat('de-DE', { 
+                  style: 'currency', 
+                  currency: 'EUR' 
+                }).format(grossPrice);
+              })()}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Automatisch berechnet aus Netto-Preis und MwSt-Satz
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
