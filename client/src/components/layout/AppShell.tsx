@@ -14,6 +14,12 @@ import { Link } from "wouter";
 import { useAuth } from "@/lib";
 
 // Zentrale Menüdefinition für konsistente Navigation in der gesamten App
+interface MenuItem {
+  title: string;
+  icon: React.ReactNode;
+  path: string;
+}
+
 export const menuItems = {
   overview: [
     { title: 'Dashboard', icon: <Home className="h-5 w-5 mr-3" />, path: '/' },
@@ -21,29 +27,27 @@ export const menuItems = {
     { title: 'Produkte', icon: <ShoppingBag className="h-5 w-5 mr-3" />, path: '/produkte' },
     { title: 'Lieferanten', icon: <Truck className="h-5 w-5 mr-3" />, path: '/lieferanten' },
     { title: 'Transaktionen', icon: <FileText className="h-5 w-5 mr-3" />, path: '/transactions' },
-  ],
-  management: [
-    { title: 'Warenentnahme', icon: <TrashIcon className="h-5 w-5 mr-3" />, path: '/warenentnahme' },
-  ],
+  ] as MenuItem[],
+  management: [] as MenuItem[],
   storage: [
     { title: 'Lagerbestand', icon: <Building2 className="h-5 w-5 mr-3" />, path: '/lagerbestand' },
-    { title: 'Warenumlagerung', icon: <MoveHorizontal className="h-5 w-5 mr-3" />, path: '/warenbewegung' },
+    { title: 'Warenbewegung', icon: <MoveHorizontal className="h-5 w-5 mr-3" />, path: '/warenbewegung' },
     { title: 'Inventur', icon: <ClipboardCheck className="h-5 w-5 mr-3" />, path: '/inventur' },
     { title: 'Bestellungen', icon: <ShoppingCart className="h-5 w-5 mr-3" />, path: '/bestellungen/neu-v2' },
-  ],
+  ] as MenuItem[],
   analysis: [
     { title: 'Auswertung', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/auswertungen' },
     { title: 'Erweiterte Auswertung', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/erweiterte-analyse' },
     { title: 'Prognose', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/forecast' },
     { title: 'Prognoseanalyse', icon: <LineChart className="h-5 w-5 mr-3" />, path: '/forecast-evaluation' },
-  ],
+  ] as MenuItem[],
   system: [
     { title: 'Synchronisierung', icon: <RefreshCw className="h-5 w-5 mr-3" />, path: '/synchronization' },
     { title: 'Sync-Verlauf', icon: <Clock className="h-5 w-5 mr-3" />, path: '/sync-history' },
     { title: 'Datenverfügbarkeit', icon: <Database className="h-5 w-5 mr-3" />, path: '/datenverfuegbarkeit' },
     { title: 'Benutzer', icon: <Users className="h-5 w-5 mr-3" />, path: '/benutzer' },
     { title: 'Einstellungen', icon: <Settings className="h-5 w-5 mr-3" />, path: '/settings' },
-  ]
+  ] as MenuItem[]
 };
 
 interface AppShellProps {
@@ -205,23 +209,25 @@ export default function AppShell({ children }: AppShellProps) {
           </div>
 
           {/* Nav Section: Verwaltung */}
-          <div className="py-4 border-b border-red-700">
-            <h3 className="px-6 text-xs font-semibold text-white uppercase tracking-wider mb-2">
-              Verwaltung
-            </h3>
-            <nav>
-              {menuItems.management.map((item, index) => (
-                <NavItem
-                  key={index}
-                  href={item.path}
-                  icon={item.icon}
-                  isActive={isActive(item.path)}
-                >
-                  {item.title}
-                </NavItem>
-              ))}
-            </nav>
-          </div>
+          {menuItems.management.length > 0 && (
+            <div className="py-4 border-b border-red-700">
+              <h3 className="px-6 text-xs font-semibold text-white uppercase tracking-wider mb-2">
+                Verwaltung
+              </h3>
+              <nav>
+                {menuItems.management.map((item, index) => (
+                  <NavItem
+                    key={index}
+                    href={item.path}
+                    icon={item.icon}
+                    isActive={isActive(item.path)}
+                  >
+                    {item.title}
+                  </NavItem>
+                ))}
+              </nav>
+            </div>
+          )}
           
           {/* Nav Section: ANALYSE */}
           <div className="py-4 border-b border-red-700">

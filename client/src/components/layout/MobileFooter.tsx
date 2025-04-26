@@ -38,7 +38,7 @@ export default function MobileFooter() {
     menuItems.overview[1], // Automaten
     menuItems.storage[2], // Bestellungen
     menuItems.storage[0], // Lagerbestand
-    menuItems.management[0], // Warenentnahme
+    menuItems.storage[1], // Warenbewegung (statt Warenentnahme)
   ];
 
   return (

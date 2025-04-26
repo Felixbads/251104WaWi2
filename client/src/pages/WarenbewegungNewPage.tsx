@@ -11,17 +11,32 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, MoveHorizontal } from "lucide-react";
+import { AlertCircle, MoveHorizontal, PackageOpen, RefreshCw } from "lucide-react";
 import { useInventoryCart } from "@/components/inventory/InventoryCartContext";
 import InventoryCart from "@/components/inventory/InventoryCart";
 import InventoryProductsTable from "@/components/inventory/InventoryProductsTable";
-import LoadingSpinner from "../components/LoadingSpinner";
+import LoadingSpinner from "@/components/LoadingSpinner";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 
-// Definiere Warehouse und InventoryProduct Typen
+// Types
 interface Warehouse {
   id: number;
   name: string;
@@ -39,9 +54,18 @@ interface InventoryProduct {
   status?: string;
 }
 
+// Form schema for disposal
+const disposalFormSchema = z.object({
+  warehouseId: z.string().min(1, { message: "Lager ist erforderlich" }),
+  reason: z.string().min(1, { message: "Grund ist erforderlich" }),
+  description: z.string().optional(),
+});
+
 export default function WarenbewegungNewPage() {
+  const [activeTab, setActiveTab] = useState<string>("umlagerung");
   const [sourceWarehouseId, setSourceWarehouseId] = useState<string>("");
   const [targetWarehouseId, setTargetWarehouseId] = useState<string>("");
+  const [disposalWarehouseId, setDisposalWarehouseId] = useState<string>("");
   const [showResults, setShowResults] = useState(false);
   const { toast } = useToast();
   const { 
@@ -53,19 +77,46 @@ export default function WarenbewegungNewPage() {
     cartTotal 
   } = useInventoryCart();
 
-  // Hole alle Lager
+  // Form for disposal
+  const disposalForm = useForm<z.infer<typeof disposalFormSchema>>({
+    resolver: zodResolver(disposalFormSchema),
+    defaultValues: {
+      warehouseId: "",
+      reason: "",
+      description: "",
+    },
+  });
+
+  // Sync the form warehouseId with our state
+  useEffect(() => {
+    if (disposalWarehouseId) {
+      disposalForm.setValue("warehouseId", disposalWarehouseId);
+    }
+  }, [disposalWarehouseId]);
+
+  // Update our state when form changes
+  useEffect(() => {
+    const subscription = disposalForm.watch((value) => {
+      if (value.warehouseId) {
+        setDisposalWarehouseId(value.warehouseId);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [disposalForm.watch]);
+
+  // Get all warehouses
   const { data: warehouses, isLoading: warehousesLoading } = useQuery({
     queryKey: ['/api/warehouses'],
     select: (data: Warehouse[]) => data.filter(w => w.status === 'active')
   });
 
-  // Hole Produkte für das ausgewählte Quelllager
+  // Get products for selected source warehouse (transfer)
   const { data: sourceProducts, isLoading: sourceProductsLoading } = useQuery({
     queryKey: ['/api/warehouse-products', sourceWarehouseId, { includeZeroStock: false }],
     enabled: !!sourceWarehouseId,
     select: (data: any[]) => {
       return data
-        .filter(item => item.quantity > 0) // Nur Produkte mit Bestand anzeigen
+        .filter(item => item.quantity > 0) // Only show products with stock
         .map(item => ({
           id: Number(item.id),
           productId: Number(item.productId),
@@ -78,7 +129,30 @@ export default function WarenbewegungNewPage() {
     }
   });
 
-  // Hook für die Übertragung
+  // Get products for selected warehouse (disposal)
+  const { 
+    data: disposalProducts, 
+    isLoading: disposalProductsLoading,
+    refetch: refetchDisposalProducts
+  } = useQuery({
+    queryKey: ['/api/warehouse-products', disposalWarehouseId, { includeZeroStock: false }],
+    enabled: !!disposalWarehouseId,
+    select: (data: any[]) => {
+      return data
+        .filter(item => item.quantity > 0) // Only show products with stock
+        .map(item => ({
+          id: Number(item.id),
+          productId: Number(item.productId),
+          productName: item.productName,
+          quantity: Number(item.quantity),
+          warehouseId: Number(item.warehouseId),
+          warehouseName: item.warehouseName,
+          status: item.status
+        }));
+    }
+  });
+
+  // Mutation for transfer
   const transferMutation = useMutation({
     mutationFn: async (transferData: any) => {
       const response = await fetch('/api/inventory-transfers', {
@@ -102,13 +176,13 @@ export default function WarenbewegungNewPage() {
         description: "Die Waren wurden erfolgreich umgelagert.",
       });
       
-      // Leere den Warenkorb
+      // Clear the cart
       clearCart();
       
-      // Aktualisiere die Produktliste
+      // Update product list
       queryClient.invalidateQueries({ queryKey: ['/api/warehouse-products'] });
       
-      // Zurücksetzen
+      // Reset
       setShowResults(false);
     },
     onError: (error: Error) => {
@@ -119,8 +193,55 @@ export default function WarenbewegungNewPage() {
       });
     }
   });
+
+  // Mutation for disposal
+  const disposalMutation = useMutation({
+    mutationFn: async (disposalData: any) => {
+      const response = await fetch('/api/product-disposals', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(disposalData),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Fehler bei der Entnahme');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Warenentnahme erfolgreich durchgeführt",
+        description: "Die Waren wurden erfolgreich entnommen.",
+      });
+      
+      // Clear the cart
+      clearCart();
+      
+      // Update product list
+      queryClient.invalidateQueries({ queryKey: ['/api/warehouse-products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/product-disposals'] });
+      
+      // Reset form
+      disposalForm.reset({
+        warehouseId: disposalWarehouseId,
+        reason: "",
+        description: "",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Fehler bei der Warenentnahme",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
   
-  // Wird aufgerufen, wenn die Übertragung abgeschlossen werden soll
+  // Handle transfer submission
   const handleTransfer = () => {
     if (!sourceWarehouseId || !targetWarehouseId) {
       toast({
@@ -140,7 +261,7 @@ export default function WarenbewegungNewPage() {
       return;
     }
     
-    // Überprüfe, ob Quell- und Ziellager unterschiedlich sind
+    // Check if source and target are different
     if (sourceWarehouseId === targetWarehouseId) {
       toast({
         title: "Gleiche Lager ausgewählt",
@@ -150,7 +271,7 @@ export default function WarenbewegungNewPage() {
       return;
     }
     
-    // Erstelle Transferdaten
+    // Create transfer data
     const transferData = {
       sourceWarehouseId: parseInt(sourceWarehouseId),
       targetWarehouseId: parseInt(targetWarehouseId),
@@ -164,175 +285,438 @@ export default function WarenbewegungNewPage() {
       }))
     };
     
-    // Führe die Übertragung durch
+    // Execute the transfer
     transferMutation.mutate(transferData);
   };
 
-  // Quelle oder Ziel geändert -> Ergebnisse zurücksetzen
+  // Handle disposal submission
+  const handleDisposal = () => {
+    if (!disposalForm.formState.isValid) {
+      disposalForm.trigger(); // Trigger validation to show errors
+      return;
+    }
+
+    if (cartItems.length === 0) {
+      toast({
+        title: "Warenkorb ist leer",
+        description: "Bitte fügen Sie Produkte zum Warenkorb hinzu.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const formValues = disposalForm.getValues();
+    
+    // Create disposal data
+    const disposalData = {
+      warehouseId: formValues.warehouseId,
+      reason: formValues.reason,
+      description: formValues.description || "",
+      status: "completed",
+      items: cartItems.map(item => ({
+        productId: item.productId,
+        productName: item.productName,
+        quantity: item.quantity
+      }))
+    };
+    
+    // Execute the disposal
+    disposalMutation.mutate(disposalData);
+  };
+
+  // Update results when source warehouse changes
   useEffect(() => {
     setShowResults(!!sourceWarehouseId);
   }, [sourceWarehouseId]);
 
+  // Handle tab change - Clear cart when switching tabs
+  const handleTabChange = (value: string) => {
+    if (value !== activeTab) {
+      clearCart();
+      setActiveTab(value);
+    }
+  };
+
+  // Build a map of product IDs to their available quantities for the disposal view
+  const availableQuantities: Record<string, number> = {};
+  if (disposalProducts) {
+    disposalProducts.forEach(item => {
+      availableQuantities[item.productId.toString()] = item.quantity || 0;
+    });
+  }
+
   return (
     <div className="container mx-auto py-6">
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* Linke Spalte */}
-        <div className="w-full lg:w-2/3 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MoveHorizontal className="h-6 w-6" />
-                Warenumlagerung
-              </CardTitle>
-              <CardDescription>
-                Wählen Sie ein Quell- und Ziellager aus, um Produkte zwischen Lagern zu bewegen.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col md:flex-row gap-4 mb-6">
-                {/* Quelllager Auswahl */}
-                <div className="w-full md:w-1/2">
-                  <Label htmlFor="sourceWarehouse">Quelllager</Label>
-                  <Select 
-                    value={sourceWarehouseId}
-                    onValueChange={value => setSourceWarehouseId(value)}
-                  >
-                    <SelectTrigger id="sourceWarehouse" className="w-full">
-                      <SelectValue placeholder="Wählen Sie ein Quelllager aus" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectLabel>Verfügbare Lager</SelectLabel>
-                        {!warehousesLoading && warehouses && warehouses.map(warehouse => (
-                          <SelectItem 
-                            key={warehouse.id} 
-                            value={warehouse.id.toString()}
-                            disabled={targetWarehouseId === warehouse.id.toString()}
-                          >
-                            {warehouse.name}
-                            {warehouse.location ? ` (${warehouse.location})` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                {/* Ziellager Auswahl */}
-                <div className="w-full md:w-1/2">
-                  <Label htmlFor="targetWarehouse">Ziellager</Label>
-                  <Select 
-                    value={targetWarehouseId}
-                    onValueChange={value => setTargetWarehouseId(value)}
-                  >
-                    <SelectTrigger id="targetWarehouse" className="w-full">
-                      <SelectValue placeholder="Wählen Sie ein Ziellager aus" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectLabel>Verfügbare Lager</SelectLabel>
-                        {!warehousesLoading && warehouses && warehouses.map(warehouse => (
-                          <SelectItem 
-                            key={warehouse.id} 
-                            value={warehouse.id.toString()}
-                            disabled={sourceWarehouseId === warehouse.id.toString()}
-                          >
-                            {warehouse.name}
-                            {warehouse.location ? ` (${warehouse.location})` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              {!showResults ? (
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Information</AlertTitle>
-                  <AlertDescription>
-                    Bitte wählen Sie ein Quelllager aus, um verfügbare Produkte anzuzeigen.
-                  </AlertDescription>
-                </Alert>
-              ) : sourceProductsLoading ? (
-                <div className="h-40 flex items-center justify-center">
-                  <LoadingSpinner />
-                </div>
-              ) : sourceProducts && sourceProducts.length > 0 ? (
-                <InventoryProductsTable 
-                  products={sourceProducts}
-                  onAddToCart={(product, quantity) => {
-                    // Konvertiere das InventoryProduct zu einem CartItem
-                    addToCart({
-                      id: product.id,
-                      productId: product.productId,
-                      productName: product.productName,
-                      quantity: quantity,
-                      maxQuantity: product.quantity,
-                      warehouseId: product.warehouseId
-                    });
-                  }}
-                  warehouseId={parseInt(sourceWarehouseId)}
-                />
-              ) : (
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Keine Produkte verfügbar</AlertTitle>
-                  <AlertDescription>
-                    Im ausgewählten Lager sind keine Produkte mit Bestand vorhanden.
-                  </AlertDescription>
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
+      <Tabs defaultValue="umlagerung" value={activeTab} onValueChange={handleTabChange}>
+        <div className="mb-6">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="umlagerung">Warenumlagerung</TabsTrigger>
+            <TabsTrigger value="entnahme">Warenentnahme</TabsTrigger>
+          </TabsList>
         </div>
-        
-        {/* Rechte Spalte - Warenkorb */}
-        <div className="w-full lg:w-1/3">
-          <Card className="sticky top-4">
-            <CardHeader>
-              <CardTitle>Warenkorb</CardTitle>
-              <CardDescription>
-                Produkte zur Umlagerung ({cartItems.length} Positionen)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <InventoryCart 
-                cartItems={cartItems}
-                onRemove={removeFromCart}
-                onUpdateQuantity={updateQuantity}
-                onClearCart={clearCart}
-                footer={
-                  <div className="mt-4 flex flex-col gap-2">
-                    <div className="flex justify-between font-medium">
-                      <span>Gesamtanzahl:</span>
-                      <span>{cartTotal} Einheiten</span>
+
+        {/* Umlagerung Tab Content */}
+        <TabsContent value="umlagerung">
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* Left Column */}
+            <div className="w-full lg:w-2/3 space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MoveHorizontal className="h-6 w-6" />
+                    Warenumlagerung
+                  </CardTitle>
+                  <CardDescription>
+                    Wählen Sie ein Quell- und Ziellager aus, um Produkte zwischen Lagern zu bewegen.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col md:flex-row gap-4 mb-6">
+                    {/* Source Warehouse Selection */}
+                    <div className="w-full md:w-1/2">
+                      <Label htmlFor="sourceWarehouse">Quelllager</Label>
+                      <Select 
+                        value={sourceWarehouseId}
+                        onValueChange={value => setSourceWarehouseId(value)}
+                      >
+                        <SelectTrigger id="sourceWarehouse" className="w-full">
+                          <SelectValue placeholder="Wählen Sie ein Quelllager aus" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectLabel>Verfügbare Lager</SelectLabel>
+                            {!warehousesLoading && warehouses && warehouses.map(warehouse => (
+                              <SelectItem 
+                                key={warehouse.id} 
+                                value={warehouse.id.toString()}
+                                disabled={targetWarehouseId === warehouse.id.toString()}
+                              >
+                                {warehouse.name}
+                                {warehouse.location ? ` (${warehouse.location})` : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
                     </div>
-                    <Button 
-                      className="w-full" 
-                      onClick={handleTransfer}
-                      disabled={
-                        transferMutation.isPending || 
-                        cartItems.length === 0 || 
-                        !sourceWarehouseId || 
-                        !targetWarehouseId ||
-                        sourceWarehouseId === targetWarehouseId
-                      }
-                    >
-                      {transferMutation.isPending ? (
-                        <>Übertrage Waren...</>
-                      ) : (
-                        <>Umlagerung durchführen</>
-                      )}
-                    </Button>
+                    
+                    {/* Target Warehouse Selection */}
+                    <div className="w-full md:w-1/2">
+                      <Label htmlFor="targetWarehouse">Ziellager</Label>
+                      <Select 
+                        value={targetWarehouseId}
+                        onValueChange={value => setTargetWarehouseId(value)}
+                      >
+                        <SelectTrigger id="targetWarehouse" className="w-full">
+                          <SelectValue placeholder="Wählen Sie ein Ziellager aus" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectLabel>Verfügbare Lager</SelectLabel>
+                            {!warehousesLoading && warehouses && warehouses.map(warehouse => (
+                              <SelectItem 
+                                key={warehouse.id} 
+                                value={warehouse.id.toString()}
+                                disabled={sourceWarehouseId === warehouse.id.toString()}
+                              >
+                                {warehouse.name}
+                                {warehouse.location ? ` (${warehouse.location})` : ''}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                }
-              />
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+                  
+                  {!showResults ? (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Information</AlertTitle>
+                      <AlertDescription>
+                        Bitte wählen Sie ein Quelllager aus, um verfügbare Produkte anzuzeigen.
+                      </AlertDescription>
+                    </Alert>
+                  ) : sourceProductsLoading ? (
+                    <div className="h-40 flex items-center justify-center">
+                      <LoadingSpinner />
+                    </div>
+                  ) : sourceProducts && sourceProducts.length > 0 ? (
+                    <InventoryProductsTable 
+                      products={sourceProducts}
+                      onAddToCart={(product, quantity) => {
+                        // Convert the InventoryProduct to a CartItem
+                        addToCart({
+                          id: product.id,
+                          productId: product.productId,
+                          productName: product.productName,
+                          quantity: quantity,
+                          maxQuantity: product.quantity,
+                          warehouseId: product.warehouseId
+                        });
+                      }}
+                      warehouseId={parseInt(sourceWarehouseId)}
+                    />
+                  ) : (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Keine Produkte verfügbar</AlertTitle>
+                      <AlertDescription>
+                        Im ausgewählten Lager sind keine Produkte mit Bestand vorhanden.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+            
+            {/* Right Column - Cart */}
+            <div className="w-full lg:w-1/3">
+              <Card className="sticky top-4">
+                <CardHeader>
+                  <CardTitle>Warenkorb</CardTitle>
+                  <CardDescription>
+                    Produkte zur Umlagerung ({cartItems.length} Positionen)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <InventoryCart 
+                    cartItems={cartItems}
+                    onRemove={removeFromCart}
+                    onUpdateQuantity={updateQuantity}
+                    onClearCart={clearCart}
+                    footer={
+                      <div className="mt-4 flex flex-col gap-2">
+                        <div className="flex justify-between font-medium">
+                          <span>Gesamtanzahl:</span>
+                          <span>{cartTotal} Einheiten</span>
+                        </div>
+                        <Button 
+                          className="w-full" 
+                          onClick={handleTransfer}
+                          disabled={
+                            transferMutation.isPending || 
+                            cartItems.length === 0 || 
+                            !sourceWarehouseId || 
+                            !targetWarehouseId ||
+                            sourceWarehouseId === targetWarehouseId
+                          }
+                        >
+                          {transferMutation.isPending ? (
+                            <>Übertrage Waren...</>
+                          ) : (
+                            <>Umlagerung durchführen</>
+                          )}
+                        </Button>
+                      </div>
+                    }
+                  />
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* Entnahme Tab Content */}
+        <TabsContent value="entnahme">
+          <div className="flex flex-col lg:flex-row gap-6">
+            {/* Left Column */}
+            <div className="w-full lg:w-2/3 space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <PackageOpen className="h-6 w-6" />
+                    Warenentnahme
+                  </CardTitle>
+                  <CardDescription>
+                    Wählen Sie ein Lager und geben Sie einen Grund für die Entnahme an.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Form {...disposalForm}>
+                    <form className="space-y-4">
+                      {/* Warehouse Selection */}
+                      <FormField
+                        control={disposalForm.control}
+                        name="warehouseId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Lager</FormLabel>
+                            <Select
+                              onValueChange={(value) => {
+                                field.onChange(value);
+                                setDisposalWarehouseId(value);
+                              }}
+                              defaultValue={field.value}
+                              value={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Lager auswählen" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {warehouses?.map(warehouse => (
+                                  <SelectItem
+                                    key={warehouse.id}
+                                    value={warehouse.id.toString()}
+                                  >
+                                    {warehouse.name}
+                                    {warehouse.location ? ` (${warehouse.location})` : ''}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Reason */}
+                      <FormField
+                        control={disposalForm.control}
+                        name="reason"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Grund</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Grund für die Entnahme"
+                                {...field}
+                                disabled={disposalMutation.isPending}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      {/* Description */}
+                      <FormField
+                        control={disposalForm.control}
+                        name="description"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Beschreibung (optional)</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="Detaillierte Beschreibung der Entnahme"
+                                {...field}
+                                disabled={disposalMutation.isPending}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </form>
+                  </Form>
+
+                  {disposalWarehouseId && (
+                    <div className="mt-6">
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-medium">Produkte im Lager</h3>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => refetchDisposalProducts()}
+                          disabled={disposalProductsLoading}
+                        >
+                          <RefreshCw className={`mr-2 h-4 w-4 ${disposalProductsLoading ? 'animate-spin' : ''}`} />
+                          Aktualisieren
+                        </Button>
+                      </div>
+
+                      {disposalProductsLoading ? (
+                        <div className="h-40 flex items-center justify-center">
+                          <LoadingSpinner />
+                        </div>
+                      ) : disposalProducts && disposalProducts.length > 0 ? (
+                        <InventoryProductsTable 
+                          products={disposalProducts}
+                          onAddToCart={(product, quantity) => {
+                            // Convert the InventoryProduct to a CartItem
+                            addToCart({
+                              id: product.id,
+                              productId: product.productId,
+                              productName: product.productName,
+                              quantity: quantity,
+                              maxQuantity: product.quantity,
+                              warehouseId: product.warehouseId
+                            });
+                          }}
+                          warehouseId={parseInt(disposalWarehouseId)}
+                        />
+                      ) : (
+                        <Alert>
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertTitle>Keine Produkte verfügbar</AlertTitle>
+                          <AlertDescription>
+                            Im ausgewählten Lager sind keine Produkte mit Bestand vorhanden.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                    </div>
+                  )}
+
+                  {!disposalWarehouseId && (
+                    <Alert className="mt-6">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Information</AlertTitle>
+                      <AlertDescription>
+                        Bitte wählen Sie ein Lager aus, um verfügbare Produkte anzuzeigen.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+            
+            {/* Right Column - Cart */}
+            <div className="w-full lg:w-1/3">
+              <Card className="sticky top-4">
+                <CardHeader>
+                  <CardTitle>Warenkorb</CardTitle>
+                  <CardDescription>
+                    Produkte zur Entnahme ({cartItems.length} Positionen)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <InventoryCart 
+                    cartItems={cartItems}
+                    onRemove={removeFromCart}
+                    onUpdateQuantity={updateQuantity}
+                    onClearCart={clearCart}
+                    footer={
+                      <div className="mt-4 flex flex-col gap-2">
+                        <div className="flex justify-between font-medium">
+                          <span>Gesamtanzahl:</span>
+                          <span>{cartTotal} Einheiten</span>
+                        </div>
+                        <Button 
+                          className="w-full" 
+                          onClick={handleDisposal}
+                          disabled={
+                            disposalMutation.isPending || 
+                            cartItems.length === 0 || 
+                            !disposalForm.formState.isValid
+                          }
+                        >
+                          {disposalMutation.isPending ? (
+                            <>Verarbeite Entnahme...</>
+                          ) : (
+                            <>Entnahme durchführen</>
+                          )}
+                        </Button>
+                      </div>
+                    }
+                  />
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
