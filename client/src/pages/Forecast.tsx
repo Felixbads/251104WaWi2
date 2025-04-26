@@ -52,9 +52,7 @@ export default function Forecast() {
   // Sync weather data
   const syncWeatherMutation = useMutation({
     mutationFn: (data: { startDate: string, endDate: string }) => {
-      return apiRequest("/api/weather/sync", {
-        body: data
-      }, 'POST');
+      return apiRequest("/api/weather/sync", data, 'POST');
     },
     onSuccess: () => {
       toast({
@@ -75,9 +73,7 @@ export default function Forecast() {
   // Sync holiday data
   const syncHolidaysMutation = useMutation({
     mutationFn: (data: { year: number, states?: string[] }) => {
-      return apiRequest("/api/holidays/sync", {
-        body: data
-      }, 'POST');
+      return apiRequest("/api/holidays/sync", data, 'POST');
     },
     onSuccess: () => {
       toast({
