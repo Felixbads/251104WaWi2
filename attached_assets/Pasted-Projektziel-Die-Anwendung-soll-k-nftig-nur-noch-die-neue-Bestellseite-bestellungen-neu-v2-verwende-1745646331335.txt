@@ -1,0 +1,50 @@
+Projektziel:
+Die Anwendung soll künftig nur noch die neue Bestellseite /bestellungen/neu-v2 verwenden. Die alte Bestellseite /bestellungen wird vollständig entfernt.
+
+⸻
+
+1. Entfernung der alten Bestellseite /bestellungen
+
+Aufgaben:
+	•	Entferne /bestellungen komplett:
+	•	Aus dem Menü
+	•	Aus allen Navigationslinks, Buttons oder Prozessen
+	•	Aus der Codebasis (Frontend und Backend)
+	•	Aus eventuellen API-Endpunkten, die speziell auf /bestellungen bezogen sind
+	•	Sicherstellen:
+	•	Keine Abhängigkeiten, versteckten Aufrufe oder Verlinkungen mehr auf die alte Seite
+	•	Keine Nutzung von veralteten Prozessen in Cronjobs, Event-Triggern oder Imports
+	•	Ergebnis:
+Das System kennt nur noch /bestellungen/neu-v2 als gültige Bestellfunktionalität.
+
+⸻
+
+2. Umfassende Analyse der neuen Bestellseite /bestellungen/neu-v2
+
+Aufgaben:
+	•	Prüfe die vollständige technische Struktur:
+	•	Welche Datenbanktabellen werden genutzt?
+	•	Welche Beziehungen zwischen Produkten, Bestellungen, Lieferanten, Lager, Automaten bestehen?
+	•	Wie sieht das aktuelle Datenmodell aus (Schema, Relationen, Foreign Keys, Constraints)?
+	•	Ablaufanalyse:
+	•	Wie wird eine Bestellung erstellt? (Prozesskette von der Auswahl bis zum Speichern)
+	•	Welche Schritte laufen im Frontend? Welche im Backend?
+	•	Welche Validierungen, Plausibilitätsprüfungen oder Standardwerte werden eingesetzt?
+	•	Fehleranalyse:
+	•	Identifiziere bestehende Fehler, Inkonsistenzen oder Schwachstellen im aktuellen Bestellablauf
+	•	Teste Grenzfälle (z. B. fehlende Lagerzuordnungen, abweichende Preise, Sonderprodukte)
+	•	Prüfe, ob alle Pflichtfelder und Abhängigkeiten korrekt geprüft werden
+	•	Prüfe eventuelle Performanceprobleme bei größeren Bestellmengen
+
+Wichtig:
+Alle Erkenntnisse müssen in einem kurzen Abschlussdokument oder einem Replit-Kommentar gesammelt werden:
+	•	Status Quo der neuen Seite
+	•	Identifizierte Fehler oder Risiken
+	•	Empfohlene Optimierungen oder Anpassungen
+
+⸻
+
+Ergebnisanforderung:
+	•	/bestellungen/neu-v2 ist die einzige noch vorhandene und verlinkte Bestellseite.
+	•	Sie ist technisch geprüft, stabilisiert und dokumentiert.
+	•	Die Anwendung läuft fehlerfrei und stabil nach der Umstellung.
