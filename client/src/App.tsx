@@ -39,23 +39,23 @@ function withAuth(WrappedComponent: React.ComponentType<any>) {
   return function WithAuthComponent(props: any) {
     const { isAuthenticated, isLoading, user } = useAuth();
     const [location] = useLocation();
-    
+
     // Während des Ladens zeigen wir nichts an
     if (isLoading) {
       return <div className="flex items-center justify-center h-screen">Lade...</div>;
     }
-    
+
     if (!isAuthenticated) {
       // Wir entfernen führende Slashes aus dem Location-String für die Weiterleitung
       const cleanLocation = location.startsWith('/') ? location.slice(1) : location;
       return <Redirect to={`/login?redirect=${encodeURIComponent(cleanLocation)}`} />;
     }
-    
+
     // Wenn der Benutzer nicht freigegeben ist und die Route nicht "/nicht-freigegeben" ist
     if (user && !user.approved && location !== '/nicht-freigegeben') {
       return <Redirect to="/nicht-freigegeben" />;
     }
-    
+
     return <WrappedComponent {...props} />;
   };
 }
@@ -77,9 +77,9 @@ import LagerNew from "@/pages/LagerNew";
 import WarehouseDetail from "@/pages/WarehouseDetail";
 import WarehouseDetailPage from "@/pages/WarehouseDetailPage";
 import WarehouseMovements from "@/pages/WarehouseMovements";
-import WarenentnahmePage from "@/pages/WarenentnahmePage";
-import WarenentnahmeDetail from "@/pages/WarenentnahmeDetail";
-import WarenentnahmeNew from "@/pages/WarenentnahmeNew";
+// import WarenentnahmePage from "@/pages/WarenentnahmePage";
+// import WarenentnahmeDetail from "@/pages/WarenentnahmeDetail";
+// import WarenentnahmeNew from "@/pages/WarenentnahmeNew";
 import InventoryMovementNew from "@/pages/InventoryMovementNew";
 import UserManagement from "@/pages/UserManagement";
 import InventurPage from "@/pages/InventurPage";
@@ -97,10 +97,10 @@ function AuthenticatedRouter() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const [location] = useLocation();
-  
+
   // Da wir bereits direkte Weiterleitungen im Login-Prozess haben,
   // ist keine weitere Umleitung für "/" und "/login" nötig
-  
+
   // Wir entfernen die withAuth-HOCs, da wir jetzt ApprovedUserRoute und AdminRoute verwenden
 
   return (
@@ -109,7 +109,7 @@ function AuthenticatedRouter() {
         {/* Öffentliche Routen */}
         <Route path="/nicht-freigegeben" component={NotApproved} />
         <Route path="/unauthorized" component={Unauthorized} />
-        
+
         {/* Geschützte Routen, die Freigabe erfordern */}
         <Route path="/login">
           {() => (
@@ -118,11 +118,11 @@ function AuthenticatedRouter() {
             </ApprovedUserRoute>
           )}
         </Route>
-        
+
         <Route path="/">
           <Redirect to="/login" />
         </Route>
-        
+
         <Route path="/transactions">
           {() => (
             <ApprovedUserRoute>
@@ -130,93 +130,93 @@ function AuthenticatedRouter() {
             </ApprovedUserRoute>
           )}
         </Route>
-        
+
         <Route path="/machines" component={props => (
           <ApprovedUserRoute>
             <Machines {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/automaten" component={props => (
           <ApprovedUserRoute>
             <Automaten {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/automaten/:id" component={props => (
           <ApprovedUserRoute>
             <AutomatDetail {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/automaten/:id/refills/:refillId" component={props => (
           <ApprovedUserRoute>
             <RefillDetail {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/produkte" component={props => (
           <ApprovedUserRoute>
             <Products {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/produkte/neu" component={props => (
           <ApprovedUserRoute>
             <ProductDetail {...props} isNew={true} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/produkte/:id" component={props => (
           <ApprovedUserRoute>
             <ProductDetail {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/lieferanten" component={props => (
           <ApprovedUserRoute>
             <Suppliers {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/lieferanten/:id" component={props => (
           <ApprovedUserRoute>
             <SupplierDetail {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/bestellungen">
           <Redirect to="/bestellungen/neu-v2" />
         </Route>
-        
+
         <Route path="/bestellungen/neu">
           <Redirect to="/bestellungen/neu-v2" />
         </Route>
-        
+
         <Route path="/bestellungen/neu-v2" component={props => (
           <ApprovedUserRoute>
             <BestellungV2 {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/bestellungen/:id" component={props => (
           <ApprovedUserRoute>
             <OrderDetail {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/bestellungen/:id/wareneingang" component={props => (
           <ApprovedUserRoute>
             <OrderReceipt {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/lieferantenportal" component={props => (
           <ApprovedUserRoute>
             <SupplierPortal {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/lager" component={props => (
           <ApprovedUserRoute>
             <LagerPage {...props} />
@@ -228,31 +228,31 @@ function AuthenticatedRouter() {
             <LagerNew {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/lagerhaltung" component={props => (
           <ApprovedUserRoute>
             <Lagerhaltung {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/inventory" component={props => (
           <ApprovedUserRoute>
             <Inventory {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/inventory/movements/new" component={props => (
           <ApprovedUserRoute>
             <InventoryMovementNew {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/warehouses/:id" component={props => (
           <ApprovedUserRoute>
             <WarehouseDetail {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/warehouse/:id" component={props => (
           <ApprovedUserRoute>
             <WarehouseDetailPage {...props} />
@@ -270,131 +270,130 @@ function AuthenticatedRouter() {
             <WarehouseOverviewPage {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/lagerbestand/:id" component={props => (
           <ApprovedUserRoute>
             <WarehouseInventoryPage {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/warehouses/:id/warenbewegung" component={props => (
           <ApprovedUserRoute>
             <WarehouseMovements {...props} />
           </ApprovedUserRoute>
         )} />
-        
-        <Route path="/warenumlagerung" component={props => (
+
+        {/* Neue Warenbewegung Route */}
+        <Route path="/warenbewegung/new" component={props => (
           <ApprovedUserRoute>
             <WarenbewegungNewPage {...props} />
           </ApprovedUserRoute>
         )} />
-        
-        <Route path="/warenentnahme" component={props => (
+        {/* Alte Routen auskommentiert (können später entfernt werden) */}
+        {/* <Route path="/warenentnahme" component={props => (
           <ApprovedUserRoute>
             <WarenentnahmePage {...props} />
           </ApprovedUserRoute>
         )} />
-        
         <Route path="/warenentnahme/new" component={props => (
           <ApprovedUserRoute>
             <WarenentnahmeNew {...props} />
           </ApprovedUserRoute>
         )} />
-        
         <Route path="/warenentnahme/:id" component={props => (
           <ApprovedUserRoute>
             <WarenentnahmeDetail {...props} />
           </ApprovedUserRoute>
-        )} />
-        
+        )} /> */}
+
         {/* Inventur-Seiten */}
         <Route path="/inventur" component={props => (
           <ApprovedUserRoute>
             <InventurPage {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/inventur/neu" component={props => (
           <ApprovedUserRoute>
             <InventurCreationPage {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         {/* Inventur-Detailseite */}
         <Route path="/inventur/:id" component={props => (
           <ApprovedUserRoute>
             <InventurDetailNewPage {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         {/* Neue verbesserte Inventur-Detailseite */}
         <Route path="/inventur-detail/:id" component={props => (
           <ApprovedUserRoute>
             <InventurDetailNewPage {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         {/* Nur Admin kann die Auswertungsseite sehen */}
         <Route path="/auswertungen" component={props => (
           <AdminRoute>
             <Reporting {...props} />
           </AdminRoute>
         )} />
-        
+
         <Route path="/erweiterte-analyse" component={props => (
           <AdminRoute>
             <AdvancedAnalysis {...props} />
           </AdminRoute>
         )} />
-        
+
         <Route path="/datenverfuegbarkeit" component={props => (
           <ApprovedUserRoute>
             <DataAvailability {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/synchronization" component={props => (
           <ApprovedUserRoute>
             <SyncDashboard {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/sync-history" component={props => (
           <ApprovedUserRoute>
             <SyncHistory {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/sync" component={props => (
           <ApprovedUserRoute>
             <SyncDashboard {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/forecast" component={props => (
           <ApprovedUserRoute>
             <Forecast {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/forecast-evaluation" component={props => (
           <ApprovedUserRoute>
             <ForecastEvaluation {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/settings" component={props => (
           <ApprovedUserRoute>
             <Settings {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         <Route path="/email-einstellungen" component={props => (
           <ApprovedUserRoute>
             <MailSettings {...props} />
           </ApprovedUserRoute>
         )} />
-        
+
         {/* Benutzer-Verwaltung für Admins */}
         <Route path="/benutzer">
           {() => (
@@ -403,7 +402,7 @@ function AuthenticatedRouter() {
             </AdminRoute>
           )}
         </Route>
-        
+
         <Route path="/:rest*" component={(props: any) => {
           const rest = props.params?.rest;
           return <NotFound title="Seite nicht gefunden" message={`Der Pfad /${Array.isArray(rest) ? rest.join('/') : rest || ''} existiert nicht.`} />;
@@ -419,7 +418,7 @@ import PublicRoute from "@/pages/PublicRoute";
 function PublicRouter() {
   // Beim Rendern überprüfen wir die aktuelle URL 
   const [location] = useLocation();
-  
+
   return (
     <Switch>
       {/* Login-Seite zeigt stattdessen direkt das Dashboard mit Login-Formular */}
@@ -457,10 +456,10 @@ function App() {
 function MainRouter() {
   const { isAuthenticated, user, isLoading } = useAuth();
   console.log("Auth status:", { isAuthenticated, user });
-  
+
   // Hier entfernen wir die automatische Weiterleitung, um mehrfache Weiterleitungen zu vermeiden
   // Die Navigation wird durch den Router basierend auf isAuthenticated gesteuert
-  
+
   // Während des Ladens zeigen wir einen Ladebildschirm an
   if (isLoading) {
     return (
@@ -472,7 +471,7 @@ function MainRouter() {
       </div>
     );
   }
-  
+
   return isAuthenticated ? <AuthenticatedRouter /> : <PublicRouter />;
 }
 

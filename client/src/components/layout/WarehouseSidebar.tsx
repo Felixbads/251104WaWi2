@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
-import { Building2, Package, BarChart2 } from 'lucide-react';
+import { Building2, Package, BarChart2, MoveHorizontal } from 'lucide-react';
 import { Link } from 'wouter';
 
 type Warehouse = {
@@ -70,6 +70,20 @@ export default function WarehouseSidebar() {
         >
           <BarChart2 className="h-4 w-4 mr-3" />
           <span className="truncate">Lagerbestand Übersicht</span>
+        </div>
+      </Link>
+      
+      {/* Warenbewegung / Umlagerung */}
+      <Link href="/warenbewegung/new">
+        <div
+          className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
+            isActive(`/warenbewegung/new`)
+              ? "text-primary-600 bg-primary-50"
+              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+          }`}
+        >
+          <MoveHorizontal className="h-4 w-4 mr-3" />
+          <span className="truncate">Warenumlagerung</span>
         </div>
       </Link>
       
