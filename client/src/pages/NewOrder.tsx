@@ -357,7 +357,7 @@ function WarehouseSelectionForm({
             
             <div className="flex justify-between pt-4">
               <Button variant="outline" asChild>
-                <Link to="/bestellungen">
+                <Link to="/bestellungen/neu-v2">
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Zurück
                 </Link>
