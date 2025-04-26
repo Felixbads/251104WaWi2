@@ -107,6 +107,20 @@ export interface IStorage {
   deleteProductDisposalItems(filter: { disposalId: number }): Promise<void>;
   updateInventoryForDisposal(warehouseId: string, productId: string, quantity: number): Promise<void>;
 
+  // Inventory Transfer operations
+  getInventoryTransfers(filter?: Record<string, any>): Promise<InventoryTransfer[]>;
+  getInventoryTransferById(id: number): Promise<InventoryTransfer | undefined>;
+  getInventoryTransferItems(filter: { transferId: number }): Promise<InventoryTransferItem[]>;
+  createInventoryTransfer(transfer: InsertInventoryTransfer): Promise<InventoryTransfer>;
+  createInventoryTransferItems(items: InsertInventoryTransferItem[]): Promise<InventoryTransferItem[]>;
+  updateInventoryTransfer(id: number, transfer: Partial<InsertInventoryTransfer>): Promise<InventoryTransfer | undefined>;
+  updateInventoryForTransfer(sourceWarehouseId: number, targetWarehouseId: number, productId: string, quantity: number): Promise<{
+    sourceStock: number;
+    targetStock: number;
+    success: boolean;
+  }>;
+  deleteInventoryTransfer(id: number): Promise<boolean>;
+
   // Machine operations
   getMachines(limit?: number): Promise<Machine[]>;
   getAllMachines(): Promise<Machine[]>;

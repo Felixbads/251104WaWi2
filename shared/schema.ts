@@ -1996,6 +1996,81 @@ export const productDisposalItemsRelations = relations(productDisposalItems, ({ 
   }),
 }));
 
+// ---- INVENTORY TRANSFERS ----
+
+// Inventory Transfers table
+export const inventoryTransfers = pgTable("inventory_transfers", {
+  id: serial("id").primaryKey(),
+  sourceWarehouseId: integer("source_warehouse_id").notNull().references(() => warehouses.id),
+  targetWarehouseId: integer("target_warehouse_id").notNull().references(() => warehouses.id),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  notes: varchar("notes", { length: 500 }),
+  createdBy: integer("created_by"),
+  completedAt: timestamp("completed_at"), // Wann wurde die Umlagerung abgeschlossen
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Inventory Transfer Items table
+export const inventoryTransferItems = pgTable("inventory_transfer_items", {
+  id: serial("id").primaryKey(),
+  transferId: integer("transfer_id").notNull().references(() => inventoryTransfers.id),
+  productId: varchar("product_id", { length: 50 }).notNull(), 
+  productName: varchar("product_name", { length: 255 }).notNull(),
+  quantity: integer("quantity").notNull(),
+  reason: varchar("reason", { length: 100 }),
+  previousSourceStock: integer("previous_source_stock"),
+  currentSourceStock: integer("current_source_stock"),
+  previousTargetStock: integer("previous_target_stock"),
+  currentTargetStock: integer("current_target_stock"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Inventory Transfers relations
+export const inventoryTransfersRelations = relations(inventoryTransfers, ({ many, one }) => ({
+  items: many(inventoryTransferItems),
+  sourceWarehouse: one(warehouses, {
+    fields: [inventoryTransfers.sourceWarehouseId],
+    references: [warehouses.id],
+  }),
+  targetWarehouse: one(warehouses, {
+    fields: [inventoryTransfers.targetWarehouseId],
+    references: [warehouses.id],
+  }),
+}));
+
+export const inventoryTransferItemsRelations = relations(inventoryTransferItems, ({ one }) => ({
+  transfer: one(inventoryTransfers, {
+    fields: [inventoryTransferItems.transferId],
+    references: [inventoryTransfers.id],
+  }),
+}));
+
+// Insert schemas for inventory transfers
+export const insertInventoryTransferSchema = createInsertSchema(inventoryTransfers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  completedAt: true,
+});
+
+export const insertInventoryTransferItemSchema = createInsertSchema(inventoryTransferItems).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  previousSourceStock: true,
+  currentSourceStock: true,
+  previousTargetStock: true,
+  currentTargetStock: true,
+});
+
+// Types for inventory transfers
+export type InsertInventoryTransfer = z.infer<typeof insertInventoryTransferSchema>;
+export type InventoryTransfer = typeof inventoryTransfers.$inferSelect;
+export type InsertInventoryTransferItem = z.infer<typeof insertInventoryTransferItemSchema>;
+export type InventoryTransferItem = typeof inventoryTransferItems.$inferSelect;
+
 export const insertProductDisposalSchema = createInsertSchema(productDisposals).omit({
   id: true,
   createdAt: true,
