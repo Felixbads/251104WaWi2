@@ -440,6 +440,11 @@ export async function getTransactions(limit = 50, offset = 0): Promise<Transacti
   return apiRequest<Transaction[]>('get', `/transactions?limit=${limit}&offset=${offset}`);
 }
 
+// Einzelne Transaktion abrufen
+export async function getTransaction(id: number): Promise<Transaction> {
+  return apiRequest<Transaction>('get', `/transactions/${id}`);
+}
+
 // Dashboard-Zusammenfassung
 export interface DashboardSummary {
   totalTransactions: number;

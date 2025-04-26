@@ -17,15 +17,25 @@ import {
   X,
   FileUp,
   FileCheck,
-  Loader2
+  Loader2,
+  ExternalLink
 } from "lucide-react";
+import { TransactionDetailDialog } from "@/components/transactions/TransactionDetailDialog";
 import { 
   getTransactions, 
   getTransactionsByDateRange, 
   formatDateTime,
   exportTransactionsToExcel,
-  importTransactionsFromExcel
+  importTransactionsFromExcel,
+  Transaction as BaseTransaction
 } from "@/lib/api";
+
+// Erweiterte Schnittstelle für Transaktionen mit zusätzlichen Feldern
+interface ExtendedTransaction extends BaseTransaction {
+  status?: string;
+  source?: string;
+  // Andere benötigte Felder hier hinzufügen
+}
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -57,9 +67,11 @@ export default function Transactions() {
   const [limit, setLimit] = useState(25);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  const [selectedTransactionId, setSelectedTransactionId] = useState<number | null>(null);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
 
   // Query to get transactions with date range
-  const { data: transactions, isLoading, error, refetch } = useQuery({
+  const { data: transactions, isLoading, error, refetch } = useQuery<ExtendedTransaction[]>({
     queryKey: [
       '/api/transactions/byDateRange',
       startDate?.toISOString(),
@@ -68,8 +80,8 @@ export default function Transactions() {
     ],
     queryFn: () => 
       startDate && endDate 
-        ? getTransactionsByDateRange(startDate.toISOString(), endDate.toISOString(), limit)
-        : getTransactions(limit),
+        ? getTransactionsByDateRange(startDate.toISOString(), endDate.toISOString(), limit) as Promise<ExtendedTransaction[]>
+        : getTransactions(limit) as Promise<ExtendedTransaction[]>,
     enabled: !!startDate && !!endDate,
   });
 
@@ -235,6 +247,12 @@ export default function Transactions() {
         filter.startsWith("Einträge:") ? limitFilter : filter
       ));
     }
+  };
+  
+  // Öffnet den Transaktionsdetail-Dialog für eine bestimmte Transaktion
+  const handleOpenTransactionDetail = (transactionId: number) => {
+    setSelectedTransactionId(transactionId);
+    setIsDetailDialogOpen(true);
   };
 
   // Filter transactions based on search query
@@ -558,7 +576,11 @@ export default function Transactions() {
                   ))
                 ) : filteredTransactions && filteredTransactions.length > 0 ? (
                   filteredTransactions.map((transaction) => (
-                    <tr key={transaction.id} className="border-b hover:bg-muted/20">
+                    <tr 
+                      key={transaction.id} 
+                      className="border-b hover:bg-muted/20 cursor-pointer"
+                      onClick={() => handleOpenTransactionDetail(transaction.id)}
+                    >
                       <td className="px-4 py-3 text-sm text-gray-500">
                         {transaction.id}
                       </td>
@@ -628,6 +650,13 @@ export default function Transactions() {
           )}
         </CardContent>
       </Card>
+
+      {/* Transaktionsdetail-Dialog */}
+      <TransactionDetailDialog
+        open={isDetailDialogOpen}
+        onOpenChange={setIsDetailDialogOpen}
+        transactionId={selectedTransactionId}
+      />
     </div>
   );
 }
