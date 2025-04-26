@@ -382,6 +382,12 @@ function AuthenticatedRouter() {
             <ForecastEvaluation {...props} />
           </ApprovedUserRoute>
         )} />
+        
+        <Route path="/forecast-detail" component={props => (
+          <ApprovedUserRoute>
+            <ForecastDetail {...props} />
+          </ApprovedUserRoute>
+        )} />
 
         <Route path="/settings" component={props => (
           <ApprovedUserRoute>
