@@ -234,10 +234,22 @@ router.post('/sync', async (req: Request, res: Response) => {
       year = new Date().getFullYear(), 
       state = 'SN', 
       includeNextYear = false,
-      includeSchoolHolidays = true 
+      includeSchoolHolidays = true,
+      allStates = false
     } = req.body;
 
-    console.log(`Synchronisiere Feiertage für Jahr ${year} und Bundesland ${state} (POST-Methode)`);
+    // Bestimme die zu synchronisierenden Bundesländer
+    let statesToSync: string[];
+    
+    if (allStates) {
+      // Alle Bundesländer synchronisieren
+      statesToSync = ALL_STATES.map(s => s.code);
+      console.log(`Synchronisiere Feiertage für alle Bundesländer (${statesToSync.join(', ')}) im Jahr ${year} (POST-Methode)`);
+    } else {
+      // Nur das angegebene Bundesland synchronisieren
+      statesToSync = [state];
+      console.log(`Synchronisiere Feiertage für Bundesland ${state} im Jahr ${year} (POST-Methode)`);
+    }
     
     // Erstelle Array der zu synchronisierenden Jahre
     const yearsToSync = [year];
@@ -245,14 +257,13 @@ router.post('/sync', async (req: Request, res: Response) => {
       yearsToSync.push(year + 1);
     }
     
-    // Führe die Synchronisierung für jedes Jahr durch
+    // Führe die Synchronisierung für jedes Jahr und jedes Bundesland durch
     let totalCount = 0;
     const results = [];
     
     for (const syncYear of yearsToSync) {
-      console.log(`Synchronisiere Jahr ${syncYear}...`);
-      // Vereinfachte Implementierung, die sowohl Feiertage als auch Schulferien synchronisiert
-      const count = await holidayService.syncHolidaysForYear(syncYear, [state]);
+      console.log(`Synchronisiere Jahr ${syncYear} für ${statesToSync.length} Bundesländer...`);
+      const count = await holidayService.syncHolidaysForYear(syncYear, statesToSync);
       totalCount += count;
       results.push({ year: syncYear, count });
     }
@@ -264,7 +275,8 @@ router.post('/sync', async (req: Request, res: Response) => {
       message: "Feiertage erfolgreich synchronisiert",
       data: {
         years: yearsToSync,
-        state,
+        states: statesToSync,
+        allStates,
         includeSchoolHolidays,
         addedEntries: totalCount,
         details: results

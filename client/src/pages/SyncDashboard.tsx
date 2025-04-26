@@ -256,11 +256,13 @@ export default function SyncDashboard() {
   };
 
   // Feiertage-Synchronisierung starten
-  const syncHolidays = async () => {
+  const syncHolidays = async (allStates = false) => {
     try {
       toast({
         title: "Feiertags-Synchronisierung gestartet",
-        description: "Die Synchronisierung von Feiertagen und Schulferien wird gestartet.",
+        description: allStates 
+          ? "Die Synchronisierung von Feiertagen und Schulferien für alle Bundesländer wird gestartet."
+          : "Die Synchronisierung von Feiertagen und Schulferien für Sachsen wird gestartet.",
       });
       
       // Aktuelles Jahr + nächstes Jahr synchronisieren
@@ -269,12 +271,15 @@ export default function SyncDashboard() {
         year: currentYear,
         includeNextYear: true,
         state: "SN", // Default: Sachsen
+        allStates: allStates, // Alle Bundesländer synchronisieren, wenn true
         includeSchoolHolidays: true
       });
       
       toast({
         title: "Feiertage erfolgreich synchronisiert",
-        description: `Feiertage und Schulferien für ${currentYear}/${currentYear+1} wurden aktualisiert.`,
+        description: allStates
+          ? `Feiertage und Schulferien für alle Bundesländer (${currentYear}/${currentYear+1}) wurden aktualisiert.`
+          : `Feiertage und Schulferien für Sachsen (${currentYear}/${currentYear+1}) wurden aktualisiert.`,
       });
     } catch (error: unknown) {
       const errorMessage = error instanceof Error 
@@ -955,17 +960,33 @@ export default function SyncDashboard() {
                       <div>
                         <h4 className="text-sm font-medium">Feiertage und Schulferien aktualisieren</h4>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Feiertage und Schulferien für Sachsen (SN) für das aktuelle und nächste Jahr synchronisieren.
+                          Feiertage und Schulferien für das aktuelle und nächste Jahr synchronisieren.
                         </p>
                       </div>
-                      <Button 
-                        onClick={syncHolidays}
-                        className="self-start" 
-                        variant="default"
-                      >
-                        <Calendar className="h-4 w-4 mr-2" />
-                        Jetzt synchronisieren
-                      </Button>
+                      <div className="flex space-x-2">
+                        <Button 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            syncHolidays(false);
+                          }}
+                          className="self-start" 
+                          variant="default"
+                        >
+                          <Calendar className="h-4 w-4 mr-2" />
+                          Sachsen synchronisieren
+                        </Button>
+                        <Button 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            syncHolidays(true);
+                          }}
+                          className="self-start" 
+                          variant="outline"
+                        >
+                          <Calendar className="h-4 w-4 mr-2" />
+                          Alle Bundesländer
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
