@@ -19,6 +19,7 @@ import Settings from "@/pages/Settings";
 import MailSettings from "@/pages/MailSettings"; // Neue Email-Einstellungen-Seite
 import Forecast from "@/pages/Forecast";
 import ForecastEvaluation from "@/pages/ForecastEvaluation";
+import ForecastDetail from "@/pages/ForecastDetail";
 import DataAvailability from "@/pages/DataAvailability"; // Neue Datenverfügbarkeits-Komponente
 import AdvancedAnalysis from "@/pages/AdvancedAnalysis"; // Erweiterte Analyse-Komponente
 import Login from "@/pages/Login";

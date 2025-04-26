@@ -71,6 +71,7 @@ import {
   Loader2
 } from 'lucide-react';
 import PageHeader from "@/components/layout/PageHeader";
+import { Cell } from "recharts";
 
 export default function ForecastDetail() {
   const { toast } = useToast();
@@ -592,8 +593,10 @@ export default function ForecastDetail() {
     <div className="space-y-6">
       <PageHeader
         title="Prognoseanalyse"
-        description="Detaillierte Analyse erwarteter Verkaufszahlen nach Tag, Produkt, Automat und Standort"
       />
+      <p className="text-muted-foreground mt-1 mb-6">
+        Detaillierte Analyse erwarteter Verkaufszahlen nach Tag, Produkt, Automat und Standort
+      </p>
       
       {/* Filter Card */}
       <Card>

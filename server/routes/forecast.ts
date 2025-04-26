@@ -321,6 +321,182 @@ export function registerForecastRoutes(app: Express): void {
     }
   });
   
+  // Detaillierte Prognoseanalyse für umfangreiche Filterung und Visualisierung
+  app.get(`${API_PREFIX}/forecast/detailed`, async (req: Request, res: Response) => {
+    try {
+      const queryParams = {
+        startDate: req.query.startDate as string,
+        endDate: req.query.endDate as string,
+        modelId: req.query.modelId ? parseInt(req.query.modelId as string, 10) : undefined,
+        locationId: req.query.locationId ? parseInt(req.query.locationId as string, 10) : undefined,
+        machineId: req.query.machineId ? parseInt(req.query.machineId as string, 10) : undefined,
+        productId: req.query.productId ? parseInt(req.query.productId as string, 10) : undefined,
+        categoryId: req.query.categoryId ? parseInt(req.query.categoryId as string, 10) : undefined,
+        groupBy: (req.query.groupBy as 'day' | 'product' | 'machine' | 'location') || 'day'
+      };
+      
+      // Validiere Parameter
+      if (!queryParams.startDate || !queryParams.endDate) {
+        return res.status(400).json({ error: "Start- und Enddatum sind erforderlich" });
+      }
+      
+      // Hole aktives Modell, wenn keins angegeben
+      if (!queryParams.modelId) {
+        const activeModels = await forecastService.getForecastModels('ready');
+        if (activeModels && activeModels.length > 0) {
+          queryParams.modelId = activeModels[0].id;
+        } else {
+          return res.status(404).json({ error: "Kein aktives Prognosemodell gefunden" });
+        }
+      }
+      
+      const { startDate, endDate, modelId, locationId, machineId, productId, categoryId, groupBy } = queryParams;
+      
+      // Erstelle Basis-SQL-Abfrage je nach Gruppierung
+      let forecasts;
+      
+      if (groupBy === 'day') {
+        // Gruppierung nach Tag mit Raw SQL für bessere Flexibilität
+        forecasts = await db.execute(sql`
+          SELECT 
+            f.forecast_date,
+            SUM(f.predicted_quantity) as predicted_quantity,
+            SUM(f.lower_bound) as lower_bound,
+            SUM(f.upper_bound) as upper_bound,
+            BOOL_OR(f.is_holiday) as is_holiday,
+            MAX(f.holiday_name) as holiday_name,
+            AVG(f.confidence) as confidence,
+            MAX(f.weather_summary) as weather_summary
+          FROM 
+            forecasts f
+          WHERE 
+            f.model_id = ${modelId}
+            AND f.forecast_date BETWEEN ${startDate} AND ${endDate}
+            ${locationId ? sql`AND f.location_id = ${locationId}` : sql``}
+            ${machineId ? sql`AND f.machine_id = ${machineId}` : sql``}
+            ${productId ? sql`AND f.product_id = ${productId}::text` : sql``}
+          GROUP BY 
+            f.forecast_date
+          ORDER BY 
+            f.forecast_date
+        `);
+      } 
+      else if (groupBy === 'product') {
+        // Gruppierung nach Produkt
+        forecasts = await db.execute(sql`
+          SELECT 
+            p.id as product_id,
+            p.name as product_name,
+            p.category as category_name,
+            SUM(f.predicted_quantity) as predicted_quantity,
+            AVG(f.confidence) as confidence,
+            SUM(f.lower_bound) as lower_bound,
+            SUM(f.upper_bound) as upper_bound
+          FROM 
+            forecasts f
+            LEFT JOIN products p ON f.product_id = p.id::text
+          WHERE 
+            f.model_id = ${modelId}
+            AND f.forecast_date BETWEEN ${startDate} AND ${endDate}
+            ${locationId ? sql`AND f.location_id = ${locationId}` : sql``}
+            ${machineId ? sql`AND f.machine_id = ${machineId}` : sql``}
+            ${categoryId ? sql`AND p.category_id = ${categoryId}` : sql``}
+          GROUP BY 
+            p.id, p.name, p.category
+          ORDER BY 
+            SUM(f.predicted_quantity) DESC
+        `);
+      } 
+      else if (groupBy === 'machine') {
+        // Gruppierung nach Automat
+        forecasts = await db.execute(sql`
+          SELECT 
+            m.id as machine_id,
+            m.name as machine_name,
+            l.id as location_id,
+            l.name as location_name,
+            SUM(f.predicted_quantity) as predicted_quantity,
+            AVG(f.confidence) as confidence,
+            SUM(f.lower_bound) as lower_bound,
+            SUM(f.upper_bound) as upper_bound
+          FROM 
+            forecasts f
+            LEFT JOIN machines m ON f.machine_id = m.id
+            LEFT JOIN locations l ON f.location_id = l.id
+          WHERE 
+            f.model_id = ${modelId}
+            AND f.forecast_date BETWEEN ${startDate} AND ${endDate}
+            ${locationId ? sql`AND f.location_id = ${locationId}` : sql``}
+            ${productId ? sql`AND f.product_id = ${productId}::text` : sql``}
+          GROUP BY 
+            m.id, m.name, l.id, l.name
+          ORDER BY 
+            SUM(f.predicted_quantity) DESC
+        `);
+      } 
+      else if (groupBy === 'location') {
+        // Gruppierung nach Standort
+        forecasts = await db.execute(sql`
+          SELECT 
+            l.id as location_id,
+            l.name as location_name,
+            COUNT(DISTINCT m.id) as machine_count,
+            SUM(f.predicted_quantity) as predicted_quantity,
+            AVG(f.confidence) as confidence,
+            SUM(f.lower_bound) as lower_bound,
+            SUM(f.upper_bound) as upper_bound
+          FROM 
+            forecasts f
+            LEFT JOIN locations l ON f.location_id = l.id
+            LEFT JOIN machines m ON f.machine_id = m.id
+          WHERE 
+            f.model_id = ${modelId}
+            AND f.forecast_date BETWEEN ${startDate} AND ${endDate}
+            ${machineId ? sql`AND f.machine_id = ${machineId}` : sql``}
+            ${productId ? sql`AND f.product_id = ${productId}::text` : sql``}
+          GROUP BY 
+            l.id, l.name
+          ORDER BY 
+            SUM(f.predicted_quantity) DESC
+        `);
+      }
+      
+      if (!forecasts || forecasts.length === 0) {
+        return res.json([]);
+      }
+      
+      // Für tägliche Prognosen, füge Trendinformation hinzu
+      if (groupBy === 'day' && Array.isArray(forecasts) && forecasts.length > 1) {
+        // Sortiere nach Datum
+        forecasts.sort((a: any, b: any) => {
+          return new Date(a.forecast_date).getTime() - new Date(b.forecast_date).getTime();
+        });
+        
+        // Berechne Trend für jeden Tag im Vergleich zum Vortag
+        for (let i = 1; i < forecasts.length; i++) {
+          const today = forecasts[i].predicted_quantity;
+          const yesterday = forecasts[i-1].predicted_quantity;
+          
+          if (today > yesterday * 1.1) {
+            forecasts[i].trend = 'up'; // 10% oder mehr Steigerung
+          } else if (today < yesterday * 0.9) {
+            forecasts[i].trend = 'down'; // 10% oder mehr Rückgang
+          } else {
+            forecasts[i].trend = 'neutral'; // Stabil
+          }
+        }
+        
+        // Der erste Tag hat keinen Vortags-Vergleich
+        forecasts[0].trend = 'neutral';
+      }
+      
+      res.json(forecasts);
+    } catch (error) {
+      console.error("Fehler bei der detaillierten Prognoseanalyse:", error);
+      res.status(500).json({ error: "Interner Serverfehler" });
+    }
+  });
+  
   // Aktuelle Prognosen für das Dashboard abrufen (14 Tage)
   app.get(`${API_PREFIX}/forecast/dashboard`, async (req: Request, res: Response) => {
     try {
