@@ -183,17 +183,13 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
         
-        <Route path="/bestellungen" component={props => (
-          <ApprovedUserRoute>
-            <Orders {...props} />
-          </ApprovedUserRoute>
-        )} />
+        <Route path="/bestellungen">
+          <Redirect to="/bestellungen/neu-v2" />
+        </Route>
         
-        <Route path="/bestellungen/neu" component={props => (
-          <ApprovedUserRoute>
-            <NewOrder {...props} />
-          </ApprovedUserRoute>
-        )} />
+        <Route path="/bestellungen/neu">
+          <Redirect to="/bestellungen/neu-v2" />
+        </Route>
         
         <Route path="/bestellungen/neu-v2" component={props => (
           <ApprovedUserRoute>
