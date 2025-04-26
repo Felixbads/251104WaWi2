@@ -145,6 +145,7 @@ import {
 import { insertSupplierSchema } from "@shared/schema";
 import vendonRoutes from "./routes/vendon";
 import productDisposalsRoutes from "./routes/productDisposals";
+import inventoryTransfersRoutes from "./routes/inventoryTransfers";
 import exportImportRoutes from "./routes/exportImport";
 import removedProductsRoutes from "./routes/removedProducts";
 import weatherRoutes from "./routes/weather";
@@ -2635,6 +2636,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/vendon`, vendonRoutes);
   app.use(`${API_PREFIX}/vendon/historical-import`, vendonHistoricalImportRouter);
   app.use(`${API_PREFIX}/product-disposals`, productDisposalsRoutes);
+  app.use(`${API_PREFIX}/inventory-transfers`, inventoryTransfersRoutes);
   app.use(`${API_PREFIX}/removed-products`, removedProductsRoutes);
   app.use(`${API_PREFIX}/weather`, weatherRoutes);
   app.use(`${API_PREFIX}/holidays`, holidaysRoutes);
