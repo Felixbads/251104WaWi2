@@ -518,7 +518,10 @@ export default function SyncDashboard() {
                     Sachsen (inkl. Schulferien)
                   </span>
                   <Button 
-                    onClick={syncHolidays} 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      syncHolidays(false);
+                    }} 
                     size="sm" 
                     variant="outline" 
                     className="mt-2"
@@ -741,14 +744,30 @@ export default function SyncDashboard() {
                   Gestrige Wetterdaten abrufen
                 </Button>
                 
-                <Button 
-                  onClick={syncHolidays}
-                  className="flex items-center gap-2"
-                  variant="outline"
-                >
-                  <Calendar className="h-4 w-4" />
-                  Feiertage aktualisieren
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      syncHolidays(false);
+                    }}
+                    className="flex items-center gap-2"
+                    variant="outline"
+                  >
+                    <Calendar className="h-4 w-4" />
+                    Feiertage (Sachsen)
+                  </Button>
+                  <Button 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      syncHolidays(true);
+                    }}
+                    className="flex items-center gap-2"
+                    variant="outline"
+                  >
+                    <Calendar className="h-4 w-4" />
+                    Alle Bundesländer
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
