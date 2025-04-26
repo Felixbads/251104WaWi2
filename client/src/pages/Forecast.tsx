@@ -98,9 +98,7 @@ export default function Forecast() {
   // Create forecast model
   const createModelMutation = useMutation({
     mutationFn: (data: any) => {
-      return apiRequest("/api/forecast/models", {
-        body: data
-      }, 'POST');
+      return apiRequest("/api/forecast/models", data, 'POST');
     },
     onSuccess: () => {
       toast({
@@ -121,11 +119,9 @@ export default function Forecast() {
   // Train forecast model
   const trainModelMutation = useMutation({
     mutationFn: (data: { modelId: number, startDate: string, endDate: string }) => {
-      return apiRequest(`/api/forecast/models/${data.modelId}/train`, {
-        body: { 
-          startDate: data.startDate, 
-          endDate: data.endDate 
-        }
+      return apiRequest(`/api/forecast/models/${data.modelId}/train`, { 
+        startDate: data.startDate, 
+        endDate: data.endDate 
       }, 'POST');
     },
     onSuccess: () => {
@@ -148,9 +144,7 @@ export default function Forecast() {
   const createForecastMutation = useMutation({
     mutationFn: (data: { modelId: number, startDate: string, endDate: string }) => {
       console.log("Sende Prognoseerstellungsdaten:", data);
-      return apiRequest("/api/forecast/create", {
-        body: data,
-      }, 'POST');
+      return apiRequest("/api/forecast/create", data, 'POST');
     },
     onSuccess: () => {
       toast({
