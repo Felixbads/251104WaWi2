@@ -23,6 +23,8 @@ import {
   machineWarehouseAssignments, type MachineWarehouseAssignment, type InsertMachineWarehouseAssignment,
   productDisposals, type ProductDisposal, type InsertProductDisposal,
   productDisposalItems, type ProductDisposalItem, type InsertProductDisposalItem,
+  inventoryTransfers, type InventoryTransfer, type InsertInventoryTransfer,
+  inventoryTransferItems, type InventoryTransferItem, type InsertInventoryTransferItem,
   stocks, type Stock, type InsertStock,
   machineStocks, type MachineStock, type InsertMachineStock,
   orders, type Order, type InsertOrder,
@@ -3495,6 +3497,211 @@ export class DatabaseStorage implements IStorage {
         updatedAt: new Date()
       })
       .where(eq(inventoryItems.id, inventoryItem.id));
+  }
+
+  // Inventory Transfer operations
+  async getInventoryTransfers(filter: Record<string, any> = {}): Promise<InventoryTransfer[]> {
+    // Basisabfrage
+    let query = db
+      .select()
+      .from(inventoryTransfers)
+      .orderBy(desc(inventoryTransfers.createdAt));
+    
+    // Filter anwenden
+    if (filter.status) {
+      query = query.where(eq(inventoryTransfers.status, filter.status));
+    }
+    
+    // Lager-Filter (zeige Transfers entweder als Quelle oder Ziel)
+    if (filter.warehouseId) {
+      const warehouseId = parseInt(filter.warehouseId);
+      if (!isNaN(warehouseId)) {
+        query = query.where(
+          or(
+            eq(inventoryTransfers.sourceWarehouseId, warehouseId),
+            eq(inventoryTransfers.targetWarehouseId, warehouseId)
+          )
+        );
+      }
+    }
+    
+    return await query;
+  }
+
+  async getInventoryTransferById(id: number): Promise<InventoryTransfer | undefined> {
+    const [transfer] = await db
+      .select()
+      .from(inventoryTransfers)
+      .where(eq(inventoryTransfers.id, id));
+    
+    return transfer;
+  }
+
+  async getInventoryTransferItems(filter: { transferId: number }): Promise<InventoryTransferItem[]> {
+    return await db
+      .select()
+      .from(inventoryTransferItems)
+      .where(eq(inventoryTransferItems.transferId, filter.transferId))
+      .orderBy(asc(inventoryTransferItems.createdAt));
+  }
+
+  async createInventoryTransfer(transfer: InsertInventoryTransfer): Promise<InventoryTransfer> {
+    const [newTransfer] = await db
+      .insert(inventoryTransfers)
+      .values(transfer)
+      .returning();
+    
+    return newTransfer;
+  }
+
+  async createInventoryTransferItems(items: InsertInventoryTransferItem[]): Promise<InventoryTransferItem[]> {
+    if (items.length === 0) {
+      return [];
+    }
+    
+    return await db
+      .insert(inventoryTransferItems)
+      .values(items)
+      .returning();
+  }
+
+  async updateInventoryTransfer(
+    id: number, 
+    transfer: Partial<InsertInventoryTransfer>
+  ): Promise<InventoryTransfer | undefined> {
+    const [updatedTransfer] = await db
+      .update(inventoryTransfers)
+      .set(transfer)
+      .where(eq(inventoryTransfers.id, id))
+      .returning();
+    
+    return updatedTransfer;
+  }
+
+  async updateInventoryForTransfer(
+    sourceWarehouseId: number,
+    targetWarehouseId: number,
+    productId: string,
+    quantity: number
+  ): Promise<{
+    sourceStock: number;
+    targetStock: number;
+    success: boolean;
+  }> {
+    // Prüfen, ob genug Bestand im Quelllager vorhanden ist
+    const [sourceInventory] = await db
+      .select()
+      .from(inventoryItems)
+      .where(and(
+        eq(inventoryItems.warehouseId, sourceWarehouseId),
+        eq(inventoryItems.productId, parseInt(productId))
+      ));
+    
+    if (!sourceInventory || (sourceInventory.quantity || 0) < quantity) {
+      return {
+        sourceStock: sourceInventory?.quantity || 0,
+        targetStock: 0,
+        success: false
+      };
+    }
+    
+    // Bestand im Quelllager reduzieren
+    const [updatedSourceInventory] = await db
+      .update(inventoryItems)
+      .set({
+        quantity: (sourceInventory.quantity || 0) - quantity,
+        updatedAt: new Date()
+      })
+      .where(eq(inventoryItems.id, sourceInventory.id))
+      .returning();
+    
+    // Bestand im Ziellager erhöhen (oder inventoryItem erstellen, falls nicht vorhanden)
+    let [targetInventory] = await db
+      .select()
+      .from(inventoryItems)
+      .where(and(
+        eq(inventoryItems.warehouseId, targetWarehouseId),
+        eq(inventoryItems.productId, parseInt(productId))
+      ));
+    
+    if (targetInventory) {
+      // Bestehenden Bestand aktualisieren
+      const [updatedTargetInventory] = await db
+        .update(inventoryItems)
+        .set({
+          quantity: (targetInventory.quantity || 0) + quantity,
+          updatedAt: new Date()
+        })
+        .where(eq(inventoryItems.id, targetInventory.id))
+        .returning();
+      
+      targetInventory = updatedTargetInventory;
+    } else {
+      // Neuen Bestandseintrag erstellen
+      const [newTargetInventory] = await db
+        .insert(inventoryItems)
+        .values({
+          warehouseId: targetWarehouseId,
+          productId: parseInt(productId),
+          quantity,
+          status: "active"
+        })
+        .returning();
+      
+      targetInventory = newTargetInventory;
+    }
+    
+    // Erstelle eine Inventarbewegung für den Abgang aus dem Quelllager
+    const sourceMovementData: InsertInventoryMovement = {
+      productId: parseInt(productId),
+      quantity,
+      movementType: 'transfer_out',
+      referenceType: 'inventory_transfer',
+      referenceId: `transfer-${Date.now()}`,
+      sourceWarehouseId,
+      destinationWarehouseId: targetWarehouseId,
+      notes: `Transfer von ${quantity} Einheiten von Lager ${sourceWarehouseId} nach Lager ${targetWarehouseId}`,
+      performedAt: new Date(),
+      performedById: 1, // System-ID oder aktueller Benutzer
+    };
+    
+    await this.createInventoryMovement(sourceMovementData);
+    
+    // Erstelle eine Inventarbewegung für den Zugang im Ziellager
+    const targetMovementData: InsertInventoryMovement = {
+      productId: parseInt(productId),
+      quantity,
+      movementType: 'transfer_in',
+      referenceType: 'inventory_transfer',
+      referenceId: `transfer-${Date.now()}`,
+      sourceWarehouseId,
+      destinationWarehouseId: targetWarehouseId,
+      notes: `Transfer von ${quantity} Einheiten von Lager ${sourceWarehouseId} nach Lager ${targetWarehouseId}`,
+      performedAt: new Date(),
+      performedById: 1, // System-ID oder aktueller Benutzer
+    };
+    
+    await this.createInventoryMovement(targetMovementData);
+    
+    return {
+      sourceStock: updatedSourceInventory.quantity || 0,
+      targetStock: targetInventory.quantity || 0,
+      success: true
+    };
+  }
+
+  async deleteInventoryTransfer(id: number): Promise<boolean> {
+    // Zuerst die Items löschen
+    await db
+      .delete(inventoryTransferItems)
+      .where(eq(inventoryTransferItems.transferId, id));
+    
+    // Dann die Warenbewegung selbst löschen
+    const result = await db
+      .delete(inventoryTransfers)
+      .where(eq(inventoryTransfers.id, id));
+    
+    return result.rowCount > 0;
   }
   
   // Product Batch operations - Neues Chargen-Management
