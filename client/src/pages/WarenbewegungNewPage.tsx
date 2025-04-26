@@ -19,7 +19,7 @@ import { AlertCircle, MoveHorizontal } from "lucide-react";
 import { useInventoryCart } from "@/components/inventory/InventoryCartContext";
 import InventoryCart from "@/components/inventory/InventoryCart";
 import InventoryProductsTable from "@/components/inventory/InventoryProductsTable";
-import LoadingSpinner from "@/components/LoadingSpinner";
+import LoadingSpinner from "../components/LoadingSpinner";
 
 // Definiere Warehouse und InventoryProduct Typen
 interface Warehouse {
