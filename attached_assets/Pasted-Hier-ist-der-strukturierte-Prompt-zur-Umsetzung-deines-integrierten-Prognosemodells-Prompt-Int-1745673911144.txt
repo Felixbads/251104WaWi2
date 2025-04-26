@@ -1,0 +1,132 @@
+Hier ist der strukturierte Prompt zur Umsetzung deines integrierten Prognosemodells:
+
+⸻
+
+Prompt: Integriertes Prognosemodell für Verkaufsautomaten
+
+Projektziel:
+Entwickle und implementiere ein dynamisches Prognosemodell zur Vorhersage von Verkaufszahlen an Automatenstandorten. Das Modell muss vollständig in die bestehende Anwendung integriert werden – für Analysezwecke, automatisierte Bestellvorschläge und operative Planung im Dashboard.
+
+⸻
+
+0. Vorabprüfung des aktuellen Systems (Pflichtschritt vor Entwicklungsstart)
+
+Ziel:
+Verhindern, dass bestehende Funktionen beschädigt oder überschrieben werden.
+
+Aufgaben:
+	•	Prüfe, welche Module, APIs, Datenquellen und Komponenten bereits existieren.
+	•	Ermittle, ob es bereits einen Menüpunkt „Prognosemodell“ gibt und wie dieser aktuell implementiert ist.
+	•	Analysiere die bestehenden Tabellen und Datenmodelle für:
+	•	Verkaufsdaten
+	•	Lager und Bestände
+	•	Produkt- und Standortinformationen
+	•	Dokumentiere:
+	•	Welche Daten aktuell wie und wo gespeichert sind.
+	•	In welcher Form Transaktionen, Wetter, Feiertage und Feriendaten gespeichert werden.
+	•	Ergebnis: Kurzes Replit-internes Dokument oder Ticket-Kommentar, der den Status Quo festhält und beschreibt, wie und wo die neue Prognosefunktionalität integriert werden kann.
+
+⸻
+
+1. Unterseite „Prognosemodell“ im Menü
+
+Ziel:
+Detailanalyse erwarteter Verkaufszahlen pro Tag, Produkt, Automat und Standort.
+
+Funktionen:
+	•	Filter:
+	•	Zeitraum (frei wählbar oder vordefinierte Intervalle)
+	•	Standort(e), Automat(en)
+	•	Produkt(e) / Kategorien
+	•	Darstellung:
+	•	Interaktive Diagramme (z. B. Linien-/Balkendiagramm)
+	•	Tabellarisch mit Spalten für:
+	•	Datum
+	•	Erwarteter Absatz
+	•	Unsicherheitsbereich
+	•	Trendrichtung
+	•	Exportfunktion als CSV oder Excel
+
+⸻
+
+2. Integration in den Bestellprozess
+
+Ziel:
+Ermögliche automatische Bestellvorschläge auf Grundlage von Prognosen.
+
+Ablauf:
+	1.	Auswahl von Lieferant und Lager
+	2.	Automatische Zuordnung betroffener Automaten
+	3.	Abruf der Prognosezahlen + aktueller Bestände + Mindestbestände
+	4.	Berechnung:
+	•	Formel: Prognose – Ist-Bestand + Sicherheitszuschlag
+	•	Nur wenn > 0: Erstellung eines Vorschlags
+	5.	Ergebnisdarstellung:
+	•	Tabelle mit Produkten, Mengen, Einkaufspreisen, Lagerbezug
+	•	Manuelle Anpassbarkeit
+	6.	Button: „Bestellung auslösen“ → leitet in den bestehenden Bestellworkflow über
+
+⸻
+
+3. Integration im Dashboard
+
+Ziel:
+Schneller Überblick über die nächsten 14 Tage für die operative Planung.
+
+Funktionalitäten:
+	•	Kachel „Prognose – Nächste 14 Tage“
+	•	Inhalte:
+	•	Tägliche Gesamtverkaufsprognose
+	•	Farbige Hervorhebung besonders verkaufsstarker Tage
+	•	Auflistung betroffener Automaten mit zu erwartenden Topsellern
+	•	Hinweis auf potenziell nötige Zwischenbefüllungen
+
+⸻
+
+4. Trainingssteuerung & Datenaktualisierung
+
+Manuell:
+	•	Button im Backend zur Neuberechnung (bei Änderungen oder neuen Daten)
+
+Automatisiert:
+	•	Trainingsintervalle (empfohlen: täglich oder alle 3 Tage)
+	•	Neue Transaktionen fließen automatisch ein
+	•	Bei neuen historischen Daten (z. B. ältere Transaktionen): automatisches Nachtrainieren
+
+⸻
+
+5. Datenquellen / Modellinput
+
+Das Modell nutzt:
+	•	Transaktionsdaten (minutengenau)
+	•	Wetterdaten (tagesbasiert)
+	•	Feiertage, Wochenenden, Schulferien (pro Bundesland)
+	•	Automaten-Öffnungszeiten oder temporäre Schließungen
+	•	Lagerbestand, Mindestbestände
+	•	Standortdetails (z. B. Stadt, Bundesland, Umgebung)
+	•	Produkttypen, Lieferantenzuordnung
+
+⸻
+
+6. Technisches Setup
+	•	Modell: Prophet (optional: LSTM, andere Zeitreihenmodelle)
+	•	Backend: Python (FastAPI oder Flask)
+	•	Frontend: React (Chart.js oder Recharts für Visualisierung)
+	•	Training: via cron oder Scheduled Task
+	•	Ergebnisse: JSON/API-Ausgabe
+	•	Caching: zur schnellen Anzeige
+	•	Trennung: von Modelltraining und Vorhersage (kein Re-Training bei jedem Abruf)
+
+⸻
+
+Zielzustand:
+
+Die Prognose ist ein zentraler Bestandteil der Anwendung:
+	•	Sie lernt laufend mit
+	•	Unterstützt aktiv alle Planungsprozesse
+	•	Wird regelmäßig aktualisiert
+	•	Erweitert die Anwendung, ohne bestehende Module zu beeinträchtigen
+
+⸻
+
+Wenn du willst, kann ich daraus auch gleich ein Pflichtenheft oder ein technisches Entwicklerbriefing ableiten. Sag einfach Bescheid.
