@@ -3567,7 +3567,7 @@ export class DatabaseStorage implements IStorage {
 
   async updateInventoryTransfer(
     id: number, 
-    transfer: Partial<InsertInventoryTransfer>
+    transfer: Partial<InsertInventoryTransfer> & { completedAt?: Date }
   ): Promise<InventoryTransfer | undefined> {
     const [updatedTransfer] = await db
       .update(inventoryTransfers)

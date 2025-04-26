@@ -186,7 +186,7 @@ router.put("/:id/status", async (req, res) => {
       // Setze completedAt auf aktuelle Zeit
       const updatedTransfer = await storage.updateInventoryTransfer(id, {
         status,
-        completedAt: new Date().toISOString(),
+        completedAt: new Date(),
       });
       
       return res.json(updatedTransfer);
