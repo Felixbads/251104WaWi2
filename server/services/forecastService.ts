@@ -285,38 +285,56 @@ async function collectTrainingData(
         totalAmount: transactionStats[0].totalAmount
       };
       
-      // Füge Wetterdaten hinzu, wenn aktiviert
+      // Füge Wetterdaten hinzu, wenn aktiviert und die Tabelle existiert
       if (usesWeatherData) {
-        const weatherStats = await db.select({
-          avgTemp: sql`AVG(${weatherData.temp})`,
-          avgHumidity: sql`AVG(${weatherData.humidity})`,
-          totalPrecipitation: sql`SUM(${weatherData.precipitation})`,
-        })
-        .from(weatherData)
-        .where(eq(weatherData.date, dateStr));
-        
-        if (weatherStats && weatherStats.length > 0) {
+        try {
+          const weatherStats = await db.select({
+            avgTemp: sql`AVG(${weatherData.temp})`,
+            avgHumidity: sql`AVG(${weatherData.humidity})`,
+            totalPrecipitation: sql`SUM(${weatherData.precipitation})`,
+          })
+          .from(weatherData)
+          .where(eq(weatherData.date, dateStr));
+          
+          if (weatherStats && weatherStats.length > 0) {
+            dataEntry.weather = {
+              avgTemp: weatherStats[0].avgTemp,
+              avgHumidity: weatherStats[0].avgHumidity,
+              totalPrecipitation: weatherStats[0].totalPrecipitation
+            };
+          }
+        } catch (error) {
+          console.log(`Keine Wetterdaten verfügbar: ${error}`);
+          // Setze Default-Werte, um das Training ohne Wetterdaten zu ermöglichen
           dataEntry.weather = {
-            avgTemp: weatherStats[0].avgTemp,
-            avgHumidity: weatherStats[0].avgHumidity,
-            totalPrecipitation: weatherStats[0].totalPrecipitation
+            avgTemp: 20, // Default-Temperatur in °C
+            avgHumidity: 50, // Default-Luftfeuchtigkeit in %
+            totalPrecipitation: 0 // Default: kein Niederschlag
           };
         }
       }
       
       // Füge Feiertagsdaten hinzu, wenn aktiviert
       if (usesHolidayData) {
-        const holidayInfo = await db.query.holidays.findFirst({
-          where: eq(holidays.date, dateStr)
-        });
-        
-        if (holidayInfo) {
-          dataEntry.holiday = {
-            isHoliday: true,
-            name: holidayInfo.name,
-            type: holidayInfo.type
-          };
-        } else {
+        try {
+          const holidayInfo = await db.query.holidays.findFirst({
+            where: eq(holidays.date, dateStr)
+          });
+          
+          if (holidayInfo) {
+            dataEntry.holiday = {
+              isHoliday: true,
+              name: holidayInfo.name,
+              type: holidayInfo.type
+            };
+          } else {
+            dataEntry.holiday = {
+              isHoliday: false
+            };
+          }
+        } catch (error) {
+          console.log(`Keine Feiertagsdaten verfügbar: ${error}`);
+          // Setze Default-Werte, um das Training ohne Feiertagsdaten zu ermöglichen
           dataEntry.holiday = {
             isHoliday: false
           };
@@ -325,22 +343,27 @@ async function collectTrainingData(
       
       // Füge Maschinendaten hinzu, wenn aktiviert
       if (usesMachineData && machineIds && machineIds.length > 0) {
-        const machineStats = await db.select({
-          machineId: transactions.machineId,
-          machineName: machines.machineName,
-          totalQuantity: sql`SUM(${transactions.quantity})`,
-          totalAmount: sql`SUM(${transactions.price})`,
-        })
-        .from(transactions)
-        .innerJoin(machines, eq(transactions.machineId, machines.id))
-        .where(and(
-          sql`DATE(${transactions.datetime}) = ${dateStr}`,
-          inArray(transactions.machineId, machineIds)
-        ))
-        .groupBy(transactions.machineId, machines.machineName);
-        
-        if (machineStats && machineStats.length > 0) {
-          dataEntry.machines = machineStats;
+        try {
+          const machineStats = await db.select({
+            machineId: transactions.machineId,
+            machineName: machines.machineName,
+            totalQuantity: sql`SUM(${transactions.quantity})`,
+            totalAmount: sql`SUM(${transactions.price})`,
+          })
+          .from(transactions)
+          .innerJoin(machines, eq(transactions.machineId, machines.id))
+          .where(and(
+            sql`DATE(${transactions.datetime}) = ${dateStr}`,
+            inArray(transactions.machineId, machineIds)
+          ))
+          .groupBy(transactions.machineId, machines.machineName);
+          
+          if (machineStats && machineStats.length > 0) {
+            dataEntry.machines = machineStats;
+          }
+        } catch (error) {
+          console.log(`Fehler beim Abrufen der Maschinendaten: ${error}`);
+          // Das Training wird ohne Maschinendaten fortgesetzt
         }
       }
       
