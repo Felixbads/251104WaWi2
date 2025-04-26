@@ -478,9 +478,14 @@ export async function createForecast(
         // Sammle verfügbare Feiertagsdaten
         let holidayInfo = null;
         if (model.uses_holiday_data) {
-          holidayInfo = await db.query.holidays.findFirst({
-            where: eq(holidays.date, dateStr)
-          });
+          try {
+            holidayInfo = await db.query.holidays.findFirst({
+              where: eq(holidays.date, dateStr)
+            });
+          } catch (error) {
+            console.log(`Keine Feiertagsdaten verfügbar für die Prognose: ${error}`);
+            // Prognose wird ohne Feiertagsdaten fortgesetzt
+          }
         }
         
         // Berechne simulierte Prognose basierend auf verschiedenen Faktoren
@@ -494,18 +499,23 @@ export async function createForecast(
         // Sammle verfügbare Wetterdaten
         let weatherInfo = null;
         if (model.uses_weather_data) {
-          weatherInfo = await db.query.weatherData.findFirst({
-            where: eq(weatherData.date, dateStr)
-          });
-          
-          // Reduziere Prognose bei Regen um 10%
-          if (weatherInfo && weatherInfo.precipitation && weatherInfo.precipitation > 5) {
-            predictedQuantity *= 0.9;
-          }
-          
-          // Steigere Prognose bei warmen Temperaturen um 15%
-          if (weatherInfo && weatherInfo.temp && weatherInfo.temp > 25) {
-            predictedQuantity *= 1.15;
+          try {
+            weatherInfo = await db.query.weatherData.findFirst({
+              where: eq(weatherData.date, dateStr)
+            });
+            
+            // Reduziere Prognose bei Regen um 10%
+            if (weatherInfo && weatherInfo.precipitation && weatherInfo.precipitation > 5) {
+              predictedQuantity *= 0.9;
+            }
+            
+            // Steigere Prognose bei warmen Temperaturen um 15%
+            if (weatherInfo && weatherInfo.temp && weatherInfo.temp > 25) {
+              predictedQuantity *= 1.15;
+            }
+          } catch (error) {
+            console.log(`Keine Wetterdaten verfügbar für die Prognose: ${error}`);
+            // Prognose wird ohne Wetterdaten fortgesetzt
           }
         }
         
