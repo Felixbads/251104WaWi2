@@ -778,7 +778,7 @@ export default function Orders() {
         {/* Rechte Seite: Aktionen */}
         <div className="flex items-center gap-2">
           <Button asChild variant="default">
-            <Link to="/bestellungen/neu">
+            <Link to="/bestellungen/neu-v2">
               <Plus className="h-4 w-4 mr-2" />
               Neue Bestellung
             </Link>
@@ -903,7 +903,7 @@ export default function Orders() {
                 <TableCell colSpan={9} className="text-center py-8">
                   <p className="text-muted-foreground">Keine Bestellungen gefunden.</p>
                   <Button variant="outline" className="mt-4" asChild>
-                    <Link to="/bestellungen/neu">
+                    <Link to="/bestellungen/neu-v2">
                       <Plus className="h-4 w-4 mr-2" />
                       Erste Bestellung anlegen
                     </Link>

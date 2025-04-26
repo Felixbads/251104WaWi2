@@ -97,10 +97,10 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
           </h3>
           <nav>
             {menuItems.management.map((item, index) => (
-              <Link href={item.path === "/bestellungen" ? "/bestellung-v2" : item.path} onClick={handleLinkClick} key={index}>
+              <Link href={item.path === "/bestellungen" ? "/bestellungen/neu-v2" : item.path} onClick={handleLinkClick} key={index}>
                 <div
                   className={`flex items-center px-6 py-2 text-sm font-medium cursor-pointer ${
-                    isActive(item.path === "/bestellungen" ? "/bestellung-v2" : item.path)
+                    isActive(item.path === "/bestellungen" ? "/bestellungen/neu-v2" : item.path)
                       ? "text-white bg-red-700"
                       : "text-white hover:bg-red-700"
                   }`}

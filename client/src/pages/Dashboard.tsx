@@ -370,7 +370,7 @@ export default function Dashboard() {
                     variant="outline" 
                     size="sm" 
                     className="w-full mt-2"
-                    onClick={() => setLocation("/bestellungen")}
+                    onClick={() => setLocation("/bestellungen/neu-v2")}
                   >
                     Bestellungen anzeigen
                   </Button>
