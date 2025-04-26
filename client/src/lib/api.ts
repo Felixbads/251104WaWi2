@@ -1614,6 +1614,64 @@ export async function updateProductDisposalStatus(id: number, status: string): P
   return apiRequest<ProductDisposal>('put', `/product-disposals/${id}/status`, { status });
 }
 
+// Inventartransfer API Functions
+export interface InventoryTransferItem {
+  productId: string;
+  quantity: number;
+  reason?: string;
+}
+
+export interface InventoryTransfer {
+  id: number;
+  sourceWarehouseId: string;
+  targetWarehouseId: string;
+  status: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  items: InventoryTransferItem[];
+  createdBy?: number;
+  createdByName?: string;
+}
+
+export async function createInventoryTransfer(data: {
+  sourceWarehouseId: string;
+  targetWarehouseId: string;
+  notes?: string;
+  items: {
+    productId: string;
+    quantity: number;
+    reason?: string;
+  }[];
+}): Promise<InventoryTransfer> {
+  return apiRequest<InventoryTransfer>('post', '/inventory-transfers', data);
+}
+
+export async function getInventoryTransfers(params: {
+  warehouseId?: string;
+  status?: string;
+  limit?: number;
+  offset?: number;
+} = {}): Promise<InventoryTransfer[]> {
+  const queryParams = new URLSearchParams();
+
+  if (params.warehouseId) queryParams.append('warehouseId', params.warehouseId);
+  if (params.status) queryParams.append('status', params.status);
+  if (params.limit) queryParams.append('limit', params.limit.toString());
+  if (params.offset) queryParams.append('offset', params.offset.toString());
+
+  const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+  return apiRequest<InventoryTransfer[]>('get', `/inventory-transfers${queryString}`);
+}
+
+export async function getInventoryTransfer(id: number): Promise<InventoryTransfer> {
+  return apiRequest<InventoryTransfer>('get', `/inventory-transfers/${id}`);
+}
+
+export async function updateInventoryTransferStatus(id: number, status: string): Promise<InventoryTransfer> {
+  return apiRequest<InventoryTransfer>('put', `/inventory-transfers/${id}/status`, { status });
+}
+
 // Feiertage für Dashboard
 export async function getUpcomingHolidays(days = 7): Promise<Holiday[]> {
   const today = new Date();
