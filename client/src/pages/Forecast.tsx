@@ -299,16 +299,49 @@ export default function Forecast() {
                           <TableCell>{model.created_at ? formatDate(model.created_at) : '-'}</TableCell>
                           <TableCell>{model.last_trained_at ? formatDate(model.last_trained_at) : 'Nie'}</TableCell>
                           <TableCell>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => {
-                                setSelectedModelId(model.id);
-                                setActiveTab("forecast");
-                              }}
-                            >
-                              Verwenden
-                            </Button>
+                            <div className="flex space-x-2">
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => {
+                                  if (startDate && endDate) {
+                                    trainModelMutation.mutate({
+                                      modelId: model.id,
+                                      startDate: startDate.toISOString().split("T")[0],
+                                      endDate: endDate.toISOString().split("T")[0]
+                                    });
+                                  } else {
+                                    toast({
+                                      title: "Datum fehlt",
+                                      description: "Bitte wählen Sie Start- und Enddatum im 'Wetter & Feiertage' Tab",
+                                      variant: "destructive",
+                                    });
+                                    setActiveTab("data");
+                                  }
+                                }}
+                                disabled={model.status === 'ready' || trainModelMutation.isPending}
+                              >
+                                {trainModelMutation.isPending && trainModelMutation.variables?.modelId === model.id ? (
+                                  <>
+                                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                    Training...
+                                  </>
+                                ) : (
+                                  "Trainieren"
+                                )}
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedModelId(model.id);
+                                  setActiveTab("forecast");
+                                }}
+                                disabled={model.status !== 'ready'}
+                              >
+                                Verwenden
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
