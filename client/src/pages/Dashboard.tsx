@@ -450,8 +450,23 @@ export default function Dashboard() {
             ) : dashboardForecasts && Array.isArray(dashboardForecasts) && dashboardForecasts.length > 0 ? (
               <div className="space-y-4">
                 {/* Prognose-Visualisierung */}
-                <div className="border rounded-md overflow-hidden p-4 cursor-pointer hover:bg-gray-50 transition-colors">
-                  <div className="h-48">
+                <div className="border rounded-md overflow-hidden p-4 hover:bg-gray-50 transition-colors">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <h4 className="text-sm font-medium">14-Tage Prognose</h4>
+                      <p className="text-xs text-muted-foreground">Voraussichtliche Verkäufe für die nächsten 14 Tage</p>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="flex items-center gap-1"
+                      onClick={() => location.href = "/forecast-detail"}
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                      <span>Detailanalyse</span>
+                    </Button>
+                  </div>
+                  <div className="h-48 cursor-pointer" onClick={() => location.href = "/forecast-detail"}>
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={Array.isArray(dashboardForecasts) ? dashboardForecasts.slice(0, 14) : []} margin={{ top: 5, right: 5, bottom: 5, left: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
