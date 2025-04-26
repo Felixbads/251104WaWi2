@@ -1,0 +1,84 @@
+Die Funktionen zur Warenentnahme und Umlagerung sollen technisch geprüft, optimiert und in eine übersichtliche, moderne Seite überführt werden. Ziel ist eine saubere, intuitive Lagerverwaltung mit Warenkorb-Funktion – schnell, responsiv und mobil nutzbar.
+
+⸻
+
+1. Analyse der bestehenden Seiten /warenbewegung und /warenentnahme
+
+Aufgaben:
+	•	Untersuche die aktuelle Funktionalität beider Seiten:
+	•	Wie erfolgt derzeit eine Umbuchung zwischen Lagern?
+	•	Wie wird derzeit eine Entnahme aus einem Lager durchgeführt?
+	•	Analysiere:
+	•	Welche Datenbanken und Tabellen werden angesprochen?
+	•	Welche Felder, Beziehungen und Buchungslogiken sind hinterlegt?
+	•	Wie läuft die Reduzierung/Erhöhung der Bestände aktuell technisch ab?
+	•	Identifiziere die Fehler:
+	•	Warum wird der Bestand aktuell nicht korrekt reduziert oder gebucht?
+	•	Wo gibt es Brüche oder Inkonsistenzen im Prozess?
+
+Ziel:
+Vollständiges Verständnis der vorhandenen Systeme und ihrer Probleme, um eine saubere Neustrukturierung zu ermöglichen.
+
+⸻
+
+2. Anforderungen an die neue Lösung
+
+Warenkorb-Funktion:
+	•	Nutzer können mehrere Produkte gleichzeitig auswählen.
+	•	Für jedes Produkt können Mengen individuell angegeben werden.
+	•	Abschluss mit einem Klick: Alle ausgewählten Produkte werden auf einmal umgebucht oder entnommen.
+
+Technische Anforderungen:
+	•	Bei Umlagerung:
+	•	Bestand im Quelllager reduzieren, Bestand im Ziellager erhöhen.
+	•	Bei Entnahme:
+	•	Bestand im ausgewählten Lager reduzieren (keine Erhöhung an anderer Stelle).
+	•	Dokumentation:
+	•	Jede Entnahme/Umlagerung muss vollständig mit Datum, Lager, Produkt, Menge gespeichert werden (für spätere Auswertungen).
+	•	Protokollierung:
+	•	Logik für Rückverfolgbarkeit (wer, wann, was gemacht hat) sollte vorbereitet sein.
+
+UI/UX-Anforderungen:
+	•	Orientierung am Design der „Produkte“-Seite:
+	•	Tabellenlayout
+	•	Such- und Filterfunktionen
+	•	Mobil First
+	•	Responsives Verhalten
+	•	Tabellenzeilen auswählbar (Checkbox oder Click-to-Select)
+	•	Menüstruktur:
+	•	Beide Funktionen („Warenbewegung“ und „Warenentnahme“) sollen unter dem Menüpunkt „Lager“ klar und getrennt geführt werden.
+
+⸻
+
+3. Vorschlag für die Neugestaltung
+
+Struktur der neuen Seiten:
+	•	Seite 1: „Warenentnahme“
+	•	Lager auswählen
+	•	Produkte auswählen (Tabellenansicht)
+	•	Mengen festlegen
+	•	Warenkorb zusammenstellen
+	•	Entnahme abschließen
+	•	Seite 2: „Warenbewegung“
+	•	Quelllager auswählen
+	•	Ziellager auswählen
+	•	Produkte auswählen (Tabellenansicht)
+	•	Mengen festlegen
+	•	Warenkorb zusammenstellen
+	•	Umlagerung abschließen
+
+Besonderheiten:
+	•	Bestandsprüfung:
+	•	Keine negative Lagerbestände zulassen (Fehlermeldung bei zu hoher Entnahme).
+	•	Live-Validierung:
+	•	Verfügbare Bestände sollen schon beim Auswählen sichtbar sein.
+	•	Bedienung:
+	•	Mobile First: große Buttons, responsive Tabellen, Touch-optimiert.
+
+⸻
+
+Ergebnisanforderung:
+	•	Beide Funktionen funktionieren technisch einwandfrei.
+	•	Bestände werden korrekt angepasst.
+	•	Die Bedienung ist intuitiv und schnell – auch auf Smartphones.
+	•	Prozesse sind sauber dokumentiert und nachvollziehbar.
