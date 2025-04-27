@@ -53,7 +53,7 @@ export default function Automaten() {
     queryKey: ['/api/machines'],
     queryFn: async () => {
       const data = await getMachines();
-      
+
       // Wir verwenden die echten Daten aus der API
       const enhancedMachines = data.map(machine => ({
         ...machine,
@@ -63,7 +63,7 @@ export default function Automaten() {
         cashlessStatus: machine.status === 'online' ? 'ok' : 'warning',
         ageVerificationStatus: 'ok'
       } as EnhancedMachine));
-      
+
       // Für jede Maschine den letzten Verkauf ermitteln
       for (const machine of enhancedMachines) {
         try {
@@ -79,7 +79,7 @@ export default function Automaten() {
           console.error(`Fehler beim Abrufen des letzten Verkaufs für Maschine ${machine.id}:`, err);
         }
       }
-      
+
       return enhancedMachines;
     },
   });
@@ -92,18 +92,18 @@ export default function Automaten() {
   const filteredMachines = machines?.filter((machine: EnhancedMachine) => {
     // Demo-Automaten mit ID 1 ausschließen
     if (!machine || !machine.machineName || machine.id === 1) return false;
-    
+
     const matchesSearch = machine.machineName.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           (machine.location?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
-    
+
     const matchesLocation = locationFilter === 'alle' || machine.location === locationFilter;
-    
+
     // In einem echten Szenario würde machine.type existieren - hier nehmen wir eine zufällige Zuordnung vor
     const matchesMachineType = machineTypeFilter === 'alle' || 
                               (machine.vendonId?.length || 0) % machineTypes.length === machineTypes.indexOf(machineTypeFilter);
-    
+
     const matchesStatus = !statusFilter || machine.status === statusFilter;
-    
+
     return matchesSearch && matchesLocation && matchesMachineType && matchesStatus;
   }) || [];
 
@@ -144,7 +144,7 @@ export default function Automaten() {
                   : '–'}
               </div>
             </div>
-            
+
             <div className="flex flex-col">
               <div className="text-gray-500 flex items-center gap-1">
                 <ShoppingCart className="h-3 w-3" /> Transaktionen heute
@@ -153,7 +153,7 @@ export default function Automaten() {
                 {machine.todayTransactions || 0}
               </div>
             </div>
-            
+
             <div className="flex flex-col">
               <div className="text-gray-500 flex items-center gap-1">
                 <Euro className="h-3 w-3" /> Umsatz heute
@@ -162,7 +162,7 @@ export default function Automaten() {
                 {machine.todayRevenue?.toFixed(2) || '0.00'} €
               </div>
             </div>
-            
+
             <div className="flex flex-col">
               <div className="text-gray-500 flex items-center gap-1">
                 <CreditCard className="h-3 w-3" /> Cashless-Status
@@ -172,7 +172,7 @@ export default function Automaten() {
               </div>
             </div>
           </div>
-          
+
           {/* Altersverifikation (falls vorhanden) */}
           <div className="flex items-center justify-between">
             <div className="text-gray-500 text-xs flex items-center gap-1">
@@ -231,7 +231,7 @@ export default function Automaten() {
             <span>ID: {machine.vendonId}</span>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-6 text-sm">
           <div className="text-center">
             <p className="text-gray-500 text-xs flex items-center justify-center">
@@ -243,21 +243,21 @@ export default function Automaten() {
                 : '–'}
             </p>
           </div>
-          
+
           <div className="text-center">
             <p className="text-gray-500 text-xs flex items-center justify-center">
               <ShoppingCart className="h-3 w-3 mr-1" /> Heute
             </p>
             <p className="font-medium">{machine.todayTransactions || 0}</p>
           </div>
-          
+
           <div className="text-center">
             <p className="text-gray-500 text-xs flex items-center justify-center">
               <Euro className="h-3 w-3 mr-1" /> Umsatz
             </p>
             <p className="font-medium">{machine.todayRevenue?.toFixed(2) || '0.00'} €</p>
           </div>
-          
+
           <div className="text-center">
             <p className="text-gray-500 text-xs flex items-center justify-center">
               <CreditCard className="h-3 w-3 mr-1" /> Cashless
@@ -266,7 +266,7 @@ export default function Automaten() {
               <CashlessStatusIndicator status={machine.cashlessStatus || 'error'} />
             </div>
           </div>
-          
+
           <div className="flex gap-2">
             <Button 
               variant="outline" 
@@ -337,7 +337,7 @@ export default function Automaten() {
     let statusColor = '';
     let statusText = '';
     let tooltip = '';
-    
+
     switch(status) {
       case 'ok':
         statusColor = 'text-green-500';
@@ -355,7 +355,7 @@ export default function Automaten() {
         tooltip = 'Keine Cashless-Transaktionen in den letzten 24 Stunden';
         break;
     }
-    
+
     return (
       <TooltipProvider>
         <Tooltip>
@@ -379,7 +379,7 @@ export default function Automaten() {
   const AgeVerificationIndicator = ({ status }: { status: 'ok' | 'warning' | 'error' }) => {
     let statusColor = '';
     let tooltip = '';
-    
+
     switch(status) {
       case 'ok':
         statusColor = 'text-green-500';
@@ -394,7 +394,7 @@ export default function Automaten() {
         tooltip = 'Mehrere Altersverifizierungen fehlgeschlagen';
         break;
     }
-    
+
     return (
       <TooltipProvider>
         <Tooltip>
@@ -430,7 +430,7 @@ export default function Automaten() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          
+
           {/* Filter-Dropdowns */}
           <Select value={locationFilter} onValueChange={setLocationFilter}>
             <SelectTrigger className="h-9 min-w-[140px] w-auto">
@@ -443,7 +443,7 @@ export default function Automaten() {
               ))}
             </SelectContent>
           </Select>
-          
+
           <Select value={machineTypeFilter} onValueChange={setMachineTypeFilter}>
             <SelectTrigger className="h-9 min-w-[140px] w-auto">
               <SelectValue placeholder="Maschinentyp" />
@@ -456,7 +456,7 @@ export default function Automaten() {
             </SelectContent>
           </Select>
         </div>
-        
+
         {/* Rechte Seite: Aktionen */}
         <div className="flex flex-wrap items-center gap-2">
           <TooltipProvider>
@@ -475,7 +475,7 @@ export default function Automaten() {
                 </TooltipTrigger>
                 <TooltipContent>Kachelansicht</TooltipContent>
               </Tooltip>
-              
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -489,7 +489,7 @@ export default function Automaten() {
                 </TooltipTrigger>
                 <TooltipContent>Listenansicht</TooltipContent>
               </Tooltip>
-              
+
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -504,7 +504,7 @@ export default function Automaten() {
                 <TooltipContent>Kartenansicht</TooltipContent>
               </Tooltip>
             </div>
-            
+
             {/* Aktualisieren Button */}
             <Tooltip>
               <TooltipTrigger asChild>
