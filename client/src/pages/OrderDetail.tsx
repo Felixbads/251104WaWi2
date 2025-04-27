@@ -10,7 +10,7 @@ import QRCode from "qrcode";
 import ReceiveOrderDialog from "@/components/orders/ReceiveOrderDialog";
 import OrderDetailActions from "@/components/orders/OrderDetailActions";
 import ManualStatusChange from "@/components/orders/ManualStatusChange";
-import { OrderEmailDialog } from "@/components/orders/OrderEmailDialog";
+import OrderEmailDialog from "@/components/orders/OrderEmailDialog";
 import html2canvas from "html2canvas";
 import { getOrder, updateOrder } from "@/lib/api";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -1532,56 +1532,16 @@ Nationalpark Zentrum`);
       </Dialog>
       
       {/* E-Mail Dialog */}
-      <OrderEmailDialog
-        open={showEmailDialog}
-        onOpenChange={setShowEmailDialog}
-        order={order}
-        defaultSubject={`Bestellung ${order?.orderNumber || ""} - ${order?.supplierName || ""}`}
-        defaultContent={`Sehr geehrte Damen und Herren,
-
-hiermit bestellen wir die folgenden Artikel:
-
-{"{{orderItems}}"}
-
-Bestellnummer: ${order?.orderNumber || ""}
-Bestelldatum: ${order?.orderDate ? new Date(order.orderDate).toLocaleDateString('de-DE') : "Unbekannt"}
-Gewünschtes Lieferdatum: ${order?.expectedDeliveryDate ? new Date(order.expectedDeliveryDate).toLocaleDateString('de-DE') : "Nach Vereinbarung"}
-
-Bitte bestätigen Sie uns den Erhalt dieser Bestellung und das voraussichtliche Lieferdatum.
-
-Mit freundlichen Grüßen,
-Ihr Einkaufsteam`}
-        defaultTo={order?.supplier?.email || ""}
-        onSuccess={() => {
-          // Nach erfolgreichem E-Mail-Versand Daten aktualisieren
-          queryClient.invalidateQueries({ queryKey: [`/api/orders/${id}`] });
-          queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
-          
-          // Anzeigen einer Erfolgsmeldung
-          toast({
-            title: "E-Mail gesendet",
-            description: "Die Bestellung wurde erfolgreich per E-Mail versendet."
-          });
-          
-          // Status aktualisieren, wenn die Bestellung im Entwurfsstatus ist
-          if (order?.status === 'draft') {
-            // Bestehende Statushistorie konsistent verarbeiten
-            const currentHistory = parseStatusHistory(order.statusHistory);
-            const newStatusEntry = {
-              status: "ordered",
-              timestamp: new Date().toISOString(),
-              note: "Bestellung per E-Mail an Lieferant gesendet"
-            };
-            
-            // Bestellstatus aktualisieren
-            updateOrderMutation.mutateAsync({ 
-              id: order.id,
-              status: "ordered", 
-              statusHistory: JSON.stringify([...currentHistory, newStatusEntry]) 
-            });
-          }
-        }}
-      />
+      {order && (
+        <OrderEmailDialog
+          open={showEmailDialog}
+          onOpenChange={setShowEmailDialog}
+          orderId={Number(id)}
+          orderNumber={order.orderNumber || ""}
+          supplierName={order.supplierName || ""}
+          supplierEmail={order.supplier?.email || ""}
+        />
+      )}
 
       {/* Manual Status Change Dialog */}
       <ManualStatusChange 

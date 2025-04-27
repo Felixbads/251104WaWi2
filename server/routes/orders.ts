@@ -1270,7 +1270,7 @@ router.post("/:id/email", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const orderId = parseInt(id);
-    const { supplierEmail, additionalNotes } = req.body;
+    const { supplierEmail, additionalNotes, emailTemplateType, emailContent, subject } = req.body;
 
     if (isNaN(orderId)) {
       return res.status(400).json({ error: "Ungültige Bestellungs-ID" });
@@ -1316,28 +1316,48 @@ router.post("/:id/email", async (req: Request, res: Response) => {
     // Tabelle mit Bestellpositionen erstellen
     const itemsTable = createOrderItemsTable(items);
 
-    // E-Mail-Inhalt konstruieren
-    const emailTemplate = createOrderEmailTemplate(order, supplier || { name: order.supplierName || "Unbekannter Lieferant" });
+    // Wenn der Benutzer benutzerdefinierten HTML-Inhalt angegeben hat, diesen verwenden
+    let htmlContent;
     
-    // HTML für E-Mail mit Tabelle und Zusatzinformationen ergänzen
-    let htmlContent = emailTemplate.replace('{{orderItems}}', itemsTable);
+    if (emailContent) {
+      // Benutzerdefinierter Inhalt wird verwendet
+      htmlContent = emailContent;
+      
+      // Bestelldetails einfügen, falls Platzhalter vorhanden sind
+      if (htmlContent.includes('{{orderItems}}')) {
+        htmlContent = htmlContent.replace('{{orderItems}}', itemsTable);
+      }
+    } else {
+      // Standardvorlage basierend auf dem Typ verwenden
+      const templateType = emailTemplateType || 'standard';
+      const emailTemplate = createOrderEmailTemplate(order, supplier || { name: order.supplierName || "Unbekannter Lieferant" }, templateType);
+      
+      // HTML für E-Mail mit Tabelle ergänzen
+      htmlContent = emailTemplate.replace('{{orderItems}}', itemsTable);
+    }
     
     // Zusätzliche Notizen in die E-Mail einfügen, wenn vorhanden
     if (additionalNotes && additionalNotes.trim() !== '') {
-      htmlContent = htmlContent.replace('</p>', `</p><p><strong>Zusätzliche Hinweise:</strong><br>${additionalNotes.replace(/\n/g, '<br>')}</p>`);
+      // Füge die Notizen nach dem ersten Absatz ein, falls möglich
+      if (htmlContent.includes('</p>')) {
+        htmlContent = htmlContent.replace('</p>', `</p><p><strong>Zusätzliche Hinweise:</strong><br>${additionalNotes.replace(/\n/g, '<br>')}</p>`);
+      } else {
+        // Oder am Anfang, falls kein Absatz gefunden wurde
+        htmlContent = `<p><strong>Zusätzliche Hinweise:</strong><br>${additionalNotes.replace(/\n/g, '<br>')}</p>` + htmlContent;
+      }
     }
     
-    // Absender-E-Mail (könnte später aus der Konfiguration kommen)
-    const fromEmail = "system@example.com";
+    // Absender-E-Mail
+    const fromEmail = "bestellung@proviantomat.de";
     
-    // E-Mail-Betreff
-    const subject = createOrderSubject(order.orderNumber, order.supplierName || "");
+    // E-Mail-Betreff (vom Benutzer oder Standard)
+    const emailSubject = subject || createOrderSubject(order.orderNumber, order.supplierName || "");
     
     // E-Mail senden
     const result = await sendEmail({
       to: supplierEmail,
       from: fromEmail,
-      subject: subject,
+      subject: emailSubject,
       html: htmlContent
     });
 
