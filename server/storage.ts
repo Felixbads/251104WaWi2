@@ -1296,161 +1296,160 @@ export class DatabaseStorage implements IStorage {
       monthAvg: number;
     };
   }> {
-    // Aktuelles Datum für heutige Transaktionen
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    
-    // Zeiträume für Durchschnittsberechnungen
-    const oneWeekAgo = new Date(now);
-    oneWeekAgo.setDate(now.getDate() - 7);
-    
-    const oneMonthAgo = new Date(now);
-    oneMonthAgo.setMonth(now.getMonth() - 1);
-    
-    // 1. Heutige Transaktionen und Umsatz abrufen
-    const todayStats = await db.select({
-      count: count(),
-      revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`
-    })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.machineId, machineId),
-        gte(transactions.datetime, today),
-        lt(transactions.datetime, tomorrow)
-      )
-    );
-    
-    // Log für Debugging
-    console.log(`[DEBUG] Suche letzte Verkäufe für Maschine ID: ${machineId}`);
-    
-    // 2. Letzte Verkaufstransaktion abrufen
-    // Wichtig: Wir verwenden die interne ID, die in machineId übergeben wird
-    console.log(`[DEBUG] SQL-Debug - Suche Transaktionen für machineId (intern): ${machineId}, Typ: ${typeof machineId}`);
-    
-    const lastSalesQuery = await db.select()
-      .from(transactions)
-      .where(eq(transactions.machineId, machineId))
-      .orderBy(desc(transactions.datetime))
-      .limit(1);
-    
-    const [lastSale] = lastSalesQuery;
-    console.log(`[DEBUG] Letzte Verkaufstransaktion gefunden: ${lastSale ? 'Ja' : 'Nein'}`);
-    
-    if (lastSale) {
-      console.log(`[DEBUG] Gefundene Transaktion: ${lastSale.id}, Datum: ${lastSale.datetime}, Produkt: ${lastSale.productName}`);
-    } else {
-      console.log(`[DEBUG] Keine Transaktion für Maschine ${machineId} gefunden. Versuche alternative Abfrage...`);
+    try {
+      // Aktuelles Datum für heutige Transaktionen
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
       
-      // Falls keine Transaktion gefunden wurde, versuchen wir es mit einer direkten SQL-Abfrage
-      try {
-        const rawResults = await db.execute(
-          sql`SELECT * FROM transactions WHERE machine_id = ${machineId} ORDER BY datetime DESC LIMIT 1`
-        );
-        
-        if (rawResults.length > 0) {
-          console.log(`[DEBUG] Mit direkter SQL gefundene Transaktion:`, JSON.stringify(rawResults[0]));
-        } else {
-          console.log(`[DEBUG] Auch mit direkter SQL keine Transaktion gefunden.`);
+      // Zeiträume für Durchschnittsberechnungen
+      const oneWeekAgo = new Date(now);
+      oneWeekAgo.setDate(now.getDate() - 7);
+      
+      const oneMonthAgo = new Date(now);
+      oneMonthAgo.setMonth(now.getMonth() - 1);
+      
+      // Zuerst holen wir die Vendon-ID für die interne Maschinen-ID
+      const [machine] = await db.select()
+        .from(machines)
+        .where(eq(machines.id, machineId));
+      
+      console.log(`[DEBUG] Maschine gefunden: ${machine ? 'Ja' : 'Nein'}, ID: ${machineId}, Vendon-ID: ${machine?.vendonId}`);
+      
+      if (!machine) {
+        console.error(`[ERROR] Keine Maschine mit ID ${machineId} gefunden.`);
+        return {
+          todayTransactions: 0,
+          todayRevenue: 0,
+          lastSale: null,
+          lastCashlessSale: null,
+          alcoholSales: {
+            today: 0,
+            weekAvg: 0,
+            monthAvg: 0
+          }
+        };
+      }
+      
+      const vendonMachineId = machine.vendonId;
+      console.log(`[DEBUG] Verarbeite Statistiken für Maschine ID ${machineId} mit Vendon-ID: ${vendonMachineId}`);
+      
+      // 1. Heutige Transaktionen und Umsatz abrufen
+      // Wir verwenden SQL, um auf das JSON-Feld zuzugreifen
+      const todayStatsResult = await db.execute(sql`
+        SELECT COUNT(*) as count, COALESCE(SUM(price), 0) as revenue
+        FROM transactions 
+        WHERE (machine_id = ${machineId} OR extra_data::json->>'machine_id' = ${String(vendonMachineId)})
+        AND datetime >= ${today.toISOString()} AND datetime < ${tomorrow.toISOString()}
+      `);
+      
+      const todayCount = parseInt(todayStatsResult[0]?.count?.toString() || '0');
+      const todayRevenue = parseFloat(todayStatsResult[0]?.revenue?.toString() || '0');
+      
+      console.log(`[DEBUG] Heutige Transaktionen: ${todayCount}, Umsatz: ${todayRevenue}`);
+      
+      // 2. Letzte Verkaufstransaktion abrufen
+      // Wir suchen nach Transaktionen, bei denen der JSON-Pfad machine_id der Vendon-ID entspricht
+      console.log(`[DEBUG] Suche letzte Verkäufe für Maschine ID: ${machineId} (Vendon-ID: ${vendonMachineId})`);
+      
+      const lastSaleResult = await db.execute(sql`
+        SELECT * FROM transactions 
+        WHERE machine_id = ${machineId} OR extra_data::json->>'machine_id' = ${String(vendonMachineId)}
+        ORDER BY datetime DESC 
+        LIMIT 1
+      `);
+      
+      // Wenn lastSaleResult ein Array ist, greifen wir auf das erste Element zu
+      const lastSale = lastSaleResult.length > 0 ? lastSaleResult[0] as unknown as Transaction : null;
+      
+      console.log(`[DEBUG] Letzte Verkaufstransaktion gefunden: ${lastSale ? 'Ja' : 'Nein'}`);
+      if (lastSale) {
+        console.log(`[DEBUG] Gefundene Transaktion: ${lastSale.id}, Datum: ${lastSale.datetime}, Produkt: ${lastSale.productName}`);
+      }
+      
+      // 3. Letzten bargeldlosen Verkauf abrufen
+      const lastCashlessSaleResult = await db.execute(sql`
+        SELECT * FROM transactions 
+        WHERE (machine_id = ${machineId} OR extra_data::json->>'machine_id' = ${String(vendonMachineId)})
+        AND (card_credit > 0 OR cashless_credit > 0)
+        ORDER BY datetime DESC 
+        LIMIT 1
+      `);
+      
+      const lastCashlessSale = lastCashlessSaleResult.length > 0 ? lastCashlessSaleResult[0] as unknown as Transaction : null;
+      
+      console.log(`[DEBUG] Letzte Cashless-Transaktion gefunden: ${lastCashlessSale ? 'Ja' : 'Nein'}`);
+      if (lastCashlessSale) {
+        console.log(`[DEBUG] Gefundene Cashless-Transaktion: ${lastCashlessSale.id}, Datum: ${lastCashlessSale.datetime}`);
+      }
+      
+      // 4. Alkohol-Verkäufe analysieren
+      const alkoholKeywords = ['bier', 'wein', 'schnaps', 'pils', 'radler', 'alster', 'alkohol', 'sekt'];
+      
+      // SQL-Bedingung für Alkohol-Produkte erstellen
+      const likeConditions = alkoholKeywords.map(k => `LOWER(product_name) LIKE '%${k}%'`).join(' OR ');
+      
+      // Heutiger Alkohol-Verkauf
+      const todayAlcoholResult = await db.execute(sql`
+        SELECT COUNT(*) AS count
+        FROM transactions 
+        WHERE (machine_id = ${machineId} OR extra_data::json->>'machine_id' = ${String(vendonMachineId)})
+        AND datetime >= ${today.toISOString()} AND datetime < ${tomorrow.toISOString()}
+        AND (${sql.raw(likeConditions)})
+      `);
+      
+      // Letzte Woche Alkohol-Verkauf
+      const weekAlcoholResult = await db.execute(sql`
+        SELECT COUNT(*) AS count
+        FROM transactions 
+        WHERE (machine_id = ${machineId} OR extra_data::json->>'machine_id' = ${String(vendonMachineId)})
+        AND datetime >= ${oneWeekAgo.toISOString()} AND datetime < ${today.toISOString()}
+        AND (${sql.raw(likeConditions)})
+      `);
+      
+      // Letzten Monat Alkohol-Verkauf
+      const monthAlcoholResult = await db.execute(sql`
+        SELECT COUNT(*) AS count
+        FROM transactions 
+        WHERE (machine_id = ${machineId} OR extra_data::json->>'machine_id' = ${String(vendonMachineId)})
+        AND datetime >= ${oneMonthAgo.toISOString()} AND datetime < ${today.toISOString()}
+        AND (${sql.raw(likeConditions)})
+      `);
+      
+      const todayAlcoholCount = parseInt(todayAlcoholResult[0]?.count?.toString() || '0');
+      const weekAlcoholCount = parseInt(weekAlcoholResult[0]?.count?.toString() || '0');
+      const monthAlcoholCount = parseInt(monthAlcoholResult[0]?.count?.toString() || '0');
+      
+      // Berechnung der Durchschnittswerte
+      const weekAvg = weekAlcoholCount / 7 || 0;
+      const monthDays = Math.ceil((today.getTime() - oneMonthAgo.getTime()) / (1000 * 60 * 60 * 24));
+      const monthAvg = monthAlcoholCount / monthDays || 0;
+      
+      return {
+        todayTransactions: todayCount,
+        todayRevenue: todayRevenue,
+        lastSale: lastSale,
+        lastCashlessSale: lastCashlessSale,
+        alcoholSales: {
+          today: todayAlcoholCount,
+          weekAvg,
+          monthAvg
         }
-      } catch (err) {
-        console.error(`[ERROR] Fehler bei alternativer SQL-Abfrage:`, err);
-      }
+      };
+    } catch (error) {
+      console.error("[ERROR] Fehler beim Abrufen der Maschinenstatistiken:", error);
+      return {
+        todayTransactions: 0,
+        todayRevenue: 0,
+        lastSale: null,
+        lastCashlessSale: null,
+        alcoholSales: {
+          today: 0,
+          weekAvg: 0,
+          monthAvg: 0
+        }
+      };
     }
-    
-    // 3. Letzten bargeldlosen Verkauf abrufen (cardCredit oder cashlessCredit > 0)
-    const lastCashlessSaleQuery = await db.select()
-      .from(transactions)
-      .where(
-        and(
-          eq(transactions.machineId, machineId),
-          or(
-            gt(transactions.cardCredit, 0),
-            gt(transactions.cashlessCredit, 0)
-          )
-        )
-      )
-      .orderBy(desc(transactions.datetime))
-      .limit(1);
-    
-    const [lastCashlessSale] = lastCashlessSaleQuery;
-    console.log(`[DEBUG] Letzte Cashless-Transaktion gefunden: ${lastCashlessSale ? 'Ja' : 'Nein'}`);
-    
-    // 4. Alkohol-Verkäufe analysieren
-    // In dieser vereinfachten Version suchen wir nach Produkten, die im Namen "Bier", "Wein", oder ähnliches enthalten
-    const alkoholKeywords = ['bier', 'wein', 'schnaps', 'pils', 'radler', 'alster', 'alkohol', 'sekt'];
-    
-    // Heutiger Alkohol-Verkauf
-    const todayAlcohol = await db.select({
-      count: count()
-    })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.machineId, machineId),
-        gte(transactions.datetime, today),
-        lt(transactions.datetime, tomorrow),
-        or(
-          ...alkoholKeywords.map(keyword => 
-            ilike(transactions.productName, `%${keyword}%`)
-          )
-        )
-      )
-    );
-    
-    // Letzte Woche Alkohol-Verkauf (für Durchschnitt)
-    const weekAlcohol = await db.select({
-      count: count()
-    })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.machineId, machineId),
-        gte(transactions.datetime, oneWeekAgo),
-        lt(transactions.datetime, today),
-        or(
-          ...alkoholKeywords.map(keyword => 
-            ilike(transactions.productName, `%${keyword}%`)
-          )
-        )
-      )
-    );
-    
-    // Letzter Monat Alkohol-Verkauf (für Durchschnitt)
-    const monthAlcohol = await db.select({
-      count: count()
-    })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.machineId, machineId),
-        gte(transactions.datetime, oneMonthAgo),
-        lt(transactions.datetime, today),
-        or(
-          ...alkoholKeywords.map(keyword => 
-            ilike(transactions.productName, `%${keyword}%`)
-          )
-        )
-      )
-    );
-    
-    // Berechnung der Durchschnittswerte
-    const weekAvg = weekAlcohol[0]?.count / 7 || 0; // Durchschnitt pro Tag in der letzten Woche
-    const monthDays = Math.ceil((today.getTime() - oneMonthAgo.getTime()) / (1000 * 60 * 60 * 24));
-    const monthAvg = monthAlcohol[0]?.count / monthDays || 0; // Durchschnitt pro Tag im letzten Monat
-    
-    return {
-      todayTransactions: todayStats[0]?.count || 0,
-      todayRevenue: todayStats[0]?.revenue || 0,
-      lastSale: lastSale || null,
-      lastCashlessSale: lastCashlessSale || null,
-      alcoholSales: {
-        today: todayAlcohol[0]?.count || 0,
-        weekAvg,
-        monthAvg
-      }
-    };
   }
 
   async createTransaction(transaction: InsertTransaction): Promise<Transaction> {
