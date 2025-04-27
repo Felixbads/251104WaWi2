@@ -99,21 +99,78 @@ export default function AutomatDetail() {
     refetch: refetchMachine
   } = useQuery({
     queryKey: ['/api/machines', id],
-    queryFn: () => getMachine(id).then(data => {
-      // Erweitere die Maschine mit simulierten KPIs für die UI
-      return {
-        ...data,
-        todayTransactions: Math.floor(Math.random() * 30),
-        todayRevenue: Math.floor(Math.random() * 500) / 10,
-        cashlessStatus: Math.random() > 0.3 ? 'ok' : (Math.random() > 0.5 ? 'warning' : 'error'),
-        ageVerificationStatus: Math.random() > 0.2 ? 'ok' : (Math.random() > 0.5 ? 'warning' : 'error'),
-        lastMaintenanceDate: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
-        firmwareVersion: "v" + (1 + Math.floor(Math.random() * 9)) + "." + (Math.floor(Math.random() * 10)),
-        serialNumber: "SN-" + Math.floor(Math.random() * 1000000).toString().padStart(6, '0'),
-        machineType: ["Snackautomat", "Getränkeautomat", "Kombi-Automat", "Kaffeeautomat"][Math.floor(Math.random() * 4)],
-        installationDate: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000).toISOString()
-      } as EnhancedMachine;
-    }),
+    queryFn: async () => {
+      // Grundlegende Maschinendaten abrufen
+      const machineData = await getMachine(id);
+      
+      // Leer KPIs für die zu erweiternde Maschine
+      const enhancedMachine: EnhancedMachine = {
+        ...machineData,
+        todayTransactions: 0,
+        todayRevenue: 0,
+        cashlessStatus: 'error',
+        ageVerificationStatus: 'ok',
+        lastMaintenanceDate: machineData.lastSync || new Date().toISOString(),
+        firmwareVersion: "v1.0",
+        serialNumber: machineData.vendonId || "Unbekannt",
+        machineType: "Snackautomat",
+        installationDate: machineData.createdAt || new Date().toISOString()
+      };
+      
+      try {
+        // Tägliche Stats über die API abrufen - mit Vendon-ID!
+        console.log(`Hole KPIs für Automat mit ID ${id} (Vendon-ID: ${machineData.vendonId})`);
+        const response = await fetch(`/api/machines/${machineData.vendonId}/daily-stats`);
+        
+        if (response.ok) {
+          const stats = await response.json();
+          console.log(`Erhaltene KPIs:`, stats);
+          
+          // Daten aus der API verwenden
+          if (stats.todayTransactions) enhancedMachine.todayTransactions = stats.todayTransactions;
+          if (stats.todayRevenue) enhancedMachine.todayRevenue = stats.todayRevenue;
+          
+          // Letzter Verkauf verarbeiten
+          if (stats.lastSale && stats.lastSale.datetime) {
+            enhancedMachine.lastSale = new Date(stats.lastSale.datetime).toISOString();
+          }
+          
+          // Cashless-Status auswerten
+          if (stats.lastCashlessSale) {
+            const now = new Date();
+            const lastCashlessDate = new Date(stats.lastCashlessSale.datetime);
+            const hoursSinceLastCashless = (now.getTime() - lastCashlessDate.getTime()) / (1000 * 60 * 60);
+            
+            if (hoursSinceLastCashless < 1) {
+              enhancedMachine.cashlessStatus = 'ok';
+            } else if (hoursSinceLastCashless < 4) {
+              enhancedMachine.cashlessStatus = 'warning';
+            } else {
+              enhancedMachine.cashlessStatus = 'error';
+            }
+          }
+          
+          // Alkoholverkaufs-Status
+          if (stats.alcoholSales) {
+            const { today, weekAvg, monthAvg } = stats.alcoholSales;
+            
+            if (today <= monthAvg * 1.2 && today >= monthAvg * 0.8) {
+              enhancedMachine.ageVerificationStatus = 'ok';
+            } else if (today > monthAvg * 1.5 || today < monthAvg * 0.5) {
+              enhancedMachine.ageVerificationStatus = 'error';
+            } else {
+              enhancedMachine.ageVerificationStatus = 'warning';
+            }
+          }
+        } else {
+          console.error(`Fehler beim Abrufen der KPIs: ${response.status}`);
+        }
+      } catch (error) {
+        console.error("Fehler beim Abrufen der Maschinen-KPIs:", error);
+      }
+      
+      return enhancedMachine;
+    },
     enabled: !!id
   });
 

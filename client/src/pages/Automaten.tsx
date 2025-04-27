@@ -68,11 +68,11 @@ export default function Automaten() {
       // Für jede Maschine die täglichen Statistiken abrufen
       for (const machine of enhancedMachines) {
         try {
-          console.log(`DEBUG: Abrufen von KPIs für Maschine ${machine.id} (${machine.machineName})`);
+          console.log(`DEBUG: Abrufen von KPIs für Maschine ${machine.id} (${machine.machineName}) mit Vendon-ID: ${machine.vendonId}`);
           
-          // Neue API für alle KPIs in einem Aufruf nutzen
-          const response = await fetch(`/api/machines/${machine.id}/daily-stats`);
-          console.log(`DEBUG: API-Status für Maschine ${machine.id}:`, response.status);
+          // Wir müssen die Vendon-ID statt der internen ID verwenden
+          const response = await fetch(`/api/machines/${machine.vendonId}/daily-stats`);
+          console.log(`DEBUG: API-Status für Maschine ${machine.id} mit Vendon-ID ${machine.vendonId}:`, response.status);
           
           if (response.ok) {
             const stats = await response.json();
