@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -62,6 +62,7 @@ const BestellungV2: React.FC = () => {
   const { toast } = useToast();
   const [location, navigate] = useLocation();
   const params = useParams();
+  const queryClient = useQueryClient();
   
   // State for the order process
   const [step, setStep] = useState<OrderStep>('overview'); // Starte mit der Übersicht
