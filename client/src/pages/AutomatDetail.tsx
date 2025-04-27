@@ -534,34 +534,24 @@ export default function AutomatDetail() {
         <div className="overflow-x-auto pb-2">
           <TabsList className="inline-flex w-auto min-w-full">
             <TabsTrigger value="allgemein" className="whitespace-nowrap flex items-center">
-              <Info className="h-4 w-4 mr-2 md:inline hidden" />
-              <span className="md:inline">Allgemeine Informationen</span>
-              <span className="md:hidden">Allgemein</span>
+              <Info className="h-4 w-4 mr-2" />
+              <span>Allgemein</span>
             </TabsTrigger>
             <TabsTrigger value="transaktionen" className="whitespace-nowrap flex items-center">
-              <ShoppingCart className="h-4 w-4 mr-2 md:inline hidden" />
-              <span className="md:inline">Transaktionshistorie</span>
-              <span className="md:hidden">Transaktionen</span>
+              <ShoppingCart className="h-4 w-4 mr-2" />
+              <span>Transaktionen</span>
             </TabsTrigger>
             <TabsTrigger value="analysen" className="whitespace-nowrap flex items-center">
               <FileText className="h-4 w-4 mr-2" />
-              <span className="md:inline">Analysen</span>
-              <span className="md:hidden">Analysen</span>
+              <span>Analysen</span>
+            </TabsTrigger>
+            <TabsTrigger value="auswertung" className="whitespace-nowrap flex items-center">
+              <BarChartIcon className="h-4 w-4 mr-2" />
+              <span>Auswertung</span>
             </TabsTrigger>
             <TabsTrigger value="auffullungen" className="whitespace-nowrap flex items-center">
               <PackagePlus className="h-4 w-4 mr-2" />
-              <span className="md:inline">Auffüllungen</span>
-              <span className="md:hidden">Auffüll.</span>
-            </TabsTrigger>
-            <TabsTrigger value="fehler" className="whitespace-nowrap flex items-center">
-              <AlertTriangle className="h-4 w-4 mr-2 md:inline hidden" />
-              <span className="md:inline">Fehler & Logs</span>
-              <span className="md:hidden">Fehler</span>
-            </TabsTrigger>
-            <TabsTrigger value="technisch" className="whitespace-nowrap flex items-center">
-              <Settings className="h-4 w-4 mr-2 md:inline hidden" />
-              <span className="md:inline">Technische Details</span>
-              <span className="md:hidden">Technik</span>
+              <span>Auffüllungen</span>
             </TabsTrigger>
           </TabsList>
         </div>
