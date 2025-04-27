@@ -1,8 +1,9 @@
 import { Request, Response, Router } from "express";
 import { db } from "../db";
-import { orders, orderItems } from "@shared/schema";
+import { orders, orderItems, suppliers } from "@shared/schema";
 import { storage } from "../storage";
 import { eq, and, like, ilike, or, desc, asc, isNull, isNotNull, sql, count } from "drizzle-orm";
+import { sendEmail, createOrderSubject, createOrderEmailTemplate, createOrderItemsTable } from "../services/emailService";
 
 const router = Router();
 
@@ -1261,6 +1262,113 @@ router.delete("/:id", async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Fehler beim Löschen der Bestellung:", error);
     res.status(500).json({ error: "Fehler beim Löschen der Bestellung" });
+  }
+});
+
+// Bestellung per E-Mail versenden
+router.post("/:id/email", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const orderId = parseInt(id);
+    const { supplierEmail, additionalNotes } = req.body;
+
+    if (isNaN(orderId)) {
+      return res.status(400).json({ error: "Ungültige Bestellungs-ID" });
+    }
+
+    if (!supplierEmail || !supplierEmail.includes('@')) {
+      return res.status(400).json({ error: "Eine gültige E-Mail-Adresse des Lieferanten muss angegeben werden" });
+    }
+
+    // Bestellung abrufen
+    const orderData = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+
+    if (!orderData || orderData.length === 0) {
+      return res.status(404).json({ error: "Bestellung nicht gefunden" });
+    }
+    
+    const order = orderData[0];
+
+    // Bestellpositionen abrufen
+    const items = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, orderId));
+
+    // Lieferanten abrufen
+    let supplier = null;
+    if (order.supplierId) {
+      const supplierData = await db
+        .select()
+        .from(suppliers)
+        .where(eq(suppliers.id, order.supplierId))
+        .limit(1);
+      
+      if (supplierData && supplierData.length > 0) {
+        supplier = supplierData[0];
+      }
+    }
+
+    // Tabelle mit Bestellpositionen erstellen
+    const itemsTable = createOrderItemsTable(items);
+
+    // E-Mail-Inhalt konstruieren
+    const emailTemplate = createOrderEmailTemplate(order, supplier || { name: order.supplierName || "Unbekannter Lieferant" });
+    
+    // HTML für E-Mail mit Tabelle und Zusatzinformationen ergänzen
+    let htmlContent = emailTemplate.replace('{{orderItems}}', itemsTable);
+    
+    // Zusätzliche Notizen in die E-Mail einfügen, wenn vorhanden
+    if (additionalNotes && additionalNotes.trim() !== '') {
+      htmlContent = htmlContent.replace('</p>', `</p><p><strong>Zusätzliche Hinweise:</strong><br>${additionalNotes.replace(/\n/g, '<br>')}</p>`);
+    }
+    
+    // Absender-E-Mail (könnte später aus der Konfiguration kommen)
+    const fromEmail = "system@example.com";
+    
+    // E-Mail-Betreff
+    const subject = createOrderSubject(order.orderNumber, order.supplierName || "");
+    
+    // E-Mail senden
+    const result = await sendEmail({
+      to: supplierEmail,
+      from: fromEmail,
+      subject: subject,
+      html: htmlContent
+    });
+
+    if (result) {
+      // Bestellung als versandt markieren, wenn sie noch im Entwurfsstatus ist
+      if (order.status === 'draft') {
+        await db
+          .update(orders)
+          .set({
+            status: 'shipped',
+            updatedAt: new Date()
+          })
+          .where(eq(orders.id, orderId));
+      }
+
+      return res.json({
+        success: true,
+        message: "E-Mail wurde erfolgreich versendet"
+      });
+    } else {
+      return res.status(500).json({
+        error: "E-Mail konnte nicht versendet werden",
+        technicalDetails: "Fehler beim Senden der E-Mail"
+      });
+    }
+  } catch (error) {
+    console.error("Fehler beim Senden der Bestellungs-E-Mail:", error);
+    res.status(500).json({
+      error: "Fehler beim Senden der E-Mail",
+      details: (error as Error).message
+    });
   }
 });
 
