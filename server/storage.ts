@@ -1395,17 +1395,18 @@ export class DatabaseStorage implements IStorage {
       // Jetzt wo wir die interne ID und Vendon-ID haben, können wir
       // die notwendigen Daten für die Statistiken abfragen
       
-      // 1. Heutige Transaktionen und Umsatz
+      // 1. Heutige Transaktionen und Umsatz - Verbesserte Abfrage mit Vendon-ID
       const todayTransactionsQuery = `
         SELECT COUNT(*) as today_transactions, 
                COALESCE(SUM(price), 0) as today_revenue
         FROM transactions 
-        WHERE machine_id = $1 
-        AND datetime >= $2 AND datetime < $3
+        WHERE (machine_id = $1 OR (extra_data->>'machine_id' = $2))
+        AND datetime >= $3 AND datetime < $4
       `;
       
       const todayResult = await this.db.raw(todayTransactionsQuery, [
         internalMachineId,
+        vendonMachineId,
         today.toISOString(),
         tomorrow.toISOString()
       ]);
@@ -1416,31 +1417,37 @@ export class DatabaseStorage implements IStorage {
       console.log(`[DEBUG] Heutige Transaktionen: ${todayCount}, Umsatz: ${todayRevenue}`);
       
       // 2. Letzter Verkauf
-      console.log(`[DEBUG] Suche letzte Verkäufe für Maschine ID: ${machineId} (Vendon-ID: ${vendonMachineId})`);
+      console.log(`[DEBUG] Suche letzte Verkäufe für Maschine ID: ${internalMachineId} (Vendon-ID: ${vendonMachineId})`);
       
+      // Verbesserte Abfrage für letzten Verkauf, die sowohl interne ID als auch Vendon-ID berücksichtigt
       const lastSaleQuery = `
         SELECT * FROM transactions 
         WHERE machine_id = $1 
+           OR (extra_data->>'machine_id' = $2)
         ORDER BY datetime DESC 
         LIMIT 1
       `;
       
-      const lastSaleResult = await this.db.raw(lastSaleQuery, [internalMachineId]);
+      const lastSaleResult = await this.db.raw(lastSaleQuery, [internalMachineId, vendonMachineId]);
       
       const lastSale = lastSaleResult.rows.length > 0 ? lastSaleResult.rows[0] : null;
       
       console.log(`[DEBUG] Letzte Verkaufstransaktion gefunden: ${lastSale ? 'Ja' : 'Nein'}`);
+      if (lastSale) {
+        console.log(`[DEBUG] Details der letzten Transaktion: ID=${lastSale.id}, Zeit=${lastSale.datetime}, Produkt=${lastSale.product_name}`);
+        console.log(`[DEBUG] Transaktions-MachineID=${lastSale.machine_id}, ExtraData=${JSON.stringify(lastSale.extra_data || {})}`);
+      }
       
       // 3. Letzter bargeldloser Verkauf
       const lastCashlessSaleQuery = `
         SELECT * FROM transactions 
-        WHERE machine_id = $1 
+        WHERE (machine_id = $1 OR (extra_data->>'machine_id' = $2))
         AND LOWER(payment_method) = 'cashless'
         ORDER BY datetime DESC 
         LIMIT 1
       `;
       
-      const lastCashlessSaleResult = await this.db.raw(lastCashlessSaleQuery, [internalMachineId]);
+      const lastCashlessSaleResult = await this.db.raw(lastCashlessSaleQuery, [internalMachineId, vendonMachineId]);
       
       const lastCashlessSale = lastCashlessSaleResult.rows.length > 0 ? 
         lastCashlessSaleResult.rows[0] : null;
@@ -1460,47 +1467,50 @@ export class DatabaseStorage implements IStorage {
         `LOWER(product_name) LIKE '%${keyword}%'`
       ).join(' OR ');
       
-      // Alkohol-Verkäufe heute
+      // Alkohol-Verkäufe heute - Verbesserte Abfrage mit Vendon-ID
       const todayAlcoholQuery = `
         SELECT COUNT(*) AS count
         FROM transactions 
-        WHERE machine_id = $1 
-        AND datetime >= $2 AND datetime < $3
+        WHERE (machine_id = $1 OR (extra_data->>'machine_id' = $2))
+        AND datetime >= $3 AND datetime < $4
         AND (${likeConditions})
       `;
       
       const todayAlcoholResult = await this.db.raw(todayAlcoholQuery, [
-        internalMachineId, 
+        internalMachineId,
+        vendonMachineId,
         today.toISOString(), 
         tomorrow.toISOString()
       ]);
       
-      // Letzte Woche Alkohol-Verkauf
+      // Letzte Woche Alkohol-Verkauf - Verbesserte Abfrage mit Vendon-ID
       const weekAlcoholQuery = `
         SELECT COUNT(*) AS count
         FROM transactions 
-        WHERE machine_id = $1 
-        AND datetime >= $2 AND datetime < $3
+        WHERE (machine_id = $1 OR (extra_data->>'machine_id' = $2))
+        AND datetime >= $3 AND datetime < $4
         AND (${likeConditions})
       `;
       
       const weekAlcoholResult = await this.db.raw(weekAlcoholQuery, [
-        internalMachineId, 
+        internalMachineId,
+        vendonMachineId,
         oneWeekAgo.toISOString(), 
         today.toISOString()
       ]);
       
-      // Letzten Monat Alkohol-Verkauf
+      // Letzten Monat Alkohol-Verkauf - Verbesserte Abfrage mit Vendon-ID
       const monthAlcoholQuery = `
         SELECT COUNT(*) AS count
         FROM transactions 
-        WHERE machine_id = $1 
-        AND datetime >= $2 AND datetime < $3
+        WHERE (machine_id = $1 OR (extra_data->>'machine_id' = $2))
+        AND datetime >= $3 AND datetime < $4
         AND (${likeConditions})
       `;
       
       const monthAlcoholResult = await this.db.raw(monthAlcoholQuery, [
-        internalMachineId, 
+        internalMachineId,
+        vendonMachineId, 
         oneMonthAgo.toISOString(), 
         today.toISOString()
       ]);
