@@ -1951,6 +1951,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Get daily statistics for a machine (KPIs)
+  app.get(`${API_PREFIX}/machines/:id/daily-stats`, async (req: Request, res: Response) => {
+    try {
+      const machineId = parseInt(req.params.id);
+      
+      if (isNaN(machineId)) {
+        return res.status(400).json({ error: "Invalid machine ID" });
+      }
+      
+      const stats = await storage.getMachineDailyStats(machineId);
+      res.json(stats);
+    } catch (error) {
+      console.error(`Error fetching daily stats for machine ID ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch machine daily statistics", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+  
   // Get refills by machine ID
   app.get(`${API_PREFIX}/machines/:id/refills`, async (req: Request, res: Response) => {
     try {
@@ -1988,25 +2008,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
-  // Hole tägliche Statistiken für einen Automaten (KPIs für Dashboard)
-  app.get(`${API_PREFIX}/machines/:id/daily-stats`, async (req: Request, res: Response) => {
-    try {
-      const machineId = parseInt(req.params.id);
-      
-      if (isNaN(machineId)) {
-        return res.status(400).json({ error: "Ungültige Maschinen-ID" });
-      }
-      
-      const stats = await storage.getMachineDailyStats(machineId);
-      res.json(stats);
-    } catch (error) {
-      console.error(`Error fetching daily stats for machine ID ${req.params.id}:`, error);
-      res.status(500).json({ 
-        error: "Fehler beim Abrufen der täglichen Statistiken", 
-        details: error instanceof Error ? error.message : String(error) 
-      });
-    }
-  });
+
 
   // Get events
   app.get(`${API_PREFIX}/events`, async (req: Request, res: Response) => {
