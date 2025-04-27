@@ -989,15 +989,19 @@ router.get('/machines/:id/analytics', async (req, res) => {
     switch(String(period)) {
       case 'day':
         startDate = startOfDay(startDate);
+        endDate = new Date(); // Endzeit ist aktuelle Zeit
         break;
       case 'week':
         startDate = startOfWeek(startDate, { weekStartsOn: 1 });
+        endDate = new Date(); // Endzeit ist aktuelle Zeit
         break;
       case 'month':
         startDate = startOfMonth(startDate);
+        endDate = new Date(); // Endzeit ist aktuelle Zeit
         break;
       case 'year':
         startDate = new Date(startDate.getFullYear(), 0, 1);
+        endDate = new Date(); // Endzeit ist aktuelle Zeit
         break;
       case 'custom':
         if (customStartDate && customEndDate) {
@@ -1012,8 +1016,8 @@ router.get('/machines/:id/analytics', async (req, res) => {
     }
 
     // Formatiere Termine als ISO-Datumsstrings für SQL-Abfragen
-    const startDateStr = startDate.toISOString();
-    const endDateStr = endDate.toISOString();
+    const startDateStr = startDate instanceof Date ? startDate.toISOString() : new Date().toISOString();
+    const endDateStr = endDate instanceof Date ? endDate.toISOString() : new Date().toISOString();
 
     // Parallel-Abfragen für bessere Performance
     const [
@@ -1156,8 +1160,8 @@ router.get('/machines/:id/analytics', async (req, res) => {
       machineInfo: machineInfo[0] || null,
       periodAnalysis: {
         period: period,
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
+        startDate: startDate instanceof Date ? startDate.toISOString() : new Date().toISOString(),
+        endDate: endDate instanceof Date ? endDate.toISOString() : new Date().toISOString(),
         transactionStats: transactionStats[0] || { count: 0, totalRevenue: 0, avgPrice: 0 },
         eventCounts: eventCounts || [],
         refillStats: refillStats[0] || { count: 0, lastRefill: null }
