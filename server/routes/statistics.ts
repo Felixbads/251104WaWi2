@@ -1012,8 +1012,8 @@ router.get('/machines/:id/analytics', async (req, res) => {
     }
 
     // Formatiere Termine als ISO-Datumsstrings für SQL-Abfragen
-    const startDateStr = format(startDate, 'yyyy-MM-dd');
-    const endDateStr = format(endDate, 'yyyy-MM-dd');
+    const startDateStr = startDate.toISOString();
+    const endDateStr = endDate.toISOString();
 
     // Parallel-Abfragen für bessere Performance
     const [
@@ -1047,7 +1047,7 @@ router.get('/machines/:id/analytics', async (req, res) => {
       .from(transactions)
       .where(
         and(
-          eq(transactions.machineId, String(id)),
+          eq(transactions.machineId, id),
           gte(transactions.datetime, startDateStr),
           lte(transactions.datetime, endDateStr)
         )
@@ -1061,7 +1061,7 @@ router.get('/machines/:id/analytics', async (req, res) => {
       .from(events)
       .where(
         and(
-          eq(events.machineId, String(id)),
+          eq(events.machineId, id),
           gte(events.datetime, startDateStr),
           lte(events.datetime, endDateStr)
         )
@@ -1091,7 +1091,7 @@ router.get('/machines/:id/analytics', async (req, res) => {
       .from(transactions)
       .where(
         and(
-          eq(transactions.machineId, String(id)),
+          eq(transactions.machineId, id),
           gte(transactions.datetime, startDateStr),
           lte(transactions.datetime, endDateStr)
         )
@@ -1109,7 +1109,7 @@ router.get('/machines/:id/analytics', async (req, res) => {
       .from(transactions)
       .where(
         and(
-          eq(transactions.machineId, String(id)),
+          eq(transactions.machineId, id),
           gte(transactions.datetime, startDateStr),
           lte(transactions.datetime, endDateStr)
         )
@@ -1126,7 +1126,7 @@ router.get('/machines/:id/analytics', async (req, res) => {
     .from(transactions)
     .where(
       and(
-        eq(transactions.machineId, String(id)),
+        eq(transactions.machineId, id),
         gte(transactions.datetime, startDateStr),
         lte(transactions.datetime, endDateStr)
       )
