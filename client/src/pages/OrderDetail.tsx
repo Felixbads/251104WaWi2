@@ -1493,7 +1493,7 @@ export default function OrderDetail() {
               Herunterladen
             </Button>
             <Button 
-              onClick={handlePrepareEmail}
+              onClick={handleSendEmail}
               disabled={!pdfBlob}
             >
               <Send className="h-4 w-4 mr-2" />
