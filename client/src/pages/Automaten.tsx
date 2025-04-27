@@ -64,19 +64,57 @@ export default function Automaten() {
         ageVerificationStatus: 'ok'
       } as EnhancedMachine));
 
-      // Für jede Maschine den letzten Verkauf ermitteln
+      // Für jede Maschine die täglichen Statistiken abrufen
       for (const machine of enhancedMachines) {
         try {
-          // Wir holen nur die letzte Transaktion für diese Maschine
-          const response = await fetch(`/api/transactions?machineId=${machine.id}&limit=1&sortBy=datetime&sortOrder=desc`);
+          // Neue API für alle KPIs in einem Aufruf nutzen
+          const response = await fetch(`/api/machines/${machine.id}/daily-stats`);
           if (response.ok) {
-            const transactions = await response.json();
-            if (transactions && transactions.data && transactions.data.length > 0) {
-              machine.lastSale = new Date(transactions.data[0].datetime).toISOString();
+            const stats = await response.json();
+            
+            // Tägliche Transaktionen und Umsatz
+            machine.todayTransactions = stats.todayTransactions || 0;
+            machine.todayRevenue = stats.todayRevenue || 0;
+            
+            // Letzter Verkauf
+            if (stats.lastSale) {
+              machine.lastSale = new Date(stats.lastSale.datetime).toISOString();
+            }
+            
+            // Letzter bargeldloser Verkauf und Status-Indikator
+            if (stats.lastCashlessSale) {
+              const now = new Date();
+              const lastCashlessDate = new Date(stats.lastCashlessSale.datetime);
+              const hoursSinceLastCashless = (now.getTime() - lastCashlessDate.getTime()) / (1000 * 60 * 60);
+              
+              // Status basierend auf der Zeit seit dem letzten bargeldlosen Verkauf
+              if (hoursSinceLastCashless < 1) {
+                machine.cashlessStatus = 'ok';
+              } else if (hoursSinceLastCashless < 4) {
+                machine.cashlessStatus = 'warning';
+              } else {
+                machine.cashlessStatus = 'error';
+              }
+            } else {
+              machine.cashlessStatus = 'error'; // Keine bargeldlosen Verkäufe
+            }
+            
+            // Alkoholverkaufs-Status-Indikator
+            if (stats.alcoholSales) {
+              const { today, weekAvg, monthAvg } = stats.alcoholSales;
+              
+              // Status basierend auf Abweichung vom Durchschnitt
+              if (today <= monthAvg * 1.2 && today >= monthAvg * 0.8) {
+                machine.ageVerificationStatus = 'ok'; // Im normalen Bereich
+              } else if (today > monthAvg * 1.5 || today < monthAvg * 0.5) {
+                machine.ageVerificationStatus = 'error'; // Starke Abweichung
+              } else {
+                machine.ageVerificationStatus = 'warning'; // Leichte Abweichung
+              }
             }
           }
         } catch (err) {
-          console.error(`Fehler beim Abrufen des letzten Verkaufs für Maschine ${machine.id}:`, err);
+          console.error(`Fehler beim Abrufen der KPIs für Maschine ${machine.id}:`, err);
         }
       }
 
@@ -198,10 +236,36 @@ export default function Automaten() {
             variant="ghost" 
             size="sm" 
             className="px-2"
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation(); // Verhindert, dass der Kartenklick ausgelöst wird
-              // In einer echten Implementierung würden hier aktualisierte KPI-Werte abgerufen werden
-              queryClient.invalidateQueries({ queryKey: ['/api/machines', machine.id] });
+              
+              // Aktualisierte KPI-Werte direkt von der neuen API abrufen
+              try {
+                const response = await fetch(`/api/machines/${machine.id}/daily-stats`);
+                if (response.ok) {
+                  const stats = await response.json();
+                  
+                  // Maschine im Cache aktualisieren
+                  queryClient.setQueryData(['/api/machines'], (oldData: EnhancedMachine[] | undefined) => {
+                    if (!oldData) return oldData;
+                    
+                    return oldData.map(m => {
+                      if (m.id === machine.id) {
+                        // KPIs aktualisieren
+                        return {
+                          ...m,
+                          todayTransactions: stats.todayTransactions || 0,
+                          todayRevenue: stats.todayRevenue || 0,
+                          lastSale: stats.lastSale ? new Date(stats.lastSale.datetime).toISOString() : m.lastSale,
+                        };
+                      }
+                      return m;
+                    });
+                  });
+                }
+              } catch (err) {
+                console.error(`Fehler beim Aktualisieren der KPIs für Maschine ${machine.id}:`, err);
+              }
             }}
           >
             <RefreshCw className="h-4 w-4" />
@@ -282,9 +346,36 @@ export default function Automaten() {
               variant="ghost" 
               size="icon"
               className="h-8 w-8"
-              onClick={(e) => {
+              onClick={async (e) => {
                 e.stopPropagation();
-                queryClient.invalidateQueries({ queryKey: ['/api/machines', machine.id] });
+                
+                // Aktualisierte KPI-Werte direkt von der neuen API abrufen
+                try {
+                  const response = await fetch(`/api/machines/${machine.id}/daily-stats`);
+                  if (response.ok) {
+                    const stats = await response.json();
+                    
+                    // Maschine im Cache aktualisieren
+                    queryClient.setQueryData(['/api/machines'], (oldData: EnhancedMachine[] | undefined) => {
+                      if (!oldData) return oldData;
+                      
+                      return oldData.map(m => {
+                        if (m.id === machine.id) {
+                          // KPIs aktualisieren
+                          return {
+                            ...m,
+                            todayTransactions: stats.todayTransactions || 0,
+                            todayRevenue: stats.todayRevenue || 0,
+                            lastSale: stats.lastSale ? new Date(stats.lastSale.datetime).toISOString() : m.lastSale,
+                          };
+                        }
+                        return m;
+                      });
+                    });
+                  }
+                } catch (err) {
+                  console.error(`Fehler beim Aktualisieren der KPIs für Maschine ${machine.id}:`, err);
+                }
               }}
             >
               <RefreshCw className="h-4 w-4" />
