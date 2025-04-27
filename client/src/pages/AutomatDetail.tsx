@@ -734,24 +734,24 @@ export default function AutomatDetail() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-muted rounded-lg p-4">
                       <div className="text-sm text-muted-foreground mb-1">Gesamt-Verkäufe</div>
-                      <div className="text-2xl font-medium">{machineAnalytics?.periodAnalysis?.transactionStats.count || 0}</div>
+                      <div className="text-2xl font-medium">{machineAnalytics?.periodAnalysis?.transactionStats?.count || 0}</div>
                     </div>
                     <div className="bg-muted rounded-lg p-4">
                       <div className="text-sm text-muted-foreground mb-1">Umsatz</div>
-                      <div className="text-2xl font-medium">{(machineAnalytics?.periodAnalysis?.transactionStats.totalRevenue || 0).toFixed(2)} €</div>
+                      <div className="text-2xl font-medium">{(machineAnalytics?.periodAnalysis?.transactionStats?.totalRevenue || 0).toFixed(2)} €</div>
                     </div>
                     <div className="bg-muted rounded-lg p-4">
                       <div className="text-sm text-muted-foreground mb-1">Auffüllungen</div>
-                      <div className="text-2xl font-medium">{machineAnalytics?.periodAnalysis?.refillStats.count || 0}</div>
+                      <div className="text-2xl font-medium">{machineAnalytics?.periodAnalysis?.refillStats?.count || 0}</div>
                     </div>
                     <div className="bg-muted rounded-lg p-4">
                       <div className="text-sm text-muted-foreground mb-1">Durchschnittlicher Verkauf</div>
-                      <div className="text-2xl font-medium">{(machineAnalytics?.periodAnalysis?.transactionStats.avgPrice || 0).toFixed(2)} €</div>
+                      <div className="text-2xl font-medium">{(machineAnalytics?.periodAnalysis?.transactionStats?.avgPrice || 0).toFixed(2)} €</div>
                     </div>
                   </div>
                 </CardContent>
                 <CardFooter className="text-xs text-muted-foreground">
-                  Zeitraum: {machineAnalytics?.periodAnalysis.startDate ? formatDateTime(machineAnalytics.periodAnalysis.startDate, 'date') : ''} - {machineAnalytics?.periodAnalysis.endDate ? formatDateTime(machineAnalytics.periodAnalysis.endDate, 'date') : ''}
+                  Zeitraum: {machineAnalytics?.periodAnalysis?.startDate ? formatDateTime(machineAnalytics.periodAnalysis.startDate, 'date') : 'Nicht verfügbar'} - {machineAnalytics?.periodAnalysis?.endDate ? formatDateTime(machineAnalytics.periodAnalysis.endDate, 'date') : 'Nicht verfügbar'}
                 </CardFooter>
               </Card>
 
@@ -856,7 +856,7 @@ export default function AutomatDetail() {
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
-                          data={machineAnalytics?.paymentMethodDistribution.map(pm => ({
+                          data={machineAnalytics?.paymentMethodDistribution?.map(pm => ({
                             name: pm.paymentMethod,
                             value: pm.count
                           })) || []}
@@ -869,7 +869,7 @@ export default function AutomatDetail() {
                           nameKey="name"
                           label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                         >
-                          {machineAnalytics?.paymentMethodDistribution.map((entry, index) => (
+                          {machineAnalytics?.paymentMethodDistribution?.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A4DE6C'][index % 5]} />
                           ))}
                         </Pie>
