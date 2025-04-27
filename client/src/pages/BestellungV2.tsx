@@ -102,7 +102,10 @@ const BestellungV2: React.FC = () => {
       // Zur Wareneingang-Seite navigieren (goodsReceipt)
       setStep('goodsReceipt');
       
-      // Automatisch PDF generieren und E-Mail vorbereiten
+      // Cache invalidieren, damit die Bestellung in der Übersicht erscheint
+      queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+      
+      // Automatisch PDF generieren und E-Mail vorbereiten, aber dem Benutzer die Kontrolle geben
       setTimeout(() => {
         // Generiere PDF und leite zum E-Mail-Formular weiter
         // Übergebe die ID direkt, anstatt auf State-Update zu warten
@@ -133,16 +136,26 @@ const BestellungV2: React.FC = () => {
     }
   });
   
-  // Email order mutation
+  // Email order mutation - optimiert, um nur die Bestellungs-ID zu senden
   const emailOrderMutation = useMutation({
-    mutationFn: (emailData: { orderId: number, supplierEmail: string, pdfBase64: string, additionalNotes: string }) => {
-      return apiRequest('/api/orders/email', emailData, 'post');
+    mutationFn: (emailData: { orderId: number, supplierEmail: string, additionalNotes?: string }) => {
+      // Nur die notwendigen Daten senden, PDF-Generierung erfolgt serverseitig
+      return apiRequest(`/api/orders/${emailData.orderId}/email`, 
+        { 
+          supplierEmail: emailData.supplierEmail,
+          additionalNotes: emailData.additionalNotes || ''
+        }, 
+        'post'
+      );
     },
     onSuccess: () => {
       toast({
         title: 'Bestellung per E-Mail versendet',
         description: 'Die Bestellung wurde erfolgreich per E-Mail an den Lieferanten versendet.',
       });
+      
+      // Auch hier nach erfolgreicher E-Mail den Cache aktualisieren
+      queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
     },
     onError: (error) => {
       toast({
@@ -547,10 +560,16 @@ const BestellungV2: React.FC = () => {
       
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       
-      // Get the PDF as base64
-      const pdfBase64 = pdf.output('datauristring').split(',')[1];
+      // Wir generieren kein Base64 mehr, das wird jetzt serverseitig gemacht
+      // Stattdessen zeigen wir eine PDF-Vorschau an, damit der Benutzer vor dem Versand prüfen kann
       
-      // Lieferanten-Email abrufen oder Dummy-E-Mail verwenden
+      // PDF als Blob speichern, um es anzuzeigen
+      const pdfBlob = pdf.output('blob');
+      
+      // URL für die Vorschau erstellen
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      
+      // Lieferanten-Email abrufen
       try {
         // Die Lieferanten-ID für diese Bestellung ermitteln
         const supplierIdToUse = orderData.supplierId || supplierId;
@@ -578,27 +597,45 @@ const BestellungV2: React.FC = () => {
           return;
         }
         
-        // E-Mail senden
-        emailOrderMutation.mutate({
-          orderId: orderIdToUse,
-          supplierEmail,
-          pdfBase64,
-          additionalNotes: additionalInfo.notes || '',
-        });
+        // Bestätigung vom Benutzer einholen, dass die PDF gesendet werden soll
+        if (confirm(`Möchten Sie diese Bestellung jetzt an ${supplierEmail} senden?`)) {
+          // E-Mail senden - nur mit der ID, kein PDF-Base64 mehr
+          emailOrderMutation.mutate({
+            orderId: orderIdToUse,
+            supplierEmail,
+            additionalNotes: additionalInfo?.notes || orderData?.notes || '',
+          });
+          
+          // Mark the order as sent
+          markOrderAsSentMutation.mutate({
+            id: orderIdToUse,
+            sentDate: new Date(),
+          });
+        } else {
+          // Bieten Sie dem Benutzer an, die PDF herunterzuladen
+          if (confirm('Möchten Sie die PDF-Datei herunterladen?')) {
+            const link = document.createElement('a');
+            link.href = pdfUrl;
+            link.download = `Bestellung_${orderData.orderNumber || orderIdToUse}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          }
+        }
+        
+        // URL freigeben, um Speicher zu sparen
+        URL.revokeObjectURL(pdfUrl);
       } catch (error) {
         toast({
           title: 'Fehler beim Abrufen der Lieferanten-E-Mail',
           description: `${(error as Error).message}`,
           variant: 'destructive',
         });
+        
+        // URL freigeben
+        URL.revokeObjectURL(pdfUrl);
         return;
       }
-      
-      // Mark the order as sent
-      markOrderAsSentMutation.mutate({
-        id: orderIdToUse,
-        sentDate: new Date(),
-      });
     } catch (error) {
       toast({
         title: 'Fehler beim Generieren des PDFs',
