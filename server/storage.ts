@@ -141,6 +141,19 @@ export interface IStorage {
   createTransaction(transaction: InsertTransaction): Promise<Transaction>;
   updateTransaction(id: number, transaction: Partial<InsertTransaction>): Promise<Transaction | undefined>;
   
+  // Erweiterte Transaktionsabfragen für KPIs
+  getMachineDailyStats(machineId: number): Promise<{
+    todayTransactions: number;
+    todayRevenue: number;
+    lastSale: Transaction | null;
+    lastCashlessSale: Transaction | null;
+    alcoholSales: {
+      today: number;
+      weekAvg: number;
+      monthAvg: number;
+    };
+  }>;
+  
   // Refill operations
   getRefills(options?: { warehouseId?: number; startDate?: Date; endDate?: Date; limit?: number; }): Promise<any[]>;
   getRefillById(refillId: number): Promise<any>;
@@ -1270,6 +1283,141 @@ export class DatabaseStorage implements IStorage {
   async getTransactionByVendonId(vendonId: string): Promise<Transaction | undefined> {
     const [transaction] = await db.select().from(transactions).where(eq(transactions.vendonId, vendonId));
     return transaction;
+  }
+  
+  async getMachineDailyStats(machineId: number): Promise<{
+    todayTransactions: number;
+    todayRevenue: number;
+    lastSale: Transaction | null;
+    lastCashlessSale: Transaction | null;
+    alcoholSales: {
+      today: number;
+      weekAvg: number;
+      monthAvg: number;
+    };
+  }> {
+    // Aktuelles Datum für heutige Transaktionen
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    
+    // Zeiträume für Durchschnittsberechnungen
+    const oneWeekAgo = new Date(now);
+    oneWeekAgo.setDate(now.getDate() - 7);
+    
+    const oneMonthAgo = new Date(now);
+    oneMonthAgo.setMonth(now.getMonth() - 1);
+    
+    // 1. Heutige Transaktionen und Umsatz abrufen
+    const todayStats = await db.select({
+      count: count(),
+      revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`
+    })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.machineId, machineId),
+        gte(transactions.datetime, today),
+        lt(transactions.datetime, tomorrow)
+      )
+    );
+    
+    // 2. Letzte Verkaufstransaktion abrufen
+    const [lastSale] = await db.select()
+      .from(transactions)
+      .where(eq(transactions.machineId, machineId))
+      .orderBy(desc(transactions.datetime))
+      .limit(1);
+      
+    // 3. Letzten bargeldlosen Verkauf abrufen (cardCredit oder cashlessCredit > 0)
+    const [lastCashlessSale] = await db.select()
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.machineId, machineId),
+          or(
+            gt(transactions.cardCredit, 0),
+            gt(transactions.cashlessCredit, 0)
+          )
+        )
+      )
+      .orderBy(desc(transactions.datetime))
+      .limit(1);
+    
+    // 4. Alkohol-Verkäufe analysieren
+    // In dieser vereinfachten Version suchen wir nach Produkten, die im Namen "Bier", "Wein", oder ähnliches enthalten
+    const alkoholKeywords = ['bier', 'wein', 'schnaps', 'pils', 'radler', 'alster', 'alkohol', 'sekt'];
+    
+    // Heutiger Alkohol-Verkauf
+    const todayAlcohol = await db.select({
+      count: count()
+    })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.machineId, machineId),
+        gte(transactions.datetime, today),
+        lt(transactions.datetime, tomorrow),
+        or(
+          ...alkoholKeywords.map(keyword => 
+            ilike(transactions.productName, `%${keyword}%`)
+          )
+        )
+      )
+    );
+    
+    // Letzte Woche Alkohol-Verkauf (für Durchschnitt)
+    const weekAlcohol = await db.select({
+      count: count()
+    })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.machineId, machineId),
+        gte(transactions.datetime, oneWeekAgo),
+        lt(transactions.datetime, today),
+        or(
+          ...alkoholKeywords.map(keyword => 
+            ilike(transactions.productName, `%${keyword}%`)
+          )
+        )
+      )
+    );
+    
+    // Letzter Monat Alkohol-Verkauf (für Durchschnitt)
+    const monthAlcohol = await db.select({
+      count: count()
+    })
+    .from(transactions)
+    .where(
+      and(
+        eq(transactions.machineId, machineId),
+        gte(transactions.datetime, oneMonthAgo),
+        lt(transactions.datetime, today),
+        or(
+          ...alkoholKeywords.map(keyword => 
+            ilike(transactions.productName, `%${keyword}%`)
+          )
+        )
+      )
+    );
+    
+    // Berechnung der Durchschnittswerte
+    const weekAvg = weekAlcohol[0]?.count / 7 || 0; // Durchschnitt pro Tag in der letzten Woche
+    const monthDays = Math.ceil((today.getTime() - oneMonthAgo.getTime()) / (1000 * 60 * 60 * 24));
+    const monthAvg = monthAlcohol[0]?.count / monthDays || 0; // Durchschnitt pro Tag im letzten Monat
+    
+    return {
+      todayTransactions: todayStats[0]?.count || 0,
+      todayRevenue: todayStats[0]?.revenue || 0,
+      lastSale: lastSale || null,
+      lastCashlessSale: lastCashlessSale || null,
+      alcoholSales: {
+        today: todayAlcohol[0]?.count || 0,
+        weekAvg,
+        monthAvg
+      }
+    };
   }
 
   async createTransaction(transaction: InsertTransaction): Promise<Transaction> {
