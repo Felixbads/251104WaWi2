@@ -257,7 +257,7 @@ const OrderEmailDialog: React.FC<OrderEmailDialogProps> = ({
                       placeholder="E-Mail-Inhalt wird geladen..."
                     />
                     <p className="mt-2 text-sm text-muted-foreground">
-                      Der Platzhalter {{orderItems}} wird automatisch durch die Artikeltabelle ersetzt
+                      Der Platzhalter &#123;&#123;orderItems&#125;&#125; wird automatisch durch die Artikeltabelle ersetzt
                     </p>
                   </div>
                 </div>

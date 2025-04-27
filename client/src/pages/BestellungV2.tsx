@@ -1085,8 +1085,7 @@ const BestellungV2: React.FC = () => {
         supplierEmail={existingOrderData?.supplierEmail || ''}
         orderNumber={existingOrderData?.orderNumber || `ORD-${orderId}`}
         supplierName={existingOrderData?.supplierName || supplierName}
-        pdfBlob={pdfBlob}
-        onSendEmail={handleSendEmail}
+        pdfBlob={pdfBlob || null}
       />
       
       <div className="flex flex-col md:flex-row justify-between items-start gap-4">
