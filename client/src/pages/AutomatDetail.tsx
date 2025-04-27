@@ -881,7 +881,7 @@ export default function AutomatDetail() {
               </Card>
 
               {/* Wetter-Korrelation, falls Daten vorhanden */}
-              {machineAnalytics?.weatherData && machineAnalytics.weatherData.length > 0 && (
+              {machineAnalytics?.weatherData && machineAnalytics?.weatherData.length > 0 && machineAnalytics?.timeSeries && (
                 <Card className="col-span-1 lg:col-span-2">
                   <CardHeader>
                     <CardTitle className="flex items-center text-lg">
@@ -895,7 +895,7 @@ export default function AutomatDetail() {
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart
                           data={machineAnalytics.timeSeries.map(ts => {
-                            const weatherForDay = machineAnalytics.weatherData.find(
+                            const weatherForDay = machineAnalytics.weatherData?.find(
                               w => new Date(w.date).toISOString().split('T')[0] === new Date(ts.date).toISOString().split('T')[0]
                             );
                             return {
@@ -949,7 +949,7 @@ export default function AutomatDetail() {
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie
-                            data={machineAnalytics?.periodAnalysis.eventCounts.map(event => ({
+                            data={machineAnalytics?.periodAnalysis?.eventCounts?.map(event => ({
                               name: event.eventType,
                               value: event.count
                             })) || []}
@@ -962,7 +962,7 @@ export default function AutomatDetail() {
                             nameKey="name"
                             label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                           >
-                            {machineAnalytics?.periodAnalysis.eventCounts.map((entry, index) => (
+                            {machineAnalytics?.periodAnalysis?.eventCounts?.map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#A4DE6C'][index % 5]} />
                             ))}
                           </Pie>
@@ -973,10 +973,10 @@ export default function AutomatDetail() {
                     <div>
                       <h4 className="text-sm font-medium mb-2">Ereignisübersicht</h4>
                       <div className="space-y-2">
-                        {machineAnalytics?.periodAnalysis.eventCounts.length === 0 ? (
+                        {!machineAnalytics?.periodAnalysis?.eventCounts || machineAnalytics.periodAnalysis.eventCounts.length === 0 ? (
                           <p className="text-muted-foreground text-sm">Keine Ereignisse im gewählten Zeitraum.</p>
                         ) : (
-                          machineAnalytics?.periodAnalysis.eventCounts.map((event, index) => (
+                          machineAnalytics?.periodAnalysis?.eventCounts?.map((event, index) => (
                             <div key={index} className="flex justify-between items-center p-2 bg-muted rounded">
                               <span>{event.eventType}</span>
                               <Badge variant={
