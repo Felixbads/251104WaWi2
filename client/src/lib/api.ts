@@ -685,7 +685,7 @@ export async function getMachineAnalytics(
   startDate?: string,
   endDate?: string
 ): Promise<MachineAnalytics> {
-  let url = `/statistics/machines/${machineId}/analytics?period=${period}`;
+  let url = `/api/statistics/machines/${machineId}/analytics?period=${period}`;
   
   // Füge Start- und Enddatum hinzu, wenn angegeben (erforderlich für 'custom')
   if (period === 'custom' && startDate && endDate) {
