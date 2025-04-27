@@ -8,6 +8,7 @@ import Dashboard from "@/pages/Dashboard";
 import Transactions from "@/pages/Transactions";
 import Machines from "@/pages/Machines"; // Alte Maschinen-Komponente
 import Automaten from "@/pages/Automaten"; // Neue Automaten-Komponente
+import Automaten2 from "@/pages/Automaten2"; // Noch neuere Automaten-Komponente
 import AutomatDetail from "@/pages/AutomatDetail"; // Detail-Ansicht eines Automaten
 import RefillDetail from "@/pages/RefillDetail"; // Detail-Ansicht einer Auffüllung
 import Products from "@/pages/Products";
@@ -141,6 +142,12 @@ function AuthenticatedRouter() {
         <Route path="/automaten" component={props => (
           <ApprovedUserRoute>
             <Automaten {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/automaten2" component={props => (
+          <ApprovedUserRoute>
+            <Automaten2 {...props} />
           </ApprovedUserRoute>
         )} />
 

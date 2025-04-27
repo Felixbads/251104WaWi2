@@ -96,9 +96,16 @@ export default function Sidebar() {
             <NavItem 
               href="/automaten" 
               icon={<Package className="h-5 w-5 mr-3" />}
-              isActive={isActive("/automaten")}
+              isActive={isActive("/automaten") && !isActive("/automaten2")}
             >
               Automaten
+            </NavItem>
+            <NavItem 
+              href="/automaten2" 
+              icon={<Package className="h-5 w-5 mr-3" />}
+              isActive={isActive("/automaten2")}
+            >
+              Automaten 2
             </NavItem>
             <NavItem 
               href="/produkte" 
