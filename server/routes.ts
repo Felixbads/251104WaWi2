@@ -1052,57 +1052,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // GET /machines/:id/daily-stats - Tägliche KPIs für einen Automaten abrufen
   app.get(`${API_PREFIX}/machines/:id/daily-stats`, async (req: Request, res: Response) => {
     try {
-      const machineVendonId = parseInt(req.params.id); // Dies ist die Vendon-ID des Automaten
+      // Die Vendon-ID kommt als String - nicht konvertieren!
+      const machineVendonId = req.params.id; // Dies ist die Vendon-ID des Automaten als String
       
-      if (isNaN(machineVendonId)) {
+      if (!machineVendonId) {
         return res.status(400).json({ error: "Ungültige Automaten-ID" });
       }
 
       console.log(`[INFO] Abrufen von täglichen KPIs für Maschine mit Vendon-ID ${machineVendonId}`);
       
-      // 1. Zuerst die interne Maschinen-ID für die übergebene Vendon-ID abrufen
-      let internalMachineId = null;
+      // Als String-ID direkt an die Storage-Methode übergeben.
+      // Die Methode kümmert sich selbst um die ID-Konvertierung und Lookup
       try {
-        const machineResult = await storage.db.select({ id: machines.id })
-          .from(machines)
-          .where(eq(machines.vendonId, String(machineVendonId)))
-          .limit(1);
-          
-        if (machineResult.length > 0) {
-          internalMachineId = machineResult[0].id;
-          console.log(`[INFO] Interne Maschinen-ID ${internalMachineId} für Vendon-ID ${machineVendonId} gefunden`);
-        } else {
-          console.log(`[WARNING] Keine interne Maschinen-ID für Vendon-ID ${machineVendonId} gefunden`);
-        }
-      } catch (err) {
-        console.error(`[ERROR] Fehler beim Abrufen der internen Maschinen-ID für Vendon-ID ${machineVendonId}:`, err);
-      }
-      
-      // DIREKTE DIAGNOSE: Prüfe ob Transaktionen mit der internen ID vorhanden sind
-      if (internalMachineId) {
-        try {
-          const rawTransactionResult = await storage.db.raw(
-            `SELECT id, machine_id, machine_name, datetime, vendon_id, product_name 
-             FROM transactions 
-             WHERE machine_id = ? 
-             ORDER BY datetime DESC 
-             LIMIT 10`,
-            [internalMachineId]
-          );
-          
-          console.log(`[DIAGNOSE] Transaktionen für Automat ${machineVendonId} (interne ID ${internalMachineId}) gefunden: ${rawTransactionResult.rows.length}`);
-          if (rawTransactionResult.rows.length > 0) {
-            console.log(`[DIAGNOSE] Erste Transaktion:`, JSON.stringify(rawTransactionResult.rows[0]));
-          }
-        } catch (diagError) {
-          console.error(`[DIAGNOSE] Fehler bei Direkt-Diagnose:`, diagError);
-        }
-      }
-      
-      try {
-        // Ruft die Storage-Methode auf, um die Tagesstatistiken abzurufen
-        // und übergibt die interne ID, falls verfügbar, sonst die Vendon-ID als Fallback
-        const stats = await storage.getMachineDailyStats(internalMachineId || machineVendonId);
+        const stats = await storage.getMachineDailyStats(machineVendonId);
         console.log(`[DEBUG] Statistiken für Maschine ${machineVendonId} abgerufen:`, JSON.stringify(stats));
         
         // Füge spezifisches Debug-Log für lastSale hinzu
