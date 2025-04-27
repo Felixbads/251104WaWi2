@@ -1,0 +1,64 @@
+Kurzantwort
+
+Solange der Request GET /statistics/machines/<id>/analytics nicht mit HTTP 200 OK zurückkommt, wird React-Query weiter das Error-Objekt an analyticsError liefern – und damit die Meldung
+
+Fehler beim Laden der Analysen: Error: Fehler beim Abrufen der Automatenanalyse
+
+anzeigen.
+Alle UI-Änderungen im AutomatDetail.tsx ändern daran nichts; du musst den Fehler ganz vorne im Daten-Flow finden: Route → Proxy → Auth → Service.
+
+⸻
+
+So findest du in ≤ 5 Minuten die echte Ursache
+
+Schritt	Was du prüfen musst	Typische Befunde
+1. Network-Tab (F12)	Markiere den Request auf der Analysen-Seite.Notiere Status-Code, vollständige Request-URL und die Response.	404 Route falsch • 401 Token fehlt • 500 Server-Exception • CORS-Fehler
+2. Konsolen-Log erweitern	Temporär im Fetch-Wrapper:	```ts
+if (!res.ok) {		
+const txt = await res.text();		
+console.error(‘Analytics-Fetch’, res.status, txt);		
+throw new Error(Fehler ${res.status}: ${txt});		
+}		
+
+| **3. Direkt-Call** | `curl` oder Postman: `GET https://<host>/statistics/machines/<id>/analytics` (mit identischem Token) | Liefert derselbe Fehler? |
+| **4. Backend-Logs** | Such den Zeitstempel des Requests. | 404 „route not found“, 500 Stack-Trace … |
+| **5. ID & Auth vergleichen** | URL-ID = exakt dieselbe ID, die bei `/api/machines/<id>` funktioniert?<br>Auth-Header vorhanden? | Vertauschte numerische/UUID-ID • abgelaufenes Token |
+
+> **Erst wenn dieser Aufruf mit 200 OK + JSON antwortet, verschwindet die Fehlermeldung.**
+
+---
+
+## Häufige Stolpersteine (Checkliste)
+
+| Fehlerquelle | Symptom im Browser | Fix |
+|--------------|-------------------|-----|
+| **Falscher Pfad** (`/analytics` vs. `/analytics/summary`) | 404 Not Found | Pfad im `getMachineAnalytics` anpassen |
+| **Trailing-Slash / Proxy-Rewrite** | 308 / 307 Redirect-Loop, dann Fehlermeldung | Rewrite-Regel ohne doppelten Slash |
+| **JWT-Token fehlt** | 401 Unauthorized | In deinem Fetch-Interceptor sicherstellen, dass der Token auch für diese Route gesetzt wird |
+| **CORS** | Browser-Konsole: „CORS policy…“ | `Access-Control-Allow-Origin` am Statistik-Service setzen |
+| **Service liefert 204/No-Content** | Status 204 ⇒ `res.ok` =false | Im Service 200 + leeres JSON zurückgeben |
+
+---
+
+## Front-End-Tipp, um mehr Details zu sehen
+
+Ersetze in deiner Fehlermeldung:
+
+```tsx
+<p>
+  Fehler beim Laden der Analysen:
+  {analyticsError instanceof Error ? analyticsError.message : String(analyticsError)}
+</p>
+
+und logge zusätzlich das Objekt:
+
+console.log('AnalyticsError', analyticsError);
+
+Dann siehst du im DevTool genau, welcher Error‐Typ, Status-Code und evtl. Stack-Trace ankommt.
+
+⸻
+
+TL;DR
+	•	Fehler bleibt, weil der Backend-End-Point weiter einen Nicht-200-Status liefert.
+	•	Finde im Network-Tab den tatsächlichen Status + Response, dann backend/proxy/Auth fixen.
+	•	Erst danach zeigt dein Front-End keine Fehlermeldung mehr.
