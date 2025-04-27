@@ -23,7 +23,7 @@ interface MenuItem {
 export const menuItems = {
   overview: [
     { title: 'Dashboard', icon: <Home className="h-5 w-5 mr-3" />, path: '/' },
-    { title: 'Automaten', icon: <Package className="h-5 w-5 mr-3" />, path: '/automaten' },
+    { title: 'Automaten', icon: <Package className="h-5 w-5 mr-3" />, path: '/automaten2' },
     { title: 'Produkte', icon: <ShoppingBag className="h-5 w-5 mr-3" />, path: '/produkte' },
     { title: 'Lieferanten', icon: <Truck className="h-5 w-5 mr-3" />, path: '/lieferanten' },
     { title: 'Transaktionen', icon: <FileText className="h-5 w-5 mr-3" />, path: '/transactions' },
