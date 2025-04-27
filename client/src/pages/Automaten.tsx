@@ -96,7 +96,10 @@ export default function Automaten() {
   // AutomatenKarte Komponente mit erweiterten KPIs
   const AutomatenKarte = ({ machine }: { machine: EnhancedMachine }) => {
     return (
-      <Card className="overflow-hidden hover:shadow-md transition-shadow duration-300">
+      <Card 
+        className="overflow-hidden hover:shadow-md transition-shadow duration-300 cursor-pointer"
+        onClick={() => setLocation(`/automaten/${machine.id}`)}
+      >
         <CardHeader className="pb-2">
           <div className="flex justify-between items-start">
             <CardTitle className="text-lg truncate">{machine.machineName}</CardTitle>
@@ -164,7 +167,10 @@ export default function Automaten() {
             variant="outline" 
             size="sm" 
             className="flex-1 mr-1"
-            onClick={() => setLocation(`/automaten/${machine.id}`)}
+            onClick={(e) => {
+              e.stopPropagation(); // Verhindert, dass der Kartenklick ausgelöst wird
+              setLocation(`/automaten/${machine.id}`);
+            }}
           >
             <ExternalLink className="h-4 w-4 mr-2" />
             Details
@@ -174,7 +180,7 @@ export default function Automaten() {
             size="sm" 
             className="px-2"
             onClick={(e) => {
-              e.stopPropagation();
+              e.stopPropagation(); // Verhindert, dass der Kartenklick ausgelöst wird
               // In einer echten Implementierung würden hier aktualisierte KPI-Werte abgerufen werden
               queryClient.invalidateQueries({ queryKey: ['/api/machines', machine.id] });
             }}
@@ -189,7 +195,10 @@ export default function Automaten() {
   // Automaten-Listeneintrag mit erweiterten KPIs
   const AutomatenListenEintrag = ({ machine }: { machine: EnhancedMachine }) => {
     return (
-      <div className="flex items-center p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors">
+      <div 
+        className="flex items-center p-3 border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
+        onClick={() => setLocation(`/automaten/${machine.id}`)}
+      >
         <div className="flex-grow mr-4">
           <div className="flex items-center mb-1">
             <h3 className="font-medium truncate mr-2">{machine.machineName}</h3>
@@ -243,7 +252,10 @@ export default function Automaten() {
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => setLocation(`/automaten/${machine.id}`)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setLocation(`/automaten/${machine.id}`);
+              }}
             >
               Details
             </Button>
