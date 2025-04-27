@@ -54,7 +54,7 @@ export default function Dashboard() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuth();
-  
+
   // Wenn nicht authentifiziert, zeigen wir stattdessen die Login-Komponente an
   if (!isAuthenticated) {
     return <Login />;
@@ -63,39 +63,39 @@ export default function Dashboard() {
   // Fetch data for metrics
   const { data: transactions, isLoading: isLoadingTransactions } = useQuery({
     queryKey: ['/api/transactions'],
-    queryFn: () => getTransactions(100),
+    queryFn: () => getTransactions(500),
   });
 
   const { data: machines, isLoading: isLoadingMachines } = useQuery({
     queryKey: ['/api/machines'],
     queryFn: () => getMachines(),
   });
-  
+
   const { data: events, isLoading: isLoadingEvents } = useQuery({
     queryKey: ['/api/events'],
     queryFn: () => getEvents(10),
   });
-  
+
   const { data: syncStatus, isLoading: isLoadingSyncStatus } = useQuery({
     queryKey: ['/api/sync/status'],
     queryFn: () => getSyncStatus(),
     refetchInterval: 30000 // Alle 30 Sekunden aktualisieren
   });
-  
+
   // Offene Bestellungen für die Dashboard-Ansicht
   const { data: openOrders, isLoading: isLoadingOpenOrders } = useQuery({
     queryKey: ['/api/orders/dashboard/open'],
     queryFn: () => getOpenOrders(),
     refetchInterval: 60000 // Jede Minute aktualisieren
   });
-  
+
   // Prognosemodelle für das Dashboard
   const { data: forecastModels, isLoading: isLoadingForecastModels } = useQuery({
     queryKey: ['/api/forecast/models'],
     queryFn: () => getForecastModels(),
     refetchInterval: 300000 // Alle 5 Minuten aktualisieren
   });
-  
+
   // Dashboard-Prognosen für die nächsten 14 Tage
   const { data: dashboardForecasts, isLoading: isLoadingDashboardForecasts } = useQuery({
     queryKey: ['/api/forecast/dashboard'],
@@ -124,7 +124,7 @@ export default function Dashboard() {
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
-  
+
   // Maschinen-Statistiken
   const activeMachines = machines?.filter(m => m.status === "active").length || 0;
   const totalMachines = machines?.length || 0;
@@ -137,7 +137,7 @@ export default function Dashboard() {
     }
     return sum;
   }, 0) || 0;
-  
+
   // Umsatz gestern (als Vergleich)
   const yesterdayRevenue = transactions?.reduce((sum, tx) => {
     const txDate = new Date(tx.datetime);
@@ -146,12 +146,12 @@ export default function Dashboard() {
     }
     return sum;
   }, 0) || 0;
-  
+
   // Trend berechnen
   const revenueTrend = yesterdayRevenue > 0 
     ? ((dailyRevenue - yesterdayRevenue) / yesterdayRevenue * 100) 
     : 0;
-  
+
   // Top Produkte
   const topProducts = transactions?.reduce((acc: Record<string, {count: number, revenue: number}>, tx) => {
     if (!acc[tx.productName]) {
@@ -161,7 +161,7 @@ export default function Dashboard() {
     acc[tx.productName].revenue += tx.price || 0;
     return acc;
   }, {}) || {};
-  
+
   // Top Maschinen nach Transaktionen
   const machineTransactions = transactions?.reduce((acc: Record<string, {count: number, revenue: number}>, tx) => {
     if (!acc[tx.machineName]) {
@@ -189,18 +189,18 @@ export default function Dashboard() {
         cashlessPercentage: 0
       };
     }
-    
+
     acc[tx.machineId].total += 1;
-    
+
     if (tx.paymentMethod === 'CASH') {
       acc[tx.machineId].cash += 1;
     } else if (tx.paymentMethod === 'CASHLESS') {
       acc[tx.machineId].cashless += 1;
     }
-    
+
     // Prozentsatz berechnen
     acc[tx.machineId].cashlessPercentage = (acc[tx.machineId].cashless / acc[tx.machineId].total) * 100;
-    
+
     return acc;
   }, {}) || {};
 
@@ -210,7 +210,7 @@ export default function Dashboard() {
     queryFn: () => fetch('/api/removed-products').then(res => res.json()),
     refetchInterval: 300000 // Alle 5 Minuten aktualisieren
   });
-  
+
   // Interfaces für Removed Products API-Antwort
   interface RemovedProductItem {
     name: string;
@@ -227,7 +227,7 @@ export default function Dashboard() {
   const refillRemovedItems = React.useMemo<Record<string, number>>(() => {
     const data = removedProductsData as RemovedProductsData | undefined;
     if (!data?.analytics?.byProduct) return {};
-    
+
     return data.analytics.byProduct.reduce(
       (acc: Record<string, number>, item: RemovedProductItem) => {
         if (item?.name && typeof item.count === 'number') {
@@ -238,11 +238,11 @@ export default function Dashboard() {
       {} as Record<string, number>
     );
   }, [removedProductsData]);
-  
+
   // Synchronisationsstatus
   const getLatestSyncTime = () => {
     if (!syncStatus) return null;
-    
+
     const timestamps = [
       syncStatus.machines?.lastSync,
       syncStatus.products?.lastSync,
@@ -250,14 +250,14 @@ export default function Dashboard() {
       syncStatus.refills?.lastSync,
       syncStatus.events?.lastSync
     ].filter(Boolean);
-    
+
     if (timestamps.length === 0) return null;
-    
+
     return new Date(Math.max(...timestamps));
   };
-  
+
   const latestSyncTime = getLatestSyncTime();
-  
+
   // Prüft, ob ein Synchronisierungsprozess läuft
   const isSyncRunning = syncStatus && (
     syncStatus.machines?.status === "running" ||
@@ -274,13 +274,13 @@ export default function Dashboard() {
     queryClient.invalidateQueries({ queryKey: ['/api/events'] });
     queryClient.invalidateQueries({ queryKey: ['/api/sync/status'] });
     queryClient.invalidateQueries({ queryKey: ['/api/statistics/database'] });
-    
+
     toast({
       title: "Daten werden aktualisiert",
       description: "Die Dashboard-Daten werden neu geladen."
     });
   }, [queryClient, toast]);
-  
+
   return (
     <div className="space-y-6">
       {/* Einheitliche Filter- und Aktionsleiste */}
@@ -294,7 +294,7 @@ export default function Dashboard() {
             </div>
           )}
         </div>
-        
+
         {/* Rechte Seite: Aktionen */}
         <div className="flex flex-wrap items-center gap-2">
           <Button 
@@ -308,7 +308,7 @@ export default function Dashboard() {
           </Button>
         </div>
       </div>
-        
+
       {/* Top-Level Metriken - 3 Kacheln nach neuen Anforderungen */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Kachel 1: Heutiger Umsatz und Anzahl Transaktionen */}
@@ -685,7 +685,7 @@ export default function Dashboard() {
                   <div className="px-3 py-2 text-right">Umsatz</div>
                   <div className="px-3 py-2 text-right">Ergebnis</div>
                 </div>
-                
+
                 {/* Tabelleninhalt */}
                 <div className="max-h-[260px] overflow-y-auto">
                   {Object.entries(topProducts)
@@ -694,7 +694,7 @@ export default function Dashboard() {
                     .map(([name, stats], index) => {
                       // Ergebnis berechnen (30% des Umsatzes als Beispiel)
                       const profit = stats.revenue * 0.3;
-                      
+
                       return (
                         <div key={index} className="grid grid-cols-4 text-xs border-b hover:bg-muted/20">
                           <div className="px-3 py-2 font-medium truncate" title={name}>{name}</div>
@@ -715,7 +715,7 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
-      
+
       {/* Top Automaten nach Umsatz */}
       <Card>
         <CardHeader className="pb-2">
@@ -736,7 +736,7 @@ export default function Dashboard() {
                   <div className="px-3 py-2 text-right">Umsatz</div>
                   <div className="px-3 py-2 text-right">Ergebnis</div>
                 </div>
-                
+
                 {/* Tabelleninhalt */}
                 <div className="max-h-[260px] overflow-y-auto">
                   {Object.entries(machineTransactions)
@@ -745,7 +745,7 @@ export default function Dashboard() {
                     .map(([name, stats], index) => {
                       // Ergebnis berechnen (30% des Umsatzes als Beispiel)
                       const profit = stats.revenue * 0.3;
-                      
+
                       return (
                         <div key={index} className="grid grid-cols-4 text-xs border-b hover:bg-muted/20">
                           <div className="px-3 py-2 font-medium truncate" title={name}>{name}</div>
@@ -766,7 +766,7 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
-      
+
       {/* Top 5 Entnommene Waren (Refill Removed) */}
       <Card>
         <CardHeader className="pb-2">
@@ -795,7 +795,7 @@ export default function Dashboard() {
                   <div className="px-3 py-2 text-right">Anzahl</div>
                   <div className="px-3 py-2 text-right">Einkaufspreis (ca.)</div>
                 </div>
-                
+
                 {/* Tabelleninhalt */}
                 <div className="max-h-[260px] overflow-y-auto">
                   {Object.entries(refillRemovedItems)
@@ -808,14 +808,14 @@ export default function Dashboard() {
                           prodName.toLowerCase().includes(name.toLowerCase()) ||
                           name.toLowerCase().includes(prodName.toLowerCase())
                         );
-                        
+
                         if (matchingProduct && matchingProduct[1]) {
                           const avgPrice = matchingProduct[1].revenue / matchingProduct[1].count;
                           return avgPrice * 0.7 * count;
                         }
                         return null;
                       })();
-                      
+
                       return (
                         <div key={index} className="grid grid-cols-3 text-xs border-b hover:bg-muted/20">
                           <div className="px-3 py-2 font-medium truncate" title={name}>{name}</div>
@@ -839,7 +839,7 @@ export default function Dashboard() {
           )}
         </CardContent>
       </Card>
-      
+
       {/* Neueste Transaktionen */}
       <Card>
         <CardHeader className="pb-2">
