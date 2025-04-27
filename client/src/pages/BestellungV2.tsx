@@ -48,12 +48,12 @@ import { jsPDF } from 'jspdf';
 import WarehouseSelector from '@/components/orderv2/WarehouseSelector';
 import OrderModeSelector, { OrderMode } from '@/components/orderv2/OrderModeSelector';
 import SupplierSelector from '@/components/orderv2/SupplierSelector';
+import OrderEmailDialog from '@/components/orders/OrderEmailDialog';
 import ProductSelectionTable from '@/components/orderv2/ProductSelectionTable';
 import AdditionalInfoForm from '@/components/orderv2/AdditionalInfoForm';
 import OrderSummary from '@/components/orderv2/OrderSummary';
 import GoodsReceiptForm from '@/components/orderv2/GoodsReceiptForm';
 import OrdersOverview from '@/components/orderv2/OrdersOverview';
-import OrderEmailDialog from '@/components/orders/OrderEmailDialog';
 import { Badge } from '@/components/ui/badge';
 
 // Define the order steps
@@ -1086,6 +1086,7 @@ const BestellungV2: React.FC = () => {
         orderNumber={existingOrderData?.orderNumber || `ORD-${orderId}`}
         supplierName={existingOrderData?.supplierName || supplierName}
         pdfBlob={pdfBlob}
+        onSendEmail={handleSendEmail}
       />
       
       <div className="flex flex-col md:flex-row justify-between items-start gap-4">
