@@ -1194,9 +1194,251 @@ export default function AutomatDetail() {
           </Card>
         </TabsContent>
         
-        {/* Fehler & Logs Tab */}
+        {/* Auswertung Tab */}
+        <TabsContent value="auswertung" className="mt-4">
+          {analyticsLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+            </div>
+          ) : analyticsError ? (
+            <Card className="bg-red-50 border-red-200">
+              <CardContent className="pt-6">
+                <div className="flex items-center text-red-600">
+                  <AlertTriangle className="h-5 w-5 mr-2" />
+                  <p>Fehler beim Laden der Auswertung: {String(analyticsError)}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              {/* Filter und Zeitraum Auswahl */}
+              <div className="flex flex-col sm:flex-row gap-2 justify-between bg-muted rounded-lg p-4">
+                <div>
+                  <h3 className="text-lg font-medium mb-2">Verkaufsauswertung</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Detaillierte Verkaufsanalyse für {machine.machineName}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Select defaultValue="month">
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue placeholder="Zeitraum" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="day">Heute</SelectItem>
+                      <SelectItem value="week">Diese Woche</SelectItem>
+                      <SelectItem value="month">Dieser Monat</SelectItem>
+                      <SelectItem value="year">Dieses Jahr</SelectItem>
+                      <SelectItem value="custom">Benutzerdefiniert</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" className="gap-2">
+                    <Download className="h-4 w-4" />
+                    Exportieren
+                  </Button>
+                </div>
+              </div>
 
-        
+              {/* Wöchentlicher und monatlicher Ertrag (Grafisch) */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center text-lg">
+                      <BarChartIcon className="h-5 w-5 mr-2" />
+                      Wöchentlicher Ertrag
+                    </CardTitle>
+                    <CardDescription>Umsatz pro Woche im ausgewählten Zeitraum</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={machineAnalytics?.timeSeries ? groupDataByWeek(machineAnalytics.timeSeries) : []}
+                          margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis 
+                            dataKey="weekLabel" 
+                            tick={{ fontSize: 12 }}
+                          />
+                          <YAxis
+                            tickFormatter={(value) => `${value} €`}
+                          />
+                          <RechartTooltip
+                            formatter={(value: any) => [`${value.toFixed(2)} €`, 'Umsatz']}
+                          />
+                          <Bar 
+                            dataKey="revenue" 
+                            fill="#8884d8" 
+                            name="Umsatz" 
+                            radius={[4, 4, 0, 0]}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center text-lg">
+                      <LineChart className="h-5 w-5 mr-2" />
+                      Monatlicher Ertrag
+                    </CardTitle>
+                    <CardDescription>Umsatzentwicklung pro Monat</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart
+                          data={machineAnalytics?.timeSeries ? groupDataByMonth(machineAnalytics.timeSeries) : []}
+                          margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="monthLabel" />
+                          <YAxis
+                            tickFormatter={(value) => `${value} €`}
+                          />
+                          <RechartTooltip
+                            formatter={(value: any) => [`${value.toFixed(2)} €`, 'Umsatz']}
+                          />
+                          <Line 
+                            type="monotone" 
+                            dataKey="revenue" 
+                            stroke="#82ca9d" 
+                            activeDot={{ r: 8 }} 
+                            name="Umsatz"
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Verkaufte Produkte - Zeitliche Analyse */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center text-lg">
+                    <Clock className="h-5 w-5 mr-2" />
+                    Verkaufszeiten
+                  </CardTitle>
+                  <CardDescription>Wann werden Produkte am häufigsten verkauft?</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={getHourlyDistribution(machineAnalytics)}
+                        margin={{ top: 20, right: 10, left: 10, bottom: 20 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="hour" />
+                        <YAxis />
+                        <RechartTooltip
+                          formatter={(value: any) => [value, 'Verkäufe']}
+                          labelFormatter={(hour) => `${hour}:00 - ${hour}:59 Uhr`}
+                        />
+                        <Bar 
+                          dataKey="count" 
+                          fill="#4f46e5" 
+                          name="Anzahl"
+                          radius={[4, 4, 0, 0]}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Top verkaufte und entfernte Produkte */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center text-lg">
+                      <ShoppingCart className="h-5 w-5 mr-2" />
+                      Top Verkaufte Produkte
+                    </CardTitle>
+                    <CardDescription>Am häufigsten verkaufte Artikel</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {machineAnalytics?.productPerformance && machineAnalytics.productPerformance.length > 0 ? (
+                        machineAnalytics.productPerformance.slice(0, 5).map((product, i) => (
+                          <div key={i} className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <div className="font-medium truncate mr-2" title={product.productName}>
+                                {product.productName.length > 30 
+                                  ? product.productName.substring(0, 30) + '...' 
+                                  : product.productName}
+                              </div>
+                              <div className="flex items-center">
+                                <span className="text-muted-foreground text-sm mr-2">{product.count}x</span>
+                                <span className="font-bold">{product.revenue.toFixed(2)} €</span>
+                              </div>
+                            </div>
+                            <div className="w-full bg-secondary rounded-full h-2.5">
+                              <div 
+                                className="bg-primary h-2.5 rounded-full" 
+                                style={{ 
+                                  width: `${(product.count / (machineAnalytics.productPerformance[0]?.count || 1)) * 100}%` 
+                                }}
+                              ></div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-8">
+                          <p className="text-muted-foreground">Keine Produktverkäufe gefunden</p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center text-lg">
+                      <PackagePlus className="h-5 w-5 mr-2" />
+                      Top Entfernte Produkte
+                    </CardTitle>
+                    <CardDescription>Bei Auffüllungen am häufigsten entfernte Produkte</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {refills && refills.length > 0 ? (
+                      <div className="space-y-4">
+                        {getTopRemovedProducts(refills).map((product, i) => (
+                          <div key={i} className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <div className="font-medium truncate mr-2" title={product.productName}>
+                                {product.productName.length > 30 
+                                  ? product.productName.substring(0, 30) + '...' 
+                                  : product.productName}
+                              </div>
+                              <span className="font-bold">{product.removedCount}x</span>
+                            </div>
+                            <div className="w-full bg-secondary rounded-full h-2.5">
+                              <div 
+                                className="bg-amber-500 h-2.5 rounded-full" 
+                                style={{ 
+                                  width: `${(product.removedCount / (getTopRemovedProducts(refills)[0]?.removedCount || 1)) * 100}%` 
+                                }}
+                              ></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <p className="text-muted-foreground">Keine Auffüllungsdaten gefunden</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          )}
+        </TabsContent>
 
         
         {/* Inventur Tab */}
