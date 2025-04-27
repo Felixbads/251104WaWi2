@@ -622,8 +622,10 @@ export async function getMachines(): Promise<Machine[]> {
   return apiRequest<Machine[]>('get', '/machines');
 }
 
-export async function getMachine(id: string): Promise<Machine> {
-  return apiRequest<Machine>('get', `/machines/${id}`);
+export async function getMachine(id: number | string): Promise<Machine> {
+  // Stelle sicher, dass wir die interne ID als Nummer verwenden
+  const numericId = typeof id === 'string' ? parseInt(id, 10) : id;
+  return apiRequest<Machine>('get', `/machines/${numericId}`);
 }
 
 // Machine Analytics Interface
@@ -680,12 +682,15 @@ export interface MachineAnalytics {
 
 // Automatenanalyse abrufen
 export async function getMachineAnalytics(
-  machineId: string,
+  machineId: number | string,
   period: 'day' | 'week' | 'month' | 'year' | 'custom' = 'month',
   startDate?: string,
   endDate?: string
 ): Promise<MachineAnalytics> {
-  let url = `/api/statistics/machines/${machineId}/analytics?period=${period}`;
+  // Stelle sicher, dass wir die interne ID als Nummer verwenden
+  const numericId = typeof machineId === 'string' ? parseInt(machineId, 10) : machineId;
+  
+  let url = `/statistics/machines/${numericId}/analytics?period=${period}`;
   
   // Füge Start- und Enddatum hinzu, wenn angegeben (erforderlich für 'custom')
   if (period === 'custom' && startDate && endDate) {
@@ -1315,8 +1320,11 @@ export async function getStocks(): Promise<Stock[]> {
   return apiRequest<Stock[]>('get', '/stocks');
 }
 
-export async function getMachineStocks(machineId?: number): Promise<MachineStock[]> {
-  const url = machineId ? `/machine-stocks?machineId=${machineId}` : '/machine-stocks';
+export async function getMachineStocks(machineId?: number | string): Promise<MachineStock[]> {
+  // Stelle sicher, dass wir die interne ID als Nummer verwenden, wenn ein String übergeben wird
+  const numericId = machineId && typeof machineId === 'string' ? parseInt(machineId, 10) : machineId;
+  
+  const url = numericId ? `/machine-stocks?machineId=${numericId}` : '/machine-stocks';
   return apiRequest<MachineStock[]>('get', url);
 }
 
