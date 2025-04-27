@@ -1172,13 +1172,26 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getMachineByVendonId(vendonId: string): Promise<Machine | undefined> {
-    const query = `
-      SELECT * FROM machines 
-      WHERE vendon_id = $1
-      LIMIT 1
-    `;
-    const result = await rawDb.query(query, [vendonId]);
-    return result.rows.length > 0 ? result.rows[0] : undefined;
+    try {
+      console.log(`[DEBUG] getMachineByVendonId: Suche Maschine mit Vendon-ID ${vendonId}`);
+      const query = `
+        SELECT * FROM machines 
+        WHERE vendon_id = $1
+        LIMIT 1
+      `;
+      const result = await rawDb.query(query, [vendonId]);
+      
+      if (result.rows.length > 0) {
+        console.log(`[DEBUG] getMachineByVendonId: Maschine für Vendon-ID ${vendonId} gefunden (ID: ${result.rows[0].id})`);
+        return result.rows[0];
+      } else {
+        console.log(`[WARN] getMachineByVendonId: Keine Maschine für Vendon-ID ${vendonId} gefunden`);
+        return undefined;
+      }
+    } catch (error) {
+      console.error(`[ERROR] getMachineByVendonId: Fehler beim Suchen der Maschine mit Vendon-ID ${vendonId}:`, error);
+      return undefined;
+    }
   }
 
   async createMachine(machine: InsertMachine): Promise<Machine> {
@@ -1313,12 +1326,15 @@ export class DatabaseStorage implements IStorage {
         // Suche die interne ID anhand der Vendon-ID
         try {
           console.log(`[DEBUG] Suche Maschine mit Vendon-ID: ${vendonMachineId}`);
-          const machine = await this.db.query.machines.findFirst({
-            where: eq(machines.vendonId, vendonMachineId),
-            columns: { id: true, vendonId: true }
-          });
           
-          if (machine) {
+          // Direkte SQL-Abfrage statt ORM-Methode verwenden für konsistente Ergebnisse
+          const result = await rawDb.query(
+            "SELECT id, vendon_id FROM machines WHERE vendon_id = $1 LIMIT 1", 
+            [vendonMachineId]
+          );
+          
+          if (result.rows.length > 0) {
+            const machine = result.rows[0];
             internalMachineId = machine.id;
             console.log(`[DEBUG] Interne ID ${internalMachineId} für Vendon-ID ${vendonMachineId} gefunden`);
           } else {
@@ -1327,14 +1343,15 @@ export class DatabaseStorage implements IStorage {
             // Versuche als numerische ID zu interpretieren (Fallback)
             const numericId = parseInt(machineId, 10);
             if (!isNaN(numericId)) {
-              const machineById = await this.db.query.machines.findFirst({
-                where: eq(machines.id, numericId),
-                columns: { id: true, vendonId: true }
-              });
+              const result = await rawDb.query(
+                "SELECT id, vendon_id FROM machines WHERE id = $1 LIMIT 1", 
+                [numericId]
+              );
               
-              if (machineById) {
-                internalMachineId = numericId;
-                vendonMachineId = machineById.vendonId;
+              if (result.rows.length > 0) {
+                const machine = result.rows[0];
+                internalMachineId = machine.id;
+                vendonMachineId = machine.vendon_id;
                 console.log(`[DEBUG] Maschine mit interner ID ${internalMachineId} gefunden`);
               }
             }
