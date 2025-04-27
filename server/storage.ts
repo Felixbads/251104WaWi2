@@ -1427,15 +1427,25 @@ export class DatabaseStorage implements IStorage {
         AND datetime >= $3 AND datetime < $4
       `;
       
-      const todayResult = await this.db.raw(todayTransactionsQuery, [
-        internalMachineId,
-        vendonMachineId,
-        today.toISOString(),
-        tomorrow.toISOString()
-      ]);
+      let todayCount = 0;
+      let todayRevenue = 0;
       
-      const todayCount = parseInt(todayResult.rows[0]?.today_transactions || '0');
-      const todayRevenue = parseFloat(todayResult.rows[0]?.today_revenue || '0');
+      try {
+        // Sichere Abfrage mit Fehlerprüfung
+        const todayResult = await this.db.query(todayTransactionsQuery, [
+          internalMachineId,
+          vendonMachineId,
+          today.toISOString(),
+          tomorrow.toISOString()
+        ]);
+        
+        if (todayResult && todayResult.rows && todayResult.rows.length > 0) {
+          todayCount = parseInt(todayResult.rows[0]?.today_transactions || '0');
+          todayRevenue = parseFloat(todayResult.rows[0]?.today_revenue || '0');
+        }
+      } catch (error) {
+        console.error('[ERROR] Fehler bei der Abfrage heutiger Transaktionen:', error);
+      }
       
       console.log(`[DEBUG] Heutige Transaktionen: ${todayCount}, Umsatz: ${todayRevenue}`);
       
@@ -1452,10 +1462,21 @@ export class DatabaseStorage implements IStorage {
       `;
       
       console.log(`[DEBUG] Suche letzte Transaktion für Maschine ID=${internalMachineId} oder Vendon-ID=${vendonMachineId}`);
-      const lastSaleResult = await this.db.raw(lastSaleQuery, [internalMachineId, vendonMachineId]);
       
-      console.log(`[DEBUG] Letzte Transaktion Ergebnis: ${lastSaleResult.rows.length} Zeilen`);
-      const lastSale = lastSaleResult.rows.length > 0 ? lastSaleResult.rows[0] : null;
+      let lastSale = null;
+      try {
+        // Sichere Abfrage mit Fehlerprüfung
+        const lastSaleResult = await this.db.query(lastSaleQuery, [internalMachineId, vendonMachineId]);
+        
+        if (lastSaleResult && lastSaleResult.rows && lastSaleResult.rows.length > 0) {
+          console.log(`[DEBUG] Letzte Transaktion Ergebnis: ${lastSaleResult.rows.length} Zeilen`);
+          lastSale = lastSaleResult.rows[0];
+        } else {
+          console.log('[DEBUG] Keine letzten Transaktionen gefunden');
+        }
+      } catch (error) {
+        console.error('[ERROR] Fehler bei der Abfrage der letzten Transaktion:', error);
+      }
       
       console.log(`[DEBUG] Letzte Verkaufstransaktion gefunden: ${lastSale ? 'Ja' : 'Nein'}`);
       if (lastSale) {
@@ -1474,11 +1495,21 @@ export class DatabaseStorage implements IStorage {
       `;
       
       console.log(`[DEBUG] Suche letzte Cashless-Transaktion für Maschine ID=${internalMachineId} oder Vendon-ID=${vendonMachineId}`);
-      const lastCashlessSaleResult = await this.db.raw(lastCashlessSaleQuery, [internalMachineId, vendonMachineId]);
       
-      console.log(`[DEBUG] Letzte Cashless-Transaktion Ergebnis: ${lastCashlessSaleResult.rows.length} Zeilen`);
-      const lastCashlessSale = lastCashlessSaleResult.rows.length > 0 ? 
-        lastCashlessSaleResult.rows[0] : null;
+      let lastCashlessSale = null;
+      try {
+        // Sichere Abfrage mit Fehlerprüfung
+        const lastCashlessSaleResult = await this.db.query(lastCashlessSaleQuery, [internalMachineId, vendonMachineId]);
+        
+        if (lastCashlessSaleResult && lastCashlessSaleResult.rows && lastCashlessSaleResult.rows.length > 0) {
+          console.log(`[DEBUG] Letzte Cashless-Transaktion Ergebnis: ${lastCashlessSaleResult.rows.length} Zeilen`);
+          lastCashlessSale = lastCashlessSaleResult.rows[0];
+        } else {
+          console.log('[DEBUG] Keine Cashless-Transaktionen gefunden');
+        }
+      } catch (error) {
+        console.error('[ERROR] Fehler bei der Abfrage der letzten Cashless-Transaktion:', error);
+      }
       
       console.log(`[DEBUG] Letzte Cashless-Transaktion gefunden: ${lastCashlessSale ? 'Ja' : 'Nein'}`);
       
@@ -1507,58 +1538,74 @@ export class DatabaseStorage implements IStorage {
         AND (${likeConditions})
       `;
       
-      console.log(`[DEBUG] Suche heutige Alkohol-Transaktionen für Maschine ID=${internalMachineId} oder Vendon-ID=${vendonMachineId}`);
-      const todayAlcoholResult = await this.db.raw(todayAlcoholQuery, [
-        internalMachineId,
-        vendonMachineId,
-        today.toISOString(), 
-        tomorrow.toISOString()
-      ]);
+      console.log(`[DEBUG] Suche Alkohol-Transaktionen für Maschine ID=${internalMachineId} oder Vendon-ID=${vendonMachineId}`);
       
-      // Letzte Woche Alkohol-Verkauf - vereinfachte Abfrage
-      const weekAlcoholQuery = `
-        SELECT COUNT(*) AS count
-        FROM transactions 
-        WHERE (
-          machine_id = $1
-          OR vendon_id = $2
-        )
-        AND datetime >= $3 AND datetime < $4
-        AND (${likeConditions})
-      `;
+      // Standardwerte für den Fall, dass die Abfragen fehlschlagen
+      let todayAlcoholCount = 0;
+      let weekAlcoholCount = 0;
+      let monthAlcoholCount = 0;
       
-      console.log(`[DEBUG] Suche wöchentliche Alkohol-Transaktionen für Maschine ID=${internalMachineId} oder Vendon-ID=${vendonMachineId}`);
-      const weekAlcoholResult = await this.db.raw(weekAlcoholQuery, [
-        internalMachineId,
-        vendonMachineId,
-        oneWeekAgo.toISOString(), 
-        today.toISOString()
-      ]);
-      
-      // Letzten Monat Alkohol-Verkauf - vereinfachte Abfrage
-      const monthAlcoholQuery = `
-        SELECT COUNT(*) AS count
-        FROM transactions 
-        WHERE (
-          machine_id = $1
-          OR vendon_id = $2
-        )
-        AND datetime >= $3 AND datetime < $4
-        AND (${likeConditions})
-      `;
-      
-      console.log(`[DEBUG] Suche monatliche Alkohol-Transaktionen für Maschine ID=${internalMachineId} oder Vendon-ID=${vendonMachineId}`);
-      const monthAlcoholResult = await this.db.raw(monthAlcoholQuery, [
-        internalMachineId,
-        vendonMachineId,
-        oneMonthAgo.toISOString(), 
-        today.toISOString()
-      ]);
-      
-      // Fix: Zugriff auf rows-Eigenschaft der Ergebnisse
-      const todayAlcoholCount = parseInt(todayAlcoholResult.rows[0]?.count?.toString() || '0');
-      const weekAlcoholCount = parseInt(weekAlcoholResult.rows[0]?.count?.toString() || '0');
-      const monthAlcoholCount = parseInt(monthAlcoholResult.rows[0]?.count?.toString() || '0');
+      try {
+        // Heutige Alkohol-Transaktionen
+        const todayAlcoholResult = await this.db.query(todayAlcoholQuery, [
+          internalMachineId,
+          vendonMachineId,
+          today.toISOString(), 
+          tomorrow.toISOString()
+        ]);
+        
+        if (todayAlcoholResult && todayAlcoholResult.rows && todayAlcoholResult.rows.length > 0) {
+          todayAlcoholCount = parseInt(todayAlcoholResult.rows[0]?.count?.toString() || '0');
+        }
+        
+        // Wöchentliche Alkohol-Verkäufe
+        const weekAlcoholQuery = `
+          SELECT COUNT(*) AS count
+          FROM transactions 
+          WHERE (
+            machine_id = $1
+            OR vendon_id = $2
+          )
+          AND datetime >= $3 AND datetime < $4
+          AND (${likeConditions})
+        `;
+        
+        const weekAlcoholResult = await this.db.query(weekAlcoholQuery, [
+          internalMachineId,
+          vendonMachineId,
+          oneWeekAgo.toISOString(), 
+          today.toISOString()
+        ]);
+        
+        if (weekAlcoholResult && weekAlcoholResult.rows && weekAlcoholResult.rows.length > 0) {
+          weekAlcoholCount = parseInt(weekAlcoholResult.rows[0]?.count?.toString() || '0');
+        }
+        
+        // Monatliche Alkohol-Verkäufe
+        const monthAlcoholQuery = `
+          SELECT COUNT(*) AS count
+          FROM transactions 
+          WHERE (
+            machine_id = $1
+            OR vendon_id = $2
+          )
+          AND datetime >= $3 AND datetime < $4
+          AND (${likeConditions})
+        `;
+        
+        const monthAlcoholResult = await this.db.query(monthAlcoholQuery, [
+          internalMachineId,
+          vendonMachineId,
+          oneMonthAgo.toISOString(), 
+          today.toISOString()
+        ]);
+        
+        if (monthAlcoholResult && monthAlcoholResult.rows && monthAlcoholResult.rows.length > 0) {
+          monthAlcoholCount = parseInt(monthAlcoholResult.rows[0]?.count?.toString() || '0');
+        }
+      } catch (error) {
+        console.error('[ERROR] Fehler bei der Abfrage von Alkohol-Transaktionen:', error);
+      }
       
       // Berechnung der Durchschnittswerte
       const weekAvg = weekAlcoholCount / 7 || 0;
