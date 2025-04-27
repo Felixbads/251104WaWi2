@@ -1400,7 +1400,7 @@ export class DatabaseStorage implements IStorage {
         SELECT COUNT(*) as today_transactions, 
                COALESCE(SUM(price), 0) as today_revenue
         FROM transactions 
-        WHERE (machine_id = $1 OR (extra_data->>'machine_id' = $2))
+        WHERE (machine_id = $1 OR (extra_data::jsonb->>'machine_id' = $2))
         AND datetime >= $3 AND datetime < $4
       `;
       
@@ -1423,7 +1423,7 @@ export class DatabaseStorage implements IStorage {
       const lastSaleQuery = `
         SELECT * FROM transactions 
         WHERE machine_id = $1 
-           OR (extra_data->>'machine_id' = $2)
+           OR (extra_data::jsonb->>'machine_id' = $2)
         ORDER BY datetime DESC 
         LIMIT 1
       `;
@@ -1441,7 +1441,7 @@ export class DatabaseStorage implements IStorage {
       // 3. Letzter bargeldloser Verkauf
       const lastCashlessSaleQuery = `
         SELECT * FROM transactions 
-        WHERE (machine_id = $1 OR (extra_data->>'machine_id' = $2))
+        WHERE (machine_id = $1 OR (extra_data::jsonb->>'machine_id' = $2))
         AND LOWER(payment_method) = 'cashless'
         ORDER BY datetime DESC 
         LIMIT 1
@@ -1471,7 +1471,7 @@ export class DatabaseStorage implements IStorage {
       const todayAlcoholQuery = `
         SELECT COUNT(*) AS count
         FROM transactions 
-        WHERE (machine_id = $1 OR (extra_data->>'machine_id' = $2))
+        WHERE (machine_id = $1 OR (extra_data::jsonb->>'machine_id' = $2))
         AND datetime >= $3 AND datetime < $4
         AND (${likeConditions})
       `;
@@ -1487,7 +1487,7 @@ export class DatabaseStorage implements IStorage {
       const weekAlcoholQuery = `
         SELECT COUNT(*) AS count
         FROM transactions 
-        WHERE (machine_id = $1 OR (extra_data->>'machine_id' = $2))
+        WHERE (machine_id = $1 OR (extra_data::jsonb->>'machine_id' = $2))
         AND datetime >= $3 AND datetime < $4
         AND (${likeConditions})
       `;
@@ -1503,7 +1503,7 @@ export class DatabaseStorage implements IStorage {
       const monthAlcoholQuery = `
         SELECT COUNT(*) AS count
         FROM transactions 
-        WHERE (machine_id = $1 OR (extra_data->>'machine_id' = $2))
+        WHERE (machine_id = $1 OR (extra_data::jsonb->>'machine_id' = $2))
         AND datetime >= $3 AND datetime < $4
         AND (${likeConditions})
       `;
