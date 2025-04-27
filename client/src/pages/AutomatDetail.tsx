@@ -471,24 +471,45 @@ export default function AutomatDetail() {
         value={activeTab}
         onValueChange={setActiveTab}
       >
-        <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:grid-cols-none lg:flex">
-          <TabsTrigger value="allgemein">Allgemeine Informationen</TabsTrigger>
-          <TabsTrigger value="transaktionen">Transaktionshistorie</TabsTrigger>
-          <TabsTrigger value="analysen">
-            <FileText className="h-4 w-4 mr-2" />
-            Analysen
-          </TabsTrigger>
-          <TabsTrigger value="auffullungen">
-            <PackagePlus className="h-4 w-4 mr-2" />
-            Auffüllungen
-          </TabsTrigger>
-          <TabsTrigger value="inventur">
-            <ClipboardCheck className="h-4 w-4 mr-2" />
-            Inventur
-          </TabsTrigger>
-          <TabsTrigger value="fehler">Fehler & Logs</TabsTrigger>
-          <TabsTrigger value="technisch">Technische Details</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto pb-2">
+          <TabsList className="inline-flex w-auto min-w-full">
+            <TabsTrigger value="allgemein" className="whitespace-nowrap flex items-center">
+              <Info className="h-4 w-4 mr-2 md:inline hidden" />
+              <span className="md:inline">Allgemeine Informationen</span>
+              <span className="md:hidden">Allgemein</span>
+            </TabsTrigger>
+            <TabsTrigger value="transaktionen" className="whitespace-nowrap flex items-center">
+              <ShoppingCart className="h-4 w-4 mr-2 md:inline hidden" />
+              <span className="md:inline">Transaktionshistorie</span>
+              <span className="md:hidden">Transaktionen</span>
+            </TabsTrigger>
+            <TabsTrigger value="analysen" className="whitespace-nowrap flex items-center">
+              <FileText className="h-4 w-4 mr-2" />
+              <span className="md:inline">Analysen</span>
+              <span className="md:hidden">Analysen</span>
+            </TabsTrigger>
+            <TabsTrigger value="auffullungen" className="whitespace-nowrap flex items-center">
+              <PackagePlus className="h-4 w-4 mr-2" />
+              <span className="md:inline">Auffüllungen</span>
+              <span className="md:hidden">Auffüll.</span>
+            </TabsTrigger>
+            <TabsTrigger value="inventur" className="whitespace-nowrap flex items-center">
+              <ClipboardCheck className="h-4 w-4 mr-2" />
+              <span className="md:inline">Inventur</span>
+              <span className="md:hidden">Inventur</span>
+            </TabsTrigger>
+            <TabsTrigger value="fehler" className="whitespace-nowrap flex items-center">
+              <AlertTriangle className="h-4 w-4 mr-2 md:inline hidden" />
+              <span className="md:inline">Fehler & Logs</span>
+              <span className="md:hidden">Fehler</span>
+            </TabsTrigger>
+            <TabsTrigger value="technisch" className="whitespace-nowrap flex items-center">
+              <Settings className="h-4 w-4 mr-2 md:inline hidden" />
+              <span className="md:inline">Technische Details</span>
+              <span className="md:hidden">Technik</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
         
         {/* Allgemeine Informationen Tab */}
         <TabsContent value="allgemein" className="mt-4">
