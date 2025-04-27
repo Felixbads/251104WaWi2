@@ -36,6 +36,7 @@ import { queryClient } from "@/lib/queryClient";
 interface EnhancedMachine extends Machine {
   todayTransactions?: number;
   todayRevenue?: number;
+  lastSale?: string;
   cashlessStatus?: 'ok' | 'warning' | 'error';
   ageVerificationStatus?: 'ok' | 'warning' | 'error';
 }
