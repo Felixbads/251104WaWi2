@@ -68,26 +68,55 @@ export default function Automaten() {
       // Für jede Maschine die täglichen Statistiken abrufen
       for (const machine of enhancedMachines) {
         try {
+          console.log(`DEBUG: Abrufen von KPIs für Maschine ${machine.id} (${machine.machineName})`);
+          
           // Neue API für alle KPIs in einem Aufruf nutzen
           const response = await fetch(`/api/machines/${machine.id}/daily-stats`);
+          console.log(`DEBUG: API-Status für Maschine ${machine.id}:`, response.status);
+          
           if (response.ok) {
             const stats = await response.json();
+            console.log(`DEBUG: API-Antwort für Maschine ${machine.id}:`, JSON.stringify(stats));
+            
+            // Überprüfen der API-Antwort
+            if (Object.keys(stats).length === 0) {
+              console.error(`Fehler: Leere API-Antwort für Maschine ${machine.id}`);
+              continue; // Überspringe diese Maschine
+            }
             
             // Tägliche Transaktionen und Umsatz
             machine.todayTransactions = stats.todayTransactions || 0;
             machine.todayRevenue = stats.todayRevenue || 0;
+            console.log(`DEBUG: Heutige Transaktionen: ${machine.todayTransactions}, Umsatz: ${machine.todayRevenue}`);
             
             // Letzter Verkauf
+            console.log(`DEBUG: lastSale aus API:`, stats.lastSale);
             if (stats.lastSale) {
               try {
                 // Prüfen, ob stats.lastSale.datetime existiert und gültig ist
                 if (stats.lastSale.datetime) {
                   machine.lastSale = new Date(stats.lastSale.datetime).toISOString();
-                  console.log('Letzter Verkauf gesetzt:', machine.lastSale);
+                  console.log('Letzter Verkauf gesetzt aus datetime:', machine.lastSale);
                 } else if (typeof stats.lastSale === 'object') {
                   // Falls stats.lastSale ein Objekt ist, aber kein datetime hat
-                  console.log('Lastdate ist ein Objekt ohne datetime-Feld:', stats.lastSale);
-                  machine.lastSale = undefined;
+                  console.log('lastSale ist ein Objekt ohne datetime-Feld:', stats.lastSale);
+                  
+                  // Fallback: Wenn das Objekt ein vollständiges Transaction-Objekt ist, 
+                  // könnte das Datumswert in einem anderen Feld sein
+                  const possibleDateFields = ['datetime', 'createdAt', 'updatedAt', 'date', 'timestamp'];
+                  for (const field of possibleDateFields) {
+                    if (stats.lastSale[field] && !isNaN(new Date(stats.lastSale[field]).getTime())) {
+                      machine.lastSale = new Date(stats.lastSale[field]).toISOString();
+                      console.log(`Letzter Verkauf aus alternativer Eigenschaft '${field}':`, machine.lastSale);
+                      break;
+                    }
+                  }
+                  
+                  if (!machine.lastSale) {
+                    // Falls kein passendes Feld gefunden wurde
+                    console.log('Kein gültiges Datumfeld gefunden in:', Object.keys(stats.lastSale));
+                    machine.lastSale = undefined;
+                  }
                 } else {
                   // Falls stats.lastSale direkt ein Datum ist (String oder Date)
                   machine.lastSale = new Date(stats.lastSale).toISOString();
@@ -95,6 +124,7 @@ export default function Automaten() {
                 }
               } catch (dateError) {
                 console.error('Fehler bei der Datums-Formatierung:', dateError);
+                console.log('Problematischer Wert war:', stats.lastSale);
                 machine.lastSale = undefined;
               }
             }

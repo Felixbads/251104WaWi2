@@ -1049,6 +1049,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Wir verwenden stattdessen einen normalen Polling-Ansatz für Updates
   // WebSocket wurde deaktiviert, um Verbindungsprobleme zu vermeiden
 
+  // GET /machines/:id/daily-stats - Tägliche KPIs für einen Automaten abrufen
+  app.get(`${API_PREFIX}/machines/:id/daily-stats`, async (req: Request, res: Response) => {
+    try {
+      const machineId = parseInt(req.params.id);
+      
+      if (isNaN(machineId)) {
+        return res.status(400).json({ error: "Ungültige Automaten-ID" });
+      }
+
+      console.log(`[INFO] Abrufen von täglichen KPIs für Maschine ${machineId}`);
+      
+      // Ruft die Storage-Methode auf, um die Tagesstatistiken abzurufen
+      const stats = await storage.getMachineDailyStats(machineId);
+      
+      console.log(`[DEBUG] Statistiken für Maschine ${machineId} abgerufen:`, JSON.stringify(stats));
+      
+      res.json(stats);
+    } catch (error) {
+      console.error(`[ERROR] Fehler beim Abrufen der KPIs für Maschine ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Fehler beim Abrufen der Automaten-KPIs", 
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
   // API Health Check
   app.get(`${API_PREFIX}/health`, (_req: Request, res: Response) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
