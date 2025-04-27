@@ -1195,51 +1195,9 @@ export default function AutomatDetail() {
         </TabsContent>
         
         {/* Fehler & Logs Tab */}
-        <TabsContent value="fehler" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Fehler & Warnungen</CardTitle>
-              <CardDescription>Probleme und Systemereignisse des Automaten</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8">
-                <p className="text-gray-500">Keine Fehler oder Warnungen in den letzten 30 Tagen</p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+
         
-        {/* Technische Details Tab */}
-        <TabsContent value="technisch" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Technische Informationen</CardTitle>
-              <CardDescription>Firmware, Wartung und Hardware-Details</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Firmware-Version</p>
-                  <p>{machine.firmwareVersion || 'Nicht bekannt'}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Letzte Wartung</p>
-                  <p>{machine.lastMaintenanceDate ? formatDateTime(machine.lastMaintenanceDate, 'date') : 'Keine Wartung verzeichnet'}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Nächste geplante Wartung</p>
-                  <p>Nicht geplant</p>
-                </div>
-                <div className="pt-4">
-                  <Button variant="outline" className="gap-2">
-                    <FileText className="h-4 w-4" />
-                    Wartungsprotokoll anzeigen
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+
         
         {/* Inventur Tab */}
         <TabsContent value="inventur" className="mt-4">
