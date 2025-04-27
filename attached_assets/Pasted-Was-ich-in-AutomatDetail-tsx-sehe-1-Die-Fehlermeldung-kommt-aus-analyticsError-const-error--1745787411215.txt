@@ -1,0 +1,101 @@
+Was ich in AutomatDetail.tsx sehe
+	1.	Die Fehlermeldung kommt aus analyticsError
+
+const { …, error: analyticsError } = useQuery({
+   queryKey: ['/statistics/machines', id, 'analytics'],
+   queryFn : () => getMachineAnalytics(id),
+   enabled : !!id && (activeTab === 'analysen' || activeTab === 'auswertung')
+});
+…
+<p>Fehler beim Laden der Analysen: {String(analyticsError)}</p>
+
+D. h. getMachineAnalytics(id) wirft ein Error, den React-Query an analyticsError durchreicht. Die Meldung, die du siehst („Error: Fehler beim Abrufen der Automatenanalyse“), ist genau der Error.message, den die Hilfsfunktion wirft.
+
+	2.	Die UI-Schicht selbst ist in Ordnung
+id wird erst benutzt, wenn
+
+const id = params?.id;
+enabled : !!id …
+
+also garantiert vorhanden ist. Das Problem liegt nicht im Zustand-Management, sondern in der Fetch-Funktion oder auf dem Server.
+
+⸻
+
+Wahrscheinlichste Ursachen & Checks
+
+Ebene	Mögliche Ursache	So prüfst du das
+Browser → Backend	Falscher End-Point (404) oder internes Server-Fehler-Status (≥500)	Dev-Tools → Network → Request /statistics/machines/{id}/analytics inspizieren: Status-Code, Response-Body.
+Auth / Header	Fehlendes/abgelaufenes Token – andere End-points laufen evtl. über einen Proxy, der Statistik-Service aber nicht	Im Network-Tab unter Request Headers schauen, ob der Authorization-Header gesendet wird.
+Backend-Route	Statistik-Route existiert nicht oder ist anders benannt (z. B. /stats/machines)	Server-Logs / Router-Definition prüfen.
+ID-Format	Backend erwartet numerische ID, du schickst UUID (oder umgekehrt)	Request-URL und Server-Routen-Signatur vergleichen.
+Leere Daten / Domain-Logik	Für die Maschine gibt es (noch) keine Analytics → Service wirft 404/422	Query direkt in Postman/cURL ohne Front-End: liefert sie denselben Fehler?
+CORS / Infrastruktur	Statistik-Service läuft auf anderem Origin, CORS falsch konfiguriert	Network-Tab würde hier „CORS-Fehler“ zeigen; ansonsten Browser-Konsole.
+
+
+
+⸻
+
+Typische Implementierung der Fetch-Funktion
+
+export async function getMachineAnalytics(id: string) {
+  const res = await fetch(`${API_URL}/statistics/machines/${id}/analytics`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  if (!res.ok) {
+    // ➜ Hier wird genau der Error erzeugt, den du oben siehst
+    throw new Error('Fehler beim Abrufen der Automatenanalyse');
+  }
+  return res.json() as Promise<MachineAnalytics>;
+}
+
+	•	Wenn res.ok false ist (404, 500 …), wird der Error geworfen.
+	•	String(analyticsError) rendert anschließend „Error: Fehler …“.
+
+⸻
+
+Vorgehens­vorschlag zum Debuggen
+	1.	Network-Analyse
+	•	Registerkarte Network öffnen → Tab „analysen“ klicken → Request markieren.
+	•	Achte auf Status-Code & vollständige URL.
+	•	JSON-Payload/Fehler­text kopieren.
+	2.	Backend-Logs
+	•	Zeitstempel des Requests im Log suchen.
+	•	Siehst du 404 („route not found“), 401 („unauthorized“), 500 („exception“)?
+	3.	Fetch-Funktion absichern
+	•	Logge im Fehlerfall den Status-Code mit aus:
+
+if (!res.ok) {
+  const text = await res.text();
+  console.error('Analytics-Fetch fehlgeschlagen', res.status, text);
+  throw new Error(`Fehler ${res.status}: ${text || 'beim Abrufen der Automatenanalyse'}`);
+}
+
+Damit siehst du im Front-End die echte Ursache.
+
+	4.	Backend testen
+	•	Direkt mit Postman: GET /statistics/machines/<id>/analytics.
+	•	Funktioniert der Call mit einer Maschine, die sicher Daten hat?
+	5.	Fehlerhafte IDs ausschließen
+
+console.log('id aus useParams', id, typeof id);
+
+
+
+⸻
+
+Schnelle Abhilfe im Front-End
+
+Falls der Rück­gabe­typ gelegentlich leer ist, aber kein echter Fehler sein sollte:
+
+enabled: !!id && (activeTab === 'analysen' || activeTab === 'auswertung'),
+retry  : false,                 // verhindert endlose Retries
+select : (data) => data ?? []   // fallback auf leeres Array
+
+Dann kannst du im UI anzeigen: „Keine Analytics vorhanden“, statt eines Fehlers.
+
+⸻
+
+Zusammenfassung
+
+Die Meldung wird geworfen, weil der Backend-End-Point /statistics/machines/{id}/analytics nicht mit OK (200) antwortet. Prüfe zuerst den Network-Request: Status-Code, Auth-Header, richtige URL & ID-Format. Stimmen diese, schau in die Server-Logs – dort findest du die eigentliche Ursache (nicht implementierte Route, Exception, fehlende Daten). Sobald der End-Point 200 liefert, verschwindet auch der React-Query-Fehler.

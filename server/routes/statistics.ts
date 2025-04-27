@@ -1019,6 +1019,8 @@ router.get('/machines/:id/analytics', async (req, res) => {
     // Konvertiere die Daten sicher in ISO-Strings für die Datenbankabfrage
     const startDateStr = startDate instanceof Date ? startDate.toISOString() : new Date().toISOString();
     const endDateStr = endDate instanceof Date ? endDate.toISOString() : new Date().toISOString();
+    
+    console.log('Analysezeitraum:', { startDateStr, endDateStr });
 
     // Parallel-Abfragen für bessere Performance
     const [
@@ -1149,8 +1151,8 @@ router.get('/machines/:id/analytics', async (req, res) => {
     .from(weatherData)
     .where(
       and(
-        gte(weatherData.timestamp, startDateStr),
-        lte(weatherData.timestamp, endDateStr)
+        gte(sql`date(${weatherData.timestamp})`, sql`date(${startDateStr})`),
+        lte(sql`date(${weatherData.timestamp})`, sql`date(${endDateStr})`)
       )
     )
     .groupBy(weatherData.date)
