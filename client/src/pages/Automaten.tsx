@@ -208,7 +208,6 @@ export default function Automaten() {
         <CardHeader className="pb-2">
           <div className="flex justify-between items-start">
             <CardTitle className="text-lg truncate">{machine.machineName}</CardTitle>
-            <StatusBadge status={machine.status} />
           </div>
           {/* Standort ausgeblendet, wie vom Benutzer gewünscht */}
           <CardDescription className="text-xs text-gray-500">
@@ -265,47 +264,7 @@ export default function Automaten() {
             <AgeVerificationIndicator status={machine.ageVerificationStatus || 'error'} />
           </div>
         </CardContent>
-        <CardFooter className="pt-2 flex items-center justify-end">
-          {/* Details-Button entfernt, wie vom Benutzer gewünscht */}
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="px-2"
-            onClick={async (e) => {
-              e.stopPropagation(); // Verhindert, dass der Kartenklick ausgelöst wird
-              
-              // Aktualisierte KPI-Werte direkt von der neuen API abrufen
-              try {
-                const response = await fetch(`/api/machines/${machine.id}/daily-stats`);
-                if (response.ok) {
-                  const stats = await response.json();
-                  
-                  // Maschine im Cache aktualisieren
-                  queryClient.setQueryData(['/api/machines'], (oldData: EnhancedMachine[] | undefined) => {
-                    if (!oldData) return oldData;
-                    
-                    return oldData.map(m => {
-                      if (m.id === machine.id) {
-                        // KPIs aktualisieren
-                        return {
-                          ...m,
-                          todayTransactions: stats.todayTransactions || 0,
-                          todayRevenue: stats.todayRevenue || 0,
-                          lastSale: stats.lastSale ? new Date(stats.lastSale.datetime).toISOString() : m.lastSale,
-                        };
-                      }
-                      return m;
-                    });
-                  });
-                }
-              } catch (err) {
-                console.error(`Fehler beim Aktualisieren der KPIs für Maschine ${machine.id}:`, err);
-              }
-            }}
-          >
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-        </CardFooter>
+        {/* CardFooter entfernt */}
       </Card>
     );
   };
@@ -363,47 +322,7 @@ export default function Automaten() {
             </div>
           </div>
 
-          <div className="flex justify-end">
-            {/* Details-Button entfernt, wie vom Benutzer gewünscht */}
-            <Button 
-              variant="ghost" 
-              size="icon"
-              className="h-8 w-8"
-              onClick={async (e) => {
-                e.stopPropagation();
-                
-                // Aktualisierte KPI-Werte direkt von der neuen API abrufen
-                try {
-                  const response = await fetch(`/api/machines/${machine.id}/daily-stats`);
-                  if (response.ok) {
-                    const stats = await response.json();
-                    
-                    // Maschine im Cache aktualisieren
-                    queryClient.setQueryData(['/api/machines'], (oldData: EnhancedMachine[] | undefined) => {
-                      if (!oldData) return oldData;
-                      
-                      return oldData.map(m => {
-                        if (m.id === machine.id) {
-                          // KPIs aktualisieren
-                          return {
-                            ...m,
-                            todayTransactions: stats.todayTransactions || 0,
-                            todayRevenue: stats.todayRevenue || 0,
-                            lastSale: stats.lastSale ? new Date(stats.lastSale.datetime).toISOString() : m.lastSale,
-                          };
-                        }
-                        return m;
-                      });
-                    });
-                  }
-                } catch (err) {
-                  console.error(`Fehler beim Aktualisieren der KPIs für Maschine ${machine.id}:`, err);
-                }
-              }}
-            >
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-          </div>
+          {/* Aktualisierungs-Button entfernt */}
         </div>
       </div>
     );
