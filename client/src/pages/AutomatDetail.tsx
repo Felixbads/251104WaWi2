@@ -118,9 +118,9 @@ export default function AutomatDetail() {
       };
       
       try {
-        // Tägliche Stats über die API abrufen - mit Vendon-ID!
-        console.log(`Hole KPIs für Automat mit ID ${id} (Vendon-ID: ${machineData.vendonId})`);
-        const response = await fetch(`/api/machines/${machineData.vendonId}/daily-stats`);
+        // Tägliche Stats über die API abrufen - mit interner Maschinen-ID
+        console.log(`Hole KPIs für Automat mit ID ${id}`);
+        const response = await fetch(`/api/machines/${id}/daily-stats`);
         
         if (response.ok) {
           const stats = await response.json();
