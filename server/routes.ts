@@ -1060,10 +1060,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`[INFO] Abrufen von täglichen KPIs für Maschine ${machineId}`);
       
+      // DIREKTE DIAGNOSE: Prüfe ob Transaktionen vorhanden sind
+      try {
+        const rawTransactionResult = await storage.db.raw(
+          `SELECT id, machine_id, machine_name, datetime, vendon_id, product_name 
+           FROM transactions 
+           WHERE machine_id::text = ? OR machine_id = ? 
+           ORDER BY datetime DESC 
+           LIMIT 10`,
+          [String(machineId), machineId]
+        );
+        
+        console.log(`[DIAGNOSE] Transaktionen für Automat ${machineId} gefunden: ${rawTransactionResult.rows.length}`);
+        if (rawTransactionResult.rows.length > 0) {
+          console.log(`[DIAGNOSE] Erste Transaktion:`, JSON.stringify(rawTransactionResult.rows[0]));
+        }
+      } catch (diagError) {
+        console.error(`[DIAGNOSE] Fehler bei Direkt-Diagnose:`, diagError);
+      }
+      
       try {
         // Ruft die Storage-Methode auf, um die Tagesstatistiken abzurufen
         const stats = await storage.getMachineDailyStats(machineId);
         console.log(`[DEBUG] Statistiken für Maschine ${machineId} abgerufen:`, JSON.stringify(stats));
+        
+        // Füge spezifisches Debug-Log für lastSale hinzu
+        if (stats.lastSale) {
+          console.log(`[DEBUG] lastSale für Maschine ${machineId} gefunden:`, 
+            typeof stats.lastSale === 'object' ? 
+              (stats.lastSale.datetime ? new Date(stats.lastSale.datetime).toISOString() : "Kein datetime-Feld") : 
+              "Kein Objekt");
+        } else {
+          console.log(`[DEBUG] Kein lastSale für Maschine ${machineId} gefunden!`);
+        }
+        
         res.json(stats);
       } catch (storageError) {
         // Detaillierter Fehler-Log der Storage-Methode
