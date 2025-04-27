@@ -1349,15 +1349,38 @@ export class DatabaseStorage implements IStorage {
       console.log(`[DEBUG] Heutige Transaktionen: ${todayCount}, Umsatz: ${todayRevenue}`);
       
       // 2. Letzte Verkaufstransaktion abrufen
-      // Wir suchen nach Transaktionen, bei denen der JSON-Pfad machine_id der Vendon-ID entspricht
+      // Wir müssen die Transaktion über die interne ID der Maschine finden
       console.log(`[DEBUG] Suche letzte Verkäufe für Maschine ID: ${machineId} (Vendon-ID: ${vendonMachineId})`);
       
+      // Verbesserte Abfrage, die prioritär nach machine_id sucht, aber auch Vendon ID berücksichtigt
       const lastSaleResult = await db.execute(sql`
         SELECT * FROM transactions 
-        WHERE machine_id = ${machineId} OR extra_data::json->>'machine_id' = ${String(vendonMachineId)}
+        WHERE machine_id = ${machineId}
         ORDER BY datetime DESC 
         LIMIT 1
       `);
+      
+      // Falls kein Ergebnis über die interne ID gefunden wurde, versuchen wir es über die Vendon-ID
+      let vendonIdFallbackAttempt = false;
+      if (lastSaleResult.length === 0 && vendonMachineId) {
+        console.log(`[DEBUG] Keine Verkäufe über interne ID gefunden, versuche über Vendon-ID: ${vendonMachineId}`);
+        vendonIdFallbackAttempt = true;
+        
+        const fallbackResult = await db.execute(sql`
+          SELECT * FROM transactions 
+          WHERE extra_data::json->>'machine_id' = ${String(vendonMachineId)}
+          ORDER BY datetime DESC 
+          LIMIT 1
+        `);
+        
+        if (fallbackResult.length > 0) {
+          console.log(`[DEBUG] Verkauf über Vendon-ID gefunden!`);
+          // Korrigiere das Rückgabeformat, um mit dem Rest der Funktion konsistent zu sein
+          lastSaleResult = fallbackResult;
+        } else {
+          console.log(`[DEBUG] Auch über Vendon-ID wurde kein Verkauf gefunden.`);
+        }
+      }
       
       // Wenn lastSaleResult ein Array ist, greifen wir auf das erste Element zu
       const lastSale = lastSaleResult.length > 0 ? lastSaleResult[0] as unknown as Transaction : null;
@@ -1368,13 +1391,44 @@ export class DatabaseStorage implements IStorage {
       }
       
       // 3. Letzten bargeldlosen Verkauf abrufen
+      // Gleiche Strategie wie bei lastSale: zuerst nach interner ID suchen, dann nach Vendon-ID
       const lastCashlessSaleResult = await db.execute(sql`
         SELECT * FROM transactions 
-        WHERE (machine_id = ${machineId} OR extra_data::json->>'machine_id' = ${String(vendonMachineId)})
+        WHERE machine_id = ${machineId}
         AND (card_credit > 0 OR cashless_credit > 0)
         ORDER BY datetime DESC 
         LIMIT 1
       `);
+      
+      // Fallback für bargeldlosen Verkauf, falls über interne ID nichts gefunden wurde
+      if (lastCashlessSaleResult.length === 0 && vendonMachineId) {
+        console.log(`[DEBUG] Keine bargeldlosen Verkäufe über interne ID gefunden, versuche über Vendon-ID: ${vendonMachineId}`);
+        
+        const fallbackCashlessResult = await db.execute(sql`
+          SELECT * FROM transactions 
+          WHERE extra_data::json->>'machine_id' = ${String(vendonMachineId)}
+          AND (card_credit > 0 OR cashless_credit > 0)
+          ORDER BY datetime DESC 
+          LIMIT 1
+        `);
+        
+        if (fallbackCashlessResult.length > 0) {
+          console.log(`[DEBUG] Bargeldloser Verkauf über Vendon-ID gefunden!`);
+          return {
+            todayTransactions: todayCount,
+            todayRevenue: todayRevenue,
+            lastSale: lastSale,
+            lastCashlessSale: fallbackCashlessResult[0] as unknown as Transaction,
+            alcoholSales: {
+              today: 0,
+              weekAvg: 0,
+              monthAvg: 0
+            }
+          };
+        } else {
+          console.log(`[DEBUG] Auch über Vendon-ID wurde kein bargeldloser Verkauf gefunden.`);
+        }
+      }
       
       const lastCashlessSale = lastCashlessSaleResult.length > 0 ? lastCashlessSaleResult[0] as unknown as Transaction : null;
       
