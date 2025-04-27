@@ -550,11 +550,6 @@ export default function AutomatDetail() {
               <span className="md:inline">Auffüllungen</span>
               <span className="md:hidden">Auffüll.</span>
             </TabsTrigger>
-            <TabsTrigger value="inventur" className="whitespace-nowrap flex items-center">
-              <ClipboardCheck className="h-4 w-4 mr-2" />
-              <span className="md:inline">Inventur</span>
-              <span className="md:hidden">Inventur</span>
-            </TabsTrigger>
             <TabsTrigger value="fehler" className="whitespace-nowrap flex items-center">
               <AlertTriangle className="h-4 w-4 mr-2 md:inline hidden" />
               <span className="md:inline">Fehler & Logs</span>
