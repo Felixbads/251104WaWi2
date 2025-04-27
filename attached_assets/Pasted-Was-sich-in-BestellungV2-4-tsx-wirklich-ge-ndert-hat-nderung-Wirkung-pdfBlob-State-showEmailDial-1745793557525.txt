@@ -1,0 +1,114 @@
+Was sich in BestellungV2-4.tsx wirklich geändert hat
+
+Änderung	Wirkung
+pdfBlob-State + showEmailDialog-State eingeführt	Speicher für PDF + Dialog-Trigger vorhanden
+generatePDFAndSendEmail(): PDF wird erzeugt → setPdfBlob(pdfBlob) → setShowEmailDialog(true)	Blockierende confirm()-Dialogs sind weg
+<OrderEmailDialog … /> unter dem Haupt-Layout eingebunden	UI-Gerüst für Mail-Editor liegt bereit
+markOrderAsSentMutation aus der Funktion entfernt	Statusänderung erfolgt jetzt erst nach Dialog-Bestätigung
+
+ABER: Es gibt keine Änderung an der Step-Maschine (weiterhin nur
+summary → goodsReceipt) und die Query-Keys der Bestellliste sind immer noch nicht konsistent.
+
+⸻
+
+Warum Dein ursprüngliches Problem immer noch auftritt
+
+1. Bestellung erscheint nicht in der Übersicht
+
+// v4
+queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+
+	•	Create-POST: /orders
+	•	fetch in OrdersOverview (höchst­wahrscheinlich): useQuery(['orders'], …) oder ['/orders']
+	•	Invalidation: ['/api/orders']
+
+→ Drei unterschiedliche Keys/URLs ⇒ React-Query hält den Cache der Übersicht weiter für gültig.
+Fix: Verwende exakt denselben Key wie im Overview-Component, z. B.
+
+queryClient.invalidateQueries({ queryKey: ['orders'] });
+
+oder
+
+queryClient.invalidateQueries({ queryKey: ['/orders'] });
+
+Prüfe im Overview-Code nach, welcher Key dort wirklich benutzt wird!
+
+⸻
+
+2. Kein echter „Versand/Wareneingang“-Schritt
+	•	Du setzt weiter setStep('goodsReceipt').
+	•	In getStepContent('goodsReceipt') zeigst Du sofort die Erfolgskarte („Bestellung … gesendet“).
+	•	Ein gesonderter Workflow für Versand vorbereiten / Wareneingänge erfassen existiert also nicht – deshalb „kommst Du nicht auf die Versandseite“.
+
+Lösungs-Optionen
+	1.	Neuen Step einführen (z. B. 'shipping' oder 'warehouseReceipt')
+
+case 'summary':        return 'shipping';
+case 'shipping':       return 'goodsReceipt';
+
+
+	2.	Oder wenn goodsReceipt die Versandseite sein soll:
+setze erst goodsReceipt wenn der Nutzer im Dialog wirklich „Senden“ klickt – nicht vorher.
+
+⸻
+
+3. Dialog öffnet sich, aber Email-Versand scheitert → Step bleibt stehen
+
+generatePDFAndSendEmail() ruft gleich danach:
+
+const response = await fetch(`/api/orders/${orderIdToUse}`);
+
+Wenn Deine REST-Route eigentlich /orders/:id heißt, bekommt der Fetch ein 404 → der Code bricht im catch ab, der Dialog öffnet sich nicht. Du landest trotzdem in goodsReceipt, siehst aber eine Karte, die vorgibt, es sei alles schon verschickt.
+
+Fix
+	•	Nimm die Order-Daten aus der Antwort von createOrderMutation (data) – Du hast sie ja bereits.
+	•	Vermeide den Extra-Fetch oder korrigiere den Pfad:
+
+const response = await fetch(`/orders/${orderIdToUse}`);
+
+
+
+⸻
+
+4. Übersicht, E-Mail und Versand zusammenspielen lassen
+	1.	Nach CREATE
+	•	setOrderId(data.id);
+	•	kein setStep hier – warte erst auf den Dialog-Flow.
+	2.	Nach erfolgreichem Versand (in OrderEmailDialog → „Senden“)
+	•	markOrderAsSentMutation.mutate({...})
+	•	setStep('goodsReceipt');
+	•	queryClient.invalidateQueries({ queryKey: ['orders'] });
+	3.	Button „Zur Übersicht“ in goodsReceipt ruft einfach navigate('/bestellungen').
+
+⸻
+
+Was Du jetzt konkret tun solltest
+	1.	Gleiche Query-Keys
+
+// überall dasselbe
+useQuery(['orders'], ...)
+queryClient.invalidateQueries({ queryKey: ['orders'] })
+
+
+	2.	Fetch-Pfad angleichen (/orders/:id statt /api/orders/:id).
+	3.	Step-Reihenfolge anpassen
+
+const getNextStep = (current: OrderStep): OrderStep | null => {
+  ...
+  case 'summary':  return showEmailDialog ? null : 'goodsReceipt'; // falls Dialog-Flow genutzt
+  ...
+};
+
+Oder einfacher:
+Nach CREATE gar keinen Step-Wechsel – öffne nur den Dialog. Nach erfolgreichem Senden setzt der Dialog selbst setStep('goodsReceipt').
+	4.	Dialog-Komponente:
+	•	Beim Click auf „Senden“ → await emailOrderMutation.mutateAsync(...)
+	•	Danach onOpenChange(false) und onSent() callback → dort setStep('goodsReceipt').
+	5.	Testen
+
+	•	Bestellung anlegen → Dialog öffnet → Mail senden → Erfolgskarte → Zur Übersicht → Bestellung sichtbar.
+
+⸻
+
+Fazit:
+Die v4-Änderungen (PDF-Blob + Dialog) gehen in die richtige Richtung, beheben aber Deine beiden Hauptprobleme nicht, weil Cache-Invalidation und Endpoint-Pfad noch uneinheitlich sind und der Step-Fluss nicht neu sortiert wurde. Sobald Du diese drei Punkte angleichst, sollte alles wie erwartet funktionieren.
