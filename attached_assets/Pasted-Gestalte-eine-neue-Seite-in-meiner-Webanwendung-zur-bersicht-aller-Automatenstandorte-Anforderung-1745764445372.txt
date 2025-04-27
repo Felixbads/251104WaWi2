@@ -1,0 +1,37 @@
+Gestalte eine neue Seite in meiner Webanwendung zur Übersicht aller Automatenstandorte.
+
+Anforderungen an das Layout:
+	•	Kacheldesign: Jede Kachel stellt einen Automaten dar.
+	•	Klickbar: Jede Kachel soll komplett klickbar sein und direkt auf die Detailseite des jeweiligen Automaten führen (z.B. /automaten/{machineId}).
+	•	Mobile First: Die Seite soll zuerst für Smartphones optimiert sein (kleine Bildschirme), dann responsiv auf Tablets und Desktop gut aussehen.
+	•	Auf kleinen Geräten: Kacheln untereinander.
+	•	Auf größeren Geräten: Kacheln nebeneinander in flexiblen Reihen.
+
+Inhalt pro Kachel:
+	•	Automatenname (machineName) aus der Tabelle machines.
+	•	Letzter Verkauf: Datum und Uhrzeit der letzten Transaktion (datetime aus transactions).
+	•	Umsatz heute: Summe price aller heutigen Transaktionen.
+	•	Letzter Verkauf Alkohol: Indikator, ob in einem festgelegten Zeitraum (z.B. 14 Tage) ein Produkt mit Altersverifikation (Alkoholprodukt) verkauft wurde.
+	•	Letzter Verkauf Cashless: Indikator, ob in einem festgelegten Zeitraum eine Kartenzahlung durchgeführt wurde.
+
+Datenquellen:
+	•	machines-Tabelle:
+	•	id, vendonId, machineName, status
+	•	transactions-Tabelle:
+	•	id, vendonId, machineId, datetime, productId, productName, paymentMethod (CASH, CASHLESS), price, locationId
+	•	Produkttabelle (z.B. products):
+	•	id, name, isAlcohol (boolesch: true/false)
+
+Datenlogik:
+	•	Umsatz heute: Summe aller heutigen Verkäufe (datetime = today).
+	•	Letzter Verkauf: Jüngste Transaktion nach datetime.
+	•	Letzter Verkauf Alkohol: Suche nach letzter Transaktion eines Produkts mit isAlcohol = true.
+	•	Letzter Verkauf Cashless: Suche nach letzter Transaktion mit paymentMethod = CASHLESS.
+	•	Indikatoren (z.B. grüner Punkt, rotes Ausrufezeichen) reichen bei Alkohol und Cashless (kein vollständiges Datum nötig).
+
+Technische Details:
+	•	Verbinde transactions.machineId mit machines.id.
+	•	Verbinde transactions.productId mit products.id für Alkohol-Erkennung.
+
+Ziel:
+Die Seite soll auf einen Blick zeigen, ob die Automaten aktiv sind, Altersverifizierung funktioniert und Cashless-Zahlungen aktuell möglich sind.
