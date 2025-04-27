@@ -55,7 +55,7 @@ export default function Automaten() {
       const data = await getMachines();
       
       // Wir verwenden die echten Daten aus der API
-      return data.map(machine => ({
+      const enhancedMachines = data.map(machine => ({
         ...machine,
         // Initiale Werte setzen, die später durch API-Daten ersetzt werden
         todayTransactions: 0,
@@ -63,6 +63,24 @@ export default function Automaten() {
         cashlessStatus: machine.status === 'online' ? 'ok' : 'warning',
         ageVerificationStatus: 'ok'
       } as EnhancedMachine));
+      
+      // Für jede Maschine den letzten Verkauf ermitteln
+      for (const machine of enhancedMachines) {
+        try {
+          // Wir holen nur die letzte Transaktion für diese Maschine
+          const response = await fetch(`/api/transactions?machineId=${machine.id}&limit=1&sortBy=datetime&sortOrder=desc`);
+          if (response.ok) {
+            const transactions = await response.json();
+            if (transactions && transactions.data && transactions.data.length > 0) {
+              machine.lastSale = new Date(transactions.data[0].datetime).toISOString();
+            }
+          }
+        } catch (err) {
+          console.error(`Fehler beim Abrufen des letzten Verkaufs für Maschine ${machine.id}:`, err);
+        }
+      }
+      
+      return enhancedMachines;
     },
   });
 
