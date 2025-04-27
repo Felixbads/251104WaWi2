@@ -1316,10 +1316,7 @@ export class DatabaseStorage implements IStorage {
     .from(transactions)
     .where(
       and(
-        or(
-          eq(transactions.machineId, machineId),
-          eq(transactions.machineId, String(machineId))
-        ),
+        eq(transactions.machineId, machineId),
         gte(transactions.datetime, today),
         lt(transactions.datetime, tomorrow)
       )
@@ -1329,30 +1326,45 @@ export class DatabaseStorage implements IStorage {
     console.log(`[DEBUG] Suche letzte Verkäufe für Maschine ID: ${machineId}`);
     
     // 2. Letzte Verkaufstransaktion abrufen
-    // Versuche Abfrage sowohl mit Zahl als auch mit String
+    // Wichtig: Wir verwenden die interne ID, die in machineId übergeben wird
+    console.log(`[DEBUG] SQL-Debug - Suche Transaktionen für machineId (intern): ${machineId}, Typ: ${typeof machineId}`);
+    
     const lastSalesQuery = await db.select()
       .from(transactions)
-      .where(
-        or(
-          eq(transactions.machineId, machineId),
-          eq(transactions.machineId, String(machineId))
-        )
-      )
+      .where(eq(transactions.machineId, machineId))
       .orderBy(desc(transactions.datetime))
       .limit(1);
     
     const [lastSale] = lastSalesQuery;
     console.log(`[DEBUG] Letzte Verkaufstransaktion gefunden: ${lastSale ? 'Ja' : 'Nein'}`);
     
+    if (lastSale) {
+      console.log(`[DEBUG] Gefundene Transaktion: ${lastSale.id}, Datum: ${lastSale.datetime}, Produkt: ${lastSale.productName}`);
+    } else {
+      console.log(`[DEBUG] Keine Transaktion für Maschine ${machineId} gefunden. Versuche alternative Abfrage...`);
+      
+      // Falls keine Transaktion gefunden wurde, versuchen wir es mit einer direkten SQL-Abfrage
+      try {
+        const rawResults = await db.execute(
+          sql`SELECT * FROM transactions WHERE machine_id = ${machineId} ORDER BY datetime DESC LIMIT 1`
+        );
+        
+        if (rawResults.length > 0) {
+          console.log(`[DEBUG] Mit direkter SQL gefundene Transaktion:`, JSON.stringify(rawResults[0]));
+        } else {
+          console.log(`[DEBUG] Auch mit direkter SQL keine Transaktion gefunden.`);
+        }
+      } catch (err) {
+        console.error(`[ERROR] Fehler bei alternativer SQL-Abfrage:`, err);
+      }
+    }
+    
     // 3. Letzten bargeldlosen Verkauf abrufen (cardCredit oder cashlessCredit > 0)
     const lastCashlessSaleQuery = await db.select()
       .from(transactions)
       .where(
         and(
-          or(
-            eq(transactions.machineId, machineId),
-            eq(transactions.machineId, String(machineId))
-          ),
+          eq(transactions.machineId, machineId),
           or(
             gt(transactions.cardCredit, 0),
             gt(transactions.cashlessCredit, 0)
@@ -1376,10 +1388,7 @@ export class DatabaseStorage implements IStorage {
     .from(transactions)
     .where(
       and(
-        or(
-          eq(transactions.machineId, machineId),
-          eq(transactions.machineId, String(machineId))
-        ),
+        eq(transactions.machineId, machineId),
         gte(transactions.datetime, today),
         lt(transactions.datetime, tomorrow),
         or(
@@ -1397,10 +1406,7 @@ export class DatabaseStorage implements IStorage {
     .from(transactions)
     .where(
       and(
-        or(
-          eq(transactions.machineId, machineId),
-          eq(transactions.machineId, String(machineId))
-        ),
+        eq(transactions.machineId, machineId),
         gte(transactions.datetime, oneWeekAgo),
         lt(transactions.datetime, today),
         or(
@@ -1418,10 +1424,7 @@ export class DatabaseStorage implements IStorage {
     .from(transactions)
     .where(
       and(
-        or(
-          eq(transactions.machineId, machineId),
-          eq(transactions.machineId, String(machineId))
-        ),
+        eq(transactions.machineId, machineId),
         gte(transactions.datetime, oneMonthAgo),
         lt(transactions.datetime, today),
         or(
