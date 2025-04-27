@@ -1563,9 +1563,10 @@ export class DatabaseStorage implements IStorage {
         today.toISOString()
       ]);
       
-      const todayAlcoholCount = parseInt(todayAlcoholResult[0]?.count?.toString() || '0');
-      const weekAlcoholCount = parseInt(weekAlcoholResult[0]?.count?.toString() || '0');
-      const monthAlcoholCount = parseInt(monthAlcoholResult[0]?.count?.toString() || '0');
+      // Fix: Zugriff auf rows-Eigenschaft der Ergebnisse
+      const todayAlcoholCount = parseInt(todayAlcoholResult.rows[0]?.count?.toString() || '0');
+      const weekAlcoholCount = parseInt(weekAlcoholResult.rows[0]?.count?.toString() || '0');
+      const monthAlcoholCount = parseInt(monthAlcoholResult.rows[0]?.count?.toString() || '0');
       
       // Berechnung der Durchschnittswerte
       const weekAvg = weekAlcoholCount / 7 || 0;
