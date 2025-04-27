@@ -1265,19 +1265,84 @@ router.delete("/:id", async (req: Request, res: Response) => {
   }
 });
 
-// Bestellung per E-Mail versenden
-router.post("/:id/email", async (req: Request, res: Response) => {
+// E-Mail-Vorlage für eine Bestellung abrufen
+router.get("/:id/email-template", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const orderId = parseInt(id);
-    const { supplierEmail, additionalNotes, emailTemplateType, emailContent, subject } = req.body;
+    const { type = 'standard' } = req.query;
+    const templateType = type as string;
 
     if (isNaN(orderId)) {
       return res.status(400).json({ error: "Ungültige Bestellungs-ID" });
     }
 
-    if (!supplierEmail || !supplierEmail.includes('@')) {
-      return res.status(400).json({ error: "Eine gültige E-Mail-Adresse des Lieferanten muss angegeben werden" });
+    // Bestellung abrufen
+    const orderData = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+
+    if (!orderData || orderData.length === 0) {
+      return res.status(404).json({ error: "Bestellung nicht gefunden" });
+    }
+    
+    const order = orderData[0];
+
+    // Lieferanten abrufen
+    let supplier = null;
+    if (order.supplierId) {
+      const supplierData = await db
+        .select()
+        .from(suppliers)
+        .where(eq(suppliers.id, order.supplierId))
+        .limit(1);
+      
+      if (supplierData && supplierData.length > 0) {
+        supplier = supplierData[0];
+      }
+    }
+
+    // E-Mail-Vorlage erstellen
+    const emailTemplate = createOrderEmailTemplate(order, supplier || {}, templateType);
+
+    // E-Mail-Betreff erstellen
+    let subject = "";
+    switch (templateType) {
+      case "dringend":
+        subject = `DRINGEND: Bestellung ${order.orderNumber} - ${order.supplierName || supplier?.name || 'Unbekannt'}`;
+        break;
+      case "nachbestellung":
+        subject = `Nachbestellung ${order.orderNumber} - ${order.supplierName || supplier?.name || 'Unbekannt'}`;
+        break;
+      default:
+        subject = `Bestellung ${order.orderNumber} - ${order.supplierName || supplier?.name || 'Unbekannt'}`;
+    }
+
+    res.json({
+      subject,
+      content: emailTemplate.replace('{{orderItems}}', 'ARTIKELLISTE WIRD AUTOMATISCH EINGEFÜGT')
+    });
+  } catch (error) {
+    console.error("Fehler beim Generieren der E-Mail-Vorlage:", error);
+    res.status(500).json({ error: "Fehler beim Generieren der E-Mail-Vorlage" });
+  }
+});
+
+// Bestellung per E-Mail versenden
+router.post("/:id/email", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const orderId = parseInt(id);
+    const { to, subject, content, templateType = 'standard' } = req.body;
+
+    if (isNaN(orderId)) {
+      return res.status(400).json({ error: "Ungültige Bestellungs-ID" });
+    }
+
+    if (!to || !to.includes('@')) {
+      return res.status(400).json({ error: "Eine gültige E-Mail-Adresse des Empfängers muss angegeben werden" });
     }
 
     // Bestellung abrufen
@@ -1316,12 +1381,12 @@ router.post("/:id/email", async (req: Request, res: Response) => {
     // Tabelle mit Bestellpositionen erstellen
     const itemsTable = createOrderItemsTable(items);
 
-    // Wenn der Benutzer benutzerdefinierten HTML-Inhalt angegeben hat, diesen verwenden
+    // HTML-Inhalt für die E-Mail
     let htmlContent;
     
-    if (emailContent) {
+    if (content) {
       // Benutzerdefinierter Inhalt wird verwendet
-      htmlContent = emailContent;
+      htmlContent = content;
       
       // Bestelldetails einfügen, falls Platzhalter vorhanden sind
       if (htmlContent.includes('{{orderItems}}')) {
@@ -1329,46 +1394,54 @@ router.post("/:id/email", async (req: Request, res: Response) => {
       }
     } else {
       // Standardvorlage basierend auf dem Typ verwenden
-      const templateType = emailTemplateType || 'standard';
       const emailTemplate = createOrderEmailTemplate(order, supplier || { name: order.supplierName || "Unbekannter Lieferant" }, templateType);
       
       // HTML für E-Mail mit Tabelle ergänzen
       htmlContent = emailTemplate.replace('{{orderItems}}', itemsTable);
     }
     
-    // Zusätzliche Notizen in die E-Mail einfügen, wenn vorhanden
-    if (additionalNotes && additionalNotes.trim() !== '') {
-      // Füge die Notizen nach dem ersten Absatz ein, falls möglich
-      if (htmlContent.includes('</p>')) {
-        htmlContent = htmlContent.replace('</p>', `</p><p><strong>Zusätzliche Hinweise:</strong><br>${additionalNotes.replace(/\n/g, '<br>')}</p>`);
-      } else {
-        // Oder am Anfang, falls kein Absatz gefunden wurde
-        htmlContent = `<p><strong>Zusätzliche Hinweise:</strong><br>${additionalNotes.replace(/\n/g, '<br>')}</p>` + htmlContent;
-      }
-    }
-    
     // Absender-E-Mail
     const fromEmail = "bestellung@proviantomat.de";
     
-    // E-Mail-Betreff (vom Benutzer oder Standard)
-    const emailSubject = subject || createOrderSubject(order.orderNumber, order.supplierName || "");
-    
     // E-Mail senden
     const result = await sendEmail({
-      to: supplierEmail,
+      to: to,
       from: fromEmail,
-      subject: emailSubject,
+      subject: subject,
       html: htmlContent
     });
 
     if (result) {
       // Bestellung als versandt markieren, wenn sie noch im Entwurfsstatus ist
       if (order.status === 'draft') {
+        // Bestehende Statushistorie konsistent verarbeiten
+        let currentHistory = [];
+        try {
+          if (order.statusHistory) {
+            if (typeof order.statusHistory === 'string') {
+              currentHistory = JSON.parse(order.statusHistory);
+            } else if (Array.isArray(order.statusHistory)) {
+              currentHistory = order.statusHistory;
+            }
+          }
+        } catch (parseError) {
+          console.error("Fehler beim Parsen der Statushistorie:", parseError);
+          currentHistory = [];
+        }
+        
+        // Neuen Statuseintrag erstellen
+        const newStatusEntry = {
+          status: "ordered",
+          timestamp: new Date().toISOString(),
+          note: "Bestellung per E-Mail an Lieferant gesendet"
+        };
+        
         await db
           .update(orders)
           .set({
-            status: 'shipped',
-            updatedAt: new Date()
+            status: 'ordered',
+            updatedAt: new Date(),
+            statusHistory: JSON.stringify([...currentHistory, newStatusEntry])
           })
           .where(eq(orders.id, orderId));
       }

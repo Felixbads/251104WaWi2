@@ -1,4 +1,3 @@
-import React from "react";
 import { Button, ButtonProps } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 
@@ -12,10 +11,10 @@ const LoadingButton: React.FC<LoadingButtonProps> = ({
   loadingText,
   children,
   disabled,
-  ...props
+  ...rest
 }) => {
   return (
-    <Button disabled={isLoading || disabled} {...props}>
+    <Button {...rest} disabled={isLoading || disabled}>
       {isLoading ? (
         <>
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
