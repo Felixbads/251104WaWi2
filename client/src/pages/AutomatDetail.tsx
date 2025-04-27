@@ -85,6 +85,126 @@ interface EnhancedMachine extends Machine {
   installationDate?: string;
 }
 
+// Hilfsfunktion: Gruppiert Daten nach Wochen für die Auswertung
+function groupDataByWeek(data: { date: string; count: number; revenue: number }[] = []) {
+  if (!data || data.length === 0) return [];
+  
+  const weekMap = new Map();
+  
+  data.forEach(item => {
+    const date = new Date(item.date);
+    const year = date.getFullYear();
+    const weekNumber = getWeekNumber(date);
+    const weekKey = `${year}-W${weekNumber}`;
+    
+    if (!weekMap.has(weekKey)) {
+      weekMap.set(weekKey, {
+        weekKey,
+        weekLabel: `KW ${weekNumber}`,
+        count: 0,
+        revenue: 0
+      });
+    }
+    
+    const week = weekMap.get(weekKey);
+    week.count += item.count;
+    week.revenue += item.revenue;
+  });
+  
+  return Array.from(weekMap.values()).sort((a, b) => a.weekKey.localeCompare(b.weekKey));
+}
+
+// Hilfsfunktion: Ermittelt die Kalenderwoche
+function getWeekNumber(date: Date) {
+  const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
+  const pastDaysOfYear = (date.getTime() - firstDayOfYear.getTime()) / 86400000;
+  return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+}
+
+// Hilfsfunktion: Gruppiert Daten nach Monaten für die Auswertung
+function groupDataByMonth(data: { date: string; count: number; revenue: number }[] = []) {
+  if (!data || data.length === 0) return [];
+  
+  const monthMap = new Map();
+  const monthNames = [
+    'Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'
+  ];
+  
+  data.forEach(item => {
+    const date = new Date(item.date);
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const monthKey = `${year}-${month+1}`;
+    
+    if (!monthMap.has(monthKey)) {
+      monthMap.set(monthKey, {
+        monthKey,
+        monthLabel: `${monthNames[month]} ${year}`,
+        count: 0,
+        revenue: 0
+      });
+    }
+    
+    const monthData = monthMap.get(monthKey);
+    monthData.count += item.count;
+    monthData.revenue += item.revenue;
+  });
+  
+  return Array.from(monthMap.values()).sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+}
+
+// Hilfsfunktion: Erstellt eine stündliche Verteilung der Verkäufe
+function getHourlyDistribution(machineAnalytics?: MachineAnalytics) {
+  if (!machineAnalytics?.timeSeries || machineAnalytics.timeSeries.length === 0) {
+    return Array.from({ length: 24 }, (_, i) => ({ hour: i, count: 0 }));
+  }
+  
+  // Stundenzähler initialisieren
+  const hourCounts = Array.from({ length: 24 }, (_, i) => ({ hour: i, count: 0 }));
+  
+  // Transaktionen aus den Zeitreihen-Daten verarbeiten
+  machineAnalytics.timeSeries.forEach(item => {
+    // Wenn wir einzelne Transaktionen haben, könnten wir hier mehr Details extrahieren
+    const date = new Date(item.date);
+    const hour = date.getHours();
+    hourCounts[hour].count += item.count;
+  });
+  
+  return hourCounts;
+}
+
+// Hilfsfunktion: Bestimmt die am häufigsten entfernten Produkte bei Auffüllungen
+function getTopRemovedProducts(refills: Refill[] = []) {
+  if (!refills || refills.length === 0) return [];
+  
+  const productCounts = new Map();
+  
+  refills.forEach(refill => {
+    if (refill.details) {
+      refill.details.forEach((detail: RefillDetail) => {
+        if (detail.removedQuantity && detail.removedQuantity > 0) {
+          const productName = detail.productName;
+          
+          if (!productCounts.has(productName)) {
+            productCounts.set(productName, {
+              productName,
+              removedCount: 0
+            });
+          }
+          
+          const product = productCounts.get(productName);
+          product.removedCount += detail.removedQuantity;
+        }
+      });
+    }
+  });
+  
+  return Array.from(productCounts.values())
+    .sort((a, b) => b.removedCount - a.removedCount)
+    .slice(0, 5);
+}
+
 export default function AutomatDetail() {
   const params = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
@@ -202,7 +322,7 @@ export default function AutomatDetail() {
   } = useQuery({
     queryKey: ['/statistics/machines', id, 'analytics'],
     queryFn: () => getMachineAnalytics(id),
-    enabled: !!id && activeTab === "analysen"
+    enabled: !!id && (activeTab === "analysen" || activeTab === "auswertung")
   });
 
   // Maschine aktualisieren
@@ -214,7 +334,7 @@ export default function AutomatDetail() {
     if (activeTab === "auffullungen") {
       queryClient.invalidateQueries({ queryKey: ['/api/machines', id, 'refills'] });
     }
-    if (activeTab === "analysen") {
+    if (activeTab === "analysen" || activeTab === "auswertung") {
       queryClient.invalidateQueries({ queryKey: ['/statistics/machines', id, 'analytics'] });
     }
   };
