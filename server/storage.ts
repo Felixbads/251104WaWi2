@@ -1400,12 +1400,19 @@ export class DatabaseStorage implements IStorage {
         SELECT COUNT(*) as today_transactions, 
                COALESCE(SUM(price), 0) as today_revenue
         FROM transactions 
-        WHERE machine_id = $1
-        AND datetime >= $2 AND datetime < $3
+        WHERE (
+          machine_id = $1
+          OR (
+            extra_data->>'machine_id' = $2 
+            OR extra_data->>'vendon_machine_id' = $2
+          )
+        )
+        AND datetime >= $3 AND datetime < $4
       `;
       
       const todayResult = await this.db.raw(todayTransactionsQuery, [
         internalMachineId,
+        vendonMachineId,
         today.toISOString(),
         tomorrow.toISOString()
       ]);
@@ -1418,15 +1425,19 @@ export class DatabaseStorage implements IStorage {
       // 2. Letzter Verkauf
       console.log(`[DEBUG] Suche letzte Verkäufe für Maschine ID: ${internalMachineId} (Vendon-ID: ${vendonMachineId})`);
       
-      // Vereinfachte Abfrage, die nur nach der internen machine_id sucht
+      // Verbesserte Abfrage, die sowohl interne IDs als auch Vendon-IDs berücksichtigt
       const lastSaleQuery = `
         SELECT * FROM transactions 
-        WHERE machine_id = $1
+        WHERE machine_id = $1 
+           OR (
+             extra_data->>'machine_id' = $2 
+             OR extra_data->>'vendon_machine_id' = $2
+           )
         ORDER BY datetime DESC 
         LIMIT 1
       `;
       
-      const lastSaleResult = await this.db.raw(lastSaleQuery, [internalMachineId]);
+      const lastSaleResult = await this.db.raw(lastSaleQuery, [internalMachineId, vendonMachineId]);
       
       const lastSale = lastSaleResult.rows.length > 0 ? lastSaleResult.rows[0] : null;
       
@@ -1439,13 +1450,17 @@ export class DatabaseStorage implements IStorage {
       // 3. Letzter bargeldloser Verkauf
       const lastCashlessSaleQuery = `
         SELECT * FROM transactions 
-        WHERE machine_id = $1
+        WHERE (machine_id = $1
+           OR (
+             extra_data->>'machine_id' = $2 
+             OR extra_data->>'vendon_machine_id' = $2
+           ))
         AND LOWER(payment_method) = 'cashless'
         ORDER BY datetime DESC 
         LIMIT 1
       `;
       
-      const lastCashlessSaleResult = await this.db.raw(lastCashlessSaleQuery, [internalMachineId]);
+      const lastCashlessSaleResult = await this.db.raw(lastCashlessSaleQuery, [internalMachineId, vendonMachineId]);
       
       const lastCashlessSale = lastCashlessSaleResult.rows.length > 0 ? 
         lastCashlessSaleResult.rows[0] : null;
@@ -1465,47 +1480,68 @@ export class DatabaseStorage implements IStorage {
         `LOWER(product_name) LIKE '%${keyword}%'`
       ).join(' OR ');
       
-      // Alkohol-Verkäufe heute - vereinfachte Abfrage
+      // Alkohol-Verkäufe heute - verbessert mit OR-Conditions
       const todayAlcoholQuery = `
         SELECT COUNT(*) AS count
         FROM transactions 
-        WHERE machine_id = $1
-        AND datetime >= $2 AND datetime < $3
+        WHERE (
+          machine_id = $1
+          OR (
+            extra_data->>'machine_id' = $2 
+            OR extra_data->>'vendon_machine_id' = $2
+          )
+        )
+        AND datetime >= $3 AND datetime < $4
         AND (${likeConditions})
       `;
       
       const todayAlcoholResult = await this.db.raw(todayAlcoholQuery, [
         internalMachineId,
+        vendonMachineId,
         today.toISOString(), 
         tomorrow.toISOString()
       ]);
       
-      // Letzte Woche Alkohol-Verkauf - vereinfachte Abfrage
+      // Letzte Woche Alkohol-Verkauf - verbessert mit OR-Conditions
       const weekAlcoholQuery = `
         SELECT COUNT(*) AS count
         FROM transactions 
-        WHERE machine_id = $1
-        AND datetime >= $2 AND datetime < $3
+        WHERE (
+          machine_id = $1
+          OR (
+            extra_data->>'machine_id' = $2 
+            OR extra_data->>'vendon_machine_id' = $2
+          )
+        )
+        AND datetime >= $3 AND datetime < $4
         AND (${likeConditions})
       `;
       
       const weekAlcoholResult = await this.db.raw(weekAlcoholQuery, [
         internalMachineId,
+        vendonMachineId,
         oneWeekAgo.toISOString(), 
         today.toISOString()
       ]);
       
-      // Letzten Monat Alkohol-Verkauf - vereinfachte Abfrage
+      // Letzten Monat Alkohol-Verkauf - verbessert mit OR-Conditions
       const monthAlcoholQuery = `
         SELECT COUNT(*) AS count
         FROM transactions 
-        WHERE machine_id = $1
-        AND datetime >= $2 AND datetime < $3
+        WHERE (
+          machine_id = $1
+          OR (
+            extra_data->>'machine_id' = $2 
+            OR extra_data->>'vendon_machine_id' = $2
+          )
+        )
+        AND datetime >= $3 AND datetime < $4
         AND (${likeConditions})
       `;
       
       const monthAlcoholResult = await this.db.raw(monthAlcoholQuery, [
         internalMachineId,
+        vendonMachineId,
         oneMonthAgo.toISOString(), 
         today.toISOString()
       ]);
