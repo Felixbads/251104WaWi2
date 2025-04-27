@@ -313,9 +313,6 @@ export default function OrderDetail() {
   // Form States
   const [sendNote, setSendNote] = useState("");
   const [cancelReason, setCancelReason] = useState("");
-  const [emailSubject, setEmailSubject] = useState("");
-  const [emailText, setEmailText] = useState("");
-  const [emailAddress, setEmailAddress] = useState("");
   
   // Lade Bestelldetails
   const { data: order, isLoading, error } = useQuery({
@@ -741,33 +738,14 @@ export default function OrderDetail() {
     document.body.removeChild(link);
   };
   
-  // E-Mail mit PDF versenden
-  const handlePrepareEmail = () => {
-    if (!order) return;
-    
-    // E-Mail-Vorlage vorbereiten
-    setEmailSubject(`Bestellung ${order.orderNumber} vom ${formatDate(order.createdAt)}`);
-    setEmailAddress("lieferant@example.com"); // In der Praxis: order.supplierEmail
-    setEmailText(`Sehr geehrte Damen und Herren,
-
-anbei erhalten Sie unsere Bestellung ${order.orderNumber} vom ${formatDate(order.createdAt)}.
-
-Bitte bestätigen Sie den Erhalt dieser Bestellung und informieren Sie uns über das voraussichtliche Lieferdatum.
-
-Mit freundlichen Grüßen
-Nationalpark Zentrum`);
-    
-    // Dialog öffnen
-    setShowPdfDialog(false);
-    setShowEmailDialog(true);
-  };
-  
-  // E-Mail versenden
   /**
    * Öffnet den E-Mail-Dialog zum Versenden der Bestellung
-   * Wir verwenden jetzt die OrderEmailDialog-Komponente statt der eingebauten Lösung
+   * Die E-Mail-Vorlagen werden von der OrderEmailDialog-Komponente geladen
    */
   const handleSendEmail = () => {
+    // Stellt sicher, dass das PDF-Dialog geschlossen wird, wenn es offen war
+    setShowPdfDialog(false);
+    // Öffnet den E-Mail-Dialog
     setShowEmailDialog(true);
   };
   
