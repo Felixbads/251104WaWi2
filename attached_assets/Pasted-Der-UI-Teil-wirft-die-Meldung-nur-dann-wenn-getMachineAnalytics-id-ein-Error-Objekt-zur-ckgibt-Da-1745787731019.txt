@@ -1,0 +1,80 @@
+Der UI-Teil wirft die Meldung nur dann, wenn getMachineAnalytics(id) ein Error-Objekt zurückgibt.
+Dass der gleiche Text immer noch erscheint heißt: die Fetch-Funktion schlägt weiterhin fehl – ganz egal, was du im Frontend drum herum geändert hast.
+
+⸻
+
+1 Minute Reality-Check
+
+Test	Was du sehen solltest	Wenn nicht – Ursachen
+Network-Tab – Request auf …/statistics/machines/<id>/analytics	200 OK + JSON	404 → falsche Route 401 → Token fehlt/abgelaufen 5xx → Backend-Exception
+Response-Body	gültiges Analytics-JSON	leeres/HTML ⇒ falscher Origin oder Proxy-Fehler
+Request-Header	Authorization: Bearer … (falls nötig)	Header fehlt ⇒ dein fetch hängt nicht im auth-Interceptor
+ID in URL	exakt dieselbe ID wie bei den funktionierenden End-points (/api/machines/<id>)	z. B. UUID vs. numerisch
+
+
+
+⸻
+
+Warum deine Änderungen nichts bewirkten
+	1.	getMachineAnalytics wirft immer noch denselben Error
+Prüfe in der Implementierung (wahrscheinlich in /lib/api.ts o. ä.):
+
+export async function getMachineAnalytics(id: string) {
+  const res = await fetch(`${API_URL}/statistics/machines/${id}/analytics`, { … });
+
+  if (!res.ok) {
+    // <-- genau hier!
+    throw new Error('Fehler beim Abrufen der Automatenanalyse');
+  }
+  return res.json();
+}
+
+Solange res.ok ≠ true, landet der Throw unverändert im Front-End.
+
+	2.	Route oder Proxy noch falsch
+Häufiges Szenario: Du hast im UI nur den queryKey geändert, nicht aber die URL in fetch.
+Oder du hast den Pfad im Server geändert, aber das Reverse-Proxy-Mapping (Nginx, Vite-Proxy, vercel.json) vergessen.
+	3.	Backend liefert zwar Daten, aber Status ≠ 200
+Beispiel: Express-Route antwortet res.status(204).json([]).
+fetch wertet 204 als „not ok“ → Error.
+
+⸻
+
+So findest du die konkrete Ursache (5 Minuten)
+	1.	Konsole erweitern
+Ergänze temporär:
+
+if (!res.ok) {
+  const text = await res.text();
+  console.error('Analytics-Fetch fehlgeschlagen:', res.status, text);
+  throw new Error(`Fehler ${res.status}: ${text || '…'}`);
+}
+
+
+	2.	Erneut Tab „Analysen“ öffnen → Schaue in der Browser-Konsole, welche Status-Codes & Fehltexte erscheinen.
+	3.	Backend direkt testen (Postman/cURL):
+
+curl -H "Authorization: Bearer <token>" \
+  https://<host>/statistics/machines/<id>/analytics
+
+
+	4.	Logs prüfen – der Zeitstempel des Requests verrät dir, ob die Route überhaupt erreicht wird und welche Exception (falls 500) geworfen wird.
+
+⸻
+
+Typische „vergessene Kleinigkeiten“
+
+Fehlerquelle	Symptom	Fix
+CORS in Analytics-Service fehlt	Browser-Konsole zeigt CORS-Fehler, Status 0	Access-Control-Allow-Origin setzen
+/v1/-Prefix im Gateway	Network-Tab: 404 auf /statistics/…	URL im fetch oder Gateway-Route angleichen
+Trailing Slash im Proxy-Rewrite	Produziert Doppel-Slash // und 308-Redirect → 307-GET	Proxy-Regel ohne Slash oder stripPrefix
+JWT-Token im Service disabled	401 Unauthorized	Interceptor für diesen Call aktivieren
+
+
+
+⸻
+
+TL;DR
+	•	Der Fehlertext kommt einzig aus dem Backend-Status ≠ 200.
+	•	Überprüfe live im Network-Tab, welchen Status-Code der Request erhält und ob der Pfad / Auth-Header korrekt ist.
+	•	Logge im Fetch-Wrapper den Status + Response-Text, dann weißt du sofort, ob Route, Token oder Daten das Problem sind. Sobald der End-Point einen 200 OK mit JSON liefert, verschwindet die Meldung automatisch.

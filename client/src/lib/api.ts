@@ -687,17 +687,47 @@ export async function getMachineAnalytics(
   startDate?: string,
   endDate?: string
 ): Promise<MachineAnalytics> {
-  // Stelle sicher, dass wir die interne ID als Nummer verwenden
-  const numericId = typeof machineId === 'string' ? parseInt(machineId, 10) : machineId;
-  
-  let url = `/statistics/machines/${numericId}/analytics?period=${period}`;
-  
-  // Füge Start- und Enddatum hinzu, wenn angegeben (erforderlich für 'custom')
-  if (period === 'custom' && startDate && endDate) {
-    url += `&startDate=${startDate}&endDate=${endDate}`;
+  try {
+    // Stelle sicher, dass wir die interne ID als Nummer verwenden
+    const numericId = typeof machineId === 'string' ? parseInt(machineId, 10) : machineId;
+    
+    let url = `/statistics/machines/${numericId}/analytics?period=${period}`;
+    
+    // Füge Start- und Enddatum hinzu, wenn angegeben (erforderlich für 'custom')
+    if (period === 'custom' && startDate && endDate) {
+      url += `&startDate=${startDate}&endDate=${endDate}`;
+    }
+    
+    console.log(`Analytics API-Anfrage: ${url}`);
+    
+    // Verwendung von apiRequest, um die Authentifizierungs-Header mitzuschicken
+    return apiRequest<MachineAnalytics>('get', url);
+  } catch (error: any) {
+    console.error("Analytics API-Fehler:", error);
+    
+    if (error.response) {
+      // Der Request wurde gemacht und der Server hat mit einem Statuscode geantwortet
+      const errorMessage = error.response.data?.error || 
+                          error.response.data?.message || 
+                          `Status ${error.response.status}: ${error.response.statusText}`;
+      
+      console.error("Server-Antwort:", {
+        status: error.response.status,
+        data: error.response.data,
+        headers: error.response.headers
+      });
+      
+      throw new Error(`Fehler beim Abrufen der Automatenanalyse: ${errorMessage}`);
+    } else if (error.request) {
+      // Der Request wurde gemacht, aber keine Antwort erhalten
+      console.error("Keine Antwort erhalten:", error.request);
+      throw new Error('Keine Antwort vom Server erhalten');
+    } else {
+      // Ein Fehler ist beim Einrichten des Requests aufgetreten
+      console.error("Request-Setup Fehler:", error.message);
+      throw new Error(`Request-Fehler: ${error.message}`);
+    }
   }
-  
-  return apiRequest<MachineAnalytics>('get', url);
 }
 
 // Produkte

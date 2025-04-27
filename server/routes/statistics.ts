@@ -986,39 +986,62 @@ router.get('/machines/:id/analytics', async (req, res) => {
     let endDate = new Date();
     
     // Zeitraum-Berechnung basierend auf Parameter
-    switch(String(period)) {
-      case 'day':
-        startDate = startOfDay(startDate);
-        endDate = new Date(); // Endzeit ist aktuelle Zeit
-        break;
-      case 'week':
-        startDate = startOfWeek(startDate, { weekStartsOn: 1 });
-        endDate = new Date(); // Endzeit ist aktuelle Zeit
-        break;
-      case 'month':
-        startDate = startOfMonth(startDate);
-        endDate = new Date(); // Endzeit ist aktuelle Zeit
-        break;
-      case 'year':
-        startDate = new Date(startDate.getFullYear(), 0, 1);
-        endDate = new Date(); // Endzeit ist aktuelle Zeit
-        break;
-      case 'custom':
-        if (customStartDate && customEndDate) {
-          startDate = parseISO(String(customStartDate));
-          endDate = parseISO(String(customEndDate));
-        } else {
-          return res.status(400).json({ 
-            error: 'Für den Zeitraum "custom" müssen startDate und endDate angegeben werden' 
-          });
-        }
-        break;
+    try {
+      switch(String(period)) {
+        case 'day':
+          startDate = startOfDay(startDate);
+          endDate = new Date(); // Endzeit ist aktuelle Zeit
+          break;
+        case 'week':
+          startDate = startOfWeek(startDate, { weekStartsOn: 1 });
+          endDate = new Date(); // Endzeit ist aktuelle Zeit
+          break;
+        case 'month':
+          startDate = startOfMonth(startDate);
+          endDate = new Date(); // Endzeit ist aktuelle Zeit
+          break;
+        case 'year':
+          startDate = new Date(startDate.getFullYear(), 0, 1);
+          endDate = new Date(); // Endzeit ist aktuelle Zeit
+          break;
+        case 'custom':
+          if (customStartDate && customEndDate) {
+            startDate = parseISO(String(customStartDate));
+            endDate = parseISO(String(customEndDate));
+          } else {
+            return res.status(400).json({ 
+              error: 'Für den Zeitraum "custom" müssen startDate und endDate angegeben werden' 
+            });
+          }
+          break;
+      }
+      
+      // Vergewissere, dass startDate und endDate gültige Date-Objekte sind
+      if (!(startDate instanceof Date) || isNaN(startDate.getTime()) || 
+          !(endDate instanceof Date) || isNaN(endDate.getTime())) {
+        throw new Error('Ungültige Datumsberechnung');
+      }
+    } catch (error) {
+      console.error('Fehler bei der Datumsberechnung:', error);
+      console.error('Parameter:', { period, customStartDate, customEndDate });
+      // Standardzeitraum: letzter Monat
+      startDate = startOfMonth(new Date());
+      endDate = new Date();
     }
 
     // Formatiere Termine als ISO-Datumsstrings für SQL-Abfragen
     // Konvertiere die Daten sicher in ISO-Strings für die Datenbankabfrage
     const startDateStr = startDate instanceof Date ? startDate.toISOString() : new Date().toISOString();
     const endDateStr = endDate instanceof Date ? endDate.toISOString() : new Date().toISOString();
+    
+    // Sicherheitsprüfung: Ist ein Datumsbereich ausgewählt?
+    if (!startDateStr || !endDateStr) {
+      console.error('Ungültiger Datumsbereich:', { startDate, endDate, startDateStr, endDateStr });
+      return res.status(400).json({
+        error: 'Ungültiger Datumsbereich',
+        message: 'Bitte geben Sie einen gültigen Datumsbereich an.'
+      });
+    }
     
     console.log('Analysezeitraum:', { startDateStr, endDateStr });
 
@@ -1055,8 +1078,8 @@ router.get('/machines/:id/analytics', async (req, res) => {
       .where(
         and(
           eq(transactions.machineId, Number(id)),
-          gte(transactions.datetime, startDateStr),
-          lte(transactions.datetime, endDateStr)
+          gte(sql`${transactions.datetime}::text`, sql`${startDateStr}::text`),
+          lte(sql`${transactions.datetime}::text`, sql`${endDateStr}::text`)
         )
       ),
 
@@ -1069,8 +1092,8 @@ router.get('/machines/:id/analytics', async (req, res) => {
       .where(
         and(
           eq(events.machineId, Number(id)),
-          gte(events.datetime, startDateStr),
-          lte(events.datetime, endDateStr)
+          gte(sql`${events.datetime}::text`, sql`${startDateStr}::text`),
+          lte(sql`${events.datetime}::text`, sql`${endDateStr}::text`)
         )
       )
       .groupBy(events.eventType),
@@ -1084,8 +1107,8 @@ router.get('/machines/:id/analytics', async (req, res) => {
       .where(
         and(
           eq(refills.machineId, Number(id)),
-          gte(refills.datetime, startDateStr),
-          lte(refills.datetime, endDateStr)
+          gte(sql`${refills.datetime}::text`, sql`${startDateStr}::text`),
+          lte(sql`${refills.datetime}::text`, sql`${endDateStr}::text`)
         )
       ),
 
@@ -1099,8 +1122,8 @@ router.get('/machines/:id/analytics', async (req, res) => {
       .where(
         and(
           eq(transactions.machineId, Number(id)),
-          gte(transactions.datetime, startDateStr),
-          lte(transactions.datetime, endDateStr)
+          gte(sql`${transactions.datetime}::text`, sql`${startDateStr}::text`),
+          lte(sql`${transactions.datetime}::text`, sql`${endDateStr}::text`)
         )
       )
       .groupBy(transactions.productName)
@@ -1117,8 +1140,8 @@ router.get('/machines/:id/analytics', async (req, res) => {
       .where(
         and(
           eq(transactions.machineId, Number(id)),
-          gte(transactions.datetime, startDateStr),
-          lte(transactions.datetime, endDateStr)
+          gte(sql`${transactions.datetime}::text`, sql`${startDateStr}::text`),
+          lte(sql`${transactions.datetime}::text`, sql`${endDateStr}::text`)
         )
       )
       .groupBy(transactions.paymentMethod)
@@ -1142,21 +1165,28 @@ router.get('/machines/:id/analytics', async (req, res) => {
     .orderBy(asc(sql`DATE(${transactions.datetime})`));
 
     // Wetterdaten für denselben Zeitraum abrufen, falls vorhanden
-    const weatherDataResults = await db.select({
-      date: weatherData.date,
-      avgTemperature: avg(weatherData.temp), // Korrektur: temp statt temperature
-      precipitation: sum(weatherData.precipitation),
-      conditions: weatherData.weather_main
-    })
-    .from(weatherData)
-    .where(
-      and(
-        gte(sql`date(${weatherData.timestamp})`, sql`date(${startDateStr})`),
-        lte(sql`date(${weatherData.timestamp})`, sql`date(${endDateStr})`)
+    let weatherDataResults = [];
+    try {
+      weatherDataResults = await db.select({
+        date: weatherData.date,
+        avgTemperature: avg(weatherData.temp), // Korrektur: temp statt temperature
+        precipitation: sum(weatherData.precipitation),
+        conditions: weatherData.weather_main
+      })
+      .from(weatherData)
+      .where(
+        and(
+          gte(sql`date(${weatherData.timestamp})`, sql`date(${startDateStr})`),
+          lte(sql`date(${weatherData.timestamp})`, sql`date(${endDateStr})`)
+        )
       )
-    )
-    .groupBy(weatherData.date)
-    .orderBy(asc(weatherData.date));
+      .groupBy(weatherData.date)
+      .orderBy(asc(weatherData.date));
+    } catch (error) {
+      console.error('Fehler beim Abrufen der Wetterdaten:', error);
+      // Leere Wetterdaten zurückgeben, statt die gesamte Anfrage scheitern zu lassen
+      weatherDataResults = [];
+    }
 
     // Ergebnisse zusammenstellen
     const machineAnalytics = {
