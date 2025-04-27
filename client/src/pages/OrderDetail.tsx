@@ -741,11 +741,18 @@ export default function OrderDetail() {
   /**
    * Öffnet den E-Mail-Dialog zum Versenden der Bestellung
    * Die E-Mail-Vorlagen werden von der OrderEmailDialog-Komponente geladen
+   * Stellt sicher, dass das PDF vorher generiert wurde, damit es in der Vorschau angezeigt werden kann
    */
-  const handleSendEmail = () => {
-    // Stellt sicher, dass das PDF-Dialog geschlossen wird, wenn es offen war
+  const handleSendEmail = async () => {
+    // Schließt das PDF-Dialog, falls es offen war
     setShowPdfDialog(false);
-    // Öffnet den E-Mail-Dialog
+    
+    // Generiert das PDF, falls es noch nicht existiert
+    if (!pdfBlob) {
+      await generatePdf();
+    }
+    
+    // Öffnet den E-Mail-Dialog mit PDF-Vorschau
     setShowEmailDialog(true);
   };
   
@@ -1509,7 +1516,7 @@ export default function OrderDetail() {
         </DialogContent>
       </Dialog>
       
-      {/* E-Mail Dialog */}
+      {/* E-Mail Dialog mit PDF-Vorschau */}
       {order && (
         <OrderEmailDialog
           open={showEmailDialog}
@@ -1518,6 +1525,7 @@ export default function OrderDetail() {
           orderNumber={order.orderNumber || ""}
           supplierName={order.supplierName || ""}
           supplierEmail={order.supplier?.email || ""}
+          pdfBlob={pdfBlob || undefined}
         />
       )}
 
