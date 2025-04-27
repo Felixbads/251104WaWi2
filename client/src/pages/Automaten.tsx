@@ -72,7 +72,8 @@ export default function Automaten() {
 
   // Filter- und Suchfunktionen
   const filteredMachines = machines?.filter((machine: EnhancedMachine) => {
-    if (!machine || !machine.machineName) return false;
+    // Demo-Automaten mit ID 1 ausschließen
+    if (!machine || !machine.machineName || machine.id === 1) return false;
     
     const matchesSearch = machine.machineName.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           (machine.location?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
