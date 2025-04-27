@@ -1047,7 +1047,7 @@ router.get('/machines/:id/analytics', async (req, res) => {
       .from(transactions)
       .where(
         and(
-          eq(transactions.machineId, id),
+          eq(transactions.machineId, Number(id)),
           gte(transactions.datetime, startDateStr),
           lte(transactions.datetime, endDateStr)
         )
@@ -1061,7 +1061,7 @@ router.get('/machines/:id/analytics', async (req, res) => {
       .from(events)
       .where(
         and(
-          eq(events.machineId, id),
+          eq(events.machineId, Number(id)),
           gte(events.datetime, startDateStr),
           lte(events.datetime, endDateStr)
         )
