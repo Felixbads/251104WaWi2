@@ -635,14 +635,16 @@ const BestellungV2: React.FC = () => {
       orderId,
       supplierEmail,
       additionalNotes
-    });
-    
-    // Dialog schließen
-    setShowEmailDialog(false);
-    
-    // Bestellung als "gesendet" markieren
-    markOrderAsSentMutation.mutate({
-      id: orderId
+    }, {
+      onSuccess: () => {
+        // Erst nach erfolgreicher Email-Versendung die Bestellung als "gesendet" markieren
+        markOrderAsSentMutation.mutate({
+          id: orderId
+        });
+        
+        // Dialog schließen
+        setShowEmailDialog(false);
+      }
     });
   };
   
