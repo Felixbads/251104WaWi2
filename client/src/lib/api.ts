@@ -696,12 +696,48 @@ export async function getMachineAnalytics(
     // Füge Start- und Enddatum hinzu, wenn angegeben (erforderlich für 'custom')
     if (period === 'custom' && startDate && endDate) {
       url += `&startDate=${startDate}&endDate=${endDate}`;
+    } else if (startDate && endDate) {
+      // Auch bei Nicht-Custom-Zeiträumen können wir die Daten mitschicken
+      url += `&customStartDate=${startDate}&customEndDate=${endDate}`;
     }
     
     console.log(`Analytics API-Anfrage: ${url}`);
     
-    // Verwendung von apiRequest, um die Authentifizierungs-Header mitzuschicken
-    return apiRequest<MachineAnalytics>('get', url);
+    // Direkter manueller Fetch mit expliziter Header-Setzung
+    const token = localStorage.getItem('authToken');
+    
+    const response = await fetch(`/api${url}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : ''
+      }
+    });
+    
+    // Ausführliches Logging der Antwort
+    console.log(`Analytics API-Antwort Status: ${response.status}`);
+    
+    if (!response.ok) {
+      // Versuche, den Fehlertext zu lesen
+      const errorText = await response.text();
+      console.error('Fehler-Antwort:', errorText);
+      
+      let errorMessage;
+      try {
+        // Versuche, den Fehlertext als JSON zu parsen
+        const errorData = JSON.parse(errorText);
+        errorMessage = errorData.error || errorData.message || `Status ${response.status}: ${response.statusText}`;
+      } catch (e) {
+        // Wenn das Parsen fehlschlägt, verwende den Rohtext
+        errorMessage = `Status ${response.status}: ${errorText.substring(0, 100)}...`;
+      }
+      
+      throw new Error(`Fehler beim Abrufen der Automatenanalyse: ${errorMessage}`);
+    }
+    
+    // JSON-Antwort parsen
+    const data = await response.json();
+    return data as MachineAnalytics;
   } catch (error: any) {
     console.error("Analytics API-Fehler:", error);
     
