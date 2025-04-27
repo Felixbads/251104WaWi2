@@ -1316,25 +1316,43 @@ export class DatabaseStorage implements IStorage {
     .from(transactions)
     .where(
       and(
-        eq(transactions.machineId, machineId),
+        or(
+          eq(transactions.machineId, machineId),
+          eq(transactions.machineId, String(machineId))
+        ),
         gte(transactions.datetime, today),
         lt(transactions.datetime, tomorrow)
       )
     );
     
+    // Log für Debugging
+    console.log(`[DEBUG] Suche letzte Verkäufe für Maschine ID: ${machineId}`);
+    
     // 2. Letzte Verkaufstransaktion abrufen
-    const [lastSale] = await db.select()
+    // Versuche Abfrage sowohl mit Zahl als auch mit String
+    const lastSalesQuery = await db.select()
       .from(transactions)
-      .where(eq(transactions.machineId, machineId))
+      .where(
+        or(
+          eq(transactions.machineId, machineId),
+          eq(transactions.machineId, String(machineId))
+        )
+      )
       .orderBy(desc(transactions.datetime))
       .limit(1);
-      
+    
+    const [lastSale] = lastSalesQuery;
+    console.log(`[DEBUG] Letzte Verkaufstransaktion gefunden: ${lastSale ? 'Ja' : 'Nein'}`);
+    
     // 3. Letzten bargeldlosen Verkauf abrufen (cardCredit oder cashlessCredit > 0)
-    const [lastCashlessSale] = await db.select()
+    const lastCashlessSaleQuery = await db.select()
       .from(transactions)
       .where(
         and(
-          eq(transactions.machineId, machineId),
+          or(
+            eq(transactions.machineId, machineId),
+            eq(transactions.machineId, String(machineId))
+          ),
           or(
             gt(transactions.cardCredit, 0),
             gt(transactions.cashlessCredit, 0)
@@ -1343,6 +1361,9 @@ export class DatabaseStorage implements IStorage {
       )
       .orderBy(desc(transactions.datetime))
       .limit(1);
+    
+    const [lastCashlessSale] = lastCashlessSaleQuery;
+    console.log(`[DEBUG] Letzte Cashless-Transaktion gefunden: ${lastCashlessSale ? 'Ja' : 'Nein'}`);
     
     // 4. Alkohol-Verkäufe analysieren
     // In dieser vereinfachten Version suchen wir nach Produkten, die im Namen "Bier", "Wein", oder ähnliches enthalten
@@ -1355,7 +1376,10 @@ export class DatabaseStorage implements IStorage {
     .from(transactions)
     .where(
       and(
-        eq(transactions.machineId, machineId),
+        or(
+          eq(transactions.machineId, machineId),
+          eq(transactions.machineId, String(machineId))
+        ),
         gte(transactions.datetime, today),
         lt(transactions.datetime, tomorrow),
         or(
@@ -1373,7 +1397,10 @@ export class DatabaseStorage implements IStorage {
     .from(transactions)
     .where(
       and(
-        eq(transactions.machineId, machineId),
+        or(
+          eq(transactions.machineId, machineId),
+          eq(transactions.machineId, String(machineId))
+        ),
         gte(transactions.datetime, oneWeekAgo),
         lt(transactions.datetime, today),
         or(
@@ -1391,7 +1418,10 @@ export class DatabaseStorage implements IStorage {
     .from(transactions)
     .where(
       and(
-        eq(transactions.machineId, machineId),
+        or(
+          eq(transactions.machineId, machineId),
+          eq(transactions.machineId, String(machineId))
+        ),
         gte(transactions.datetime, oneMonthAgo),
         lt(transactions.datetime, today),
         or(
