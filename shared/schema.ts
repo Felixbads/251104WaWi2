@@ -793,7 +793,7 @@ export const weatherForecasts = pgTable("weather_forecasts", {
   // Typ (current, forecast)
   type: text("type").notNull(),
   // Temperatur in Celsius
-  temperature: real("temperature"),
+  temp: real("temp"),
   // Gefühlte Temperatur in Celsius
   feels_like: real("feels_like"),
   // Luftdruck auf Meereshöhe, hPa
@@ -880,7 +880,7 @@ export const weatherHistorical = pgTable("weather_historical", {
   // Stunde im Format "HH:00"
   hour: text("hour").notNull(),
   // Temperatur in Celsius
-  temperature: real("temperature"),
+  temp: real("temp"),
   // Gefühlte Temperatur in Celsius
   feels_like: real("feels_like"),
   // Luftdruck auf Meereshöhe, hPa
