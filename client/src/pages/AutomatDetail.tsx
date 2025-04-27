@@ -200,7 +200,7 @@ export default function AutomatDetail() {
     isLoading: analyticsLoading,
     error: analyticsError
   } = useQuery({
-    queryKey: ['/api/statistics/machines', id, 'analytics'],
+    queryKey: ['/statistics/machines', id, 'analytics'],
     queryFn: () => getMachineAnalytics(id),
     enabled: !!id && activeTab === "analysen"
   });
@@ -213,6 +213,9 @@ export default function AutomatDetail() {
     }
     if (activeTab === "auffullungen") {
       queryClient.invalidateQueries({ queryKey: ['/api/machines', id, 'refills'] });
+    }
+    if (activeTab === "analysen") {
+      queryClient.invalidateQueries({ queryKey: ['/statistics/machines', id, 'analytics'] });
     }
   };
 
