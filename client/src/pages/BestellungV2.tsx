@@ -53,6 +53,7 @@ import AdditionalInfoForm from '@/components/orderv2/AdditionalInfoForm';
 import OrderSummary from '@/components/orderv2/OrderSummary';
 import GoodsReceiptForm from '@/components/orderv2/GoodsReceiptForm';
 import OrdersOverview from '@/components/orderv2/OrdersOverview';
+import OrderEmailDialog from '@/components/orders/OrderEmailDialog';
 import { Badge } from '@/components/ui/badge';
 
 // Define the order steps
@@ -84,6 +85,8 @@ const BestellungV2: React.FC = () => {
   });
   const [orderId, setOrderId] = useState<number | null>(null);
   const [existingOrderData, setExistingOrderData] = useState<any>(null);
+  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
+  const [showEmailDialog, setShowEmailDialog] = useState<boolean>(false);
   
   // Create order mutation
   const createOrderMutation = useMutation({
@@ -566,8 +569,8 @@ const BestellungV2: React.FC = () => {
       // PDF als Blob speichern, um es anzuzeigen
       const pdfBlob = pdf.output('blob');
       
-      // URL für die Vorschau erstellen
-      const pdfUrl = URL.createObjectURL(pdfBlob);
+      // PDF-Blob für die Vorschau speichern
+      setPdfBlob(pdfBlob);
       
       // Lieferanten-Email abrufen
       try {
@@ -597,43 +600,14 @@ const BestellungV2: React.FC = () => {
           return;
         }
         
-        // Bestätigung vom Benutzer einholen, dass die PDF gesendet werden soll
-        if (confirm(`Möchten Sie diese Bestellung jetzt an ${supplierEmail} senden?`)) {
-          // E-Mail senden - nur mit der ID, kein PDF-Base64 mehr
-          emailOrderMutation.mutate({
-            orderId: orderIdToUse,
-            supplierEmail,
-            additionalNotes: additionalInfo?.notes || orderData?.notes || '',
-          });
-          
-          // Mark the order as sent
-          markOrderAsSentMutation.mutate({
-            id: orderIdToUse,
-            sentDate: new Date(),
-          });
-        } else {
-          // Bieten Sie dem Benutzer an, die PDF herunterzuladen
-          if (confirm('Möchten Sie die PDF-Datei herunterladen?')) {
-            const link = document.createElement('a');
-            link.href = pdfUrl;
-            link.download = `Bestellung_${orderData.orderNumber || orderIdToUse}.pdf`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-          }
-        }
-        
-        // URL freigeben, um Speicher zu sparen
-        URL.revokeObjectURL(pdfUrl);
+        // Öffne den Dialog für die E-Mail-Bearbeitung und PDF-Vorschau
+        setShowEmailDialog(true);
       } catch (error) {
         toast({
           title: 'Fehler beim Abrufen der Lieferanten-E-Mail',
           description: `${(error as Error).message}`,
           variant: 'destructive',
         });
-        
-        // URL freigeben
-        URL.revokeObjectURL(pdfUrl);
         return;
       }
     } catch (error) {
@@ -725,6 +699,34 @@ const BestellungV2: React.FC = () => {
     // Zustand zurücksetzen und zum ersten Schritt navigieren
     resetOrderProcess();
     setStep('warehouse');
+  };
+  
+  // Handler für das Senden der E-Mail nach der Vorschau
+  const handleSendEmail = (supplierEmail: string, subject: string, content: string, templateType: string) => {
+    if (!orderId) {
+      toast({
+        title: 'Fehler',
+        description: 'Keine Bestellungs-ID vorhanden. E-Mail kann nicht gesendet werden.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    // E-Mail senden
+    emailOrderMutation.mutate({
+      orderId: orderId,
+      supplierEmail,
+      additionalNotes: additionalInfo?.notes || existingOrderData?.notes || '',
+    });
+    
+    // Bestellung als gesendet markieren
+    markOrderAsSentMutation.mutate({
+      id: orderId,
+      sentDate: new Date(),
+    });
+    
+    // Dialog schließen
+    setShowEmailDialog(false);
   };
   
   // Handler für den Start des Wareneingang-Workflows für eine bestehende Bestellung
