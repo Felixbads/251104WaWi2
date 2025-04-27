@@ -1,0 +1,121 @@
+Klar – du kannst den automatischen Versand ganz leicht in einen “Vorschau → Versenden”-Workflow umbauen. Hier das übliche Vorgehen (React + jsPDF/ html2canvas):
+
+⸻
+
+1 Neuen Schritt „preview“ einführen
+
+type OrderStep =
+  | 'overview'
+  | 'warehouse'
+  | 'mode'
+  | 'supplier'
+  | 'products'
+  | 'additionalInfo'
+  | 'summary'
+  | 'preview'      // ← NEU
+  | 'goodsReceipt';
+
+Reihenfolge anpassen
+
+const getNextStep = (current: OrderStep): OrderStep | null => {
+  ...
+  case 'summary':       return 'preview';   // statt goodsReceipt
+  case 'preview':       return 'goodsReceipt';
+  ...
+};
+
+
+
+⸻
+
+2 PDF getrennt erzeugen und als Blob speichern
+
+const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
+
+const generatePDF = async (): Promise<Blob> => {
+  const canvas = await html2canvas(document.getElementById('order-summary')!);
+  const imgData = canvas.toDataURL('image/png');
+  const pdf = new jsPDF({ orientation: 'p', unit: 'px', format: 'a4' });
+  pdf.addImage(imgData, 'PNG', 0, 0, 595, 842);
+  return pdf.output('blob');          // gibt Blob zurück
+};
+
+Rufe nur noch diese Funktion auf – ohne E-Mail-Mutation.
+
+const handleGoToPreview = async () => {
+  const blob = await generatePDF();
+  setPdfBlob(blob);
+  setStep('preview');
+};
+
+In deiner Summary-Komponente: <Button onClick={handleGoToPreview}>PDF ansehen →</Button>
+
+⸻
+
+3 Vorschau-UI
+
+case 'preview':
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Vorschau der Bestellung {orderId}</CardTitle>
+        <CardDescription>Überprüfe das PDF, bevor du es an den Lieferanten sendest.</CardDescription>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        {pdfBlob && (
+          <object
+            data={URL.createObjectURL(pdfBlob)}
+            type="application/pdf"
+            width="100%"
+            height="600px"
+            aria-label="Bestell‐PDF-Vorschau"
+          />
+        )}
+
+        <div className="flex flex-col sm:flex-row gap-4">
+          <Button
+            variant="secondary"
+            onClick={() => window.open(URL.createObjectURL(pdfBlob!), '_blank')}
+          >
+            In neuem Tab öffnen
+          </Button>
+
+          <Button
+            onClick={async () => {
+              await emailOrderMutation.mutateAsync({ orderId }); // nur ID senden!
+              setStep('goodsReceipt');
+            }}
+            disabled={emailOrderMutation.isPending}
+          >
+            PDF OK – Jetzt senden
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+	•	Download/Neuer Tab funktionieren per URL.createObjectURL.
+	•	Das Blob bleibt nur im Browser-RAM → keine 413-Probleme mehr.
+	•	Beim eigentlichen Versand übergibst du nur orderId, damit der Server sein eigenes PDF generiert und verschickt (oder du schickst pdfBlob als multipart/form-data, wenn dein Backend das erwartet).
+
+⸻
+
+4 Automatisches Aufräumen
+
+Vergiss nicht, die URL wieder freizugeben:
+
+useEffect(() => {
+  return () => {
+    if (pdfBlob) URL.revokeObjectURL(pdfBlob);
+  };
+}, [pdfBlob]);
+
+
+
+⸻
+
+TL;DR
+	•	PDF lokal als Blob erzeugen → anzeigen
+	•	Erst nach Benutzer-Bestätigung → E-Mail schicken
+	•	Kein riesiger Base-64-String mehr über die Leitung, volle Kontrolle für den Nutzer.

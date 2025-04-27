@@ -1,0 +1,66 @@
+Kurzfassung
+	1.	Nach dem createOrderMutation-Erfolg → setStep('summary') stoppt den Prozess in der Zusammenfassung.
+Ändere das in setStep('goodsReceipt') oder ruf goToNextStep() auf.
+	2.	Die Bestellliste wird nach dem Anlegen nicht neu geladen.
+→ füge queryClient.invalidateQueries({ queryKey: ['/api/orders'] }) (oder den von OrdersOverview benutzten Query-Key) ins onSuccess der Mutation ein.
+	3.	Stell sicher, dass dein Filter / deine API wirklich alle neuen Bestellungen zurückliefert (Status- oder Paginierungs-Parameter).
+	4.	Bei der PDF-/E-Mail-Routine kann ein 413-Fehler (“Payload too large”) auftreten, wenn du den PDF-Base64-String ungefiltert an das Backend schickst. Sende lieber nur die Order-ID und lass den Server die Datei erzeugen – oder komprimiere/streame die Datei.
+
+⸻
+
+1 Fehlerquelle: falscher Schritt nach erfolgreichem Anlegen
+
+onSuccess: (data) => {
+  toast({ title: 'Bestellung erfolgreich erstellt', ... });
+  setOrderId(data.id);
+  /* setStep('summary')  // ← hält dich in der Zusammenfassung */
+  setStep('goodsReceipt');       // zeigt den Versand-/Wareneingangs-Screen
+  // oder: goToNextStep();        // nutzt die bereits definierte Logik
+}
+
+Da dein getNextStep('summary') → 'goodsReceipt' zurückgibt, muss der Status hier entsprechend gesetzt werden. Mit summary bleibst du in einer Art Sackgasse und siehst weder Versand‐Ansicht noch Weiterleitung.
+
+⸻
+
+2 Fehlerquelle: Query-Cache nicht ungültig gemacht
+
+import { useQueryClient } from '@tanstack/react-query';
+const queryClient = useQueryClient();
+
+onSuccess: (data) => {
+  ...
+  setStep('goodsReceipt');
+  queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+}
+
+Ohne Invalidation zeigt OrdersOverview weiter den alten Cache-Stand – darum taucht deine frische Bestellung nicht auf.
+
+⸻
+
+3 Filter / Paginierung der Übersicht
+	•	Prüfe, ob OrdersOverview Bestellungen z. B. nur mit status: 'open' oder mode !== 'dropshipping' lädt.
+	•	Falls die API nach dem POST im Status draft/created antwortet, die Übersicht aber nur open rendert, erscheint die Bestellung nicht.
+→ Filter anpassen oder beim Anlegen gleich den gewünschten Status setzen.
+
+⸻
+
+4 “Payload too large” beim automatischen Versand
+
+In generatePDFAndSendEmail / emailOrderMutation:
+	•	Ein Base-64-PDF kann leicht > 1 MB werden und das Backend mit 413 Request Entity Too Large beantworten.
+	•	Schicke stattdessen nur die Order-ID; der Server generiert und verschickt das PDF selbst.
+
+await apiRequest(`/orders/${orderId}/email`, {}, 'post');
+
+
+	•	Alternativ: PDF als multipart/form-data hochladen oder vor dem Senden komprimieren.
+
+⸻
+
+Checkliste zum Testen
+	1.	Bestellung anlegen → siehst du jetzt sofort den Wareneingang/Versand-Screen?
+	2.	Zur Übersicht wechseln → ist die neue Bestellung sichtbar? (Cache-Miss?)
+	3.	Netzwerk-Tab: POST / orders → Status 201? Enthält Antwort‐JSON eine ID?
+	4.	POST / orders/:id/email → Response-Größe / HTTP-Code prüfen (keine 413).
+
+Mit diesen beiden kleinen Code-Änderungen (Schritt-Update + Cache-Invalidation) und einem Blick auf API-Filter sollte der Ablauf wieder stimmen.
