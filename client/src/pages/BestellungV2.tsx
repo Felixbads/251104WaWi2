@@ -619,6 +619,33 @@ const BestellungV2: React.FC = () => {
     }
   };
   
+  // Handler für das Absenden der E-Mail nach Bearbeitung im Dialog
+  const handleSendEmail = (supplierEmail: string, additionalNotes: string) => {
+    if (!orderId) {
+      toast({
+        title: 'Fehler beim Senden der E-Mail',
+        description: 'Es konnte keine Bestellungs-ID gefunden werden.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    // E-Mail mit der Bestellung an den Lieferanten senden
+    emailOrderMutation.mutate({
+      orderId,
+      supplierEmail,
+      additionalNotes
+    });
+    
+    // Dialog schließen
+    setShowEmailDialog(false);
+    
+    // Bestellung als "gesendet" markieren
+    markOrderAsSentMutation.mutate({
+      id: orderId
+    });
+  };
+  
   // Handle goods receipt complete
   const handleGoodsReceiptComplete = (receivedItems: any[], notes: string, documents: any[]) => {
     // Bestellung als "geliefert" markieren
@@ -701,33 +728,7 @@ const BestellungV2: React.FC = () => {
     setStep('warehouse');
   };
   
-  // Handler für das Senden der E-Mail nach der Vorschau
-  const handleSendEmail = (supplierEmail: string, subject: string, content: string, templateType: string) => {
-    if (!orderId) {
-      toast({
-        title: 'Fehler',
-        description: 'Keine Bestellungs-ID vorhanden. E-Mail kann nicht gesendet werden.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    // E-Mail senden
-    emailOrderMutation.mutate({
-      orderId: orderId,
-      supplierEmail,
-      additionalNotes: additionalInfo?.notes || existingOrderData?.notes || '',
-    });
-    
-    // Bestellung als gesendet markieren
-    markOrderAsSentMutation.mutate({
-      id: orderId,
-      sentDate: new Date(),
-    });
-    
-    // Dialog schließen
-    setShowEmailDialog(false);
-  };
+  // Diese Funktion ist bereits weiter oben definiert und wird vom OrderEmailDialog verwendet
   
   // Handler für den Start des Wareneingang-Workflows für eine bestehende Bestellung
   const handleStartWarehouseReceiptProcess = async (id: number) => {
@@ -1076,6 +1077,17 @@ const BestellungV2: React.FC = () => {
   
   return (
     <div className="container mx-auto py-6 space-y-6">
+      {/* E-Mail-Dialog für das Senden von Bestellungen an Lieferanten */}
+      <OrderEmailDialog
+        open={showEmailDialog}
+        onOpenChange={setShowEmailDialog}
+        orderId={orderId || 0}
+        supplierEmail={existingOrderData?.supplierEmail || ''}
+        orderNumber={existingOrderData?.orderNumber || `ORD-${orderId}`}
+        supplierName={existingOrderData?.supplierName || supplierName}
+        pdfBlob={pdfBlob}
+      />
+      
       <div className="flex flex-col md:flex-row justify-between items-start gap-4">
         <div>
           {/* Heading and intro text removed as requested */}

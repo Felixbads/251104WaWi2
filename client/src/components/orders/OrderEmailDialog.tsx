@@ -36,6 +36,7 @@ interface OrderEmailDialogProps {
   orderNumber: string;
   supplierName: string;
   pdfBlob?: Blob;
+  onSendEmail?: (supplierEmail: string, additionalNotes: string) => void;
 }
 
 /**
@@ -55,6 +56,7 @@ const OrderEmailDialog: React.FC<OrderEmailDialogProps> = ({
   orderNumber,
   supplierName,
   pdfBlob,
+  onSendEmail,
 }) => {
   const { toast } = useToast();
   const [emailContent, setEmailContent] = useState<string>("");
@@ -123,7 +125,15 @@ const OrderEmailDialog: React.FC<OrderEmailDialogProps> = ({
       });
       return;
     }
-
+    
+    // Wenn eine externe Handler-Funktion übergeben wurde, nutze diese
+    if (onSendEmail) {
+      onSendEmail(supplierEmail, emailContent);
+      onOpenChange(false);
+      return;
+    }
+    
+    // Ansonsten verwende die interne Sende-Logik
     sendEmail({
       to: supplierEmail,
       subject: emailSubject,
