@@ -142,7 +142,7 @@ export interface IStorage {
   updateTransaction(id: number, transaction: Partial<InsertTransaction>): Promise<Transaction | undefined>;
   
   // Erweiterte Transaktionsabfragen für KPIs
-  getMachineDailyStats(machineId: number): Promise<{
+  getMachineDailyStats(machineId: number | string): Promise<{
     todayTransactions: number;
     todayRevenue: number;
     lastSale: Transaction | null;
@@ -1285,7 +1285,7 @@ export class DatabaseStorage implements IStorage {
     return transaction;
   }
   
-  async getMachineDailyStats(machineId: number): Promise<{
+  async getMachineDailyStats(machineId: number | string): Promise<{
     todayTransactions: number;
     todayRevenue: number;
     lastSale: Transaction | null;
@@ -1309,15 +1309,43 @@ export class DatabaseStorage implements IStorage {
       const oneMonthAgo = new Date(now);
       oneMonthAgo.setMonth(now.getMonth() - 1);
       
-      // Zuerst holen wir die Vendon-ID für die interne Maschinen-ID
-      const [machine] = await db.select()
+      // Zuerst prüfen wir, ob die ID eine Vendon-ID oder eine interne Maschinen-ID ist
+      let machine = null;
+      let internalMachineId = null;
+      const machineIdStr = String(machineId);
+      
+      // Versuche zuerst, die Maschine über die Vendon-ID zu finden
+      console.log(`[DEBUG] Suche Maschine mit Vendon-ID: ${machineIdStr}`);
+      const vendonIdMachines = await db.select()
         .from(machines)
-        .where(eq(machines.id, machineId));
+        .where(eq(machines.vendonId, machineIdStr));
+      
+      if (vendonIdMachines.length > 0) {
+        // Maschine über Vendon-ID gefunden
+        machine = vendonIdMachines[0];
+        internalMachineId = machine.id;
+        console.log(`[DEBUG] Maschine über Vendon-ID gefunden: interne ID = ${internalMachineId}`);
+      } else {
+        // Wenn keine Maschine über Vendon-ID gefunden wurde, versuche es mit der internen ID
+        console.log(`[DEBUG] Keine Maschine mit Vendon-ID ${machineIdStr} gefunden, suche mit interner ID`);
+        const numericId = parseInt(machineIdStr);
+        if (!isNaN(numericId)) {
+          const internalIdMachines = await db.select()
+            .from(machines)
+            .where(eq(machines.id, numericId));
+          
+          if (internalIdMachines.length > 0) {
+            machine = internalIdMachines[0];
+            internalMachineId = machine.id;
+            console.log(`[DEBUG] Maschine über interne ID gefunden: ID = ${internalMachineId}`);
+          }
+        }
+      }
       
       console.log(`[DEBUG] Maschine gefunden: ${machine ? 'Ja' : 'Nein'}, ID: ${machineId}, Vendon-ID: ${machine?.vendonId}`);
       
       if (!machine) {
-        console.error(`[ERROR] Keine Maschine mit ID ${machineId} gefunden.`);
+        console.error(`[ERROR] Keine Maschine mit Vendon-ID oder interner ID ${machineId} gefunden.`);
         return {
           todayTransactions: 0,
           todayRevenue: 0,
@@ -1332,14 +1360,14 @@ export class DatabaseStorage implements IStorage {
       }
       
       const vendonMachineId = machine.vendonId;
-      console.log(`[DEBUG] Verarbeite Statistiken für Maschine ID ${machineId} mit Vendon-ID: ${vendonMachineId}`);
+      console.log(`[DEBUG] Verarbeite Statistiken für Maschine interne ID ${internalMachineId} mit Vendon-ID: ${vendonMachineId}`);
       
       // 1. Heutige Transaktionen und Umsatz abrufen
       // Wir verwenden SQL, um auf das JSON-Feld zuzugreifen
       const todayStatsResult = await db.execute(sql`
         SELECT COUNT(*) as count, COALESCE(SUM(price), 0) as revenue
         FROM transactions 
-        WHERE (machine_id = ${machineId} OR extra_data::json->>'machine_id' = ${String(vendonMachineId)})
+        WHERE (machine_id = ${internalMachineId} OR extra_data::json->>'machine_id' = ${String(vendonMachineId)})
         AND datetime >= ${today.toISOString()} AND datetime < ${tomorrow.toISOString()}
       `);
       
@@ -1355,7 +1383,7 @@ export class DatabaseStorage implements IStorage {
       // Verbesserte Abfrage, die prioritär nach machine_id sucht, aber auch Vendon ID berücksichtigt
       const lastSaleResult = await db.execute(sql`
         SELECT * FROM transactions 
-        WHERE machine_id = ${machineId}
+        WHERE machine_id = ${internalMachineId}
         ORDER BY datetime DESC 
         LIMIT 1
       `);
@@ -1394,7 +1422,7 @@ export class DatabaseStorage implements IStorage {
       // Gleiche Strategie wie bei lastSale: zuerst nach interner ID suchen, dann nach Vendon-ID
       const lastCashlessSaleResult = await db.execute(sql`
         SELECT * FROM transactions 
-        WHERE machine_id = ${machineId}
+        WHERE machine_id = ${internalMachineId}
         AND (card_credit > 0 OR cashless_credit > 0)
         ORDER BY datetime DESC 
         LIMIT 1
@@ -1447,7 +1475,7 @@ export class DatabaseStorage implements IStorage {
       const todayAlcoholResult = await db.execute(sql`
         SELECT COUNT(*) AS count
         FROM transactions 
-        WHERE (machine_id = ${machineId} OR extra_data::json->>'machine_id' = ${String(vendonMachineId)})
+        WHERE (machine_id = ${internalMachineId} OR extra_data::json->>'machine_id' = ${String(vendonMachineId)})
         AND datetime >= ${today.toISOString()} AND datetime < ${tomorrow.toISOString()}
         AND (${sql.raw(likeConditions)})
       `);
@@ -1456,7 +1484,7 @@ export class DatabaseStorage implements IStorage {
       const weekAlcoholResult = await db.execute(sql`
         SELECT COUNT(*) AS count
         FROM transactions 
-        WHERE (machine_id = ${machineId} OR extra_data::json->>'machine_id' = ${String(vendonMachineId)})
+        WHERE (machine_id = ${internalMachineId} OR extra_data::json->>'machine_id' = ${String(vendonMachineId)})
         AND datetime >= ${oneWeekAgo.toISOString()} AND datetime < ${today.toISOString()}
         AND (${sql.raw(likeConditions)})
       `);
@@ -1465,7 +1493,7 @@ export class DatabaseStorage implements IStorage {
       const monthAlcoholResult = await db.execute(sql`
         SELECT COUNT(*) AS count
         FROM transactions 
-        WHERE (machine_id = ${machineId} OR extra_data::json->>'machine_id' = ${String(vendonMachineId)})
+        WHERE (machine_id = ${internalMachineId} OR extra_data::json->>'machine_id' = ${String(vendonMachineId)})
         AND datetime >= ${oneMonthAgo.toISOString()} AND datetime < ${today.toISOString()}
         AND (${sql.raw(likeConditions)})
       `);
