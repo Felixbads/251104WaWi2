@@ -57,8 +57,8 @@ export default function Automaten2() {
       // Für jede Maschine die täglichen Statistiken abrufen
       for (const machine of enhancedMachines) {
         try {
-          // Wir müssen die Vendon-ID statt der internen ID verwenden
-          const response = await fetch(`/api/machines/${machine.vendonId}/daily-stats`);
+          // Wir verwenden die interne ID (nicht die Vendon-ID)
+          const response = await fetch(`/api/machines/${machine.id}/daily-stats`);
           
           if (response.ok) {
             const stats = await response.json();

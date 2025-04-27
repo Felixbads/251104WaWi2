@@ -1052,35 +1052,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // GET /machines/:id/daily-stats - Tägliche KPIs für einen Automaten abrufen
   app.get(`${API_PREFIX}/machines/:id/daily-stats`, async (req: Request, res: Response) => {
     try {
-      // Die Vendon-ID kommt als String - nicht konvertieren!
-      const machineVendonId = req.params.id; // Dies ist die Vendon-ID des Automaten als String
+      // Die ID als Zahl parsen, da es sich um die interne Maschinen-ID handelt
+      const machineId = parseInt(req.params.id);
       
-      if (!machineVendonId) {
-        return res.status(400).json({ error: "Ungültige Automaten-ID" });
+      if (isNaN(machineId)) {
+        return res.status(400).json({ error: "Ungültige Automaten-ID, muss eine Zahl sein" });
       }
 
-      console.log(`[INFO] Abrufen von täglichen KPIs für Maschine mit Vendon-ID ${machineVendonId}`);
+      console.log(`[INFO] Abrufen von täglichen KPIs für Maschine mit ID ${machineId}`);
       
-      // Als String-ID direkt an die Storage-Methode übergeben.
-      // Die Methode kümmert sich selbst um die ID-Konvertierung und Lookup
+      // Als Nummer an die Storage-Methode übergeben
       try {
-        const stats = await storage.getMachineDailyStats(machineVendonId);
-        console.log(`[DEBUG] Statistiken für Maschine ${machineVendonId} abgerufen:`, JSON.stringify(stats));
+        const stats = await storage.getMachineDailyStats(machineId);
+        console.log(`[DEBUG] Statistiken für Maschine ${machineId} abgerufen:`, JSON.stringify(stats));
         
         // Füge spezifisches Debug-Log für lastSale hinzu
         if (stats.lastSale) {
-          console.log(`[DEBUG] lastSale für Maschine ${machineVendonId} gefunden:`, 
+          console.log(`[DEBUG] lastSale für Maschine ${machineId} gefunden:`, 
             typeof stats.lastSale === 'object' ? 
               (stats.lastSale.datetime ? new Date(stats.lastSale.datetime).toISOString() : "Kein datetime-Feld") : 
               "Kein Objekt");
         } else {
-          console.log(`[DEBUG] Kein lastSale für Maschine ${machineVendonId} gefunden!`);
+          console.log(`[DEBUG] Kein lastSale für Maschine ${machineId} gefunden!`);
         }
         
         res.json(stats);
       } catch (storageError) {
         // Detaillierter Fehler-Log der Storage-Methode
-        console.error(`[ERROR] Storage-Fehler für Maschine ${machineVendonId}:`, storageError);
+        console.error(`[ERROR] Storage-Fehler für Maschine ${machineId}:`, storageError);
         console.error(`Stack Trace:`, storageError instanceof Error ? storageError.stack : 'Kein Stack Trace verfügbar');
         
         // Fallback für Fehlerfall: Leere Statistik-Struktur
