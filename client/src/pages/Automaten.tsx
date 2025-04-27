@@ -79,7 +79,24 @@ export default function Automaten() {
             
             // Letzter Verkauf
             if (stats.lastSale) {
-              machine.lastSale = new Date(stats.lastSale.datetime).toISOString();
+              try {
+                // Prüfen, ob stats.lastSale.datetime existiert und gültig ist
+                if (stats.lastSale.datetime) {
+                  machine.lastSale = new Date(stats.lastSale.datetime).toISOString();
+                  console.log('Letzter Verkauf gesetzt:', machine.lastSale);
+                } else if (typeof stats.lastSale === 'object') {
+                  // Falls stats.lastSale ein Objekt ist, aber kein datetime hat
+                  console.log('Lastdate ist ein Objekt ohne datetime-Feld:', stats.lastSale);
+                  machine.lastSale = undefined;
+                } else {
+                  // Falls stats.lastSale direkt ein Datum ist (String oder Date)
+                  machine.lastSale = new Date(stats.lastSale).toISOString();
+                  console.log('Letzter Verkauf direkt aus stats.lastSale:', machine.lastSale);
+                }
+              } catch (dateError) {
+                console.error('Fehler bei der Datums-Formatierung:', dateError);
+                machine.lastSale = undefined;
+              }
             }
             
             // Letzter bargeldloser Verkauf und Status-Indikator
