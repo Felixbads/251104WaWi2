@@ -1297,55 +1297,75 @@ export class DatabaseStorage implements IStorage {
     };
   }> {
     try {
-      // Aktuelles Datum für heutige Transaktionen
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      console.log(`[DEBUG] getMachineDailyStats aufgerufen mit ID: ${machineId} (Typ: ${typeof machineId})`);
       
-      // Zeiträume für Durchschnittsberechnungen
-      const oneWeekAgo = new Date(now);
-      oneWeekAgo.setDate(now.getDate() - 7);
+      // SCHRITT 1: IDENTIFIZIERUNG DES AUTOMATEN
+      // Wir müssen die interne ID des Automaten herausfinden, egal ob eine interne ID
+      // oder eine Vendon-ID übergeben wurde
       
-      const oneMonthAgo = new Date(now);
-      oneMonthAgo.setMonth(now.getMonth() - 1);
+      let internalMachineId: number | null = null;
+      let vendonMachineId: string | null = null;
       
-      // Zuerst prüfen wir, ob die ID eine Vendon-ID oder eine interne Maschinen-ID ist
-      let machine = null;
-      let internalMachineId = null;
-      const machineIdStr = String(machineId);
-      
-      // Versuche zuerst, die Maschine über die Vendon-ID zu finden
-      console.log(`[DEBUG] Suche Maschine mit Vendon-ID: ${machineIdStr}`);
-      const vendonIdMachines = await db.select()
-        .from(machines)
-        .where(eq(machines.vendonId, machineIdStr));
-      
-      if (vendonIdMachines.length > 0) {
-        // Maschine über Vendon-ID gefunden
-        machine = vendonIdMachines[0];
-        internalMachineId = machine.id;
-        console.log(`[DEBUG] Maschine über Vendon-ID gefunden: interne ID = ${internalMachineId}`);
-      } else {
-        // Wenn keine Maschine über Vendon-ID gefunden wurde, versuche es mit der internen ID
-        console.log(`[DEBUG] Keine Maschine mit Vendon-ID ${machineIdStr} gefunden, suche mit interner ID`);
-        const numericId = parseInt(machineIdStr);
-        if (!isNaN(numericId)) {
-          const internalIdMachines = await db.select()
-            .from(machines)
-            .where(eq(machines.id, numericId));
+      // Falls eine Vendon-ID (als String) übergeben wurde
+      if (typeof machineId === 'string') {
+        vendonMachineId = machineId;
+        
+        // Suche die interne ID anhand der Vendon-ID
+        try {
+          console.log(`[DEBUG] Suche Maschine mit Vendon-ID: ${vendonMachineId}`);
+          const machine = await this.db.query.machines.findFirst({
+            where: eq(machines.vendonId, vendonMachineId),
+            columns: { id: true, vendonId: true }
+          });
           
-          if (internalIdMachines.length > 0) {
-            machine = internalIdMachines[0];
+          if (machine) {
             internalMachineId = machine.id;
-            console.log(`[DEBUG] Maschine über interne ID gefunden: ID = ${internalMachineId}`);
+            console.log(`[DEBUG] Interne ID ${internalMachineId} für Vendon-ID ${vendonMachineId} gefunden`);
+          } else {
+            console.log(`[DEBUG] Keine Maschine mit Vendon-ID ${vendonMachineId} gefunden, versuche als interne ID zu parsen`);
+            
+            // Versuche als numerische ID zu interpretieren (Fallback)
+            const numericId = parseInt(machineId, 10);
+            if (!isNaN(numericId)) {
+              const machineById = await this.db.query.machines.findFirst({
+                where: eq(machines.id, numericId),
+                columns: { id: true, vendonId: true }
+              });
+              
+              if (machineById) {
+                internalMachineId = numericId;
+                vendonMachineId = machineById.vendonId;
+                console.log(`[DEBUG] Maschine mit interner ID ${internalMachineId} gefunden`);
+              }
+            }
           }
+        } catch (error) {
+          console.error(`[ERROR] Fehler bei der Suche nach Maschine mit Vendon-ID ${vendonMachineId}:`, error);
+        }
+      } 
+      // Falls direkt eine interne ID übergeben wurde
+      else if (typeof machineId === 'number') {
+        try {
+          const machine = await this.db.query.machines.findFirst({
+            where: eq(machines.id, machineId),
+            columns: { id: true, vendonId: true }
+          });
+          
+          if (machine) {
+            internalMachineId = machineId;
+            vendonMachineId = machine.vendonId;
+            console.log(`[DEBUG] Maschine mit interner ID ${internalMachineId} gefunden, Vendon-ID: ${vendonMachineId}`);
+          } else {
+            console.log(`[DEBUG] Keine Maschine mit interner ID ${machineId} gefunden`);
+          }
+        } catch (error) {
+          console.error(`[ERROR] Fehler bei der Suche nach Maschine mit interner ID ${machineId}:`, error);
         }
       }
       
-      console.log(`[DEBUG] Maschine gefunden: ${machine ? 'Ja' : 'Nein'}, ID: ${machineId}, Vendon-ID: ${machine?.vendonId}`);
-      
-      if (!machine) {
-        console.error(`[ERROR] Keine Maschine mit Vendon-ID oder interner ID ${machineId} gefunden.`);
+      // Wenn keine Maschine gefunden wurde, leere Ergebnisse zurückgeben
+      if (internalMachineId === null) {
+        console.log(`[WARN] Keine Maschine für ID ${machineId} gefunden, gebe leere Ergebnisse zurück`);
         return {
           todayTransactions: 0,
           todayRevenue: 0,
@@ -1359,144 +1379,131 @@ export class DatabaseStorage implements IStorage {
         };
       }
       
-      const vendonMachineId = machine.vendonId;
-      console.log(`[DEBUG] Verarbeite Statistiken für Maschine interne ID ${internalMachineId} mit Vendon-ID: ${vendonMachineId}`);
+      // Aktuelles Datum für heutige Transaktionen
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
       
-      // 1. Heutige Transaktionen und Umsatz abrufen
-      // Wir verwenden SQL, um auf das JSON-Feld zuzugreifen
-      const todayStatsResult = await db.execute(sql`
-        SELECT COUNT(*) as count, COALESCE(SUM(price), 0) as revenue
+      // Zeiträume für Durchschnittsberechnungen
+      const oneWeekAgo = new Date(now);
+      oneWeekAgo.setDate(now.getDate() - 7);
+      
+      const oneMonthAgo = new Date(now);
+      oneMonthAgo.setMonth(now.getMonth() - 1);
+      
+      // SCHRITT 2: DATENABFRAGEN VORBEREITEN
+      // Jetzt wo wir die interne ID und Vendon-ID haben, können wir
+      // die notwendigen Daten für die Statistiken abfragen
+      
+      // 1. Heutige Transaktionen und Umsatz
+      const todayTransactionsQuery = `
+        SELECT COUNT(*) as today_transactions, 
+               COALESCE(SUM(price), 0) as today_revenue
         FROM transactions 
-        WHERE (machine_id = ${internalMachineId} OR extra_data::json->>'machine_id' = ${String(vendonMachineId)})
-        AND datetime >= ${today.toISOString()} AND datetime < ${tomorrow.toISOString()}
-      `);
+        WHERE machine_id = $1 
+        AND datetime >= $2 AND datetime < $3
+      `;
       
-      const todayCount = parseInt(todayStatsResult[0]?.count?.toString() || '0');
-      const todayRevenue = parseFloat(todayStatsResult[0]?.revenue?.toString() || '0');
+      const todayResult = await this.db.raw(todayTransactionsQuery, [
+        internalMachineId,
+        today.toISOString(),
+        tomorrow.toISOString()
+      ]);
+      
+      const todayCount = parseInt(todayResult.rows[0]?.today_transactions || '0');
+      const todayRevenue = parseFloat(todayResult.rows[0]?.today_revenue || '0');
       
       console.log(`[DEBUG] Heutige Transaktionen: ${todayCount}, Umsatz: ${todayRevenue}`);
       
-      // 2. Letzte Verkaufstransaktion abrufen
-      // Wir müssen die Transaktion über die interne ID der Maschine finden
+      // 2. Letzter Verkauf
       console.log(`[DEBUG] Suche letzte Verkäufe für Maschine ID: ${machineId} (Vendon-ID: ${vendonMachineId})`);
       
-      // Verbesserte Abfrage, die prioritär nach machine_id sucht, aber auch Vendon ID berücksichtigt
-      const lastSaleResult = await db.execute(sql`
+      const lastSaleQuery = `
         SELECT * FROM transactions 
-        WHERE machine_id = ${internalMachineId}
+        WHERE machine_id = $1 
         ORDER BY datetime DESC 
         LIMIT 1
-      `);
+      `;
       
-      // Falls kein Ergebnis über die interne ID gefunden wurde, versuchen wir es über die Vendon-ID
-      let vendonIdFallbackAttempt = false;
-      if (lastSaleResult.length === 0 && vendonMachineId) {
-        console.log(`[DEBUG] Keine Verkäufe über interne ID gefunden, versuche über Vendon-ID: ${vendonMachineId}`);
-        vendonIdFallbackAttempt = true;
-        
-        const fallbackResult = await db.execute(sql`
-          SELECT * FROM transactions 
-          WHERE extra_data::json->>'machine_id' = ${String(vendonMachineId)}
-          ORDER BY datetime DESC 
-          LIMIT 1
-        `);
-        
-        if (fallbackResult.length > 0) {
-          console.log(`[DEBUG] Verkauf über Vendon-ID gefunden!`);
-          // Korrigiere das Rückgabeformat, um mit dem Rest der Funktion konsistent zu sein
-          lastSaleResult = fallbackResult;
-        } else {
-          console.log(`[DEBUG] Auch über Vendon-ID wurde kein Verkauf gefunden.`);
-        }
-      }
+      const lastSaleResult = await this.db.raw(lastSaleQuery, [internalMachineId]);
       
-      // Wenn lastSaleResult ein Array ist, greifen wir auf das erste Element zu
-      const lastSale = lastSaleResult.length > 0 ? lastSaleResult[0] as unknown as Transaction : null;
+      const lastSale = lastSaleResult.rows.length > 0 ? lastSaleResult.rows[0] : null;
       
       console.log(`[DEBUG] Letzte Verkaufstransaktion gefunden: ${lastSale ? 'Ja' : 'Nein'}`);
-      if (lastSale) {
-        console.log(`[DEBUG] Gefundene Transaktion: ${lastSale.id}, Datum: ${lastSale.datetime}, Produkt: ${lastSale.productName}`);
-      }
       
-      // 3. Letzten bargeldlosen Verkauf abrufen
-      // Gleiche Strategie wie bei lastSale: zuerst nach interner ID suchen, dann nach Vendon-ID
-      const lastCashlessSaleResult = await db.execute(sql`
+      // 3. Letzter bargeldloser Verkauf
+      const lastCashlessSaleQuery = `
         SELECT * FROM transactions 
-        WHERE machine_id = ${internalMachineId}
-        AND (card_credit > 0 OR cashless_credit > 0)
+        WHERE machine_id = $1 
+        AND LOWER(payment_method) = 'cashless'
         ORDER BY datetime DESC 
         LIMIT 1
-      `);
+      `;
       
-      // Fallback für bargeldlosen Verkauf, falls über interne ID nichts gefunden wurde
-      if (lastCashlessSaleResult.length === 0 && vendonMachineId) {
-        console.log(`[DEBUG] Keine bargeldlosen Verkäufe über interne ID gefunden, versuche über Vendon-ID: ${vendonMachineId}`);
-        
-        const fallbackCashlessResult = await db.execute(sql`
-          SELECT * FROM transactions 
-          WHERE extra_data::json->>'machine_id' = ${String(vendonMachineId)}
-          AND (card_credit > 0 OR cashless_credit > 0)
-          ORDER BY datetime DESC 
-          LIMIT 1
-        `);
-        
-        if (fallbackCashlessResult.length > 0) {
-          console.log(`[DEBUG] Bargeldloser Verkauf über Vendon-ID gefunden!`);
-          return {
-            todayTransactions: todayCount,
-            todayRevenue: todayRevenue,
-            lastSale: lastSale,
-            lastCashlessSale: fallbackCashlessResult[0] as unknown as Transaction,
-            alcoholSales: {
-              today: 0,
-              weekAvg: 0,
-              monthAvg: 0
-            }
-          };
-        } else {
-          console.log(`[DEBUG] Auch über Vendon-ID wurde kein bargeldloser Verkauf gefunden.`);
-        }
-      }
+      const lastCashlessSaleResult = await this.db.raw(lastCashlessSaleQuery, [internalMachineId]);
       
-      const lastCashlessSale = lastCashlessSaleResult.length > 0 ? lastCashlessSaleResult[0] as unknown as Transaction : null;
+      const lastCashlessSale = lastCashlessSaleResult.rows.length > 0 ? 
+        lastCashlessSaleResult.rows[0] : null;
       
       console.log(`[DEBUG] Letzte Cashless-Transaktion gefunden: ${lastCashlessSale ? 'Ja' : 'Nein'}`);
-      if (lastCashlessSale) {
-        console.log(`[DEBUG] Gefundene Cashless-Transaktion: ${lastCashlessSale.id}, Datum: ${lastCashlessSale.datetime}`);
-      }
       
-      // 4. Alkohol-Verkäufe analysieren
-      const alkoholKeywords = ['bier', 'wein', 'schnaps', 'pils', 'radler', 'alster', 'alkohol', 'sekt'];
+      // 4. Alkohol-Verkäufe
+      // Liste mit häufigen Alkohol-Keywords
+      const alcoholKeywords = [
+        'bier', 'beer', 'pils', 'lager', 'ale', 'wein', 'wine', 
+        'vodka', 'rum', 'gin', 'whisky', 'whiskey', 'liquor', 'schnaps', 
+        'radler', 'alkoholfrei', 'alcohol-free', 'alkoho'
+      ];
       
-      // SQL-Bedingung für Alkohol-Produkte erstellen
-      const likeConditions = alkoholKeywords.map(k => `LOWER(product_name) LIKE '%${k}%'`).join(' OR ');
+      // Erstellen eines SQL-Suchmusters für Alkohol-Keywords
+      const likeConditions = alcoholKeywords.map(keyword => 
+        `LOWER(product_name) LIKE '%${keyword}%'`
+      ).join(' OR ');
       
-      // Heutiger Alkohol-Verkauf
-      const todayAlcoholResult = await db.execute(sql`
+      // Alkohol-Verkäufe heute
+      const todayAlcoholQuery = `
         SELECT COUNT(*) AS count
         FROM transactions 
-        WHERE (machine_id = ${internalMachineId} OR extra_data::json->>'machine_id' = ${String(vendonMachineId)})
-        AND datetime >= ${today.toISOString()} AND datetime < ${tomorrow.toISOString()}
-        AND (${sql.raw(likeConditions)})
-      `);
+        WHERE machine_id = $1 
+        AND datetime >= $2 AND datetime < $3
+        AND (${likeConditions})
+      `;
+      
+      const todayAlcoholResult = await this.db.raw(todayAlcoholQuery, [
+        internalMachineId, 
+        today.toISOString(), 
+        tomorrow.toISOString()
+      ]);
       
       // Letzte Woche Alkohol-Verkauf
-      const weekAlcoholResult = await db.execute(sql`
+      const weekAlcoholQuery = `
         SELECT COUNT(*) AS count
         FROM transactions 
-        WHERE (machine_id = ${internalMachineId} OR extra_data::json->>'machine_id' = ${String(vendonMachineId)})
-        AND datetime >= ${oneWeekAgo.toISOString()} AND datetime < ${today.toISOString()}
-        AND (${sql.raw(likeConditions)})
-      `);
+        WHERE machine_id = $1 
+        AND datetime >= $2 AND datetime < $3
+        AND (${likeConditions})
+      `;
+      
+      const weekAlcoholResult = await this.db.raw(weekAlcoholQuery, [
+        internalMachineId, 
+        oneWeekAgo.toISOString(), 
+        today.toISOString()
+      ]);
       
       // Letzten Monat Alkohol-Verkauf
-      const monthAlcoholResult = await db.execute(sql`
+      const monthAlcoholQuery = `
         SELECT COUNT(*) AS count
         FROM transactions 
-        WHERE (machine_id = ${internalMachineId} OR extra_data::json->>'machine_id' = ${String(vendonMachineId)})
-        AND datetime >= ${oneMonthAgo.toISOString()} AND datetime < ${today.toISOString()}
-        AND (${sql.raw(likeConditions)})
-      `);
+        WHERE machine_id = $1 
+        AND datetime >= $2 AND datetime < $3
+        AND (${likeConditions})
+      `;
+      
+      const monthAlcoholResult = await this.db.raw(monthAlcoholQuery, [
+        internalMachineId, 
+        oneMonthAgo.toISOString(), 
+        today.toISOString()
+      ]);
       
       const todayAlcoholCount = parseInt(todayAlcoholResult[0]?.count?.toString() || '0');
       const weekAlcoholCount = parseInt(weekAlcoholResult[0]?.count?.toString() || '0');
