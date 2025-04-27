@@ -35,7 +35,7 @@ interface OrderEmailDialogProps {
   supplierEmail?: string;
   orderNumber: string;
   supplierName: string;
-  pdfBlob?: Blob;
+  pdfBlob?: Blob | null;
   onSendEmail?: (supplierEmail: string, additionalNotes: string) => void;
 }
 
