@@ -210,9 +210,7 @@ export default function Automaten() {
             <CardTitle className="text-lg truncate">{machine.machineName}</CardTitle>
             <StatusBadge status={machine.status} />
           </div>
-          <CardDescription className="flex items-center gap-1">
-            <MapPin className="h-3 w-3" /> {machine.location || 'Kein Standort angegeben'}
-          </CardDescription>
+          {/* Standort ausgeblendet, wie vom Benutzer gewünscht */}
           <CardDescription className="text-xs text-gray-500">
             Vendon ID: {machine.vendonId}
           </CardDescription>
@@ -267,19 +265,8 @@ export default function Automaten() {
             <AgeVerificationIndicator status={machine.ageVerificationStatus || 'error'} />
           </div>
         </CardContent>
-        <CardFooter className="pt-2 flex items-center justify-between">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="flex-1 mr-1"
-            onClick={(e) => {
-              e.stopPropagation(); // Verhindert, dass der Kartenklick ausgelöst wird
-              setLocation(`/automaten/${machine.id}`);
-            }}
-          >
-            <ExternalLink className="h-4 w-4 mr-2" />
-            Details
-          </Button>
+        <CardFooter className="pt-2 flex items-center justify-end">
+          {/* Details-Button entfernt, wie vom Benutzer gewünscht */}
           <Button 
             variant="ghost" 
             size="sm" 
@@ -336,10 +323,7 @@ export default function Automaten() {
             <StatusBadge status={machine.status} />
           </div>
           <div className="flex items-center text-xs text-gray-600 gap-2">
-            <span className="flex items-center">
-              <MapPin className="h-3 w-3 mr-1" /> {machine.location || 'Kein Standort'}
-            </span>
-            <span className="text-gray-400">|</span>
+            {/* Standort ausgeblendet, wie vom Benutzer gewünscht */}
             <span>ID: {machine.vendonId}</span>
           </div>
         </div>
@@ -379,17 +363,8 @@ export default function Automaten() {
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                setLocation(`/automaten/${machine.id}`);
-              }}
-            >
-              Details
-            </Button>
+          <div className="flex justify-end">
+            {/* Details-Button entfernt, wie vom Benutzer gewünscht */}
             <Button 
               variant="ghost" 
               size="icon"

@@ -1060,12 +1060,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`[INFO] Abrufen von täglichen KPIs für Maschine ${machineId}`);
       
-      // Ruft die Storage-Methode auf, um die Tagesstatistiken abzurufen
-      const stats = await storage.getMachineDailyStats(machineId);
-      
-      console.log(`[DEBUG] Statistiken für Maschine ${machineId} abgerufen:`, JSON.stringify(stats));
-      
-      res.json(stats);
+      try {
+        // Ruft die Storage-Methode auf, um die Tagesstatistiken abzurufen
+        const stats = await storage.getMachineDailyStats(machineId);
+        console.log(`[DEBUG] Statistiken für Maschine ${machineId} abgerufen:`, JSON.stringify(stats));
+        res.json(stats);
+      } catch (storageError) {
+        // Detaillierter Fehler-Log der Storage-Methode
+        console.error(`[ERROR] Storage-Fehler für Maschine ${machineId}:`, storageError);
+        console.error(`Stack Trace:`, storageError instanceof Error ? storageError.stack : 'Kein Stack Trace verfügbar');
+        
+        // Fallback für Fehlerfall: Leere Statistik-Struktur
+        res.json({
+          todayTransactions: 0,
+          todayRevenue: 0,
+          lastSale: null,
+          lastCashlessSale: null,
+          alcoholSales: {
+            today: 0, 
+            weekAvg: 0,
+            monthAvg: 0
+          }
+        });
+      }
     } catch (error) {
       console.error(`[ERROR] Fehler beim Abrufen der KPIs für Maschine ${req.params.id}:`, error);
       res.status(500).json({ 
