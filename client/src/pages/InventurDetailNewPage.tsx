@@ -1416,20 +1416,6 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
               </Button>
               
               <Button 
-                variant="default"
-                className="bg-green-600 hover:bg-green-700 text-white"
-                onClick={() => addAllProductsMutation.mutate()}
-                disabled={addAllProductsMutation.isPending}
-              >
-                {addAllProductsMutation.isPending ? (
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Package className="h-4 w-4 mr-2" />
-                )}
-                Produkte hinzufügen
-              </Button>
-              
-              <Button 
                 variant="outline"
                 className="border-red-500 text-red-500 hover:bg-red-50"
                 onClick={() => updateStatusMutation.mutate('cancelled')}
@@ -1497,42 +1483,16 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
             </>
           )}
           
-          {/* Status: completed */}
-          {currentStatus === 'completed' && (
+          {/* Status: completed und cancelled */}
+          {(currentStatus === 'completed' || currentStatus === 'cancelled') && (
             <Button 
-              variant="default"
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => {
-                // Hier Export-Funktion
-              }}
+              variant="outline"
+              className="border-red-500 text-red-500 hover:bg-red-50"
+              onClick={() => setShowDeleteDialog(true)}
             >
-              <FileText className="h-4 w-4 mr-2" />
-              Bericht exportieren
+              <Trash2 className="h-4 w-4 mr-2" />
+              Löschen
             </Button>
-          )}
-          
-          {/* Status: cancelled */}
-          {currentStatus === 'cancelled' && (
-            <>
-              <Button 
-                variant="default"
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={() => updateStatusMutation.mutate('pending')}
-                disabled={updateStatusMutation.isPending}
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Neu starten
-              </Button>
-              
-              <Button 
-                variant="outline"
-                className="border-red-500 text-red-500 hover:bg-red-50"
-                onClick={() => setShowDeleteDialog(true)}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Löschen
-              </Button>
-            </>
           )}
         </div>
       </div>
@@ -1710,19 +1670,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
               </CardDescription>
             </div>
             
-            {/* Nur Hinzufügen erlauben, wenn die Inventur nicht abgeschlossen oder abgebrochen ist */}
-            {(currentStatus === 'pending' || currentStatus === 'in_progress' || currentStatus === 'open') && (
-              <Button
-                onClick={() => {
-                  setSelectedProductIds([]);
-                  setShowAddDialog(true);
-                }}
-                className="whitespace-nowrap"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Produkte hinzufügen
-              </Button>
-            )}
+            {/* Button für Produkte hinzufügen entfernt, um die UI zu vereinfachen */}
           </div>
         </CardHeader>
         <CardContent>
