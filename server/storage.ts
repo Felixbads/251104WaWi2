@@ -1312,88 +1312,38 @@ export class DatabaseStorage implements IStorage {
     try {
       console.log(`[DEBUG] getMachineDailyStats aufgerufen mit ID: ${machineId} (Typ: ${typeof machineId})`);
       
-      // SCHRITT 1: IDENTIFIZIERUNG DES AUTOMATEN
-      // Wir müssen die interne ID des Automaten herausfinden, egal ob eine interne ID
-      // oder eine Vendon-ID übergeben wurde
+      // SCHRITT 1: SICHERSTELLEN, DASS WIR MIT DER INTERNEN ID ARBEITEN
+      let internalMachineId: number;
       
-      let internalMachineId: number | null = null;
-      let vendonMachineId: string | null = null;
-      
-      // Falls eine Vendon-ID (als String) übergeben wurde
+      // Falls eine String-ID übergeben wurde, konvertieren wir sie in eine Nummer
       if (typeof machineId === 'string') {
-        vendonMachineId = machineId;
-        
-        // Suche die interne ID anhand der Vendon-ID
-        try {
-          console.log(`[DEBUG] Suche Maschine mit Vendon-ID: ${vendonMachineId}`);
-          
-          // Direkte SQL-Abfrage statt ORM-Methode verwenden für konsistente Ergebnisse
-          const result = await rawDb.query(
-            "SELECT id, vendon_id FROM machines WHERE vendon_id = $1 LIMIT 1", 
-            [vendonMachineId]
-          );
-          
-          if (result.rows.length > 0) {
-            const machine = result.rows[0];
-            internalMachineId = machine.id;
-            console.log(`[DEBUG] Interne ID ${internalMachineId} für Vendon-ID ${vendonMachineId} gefunden`);
-          } else {
-            console.log(`[DEBUG] Keine Maschine mit Vendon-ID ${vendonMachineId} gefunden, versuche als interne ID zu parsen`);
-            
-            // Versuche als numerische ID zu interpretieren (Fallback)
-            const numericId = parseInt(machineId, 10);
-            if (!isNaN(numericId)) {
-              const result = await rawDb.query(
-                "SELECT id, vendon_id FROM machines WHERE id = $1 LIMIT 1", 
-                [numericId]
-              );
-              
-              if (result.rows.length > 0) {
-                const machine = result.rows[0];
-                internalMachineId = machine.id;
-                vendonMachineId = machine.vendon_id;
-                console.log(`[DEBUG] Maschine mit interner ID ${internalMachineId} gefunden`);
-              }
-            }
-          }
-        } catch (error) {
-          console.error(`[ERROR] Fehler bei der Suche nach Maschine mit Vendon-ID ${vendonMachineId}:`, error);
+        internalMachineId = parseInt(machineId, 10);
+        if (isNaN(internalMachineId)) {
+          console.log(`[WARN] Ungültige ID ${machineId} - muss eine Zahl sein`);
+          return this.getEmptyStats();
         }
-      } 
-      // Falls direkt eine interne ID übergeben wurde
-      else if (typeof machineId === 'number') {
-        try {
-          const machine = await this.db.query.machines.findFirst({
-            where: eq(machines.id, machineId),
-            columns: { id: true, vendonId: true }
-          });
-          
-          if (machine) {
-            internalMachineId = machineId;
-            vendonMachineId = machine.vendonId;
-            console.log(`[DEBUG] Maschine mit interner ID ${internalMachineId} gefunden, Vendon-ID: ${vendonMachineId}`);
-          } else {
-            console.log(`[DEBUG] Keine Maschine mit interner ID ${machineId} gefunden`);
-          }
-        } catch (error) {
-          console.error(`[ERROR] Fehler bei der Suche nach Maschine mit interner ID ${machineId}:`, error);
-        }
+      } else {
+        // Es handelt sich um eine numerische ID
+        internalMachineId = machineId;
       }
       
-      // Wenn keine Maschine gefunden wurde, leere Ergebnisse zurückgeben
-      if (internalMachineId === null) {
-        console.log(`[WARN] Keine Maschine für ID ${machineId} gefunden, gebe leere Ergebnisse zurück`);
-        return {
-          todayTransactions: 0,
-          todayRevenue: 0,
-          lastSale: null,
-          lastCashlessSale: null,
-          alcoholSales: {
-            today: 0,
-            weekAvg: 0,
-            monthAvg: 0
-          }
-        };
+      // Überprüfen, ob die Maschine mit dieser internen ID existiert
+      try {
+        const machineResult = await rawDb.query(
+          "SELECT id, vendon_id FROM machines WHERE id = $1 LIMIT 1", 
+          [internalMachineId]
+        );
+        
+        if (machineResult.rows.length === 0) {
+          console.log(`[WARN] Keine Maschine mit ID ${internalMachineId} gefunden, gebe leere Ergebnisse zurück`);
+          return this.getEmptyStats();
+        }
+        
+        // Ab hier wissen wir, dass die Maschine existiert
+        console.log(`[DEBUG] Maschine mit ID ${internalMachineId} gefunden, Vendon-ID: ${machineResult.rows[0].vendon_id}`);
+      } catch (error) {
+        console.error(`[ERROR] Fehler bei der Suche nach Maschine mit ID ${internalMachineId}:`, error);
+        return this.getEmptyStats();
       }
       
       // Aktuelles Datum für heutige Transaktionen
@@ -1408,33 +1358,24 @@ export class DatabaseStorage implements IStorage {
       const oneMonthAgo = new Date(now);
       oneMonthAgo.setMonth(now.getMonth() - 1);
       
-      // SCHRITT 2: DATENABFRAGEN VORBEREITEN
-      // Jetzt wo wir die interne ID und Vendon-ID haben, können wir
-      // die notwendigen Daten für die Statistiken abfragen
+      // SCHRITT 2: DATENABFRAGEN AUSFÜHREN
+      // Alle Abfragen basieren jetzt ausschließlich auf der internen ID
       
-      // 1. Heutige Transaktionen und Umsatz - vereinfachte Abfrage
+      // 1. Heutige Transaktionen und Umsatz
       const todayTransactionsQuery = `
         SELECT COUNT(*) as today_transactions, 
                COALESCE(SUM(price), 0) as today_revenue
         FROM transactions 
-        WHERE (
-          machine_id = $1
-          OR (
-            extra_data->>'machine_id' = $2 
-            OR extra_data->>'vendon_machine_id' = $2
-          )
-        )
-        AND datetime >= $3 AND datetime < $4
+        WHERE machine_id = $1
+        AND datetime >= $2 AND datetime < $3
       `;
       
       let todayCount = 0;
       let todayRevenue = 0;
       
       try {
-        // Sichere Abfrage mit Fehlerprüfung
-        const todayResult = await this.db.query(todayTransactionsQuery, [
-          internalMachineId,
-          vendonMachineId,
+        const todayResult = await rawDb.query(todayTransactionsQuery, [
+          String(internalMachineId), // Wichtig: Als String übergeben, da machine_id in der Datenbank als String gespeichert ist
           today.toISOString(),
           tomorrow.toISOString()
         ]);
@@ -1450,27 +1391,20 @@ export class DatabaseStorage implements IStorage {
       console.log(`[DEBUG] Heutige Transaktionen: ${todayCount}, Umsatz: ${todayRevenue}`);
       
       // 2. Letzter Verkauf
-      console.log(`[DEBUG] Suche letzte Verkäufe für Maschine ID: ${internalMachineId} (Vendon-ID: ${vendonMachineId})`);
-      
-      // Vereinfachte Abfrage, die nur auf machine_id oder vendon_id basiert
       const lastSaleQuery = `
         SELECT * FROM transactions 
-        WHERE machine_id = $1 
-           OR vendon_id = $2
+        WHERE machine_id = $1
         ORDER BY datetime DESC 
         LIMIT 1
       `;
       
-      console.log(`[DEBUG] Suche letzte Transaktion für Maschine ID=${internalMachineId} oder Vendon-ID=${vendonMachineId}`);
-      
       let lastSale = null;
       try {
-        // Sichere Abfrage mit Fehlerprüfung
-        const lastSaleResult = await this.db.query(lastSaleQuery, [internalMachineId, vendonMachineId]);
+        const lastSaleResult = await rawDb.query(lastSaleQuery, [String(internalMachineId)]);
         
         if (lastSaleResult && lastSaleResult.rows && lastSaleResult.rows.length > 0) {
-          console.log(`[DEBUG] Letzte Transaktion Ergebnis: ${lastSaleResult.rows.length} Zeilen`);
           lastSale = lastSaleResult.rows[0];
+          console.log(`[DEBUG] Letzte Transaktion gefunden: ID=${lastSale.id}, Zeit=${lastSale.datetime}, Produkt=${lastSale.product_name}`);
         } else {
           console.log('[DEBUG] Keine letzten Transaktionen gefunden');
         }
@@ -1478,40 +1412,28 @@ export class DatabaseStorage implements IStorage {
         console.error('[ERROR] Fehler bei der Abfrage der letzten Transaktion:', error);
       }
       
-      console.log(`[DEBUG] Letzte Verkaufstransaktion gefunden: ${lastSale ? 'Ja' : 'Nein'}`);
-      if (lastSale) {
-        console.log(`[DEBUG] Details der letzten Transaktion: ID=${lastSale.id}, Zeit=${lastSale.datetime}, Produkt=${lastSale.product_name}`);
-        console.log(`[DEBUG] Transaktions-MachineID=${lastSale.machine_id}, ExtraData=${JSON.stringify(lastSale.extra_data || {})}`);
-      }
-      
       // 3. Letzter bargeldloser Verkauf
       const lastCashlessSaleQuery = `
         SELECT * FROM transactions 
-        WHERE (machine_id = $1
-           OR vendon_id = $2)
+        WHERE machine_id = $1
         AND LOWER(payment_method) = 'cashless'
         ORDER BY datetime DESC 
         LIMIT 1
       `;
       
-      console.log(`[DEBUG] Suche letzte Cashless-Transaktion für Maschine ID=${internalMachineId} oder Vendon-ID=${vendonMachineId}`);
-      
       let lastCashlessSale = null;
       try {
-        // Sichere Abfrage mit Fehlerprüfung
-        const lastCashlessSaleResult = await this.db.query(lastCashlessSaleQuery, [internalMachineId, vendonMachineId]);
+        const lastCashlessSaleResult = await rawDb.query(lastCashlessSaleQuery, [String(internalMachineId)]);
         
         if (lastCashlessSaleResult && lastCashlessSaleResult.rows && lastCashlessSaleResult.rows.length > 0) {
-          console.log(`[DEBUG] Letzte Cashless-Transaktion Ergebnis: ${lastCashlessSaleResult.rows.length} Zeilen`);
           lastCashlessSale = lastCashlessSaleResult.rows[0];
+          console.log(`[DEBUG] Letzte Cashless-Transaktion gefunden: ID=${lastCashlessSale.id}, Zeit=${lastCashlessSale.datetime}`);
         } else {
           console.log('[DEBUG] Keine Cashless-Transaktionen gefunden');
         }
       } catch (error) {
         console.error('[ERROR] Fehler bei der Abfrage der letzten Cashless-Transaktion:', error);
       }
-      
-      console.log(`[DEBUG] Letzte Cashless-Transaktion gefunden: ${lastCashlessSale ? 'Ja' : 'Nein'}`);
       
       // 4. Alkohol-Verkäufe
       // Liste mit häufigen Alkohol-Keywords
@@ -1526,19 +1448,14 @@ export class DatabaseStorage implements IStorage {
         `LOWER(product_name) LIKE '%${keyword}%'`
       ).join(' OR ');
       
-      // Alkohol-Verkäufe heute - vereinfachte Abfrage ohne JSON-Operatoren
+      // Alkohol-Verkäufe heute
       const todayAlcoholQuery = `
         SELECT COUNT(*) AS count
         FROM transactions 
-        WHERE (
-          machine_id = $1
-          OR vendon_id = $2
-        )
-        AND datetime >= $3 AND datetime < $4
+        WHERE machine_id = $1
+        AND datetime >= $2 AND datetime < $3
         AND (${likeConditions})
       `;
-      
-      console.log(`[DEBUG] Suche Alkohol-Transaktionen für Maschine ID=${internalMachineId} oder Vendon-ID=${vendonMachineId}`);
       
       // Standardwerte für den Fall, dass die Abfragen fehlschlagen
       let todayAlcoholCount = 0;
@@ -1547,9 +1464,8 @@ export class DatabaseStorage implements IStorage {
       
       try {
         // Heutige Alkohol-Transaktionen
-        const todayAlcoholResult = await this.db.query(todayAlcoholQuery, [
-          internalMachineId,
-          vendonMachineId,
+        const todayAlcoholResult = await rawDb.query(todayAlcoholQuery, [
+          String(internalMachineId),
           today.toISOString(), 
           tomorrow.toISOString()
         ]);
@@ -1562,17 +1478,13 @@ export class DatabaseStorage implements IStorage {
         const weekAlcoholQuery = `
           SELECT COUNT(*) AS count
           FROM transactions 
-          WHERE (
-            machine_id = $1
-            OR vendon_id = $2
-          )
-          AND datetime >= $3 AND datetime < $4
+          WHERE machine_id = $1
+          AND datetime >= $2 AND datetime < $3
           AND (${likeConditions})
         `;
         
-        const weekAlcoholResult = await this.db.query(weekAlcoholQuery, [
-          internalMachineId,
-          vendonMachineId,
+        const weekAlcoholResult = await rawDb.query(weekAlcoholQuery, [
+          String(internalMachineId),
           oneWeekAgo.toISOString(), 
           today.toISOString()
         ]);
@@ -1585,17 +1497,13 @@ export class DatabaseStorage implements IStorage {
         const monthAlcoholQuery = `
           SELECT COUNT(*) AS count
           FROM transactions 
-          WHERE (
-            machine_id = $1
-            OR vendon_id = $2
-          )
-          AND datetime >= $3 AND datetime < $4
+          WHERE machine_id = $1
+          AND datetime >= $2 AND datetime < $3
           AND (${likeConditions})
         `;
         
-        const monthAlcoholResult = await this.db.query(monthAlcoholQuery, [
-          internalMachineId,
-          vendonMachineId,
+        const monthAlcoholResult = await rawDb.query(monthAlcoholQuery, [
+          String(internalMachineId),
           oneMonthAgo.toISOString(), 
           today.toISOString()
         ]);
@@ -1625,18 +1533,23 @@ export class DatabaseStorage implements IStorage {
       };
     } catch (error) {
       console.error("[ERROR] Fehler beim Abrufen der Maschinenstatistiken:", error);
-      return {
-        todayTransactions: 0,
-        todayRevenue: 0,
-        lastSale: null,
-        lastCashlessSale: null,
-        alcoholSales: {
-          today: 0,
-          weekAvg: 0,
-          monthAvg: 0
-        }
-      };
+      return this.getEmptyStats();
     }
+  }
+  
+  // Hilfsmethode für leere Statistik-Struktur
+  private getEmptyStats() {
+    return {
+      todayTransactions: 0,
+      todayRevenue: 0,
+      lastSale: null,
+      lastCashlessSale: null,
+      alcoholSales: {
+        today: 0,
+        weekAvg: 0,
+        monthAvg: 0
+      }
+    };
   }
 
   async createTransaction(transaction: InsertTransaction): Promise<Transaction> {
