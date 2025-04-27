@@ -1052,52 +1052,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // GET /machines/:id/daily-stats - Tägliche KPIs für einen Automaten abrufen
   app.get(`${API_PREFIX}/machines/:id/daily-stats`, async (req: Request, res: Response) => {
     try {
-      const machineId = parseInt(req.params.id);
+      const machineVendonId = parseInt(req.params.id); // Dies ist die Vendon-ID des Automaten
       
-      if (isNaN(machineId)) {
+      if (isNaN(machineVendonId)) {
         return res.status(400).json({ error: "Ungültige Automaten-ID" });
       }
 
-      console.log(`[INFO] Abrufen von täglichen KPIs für Maschine ${machineId}`);
+      console.log(`[INFO] Abrufen von täglichen KPIs für Maschine mit Vendon-ID ${machineVendonId}`);
       
-      // DIREKTE DIAGNOSE: Prüfe ob Transaktionen vorhanden sind
+      // 1. Zuerst die interne Maschinen-ID für die übergebene Vendon-ID abrufen
+      let internalMachineId = null;
       try {
-        const rawTransactionResult = await storage.db.raw(
-          `SELECT id, machine_id, machine_name, datetime, vendon_id, product_name 
-           FROM transactions 
-           WHERE machine_id::text = ? OR machine_id = ? 
-           ORDER BY datetime DESC 
-           LIMIT 10`,
-          [String(machineId), machineId]
-        );
-        
-        console.log(`[DIAGNOSE] Transaktionen für Automat ${machineId} gefunden: ${rawTransactionResult.rows.length}`);
-        if (rawTransactionResult.rows.length > 0) {
-          console.log(`[DIAGNOSE] Erste Transaktion:`, JSON.stringify(rawTransactionResult.rows[0]));
+        const machineResult = await storage.db.select({ id: machines.id })
+          .from(machines)
+          .where(eq(machines.vendonId, String(machineVendonId)))
+          .limit(1);
+          
+        if (machineResult.length > 0) {
+          internalMachineId = machineResult[0].id;
+          console.log(`[INFO] Interne Maschinen-ID ${internalMachineId} für Vendon-ID ${machineVendonId} gefunden`);
+        } else {
+          console.log(`[WARNING] Keine interne Maschinen-ID für Vendon-ID ${machineVendonId} gefunden`);
         }
-      } catch (diagError) {
-        console.error(`[DIAGNOSE] Fehler bei Direkt-Diagnose:`, diagError);
+      } catch (err) {
+        console.error(`[ERROR] Fehler beim Abrufen der internen Maschinen-ID für Vendon-ID ${machineVendonId}:`, err);
+      }
+      
+      // DIREKTE DIAGNOSE: Prüfe ob Transaktionen mit der internen ID vorhanden sind
+      if (internalMachineId) {
+        try {
+          const rawTransactionResult = await storage.db.raw(
+            `SELECT id, machine_id, machine_name, datetime, vendon_id, product_name 
+             FROM transactions 
+             WHERE machine_id = ? 
+             ORDER BY datetime DESC 
+             LIMIT 10`,
+            [internalMachineId]
+          );
+          
+          console.log(`[DIAGNOSE] Transaktionen für Automat ${machineVendonId} (interne ID ${internalMachineId}) gefunden: ${rawTransactionResult.rows.length}`);
+          if (rawTransactionResult.rows.length > 0) {
+            console.log(`[DIAGNOSE] Erste Transaktion:`, JSON.stringify(rawTransactionResult.rows[0]));
+          }
+        } catch (diagError) {
+          console.error(`[DIAGNOSE] Fehler bei Direkt-Diagnose:`, diagError);
+        }
       }
       
       try {
         // Ruft die Storage-Methode auf, um die Tagesstatistiken abzurufen
-        const stats = await storage.getMachineDailyStats(machineId);
-        console.log(`[DEBUG] Statistiken für Maschine ${machineId} abgerufen:`, JSON.stringify(stats));
+        // und übergibt die interne ID, falls verfügbar, sonst die Vendon-ID als Fallback
+        const stats = await storage.getMachineDailyStats(internalMachineId || machineVendonId);
+        console.log(`[DEBUG] Statistiken für Maschine ${machineVendonId} abgerufen:`, JSON.stringify(stats));
         
         // Füge spezifisches Debug-Log für lastSale hinzu
         if (stats.lastSale) {
-          console.log(`[DEBUG] lastSale für Maschine ${machineId} gefunden:`, 
+          console.log(`[DEBUG] lastSale für Maschine ${machineVendonId} gefunden:`, 
             typeof stats.lastSale === 'object' ? 
               (stats.lastSale.datetime ? new Date(stats.lastSale.datetime).toISOString() : "Kein datetime-Feld") : 
               "Kein Objekt");
         } else {
-          console.log(`[DEBUG] Kein lastSale für Maschine ${machineId} gefunden!`);
+          console.log(`[DEBUG] Kein lastSale für Maschine ${machineVendonId} gefunden!`);
         }
         
         res.json(stats);
       } catch (storageError) {
         // Detaillierter Fehler-Log der Storage-Methode
-        console.error(`[ERROR] Storage-Fehler für Maschine ${machineId}:`, storageError);
+        console.error(`[ERROR] Storage-Fehler für Maschine ${machineVendonId}:`, storageError);
         console.error(`Stack Trace:`, storageError instanceof Error ? storageError.stack : 'Kein Stack Trace verfügbar');
         
         // Fallback für Fehlerfall: Leere Statistik-Struktur
