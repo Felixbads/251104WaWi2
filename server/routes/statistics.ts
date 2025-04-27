@@ -1148,21 +1148,27 @@ router.get('/machines/:id/analytics', async (req, res) => {
     ]);
 
     // Zeitreihenabfrage für Transaktionen pro Tag
-    const timeSeriesData = await db.select({
-      date: sql<string>`DATE(${transactions.datetime})`,
-      count: count(),
-      revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`
-    })
-    .from(transactions)
-    .where(
-      and(
-        eq(transactions.machineId, Number(id)),
-        gte(transactions.datetime, startDateStr),
-        lte(transactions.datetime, endDateStr)
+    let timeSeriesData = [];
+    try {
+      timeSeriesData = await db.select({
+        date: sql<string>`DATE(${transactions.datetime})`,
+        count: count(),
+        revenue: sql<number>`COALESCE(SUM(${transactions.price}), 0)`
+      })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.machineId, Number(id)),
+          gte(sql`${transactions.datetime}::text`, sql`${startDateStr}::text`),
+          lte(sql`${transactions.datetime}::text`, sql`${endDateStr}::text`)
+        )
       )
-    )
-    .groupBy(sql`DATE(${transactions.datetime})`)
-    .orderBy(asc(sql`DATE(${transactions.datetime})`));
+      .groupBy(sql`DATE(${transactions.datetime})`)
+      .orderBy(asc(sql`DATE(${transactions.datetime})`));
+    } catch (error) {
+      console.error('Fehler bei der Zeitreihenabfrage:', error);
+      timeSeriesData = [];
+    }
 
     // Wetterdaten für denselben Zeitraum abrufen, falls vorhanden
     let weatherDataResults = [];
@@ -1176,8 +1182,8 @@ router.get('/machines/:id/analytics', async (req, res) => {
       .from(weatherData)
       .where(
         and(
-          gte(sql`date(${weatherData.timestamp})`, sql`date(${startDateStr})`),
-          lte(sql`date(${weatherData.timestamp})`, sql`date(${endDateStr})`)
+          gte(sql`date(${weatherData.timestamp}::text)`, sql`date(${startDateStr}::text)`),
+          lte(sql`date(${weatherData.timestamp}::text)`, sql`date(${endDateStr}::text)`)
         )
       )
       .groupBy(weatherData.date)
