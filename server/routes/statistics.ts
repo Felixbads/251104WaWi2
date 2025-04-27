@@ -1016,6 +1016,7 @@ router.get('/machines/:id/analytics', async (req, res) => {
     }
 
     // Formatiere Termine als ISO-Datumsstrings für SQL-Abfragen
+    // Konvertiere die Daten sicher in ISO-Strings für die Datenbankabfrage
     const startDateStr = startDate instanceof Date ? startDate.toISOString() : new Date().toISOString();
     const endDateStr = endDate instanceof Date ? endDate.toISOString() : new Date().toISOString();
 
@@ -1160,8 +1161,8 @@ router.get('/machines/:id/analytics', async (req, res) => {
       machineInfo: machineInfo[0] || null,
       periodAnalysis: {
         period: period,
-        startDate: startDate instanceof Date ? startDate.toISOString() : new Date().toISOString(),
-        endDate: endDate instanceof Date ? endDate.toISOString() : new Date().toISOString(),
+        startDate: startDateStr, // Verwende den bereits formatierten String
+        endDate: endDateStr, // Verwende den bereits formatierten String
         transactionStats: transactionStats[0] || { count: 0, totalRevenue: 0, avgPrice: 0 },
         eventCounts: eventCounts || [],
         refillStats: refillStats[0] || { count: 0, lastRefill: null }
