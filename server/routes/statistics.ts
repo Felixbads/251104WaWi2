@@ -1142,7 +1142,7 @@ router.get('/machines/:id/analytics', async (req, res) => {
     // Wetterdaten für denselben Zeitraum abrufen, falls vorhanden
     const weatherDataResults = await db.select({
       date: weatherData.date,
-      avgTemperature: avg(weatherData.temperature),
+      avgTemperature: avg(weatherData.temp), // Korrektur: temp statt temperature
       precipitation: sum(weatherData.precipitation),
       conditions: weatherData.weather_main
     })
