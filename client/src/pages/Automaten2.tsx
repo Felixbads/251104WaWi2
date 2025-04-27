@@ -64,8 +64,8 @@ export default function Automaten2() {
             const stats = await response.json();
             
             // Tägliche Transaktionen und Umsatz
-            machine.todayTransactions = stats.todayTransactions || 0;
-            machine.todayRevenue = stats.todayRevenue || 0;
+            machine.todayTransactions = stats.todayTransactions !== null ? stats.todayTransactions : undefined;
+            machine.todayRevenue = stats.todayRevenue !== null ? stats.todayRevenue : undefined;
             
             // Letzter Verkauf
             if (stats.lastSale) {
@@ -74,11 +74,15 @@ export default function Automaten2() {
                   machine.lastSale = new Date(stats.lastSale.datetime).toISOString();
                 } else if (typeof stats.lastSale === 'string') {
                   machine.lastSale = new Date(stats.lastSale).toISOString();
+                } else {
+                  console.log(`Unerwartetes Format für lastSale: ${JSON.stringify(stats.lastSale)}`);
                 }
               } catch (dateError) {
                 console.error('Fehler bei der Datums-Formatierung:', dateError);
                 machine.lastSale = undefined;
               }
+            } else {
+              console.log(`Keine lastSale-Daten für Maschine ${machine.id}`);
             }
             
             // Letzter Alkoholverkauf
@@ -303,7 +307,7 @@ export default function Automaten2() {
                     <div className="font-medium text-sm">
                       {machine.lastSale 
                         ? formatDateTime(machine.lastSale, 'datetime')
-                        : '–'}
+                        : 'Keine Daten'}
                     </div>
                   </div>
                   
@@ -312,7 +316,7 @@ export default function Automaten2() {
                       <ShoppingCart className="h-3 w-3 mr-1" /> Transaktionen heute
                     </div>
                     <div className="font-medium text-sm">
-                      {machine.todayTransactions || 0}
+                      {machine.todayTransactions !== undefined ? machine.todayTransactions : 'Keine Daten'}
                     </div>
                   </div>
                   
@@ -321,7 +325,7 @@ export default function Automaten2() {
                       <Euro className="h-3 w-3 mr-1" /> Umsatz heute
                     </div>
                     <div className="font-medium text-sm">
-                      {machine.todayRevenue?.toFixed(2) || '0.00'} €
+                      {machine.todayRevenue !== undefined ? `${machine.todayRevenue.toFixed(2)} €` : 'Keine Daten'}
                     </div>
                   </div>
                   
@@ -330,7 +334,7 @@ export default function Automaten2() {
                       <Clock className="h-3 w-3 mr-1" /> Vor
                     </div>
                     <div className="font-medium text-sm">
-                      {machine.lastSale ? formatTimeSince(machine.lastSale) : '–'}
+                      {machine.lastSale ? formatTimeSince(machine.lastSale) : 'Keine Daten'}
                     </div>
                   </div>
                 </div>
