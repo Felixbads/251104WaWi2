@@ -36,7 +36,7 @@ interface EnhancedMachine extends Machine {
 export default function Automaten2() {
   const [searchTerm, setSearchTerm] = useState("");
   const [, setLocation] = useLocation();
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   // Daten abrufen und aktuelle Werte aus der API verwenden
   const { data: machines, isLoading, error, refetch } = useQuery({
@@ -142,7 +142,7 @@ export default function Automaten2() {
     if (!machine || !machine.machineName || machine.id === 1) return false;
 
     const matchesSearch = machine.machineName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = !statusFilter || machine.status === statusFilter;
+    const matchesStatus = !statusFilter || statusFilter === 'all' || machine.status === statusFilter;
 
     return matchesSearch && matchesStatus;
   }) || [];
@@ -241,12 +241,12 @@ export default function Automaten2() {
             />
           </div>
           
-          <Select value={statusFilter ?? ''} onValueChange={(value) => setStatusFilter(value || null)}>
+          <Select value={statusFilter ?? 'all'} onValueChange={(value) => setStatusFilter(value)}>
             <SelectTrigger className="w-full sm:w-[150px]">
               <div className="flex items-center">
                 <SlidersHorizontal className="h-4 w-4 mr-2" />
                 <span>
-                  {!statusFilter ? 'Status: Alle' : 
+                  {!statusFilter || statusFilter === 'all' ? 'Status: Alle' : 
                    statusFilter === 'active' ? 'Status: Aktiv' : 
                    statusFilter === 'inactive' ? 'Status: Inaktiv' : 
                    statusFilter}
@@ -254,7 +254,7 @@ export default function Automaten2() {
               </div>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Alle</SelectItem>
+              <SelectItem value="all">Alle</SelectItem>
               <SelectItem value="active">Aktiv</SelectItem>
               <SelectItem value="inactive">Inaktiv</SelectItem>
               <SelectItem value="error">Fehler</SelectItem>
