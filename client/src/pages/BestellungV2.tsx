@@ -14,6 +14,7 @@ import {
   Send,
   Boxes,
   ArrowRight,
+  Mail,
   Save,
   Loader2,
   Check,
@@ -57,7 +58,7 @@ import OrdersOverview from '@/components/orderv2/OrdersOverview';
 import { Badge } from '@/components/ui/badge';
 
 // Define the order steps
-type OrderStep = 'overview' | 'warehouse' | 'mode' | 'supplier' | 'products' | 'additionalInfo' | 'summary' | 'goodsReceipt' | 'warehouseReceiptOfExistingOrder';
+type OrderStep = 'overview' | 'warehouse' | 'mode' | 'supplier' | 'products' | 'additionalInfo' | 'summary' | 'sendOrder' | 'goodsReceipt' | 'warehouseReceiptOfExistingOrder';
 
 const BestellungV2: React.FC = () => {
   const { toast } = useToast();
@@ -269,6 +270,8 @@ const BestellungV2: React.FC = () => {
       case 'additionalInfo':
         return 'summary';
       case 'summary':
+        return 'sendOrder';
+      case 'sendOrder':
         return 'goodsReceipt';
       case 'goodsReceipt':
         return null; // Last step
@@ -459,6 +462,9 @@ const BestellungV2: React.FC = () => {
           throw new Error(`Fehler beim Abrufen der Bestelldaten: ${response.statusText}`);
         }
         orderData = await response.json();
+        
+        // Bestelldaten für die Verwendung im Email-Dialog speichern
+        setExistingOrderData(orderData);
       } catch (error) {
         toast({
           title: 'Fehler beim Abrufen der Bestelldaten',
@@ -775,6 +781,46 @@ const BestellungV2: React.FC = () => {
             onStartNewOrder={handleStartNewOrder}
           />
         );
+      case 'sendOrder':
+        return (
+          <div className="space-y-6">
+            <Alert>
+              <AlertTitle>Bestellung versenden</AlertTitle>
+              <AlertDescription>
+                Klicken Sie auf den Button, um die Bestellung per E-Mail an den Lieferanten zu senden.
+                Sie können die PDF-Vorschau und den E-Mail-Text vor dem Versand überprüfen.
+              </AlertDescription>
+            </Alert>
+            
+            <div className="flex flex-col space-y-4 items-center">
+              <Button 
+                onClick={() => generatePDFAndSendEmail(orderId)}
+                className="w-full md:w-auto"
+              >
+                <Mail className="mr-2 h-4 w-4" />
+                Bestellung per E-Mail senden
+              </Button>
+              
+              {existingOrderData && (
+                <div className="w-full md:w-2/3 text-center">
+                  <h3 className="text-lg font-medium mb-2">Bestellungsinformationen</h3>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="font-semibold text-right">Bestellnummer:</div>
+                    <div className="text-left">{existingOrderData.orderNumber}</div>
+                    <div className="font-semibold text-right">Lieferant:</div>
+                    <div className="text-left">{existingOrderData.supplierName}</div>
+                    <div className="font-semibold text-right">Lieferdatum:</div>
+                    <div className="text-left">
+                      {existingOrderData.expectedDeliveryDate ? 
+                        new Date(existingOrderData.expectedDeliveryDate).toLocaleDateString('de-DE') : 
+                        'Nicht festgelegt'}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
       case 'warehouse':
         return (
           <WarehouseSelector
@@ -1065,6 +1111,11 @@ const BestellungV2: React.FC = () => {
       description: 'Überprüfen Sie die Bestellung und schließen Sie sie ab.',
       icon: <ClipboardCheck className="h-6 w-6" />,
     },
+    sendOrder: {
+      title: 'Bestellung versenden',
+      description: 'Bestellung per E-Mail an den Lieferanten senden.',
+      icon: <Mail className="h-6 w-6" />,
+    },
     goodsReceipt: {
       title: 'Wareneingang',
       description: 'Erfassen Sie den Wareneingang, sobald die Lieferung eingetroffen ist.',
@@ -1113,7 +1164,7 @@ const BestellungV2: React.FC = () => {
           <CardContent className="pt-6">
             <Steps 
               currentStep={
-                ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'goodsReceipt']
+                ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'sendOrder', 'goodsReceipt']
                 .indexOf(step)
               }
               steps={[
@@ -1140,6 +1191,10 @@ const BestellungV2: React.FC = () => {
                 {
                   title: "Abschluss",
                   description: "Bestellung abschließen"
+                },
+                {
+                  title: "E-Mail",
+                  description: "Bestellung versenden"
                 },
                 {
                   title: "Wareneingang",

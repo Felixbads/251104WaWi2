@@ -1,0 +1,162 @@
+Problemübersicht
+	1.	E-Mail-Versand schlägt fehl
+400 Bad Request: {"error":"Eine gültige E-Mail-Adresse des Empfängers muss angegeben werden"}
+	2.	Mail-Vorlagen werden nicht geladen
+	3.	PDF-Vorschau nur halb so groß
+	4.	Lieferanten-E-Mail fehlt aus Stammdaten
+	5.	„Bestellung versenden“ soll eigene Prozess-Seite sein, nicht derselbe Schritt wie Wareneingang
+	6.	Wareneingang zeigt nicht die bestellten Produkte, keine Übersichtstabelle
+
+⸻
+
+1. E-Mail-Adresse fehlt → 400 Bad Request
+
+Analyse
+	•	In generatePDFAndSendEmail() wird ein fetch('/api/orders/${orderId}') durchgeführt, aber die Antwort nie in existingOrderData gespeichert.
+	•	OrderEmailDialog bekommt supplierEmail={existingOrderData?.supplierEmail || ''} → leer → Backend beschwert sich, dass keine gültige Empfänger-Adresse gesendet wurde.
+
+Lösung
+	•	Nach dem erfolgreichen Abruf der Order-Details das Ergebnis in State speichern:
+
+const response = await fetch(`/orders/${orderIdToUse}`);
+const fullOrder = await response.json();
+setExistingOrderData(fullOrder);    // ← neu
+
+
+	•	Dann öffnest Du den Dialog erst, nach setExistingOrderData, sodass existingOrderData.supplierEmail nicht mehr leer ist.
+
+⸻
+
+2. Mail-Vorlagen werden nicht geladen
+
+Analyse
+	•	OrderEmailDialog muss per React-Query oder useEffect die Templates vom Server holen.
+	•	Wenn im Dialog keine useQuery(['mailTemplates'], fetchTemplates) existiert oder der Endpunkt falsch ist, bleibt die Liste leer.
+
+Lösung
+	•	In OrderEmailDialog (bzw. im Parent)
+
+const { data: templates, isLoading } = useQuery(
+  ['mailTemplates'],
+  () => apiRequest('/mail-templates', {}, 'get')
+);
+
+
+	•	Im Dialog ein <Select> bauen, das templates als Options rendert, und auf Fehler/Loading reagieren.
+
+⸻
+
+3. PDF-Vorschau nur halb so groß
+
+Analyse
+	•	Das <object data={…} width="100%" height="600px"> steckt in einem Container, der nur 50% Breite hat.
+	•	Inline-Styles oder Tailwind-Klassen fehlen, um volle Fläche zu nutzen.
+
+Lösung
+	•	Sorge dafür, dass der Wrapper volle Breite einnimmt, z. B.
+
+<div className="w-full h-[80vh]">
+  <object
+    data={URL.createObjectURL(pdfBlob)}
+    type="application/pdf"
+    width="100%"
+    height="100%"
+  />
+</div>
+
+
+	•	Alternativ via CSS: style={{ width: '100%', height: '100%' }}.
+
+⸻
+
+4. Lieferanten-E-Mail wird nicht aus Stammdaten geladen
+
+-> Verbindung zu Punkt 1
+
+	•	Ohne existingOrderData bleibt das Feld leer.
+
+Siehe Lösung unter 1.
+
+⸻
+
+5. „Bestellung versenden“ als eigener Prozess-Schritt
+
+Analyse
+	•	Aktuell: Nach summary springst Du direkt per setStep('goodsReceipt') in den Wareneingang, und der Mail-Dialog ist nur ein Modal.
+	•	Es fehlt ein dedizierter Step email (oder sendOrder).
+
+Lösung
+	1.	Erweitere die Step-Union:
+
+type OrderStep = … | 'sendOrder' | 'goodsReceipt';
+
+
+	2.	Passe getNextStep() an:
+
+case 'summary':   return 'sendOrder';
+case 'sendOrder': return 'goodsReceipt';
+
+
+	3.	Ersetze den Modal-Dialog durch eine eigene Page-Komponente:
+
+case 'sendOrder':
+  return (
+    <OrderEmailPage
+      order={existingOrderData!}
+      pdfBlob={pdfBlob!}
+      onSent={() => setStep('goodsReceipt')}
+    />
+  );
+
+
+	4.	Im Page-Layout zeigst Du dann zuerst PDF-Vorschau, Mail-Editor und „Senden“-Button – komplett ohne Modal.
+
+⸻
+
+6. Wareneingang ohne Übersicht der bestellten Produkte
+
+Analyse
+	•	In case 'goodsReceipt' renderst Du nur eine Bestätigungs-Karte und Buttons für E-Mail-erneut und Download.
+	•	Kein Tabelle/Komponente, die selectedProducts oder existingOrderData.items anzeigt.
+
+Lösung
+	•	Hole Dir in diesem Step (goodsReceipt) die voll­ständigen Order-Daten (falls noch nicht geschehen) und rendere eine Produktliste:
+
+case 'goodsReceipt':
+  return (
+    <GoodsReceiptPage order={existingOrderData!}>
+      <table className="w-full">
+        <thead>…</thead>
+        <tbody>
+          {existingOrderData.items.map(item => (
+            <tr key={item.productId}>
+              <td>{item.productName}</td>
+              <td>{item.quantity}</td>
+              … 
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {/* Buttons zum Abschließen des Wareneingangs */}
+    </GoodsReceiptPage>
+  );
+
+
+
+⸻
+
+Zusammenfassung & Fahrplan
+
+Schritt	Aufgabe
+1. Datenfluss fixen	Nach Order-Fetch setExistingOrderData(fullOrder) und nutze existingOrderData.supplierEmail
+2. Mail-Templates implementieren	useQuery(['mailTemplates'], …) im Dialog/Page
+3. PDF-Container ausweiten	Wrapper w-full h-[80vh], <object width="100%" height="100%">
+4. Neuen Step „sendOrder“	Union-Type, getNextStep(), case 'sendOrder' → OrderEmailPage
+5. Wareneingang erweitern	case 'goodsReceipt' → GoodsReceiptPage mit Tabelle der order.items
+6. Einheitliche Query-Keys	überall ['orders']; invalidateQueries(['orders'])
+
+Setze diese Punkte der Reihe nach um:
+	1.	Sanity-Check: existingOrderData füllt sich wirklich mit allen Feldern (inkl. supplierEmail, items).
+	2.	UI-Flows: Vorschau → Mail → Versand (eigene Seite) → Wareneingang (eigene Seite).
+	3.	Backend-Routen: /orders/:id, /mail-templates, /orders/:id/email (POST mit { subject, body }).
+	4.	Testen: Nach jeder Änderung lokal prüfen, dass kein 400 mehr kommt, PDF korrekt angezeigt wird, Templates auswählbar sind und Wareneingang alle Artikel listet.
