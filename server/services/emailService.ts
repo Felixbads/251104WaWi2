@@ -1,42 +1,42 @@
-import { MailService } from '@sendgrid/mail';
 import path from 'path';
 import fs from 'fs';
 import nodemailer from 'nodemailer';
+import Mail from 'nodemailer/lib/mailer';
 
-// SMTP-Konfiguration
-const useSmtp = process.env.USE_SMTP === 'true';
-
-// Einrichtung für SendGrid
-let mailService: MailService | null = null;
-
-// Prüfen, ob SendGrid API-Key vorhanden ist
-if (process.env.SENDGRID_API_KEY) {
-  mailService = new MailService();
-  mailService.setApiKey(process.env.SENDGRID_API_KEY);
-  console.log('SendGrid E-Mail-Service initialisiert');
-} else {
-  console.log('SendGrid API-Key nicht gefunden, verwende Fallback-Methode für E-Mails');
-}
+// SMTP-Konfiguration - standardmäßig aktiviert, wenn SMTP-Einstellungen vorhanden sind
+const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD);
+console.log(`SMTP-Konfiguration: ${smtpConfigured ? 'Verfügbar' : 'Nicht verfügbar'}`);
 
 // Einrichtung für Nodemailer (SMTP)
-let smtpTransporter: any = null;
+let smtpTransporter: Mail | null = null;
 
-// SMTP-Konfiguration, falls aktiviert
-if (useSmtp) {
+// SMTP-Konfiguration, wenn Zugangsdaten vorhanden sind
+if (smtpConfigured) {
   try {
     smtpTransporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || 'smtp.example.com',
+      host: process.env.SMTP_HOST,
       port: parseInt(process.env.SMTP_PORT || '587'),
       secure: process.env.SMTP_SECURE === 'true',
       auth: {
-        user: process.env.SMTP_USER || '',
-        pass: process.env.SMTP_PASSWORD || '',
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASSWORD,
       },
+      // Zertifikatsfehler ignorieren (nur für Entwicklung, nicht für Produktion)
+      tls: {
+        rejectUnauthorized: false
+      }
     });
-    console.log('SMTP-Transporter initialisiert');
+    console.log('SMTP-Transporter erfolgreich initialisiert');
+    
+    // Verbindung testen
+    smtpTransporter.verify()
+      .then(() => console.log('SMTP-Verbindung erfolgreich getestet'))
+      .catch(err => console.error('SMTP-Verbindungstest fehlgeschlagen:', err));
   } catch (error) {
     console.error('Fehler beim Initialisieren des SMTP-Transporters:', error);
   }
+} else {
+  console.log('Keine SMTP-Konfiguration gefunden. E-Mails werden simuliert und lokal gespeichert.');
 }
 
 interface EmailParams {
@@ -53,46 +53,28 @@ interface EmailParams {
 }
 
 /**
- * Sendet eine E-Mail über SendGrid oder SMTP
+ * Sendet eine E-Mail über SMTP oder simuliert sie für die Entwicklung
  */
 export async function sendEmail(params: EmailParams): Promise<boolean> {
   const from = params.from || 'info@elbsandstein-proviant.de';
 
   try {
-    // 1. Versuch: SendGrid API verwenden
-    if (mailService) {
-      await mailService.send({
-        to: params.to,
+    // Wenn SMTP konfiguriert ist, versuche E-Mail zu senden
+    if (smtpConfigured && smtpTransporter) {
+      const result = await smtpTransporter.sendMail({
         from: from,
+        to: params.to,
         subject: params.subject,
         text: params.text || params.subject, // Fallback zum Betreff, wenn kein Text vorhanden
         html: params.html,
         attachments: params.attachments?.map(attachment => ({
-          content: attachment.content.toString('base64'),
-          filename: attachment.filename,
-          type: attachment.contentType || 'application/pdf',
-          disposition: 'attachment'
-        }))
-      });
-      console.log(`E-Mail über SendGrid gesendet an: ${params.to}`);
-      return true;
-    }
-    
-    // 2. Versuch: SMTP verwenden
-    if (useSmtp && smtpTransporter) {
-      await smtpTransporter.sendMail({
-        from: from,
-        to: params.to,
-        subject: params.subject,
-        text: params.text,
-        html: params.html,
-        attachments: params.attachments?.map(attachment => ({
           filename: attachment.filename,
           content: attachment.content,
-          contentType: attachment.contentType
+          contentType: attachment.contentType || 'application/pdf'
         }))
       });
-      console.log(`E-Mail über SMTP gesendet an: ${params.to}`);
+      console.log(`E-Mail über SMTP erfolgreich gesendet an: ${params.to}`);
+      console.log(`Nachrichten-ID: ${result.messageId}`);
       return true;
     }
     

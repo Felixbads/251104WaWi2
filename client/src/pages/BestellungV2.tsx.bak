@@ -1144,7 +1144,12 @@ const BestellungV2: React.FC = () => {
           <CardContent className="pt-6">
             <Steps 
               currentStep={
-                ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'sendOrder', 'goodsReceipt']
+                ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'goodsReceipt']
+                .indexOf(step)
+              }
+              steps={[
+                {
+               sendOrder', 'goodsReceipt']
                 .indexOf(step)
               }
               steps={[
@@ -1178,7 +1183,9 @@ const BestellungV2: React.FC = () => {
                 }
               ]}
               goToStep={(index) => {
-                const steps = ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'sendOrder', 'goodsReceipt'];
+                const steps = ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'goodsReceipt'];
+                // Only allow going to steps that are valid based on current progress
+                sendOrder', 'goodsReceipt'];
                 // Only allow going to steps that are valid based on current progress
                 if (
                   (index === 0) || // Always allow going to first step
@@ -1187,12 +1194,7 @@ const BestellungV2: React.FC = () => {
                   (index === 3 && warehouseId && orderMode && supplierId) || // Products require supplier
                   (index === 4 && warehouseId && orderMode && supplierId && selectedProducts.length > 0) || // Details require products
                   (index === 5 && warehouseId && orderMode && supplierId && selectedProducts.length > 0 && additionalInfo.expectedDeliveryDate) || // Summary requires details
-                  (index === 6 && orderId) // SendOrder requires an orderId
-                ) {
-                  setStep(steps[index] as OrderStep);
-                }
-              }}
-              allowStepClick={true}
+                  (index === 6 && orderId) // SendOrder requires an orderId      allowStepClick={true}
             />
           </CardContent>
         </Card>
