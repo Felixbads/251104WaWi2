@@ -262,6 +262,7 @@ export interface IStorage {
   getOpenOrders(limit?: number): Promise<Order[]>;
   getRecentlyCompletedOrders(limit?: number): Promise<Order[]>;
   getOrdersBySupplier(supplierId: number): Promise<Order[]>;
+  markOrderAsSent(id: number): Promise<Order | undefined>;
   getOrderStatistics(): Promise<{
     total: number;
     open: number;

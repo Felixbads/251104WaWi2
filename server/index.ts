@@ -9,6 +9,7 @@ import WebSocket from 'ws';
 import http from 'http';
 import inventoryApiRouter from './routes/inventory-api';
 import inventoryRouter from './routes/inventory';
+import emailRouter from './routes/email';
 
 const app = express();
 app.use(express.json());
@@ -50,6 +51,9 @@ app.use((req, res, next) => {
   // Die neuen Inventory-Routen hinzufügen
   app.use(inventoryApiRouter);
   app.use('/api', inventoryRouter);
+  
+  // E-Mail-Route für PDF-Vorschau und Versand hinzufügen
+  app.use('/api', emailRouter);
   
   const server = await registerRoutes(app);
 

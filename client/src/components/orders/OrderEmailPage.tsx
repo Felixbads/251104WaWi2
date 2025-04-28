@@ -55,6 +55,9 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
   const [templates, setTemplates] = useState<any[]>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   
+  // State für aktiven Tab
+  const [activeTab, setActiveTab] = useState<string>("email");
+  
   // State für PDF-Vorschau
   const [isPdfLoading, setIsPdfLoading] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -255,7 +258,7 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
         </CardHeader>
         
         <CardContent>
-          <Tabs defaultValue="email" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="mb-4">
               <TabsTrigger value="email">E-Mail</TabsTrigger>
               <TabsTrigger value="pdf">PDF-Vorschau</TabsTrigger>
