@@ -1,0 +1,203 @@
+You are a PDF‐template generator.  
+Given a JSON object conforming to the schema below, render a clean, well-structured PDF using Handlebars. Use the provided placeholders and table structure exactly as specified.
+
+---
+
+## JSON-Schema
+
+```json
+{
+  "$schema": "http://json-schema.org/draft/2020-12/schema#",
+  "title": "OrderPDF",
+  "type": "object",
+  "properties": {
+    "logo": { "type": "string", "format": "uri" },
+    "company": {
+      "type": "object",
+      "properties": {
+        "name":    { "type": "string" },
+        "address": { "type": "string" },
+        "phone":   { "type": "string" },
+        "email":   { "type": "string", "format": "email" },
+        "taxId":   { "type": "string" },
+        "taxNumber": { "type": "string" }
+      },
+      "required": ["name","address"]
+    },
+    "supplier": {
+      "type": "object",
+      "properties": {
+        "name":       { "type": "string" },
+        "address":    { "type": "string" },
+        "supplierNr": { "type": "string" },
+        "email":      { "type": "string", "format": "email" }
+      },
+      "required": ["name","address","supplierNr"]
+    },
+    "recipient": {
+      "type": "object",
+      "properties": {
+        "billingAddress":  { "type": "string" },
+        "shippingAddress": { "type": "string" }
+      },
+      "required": ["billingAddress","shippingAddress"]
+    },
+    "order": {
+      "type": "object",
+      "properties": {
+        "orderNumber":          { "type": "string" },
+        "createdAt":            { "type": "string", "format": "date-time" },
+        "expectedDeliveryDate": { "type": "string", "format": "date" },
+        "priority":             { "type": "string" },
+        "notes":                { "type": "string" },
+        "warehouseName":        { "type": "string" },
+        "contact": {
+          "type": "object",
+          "properties": {
+            "name":  { "type": "string" },
+            "email": { "type": "string", "format": "email" }
+          }
+        }
+      },
+      "required": ["orderNumber","createdAt","expectedDeliveryDate"]
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "positionNumber": { "type": "integer" },
+          "productId":      { "type": "integer" },
+          "productName":    { "type": "string" },
+          "supplierSku":    { "type": "string" },
+          "quantity":       { "type": "number" },
+          "unit":           { "type": "string" }
+        },
+        "required": ["positionNumber","productId","productName","quantity","unit"]
+      },
+      "minItems": 1
+    },
+    "footer": {
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" }
+      }
+    }
+  },
+  "required": ["company","supplier","recipient","order","items"]
+}
+
+
+
+⸻
+
+Handlebars-Template
+
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 16px; }
+    .header { display: flex; justify-content: space-between; margin-bottom: 24px; }
+    .addresses div { margin-bottom: 8px; }
+    .meta, .items { width: 100%; margin-bottom: 24px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #ddd; padding: 8px; font-size: 12px; }
+    th { background: #f3f3f3; }
+    .footer { text-align: center; font-size: 10px; color: #666; margin-top: 32px; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="logo">
+      <img src="{{logo}}" alt="Logo" style="max-height:60px;" />
+    </div>
+    <div class="addresses">
+      <div>
+        <strong>Absender:</strong><br/>
+        {{company.name}}<br/>
+        {{company.address}}<br/>
+        {{company.phone}}<br/>
+        {{company.email}}
+      </div>
+      <div>
+        <strong>Lieferant:</strong><br/>
+        {{supplier.name}}<br/>
+        {{supplier.address}}<br/>
+        {{supplier.email}}
+      </div>
+    </div>
+  </div>
+
+  <div class="meta">
+    <table>
+      <tr>
+        <th>Bestell-Nr.</th><td>{{order.orderNumber}}</td>
+        <th>Erstellt</th><td>{{order.createdAt}}</td>
+      </tr>
+      <tr>
+        <th>Lieferdatum</th><td>{{order.expectedDeliveryDate}}</td>
+        <th>Priorität</th><td>{{order.priority}}</td>
+      </tr>
+      <tr>
+        <th>Bearbeiter</th><td>{{order.contact.name}}</td>
+        <th>E-Mail</th><td>{{order.contact.email}}</td>
+      </tr>
+      {{#if order.notes}}
+      <tr>
+        <th>Notizen</th><td colspan="3">{{order.notes}}</td>
+      </tr>
+      {{/if}}
+    </table>
+  </div>
+
+  <div class="items">
+    <table>
+      <thead>
+        <tr>
+          <th>Pos.</th>
+          <th>Art.-Nr.</th>
+          <th>Bezeichnung</th>
+          <th>Li.-Art.-Nr.</th>
+          <th>Menge</th>
+          <th>Einheit</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each items}}
+        <tr>
+          <td>{{positionNumber}}</td>
+          <td>{{productId}}</td>
+          <td>{{productName}}</td>
+          <td>{{supplierSku}}</td>
+          <td style="text-align:right">{{quantity}}</td>
+          <td>{{unit}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    {{footer.text}}
+  </div>
+
+</body>
+</html>
+
+
+
+⸻
+
+Aufgabe
+
+Erzeuge aus beliebigen Daten, die dem obigen JSON-Schema entsprechen, HTML mit dem Handlebars-Template und erstelle daraus ein PDF (z. B. mit html2pdf() oder jsPDF + html2canvas).
+
+Gib mir:
+	1.	Den vollständigen Handlebars-Template-Code (orderTemplate.hbs).
+	2.	Ein kurzes Code-Snippet (TypeScript/Node.js), das:
+	•	das Template lädt und mit orderData kompiliert,
+	•	das generierte HTML in ein PDF konvertiert und speichert.
+

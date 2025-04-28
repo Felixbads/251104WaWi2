@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
+import { orderPDFTemplate, formatDate, calculateTotalPrice, formatPrice } from '@/components/orders/PDFTemplate';
 import { format } from 'date-fns';
 import {
   ChevronRight,
@@ -483,63 +484,70 @@ const BestellungV2: React.FC = () => {
       tempDiv.style.background = 'white';
       tempDiv.style.padding = '20px';
       
-      // Bestelldaten in dieses Element einfügen
-      tempDiv.innerHTML = `
-        <div style="font-family: Arial, sans-serif;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 20px;">
-            <div>
-              <h2 style="margin: 0; font-size: 18px;">Bestellung ${orderData.orderNumber || ''}</h2>
-              <p style="margin: 5px 0; font-size: 14px;">Datum: ${orderData.orderDate ? new Date(orderData.orderDate).toLocaleDateString('de-DE') : new Date().toLocaleDateString('de-DE')}</p>
-            </div>
-            <div style="text-align: right;">
-              <h3 style="margin: 0; font-size: 16px;">Nationale Parkverwaltung Sächsische Schweiz</h3>
-              <p style="margin: 5px 0; font-size: 12px;">Nationalpark Zentrum</p>
-              <p style="margin: 5px 0; font-size: 12px;">Dresdner Str. 2B, 01814 Bad Schandau</p>
-            </div>
-          </div>
-          
-          <div style="margin-top: 30px;">
-            <h3 style="margin: 0; font-size: 16px;">Lieferant:</h3>
-            <p style="margin: 5px 0; font-size: 14px;">${orderData.supplierName || supplierName}</p>
-          </div>
-          
-          <div style="margin-top: 15px;">
-            <h3 style="margin: 0; font-size: 16px;">Lieferadresse:</h3>
-            <p style="margin: 5px 0; font-size: 14px;">${orderData.locationName || warehouseName}</p>
-          </div>
-          
-          <div style="margin-top: 30px;">
-            <h3 style="margin: 0; font-size: 16px; border-bottom: 1px solid #ddd; padding-bottom: 5px;">Bestellpositionen</h3>
-            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
-              <tr style="background-color: #f3f4f6;">
-                <th style="text-align: left; padding: 8px; font-size: 14px;">Produkt</th>
-                <th style="text-align: right; padding: 8px; font-size: 14px;">Preis</th>
-                <th style="text-align: right; padding: 8px; font-size: 14px;">Menge</th>
-                <th style="text-align: right; padding: 8px; font-size: 14px;">Gesamt</th>
-              </tr>
-              ${(orderData.orderItems || selectedProducts).map((item: any, index: number) => `
-                <tr style="border-bottom: 1px solid #eee;">
-                  <td style="text-align: left; padding: 8px; font-size: 14px;">${item.productName || item.name}</td>
-                  <td style="text-align: right; padding: 8px; font-size: 14px;">${(item.unitPrice || item.price || 0).toFixed(2)} €</td>
-                  <td style="text-align: right; padding: 8px; font-size: 14px;">${item.quantity || item.orderQuantity}</td>
-                  <td style="text-align: right; padding: 8px; font-size: 14px;">${((item.unitPrice || item.price || 0) * (item.quantity || item.orderQuantity)).toFixed(2)} €</td>
-                </tr>
-              `).join('')}
-              <tr style="font-weight: bold;">
-                <td colspan="3" style="text-align: right; padding: 8px; font-size: 14px;">Gesamtsumme:</td>
-                <td style="text-align: right; padding: 8px; font-size: 14px;">${orderData.totalAmount ? orderData.totalAmount.toFixed(2) : (orderData.orderItems ? calculateTotal(orderData.orderItems) : calculateTotal(selectedProducts)).toFixed(2)} €</td>
-              </tr>
-            </table>
-          </div>
-          
-          <div style="margin-top: 30px;">
-            <h3 style="margin: 0; font-size: 16px;">Zusätzliche Informationen:</h3>
-            <p style="margin: 5px 0; font-size: 14px;">Lieferdatum: ${orderData.expectedDeliveryDate ? new Date(orderData.expectedDeliveryDate).toLocaleDateString('de-DE') : additionalInfo.expectedDeliveryDate ? additionalInfo.expectedDeliveryDate.toLocaleDateString('de-DE') : 'Nicht festgelegt'}</p>
-            <p style="margin: 5px 0; font-size: 14px;">Priorität: ${orderData.priority || additionalInfo.priority || 'Normal'}</p>
-            ${(orderData.notes || additionalInfo.notes) ? `<p style="margin: 5px 0; font-size: 14px;">Anmerkungen: ${orderData.notes || additionalInfo.notes}</p>` : ''}
-          </div>
-        </div>
-      `;
+      // Bestelldaten vorbereiten
+      const orderItems = orderData.orderItems || selectedProducts;
+      
+      // Berechne Gesamtsumme, MwSt und Bruttobetrag
+      const totalAmount = orderItems.reduce((sum: number, item: any) => {
+        const price = item.unitPrice || item.price || 0;
+        const quantity = item.quantity || item.orderQuantity || 0;
+        return sum + (price * quantity);
+      }, 0);
+      
+      const vatAmount = parseFloat((totalAmount * 0.19).toFixed(2));
+      const totalWithTax = parseFloat((totalAmount + vatAmount).toFixed(2));
+      
+      // Handlebars-Template mit den Daten füllen (manuell, ohne Handlebars-Bibliothek)
+      let htmlContent = orderPDFTemplate;
+      
+      // Ersetze die Template-Variablen durch die tatsächlichen Werte
+      htmlContent = htmlContent
+        .replace(/{{supplierName}}/g, orderData.supplierName || supplierName)
+        .replace(/{{supplierAddress}}/g, orderData.supplierAddress || "Adresse nicht verfügbar")
+        .replace(/{{supplierEmail}}/g, orderData.supplierEmail || "")
+        .replace(/{{orderNumber}}/g, orderData.orderNumber || "")
+        .replace(/{{orderDate}}/g, formatDate(orderData.orderDate || new Date()))
+        .replace(/{{expectedDeliveryDate}}/g, formatDate(orderData.expectedDeliveryDate || additionalInfo.expectedDeliveryDate))
+        .replace(/{{priority}}/g, orderData.priority || additionalInfo.priority || "Normal")
+        .replace(/{{warehouseName}}/g, orderData.warehouseName || orderData.locationName || warehouseName || "")
+        .replace(/{{notes}}/g, orderData.notes || additionalInfo.notes || "");
+      
+      // Ersetze die {{#if notes}} Bedingung
+      if (!orderData.notes && !additionalInfo.notes) {
+        htmlContent = htmlContent.replace(/{{#if notes}}[\s\S]*?{{\/if}}/g, '');
+      }
+      
+      // Ersetze die {{#each items}} Schleife manuell
+      let itemsHtml = '';
+      orderItems.forEach((item: any, index: number) => {
+        const price = item.unitPrice || item.price || 0;
+        const quantity = item.quantity || item.orderQuantity || 0;
+        const totalPrice = calculateTotalPrice(price, quantity);
+        
+        itemsHtml += `
+          <tr>
+            <td>${index + 1}</td>
+            <td>${item.productId || ''}</td>
+            <td>${item.productName || item.name || ''}</td>
+            <td style="text-align:right">${quantity}</td>
+            <td>Stk.</td>
+            <td style="text-align:right">${formatPrice(price)} €</td>
+            <td style="text-align:right">${formatPrice(totalPrice)} €</td>
+          </tr>
+        `;
+      });
+      
+      // Ersetze den {{#each items}} Block
+      htmlContent = htmlContent.replace(/{{#each items}}[\s\S]*?{{\/each}}/g, itemsHtml);
+      
+      // Füge die Gesamtsummen ein
+      htmlContent = htmlContent
+        .replace(/{{totalAmount}}/g, formatPrice(totalAmount))
+        .replace(/{{vatAmount}}/g, formatPrice(vatAmount))
+        .replace(/{{totalWithTax}}/g, formatPrice(totalWithTax));
+      
+      // Fertige HTML in das Element einfügen
+      tempDiv.innerHTML = htmlContent;
       
       // Temporäres Element zum DOM hinzufügen
       document.body.appendChild(tempDiv);
