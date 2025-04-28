@@ -1,3 +1,4 @@
+
 import { Pool, neonConfig } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import ws from 'ws';
@@ -12,15 +13,31 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-// Verbindungspool für die Neon-Datenbank erstellen
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// Verbindungspool für die Neon-Datenbank erstellen mit verbesserten Einstellungen
+export const pool = new Pool({ 
+  connectionString: process.env.DATABASE_URL,
+  connectionTimeoutMillis: 10000, // 10 Sekunden Timeout
+  max: 10, // maximale Anzahl gleichzeitiger Verbindungen
+  idleTimeoutMillis: 30000 // Verbindung nach 30 Sekunden Inaktivität schließen
+});
+
+// Verbindungsüberprüfung
+pool.on('error', (err) => {
+  console.error('Unerwarteter Datenbankfehler', err);
+});
 
 // ORM-Instanz mit den Schemadefinitionen initialisieren
 export const db = drizzle(pool, { schema });
 
 // Raw-Query-Zugriff für direkte SQL-Abfragen bereitstellen
 export const rawDb = {
-  query: (text: string, params?: any[]) => pool.query(text, params)
+  query: (text: string, params?: any[]) => {
+    console.log('SQL-Anfrage ausführen:', text);
+    return pool.query(text, params).catch(err => {
+      console.error('SQL-Fehler:', err);
+      throw err;
+    });
+  }
 };
 
 // SQL-Tagged Template Function für sicheres SQL mit Parameterisierung
@@ -33,14 +50,24 @@ export const rawSql = async (strings: TemplateStringsArray, ...values: any[]) =>
     text += `$${params.length}${strings[i + 1] || ''}`;
   }
 
-  const result = await pool.query(text, params);
-  return result.rows;
+  try {
+    const result = await pool.query(text, params);
+    return result.rows;
+  } catch (error) {
+    console.error('Fehler bei SQL-Ausführung:', error);
+    throw error;
+  }
 };
 
 // Methode für direkte SQL-Ausführung ohne Parameterisierung
 // WARNUNG: Dies sollte nur für administrative Abfragen verwendet werden.
 // Bei Benutzerabfragen immer die parameterisierte Variante verwenden!
 rawSql.unsafe = async (text: string) => {
-  const result = await pool.query(text);
-  return result.rows;
+  try {
+    const result = await pool.query(text);
+    return result.rows;
+  } catch (error) {
+    console.error('Fehler bei unsicherer SQL-Ausführung:', error);
+    throw error;
+  }
 };
