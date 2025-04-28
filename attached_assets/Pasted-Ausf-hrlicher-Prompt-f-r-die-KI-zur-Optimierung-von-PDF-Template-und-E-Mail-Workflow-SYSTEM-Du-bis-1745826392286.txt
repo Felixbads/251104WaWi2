@@ -1,0 +1,101 @@
+Ausführlicher Prompt für die KI zur Optimierung von PDF-Template und E-Mail-Workflow
+
+SYSTEM:
+Du bist ein Spezialist für PDF-Template-Generierung (Handlebars/React-PDF) und React-UI-Workflows für Bestell- und Versandprozesse. Wir haben aktuell folgende Probleme:
+
+1. **PDF-Vorschau nur halbe Höhe**  
+   - Das `<object>`-Element wird in einem Container gerendert, der nur 50 % der verfügbaren Höhe nutzt.  
+2. **Logo und Adressen fehlen**  
+   - Im generierten PDF werden weder Firmen- noch Lieferantendaten korrekt eingefügt.  
+   - Absender- und Lieferanten-Adresse sind falsch oder leer.  
+3. **Metadaten unvollständig oder falsch**  
+   - Bestellnummer, Datum, Bearbeiter, E-Mail, Lieferdatum werden nicht oder falsch angezeigt.  
+4. **E-Mail-Dialog lädt keine echten Daten**  
+   - `OrderEmailDialog` zeigt „E-Mail-Inhalt wird geladen“ und nur Platzhalter bei Adresse/Betreff/Text.  
+   - Templates (Vorlagen) sind nicht auswählbar.  
+5. **Prozess-Schritte unklar**  
+   - „Bestellung versenden“ und „Wareneingang“ liegen im gleichen Schritt, statt eigene Seiten/Komponenten zu sein.  
+
+ZIEL:
+Erzeuge aus einem JSON-Datenobjekt  
+```json
+{
+  "logo": "...",
+  "company": { "name": "...", "address": "...", "phone": "...", "email": "..." },
+  "supplier": { "name": "...", "address": "...", "email": "..." },
+  "order": { 
+    "orderNumber":"...", "createdAt":"...", "expectedDeliveryDate":"...", 
+    "contact":{ "name":"...","email":"..." }, "notes":"...", "priority":"..." 
+  },
+  "items":[
+    { "positionNumber":1, "productId":123, "productName":"...", "supplierSku":"...", "quantity":10, "unit":"Stk" },
+    …
+  ],
+  "footer": { "text":"..." }
+}
+
+ein perfekt strukturiertes PDF und einen React-Dialog/Seite zum E-Mail-Versand, der:
+
+⸻
+
+A) PDF-Template (Handlebars)
+	•	Volle Höhe des Viewers nutzen (100 % Breite und Höhe).
+	•	Header: links das logo, rechts zwei Adressblöcke:
+	•	Absender (company.name, company.address, company.phone, company.email)
+	•	Lieferant (supplier.name, supplier.address, supplier.email)
+	•	Metadaten als Tabelle mit vier Spalten:
+	•	Bestell-Nr., Erstell-Datum, Lieferdatum, Priorität, Bearbeiter, E-Mail, Notizen (optional)
+	•	Positions-Tabelle:
+
+Pos. | Art.-Nr. | Bezeichnung | Li.-Art.-Nr. | Menge | Einheit
+
+iteriert über items[].
+
+	•	Footer: zentriert footer.text.
+	•	CSS so, dass der <object> oder Wrapper 100% der Seite belegt:
+
+html, body { height:100%; margin:0; }
+#pdf-container { width:100%; height:100%; }
+object { width:100%; height:100%; }
+
+
+	•	Platzhalter exakt nach dem JSON-Schema verwenden.
+
+⸻
+
+B) React-E-Mail-Seite (sendOrder-Step)
+	1.	Step-Maschine: Füge eigenen Step sendOrder zwischen summary und goodsReceipt ein:
+
+case 'summary':   return 'sendOrder';
+case 'sendOrder': return 'goodsReceipt';
+
+
+	2.	Order-Daten im Parent in State existingOrderData setzen (nach erstem Fetch).
+	3.	OrderEmailPage (anstatt Modal):
+	•	Nutzt existingOrderData.supplier.email als Empfängerfeld.
+	•	Lädt per React-Query useQuery(['mailTemplates'], fetchMailTemplates) die Templates.
+	•	Zeigt Dropdown mit templates.map(t => <SelectItem value={t.id}>{t.name}</SelectItem>).
+	•	Füllt bei Auswahl automatisch subject und body mit Platzhaltern ({{order.orderNumber}}, {{supplier.name}} etc.).
+	•	Ermöglicht Live-Editing von Betreff und Text.
+	•	„Senden“-Button führt emailOrderMutation.mutateAsync({ orderId, subject, body }) aus.
+	•	Nach Erfolg: setStep('goodsReceipt') & queryClient.invalidateQueries(['orders']).
+
+⸻
+
+Deine Aufgabe
+	1.	Handlebars-Template (orderTemplate.hbs) komplett anpassen wie unter A) beschrieben.
+	2.	React-Komponente oder Seite (OrderEmailPage.tsx) erstellen, die B) erfüllt.
+	3.	CSS-Anpassung sicherstellen, dass PDF-Preview 100 % Höhe nutzt.
+	4.	TypeScript-Code (Node.js oder React-Snippet) liefern, der:
+	•	das Template lädt,
+	•	es mit Beispieldaten (orderData) kompiliert,
+	•	per html2pdf() oder jsPDF + html2canvas rendert,
+	•	in <object> oder Inline-Frame anzeigt.
+
+Antwortformat
+	•	Teil 1: Vollständiger Inhalt von orderTemplate.hbs (ohne Erklärungen).
+	•	Teil 2: Vollständiger React-Code für OrderEmailPage.tsx.
+	•	Teil 3: Kurzer CSS-Abschnitt, der Container/Höhe regelt.
+	•	Teil 4: TS-Snippet zum Kompilieren & Generieren des PDF.
+
+Antworte nur die geforderten Artefakte, keine weiteren Erläuterungen. ```

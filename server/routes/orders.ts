@@ -3,7 +3,7 @@ import { db } from "../db";
 import { orders, orderItems, suppliers } from "@shared/schema";
 import { storage } from "../storage";
 import { eq, and, like, ilike, or, desc, asc, isNull, isNotNull, sql, count } from "drizzle-orm";
-import { sendEmail, createOrderSubject, createOrderEmailTemplate, createOrderItemsTable } from "../services/emailService";
+import { sendEmail } from "../services/emailService";
 
 const router = Router();
 

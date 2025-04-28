@@ -51,6 +51,7 @@ import WarehouseSelector from '@/components/orderv2/WarehouseSelector';
 import OrderModeSelector, { OrderMode } from '@/components/orderv2/OrderModeSelector';
 import SupplierSelector from '@/components/orderv2/SupplierSelector';
 import OrderEmailDialog from '@/components/orders/OrderEmailDialog';
+import OrderEmailPage from '@/components/orders/OrderEmailPage';
 import ProductSelectionTable from '@/components/orderv2/ProductSelectionTable';
 import AdditionalInfoForm from '@/components/orderv2/AdditionalInfoForm';
 import OrderSummary from '@/components/orderv2/OrderSummary';
@@ -791,43 +792,16 @@ const BestellungV2: React.FC = () => {
         );
       case 'sendOrder':
         return (
-          <div className="space-y-6">
-            <Alert>
-              <AlertTitle>Bestellung versenden</AlertTitle>
-              <AlertDescription>
-                Klicken Sie auf den Button, um die Bestellung per E-Mail an den Lieferanten zu senden.
-                Sie können die PDF-Vorschau und den E-Mail-Text vor dem Versand überprüfen.
-              </AlertDescription>
-            </Alert>
-            
-            <div className="flex flex-col space-y-4 items-center">
-              <Button 
-                onClick={() => orderId !== null ? generatePDFAndSendEmail(orderId) : undefined}
-                className="w-full md:w-auto"
-              >
-                <Mail className="mr-2 h-4 w-4" />
-                Bestellung per E-Mail senden
-              </Button>
-              
-              {existingOrderData && (
-                <div className="w-full md:w-2/3 text-center">
-                  <h3 className="text-lg font-medium mb-2">Bestellungsinformationen</h3>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="font-semibold text-right">Bestellnummer:</div>
-                    <div className="text-left">{existingOrderData.orderNumber}</div>
-                    <div className="font-semibold text-right">Lieferant:</div>
-                    <div className="text-left">{existingOrderData.supplierName}</div>
-                    <div className="font-semibold text-right">Lieferdatum:</div>
-                    <div className="text-left">
-                      {existingOrderData.expectedDeliveryDate ? 
-                        new Date(existingOrderData.expectedDeliveryDate).toLocaleDateString('de-DE') : 
-                        'Nicht festgelegt'}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          <OrderEmailPage
+            orderId={orderId}
+            supplierEmail={existingOrderData?.supplierEmail || ""}
+            orderNumber={existingOrderData?.orderNumber || ""}
+            supplierName={existingOrderData?.supplierName || ""}
+            pdfBlob={pdfBlob}
+            onSendEmail={handleSendEmail}
+            onBack={() => setStep('summary')}
+            onNext={() => setStep('goodsReceipt')}
+          />
         );
       case 'warehouse':
         return (

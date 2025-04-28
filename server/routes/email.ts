@@ -1,106 +1,182 @@
-import { Request, Response, Router } from "express";
-import { db } from "../db";
-import { orders, orderItems, suppliers } from "@shared/schema";
-import { eq } from "drizzle-orm";
-import { sendEmail, createOrderSubject, createOrderEmailTemplate, createOrderItemsTable } from "../services/emailService";
+import express from 'express';
+import { storage } from '../storage';
+import { readFileSync, existsSync } from 'fs';
+import path from 'path';
+import { sendEmail } from '../services/emailService';
+import { z } from 'zod';
 
-const router = Router();
+// Mock-generatePdf-Funktion für die Entwicklung
+async function generatePdf(order: any): Promise<Buffer> {
+  const mockPdfContent = `
+    Bestellung: ${order.orderNumber}
+    Datum: ${new Date().toLocaleDateString()}
+    
+    Dies ist ein Test-PDF für die Bestellung.
+  `;
+  return Buffer.from(mockPdfContent);
+}
 
-// E-Mail für eine Bestellung senden
-router.post("/order/:id", async (req: Request, res: Response) => {
+const router = express.Router();
+
+// Für die Entwicklung: keine Authentifizierung erforderlich
+
+// E-Mail-Templates API
+const templates = [
+  {
+    id: 1,
+    name: 'Standard Bestellung',
+    subject: 'Neue Bestellung {{orderNumber}} von Elbsandstein Proviant & Quartier GmbH',
+    content: `Sehr geehrte Damen und Herren,
+
+hiermit senden wir Ihnen unsere Bestellung mit der Nummer {{orderNumber}}.
+
+Details entnehmen Sie bitte dem angehängten PDF-Dokument.
+
+Mit freundlichen Grüßen
+Elbsandstein Proviant & Quartier GmbH`
+  },
+  {
+    id: 2,
+    name: 'Dringende Bestellung',
+    subject: 'DRINGEND: Bestellung {{orderNumber}} von Elbsandstein Proviant & Quartier GmbH',
+    content: `Sehr geehrte Damen und Herren,
+
+hiermit senden wir Ihnen unsere DRINGENDE Bestellung mit der Nummer {{orderNumber}}.
+
+Bitte beachten Sie, dass wir die Ware bis zum angegeben Liefertermin benötigen.
+Details entnehmen Sie bitte dem angehängten PDF-Dokument.
+
+Mit freundlichen Grüßen
+Elbsandstein Proviant & Quartier GmbH`
+  },
+  {
+    id: 3,
+    name: 'Nachbestellung',
+    subject: 'Nachbestellung {{orderNumber}} von Elbsandstein Proviant & Quartier GmbH',
+    content: `Sehr geehrte Damen und Herren,
+
+hiermit senden wir Ihnen unsere Nachbestellung mit der Nummer {{orderNumber}}.
+
+Diese Bestellung ergänzt unsere vorherige Bestellung. Details entnehmen Sie bitte dem angehängten PDF-Dokument.
+
+Mit freundlichen Grüßen
+Elbsandstein Proviant & Quartier GmbH`
+  }
+];
+
+// API zum Abrufen aller E-Mail-Templates
+router.get('/mail-templates', (req, res) => {
+  // Sende eine Liste aller verfügbaren Templates
+  res.json(templates.map(template => ({
+    id: template.id,
+    name: template.name
+  })));
+});
+
+// API zum Abrufen eines spezifischen E-Mail-Templates
+router.get('/mail-templates/:id', (req, res) => {
+  const templateId = parseInt(req.params.id);
+  const template = templates.find(t => t.id === templateId);
+  
+  if (!template) {
+    return res.status(404).json({ error: 'Template nicht gefunden' });
+  }
+  
+  res.json(template);
+});
+
+// API zum Senden einer E-Mail mit Bestellung
+router.post('/orders/:id/email', async (req, res) => {
   try {
-    const { id } = req.params;
-    const orderId = parseInt(id);
-    const { to, from, subject, emailBody } = req.body;
-
-    if (isNaN(orderId)) {
-      return res.status(400).json({ error: "Ungültige Bestellungs-ID" });
-    }
-
-    if (!to || !from) {
-      return res.status(400).json({ error: "E-Mail-Adressen (Absender und Empfänger) müssen angegeben werden" });
-    }
-
-    // Bestellung abrufen
-    const orderData = await db
-      .select()
-      .from(orders)
-      .where(eq(orders.id, orderId))
-      .limit(1);
-
-    if (!orderData || orderData.length === 0) {
-      return res.status(404).json({ error: "Bestellung nicht gefunden" });
+    const orderId = parseInt(req.params.id);
+    const { supplierEmail, subject, content, additionalNotes } = req.body;
+    
+    // Validiere die Anfrage
+    if (!supplierEmail || !supplierEmail.includes('@')) {
+      return res.status(400).json({ error: 'Ungültige E-Mail-Adresse' });
     }
     
-    const order = orderData[0];
-
-    // Bestellpositionen abrufen
-    const items = await db
-      .select()
-      .from(orderItems)
-      .where(eq(orderItems.orderId, orderId));
-
-    // Lieferanten abrufen
-    let supplier = null;
-    if (order.supplierId) {
-      const supplierData = await db
-        .select()
-        .from(suppliers)
-        .where(eq(suppliers.id, order.supplierId))
-        .limit(1);
-      
-      if (supplierData && supplierData.length > 0) {
-        supplier = supplierData[0];
-      }
+    // Bestellung aus der Datenbank abrufen
+    const order = await storage.getOrder(orderId);
+    if (!order) {
+      return res.status(404).json({ error: 'Bestellung nicht gefunden' });
     }
-
-    // Tabelle mit Bestellpositionen erstellen
-    const itemsTable = createOrderItemsTable(items);
-
-    // E-Mail-Inhalt konstruieren
-    const finalHtml = emailBody
-      ? emailBody
-      : createOrderEmailTemplate(order, supplier || { name: order.supplierName || "Unbekannter Lieferant" });
     
-    // HTML für E-Mail mit Tabelle ergänzen
-    const htmlContent = finalHtml.replace('{{orderItems}}', itemsTable);
+    // PDF für diese Bestellung generieren
+    const pdfBuffer = await generatePdf(order);
     
-    // E-Mail senden
-    const result = await sendEmail({
-      to,
-      from,
-      subject: subject || createOrderSubject(order.orderNumber, order.supplierName || ""),
-      html: htmlContent
+    // E-Mail mit PDF-Anhang senden
+    await sendEmail({
+      to: supplierEmail,
+      subject: subject || `Bestellung ${order.orderNumber} von Elbsandstein Proviant & Quartier GmbH`,
+      text: content || `Sehr geehrte Damen und Herren,
+
+hiermit senden wir Ihnen unsere Bestellung mit der Nummer ${order.orderNumber}.
+
+${additionalNotes ? `Anmerkungen: ${additionalNotes}\n\n` : ''}
+Details entnehmen Sie bitte dem angehängten PDF-Dokument.
+
+Mit freundlichen Grüßen
+Elbsandstein Proviant & Quartier GmbH`,
+      attachments: [
+        {
+          filename: `Bestellung_${order.orderNumber}.pdf`,
+          content: pdfBuffer
+        }
+      ]
     });
-
-    if (result) {
-      // Bestellung als versandt markieren, wenn sie noch im Entwurfsstatus ist
-      if (order.status === 'draft') {
-        await db
-          .update(orders)
-          .set({
-            status: 'shipped',
-            updatedAt: new Date()
-          })
-          .where(eq(orders.id, orderId));
-      }
-
-      return res.json({
-        success: true,
-        message: "E-Mail wurde erfolgreich versendet"
-      });
+    
+    // Bestellung als "gesendet" markieren
+    if (storage.markOrderAsSent) {
+      await storage.markOrderAsSent(orderId);
     } else {
-      return res.status(500).json({
-        error: "E-Mail konnte nicht versendet werden",
-        technicalDetails: "Fehler beim Senden über SendGrid API"
-      });
+      console.log('Methode markOrderAsSent nicht verfügbar, Status wird nicht aktualisiert');
     }
-  } catch (error) {
-    console.error("Fehler beim Senden der Bestellungs-E-Mail:", error);
-    res.status(500).json({
-      error: "Fehler beim Senden der E-Mail",
-      details: (error as Error).message
+    
+    res.json({ success: true, message: 'E-Mail erfolgreich gesendet' });
+  } catch (error: any) {
+    console.error('Fehler beim Senden der E-Mail:', error);
+    res.status(500).json({ error: `Fehler beim Senden der E-Mail: ${error.message}` });
+  }
+});
+
+// API zum Abrufen einer E-Mail-Vorlage für eine Bestellung
+router.get('/orders/:id/email-template', async (req, res) => {
+  try {
+    const orderId = parseInt(req.params.id);
+    const templateType = req.query.type || 'standard';
+    
+    // Bestellung aus der Datenbank abrufen
+    const order = await storage.getOrder(orderId);
+    if (!order) {
+      return res.status(404).json({ error: 'Bestellung nicht gefunden' });
+    }
+    
+    // Passende Vorlage finden
+    let template;
+    if (templateType === 'dringend') {
+      template = templates[1]; // Dringende Bestellung
+    } else if (templateType === 'nachbestellung') {
+      template = templates[2]; // Nachbestellung
+    } else {
+      template = templates[0]; // Standard
+    }
+    
+    // Platzhalter ersetzen
+    let subject = template.subject.replace('{{orderNumber}}', order.orderNumber);
+    let content = template.content.replace('{{orderNumber}}', order.orderNumber);
+    
+    if (order.supplierName) {
+      content = content.replace('{{supplierName}}', order.supplierName);
+    }
+    
+    res.json({
+      subject,
+      content
     });
+  } catch (error: any) {
+    console.error('Fehler beim Laden der E-Mail-Vorlage:', error);
+    res.status(500).json({ error: `Fehler beim Laden der E-Mail-Vorlage: ${error.message}` });
   }
 });
 

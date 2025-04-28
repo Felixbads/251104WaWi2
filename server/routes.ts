@@ -28,6 +28,7 @@ import warehouseMovementsRouter from './routes/warehouse-movements';
 import warehouseLocationsRouter from './routes/warehouse-locations';
 import inventoryCountBatchesRouter from './routes/inventory-count-batches';
 import warehousesRouter from './routes/warehouses';
+import emailRouter from './routes/email';
 import { criticalInventoryRouter } from './routes/critical-inventory';
 import productSyncRouter from './routes/product-sync';
 import vendonImportStatsRouter from './routes/vendonImportStats';
