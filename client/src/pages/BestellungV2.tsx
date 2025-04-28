@@ -650,16 +650,14 @@ const BestellungV2: React.FC = () => {
       orderId,
       supplierEmail,
       additionalNotes
-    }, {
-      onSuccess: () => {
-        // Erst nach erfolgreicher Email-Versendung die Bestellung als "gesendet" markieren
-        markOrderAsSentMutation.mutate({
-          id: orderId
-        });
-        
-        // Dialog schließen
-        setShowEmailDialog(false);
-      }
+    });
+    
+    // Dialog schließen
+    setShowEmailDialog(false);
+    
+    // Bestellung als "gesendet" markieren
+    markOrderAsSentMutation.mutate({
+      id: orderId
     });
   };
   
@@ -790,7 +788,11 @@ const BestellungV2: React.FC = () => {
             onStartNewOrder={handleStartNewOrder}
           />
         );
-      case 'sendOrder':
+      case 'warehouse':
+        return (
+          <WarehouseSelector
+            selectedWarehouseId={warehouseId}
+      sendOrder':
         return (
           <OrderEmailPage
             orderId={orderId}
@@ -803,11 +805,7 @@ const BestellungV2: React.FC = () => {
             onNext={() => setStep('goodsReceipt')}
           />
         );
-      case 'warehouse':
-        return (
-          <WarehouseSelector
-            selectedWarehouseId={warehouseId}
-            onSelectWarehouse={handleWarehouseSelect}
+      case '      onSelectWarehouse={handleWarehouseSelect}
           />
         );
       case 'mode':
@@ -1093,14 +1091,14 @@ const BestellungV2: React.FC = () => {
       description: 'Überprüfen Sie die Bestellung und schließen Sie sie ab.',
       icon: <ClipboardCheck className="h-6 w-6" />,
     },
-    sendOrder: {
+    goodsReceipt: {
+      title: 'Wareneingang',
+      description: 'Erfassen Sie den Wareneingang, sobald die LiesendOrder: {
       title: 'Bestellung versenden',
       description: 'Bestellung per E-Mail an den Lieferanten senden.',
       icon: <Mail className="h-6 w-6" />,
     },
-    goodsReceipt: {
-      title: 'Wareneingang',
-      description: 'Erfassen Sie den Wareneingang, sobald die Lieferung eingetroffen ist.',
+    ferung eingetroffen ist.',
       icon: <Boxes className="h-6 w-6" />,
     },
     warehouseReceiptOfExistingOrder: {
@@ -1120,7 +1118,7 @@ const BestellungV2: React.FC = () => {
         supplierEmail={existingOrderData?.supplierEmail || ''}
         orderNumber={existingOrderData?.orderNumber || `ORD-${orderId}`}
         supplierName={existingOrderData?.supplierName || supplierName}
-        pdfBlob={pdfBlob || null}
+        pdfBlob={pdfBlob}
       />
       
       <div className="flex flex-col md:flex-row justify-between items-start gap-4">
@@ -1146,7 +1144,12 @@ const BestellungV2: React.FC = () => {
           <CardContent className="pt-6">
             <Steps 
               currentStep={
-                ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'sendOrder', 'goodsReceipt']
+                ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'goodsReceipt']
+                .indexOf(step)
+              }
+              steps={[
+                {
+               sendOrder', 'goodsReceipt']
                 .indexOf(step)
               }
               steps={[
@@ -1176,15 +1179,13 @@ const BestellungV2: React.FC = () => {
                 },
                 {
                   title: "E-Mail",
-                  description: "Bestellung versenden"
-                },
-                {
-                  title: "Wareneingang",
-                  description: "Lieferung erfassen"
+                  description: "Bestellung versenderung erfassen"
                 }
               ]}
               goToStep={(index) => {
-                const steps = ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'sendOrder', 'goodsReceipt'];
+                const steps = ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'goodsReceipt'];
+                // Only allow going to steps that are valid based on current progress
+                sendOrder', 'goodsReceipt'];
                 // Only allow going to steps that are valid based on current progress
                 if (
                   (index === 0) || // Always allow going to first step
@@ -1193,12 +1194,7 @@ const BestellungV2: React.FC = () => {
                   (index === 3 && warehouseId && orderMode && supplierId) || // Products require supplier
                   (index === 4 && warehouseId && orderMode && supplierId && selectedProducts.length > 0) || // Details require products
                   (index === 5 && warehouseId && orderMode && supplierId && selectedProducts.length > 0 && additionalInfo.expectedDeliveryDate) || // Summary requires details
-                  (index === 6 && orderId) // SendOrder requires an orderId
-                ) {
-                  setStep(steps[index] as OrderStep);
-                }
-              }}
-              allowStepClick={true}
+                  (index === 6 && orderId) // SendOrder requires an orderId      allowStepClick={true}
             />
           </CardContent>
         </Card>
