@@ -431,7 +431,7 @@ const BestellungV2: React.FC = () => {
   };
   
   // Generate PDF and send by email
-  const generatePDFAndSendEmail = async (specificOrderId?: number) => {
+  const generatePDFAndSendEmail = async (specificOrderId: number) => {
     try {
       // Verwende entweder die übergebene ID oder den State-Wert
       const orderIdToUse = specificOrderId || orderId;
@@ -794,7 +794,7 @@ const BestellungV2: React.FC = () => {
             
             <div className="flex flex-col space-y-4 items-center">
               <Button 
-                onClick={() => generatePDFAndSendEmail(orderId)}
+                onClick={() => orderId !== null ? generatePDFAndSendEmail(orderId) : undefined}
                 className="w-full md:w-auto"
               >
                 <Mail className="mr-2 h-4 w-4" />
@@ -1202,7 +1202,7 @@ const BestellungV2: React.FC = () => {
                 }
               ]}
               goToStep={(index) => {
-                const steps = ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'goodsReceipt'];
+                const steps = ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'sendOrder', 'goodsReceipt'];
                 // Only allow going to steps that are valid based on current progress
                 if (
                   (index === 0) || // Always allow going to first step
@@ -1210,7 +1210,8 @@ const BestellungV2: React.FC = () => {
                   (index === 2 && warehouseId && orderMode) || // Supplier requires warehouse and mode
                   (index === 3 && warehouseId && orderMode && supplierId) || // Products require supplier
                   (index === 4 && warehouseId && orderMode && supplierId && selectedProducts.length > 0) || // Details require products
-                  (index === 5 && warehouseId && orderMode && supplierId && selectedProducts.length > 0 && additionalInfo.expectedDeliveryDate) // Summary requires details
+                  (index === 5 && warehouseId && orderMode && supplierId && selectedProducts.length > 0 && additionalInfo.expectedDeliveryDate) || // Summary requires details
+                  (index === 6 && orderId) // SendOrder requires an orderId
                 ) {
                   setStep(steps[index] as OrderStep);
                 }
