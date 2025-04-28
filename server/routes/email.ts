@@ -3,18 +3,8 @@ import { storage } from '../storage';
 import { readFileSync, existsSync } from 'fs';
 import path from 'path';
 import { sendEmail } from '../services/emailService';
+import { generatePdf } from '../services/pdfService';
 import { z } from 'zod';
-
-// Mock-generatePdf-Funktion für die Entwicklung
-async function generatePdf(order: any): Promise<Buffer> {
-  const mockPdfContent = `
-    Bestellung: ${order.orderNumber}
-    Datum: ${new Date().toLocaleDateString()}
-    
-    Dies ist ein Test-PDF für die Bestellung.
-  `;
-  return Buffer.from(mockPdfContent);
-}
 
 const router = express.Router();
 

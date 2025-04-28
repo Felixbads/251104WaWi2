@@ -205,7 +205,7 @@ export async function generatePdf(order: any): Promise<Buffer> {
     
     // PDF mit Puppeteer generieren
     const browser = await puppeteer.launch({
-      headless: 'new',
+      headless: true, // True statt 'new', unterstützt von allen Puppeteer-Versionen
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     const page = await browser.newPage();
@@ -227,7 +227,8 @@ export async function generatePdf(order: any): Promise<Buffer> {
     
     await browser.close();
     
-    return pdfBuffer;
+    // Buffer sicherstellen
+    return Buffer.from(pdfBuffer);
   } catch (error) {
     console.error('Fehler beim Generieren des PDFs:', error);
     throw error;

@@ -65,7 +65,7 @@ export async function sendEmail(params: EmailParams): Promise<boolean> {
         to: params.to,
         from: from,
         subject: params.subject,
-        text: params.text,
+        text: params.text || params.subject, // Fallback zum Betreff, wenn kein Text vorhanden
         html: params.html,
         attachments: params.attachments?.map(attachment => ({
           content: attachment.content.toString('base64'),
