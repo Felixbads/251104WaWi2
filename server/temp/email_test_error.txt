@@ -1,0 +1,8 @@
+Fehler beim Senden der E-Mail: Message failed: 554 5.7.1 Recipient address rejected: Spam message rejected. NMM-1B253A3FFF713B36
+Zeitpunkt: 2025-04-28T12:00:45.655Z
+Fehlerdetails: {
+  "code": "EMESSAGE",
+  "response": "554 5.7.1 Recipient address rejected: Spam message rejected. NMM-1B253A3FFF713B36",
+  "responseCode": 554,
+  "command": "DATA"
+}

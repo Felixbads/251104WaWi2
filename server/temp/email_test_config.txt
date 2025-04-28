@@ -1,0 +1,4 @@
+SMTP Host: w019449b.kasserver.com
+SMTP Port: 465
+SMTP Secure: true
+SMTP User: m06d0d91

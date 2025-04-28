@@ -56,7 +56,8 @@ interface EmailParams {
  * Sendet eine E-Mail über SMTP oder simuliert sie für die Entwicklung
  */
 export async function sendEmail(params: EmailParams): Promise<boolean> {
-  const from = params.from || 'info@elbsandstein-proviant.de';
+  // Die Absenderadresse muss mit dem SMTP-Nutzer übereinstimmen
+  const from = params.from || process.env.SMTP_USER || 'info@elbsandstein-proviant.de';
 
   try {
     // Wenn SMTP konfiguriert ist, versuche E-Mail zu senden
@@ -78,7 +79,7 @@ export async function sendEmail(params: EmailParams): Promise<boolean> {
       return true;
     }
     
-    // 3. Fallback: Simuliere E-Mail-Versand für Entwicklungsumgebung
+    // Fallback: Simuliere E-Mail-Versand für Entwicklungsumgebung
     console.log(`
     ========= E-MAIL SIMULIERT =========
     An: ${params.to}
