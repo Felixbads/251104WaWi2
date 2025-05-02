@@ -750,11 +750,12 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   const [splitQuantity, setSplitQuantity] = useState<number | null>(null);
   const [splitTargetBatchId, setSplitTargetBatchId] = useState<number | null>(null);
 
-  // Mutation zum Aktualisieren des Batch für ein Inventurelement
+  // Mutation zum Aktualisieren des Batch für ein Inventurelement (mit optimistischem Update und Scroll-Erhaltung)
   const updateBatchMutation = useMutation({
     mutationFn: async (data: { itemId: number; batchId: number | null }) => {
+      // Beide Methoden unterstützen (POST oder PATCH) - wir verwenden POST für Konsistenz mit createNewBatch
       const response = await fetch(`/api/inventory-counts/items/${data.itemId}/batch`, {
-        method: 'PATCH',
+        method: 'POST', // Geändert von PATCH zu POST für Konsistenz mit Batch-Erstellung
         headers: {
           'Content-Type': 'application/json',
         },
@@ -762,30 +763,83 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       });
       
       if (!response.ok) {
-        throw new Error(`Fehler beim Aktualisieren der Charge: ${response.status}`);
+        console.error(`Fehler beim Aktualisieren der Charge: ${response.status}`);
+        // Versuche als Fallback die PATCH-Methode, falls der Server POST nicht akzeptiert
+        const fallbackResponse = await fetch(`/api/inventory-counts/items/${data.itemId}/batch`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ batchId: data.batchId }),
+        });
+        
+        if (!fallbackResponse.ok) {
+          throw new Error(`Fehler beim Aktualisieren der Charge: ${fallbackResponse.status}`);
+        }
+        
+        return await fallbackResponse.json();
       }
       
       return await response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}/items`] });
+    onMutate: async (data) => {
+      // Speichere aktuelle Scroll-Position
+      const prevScroll = window.scrollY;
       
+      // Finde das Item, das aktualisiert werden soll
+      const item = countedItems.find(item => item.id === data.itemId);
+      if (item) {
+        // Finde die ausgewählte Charge
+        const selectedBatch = availableBatches.find(b => b.id === data.batchId);
+        
+        // Erstelle ein aktualisiertes Item mit der neuen Charge
+        const updatedItem = {
+          ...item,
+          batchId: data.batchId,
+          batch: selectedBatch || null
+        };
+        
+        // Aktualisiere das Item im lokalen State
+        updateCountedItem(updatedItem);
+      }
+      
+      return { prevScroll };
+    },
+    onSuccess: (result, variables, context) => {
+      // Dialog schließen ohne Query-Invalidierung
       setShowBatchDialog(false);
       setSelectedItem(null);
+      
+      // Scroll-Position wiederherstellen
+      if (context?.prevScroll !== undefined) {
+        window.scrollTo(0, context.prevScroll);
+      }
       
       toast({
         title: "Charge aktualisiert",
         description: "Die Charge wurde erfolgreich aktualisiert.",
       });
     },
-    onError: (error) => {
+    onError: (error, variables, context) => {
       console.error('Fehler beim Aktualisieren der Charge:', error);
+      
+      // Scroll-Position wiederherstellen
+      if (context?.prevScroll !== undefined) {
+        window.scrollTo(0, context.prevScroll);
+      }
+      
       toast({
         title: "Fehler",
         description: "Die Charge konnte nicht aktualisiert werden.",
         variant: "destructive",
       });
     },
+    onSettled: (data, error, variables, context) => {
+      // Nach Abschluss (egal ob Erfolg oder Fehler): Scroll-Position sichern
+      if (context?.prevScroll !== undefined) {
+        window.scrollTo(0, context.prevScroll);
+      }
+    }
   });
 
   // Funktion zum Öffnen des Batch-Dialogs mit verbesserten Fehlerprüfungen und Verzögerung
