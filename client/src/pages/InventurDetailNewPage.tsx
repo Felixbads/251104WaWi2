@@ -667,8 +667,22 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       itemsToUpdate.push({ id: itemId, countedQuantity: count });
     }
     
-    // Alle Einträge nacheinander speichern
+    // Aktualisiere den lokalen State für alle betroffenen Elemente
     itemsToUpdate.forEach(item => {
+      // Finde das entsprechende Item im countedItems Array
+      const foundItem = countedItems.find(countedItem => countedItem.id === item.id);
+      if (foundItem) {
+        // Erstelle ein aktualisiertes Item mit dem neuen Zählerstand
+        const updatedItem = {
+          ...foundItem,
+          countedQuantity: item.countedQuantity
+        };
+        
+        // Aktualisiere den lokalen State
+        updateCountedItem(updatedItem);
+      }
+      
+      // Zusätzlich senden des Updates an den Server
       updateCountMutation.mutate(item);
     });
     
@@ -1098,12 +1112,15 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         // Zeige keinen Fehler für die Verknüpfung an, da die Charge bereits erstellt wurde
       }
       
-      // Aktualisiere die Inventardaten, um die Änderungen zu sehen
-      setTimeout(() => {
-        queryClient.invalidateQueries({ 
-          queryKey: [`/api/inventory-counts/${id}/items`] 
-        });
-      }, 300);
+      // Aktualisiere den lokalen State
+      if (selectedItem) {
+        const updatedItem = {
+          ...selectedItem,
+          batchId: newBatch.id,
+          batch: newBatch
+        };
+        updateCountedItem(updatedItem);
+      }
       
       // Schließe das Formular
       setShowNewBatchForm(false);
@@ -1148,8 +1165,11 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       const result = await response.json();
       console.log('Bestandsaufteilung erfolgreich:', result);
       
-      // Aktualisiere die Inventurdaten
-      queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}/items`] });
+      // Aktualisiere den lokalen State, falls die Antwort das Split-Item enthält
+      if (selectedItem && result.updatedItem) {
+        // Aktualisiere das Item im lokalen State
+        updateCountedItem(result.updatedItem);
+      }
       
       // Aktualisiere die Batches mit verbessertem Error-Handling
       fetch(`/api/products/${selectedItem.productId}/batches?warehouseId=${inventurData?.warehouseId}`)
