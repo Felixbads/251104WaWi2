@@ -1118,8 +1118,11 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   };
   
   // Erstellt eine neue Charge mit MHD und verknüpft sie mit dem Inventar-Item
-  // Diese Funktion wurde optimiert, um Scroll-Resets zu verhindern
+  // Diese Funktion wurde optimiert, um Scroll-Resets zu verhindern und Batch-Verluste zu vermeiden
   const createNewBatch = async () => {
+    // Speichere aktuelle Scroll-Position
+    const prevScroll = window.scrollY;
+    
     if (!selectedItem || !selectedItem.productId) {
       console.error("Kein Produkt ausgewählt oder Produkt hat keine ID");
       toast({
@@ -1142,7 +1145,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     }
     
     // Erzeuge eindeutige Batch-Nummer, falls keine angegeben wurde
-    const effectiveBatchNumber = newBatchNumber || `INV-${id}-${new Date().toISOString().split('T')[0]}`;
+    const effectiveBatchNumber = newBatchNumber || `INV-${id}-${Date.now()}`;
     
     const batchData = {
       productId: selectedItem.productId,
@@ -1159,21 +1162,14 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     console.log("Sende Batch-Daten:", JSON.stringify(batchData, null, 2));
     
     try {
-      // Erstelle ein vorläufiges Batch-Objekt für sofortige UI-Aktualisierung
-      const tempBatchId = `temp-${Date.now()}`;
-      const tempBatch = {
-        id: tempBatchId, // Temporäre ID, die später durch die echte ersetzt wird
-        ...batchData,
-        status: 'active',
-        createdAt: new Date().toISOString()
-      };
+      // Generiere eine einzigartige temporäre ID für die lokale Batch
+      // Verwende einen eindeutigen Nummernbereich (999000-999999), um Kollisionen zu vermeiden
+      const tempId = 999000 + Math.floor(Math.random() * 999);
       
-      // Aktualisiere sofort die UI mit einem temporären Objekt
-      // Dies verhindert, dass der Benutzer auf die Serverantwort warten muss
       // Erstelle ein korrektes ProductBatch-Objekt, das dem Interface entspricht
       const tempBatchAsProductBatch: ProductBatch = {
-        id: parseInt(tempBatchId.replace('temp-', '999')), // Temp ID als Zahl
-        warehouseId: inventurData?.warehouseId || 0, // Sicherstellen, dass warehouseId immer eine Nummer ist
+        id: tempId, // Eindeutige Temp ID als Zahl
+        warehouseId: inventurData?.warehouseId || 0, 
         productId: selectedItem.productId,
         batchNumber: effectiveBatchNumber,
         expiryDate: formattedExpiryDate,
@@ -1187,13 +1183,27 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         manufacturingDate: undefined
       };
       
+      // Optimistisches Update der UI
       setAvailableBatches(prev => [...prev, tempBatchAsProductBatch]);
       
+      // Wir erstellen auch ein optimistisches Update für den Inventarposten
+      const optimisticUpdatedItem = {
+        ...selectedItem,
+        batchId: tempId,
+        batch: tempBatchAsProductBatch
+      };
+      
+      // Aktualisiere den lokalen State sofort ohne auf Serverantwort zu warten
+      updateCountedItem(optimisticUpdatedItem);
+      
+      // Stelle sicher, dass der Dialog geöffnet bleibt, bis die Erstellung abgeschlossen ist
+      // Dies verhindert Probleme mit frühzeitigem Schließen
       // Schritt 1: Erstelle neue Charge API-Anfrage
       const response = await fetch('/api/inventory-counts/product-batches', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache' // Verhindert Cache-Probleme
         },
         body: JSON.stringify(batchData),
       });
@@ -1201,8 +1211,9 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       // Überprüfe auf detaillierte Fehlermeldungen
       if (!response.ok) {
         const errorText = await response.text();
-        let errorData;
+        console.error(`Fehler bei Batch-Erstellung: ${response.status} - ${errorText}`);
         
+        let errorData;
         try {
           errorData = JSON.parse(errorText);
           throw new Error(errorData.details || errorData.error || `Serverfehler: ${response.status}`);
@@ -1213,15 +1224,15 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       }
       
       const newBatch = await response.json();
-      console.log("Neue Charge erstellt:", newBatch);
+      console.log("Neue Charge erfolgreich erstellt:", newBatch);
       
-      // Ersetze den temporären Eintrag durch die echten Daten
-      // Verwende isTemporaryBatch Funktion zur sicheren Identifizierung
+      // Funktion zur sicheren Identifizierung des temporären Batches
       const isTemporaryBatch = (batch: ProductBatch) => {
-        return batch.id.toString().includes('999') && 
-               batch.batchNumber === effectiveBatchNumber;
+        return (batch.id === tempId) || 
+               (batch.batchNumber === effectiveBatchNumber && batch.id >= 999000);
       };
       
+      // Ersetze den temporären Eintrag durch die echte Batch mit ID vom Server
       setAvailableBatches(prev => 
         prev.map(batch => isTemporaryBatch(batch) ? newBatch : batch)
       );
@@ -1229,56 +1240,95 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       // Wähle die neue Charge aus
       setSelectedBatchId(newBatch.id);
       
-      // Aktualisiere den lokalen State sofort mit der neuen Batch
-      // Dies verhindert Flackern beim Warten auf Serverantworten
+      // Aktualisiere den Inventarposten mit der echten Batch ID
       if (selectedItem) {
         const updatedItem = {
           ...selectedItem,
           batchId: newBatch.id,
           batch: newBatch
         };
+        
+        // Update lokalen State
         updateCountedItem(updatedItem);
-      }
-      
-      // Schritt 2: Verknüpfe die neue Charge mit dem Inventurposten im Hintergrund
-      console.log(`Verknüpfe Inventurposten ${selectedItem.id} mit Charge ${newBatch.id}...`);
-      
-      // Die Verknüpfung läuft asynchron im Hintergrund
-      // Wir zeigen bereits die Erfolgsmeldung an und verknüpfen dann
-      fetch(`/api/inventory-counts/items/${selectedItem.id}/batch`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          batchId: newBatch.id 
-        }),
-      })
-      .then(async updateResponse => {
-        if (!updateResponse.ok) {
-          console.error(`Fehler beim Verknüpfen: Status ${updateResponse.status}`);
-          const updateErrorText = await updateResponse.text();
-          console.error('Fehler beim Verknüpfen der Charge:', updateErrorText);
-        } else {
-          const updateResult = await updateResponse.json();
-          console.log("Verknüpfung erfolgreich:", updateResult);
+        
+        // Schritt 2: Verknüpfe die neue Charge mit dem Inventurposten im Hintergrund
+        console.log(`Verknüpfe Inventurposten ${selectedItem.id} mit Charge ${newBatch.id}...`);
+        
+        try {
+          // Die HTTP-Methode wurde auf POST geändert, passend zu updateBatchMutation
+          const linkResponse = await fetch(`/api/inventory-counts/items/${selectedItem.id}/batch`, {
+            method: 'POST', // Konsistent mit updateBatchMutation
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'no-cache'
+            },
+            body: JSON.stringify({ 
+              batchId: newBatch.id 
+            }),
+          });
+          
+          if (!linkResponse.ok) {
+            // Bei Fehler versuchen wir es mit PATCH als Fallback
+            console.warn(`POST fehlgeschlagen, versuche PATCH als Fallback...`);
+            
+            const patchResponse = await fetch(`/api/inventory-counts/items/${selectedItem.id}/batch`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache'
+              },
+              body: JSON.stringify({ 
+                batchId: newBatch.id 
+              }),
+            });
+            
+            if (!patchResponse.ok) {
+              console.error(`Auch PATCH fehlgeschlagen: ${patchResponse.status}`);
+              throw new Error(`Verknüpfung fehlgeschlagen: ${patchResponse.status}`);
+            }
+            
+            const patchResult = await patchResponse.json();
+            console.log("Verknüpfung erfolgreich über PATCH:", patchResult);
+          } else {
+            const linkResult = await linkResponse.json();
+            console.log("Verknüpfung erfolgreich über POST:", linkResult);
+          }
+          
+          // Schließe das Formular erst nach erfolgreicher Verknüpfung
+          setShowNewBatchForm(false);
+          
+          // Stelle Scroll-Position wieder her
+          window.scrollTo(0, prevScroll);
+          
+          toast({
+            title: "Neue Charge erstellt",
+            description: "Die Charge wurde erfolgreich erstellt und mit dem Inventurposten verknüpft."
+          });
+        } catch (linkError) {
+          console.error('Fehler beim Verknüpfen der Charge:', linkError);
+          
+          // Bei Fehler trotzdem das Formular schließen, da Batch erstellt wurde
+          setShowNewBatchForm(false);
+          
+          // Stelle Scroll-Position wieder her
+          window.scrollTo(0, prevScroll);
+          
+          // Hinweis mit Warnung, aber kein Fehler
+          toast({
+            title: "Charge erstellt, aber...",
+            description: "Die Charge wurde erstellt, konnte aber möglicherweise nicht korrekt verknüpft werden.",
+            variant: "default"
+          });
         }
-      })
-      .catch(updateError => {
-        console.error('Fehler beim Verknüpfen der Charge:', updateError);
-        // Wir zeigen keinen Fehler an, da die Verknüpfung über den lokalen State bereits erfolgt ist
-      });
-      
-      // Schließe das Formular
-      setShowNewBatchForm(false);
-      
-      toast({
-        title: "Neue Charge erstellt",
-        description: "Die Charge wurde erfolgreich erstellt und mit dem Inventurposten verknüpft."
-      });
+      }
     } catch (error) {
-      // Entferne den temporären Eintrag im Fehlerfall
-      setAvailableBatches(prev => prev.filter(batch => !batch.id.toString().startsWith('temp-')));
+      // Fehlgeschlagene Erstellung - Entferne den temporären Eintrag
+      setAvailableBatches(prev => prev.filter(batch => 
+        !(batch.batchNumber === effectiveBatchNumber && batch.id >= 999000)
+      ));
+      
+      // Stelle Scroll-Position wieder her
+      window.scrollTo(0, prevScroll);
       
       const errorMessage = error instanceof Error ? error.message : "Unbekannter Fehler";
       console.error('Fehler beim Erstellen einer neuen Charge:', error);
