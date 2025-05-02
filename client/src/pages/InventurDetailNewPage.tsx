@@ -221,6 +221,9 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   // Sortierzustand für Tabellenspalten
   const [sortField, setSortField] = useState<string | null>('product');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  
+  // Lokaler State für alle gezählten Artikel, um Änderungen über Dialog-Öffnen/Schließen zu persistieren
+  const [countedItems, setCountedItems] = useState<InventoryCountItem[]>([]);
 
   // Lade Inventurdaten
   const { 
@@ -1191,6 +1194,14 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       console.log("Ursprüngliche Reihenfolge gespeichert:", orderMap);
     }
   }, [inventurItems, itemOrderMap]);
+  
+  // Initialisiere den lokalen State für countedItems wenn die inventurItems geladen werden
+  useEffect(() => {
+    if (inventurItems && inventurItems.length > 0) {
+      console.log("Initialisiere lokalen State für countedItems mit", inventurItems.length, "Elementen");
+      setCountedItems(inventurItems);
+    }
+  }, [inventurItems]);
   
   // Sortiere Inventurpositionen mit Stabilität
   const sortedItems = useMemo(() => {
