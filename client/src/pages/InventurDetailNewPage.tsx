@@ -254,7 +254,8 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   } = useQuery<InventoryCountItem[]>({
     queryKey: [`/api/inventory-counts/${id}/items`],
     staleTime: 5 * 1000,
-    enabled: !!id
+    enabled: !!id,
+    refetchOnWindowFocus: false // Verhindere automatisches Refetchen bei Fensterfokus
   });
 
   // Lade verfügbare Lagerprodukte
@@ -267,7 +268,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     enabled: !!id && showAddDialog
   });
 
-  // Mutation zum Aktualisieren eines Zählerstands
+  // Mutation zum Aktualisieren eines Zählerstands (mit optimistischem Update)
   const updateCountMutation = useMutation({
     mutationFn: async (data: { id: number; countedQuantity: number | null }) => {
       const response = await fetch(`/api/inventory-count-items/${data.id}`, {
@@ -284,21 +285,55 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       
       return await response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}/items`] });
+    onMutate: async (data) => {
+      // Speichere aktuelle Scroll-Position
+      const prevScroll = window.scrollY;
       
-      toast({
-        title: "Zählerstand aktualisiert",
-        description: "Der Zählerstand wurde erfolgreich aktualisiert.",
-      });
+      // Optimistisch lokalen State aktualisieren ohne Server-Anfrage
+      // Finde das Item, das aktualisiert werden soll
+      const item = countedItems.find(item => item.id === data.id);
+      if (item) {
+        const updatedItem = {
+          ...item,
+          countedQuantity: data.countedQuantity
+        };
+        
+        // Aktualisiere das Item im lokalen State
+        updateCountedItem(updatedItem);
+      }
+      
+      // Rückgabewert für den Fall eines Rollbacks
+      return { prevScroll };
     },
-    onError: () => {
+    onError: (error, variables, context) => {
+      // Bei Fehler: Scroll-Position wiederherstellen
+      if (context?.prevScroll !== undefined) {
+        window.scrollTo(0, context.prevScroll);
+      }
+      
       toast({
         title: "Fehler",
         description: "Der Zählerstand konnte nicht aktualisiert werden.",
         variant: "destructive",
       });
     },
+    onSuccess: (result, variables, context) => {
+      // Erfolg: Scroll-Position wiederherstellen
+      if (context?.prevScroll !== undefined) {
+        window.scrollTo(0, context.prevScroll);
+      }
+      
+      toast({
+        title: "Zählerstand aktualisiert",
+        description: "Der Zählerstand wurde erfolgreich aktualisiert.",
+      });
+    },
+    onSettled: (data, error, variables, context) => {
+      // Nach Abschluss (egal ob Erfolg oder Fehler): Scroll-Position sichern
+      if (context?.prevScroll !== undefined) {
+        window.scrollTo(0, context.prevScroll);
+      }
+    }
   });
 
   // Mutation zum Hinzufügen neuer Produkte

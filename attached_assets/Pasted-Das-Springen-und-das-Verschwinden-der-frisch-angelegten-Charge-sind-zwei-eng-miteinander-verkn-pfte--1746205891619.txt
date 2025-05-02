@@ -1,0 +1,92 @@
+Das Springen und das Verschwinden der frisch angelegten Charge sind zwei eng miteinander verknüpfte Effekte, die beide aus der Art und Weise resultieren, wie du React-Query und dein lokales State-Management in Kombination einsetzt:
+
+⸻
+
+1. Seiten-Springen (Scroll-Reset)
+
+Ursache:
+	•	invalidateQueries nach jeder Mutation (Zählerstand-Patch, Batch-Patch, etc.) triggert ein komplettes Refetch der Items-Query.
+	•	React re-rendered die Tabelle mit frischen Daten aus dem Server, wodurch der Browser-Scroll automatisch wieder an den Anfang der Seite gesetzt wird.
+	•	Zusätzlich refetcht React-Query standardmäßig bei jedem Fenster-Focus (z. B. wenn du in ein Dialog-Fenster klickst), wenn du refetchOnWindowFocus nicht deaktiviert hast.
+
+Lösungsschritte:
+	1.	Optimistische Updates statt Invalidation
+	•	Nutze in deinen Mutations (updateCountMutation, updateBatchMutation) das Pattern
+
+mutate(data, {
+  onMutate: async (vars) => {
+    // speichere Scroll‐Position
+    const prevScroll = window.scrollY
+    // optimistisch lokales Array updaten
+    updateCountedItem({ id: vars.id, countedQuantity: vars.countedQuantity })
+    return { prevScroll }
+  },
+  onError: (err, vars, context) => {
+    // Rollback: falls nötig
+    if (context?.prevScroll !== undefined) window.scrollTo(0, context.prevScroll)
+  },
+  onSettled: (data, err, vars, context) => {
+    // Scroll restitution
+    if (context?.prevScroll !== undefined) window.scrollTo(0, context.prevScroll)
+  }
+})
+
+
+	•	So brauchst du kein queryClient.invalidateQueries() mehr, und der Browser-Scroll bleibt stehen.
+
+	2.	refetchOnWindowFocus: false
+	•	In deiner Haupt-useQuery für /api/inventory-counts/${id}/items schaltest du ab:
+
+useQuery({
+  queryKey: [...],
+  refetchOnWindowFocus: false,
+  ...
+})
+
+
+
+⸻
+
+2. „Charge kann nicht aktualisiert werden“ & nicht sichtbare Batch
+
+Ursache:
+	•	Dein createNewBatch legt die neue Charge erfolgreich auf /api/inventory-counts/product-batches an, verknüpft sie aber anschließend via POST /api/inventory-counts/items/{itemId}/batch, während dein updateBatchMutation für feste Batches PATCH /api/inventory-counts/items/{itemId}/batch verwendet.
+	•	Wenn dein Backend nur eine dieser Methoden unterstützt (z. B. nur POST oder nur PATCH), schlägt die Verknüpfung bzw. das Nachpatchen fehl und wirfst im Konsolen-Log den Fehler „Charge konnte nicht aktualisiert werden“.
+	•	Weil du nach dem fehlschlagenden Link‐Request danach die Haupt-Query invalidierst (oder im nächsten Refetch keine Verknüpfung zum Item mehr siehst), verschwindet deine neu erstellte Charge wieder aus der UI.
+
+Lösungsschritte:
+	1.	HTTP-Methode und Endpoint angleichen
+	•	Entscheide dich für eine Methode (POST oder PATCH) und passe beides darauf an.
+	•	Wenn dein Backend erwartet, dass man eine Charge an einen Inventurposten patcht, dann ändere in createNewBatch den Link-Call von POST auf PATCH.
+	•	Oder – falls dein Backend nur POST versteht – ändere in updateBatchMutation das method: 'PATCH' in method: 'POST'.
+	2.	Verknüpfung über dieselbe Mutation
+	•	Statt im createNewBatch direkt per fetch zu verknüpfen, ruf deine updateBatchMutation auf:
+
+const newBatch = await response.json()
+// …
+updateBatchMutation.mutate(
+  { itemId: selectedItem.id, batchId: newBatch.id },
+  {
+    onSuccess: () => {
+      toast({ title: "Charge erstellt & verknüpft" })
+      setShowBatchDialog(false)
+      setSelectedItem(null)
+    }
+  }
+)
+
+
+	•	So bleibt die gesamte Logik zentral in deiner Mutation, und du umgehst Inkonsistenzen.
+
+	3.	Lokales Array synchron halten
+	•	Rufe vor jeder Mutation updateCountedItem(...) auf, um den countedItems-State zu patchen und das neue batchId sofort sichtbar zu machen.
+	•	Vermeide danach erneute Initialisierungen aus der Query (dein initialLoadDone.current-Flag ist dafür schon richtig).
+
+⸻
+
+Zusammenfassung
+	•	Scroll-Reset verhindern: setze auf optimistische Updates (onMutate) und deaktiviere refetchOnWindowFocus, anstatt nach jeder Änderung neu zu laden.
+	•	Batch-Verknüpfung stabilisieren: sorge dafür, dass alle Aufrufe derselben HTTP-Methode und demselben Endpoint folgen – idealerweise bündelst du das Verknüpfen in deine vorhandene updateBatchMutation.
+	•	Lokaler State bleibt Quelle der Wahrheit: initialisiere nur einmal, patch dann stets dein countedItems und verzichte auf unnötige Invalidierungen.
+
+Mit diesen Anpassungen verschwindet das unstete Nach‐Oben-Springen, und neu angelegte oder geänderte Chargen bleiben ohne Fehler direkt sichtbar.
