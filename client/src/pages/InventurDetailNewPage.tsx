@@ -1081,12 +1081,21 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       
       // Aktualisiere sofort die UI mit einem temporären Objekt
       // Dies verhindert, dass der Benutzer auf die Serverantwort warten muss
-      // Konvertiere tempBatchId in Nummer für TypeScript-Kompatibilität
-      // und stelle sicher, dass warehouseId immer definiert ist
+      // Erstelle ein korrektes ProductBatch-Objekt, das dem Interface entspricht
       const tempBatchAsProductBatch: ProductBatch = {
-        ...tempBatch,
         id: parseInt(tempBatchId.replace('temp-', '999')), // Temp ID als Zahl
-        warehouseId: inventurData?.warehouseId || 0 // Verwende 0 als Fallback (wird später überschrieben)
+        warehouseId: inventurData?.warehouseId || 0, // Sicherstellen, dass warehouseId immer eine Nummer ist
+        productId: selectedItem.productId,
+        batchNumber: effectiveBatchNumber,
+        expiryDate: formattedExpiryDate,
+        initialQuantity: newBatchQuantity || 1,
+        currentQuantity: newBatchQuantity || 1,
+        notes: `Erstellt bei Inventur #${id}`,
+        receivedDate: new Date().toISOString().split('T')[0],
+        locationInWarehouse: '',
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        manufacturingDate: undefined
       };
       
       setAvailableBatches(prev => [...prev, tempBatchAsProductBatch]);
