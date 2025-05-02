@@ -1,0 +1,77 @@
+Genauer Befund
+	1.	Seiten-„Ruckler“ / Scroll-Reset
+	•	In deiner Komponente initialisierst du countedItems in einem useEffect immer dann neu, wenn inventurItems (die Rohdaten aus der Query) sich ändert:
+
+useEffect(() => {
+  if (inventurItems && inventurItems.length > 0) {
+    setCountedItems(inventurItems);
+  }
+}, [inventurItems]);
+
+
+	•	Nach jeder Mutation (Charge anlegen/aktualisieren, Menge ändern, Split) invalidierst du die Query (invalidateQueries), wodurch inventurItems kurzzeitig neu geladen und damit deine lokale Kopie zurückgesetzt wird. Jede dieser „Neuladungen“ führt zu einem kompletten Re-Render der Liste und damit zu einem Springen an den List-Anfang.
+
+	2.	Fehler „Charge kann nicht aktualisiert werden“ & andere Fehlermeldungen beim Erstellen
+	•	Viele deiner Fetch-Aufrufe wurden nicht in eine Variable geschrieben. Beispiel beim Verknüpfen der neuen Charge:
+
+// Falsch – fetch wird aufgerufen, aber nicht gespeichert
+fetch(`/api/inventory-counts/items/${selectedItem.id}/batch`, { method: 'POST', … });
+if (!updateResponse.ok) { … }   // updateResponse ist hier undefined!
+
+
+	•	Dasselbe Muster findet sich auch beim Hinzufügen von Items (add-items) oder beim Patchen der Batch. Deswegen wirft das if (!response.ok) bzw. if (!updateResponse.ok) einen JS-Fehler, die API-Antwort wird nie korrekt geprüft und im Fehlerfall landest du in deinem Catch-Block mit der Toast-Meldung „Charge konnte nicht aktualisiert werden“.
+
+⸻
+
+👉 Schritt-für-Schritt-Anleitung für eine Refactoring-KI
+	1.	Fetch-Aufrufe immer in const response = await fetch(...) packen
+	•	Suche in der Datei alle Stellen mit fetch(, die direkt im Mutation- oder CRUD-Code stehen, und ersetze sie so:
+
+- fetch(url, options);
+- if (!response.ok) { … }
++ const response = await fetch(url, options);
++ if (!response.ok) { … }
+
+
+	•	Analog für die Stelle, an der du updateResponse benutzt:
+
+- fetch(`/api/.../batch`, { method: 'POST', … });
+- if (!updateResponse.ok) { … }
++ const updateResponse = await fetch(`/api/.../batch`, { method: 'POST', … });
++ if (!updateResponse.ok) { … }
+
+
+	2.	Init-useEffect so verändern, dass er nur einmal initialisiert
+	•	Passe das useEffect für countedItems an, damit es nur beim ersten Laden (oder wenn countedItems noch leer ist) setzt, und nicht bei jedem Refetch:
+
+useEffect(() => {
+  if (
+    inventurItems &&
+    inventurItems.length > 0 &&
+    countedItems.length === 0  // nur initial, wenn noch nichts gesetzt
+  ) {
+    setCountedItems(inventurItems);
+  }
+}, [inventurItems, countedItems.length]);
+
+
+	3.	Query-Invalidation auf das wirklich Notwendige begrenzen
+	•	Überdenke, ob du nach jeder batch-Mutation wirklich die gesamte Item-Liste neu laden musst. Oft reicht es, im lokalen State (countedItems) das eine Item zu aktualisieren, statt invalidateQueries aufzurufen.
+	4.	State-Updates sauber durch Callback laufen lassen
+	•	Wo immer du ein Item oder eine Charge änderst, rufe danach nur eine eine zentrale Update-Funktion auf:
+
+function updateCountedItem(updated: InventoryCountItem) {
+  setCountedItems(prev =>
+    prev.map(i => i.id === updated.id ? updated : i)
+  );
+}
+
+
+	•	Und vermeide Nebeneffekte, die zu Refetches führen.
+
+	5.	Abschließende Tests
+	•	Charge anlegen: Erstelle eine neue Charge, verknüpfe sie mit einem Item und beobachte, dass keine Fehlermeldung kommt und die Seite nicht springt.
+	•	Charge aktualisieren: Ändere eine bestehende Charge und stelle sicher, dass response.ok geprüft wird.
+	•	Scroll-Verhalten: Scrolle in der Liste nach unten, führe eine Batch-Aktion durch und verifiziere, dass der Scroll-Standort erhalten bleibt.
+
+Mit diesen Anpassungen verschwindet das ständige „Zurück an den Anfang“ und die JavaScript-Errors beim Batch-Handling werden behoben.
