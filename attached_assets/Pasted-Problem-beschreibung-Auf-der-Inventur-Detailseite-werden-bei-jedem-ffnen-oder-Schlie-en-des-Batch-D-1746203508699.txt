@@ -1,0 +1,78 @@
+Problem­beschreibung
+Auf der Inventur-Detailseite werden bei jedem Öffnen oder Schließen des Batch-Dialogs die bisherigen Mengeneinträge (und damit neu angelegte Batches) verworfen. Konkret:
+	1.	Der Dialog ­InventoryCountBatchDialog bekommt nur das aktuell ausgewählte Einzel­item übergeben, nicht die gesamte Liste der gezählten Artikel.
+	2.	Es existiert kein eigener lokaler State für die Liste aller InventoryCountItem–Objekte. Stattdessen greift die Komponente direkt auf die Daten aus der Query (oder Props) zu.
+	3.	Sobald der Dialog geöffnet bzw. geschlossen oder ein Batch gespeichert wird, führt dies zu einem Re-Render (z. B. durch ein Backend-Polling oder erneutes Laden der Query), worauf die bisherigen Änderungen verloren gehen.
+
+Ursache
+Weil die Komponente keinen persistenten lokalen State für das Array aller Inventur­einträge nutzt, bleiben Zwischenergebnisse (z. B. geänderte Zählmengen oder neu angelegte Batches) nicht erhalten, sobald React die Komponente neu rendert. Der Dialog wirkt dabei wie ein Außenseiter, der zwar ein einzelnes Item modifiziert, diese Modifikation aber nirgendwo langfristig ablegt.
+
+⸻
+
+Anleitung für eine KI („Refactoring-Agent“) zur Fehlerbehebung
+	1.	Lokalen State anlegen
+	•	Füge ganz oben in der Komponente eine State-Variable für die gesamte Item-Liste ein:
+
+const [countedItems, setCountedItems] = useState<InventoryCountItem[]>(inventoryCount.items ?? []);
+
+
+	•	Initialisiere sie einmal bei Laden der Seite mit den Daten aus der Query/Props.
+
+	2.	Update-Funktion implementieren
+	•	Schreibe eine Hilfsfunktion, die ein einzelnes Item im State aktualisiert:
+
+function updateCountedItem(updated: InventoryCountItem) {
+  setCountedItems(prev =>
+    prev.map(item =>
+      item.id === updated.id ? updated : item
+    )
+  );
+}
+
+
+	3.	Dialog-Callback erweitern
+	•	Erweitere die Übergabe an den Batch-Dialog um eine onSave-Funktion:
+
+<InventoryCountBatchDialog
+  open={showBatchDialog}
+  onOpenChange={setShowBatchDialog}
+  selectedItem={selectedItem}
+  onSaveBatch={(newBatch) => {
+    const patched = {
+      ...selectedItem!,
+      batch: newBatch,
+      batchId: newBatch.id
+    };
+    updateCountedItem(patched);
+    setShowBatchDialog(false);
+    setSelectedItem(null);
+  }}
+/>
+
+
+	•	Entferne jede direkte Mutation von Props oder Query-Daten im Dialog-Callback.
+
+	4.	Anzeige an lokale Daten koppeln
+	•	Ersetze in der Render-Logik alle Vorkommen von inventoryCount.items durch countedItems.
+	•	Stelle sicher, dass Editier-Felder (<Input> o. Ä.) ihre Werte aus countedItems ziehen und Änderungen über updateCountedItem zurückspielen.
+	5.	Speicher-Operation anpassen
+	•	Beim abschließenden Speichern der Inventur an das Backend sendest du nicht länger die unveränderten Query-Daten, sondern countedItems:
+
+mutateSaveInventory({ items: countedItems, ...andereFelder });
+
+
+	6.	Optional: Debounce oder Batch-Speicher
+	•	Wenn du automatische Zwischenspeicherungen beim Dialog-Schließen wünschst, rufe mutateSaveItem (partielle Mutation) innerhalb von onSaveBatch auf, um nur das geänderte Item zu persistieren.
+	7.	Test­fälle erstellen
+	•	Schreibe Unit-Tests für das Update-Verhalten:
+	•	Ändere Zählmenge an Item 5, öffne Batch-Dialog 6, speichere, und verifiziere, dass Item 5 weiterhin die korrekte Menge hält.
+	•	Lege einen neuen Batch für ein beliebiges Item an, und prüfe, dass countedItems den Eintrag enthält.
+
+⸻
+
+Mit diesen Schritten hat deine Seite:
+	•	Persistenten lokalen State für alle Änderungen
+	•	Saubere Trennung zwischen UI-State und Backend-Daten
+	•	Robusten Dialog-Workflow, bei dem Zwischenergebnisse nicht verloren gehen
+
+So kann deine KI/Agent den Code automatisiert refactoren und das Batch-Handling sowie die Inventur­speicherung stabilisieren.
