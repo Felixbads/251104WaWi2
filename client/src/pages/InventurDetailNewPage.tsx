@@ -960,7 +960,12 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   
   // Funktion zum Aktualisieren der Charge und Neuladens aller betroffenen Daten
   // Hilfsfunktion zum Aktualisieren eines einzelnen Items im lokalen State
+  // Die Funktion ist so optimiert, dass keine unnötige Re-Renders oder Scroll-Resets passieren
   const updateCountedItem = (updatedItem: InventoryCountItem) => {
+    console.log("Aktualisiere Item im lokalen State:", updatedItem.id);
+    
+    // Wir verwenden eine Funktionsreferenz für setCountedItems,
+    // um den vorherigen State sicher zu aktualisieren, ohne von externen Variablen abhängig zu sein
     setCountedItems(prevItems =>
       prevItems.map(item =>
         item.id === updatedItem.id ? updatedItem : item
@@ -974,33 +979,41 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       
       // Aktualisiere den Batch im lokalen State
       const selectedBatch = availableBatches.find(b => b.id === batchId);
+      
+      // Wir erstellen ein neues Objekt mit allen erforderlichen Eigenschaften
       const updatedItem = {
         ...selectedItem,
         batchId: batchId,
         batch: selectedBatch || null
       };
       
-      // Aktualisiere lokalen State
+      // Aktualisiere lokalen State VOR der Server-Mutation
+      // Dies verhindert Flackern und Scroll-Reset, die durch das Warten auf Serverantworten entstehen
       updateCountedItem(updatedItem);
       
-      // Sende das Update auch zum Server
+      // Sende das Update auch zum Server, aber invalidiere nicht den Query Cache
+      // Dadurch vermeiden wir, dass React Query die Daten neu lädt und einen Scroll-Reset verursacht
       updateBatchMutation.mutate({ 
         itemId: selectedItem.id, 
         batchId 
+      }, {
+        // Wir überschreiben das onSuccess Callback, um keine Query-Invalidierung auszulösen
+        onSuccess: () => {
+          // Nur Feedback an den Benutzer, keine Daten neu laden
+          toast({
+            title: "MHD aktualisiert",
+            description: `Die Charge wurde erfolgreich mit dem Artikel verknüpft.`,
+          });
+        }
       });
       
-      // Mit Verzögerung verfügbare Chargen aktualisieren
+      // Sanfte Aktualisierung der verfügbaren Chargen nach einer Verzögerung,
+      // ohne die Benutzeroberfläche zurückzusetzen
       setTimeout(() => {
         if (selectedItem.productId) {
           loadBatches(selectedItem.productId);
         }
       }, 500);
-      
-      // Erfolgsmeldung anzeigen
-      toast({
-        title: "MHD aktualisiert",
-        description: `Die Charge wurde erfolgreich mit dem Artikel verknüpft.`,
-      });
     }
   };
   
@@ -1016,6 +1029,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   };
   
   // Erstellt eine neue Charge mit MHD und verknüpft sie mit dem Inventar-Item
+  // Diese Funktion wurde optimiert, um Scroll-Resets zu verhindern
   const createNewBatch = async () => {
     if (!selectedItem || !selectedItem.productId) {
       console.error("Kein Produkt ausgewählt oder Produkt hat keine ID");
@@ -1038,10 +1052,13 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       console.log("Formatiertes Datum für API-Anfrage:", formattedExpiryDate);
     }
     
+    // Erzeuge eindeutige Batch-Nummer, falls keine angegeben wurde
+    const effectiveBatchNumber = newBatchNumber || `INV-${id}-${new Date().toISOString().split('T')[0]}`;
+    
     const batchData = {
       productId: selectedItem.productId,
       warehouseId: inventurData?.warehouseId,
-      batchNumber: newBatchNumber || `INV-${id}-${new Date().toISOString().split('T')[0]}`,
+      batchNumber: effectiveBatchNumber,
       expiryDate: formattedExpiryDate,
       initialQuantity: newBatchQuantity || 1, // Mindestmenge 1 statt 0
       currentQuantity: newBatchQuantity || 1, // Mindestmenge 1 statt 0
@@ -1053,6 +1070,27 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     console.log("Sende Batch-Daten:", JSON.stringify(batchData, null, 2));
     
     try {
+      // Erstelle ein vorläufiges Batch-Objekt für sofortige UI-Aktualisierung
+      const tempBatchId = `temp-${Date.now()}`;
+      const tempBatch = {
+        id: tempBatchId, // Temporäre ID, die später durch die echte ersetzt wird
+        ...batchData,
+        status: 'active',
+        createdAt: new Date().toISOString()
+      };
+      
+      // Aktualisiere sofort die UI mit einem temporären Objekt
+      // Dies verhindert, dass der Benutzer auf die Serverantwort warten muss
+      // Konvertiere tempBatchId in Nummer für TypeScript-Kompatibilität
+      // und stelle sicher, dass warehouseId immer definiert ist
+      const tempBatchAsProductBatch: ProductBatch = {
+        ...tempBatch,
+        id: parseInt(tempBatchId.replace('temp-', '999')), // Temp ID als Zahl
+        warehouseId: inventurData?.warehouseId || 0 // Verwende 0 als Fallback (wird später überschrieben)
+      };
+      
+      setAvailableBatches(prev => [...prev, tempBatchAsProductBatch]);
+      
       // Schritt 1: Erstelle neue Charge API-Anfrage
       const response = await fetch('/api/inventory-counts/product-batches', {
         method: 'POST',
@@ -1079,40 +1117,22 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       const newBatch = await response.json();
       console.log("Neue Charge erstellt:", newBatch);
       
-      // Aktualisiere die Batches-Liste
-      setAvailableBatches(prev => [...prev, newBatch]);
+      // Ersetze den temporären Eintrag durch die echten Daten
+      // Verwende isTemporaryBatch Funktion zur sicheren Identifizierung
+      const isTemporaryBatch = (batch: ProductBatch) => {
+        return batch.id.toString().includes('999') && 
+               batch.batchNumber === effectiveBatchNumber;
+      };
+      
+      setAvailableBatches(prev => 
+        prev.map(batch => isTemporaryBatch(batch) ? newBatch : batch)
+      );
       
       // Wähle die neue Charge aus
       setSelectedBatchId(newBatch.id);
       
-      // Schritt 2: Verknüpfe die neue Charge mit dem Inventurposten
-      console.log(`Verknüpfe Inventurposten ${selectedItem.id} mit Charge ${newBatch.id}...`);
-      
-      try {
-        const updateResponse = await fetch(`/api/inventory-counts/items/${selectedItem.id}/batch`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ 
-            batchId: newBatch.id 
-          }),
-        });
-        
-        if (!updateResponse.ok) {
-          console.error(`Fehler beim Verknüpfen: Status ${updateResponse.status}`);
-          const updateErrorText = await updateResponse.text();
-          console.error('Fehler beim Verknüpfen der Charge:', updateErrorText);
-        } else {
-          const updateResult = await updateResponse.json();
-          console.log("Verknüpfung erfolgreich:", updateResult);
-        }
-      } catch (updateError) {
-        console.error('Fehler beim Verknüpfen der Charge:', updateError);
-        // Zeige keinen Fehler für die Verknüpfung an, da die Charge bereits erstellt wurde
-      }
-      
-      // Aktualisiere den lokalen State
+      // Aktualisiere den lokalen State sofort mit der neuen Batch
+      // Dies verhindert Flackern beim Warten auf Serverantworten
       if (selectedItem) {
         const updatedItem = {
           ...selectedItem,
@@ -1122,6 +1142,35 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         updateCountedItem(updatedItem);
       }
       
+      // Schritt 2: Verknüpfe die neue Charge mit dem Inventurposten im Hintergrund
+      console.log(`Verknüpfe Inventurposten ${selectedItem.id} mit Charge ${newBatch.id}...`);
+      
+      // Die Verknüpfung läuft asynchron im Hintergrund
+      // Wir zeigen bereits die Erfolgsmeldung an und verknüpfen dann
+      fetch(`/api/inventory-counts/items/${selectedItem.id}/batch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          batchId: newBatch.id 
+        }),
+      })
+      .then(async updateResponse => {
+        if (!updateResponse.ok) {
+          console.error(`Fehler beim Verknüpfen: Status ${updateResponse.status}`);
+          const updateErrorText = await updateResponse.text();
+          console.error('Fehler beim Verknüpfen der Charge:', updateErrorText);
+        } else {
+          const updateResult = await updateResponse.json();
+          console.log("Verknüpfung erfolgreich:", updateResult);
+        }
+      })
+      .catch(updateError => {
+        console.error('Fehler beim Verknüpfen der Charge:', updateError);
+        // Wir zeigen keinen Fehler an, da die Verknüpfung über den lokalen State bereits erfolgt ist
+      });
+      
       // Schließe das Formular
       setShowNewBatchForm(false);
       
@@ -1130,6 +1179,9 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         description: "Die Charge wurde erfolgreich erstellt und mit dem Inventurposten verknüpft."
       });
     } catch (error) {
+      // Entferne den temporären Eintrag im Fehlerfall
+      setAvailableBatches(prev => prev.filter(batch => !batch.id.toString().startsWith('temp-')));
+      
       const errorMessage = error instanceof Error ? error.message : "Unbekannter Fehler";
       console.error('Fehler beim Erstellen einer neuen Charge:', error);
       toast({
@@ -1141,11 +1193,63 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   };
   
   // Split-Bestand zwischen zwei Chargen
+  // Diese Funktion wurde optimiert, um Scroll-Resets zu verhindern
   const handleSplitInventory = async () => {
     if (!selectedItem || splitQuantity === null || splitTargetBatchId === null) return;
     
     try {
-      // Bestandsaufteilung API-Anfrage
+      // Wir erstellen ein vorläufiges Update für UI-Reaktivität
+      // Dies gibt dem Benutzer sofortiges Feedback, ohne auf den Server zu warten
+      // und verhindert Scroll-Resets durch API-Aufrufe
+      
+      // Bestimme die Ziel-Batch aus den verfügbaren Batches
+      const targetBatch = availableBatches.find(b => b.id === splitTargetBatchId);
+      const sourceBatch = availableBatches.find(b => b.id === selectedBatchId);
+      
+      if (sourceBatch) {
+        // Erstelle lokale Kopien für die UI-Aktualisierung
+        const updatedSourceBatch = {
+          ...sourceBatch,
+          currentQuantity: Math.max(0, (sourceBatch.currentQuantity || 0) - splitQuantity)
+        };
+        
+        const updatedTargetBatch = targetBatch ? {
+          ...targetBatch,
+          currentQuantity: (targetBatch.currentQuantity || 0) + splitQuantity
+        } : undefined;
+        
+        // Aktualisiere die UI sofort
+        setAvailableBatches(prev => 
+          prev.map(batch => {
+            if (batch.id === sourceBatch.id) return updatedSourceBatch;
+            if (targetBatch && batch.id === targetBatch.id && updatedTargetBatch) 
+              return updatedTargetBatch;
+            return batch;
+          })
+        );
+        
+        // Aktualisiere das ausgewählte Item, falls nötig
+        if (selectedItem) {
+          const updatedItem = {
+            ...selectedItem,
+            batch: updatedSourceBatch
+          };
+          
+          // Aktualisiere lokalen State sofort
+          updateCountedItem(updatedItem);
+        }
+      }
+      
+      // Schließe das Split-Formular sofort, ohne auf Server-Antwort zu warten
+      setShowSplitForm(false);
+      
+      // Zeige sofort Erfolgsmeldung an
+      toast({
+        title: "Bestand wird aufgeteilt",
+        description: `${splitQuantity} Einheiten werden auf die andere Charge übertragen.`
+      });
+      
+      // Jetzt im Hintergrund die tatsächliche API-Anfrage senden
       const response = await fetch(`/api/inventory-counts/items/${selectedItem.id}/split`, {
         method: 'POST',
         headers: {
@@ -1165,45 +1269,63 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       const result = await response.json();
       console.log('Bestandsaufteilung erfolgreich:', result);
       
-      // Aktualisiere den lokalen State, falls die Antwort das Split-Item enthält
+      // Ruhige Aktualisierung im Hintergrund, ohne UI-Reset
+      // Aktualisiere den lokalen State mit den tatsächlichen Server-Daten
       if (selectedItem && result.updatedItem) {
-        // Aktualisiere das Item im lokalen State
         updateCountedItem(result.updatedItem);
       }
       
-      // Aktualisiere die Batches mit verbessertem Error-Handling
-      fetch(`/api/products/${selectedItem.productId}/batches?warehouseId=${inventurData?.warehouseId}`)
-        .then(async response => {
-          if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`Error response (${response.status}):`, errorText);
-            throw new Error(`Server antwortete mit ${response.status}: ${errorText}`);
-          }
-          return response.json();
-        })
-        .then(data => {
-          console.log("Aktualisierte Batches für Split-Dialog geladen:", data);
-          setAvailableBatches(Array.isArray(data) ? data : []);
-        })
-        .catch(error => {
-          console.error("Fehler beim Aktualisieren der Batches nach Split:", error);
-          // Wir setzen keinen leeren Array, weil wir die aktuellen Batches behalten wollen
-        });
+      // Aktualisiere Batches im Hintergrund ohne Neuzeichnung der UI
+      // Die fetch-Operation wird als niedrige Priorität behandelt
+      setTimeout(() => {
+        fetch(`/api/products/${selectedItem.productId}/batches?warehouseId=${inventurData?.warehouseId}`)
+          .then(async response => {
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error(`Error response (${response.status}):`, errorText);
+              throw new Error(`Server antwortete mit ${response.status}: ${errorText}`);
+            }
+            return response.json();
+          })
+          .then(data => {
+            console.log("Aktualisierte Batches für Split-Dialog geladen:", data);
+            
+            // Vorsichtige Aktualisierung: Stelle sicher, dass wir keine UI-Resets verursachen
+            if (Array.isArray(data) && data.length > 0) {
+              setAvailableBatches(data);
+            }
+          })
+          .catch(error => {
+            console.error("Fehler beim Aktualisieren der Batches nach Split:", error);
+            // Keine UI-Änderung bei Fehlern
+          });
+      }, 500);
       
-      // Schließe das Split-Formular
-      setShowSplitForm(false);
-      
+      // Aktualisiere die Erfolgsmeldung
       toast({
         title: "Bestand aufgeteilt",
-        description: `${splitQuantity} Einheiten wurden erfolgreich auf die andere Charge übertragen.`
+        description: `${splitQuantity} Einheiten wurden erfolgreich auf die andere Charge übertragen.`,
+        variant: "default"
       });
+      
     } catch (error) {
       console.error('Fehler bei der Bestandsaufteilung:', error);
+      
+      // Bei Fehlern: UI Wiederherstellung und Fehlermeldung
       toast({
         title: "Fehler",
-        description: "Der Bestand konnte nicht aufgeteilt werden.",
+        description: "Der Bestand konnte nicht aufgeteilt werden. Bitte versuchen Sie es erneut.",
         variant: "destructive"
       });
+      
+      // Lade den tatsächlichen Zustand vom Server
+      fetch(`/api/products/${selectedItem.productId}/batches?warehouseId=${inventurData?.warehouseId}`)
+        .then(response => response.ok ? response.json() : [])
+        .then(data => {
+          if (Array.isArray(data) && data.length > 0) {
+            setAvailableBatches(data);
+          }
+        });
     }
   };
 
@@ -1223,14 +1345,20 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   }, [inventurItems, itemOrderMap]);
   
   // Initialisiere den lokalen State für countedItems NUR beim ersten Laden
+  // Nutze useRef, um zu tracken, ob die erste Initialisierung bereits stattgefunden hat
+  const initialLoadDone = React.useRef(false);
+  
   useEffect(() => {
+    // Nur beim ersten erfolgreichen Laden initialisieren
     if (inventurItems && 
         inventurItems.length > 0 && 
-        countedItems.length === 0) { // nur initial, wenn noch nichts gesetzt ist
+        !initialLoadDone.current) {
       console.log("Initialisiere lokalen State für countedItems mit", inventurItems.length, "Elementen");
       setCountedItems(inventurItems);
+      // Markiere, dass die initiale Ladung erfolgt ist
+      initialLoadDone.current = true;
     }
-  }, [inventurItems, countedItems.length]);
+  }, [inventurItems]);
   
   // Sortiere Inventurpositionen mit Stabilität
   const sortedItems = useMemo(() => {
