@@ -945,27 +945,34 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   };
   
   // Funktion zum Aktualisieren der Charge und Neuladens aller betroffenen Daten
+  // Hilfsfunktion zum Aktualisieren eines einzelnen Items im lokalen State
+  const updateCountedItem = (updatedItem: InventoryCountItem) => {
+    setCountedItems(prevItems =>
+      prevItems.map(item =>
+        item.id === updatedItem.id ? updatedItem : item
+      )
+    );
+  };
+
   const handleBatchUpdate = (batchId: number | null) => {
     if (selectedItem) {
       console.log("Batch-Update wird durchgeführt: Item ID =", selectedItem.id, "Batch ID =", batchId);
+      
+      // Aktualisiere den Batch im lokalen State
+      const selectedBatch = availableBatches.find(b => b.id === batchId);
+      const updatedItem = {
+        ...selectedItem,
+        batchId: batchId,
+        batch: selectedBatch || null
+      };
+      
+      // Aktualisiere lokalen State
+      updateCountedItem(updatedItem);
+      
+      // Sende das Update auch zum Server
       updateBatchMutation.mutate({ 
         itemId: selectedItem.id, 
         batchId 
-      });
-      
-      // Nach dem Update alle relevanten Daten neu laden
-      queryClient.invalidateQueries({ 
-        queryKey: [`/api/product-batches`]
-      });
-      
-      // Inventarposten aktualisieren, damit MHD in der Tabelle erscheint
-      queryClient.invalidateQueries({ 
-        queryKey: [`/api/inventory-counts/${id}/items`] 
-      });
-      
-      // Auch die Inventurdaten selbst neu laden
-      queryClient.invalidateQueries({ 
-        queryKey: [`/api/inventory-counts/${id}`] 
       });
       
       // Mit Verzögerung verfügbare Chargen aktualisieren
@@ -1206,9 +1213,9 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   // Sortiere Inventurpositionen mit Stabilität
   const sortedItems = useMemo(() => {
     // Wenn keine Sortierung aktiv ist und noch keine Originalreihenfolge gespeichert wurde, gib die Items unverändert zurück
-    if (!sortField && Object.keys(itemOrderMap).length === 0) return inventurItems;
+    if (!sortField && Object.keys(itemOrderMap).length === 0) return countedItems;
     
-    const itemsToSort = [...inventurItems];
+    const itemsToSort = [...countedItems];
     
     // Stabile Sortierung: Verwende eine Sekundärsortierung nach ursprünglicher Reihenfolge,
     // wenn die primäre Sortierung gleiche Werte ergibt
@@ -1276,7 +1283,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       // Wenn keine Sortierung aktiv ist, behalte die ursprüngliche Reihenfolge bei
       return indexA - indexB;
     });
-  }, [inventurItems, itemOrderMap, sortField, sortDirection]);
+  }, [countedItems, itemOrderMap, sortField, sortDirection]);
   
   // Filtere Inventurpositionen basierend auf Suchbegriff
   const filteredItems = useMemo(() => {
