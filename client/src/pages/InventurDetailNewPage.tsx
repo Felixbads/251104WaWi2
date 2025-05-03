@@ -804,24 +804,21 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         window.scrollTo(0, context.prevScroll);
       }
       
-      // React-Query-Cache für Inventar-Items aktualisieren
-      // Wir verwenden den queryClient der außerhalb der Callback-Funktion deklariert wurde
+      // React-Query-Cache für Inventar-Items aktualisieren mit dem KORREKTEN Query-Key
+      // Der korrekte Query-Key ist derselbe, der in der useQuery-Funktion verwendet wird
       queryClient.setQueryData(
-        ['inventoryItems', id],
-        (old?: { products: InventoryCountItem[] }) => {
+        [`/api/inventory-counts/${id}/items`],
+        (old?: InventoryCountItem[]) => {
           if (!old) return old;
-          return {
-            ...old,
-            products: old.products.map(prod =>
-              prod.id === variables.itemId
-                ? { 
-                    ...prod, 
-                    batchId: variables.batchId,
-                    batch: availableBatches.find(b => b.id === variables.batchId) || null
-                  }
-                : prod
-            )
-          };
+          return old.map(item =>
+            item.id === variables.itemId
+              ? { 
+                  ...item, 
+                  batchId: variables.batchId,
+                  batch: availableBatches.find(b => b.id === variables.batchId) || null
+                }
+              : item
+          );
         }
       );
       
@@ -1072,47 +1069,124 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     );
   };
 
-  const handleBatchUpdate = (batchId: number | null) => {
-    if (selectedItem) {
-      console.log("Batch-Update wird durchgeführt: Item ID =", selectedItem.id, "Batch ID =", batchId);
+  const handleBatchUpdate = async (batchId: number | null) => {
+    if (!selectedItem) return;
+    console.log("Batch-Update wird durchgeführt: Item ID =", selectedItem.id, "Batch ID =", batchId);
+    
+    let finalBatch: ProductBatch | null = null;
+    
+    try {
+      // 1) Wenn kein Batch ausgewählt wurde, erstelle automatisch einen neuen
+      if (batchId === null) {
+        console.log("Neue Charge wird automatisch angelegt");
+        
+        // Automatische Batch-Nummer generieren
+        const autoBatchNumber = `INV-${selectedItem.productId}-${Date.now()}`;
+        
+        // Automatisches Ablaufdatum (6 Monate)
+        const expiryDate = new Date();
+        expiryDate.setMonth(expiryDate.getMonth() + 6);
+        const expiryDateString = expiryDate.toISOString().split('T')[0];
+        
+        // Neue Charge am Server anlegen
+        const createRes = await fetch('/api/inventory-counts/product-batches', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productId: selectedItem.productId,
+            warehouseId: inventurData!.warehouseId,
+            batchNumber: autoBatchNumber,
+            expiryDate: expiryDateString,
+            initialQuantity: selectedItem.countedQuantity || 1,
+            currentQuantity: selectedItem.countedQuantity || 1,
+            notes: `Auto-erstellt bei Inventur #${id}`
+          })
+        });
+        
+        if (!createRes.ok) {
+          throw new Error(`Batch konnte nicht angelegt werden: ${createRes.status}`);
+        }
+        
+        // Neue Batch-ID und -Informationen abrufen
+        const newBatch: ProductBatch = await createRes.json();
+        console.log("Neue Charge wurde erstellt:", newBatch);
+        batchId = newBatch.id;
+        finalBatch = newBatch;
+        
+        // Automatisch zur Liste der verfügbaren Batches hinzufügen
+        setAvailableBatches(prev => [...prev, newBatch]);
+        
+      } else {
+        // 2) Wenn ein Batch ausgewählt wurde, verwende diesen
+        const existingBatch = availableBatches.find(b => b.id === batchId);
+        if (!existingBatch) {
+          throw new Error(`Batch mit ID ${batchId} nicht gefunden`);
+        }
+        finalBatch = existingBatch;
+      }
       
-      // Aktualisiere den Batch im lokalen State
-      const selectedBatch = availableBatches.find(b => b.id === batchId);
-      
-      // Wir erstellen ein neues Objekt mit allen erforderlichen Eigenschaften
+      // Optimistisches UI-Update
       const updatedItem = {
         ...selectedItem,
         batchId: batchId,
-        batch: selectedBatch || null
+        batch: finalBatch
       };
       
-      // Aktualisiere lokalen State VOR der Server-Mutation
-      // Dies verhindert Flackern und Scroll-Reset, die durch das Warten auf Serverantworten entstehen
+      // Lokales State-Update für direkte UI-Reaktion
       updateCountedItem(updatedItem);
       
-      // Sende das Update auch zum Server, aber invalidiere nicht den Query Cache
-      // Dadurch vermeiden wir, dass React Query die Daten neu lädt und einen Scroll-Reset verursacht
-      updateBatchMutation.mutate({ 
-        itemId: selectedItem.id, 
-        batchId 
-      }, {
-        // Wir überschreiben das onSuccess Callback, um keine Query-Invalidierung auszulösen
-        onSuccess: () => {
-          // Nur Feedback an den Benutzer, keine Daten neu laden
-          toast({
-            title: "MHD aktualisiert",
-            description: `Die Charge wurde erfolgreich mit dem Artikel verknüpft.`,
-          });
+      // 3) Inventur-Item mit Batch verknüpfen
+      updateBatchMutation.mutate(
+        { itemId: selectedItem.id, batchId },
+        {
+          onSuccess: () => {
+            // Dialog schließen
+            setShowBatchDialog(false);
+            setSelectedItem(null);
+            
+            // Erfolgsmeldung
+            toast({
+              title: batchId === null ? "Charge erstellt" : "Charge verknüpft",
+              description: batchId === null 
+                ? "Eine neue Charge wurde automatisch erstellt und mit dem Artikel verknüpft."
+                : "Die Charge wurde erfolgreich mit dem Artikel verknüpft.",
+            });
+            
+            // Aktualisiere auch den React Query Cache
+            queryClient.setQueryData(
+              [`/api/inventory-counts/${id}/items`],
+              (old?: InventoryCountItem[]) => {
+                if (!old) return old;
+                return old.map(item =>
+                  item.id === selectedItem.id
+                    ? { 
+                        ...item, 
+                        batchId: batchId,
+                        batch: finalBatch
+                      }
+                    : item
+                );
+              }
+            );
+          },
+          onError: (error) => {
+            console.error('Fehler beim Verknüpfen der Charge:', error);
+            toast({
+              title: "Fehler",
+              description: "Die Charge konnte nicht verknüpft werden.",
+              variant: "destructive",
+            });
+          }
         }
-      });
+      );
       
-      // Sanfte Aktualisierung der verfügbaren Chargen nach einer Verzögerung,
-      // ohne die Benutzeroberfläche zurückzusetzen
-      setTimeout(() => {
-        if (selectedItem.productId) {
-          loadBatches(selectedItem.productId);
-        }
-      }, 500);
+    } catch (error) {
+      console.error('Fehler bei der Batch-Aktualisierung:', error);
+      toast({
+        title: "Fehler",
+        description: "Die Charge konnte nicht erstellt oder verknüpft werden.",
+        variant: "destructive",
+      });
     }
   };
   
@@ -1289,23 +1363,20 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
           // Stelle Scroll-Position wieder her
           window.scrollTo(0, prevScroll);
           
-          // React-Query-Cache für Inventar-Items aktualisieren
+          // React-Query-Cache für Inventar-Items mit dem KORREKTEN Query-Key aktualisieren
           queryClient.setQueryData(
-            ['inventoryItems', id],
-            (old?: { products: InventoryCountItem[] }) => {
+            [`/api/inventory-counts/${id}/items`],
+            (old?: InventoryCountItem[]) => {
               if (!old) return old;
-              return {
-                ...old,
-                products: old.products.map(prod =>
-                  prod.id === selectedItem.id
-                    ? { 
-                        ...prod, 
-                        batchId: newBatch.id,
-                        batch: newBatch
-                      }
-                    : prod
-                )
-              };
+              return old.map(item =>
+                item.id === selectedItem.id
+                  ? { 
+                      ...item, 
+                      batchId: newBatch.id,
+                      batch: newBatch
+                    }
+                  : item
+              );
             }
           );
           
@@ -1460,23 +1531,20 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
           });
       }, 500);
       
-      // React-Query-Cache für Inventar-Items aktualisieren
+      // React-Query-Cache für Inventar-Items mit dem KORREKTEN Query-Key aktualisieren
       queryClient.setQueryData(
-        ['inventoryItems', id],
-        (old?: { products: InventoryCountItem[] }) => {
+        [`/api/inventory-counts/${id}/items`],
+        (old?: InventoryCountItem[]) => {
           if (!old) return old;
-          return {
-            ...old,
-            products: old.products.map(prod =>
-              prod.id === selectedItem.id
-                ? { 
-                    ...prod, 
-                    batchId: selectedBatchId,
-                    batch: availableBatches.find(b => b.id === selectedBatchId) || null
-                  }
-                : prod
-            )
-          };
+          return old.map(item =>
+            item.id === selectedItem.id
+              ? { 
+                  ...item, 
+                  batchId: selectedBatchId,
+                  batch: availableBatches.find(b => b.id === selectedBatchId) || null
+                }
+              : item
+          );
         }
       );
       

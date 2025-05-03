@@ -1,0 +1,98 @@
+Warum das frisch erzeugte Batch nicht angezeigt wird
+Trotz erfolgreicher Anlage auf dem Server passiert in Eurem Code an zwei Stellen nichts, was das UI wirklich up‐to‐date hält:
+	1.	Der lokale State wird nie im Modal-Flow geupdated
+	•	Eure Funktion createNewBatch kümmert sich um das Anlegen eines Batches im Inline-Formular und ruft dort updateCountedItem(updatedItem) auf.
+	•	Wenn ihr aber stattdessen das InventoryCountBatchDialog nutzt, landet ihr im Callback handleBatchUpdate, das nur bestehende batchId-Werte patched, ohne die Anlage eines neuen Batches oder ein updateCountedItem auszulösen.
+	2.	Der React-Query-Cache wird am falschen Key upgedatet
+	•	In createNewBatch ruft ihr
+
+queryClient.setQueryData(
+  ['inventoryItems', id],
+  // …
+)
+
+auf, aber der Query-Key, den ihr zum Laden der Inventur-Items verwendet, ist
+
+['/api/inventory-counts/${id}/items']
+
+
+	•	Daher wird das Cache-Update nicht auf die Query angewendet, die Euer UI überhaupt rendert.
+
+⸻
+
+So behebt ihr das und lasst das System die Batch-Nummer selbst generieren
+	1.	Batch-Erzeugung ins handleBatchUpdate integrieren
+Erweitert handleBatchUpdate so, dass es beim Klick im Modal zuerst eine neue Charge anlegt (wenn batchId === null), und dann Item und lokalen State updatet:
+
+const handleBatchUpdate = async (batchId: number | null) => {
+  if (!selectedItem) return;
+  let finalBatch: ProductBatch;
+
+  // 1) Neu erzeugen, wenn kein Batch ausgewählt
+  if (batchId === null) {
+    const now = new Date().toISOString().split('T')[0];
+    const autoBatchNumber = `INV-${selectedItem.productId}-${Date.now()}`;
+    const createRes = await fetch('/api/inventory-counts/product-batches', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        productId: selectedItem.productId,
+        warehouseId: inventurData!.warehouseId,
+        batchNumber: autoBatchNumber,
+        expiryDate: now,
+        initialQuantity: selectedItem.countedQuantity || 1,
+        currentQuantity: selectedItem.countedQuantity || 1,
+        notes: `Auto-erstellt bei Inventur #${id}`
+      })
+    });
+    finalBatch = await createRes.json();
+    batchId = finalBatch.id;
+  } else {
+    // 2) Bestehende Charge finden
+    finalBatch = availableBatches.find(b => b.id === batchId)!;
+  }
+
+  // 3) Inventur-Item patchen und lokalen State updaten
+  updateBatchMutation.mutate(
+    { itemId: selectedItem.id, batchId },
+    {
+      onSuccess: () => {
+        // Lokales Update des gezählten Items
+        updateCountedItem({
+          ...selectedItem,
+          batchId,
+          batch: finalBatch
+        });
+        setShowBatchDialog(false);
+        setSelectedItem(null);
+      }
+    }
+  );
+};
+
+
+	2.	Cache-Key korrekt updaten (falls ihr React-Query statt lokalem State nutzen wollt)
+Verwendet in Eurem queryClient.setQueryData genau denselben Key wie in Eurer useQuery, also:
+
+queryClient.setQueryData(
+  [`/api/inventory-counts/${id}/items`],
+  (old?: InventoryCountItem[]) => {
+    if (!old) return old;
+    return old.map(prod =>
+      prod.id === selectedItem.id
+        ? { ...prod, batchId, batch: finalBatch }
+        : prod
+    );
+  }
+);
+
+
+	3.	Modal-Dialog auf „Neue Charge“ umstellen
+In InventoryCountBatchDialog könnt ihr den Eingabebereich für batchNumber und expiryDate entfernen oder deaktivieren und stattdessen nur einen Button „Neue Charge automatisch erzeugen“ anbieten, der handleBatchUpdate(null) aufruft. So muss der User nicht selbst tippen, und Eure Logik generiert und verknüpft das Batch im Hintergrund.
+
+⸻
+
+Ergebnis:
+	•	Jede Charge-Anlage läuft jetzt über einen einzigen Pfad (handleBatchUpdate), der sowohl Erzeugen als auch Verknüpfen übernimmt.
+	•	Ihr aktualisiert Euren lokalen State (countedItems) und/oder den React-Query-Cache auf den richtigen Key.
+	•	Das UI zeigt sofort unter dem Produkt das neue item.batch an – ohne Scroll-Resets, ohne manuelle Eingabe und ohne Batch-Nummern-Konflikte.
