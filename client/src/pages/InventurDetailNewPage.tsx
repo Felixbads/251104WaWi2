@@ -712,6 +712,12 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
 
   // Handler zum Setzen eines Zählerstands
   const handleSetCount = (itemId: number, count: number | null) => {
+    // Speichere aktuelle Scroll-Position
+    if (typeof window !== 'undefined') {
+      const currentScrollPos = window.scrollY;
+      window.sessionStorage.setItem('inventur_scroll_position', currentScrollPos.toString());
+    }
+    
     // Alle bearbeiteten Zählerstände speichern
     const itemsToUpdate = Object.entries(editedCounts).map(([id, countValue]) => ({
       id: parseInt(id),
@@ -744,6 +750,16 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     
     // Bearbeitete Einträge zurücksetzen
     setEditedCounts({});
+    
+    // Stelle nach kurzer Verzögerung die Scroll-Position wieder her
+    setTimeout(() => {
+      if (typeof window !== 'undefined') {
+        const savedPos = window.sessionStorage.getItem('inventur_scroll_position');
+        if (savedPos) {
+          window.scrollTo(0, parseInt(savedPos, 10));
+        }
+      }
+    }, 50);
   };
 
   // Handler zum Hinzufügen aller ausgewählten Produkte
