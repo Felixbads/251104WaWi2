@@ -294,10 +294,12 @@ export default function InventoryCountBatchDialog({
         // Die Daten für die neue Charge
         const batchData = {
           productId: selectedItem?.productId,
+          warehouseId: warehouseId, // Wichtig: warehouseId explizit hinzufügen
           batchNumber: autoChargennummer,
           expiryDate: format(defaultExpiry, 'yyyy-MM-dd'),
           initialQuantity: selectedItem?.countedQuantity || 1,
-          currentQuantity: selectedItem?.countedQuantity || 1
+          currentQuantity: selectedItem?.countedQuantity || 1,
+          receivedDate: format(new Date(), 'yyyy-MM-dd') // Aktuelles Datum als Eingangsdatum
         };
         
         // Schließe Dialog sofort für besseres UI-Erlebnis
@@ -375,10 +377,12 @@ export default function InventoryCountBatchDialog({
     // Die eigentlichen Daten, die an die API gesendet werden
     const batchData = {
       productId: selectedItem?.productId,
+      warehouseId: warehouseId, // Wichtig: warehouseId explizit hinzufügen
       batchNumber: autoChargennummer,
       expiryDate: effectiveExpiryDate ? format(effectiveExpiryDate, 'yyyy-MM-dd') : format(new Date(new Date().setMonth(new Date().getMonth() + 3)), 'yyyy-MM-dd'),
       initialQuantity: selectedItem?.countedQuantity || 1,
-      currentQuantity: selectedItem?.countedQuantity || 1
+      currentQuantity: selectedItem?.countedQuantity || 1,
+      receivedDate: format(new Date(), 'yyyy-MM-dd') // Aktuelles Datum als Eingangsdatum
     };
     
     // Speichere die aktuelle Scroll-Position vor dem API-Call
