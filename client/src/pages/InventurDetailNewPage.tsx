@@ -318,22 +318,33 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       });
     },
     onSuccess: (result, variables, context) => {
-      // Erfolg: Scroll-Position wiederherstellen
-      if (context?.prevScroll !== undefined) {
-        window.scrollTo(0, context.prevScroll);
-      }
-      
+      // Erfolg: Toast anzeigen, aber keine Invalidierung des Caches oder Page-Scroll
+      // Wir behalten die aktuelle Position bei, ohne den kompletten Cache zu invalidieren
       toast({
         title: "Zählerstand aktualisiert",
         description: "Der Zählerstand wurde erfolgreich aktualisiert.",
       });
+      
+      // WICHTIG: KEIN window.scrollTo hier, damit die Seite nicht springt
+      // Das React Query Cache-Update erfolgt automatisch über das optimistische Update
+      
+      // Aktualisiere nur den spezifischen Eintrag im Cache, ohne alles neu zu laden
+      queryClient.setQueryData(
+        [`/api/inventory-counts/${id}/items`],
+        (old?: InventoryCountItem[]) => {
+          if (!old) return old;
+          return old.map(item =>
+            item.id === variables.id
+              ? { 
+                  ...item, 
+                  countedQuantity: variables.countedQuantity
+                }
+              : item
+          );
+        }
+      );
     },
-    onSettled: (data, error, variables, context) => {
-      // Nach Abschluss (egal ob Erfolg oder Fehler): Scroll-Position sichern
-      if (context?.prevScroll !== undefined) {
-        window.scrollTo(0, context.prevScroll);
-      }
-    }
+    // onSettled entfernt, um doppeltes Scrollen zu vermeiden
   });
 
   // Mutation zum Hinzufügen neuer Produkte

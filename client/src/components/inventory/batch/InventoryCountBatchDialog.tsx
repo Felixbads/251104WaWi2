@@ -227,34 +227,41 @@ export default function InventoryCountBatchDialog({
 
   // Handler zum Erstellen einer neuen Charge
   const handleCreateNewBatch = () => {
-    // Generiere automatisch eine Chargennummer, wenn keine angegeben wurde
-    if (!newBatchNumber) {
-      const autoChargennummer = `CH-${new Date().toISOString().slice(0, 10)}-${Math.floor(Math.random() * 1000)}`;
-      setNewBatchNumber(autoChargennummer);
-      toast({
-        title: 'Chargennummer generiert',
-        description: `Es wurde automatisch eine Chargennummer erstellt: ${autoChargennummer}`,
-      });
-    }
+    // IMMER automatisch eine Chargennummer generieren, egal ob eine angegeben wurde
+    const currentDate = new Date();
+    const dateStr = currentDate.toISOString().slice(0, 10);
+    const timeStr = currentDate.getHours().toString().padStart(2, '0') + 
+                    currentDate.getMinutes().toString().padStart(2, '0');
+    const randomStr = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    
+    // Format: CH-YYYY-MM-DD-HHMM-RRR (CH = Charge, gefolgt von Datum, Uhrzeit und Zufallszahl)
+    const autoChargennummer = `CH-${dateStr}-${timeStr}-${randomStr}`;
+    
+    // Überschreibe eventuell vorhandene Eingabe mit automatisch generierter Nummer
+    setNewBatchNumber(autoChargennummer);
 
     // Wenn expiryDate null ist, legen wir ein Standard-MHD von 3 Monaten in der Zukunft fest
     if (!expiryDate) {
       const defaultDate = new Date();
       defaultDate.setMonth(defaultDate.getMonth() + 3);
       setExpiryDate(defaultDate);
+      
       toast({
-        title: 'Standard-MHD gesetzt',
-        description: `Es wurde automatisch ein MHD von 3 Monaten gesetzt: ${format(defaultDate, 'dd.MM.yyyy')}`,
+        title: 'Charge wird erstellt',
+        description: `Automatisch generierte Chargennummer: ${autoChargennummer}`,
       });
       
-      // Gib etwas Zeit, um die Toast-Nachricht zu lesen
-      setTimeout(() => {
-        setIsSubmitting(true);
-        createBatchMutation.mutate();
-      }, 500);
+      // Direkt fortfahren
+      setIsSubmitting(true);
+      createBatchMutation.mutate();
       return;
     }
 
+    toast({
+      title: 'Charge wird erstellt',
+      description: `Automatisch generierte Chargennummer: ${autoChargennummer}`,
+    });
+    
     setIsSubmitting(true);
     createBatchMutation.mutate();
   };
