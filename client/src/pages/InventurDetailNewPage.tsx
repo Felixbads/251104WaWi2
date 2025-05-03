@@ -804,6 +804,27 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         window.scrollTo(0, context.prevScroll);
       }
       
+      // React-Query-Cache für Inventar-Items aktualisieren
+      // Wir verwenden den queryClient der außerhalb der Callback-Funktion deklariert wurde
+      queryClient.setQueryData(
+        ['inventoryItems', id],
+        (old?: { products: InventoryCountItem[] }) => {
+          if (!old) return old;
+          return {
+            ...old,
+            products: old.products.map(prod =>
+              prod.id === variables.itemId
+                ? { 
+                    ...prod, 
+                    batchId: variables.batchId,
+                    batch: availableBatches.find(b => b.id === variables.batchId) || null
+                  }
+                : prod
+            )
+          };
+        }
+      );
+      
       toast({
         title: "Charge aktualisiert",
         description: "Die Charge wurde erfolgreich aktualisiert.",
@@ -1268,6 +1289,26 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
           // Stelle Scroll-Position wieder her
           window.scrollTo(0, prevScroll);
           
+          // React-Query-Cache für Inventar-Items aktualisieren
+          queryClient.setQueryData(
+            ['inventoryItems', id],
+            (old?: { products: InventoryCountItem[] }) => {
+              if (!old) return old;
+              return {
+                ...old,
+                products: old.products.map(prod =>
+                  prod.id === selectedItem.id
+                    ? { 
+                        ...prod, 
+                        batchId: newBatch.id,
+                        batch: newBatch
+                      }
+                    : prod
+                )
+              };
+            }
+          );
+          
           toast({
             title: "Neue Charge erstellt",
             description: "Die Charge wurde erfolgreich erstellt und mit dem Inventurposten verknüpft."
@@ -1418,6 +1459,26 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
             // Keine UI-Änderung bei Fehlern
           });
       }, 500);
+      
+      // React-Query-Cache für Inventar-Items aktualisieren
+      queryClient.setQueryData(
+        ['inventoryItems', id],
+        (old?: { products: InventoryCountItem[] }) => {
+          if (!old) return old;
+          return {
+            ...old,
+            products: old.products.map(prod =>
+              prod.id === selectedItem.id
+                ? { 
+                    ...prod, 
+                    batchId: selectedBatchId,
+                    batch: availableBatches.find(b => b.id === selectedBatchId) || null
+                  }
+                : prod
+            )
+          };
+        }
+      );
       
       // Aktualisiere die Erfolgsmeldung
       toast({
@@ -2265,9 +2326,9 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                                       {item.batch ? (
                                         <TableRow>
                                           <TableCell>{item.batch.batchNumber}</TableCell>
-                                          <TableCell>{formatBatchDate(item.batch.expiryDate)}</TableCell>
+                                          <TableCell>{formatBatchDate(item.batch.expiryDate || null)}</TableCell>
                                           <TableCell className="text-center">{item.batch.currentQuantity}</TableCell>
-                                          <TableCell>{formatBatchDate(item.batch.createdAt)}</TableCell>
+                                          <TableCell>{formatBatchDate(item.batch.createdAt || null)}</TableCell>
                                           <TableCell className="text-right">
                                             <Button
                                               size="sm"

@@ -1,0 +1,101 @@
+Der Grund, warum Deine frisch angelegte Charge nicht angezeigt wird, liegt darin, dass das UI weiterhin ausschließlich die originalen Query-Daten (inventoryItems.products) rendert – nicht die von Dir im lokalen State (countedItems) gepatchten Objekte. Du hast zwar mit updateCountedItem(updatedItem) das batch-Feld im lokalen State ergänzt, aber Deine map-Schleife über inventoryItems.products weiß davon nichts und zeigt weiterhin das alte Backend-Objekt ohne Batch.
+
+Außerdem hast Du nach dem Patch der Charge den React-Query-Cache nicht aktualisiert oder neu geladen, sodass auch die Query-Daten auf dem Server keine verknüpfte Charge enthalten und folglich im UI nicht auftauchen.
+
+⸻
+
+Was Du tun musst
+
+1. Entweder: Rendern von Deinem lokalen State
+
+Anstatt
+
+{inventoryItems.products.map(product => (
+  /* hier renderst Du noch das „product“-Objekt ohne Batch */
+))}
+
+solltest Du die Komponenten-Daten aus Deinem State ziehen, in dem die Charge tatsächlich drin­steht:
+
+{countedItems.map(item => (
+  <TableRow key={item.id}>
+    {/* ... */}
+    { /* Expansion: */ }
+    {expandedItems[item.id] && (
+      <TableRow>
+        <TableCell colSpan={7} className="bg-gray-50 p-0">
+          {item.batch ? (
+            <div className="p-4">
+              <div className="text-sm font-medium mb-2">Mindesthaltbarkeitsdaten</div>
+              <Table>
+                <TableHeader>…</TableHeader>
+                <TableBody>
+                  <TableRow key={item.batch.id}>
+                    <TableCell>{item.batch.batchNumber}</TableCell>
+                    <TableCell>{formatBatchDate(item.batch.expiryDate)}</TableCell>
+                    <TableCell className="text-center">{item.batch.currentQuantity}</TableCell>
+                    <TableCell>{formatBatchDate(item.batch.createdAt)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" variant="ghost" onClick={() => openBatchDialog(item)}>
+                        Bearbeiten
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          ) : (
+            <div className="p-4 text-center text-muted-foreground">
+              Noch keine MHD-Einträge für dieses Produkt.
+            </div>
+          )}
+        </TableCell>
+      </TableRow>
+    )}
+  </TableRow>
+))}
+
+Damit beziehst Du Dich direkt auf das Array, in dem batch zur Laufzeit ergänzt wird.
+
+⸻
+
+2. Oder: Den React-Query-Cache nach dem Patch updaten
+
+Falls Du gern weiter mit der Query-Datenstruktur arbeiten möchtest, kannst Du nach erfolgreichem Patch die Cache-Daten überschreiben, damit inventoryItems auch im UI aktualisiert wird, ohne einen vollen Refetch:
+
+const qc = useQueryClient();
+
+updateBatchMutation.mutate(
+  { itemId: selectedItem.id, batchId },
+  {
+    onSuccess: (_newBatch, variables) => {
+      // 1. Lokaler Toast
+      toast({ title: "MHD aktualisiert", description: "Charge verknüpft." });
+
+      // 2. Cache-Update: nehme das alte Query-Ergebnis und füge batch dort ein
+      qc.setQueryData(
+        ['inventoryItems', inventurId],
+        (old?: { products: InventoryCountItem[] }) => {
+          if (!old) return old;
+          return {
+            ...old,
+            products: old.products.map(prod =>
+              prod.id === variables.itemId
+                ? { ...prod, batch: availableBatches.find(b => b.id === batchId)!, batchId }
+                : prod
+            )
+          };
+        }
+      );
+    }
+  }
+);
+
+Damit bleibt das Rendering über inventoryItems.products.map(...) korrekt synchronisiert, ohne dass Du die Seite neu laden oder invalidateQueries aufrufen müsstest.
+
+⸻
+
+Zusammenfassung:
+	•	Ursache: UI rendert weiterhin die unveränderten Query-Daten, nicht Deinen gepatchten lokalen State.
+	•	Lösung: Entweder auf den lokalen State umstellen, in dem batch wirklich drinsteht, oder nach der Server-Mutation per setQueryData den Cache so anpassen, dass das batch-Objekt in inventoryItems.products sichtbar wird.
+
+So siehst Du Deine neue Charge sofort unter dem Produkt – und umgehst zugleich das ständige Neuladen/Springen.
