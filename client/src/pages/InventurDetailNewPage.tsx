@@ -1107,7 +1107,6 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   };
   
   // Erstellt eine neue Charge mit MHD und verknüpft sie mit dem Inventar-Item
-  // Diese Funktion wurde komplett überarbeitet, um Endpunkte, Scroll-Position und Batch-Behandlung zu verbessern
   const createNewBatch = async () => {
     // Speichere aktuelle Scroll-Position
     const prevScroll = window.scrollY;
@@ -1185,8 +1184,6 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       // Aktualisiere den lokalen State sofort ohne auf Serverantwort zu warten
       updateCountedItem(optimisticUpdatedItem);
       
-      // Stelle sicher, dass der Dialog geöffnet bleibt, bis die Erstellung abgeschlossen ist
-      // Dies verhindert Probleme mit frühzeitigem Schließen
       // Schritt 1: Erstelle neue Charge API-Anfrage
       const response = await fetch('/api/inventory-counts/product-batches', {
         method: 'POST',
@@ -1244,7 +1241,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         console.log(`Verknüpfe Inventurposten ${selectedItem.id} mit Charge ${newBatch.id}...`);
         
         try {
-          // KORRIGIERT: Verwenden des korrekten API-Endpunkts zur Verknüpfung
+          // KORRIGIERTER API-ENDPUNKT: Verwende den richtigen Endpunkt für Batch-Verknüpfungen
           const linkResponse = await fetch(`/api/inventory-count-items/${selectedItem.id}`, {
             method: 'PATCH', 
             headers: {
@@ -1369,10 +1366,12 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       });
       
       // Jetzt im Hintergrund die tatsächliche API-Anfrage senden
-      const response = await fetch(`/api/inventory-counts/items/${selectedItem.id}/split`, {
+      // KORRIGIERT: Verwenden des richtigen API-Endpunkts für Split-Operationen
+      const response = await fetch(`/api/inventory-count-items/${selectedItem.id}/split`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
         },
         body: JSON.stringify({
           sourceBatchId: selectedBatchId,
