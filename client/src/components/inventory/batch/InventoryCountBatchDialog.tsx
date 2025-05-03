@@ -117,51 +117,92 @@ export default function InventoryCountBatchDialog({
   // Mutation zum Erstellen einer neuen Charge
   const createBatchMutation = useMutation({
     mutationFn: async (batchData: any) => {
-      if (!selectedItem || !selectedItem.productId) {
-        throw new Error('Kein Produkt ausgewählt');
-      }
-
-      console.log("Erstelle neue Charge für Produkt:", selectedItem.productId);
-      
-      // Hole zuerst die Inventurdaten, um die korrekte Lager-ID zu bekommen
-      const inventoryResponse = await fetch(`/api/inventory-counts/${inventoryId}`);
-      if (!inventoryResponse.ok) {
-        throw new Error('Fehler beim Laden der Inventurdaten');
-      }
-      const inventoryData = await inventoryResponse.json();
-      
-      // Ergänze die vom Benutzer übergebenen Daten mit den erforderlichen Werten
-      const completeBatchData = {
-        ...batchData,
-        warehouseId: inventoryData.warehouseId, // Verwende die korrekte Lager-ID
-        receivedDate: format(new Date(), 'yyyy-MM-dd')
-      };
-      
-      console.log("Sende Chargen-Daten:", JSON.stringify(completeBatchData, null, 2));
-
-      const response = await fetch(`/api/inventory-counts/product-batches`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(completeBatchData),
-      });
-
-      // Überprüfe auf detaillierte Fehlermeldungen
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorData;
-        
-        try {
-          errorData = JSON.parse(errorText);
-          throw new Error(errorData.details || errorData.error || `Serverfehler: ${response.status}`);
-        } catch (parseError) {
-          // Wenn JSON-Parse fehlschlägt, verwende den Rohtext
-          throw new Error(`Serverfehler (${response.status}): ${errorText.substring(0, 200)}`);
+      try {
+        if (!selectedItem || !selectedItem.productId) {
+          throw new Error('Kein Produkt ausgewählt');
         }
+  
+        console.log("Erstelle neue Charge für Produkt:", selectedItem.productId);
+        
+        // Speichere aktuelle Scroll-Position vorsorglich
+        if (typeof window !== 'undefined') {
+          console.log("Speichere Scroll-Position:", window.scrollY);
+          window.sessionStorage.setItem('inventur_scroll_position', window.scrollY.toString());
+        }
+  
+        // Hole zuerst die Inventurdaten, um die korrekte Lager-ID zu bekommen
+        const inventoryResponse = await fetch(`/api/inventory-counts/${inventoryId}`, {
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        });
+        
+        if (!inventoryResponse.ok) {
+          console.error(`Fehler beim Laden der Inventurdaten: ${inventoryResponse.status}`);
+          throw new Error(`Fehler beim Laden der Inventurdaten: ${inventoryResponse.status}`);
+        }
+        
+        const inventoryData = await inventoryResponse.json();
+        console.log("Inventurdaten erfolgreich geladen:", inventoryData);
+        
+        if (!inventoryData || !inventoryData.warehouseId) {
+          console.error("Keine gültige Lager-ID in den Inventurdaten gefunden");
+          throw new Error("Keine gültige Lager-ID in den Inventurdaten gefunden");
+        }
+        
+        // Ergänze die vom Benutzer übergebenen Daten mit den erforderlichen Werten
+        const completeBatchData = {
+          ...batchData,
+          warehouseId: inventoryData.warehouseId, // Verwende die korrekte Lager-ID
+          receivedDate: format(new Date(), 'yyyy-MM-dd')
+        };
+        
+        console.log("Sende Chargen-Daten:", JSON.stringify(completeBatchData, null, 2));
+  
+        const response = await fetch(`/api/inventory-counts/product-batches`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache'
+          },
+          body: JSON.stringify(completeBatchData),
+        });
+  
+        // Überprüfe auf detaillierte Fehlermeldungen
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Server-Antwort-Fehler (${response.status}):`, errorText);
+          
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+            throw new Error(errorData.details || errorData.error || `Serverfehler: ${response.status}`);
+          } catch (parseError) {
+            // Wenn JSON-Parse fehlschlägt, verwende den Rohtext
+            throw new Error(`Serverfehler (${response.status}): ${errorText.substring(0, 200)}`);
+          }
+        }
+  
+        const result = await response.json();
+        console.log("Charge erfolgreich erstellt mit Ergebnis:", result);
+        return result;
+      } catch (error) {
+        console.error("Fehler in mutationFn:", error);
+        
+        // Stelle die Scroll-Position bei einem Fehler wieder her
+        setTimeout(() => {
+          if (typeof window !== 'undefined') {
+            const savedPos = window.sessionStorage.getItem('inventur_scroll_position');
+            if (savedPos) {
+              console.log("Stelle Scroll-Position nach Fehler wieder her:", savedPos);
+              window.scrollTo(0, parseInt(savedPos, 10));
+            }
+          }
+        }, 50);
+        
+        throw error; // Fehler weiterleiten für onError-Handler
       }
-
-      return await response.json();
     },
     onSuccess: (data) => {
       console.log("Charge erfolgreich erstellt:", data);
@@ -203,12 +244,27 @@ export default function InventoryCountBatchDialog({
     },
     onError: (error: any) => {
       console.error('Fehler beim Erstellen der Charge:', error);
+      
+      // Detaillierte Fehleranzeige
       toast({
         title: 'Fehler',
         description: error.message || 'Die Charge konnte nicht erstellt werden.',
         variant: 'destructive',
       });
+      
+      // Status zurücksetzen
       setIsSubmitting(false);
+      
+      // Sicherstellen, dass die Scroll-Position in jedem Fall wiederhergestellt wird
+      setTimeout(() => {
+        if (typeof window !== 'undefined') {
+          const savedPos = window.sessionStorage.getItem('inventur_scroll_position');
+          if (savedPos) {
+            console.log("Stelle Scroll-Position nach Fehler in onError wieder her:", savedPos);
+            window.scrollTo(0, parseInt(savedPos, 10));
+          }
+        }
+      }, 100);
     },
   });
 
