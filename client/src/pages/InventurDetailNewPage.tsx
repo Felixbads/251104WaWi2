@@ -1089,15 +1089,14 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         expiryDate.setMonth(expiryDate.getMonth() + 6);
         const expiryDateString = expiryDate.toISOString().split('T')[0];
         
-        // Neue Charge am Server anlegen mit korrektem Endpunkt
-        const url = `/api/product-batches`; // Korrigierter API-Endpunkt ohne Inventur-Kontext
+        // Neue Charge am Server anlegen über den korrekten Endpoint
+        const url = `/api/inventory-counts/product-batches`; // Dieser Endpoint ist in server/routes/inventory-count-batches.ts definiert
         console.log(`Verwende API-Endpunkt: ${url}`);
         
         const createRes = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            inventoryCountId: Number(id), // Explizite Inventur-ID im Payload
             productId: selectedItem.productId,
             warehouseId: inventurData!.warehouseId,
             batchNumber: autoBatchNumber,
@@ -1308,13 +1307,12 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       updateCountedItem(optimisticUpdatedItem);
       
       // Schritt 1: Erstelle neue Charge API-Anfrage mit korrektem Endpunkt
-      const url = `/api/product-batches`; // Korrigierter API-Endpunkt
+      const url = `/api/inventory-counts/product-batches`; // Korrigierter API-Endpunkt
       console.log(`Verwende API-Endpunkt zum Erstellen: ${url}`);
       
-      // Bereite die Daten mit inventoryCountId vor
+      // Verwende die ursprünglichen Batch-Daten ohne Anpassungen
       const enrichedBatchData = {
-        ...batchData,
-        inventoryCountId: Number(id) // Füge die Inventur-ID hinzu
+        ...batchData
       };
       
       const response = await fetch(url, {
