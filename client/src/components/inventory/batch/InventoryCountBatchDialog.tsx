@@ -160,8 +160,8 @@ export default function InventoryCountBatchDialog({
         
         console.log("Sende Chargen-Daten:", JSON.stringify(completeBatchData, null, 2));
   
-        // Verwende die produktbezogene API-Route für Batches
-        const response = await fetch(`/api/products/${completeBatchData.productId}/batches`, {
+        // Verwende die korrekte API-Route für Inventur-Chargen
+        const response = await fetch(`/api/inventory-counts/product-batches`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -221,7 +221,7 @@ export default function InventoryCountBatchDialog({
           });
           
           queryClient.invalidateQueries({ 
-            queryKey: [`/api/products/${selectedItem?.productId}/batches`]
+            queryKey: [`/api/inventory-counts/${inventoryId}/product-batches/${selectedItem?.productId}`]
           });
           
           // Erfolgsmeldung anzeigen
