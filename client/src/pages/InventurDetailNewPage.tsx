@@ -782,9 +782,10 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       
       return await response.json();
     },
-    onMutate: async (data) => {
-      // Speichere aktuelle Scroll-Position
+    onMutate: (data) => {
+      // Speichere aktuelle Scroll-Position in sessionStorage
       const prevScroll = window.scrollY;
+      window.sessionStorage.setItem('inventur_scroll_position', prevScroll.toString());
       
       // Finde das Item, das aktualisiert werden soll
       const item = countedItems.find(item => item.id === data.itemId);
@@ -802,18 +803,19 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         // Aktualisiere das Item im lokalen State
         updateCountedItem(updatedItem);
       }
-      
-      return { prevScroll };
     },
-    onSuccess: (result, variables, context) => {
+    onSuccess: (result, variables) => {
       // Dialog schließen ohne Query-Invalidierung
       setShowBatchDialog(false);
       setSelectedItem(null);
       
-      // Scroll-Position wiederherstellen
-      if (context?.prevScroll !== undefined) {
-        window.scrollTo(0, context.prevScroll);
-      }
+      // Scroll-Position wiederherstellen mit sessionStorage
+      setTimeout(() => {
+        const savedPosition = window.sessionStorage.getItem('inventur_scroll_position');
+        if (savedPosition) {
+          window.scrollTo(0, parseInt(savedPosition));
+        }
+      }, 100);
       
       // React-Query-Cache für Inventar-Items aktualisieren mit dem KORREKTEN Query-Key
       // Der korrekte Query-Key ist derselbe, der in der useQuery-Funktion verwendet wird
@@ -838,25 +840,22 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         description: "Die Charge wurde erfolgreich aktualisiert.",
       });
     },
-    onError: (error, variables, context) => {
+    onError: (error) => {
       console.error('Fehler beim Aktualisieren der Charge:', error);
       
       // Scroll-Position wiederherstellen
-      if (context?.prevScroll !== undefined) {
-        window.scrollTo(0, context.prevScroll);
-      }
+      setTimeout(() => {
+        const savedPosition = window.sessionStorage.getItem('inventur_scroll_position');
+        if (savedPosition) {
+          window.scrollTo(0, parseInt(savedPosition));
+        }
+      }, 100);
       
       toast({
         title: "Fehler",
         description: "Die Charge konnte nicht aktualisiert werden.",
         variant: "destructive",
       });
-    },
-    onSettled: (data, error, variables, context) => {
-      // Nach Abschluss (egal ob Erfolg oder Fehler): Scroll-Position sichern
-      if (context?.prevScroll !== undefined) {
-        window.scrollTo(0, context.prevScroll);
-      }
     }
   });
 
@@ -1163,14 +1162,14 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       // Speichere aktuelle Scroll-Position
       const prevScroll = window.scrollY;
       
-      // 3) Inventur-Item mit Batch verknüpfen
+      // Speichere die aktuelle Scrollposition für später
+      window.sessionStorage.setItem('inventur_scroll_position', prevScroll.toString());
+      
+      // 3) Inventur-Item mit Batch verknüpfen - Optimierte Version ohne onMutate-Callback
+      // Dies behebt TypeScript-Fehler und potenzielle Scrollprobleme
       updateBatchMutation.mutate(
         { itemId: selectedItem.id, batchId },
         {
-          // Optimistisches Update: Speichere Scroll-Position
-          onMutate: () => {
-            return { prevScroll };
-          },
           onSuccess: () => {
             // Dialog schließen
             setShowBatchDialog(false);
@@ -1200,6 +1199,14 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                 );
               }
             );
+
+            // Stelle Scroll-Position nach kurzer Verzögerung wieder her
+            setTimeout(() => {
+              const savedPosition = window.sessionStorage.getItem('inventur_scroll_position');
+              if (savedPosition) {
+                window.scrollTo(0, parseInt(savedPosition));
+              }
+            }, 100);
           },
           onError: (error) => {
             console.error('Fehler beim Verknüpfen der Charge:', error);
@@ -1208,11 +1215,11 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
               description: "Die Charge konnte nicht verknüpft werden.",
               variant: "destructive",
             });
-          },
-          onSettled: (_, __, ___, context) => {
-            // Stelle Scroll-Position wieder her
-            if (context?.prevScroll !== undefined) {
-              window.scrollTo(0, context.prevScroll);
+            
+            // Auch bei Fehler die Scroll-Position wiederherstellen
+            const savedPosition = window.sessionStorage.getItem('inventur_scroll_position');
+            if (savedPosition) {
+              window.scrollTo(0, parseInt(savedPosition));
             }
           }
         }

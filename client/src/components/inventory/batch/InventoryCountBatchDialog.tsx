@@ -96,9 +96,9 @@ export default function InventoryCountBatchDialog({
 
   // Mutation zum Erstellen einer neuen Charge
   const createBatchMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedItem || !newBatchNumber || !expiryDate || !selectedItem.productId) {
-        throw new Error('Fehlende Daten für neue Charge');
+    mutationFn: async (batchData: any) => {
+      if (!selectedItem || !selectedItem.productId) {
+        throw new Error('Kein Produkt ausgewählt');
       }
 
       console.log("Erstelle neue Charge für Produkt:", selectedItem.productId);
@@ -110,25 +110,21 @@ export default function InventoryCountBatchDialog({
       }
       const inventoryData = await inventoryResponse.json();
       
-      const batchData = {
-        productId: selectedItem.productId,
+      // Ergänze die vom Benutzer übergebenen Daten mit den erforderlichen Werten
+      const completeBatchData = {
+        ...batchData,
         warehouseId: inventoryData.warehouseId, // Verwende die korrekte Lager-ID
-        batchNumber: newBatchNumber,
-        expiryDate: format(expiryDate, 'yyyy-MM-dd'),
-        receivedDate: format(new Date(), 'yyyy-MM-dd'),
-        initialQuantity: selectedItem.countedQuantity || 1, // Mindestens 1
-        currentQuantity: selectedItem.countedQuantity || 1  // Mindestens 1
-        // quantity wird nicht verwendet, da DB Schema initial_quantity und current_quantity verwendet
+        receivedDate: format(new Date(), 'yyyy-MM-dd')
       };
       
-      console.log("Sende Chargen-Daten:", JSON.stringify(batchData, null, 2));
+      console.log("Sende Chargen-Daten:", JSON.stringify(completeBatchData, null, 2));
 
       const response = await fetch(`/api/inventory-counts/product-batches`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(batchData),
+        body: JSON.stringify(completeBatchData),
       });
 
       // Überprüfe auf detaillierte Fehlermeldungen
