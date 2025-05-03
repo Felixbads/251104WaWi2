@@ -160,7 +160,8 @@ export default function InventoryCountBatchDialog({
         
         console.log("Sende Chargen-Daten:", JSON.stringify(completeBatchData, null, 2));
   
-        const response = await fetch(`/api/inventory-counts/product-batches`, {
+        // Verwende die produktbezogene API-Route für Batches
+        const response = await fetch(`/api/products/${completeBatchData.productId}/batches`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
