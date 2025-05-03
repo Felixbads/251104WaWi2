@@ -209,27 +209,53 @@ export default function InventoryCountBatchDialog({
 
   // Handler zum Speichern der Batch-Auswahl
   const handleSaveBatchSelection = () => {
+    // Speichere zuerst die Scroll-Position
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem('inventur_scroll_position', window.scrollY.toString());
+    }
+    
     if (selectedBatchId === 'none') {
       // Wenn "Keine Charge" ausgewählt wurde, sende null für manuelle Aufhebung
       // oder auto für automatische Chargenerstellung
       const autoCreateBatch = confirm("Möchten Sie eine neue Charge automatisch erstellen?\n\nOK = Ja, automatisch eine Charge erstellen\nAbbrechen = Nein, keine Charge zuweisen");
       
       if (autoCreateBatch) {
+        // Automatisches Erstellen einer neuen Charge
+        
+        // Generiere eine neue Chargennummer
+        const autoChargennummer = generateBatchNumber();
+        
+        // Standarddatum 3 Monate in der Zukunft
+        const defaultExpiry = new Date();
+        defaultExpiry.setMonth(defaultExpiry.getMonth() + 3);
+        
         // Informiere den Benutzer über den automatischen Vorgang
         toast({
           title: 'Automatische Erstellung',
-          description: 'Eine neue Charge wird automatisch erstellt.',
+          description: `Neue Charge wird erstellt: ${autoChargennummer}`,
         });
+        
+        // Die Daten für die neue Charge
+        const batchData = {
+          productId: selectedItem?.productId,
+          batchNumber: autoChargennummer,
+          expiryDate: format(defaultExpiry, 'yyyy-MM-dd'),
+          initialQuantity: selectedItem?.countedQuantity || 1,
+          currentQuantity: selectedItem?.countedQuantity || 1
+        };
+        
         // Schließe Dialog sofort für besseres UI-Erlebnis
         onOpenChange(false);
-        // Übergebe null an den Handler, der die automatische Erzeugung übernimmt
-        onBatchSelect(null);
+        
+        // Starte die Erstellung im Hintergrund
+        createBatchMutation.mutate(batchData);
       } else {
         // Nutzer möchte wirklich keine Charge, also wird null übergeben
         onBatchSelect(null);
         onOpenChange(false);
       }
     } else if (selectedBatchId) {
+      // Eine bestehende Charge wurde ausgewählt
       onBatchSelect(parseInt(selectedBatchId));
       onOpenChange(false);
     } else {
@@ -487,14 +513,29 @@ export default function InventoryCountBatchDialog({
                       htmlFor="batchNumber" 
                       className="block text-sm font-medium text-gray-700 mb-1"
                     >
-                      Chargennummer
+                      Chargennummer (automatisch generiert)
                     </label>
-                    <Input
-                      id="batchNumber"
-                      placeholder="z.B. B12345"
-                      value={newBatchNumber}
-                      onChange={(e) => setNewBatchNumber(e.target.value)}
-                    />
+                    <div className="flex items-center space-x-2">
+                      <Input
+                        id="batchNumber"
+                        placeholder="Automatisch generiert"
+                        value={newBatchNumber}
+                        readOnly
+                        className="bg-gray-50"
+                      />
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setNewBatchNumber(generateBatchNumber())}
+                        title="Neue Chargennummer generieren"
+                      >
+                        <CircleAlert className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Diese Nummer wurde automatisch für Sie generiert. Sie können sie bei Bedarf aktualisieren.
+                    </p>
                   </div>
                   
                   <div>
