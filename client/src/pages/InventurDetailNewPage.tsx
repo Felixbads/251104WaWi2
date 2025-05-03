@@ -753,31 +753,20 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   // Mutation zum Aktualisieren des Batch für ein Inventurelement (mit optimistischem Update und Scroll-Erhaltung)
   const updateBatchMutation = useMutation({
     mutationFn: async (data: { itemId: number; batchId: number | null }) => {
-      // Beide Methoden unterstützen (POST oder PATCH) - wir verwenden POST für Konsistenz mit createNewBatch
-      const response = await fetch(`/api/inventory-counts/items/${data.itemId}/batch`, {
-        method: 'POST', // Geändert von PATCH zu POST für Konsistenz mit Batch-Erstellung
+      // KORRIGIERT: Verwenden des richtigen API-Endpunkts für Batch-Aktualisierungen
+      const response = await fetch(`/api/inventory-count-items/${data.itemId}`, {
+        method: 'PATCH', // Korrekte Methode für Aktualisierungen
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache' // Verhindert Cache-Probleme
         },
         body: JSON.stringify({ batchId: data.batchId }),
       });
       
       if (!response.ok) {
-        console.error(`Fehler beim Aktualisieren der Charge: ${response.status}`);
-        // Versuche als Fallback die PATCH-Methode, falls der Server POST nicht akzeptiert
-        const fallbackResponse = await fetch(`/api/inventory-counts/items/${data.itemId}/batch`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ batchId: data.batchId }),
-        });
-        
-        if (!fallbackResponse.ok) {
-          throw new Error(`Fehler beim Aktualisieren der Charge: ${fallbackResponse.status}`);
-        }
-        
-        return await fallbackResponse.json();
+        const errorText = await response.text();
+        console.error(`Fehler beim Aktualisieren der Charge: ${response.status} - ${errorText}`);
+        throw new Error(`Fehler beim Aktualisieren der Charge: ${response.status}`);
       }
       
       return await response.json();
@@ -1118,7 +1107,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   };
   
   // Erstellt eine neue Charge mit MHD und verknüpft sie mit dem Inventar-Item
-  // Diese Funktion wurde optimiert, um Scroll-Resets zu verhindern und Batch-Verluste zu vermeiden
+  // Diese Funktion wurde komplett überarbeitet, um Endpunkte, Scroll-Position und Batch-Behandlung zu verbessern
   const createNewBatch = async () => {
     // Speichere aktuelle Scroll-Position
     const prevScroll = window.scrollY;
@@ -1255,9 +1244,9 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         console.log(`Verknüpfe Inventurposten ${selectedItem.id} mit Charge ${newBatch.id}...`);
         
         try {
-          // Die HTTP-Methode wurde auf POST geändert, passend zu updateBatchMutation
-          const linkResponse = await fetch(`/api/inventory-counts/items/${selectedItem.id}/batch`, {
-            method: 'POST', // Konsistent mit updateBatchMutation
+          // KORRIGIERT: Verwenden des korrekten API-Endpunkts zur Verknüpfung
+          const linkResponse = await fetch(`/api/inventory-count-items/${selectedItem.id}`, {
+            method: 'PATCH', 
             headers: {
               'Content-Type': 'application/json',
               'Cache-Control': 'no-cache'
@@ -1268,31 +1257,13 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
           });
           
           if (!linkResponse.ok) {
-            // Bei Fehler versuchen wir es mit PATCH als Fallback
-            console.warn(`POST fehlgeschlagen, versuche PATCH als Fallback...`);
-            
-            const patchResponse = await fetch(`/api/inventory-counts/items/${selectedItem.id}/batch`, {
-              method: 'PATCH',
-              headers: {
-                'Content-Type': 'application/json',
-                'Cache-Control': 'no-cache'
-              },
-              body: JSON.stringify({ 
-                batchId: newBatch.id 
-              }),
-            });
-            
-            if (!patchResponse.ok) {
-              console.error(`Auch PATCH fehlgeschlagen: ${patchResponse.status}`);
-              throw new Error(`Verknüpfung fehlgeschlagen: ${patchResponse.status}`);
-            }
-            
-            const patchResult = await patchResponse.json();
-            console.log("Verknüpfung erfolgreich über PATCH:", patchResult);
-          } else {
-            const linkResult = await linkResponse.json();
-            console.log("Verknüpfung erfolgreich über POST:", linkResult);
+            const errorText = await linkResponse.text();
+            console.error(`Fehler beim Verknüpfen: ${linkResponse.status} - ${errorText}`);
+            throw new Error(`Verknüpfung fehlgeschlagen: ${linkResponse.status}`);
           }
+          
+          const linkResult = await linkResponse.json();
+          console.log("Verknüpfung erfolgreich:", linkResult);
           
           // Schließe das Formular erst nach erfolgreicher Verknüpfung
           setShowNewBatchForm(false);

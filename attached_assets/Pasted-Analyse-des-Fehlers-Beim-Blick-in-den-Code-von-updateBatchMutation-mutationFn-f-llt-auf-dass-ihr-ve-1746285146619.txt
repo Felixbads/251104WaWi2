@@ -1,0 +1,71 @@
+Analyse des Fehlers
+Beim Blick in den Code von updateBatchMutation.mutationFn fällt auf, dass ihr versucht, die Charge über folgende URL zu verknüpfen:
+
+await fetch(`/api/inventory-counts/items/${data.itemId}/batch`, { method: 'POST', … })
+
+und als Fallback per PATCH an dieselbe Route.
+Tatsächlich ist eure Backend-API aber offenbar so aufgebaut, dass ein Inventur-Item mit seinen Metadaten (darunter batchId) über den Endpunkt für „inventory-count-items“ aktualisiert wird, nämlich:
+
+PATCH /api/inventory-count-items/:itemId
+Body: { batchId: number }
+
+Die von euch verwendete Route /api/inventory-counts/items/:itemId/batch existiert dagegen nicht (oder verarbeitet keine POST/PATCH-Anfragen), weshalb beide Aufrufe mit einem HTTP-Fehler (z.B. 404 oder 405) zurückkommen und ihr in den onError-Zweig springt:
+
+„Die Charge konnte nicht aktualisiert werden.“
+
+Da der Link-Aufruf fehlschlägt, ist im lokalen State zwar kurzzeitig ein Batch-Objekt sichtbar (optimistisches Update), nach dem Server-Fehler bleibt aber kein konsistenter Eintrag zurück und die Charge verschwindet wieder.
+
+⸻
+
+Vorschlag zur Behebung
+	1.	Korrigiere die URL und Methode in updateBatchMutation
+Ersetze die gesamte mutationFn durch einen simplen Patch-Aufruf auf den korrekten Endpunkt:
+
+const updateBatchMutation = useMutation({
+  mutationFn: async (data: { itemId: number; batchId: number | null }) => {
+    const response = await fetch(
+      `/api/inventory-count-items/${data.itemId}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchId: data.batchId }),
+      }
+    );
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Server-Fehler ${response.status}: ${text}`);
+    }
+    return await response.json();
+  },
+  // onMutate, onSuccess, onError bleiben wie gehabt…
+});
+
+
+	2.	Passe ggf. auch createNewBatch an
+Wenn ihr in createNewBatch nach dem Anlegen der Charge den Link-Call macht:
+
+await fetch(`/api/inventory-counts/items/${itemId}/batch`, …)
+
+müsst ihr auch dort stattdessen dieselbe /api/inventory-count-items/${itemId}-Route verwenden. Beispiel:
+
+const linkResponse = await fetch(
+  `/api/inventory-count-items/${selectedItem.id}`,
+  {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ batchId: newBatch.id }),
+  }
+);
+if (!linkResponse.ok) {
+  // Fehlerbehandlung
+}
+
+
+	3.	Entferne den Fallback-POST/PATCH-Code
+Da ihr nun den korrekten Endpunkt verwendet, braucht ihr keine zweistufige Logik mehr und verringert die Fehlerquellen.
+	4.	Testen
+	•	Lege eine neue Charge an und vergewissere dich, dass sie im UI bleibt.
+	•	Wechsle die Charge (Dropdown), speichere und kontrolliere, dass updateBatchMutation mit 200 OK antwortet.
+	•	Überprüfe in den Browser-DevTools im Network-Tab, dass der Patch-Request an /api/inventory-count-items/{itemId} geht.
+
+Damit stimmt der Client-Aufruf wieder mit dem existierenden Backend-Routen-Muster überein. Der HTTP-Fehler entfallen, die Charge bleibt sichtbar und eure Seite „springt“ danach nicht mehr nach oben.
