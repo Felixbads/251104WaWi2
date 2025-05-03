@@ -311,61 +311,66 @@ export async function reconcileWarehouseProducts(
         warehousesChecked++;
       }
       
+      // Produktinfos für dieses Lager
       const productInfoMap = warehouseToProducts[warehouseId];
-      const productCount = productInfoMap.size;
       
-      console.log(`Verarbeite Lager ID ${warehouseId} mit ${productCount} eindeutigen Produkten aus Automaten`);
+      console.log(`Verarbeite Lager ID ${warehouseId} mit ${productInfoMap.size} eindeutigen Produkten aus Automaten`);
       
-      // Hole alle bereits im Lager vorhandenen Produkte
-      const existingItems = await storage.getInventoryItemsByWarehouse(warehouseId);
-      const existingProductIds = new Set(existingItems.map(item => item.productId ? Number(item.productId) : -1));
-      
-      console.log(`Lager ${warehouseId} hat bereits ${existingProductIds.size} Produkte`);
-      
-      // Wenn syncAllProducts aktiviert ist, fügen wir alle Produkte aus dem Gesamtportfolio hinzu
-      if (syncAllProducts && allProducts.length > 0) {
-        console.log(`Füge alle ${allProducts.length} Produkte aus dem Gesamtportfolio zu Lager ${warehouseId} hinzu...`);
-        
-        // Zuerst alle Produkte markieren, damit wir sie nicht doppelt hinzufügen
+      // Wenn syncAllProducts aktiviert ist, füge alle Produkte hinzu
+      if (syncAllProducts) {
         for (const product of allProducts) {
-          if (product && product.id && typeof product.id === 'number') {
-            if (!productInfoMap.has(product.id)) {
-              const productId = product.id;
-              
-              // Lagerübergreifende Prüfung mit globalProductsMap
-              if (!globalProductsMap.has(productId)) {
-                // Produkt noch nicht im globalen Register
-                const productInfo = {
-                  id: productId,
-                  name: product.productName || 'Unbekanntes Produkt',
-                  found: false,
-                  warehouses: new Set<number>([warehouseId])
-                };
-                globalProductsMap.set(productId, productInfo);
-                
-                // Füge Produkt-ID zum entsprechenden Lager hinzu
-                productInfoMap.set(productId, productInfo);
-                
-                console.log(`Neues Produkt ${productId} (${product.productName || 'Unbekanntes Produkt'}) aus Gesamtportfolio global registriert`);
-              } else {
-                // Produkt bereits im globalen Register - füge nur Lager-Zuordnung hinzu wenn nötig
-                const productInfo = globalProductsMap.get(productId)!;
-                if (!productInfo.warehouses.has(warehouseId)) {
-                  productInfo.warehouses.add(warehouseId);
-                  productInfoMap.set(productId, productInfo);
-                  console.log(`Produkt ${productId} (${product.productName || 'Unbekanntes Produkt'}) aus Gesamtportfolio bereits global registriert, jetzt auch für Lager ${warehouseId}`);
-                } else {
-                  console.log(`Produkt ${productId} (${product.productName || 'Unbekanntes Produkt'}) bereits für Lager ${warehouseId} vorgemerkt (aus globalem Register)`);
-                }
-              }
+          if (product.id && !productInfoMap.has(product.id)) {
+            const productId = product.id;
+            
+            // Wenn dieses Produkt bereits im globalen Register ist, übernehme die Infos
+            if (globalProductsMap.has(productId)) {
+              const globalInfo = globalProductsMap.get(productId)!;
+              globalInfo.warehouses.add(warehouseId);
+              productInfoMap.set(productId, globalInfo);
+            } else {
+              // Neues Produkt global und für dieses Lager registrieren
+              const productInfo = {
+                id: productId,
+                name: product.product_name || 'Unbekanntes Produkt',
+                found: false,
+                warehouses: new Set<number>([warehouseId])
+              };
+              globalProductsMap.set(productId, productInfo);
+              productInfoMap.set(productId, productInfo);
             }
           }
         }
       }
       
-      // Batch-Verarbeitung für effizientere DB-Operationen
-      const BATCH_SIZE = 25;
+      // Prüfe, welche Produkte bereits im Lager vorhanden sind, um Duplikate zu vermeiden
+      const existingProductIds = new Set<number>();
+      
+      try {
+        const existingItems = await storage.getInventoryItemsByWarehouse(warehouseId);
+        
+        for (const item of existingItems) {
+          if (item.productId) {
+            const productId = typeof item.productId === 'number' ? item.productId : Number(item.productId);
+            existingProductIds.add(productId);
+            
+            // Markiere auch in der globalen Map, dass dieses Produkt bereits diesem Lager zugeordnet ist
+            if (globalProductsMap.has(productId)) {
+              const productInfo = globalProductsMap.get(productId)!;
+              productInfo.warehouses.add(warehouseId);
+            }
+          }
+        }
+        
+        console.log(`Lager ${warehouseId} hat bereits ${existingProductIds.size} Produkte`);
+      } catch (error) {
+        console.error(`Fehler beim Abrufen der existierenden Produkte für Lager ${warehouseId}:`, error);
+        errors++;
+      }
+      
+      // Optional um die Last auf die Datenbank zu reduzieren:
+      const BATCH_SIZE = 50;
       let processedCount = 0;
+      const productCount = productInfoMap.size;
       
       // Jetzt fügen wir alle Produkte zum Lager hinzu (sowohl Automaten als auch Gesamtportfolio)
       // Wir verwenden die gleiche Map (productInfoMap) für die Verarbeitung
@@ -391,84 +396,119 @@ export async function reconcileWarehouseProducts(
               const parsedWarehouseId = Number(warehouseId);
               const parsedProductId = Number(productId);
               
-              console.log(`Füge Produkt ${parsedProductId} (${product.productName}) zu Lager ${parsedWarehouseId} hinzu...`);
+              // Prüfe zunächst, ob das Produkt bereits im Lagerbestand existiert und eine Menge > 0 hat
+              const existingInventoryItem = await storage.getInventoryItemByProductAndWarehouse(parsedProductId, parsedWarehouseId);
+              const productQuantity = existingInventoryItem?.quantity || 0;
               
-              // Erstelle eine virtuelle Batch für die Produkte aus Automaten
-              // Mit einem speziellen Batch-Namen, der anzeigt, dass es sich um einen automatischen Abgleich handelt
-              const batchNumber = `AUTO-${parsedProductId}-${new Date().getTime()}`;
-              
-              // Setze Ablaufdatum auf ein Jahr in der Zukunft für automatisch angelegte Batches
-              const expiryDate = new Date();
-              expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-              
-              // Erstelle einen neuen Batch-Eintrag
-              const newBatchData: InsertProductBatch = {
-                warehouseId: parsedWarehouseId,
-                productId: parsedProductId,
-                batchNumber: batchNumber,
-                initialQuantity: 0,
-                currentQuantity: 0,
-                receivedDate: new Date().toISOString().split('T')[0], // Als ISO-String im Format "YYYY-MM-DD"
-                expiryDate: expiryDate.toISOString().split('T')[0], // Als ISO-String im Format "YYYY-MM-DD"
-                status: 'active',
-                notes: `Automatisch durch Lagerabgleich hinzugefügt (${new Date().toISOString().split('T')[0]})`,
-                locationInWarehouse: 'Automatischer Abgleich'
-              };
-              
-              console.log(`Creating batch for product ${parsedProductId} in warehouse ${parsedWarehouseId}`);
-              
-              try {
-                // Erstelle die Batch über die Storage-Schnittstelle
-                const newBatch = await storage.createProductBatch(newBatchData);
+              // Wenn die Menge 0 ist, erstelle keinen Batch - dies verhindert die Anzeige nicht vorhandener Produkte
+              if (productQuantity <= 0) {
+                console.log(`Überspringe Batch-Erstellung für Produkt ${parsedProductId} (${product.productName}) in Lager ${parsedWarehouseId}, da Menge 0 ist`);
                 
-                if (newBatch && newBatch.id) {
-                  // Zähle das Produkt entweder als Automatprodukt oder als Portfolio-Produkt
-                  if (productInfoMap.get(parsedProductId)?.found) {
-                    // Produkt aus Automaten
-                    productsAdded++;
-                    console.log(`✅ Produkt ${parsedProductId} (${product.productName}) aus Automat erfolgreich als Batch zu Lager ${parsedWarehouseId} hinzugefügt mit ID ${newBatch.id}`);
-                  } else {
-                    // Produkt aus dem Gesamtportfolio
-                    allProductsAdded++;
-                    console.log(`✅ Produkt ${parsedProductId} (${product.productName}) aus Gesamtportfolio erfolgreich als Batch zu Lager ${parsedWarehouseId} hinzugefügt mit ID ${newBatch.id}`);
-                  }
-                  
-                  // Für die Kompatibilität auch sicherstellen, dass ein inventory_item existiert
-                  try {
-                    // Prüfe, ob bereits ein inventory_item existiert
-                    const existingItem = await storage.getInventoryItemByProductAndWarehouse(parsedProductId, parsedWarehouseId);
+                // Stelle sicher, dass ein inventory_item existiert (auch wenn keine Batch erstellt wird)
+                try {
+                  // Prüfe, ob bereits ein inventory_item existiert
+                  if (!existingInventoryItem && forceCreateInventoryItems) {
+                    // Erstelle ein inventory_item Eintrag für Rückwärtskompatibilität
+                    const inventoryItem: InsertInventoryItem = {
+                      warehouseId: parsedWarehouseId,
+                      productId: parsedProductId,
+                      quantity: 0,
+                      minQuantity: 5,
+                      status: "active",
+                      notes: `Automatisch durch Lagerabgleich hinzugefügt (${new Date().toISOString().split('T')[0]})`,
+                      lastCountDate: new Date()
+                    };
                     
-                    if (!existingItem) {
-                      // Erstelle auch einen inventory_item Eintrag für Rückwärtskompatibilität
-                      const inventoryItem: InsertInventoryItem = {
-                        warehouseId: parsedWarehouseId,
-                        productId: parsedProductId,
-                        quantity: 0,
-                        minQuantity: 5,
-                        status: "active",
-                        notes: `Automatisch durch Lagerabgleich hinzugefügt (${new Date().toISOString().split('T')[0]})`,
-                        lastCountDate: new Date()
-                      };
-                      
-                      const newItem = await storage.createInventoryItem(inventoryItem);
-                      if (newItem && newItem.id) {
-                        console.log(`✅ Auch inventory_item für Produkt ${parsedProductId} in Lager ${parsedWarehouseId} erstellt (ID: ${newItem.id})`);
-                      }
+                    const newItem = await storage.createInventoryItem(inventoryItem);
+                    if (newItem && newItem.id) {
+                      inventoryItemsCreated++;
+                      console.log(`✅ Inventory-Item für Produkt ${parsedProductId} in Lager ${parsedWarehouseId} mit Menge 0 erstellt (ID: ${newItem.id})`);
                     }
-                  } catch (itemError: any) {
-                    console.warn(`⚠️ Konnte inventory_item nicht überprüfen/erstellen: ${itemError?.message || 'Unbekannter Fehler'}`);
                   }
-                } else {
-                  console.error(`❌ Fehler beim Erstellen des Batch-Eintrags für Produkt ${parsedProductId} in Lager ${parsedWarehouseId}: Kein Ergebnis zurückgegeben`);
-                  errors++;
+                } catch (itemError: any) {
+                  console.warn(`⚠️ Konnte inventory_item nicht überprüfen/erstellen: ${itemError?.message || 'Unbekannter Fehler'}`);
                 }
-              } catch (createError: any) {
-                // Behandle Unique-Constraint-Fehler
-                if (createError.message && createError.message.includes('unique constraint')) {
-                  console.log(`Batch für Produkt ${parsedProductId} (${product.productName}) ist bereits in Lager ${parsedWarehouseId} vorhanden (DB-Constraint)`);
-                  skippedDuplicates++;
-                } else {
-                  throw createError; // Andere Fehler weiterwerfen
+              } else {
+                console.log(`Füge Produkt ${parsedProductId} (${product.productName}) mit Menge ${productQuantity} zu Lager ${parsedWarehouseId} hinzu...`);
+                
+                // Erstelle eine virtuelle Batch für die Produkte aus Automaten
+                // Mit einem speziellen Batch-Namen, der anzeigt, dass es sich um einen automatischen Abgleich handelt
+                const batchNumber = `AUTO-${parsedProductId}-${new Date().getTime()}`;
+                
+                // Setze Ablaufdatum auf ein Jahr in der Zukunft für automatisch angelegte Batches
+                const expiryDate = new Date();
+                expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+                
+                // Erstelle einen neuen Batch-Eintrag
+                const newBatchData: InsertProductBatch = {
+                  warehouseId: parsedWarehouseId,
+                  productId: parsedProductId,
+                  batchNumber: batchNumber,
+                  initialQuantity: productQuantity, // Verwende aktuelle Produktmenge
+                  currentQuantity: productQuantity, // Verwende aktuelle Produktmenge
+                  receivedDate: new Date().toISOString().split('T')[0], // Als ISO-String im Format "YYYY-MM-DD"
+                  expiryDate: expiryDate.toISOString().split('T')[0], // Als ISO-String im Format "YYYY-MM-DD"
+                  status: 'active',
+                  notes: `Automatisch durch Lagerabgleich hinzugefügt (${new Date().toISOString().split('T')[0]})`,
+                  locationInWarehouse: 'Automatischer Abgleich'
+                };
+                
+                console.log(`Creating batch for product ${parsedProductId} in warehouse ${parsedWarehouseId} with quantity ${productQuantity}`);
+                
+                try {
+                  // Erstelle die Batch über die Storage-Schnittstelle
+                  const newBatch = await storage.createProductBatch(newBatchData);
+                  
+                  if (newBatch && newBatch.id) {
+                    // Zähle das Produkt entweder als Automatprodukt oder als Portfolio-Produkt
+                    if (productInfoMap.get(parsedProductId)?.found) {
+                      // Produkt aus Automaten
+                      productsAdded++;
+                      console.log(`✅ Produkt ${parsedProductId} (${product.productName}) aus Automat erfolgreich als Batch zu Lager ${parsedWarehouseId} hinzugefügt mit ID ${newBatch.id}`);
+                    } else {
+                      // Produkt aus dem Gesamtportfolio
+                      allProductsAdded++;
+                      console.log(`✅ Produkt ${parsedProductId} (${product.productName}) aus Gesamtportfolio erfolgreich als Batch zu Lager ${parsedWarehouseId} hinzugefügt mit ID ${newBatch.id}`);
+                    }
+                    
+                    // Für die Kompatibilität auch sicherstellen, dass ein inventory_item existiert
+                    try {
+                      // Prüfe, ob bereits ein inventory_item existiert
+                      const existingItem = await storage.getInventoryItemByProductAndWarehouse(parsedProductId, parsedWarehouseId);
+                      
+                      if (!existingItem) {
+                        // Erstelle auch einen inventory_item Eintrag für Rückwärtskompatibilität
+                        const inventoryItem: InsertInventoryItem = {
+                          warehouseId: parsedWarehouseId,
+                          productId: parsedProductId,
+                          quantity: productQuantity,
+                          minQuantity: 5,
+                          status: "active",
+                          notes: `Automatisch durch Lagerabgleich hinzugefügt (${new Date().toISOString().split('T')[0]})`,
+                          lastCountDate: new Date()
+                        };
+                        
+                        const newItem = await storage.createInventoryItem(inventoryItem);
+                        if (newItem && newItem.id) {
+                          inventoryItemsCreated++;
+                          console.log(`✅ Auch inventory_item für Produkt ${parsedProductId} in Lager ${parsedWarehouseId} erstellt (ID: ${newItem.id})`);
+                        }
+                      }
+                    } catch (itemError: any) {
+                      console.warn(`⚠️ Konnte inventory_item nicht überprüfen/erstellen: ${itemError?.message || 'Unbekannter Fehler'}`);
+                    }
+                  } else {
+                    console.error(`❌ Fehler beim Erstellen des Batch-Eintrags für Produkt ${parsedProductId} in Lager ${parsedWarehouseId}: Kein Ergebnis zurückgegeben`);
+                    errors++;
+                  }
+                } catch (createError: any) {
+                  // Behandle Unique-Constraint-Fehler
+                  if (createError.message && createError.message.includes('unique constraint')) {
+                    console.log(`Batch für Produkt ${parsedProductId} (${product.productName}) ist bereits in Lager ${parsedWarehouseId} vorhanden (DB-Constraint)`);
+                    skippedDuplicates++;
+                  } else {
+                    throw createError; // Andere Fehler weiterwerfen
+                  }
                 }
               }
             } catch (innerError: any) {
