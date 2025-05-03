@@ -229,41 +229,46 @@ export default function InventoryCountBatchDialog({
   const handleCreateNewBatch = () => {
     // IMMER automatisch eine Chargennummer generieren, egal ob eine angegeben wurde
     const currentDate = new Date();
-    const dateStr = currentDate.toISOString().slice(0, 10);
-    const timeStr = currentDate.getHours().toString().padStart(2, '0') + 
-                    currentDate.getMinutes().toString().padStart(2, '0');
+    const year = currentDate.getFullYear();
+    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+    const day = String(currentDate.getDate()).padStart(2, '0');
+    const hours = String(currentDate.getHours()).padStart(2, '0');
+    const minutes = String(currentDate.getMinutes()).padStart(2, '0');
     const randomStr = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
     
     // Format: CH-YYYY-MM-DD-HHMM-RRR (CH = Charge, gefolgt von Datum, Uhrzeit und Zufallszahl)
-    const autoChargennummer = `CH-${dateStr}-${timeStr}-${randomStr}`;
+    const autoChargennummer = `CH-${year}-${month}-${day}-${hours}${minutes}-${randomStr}`;
     
-    // Überschreibe eventuell vorhandene Eingabe mit automatisch generierter Nummer
-    setNewBatchNumber(autoChargennummer);
+    // Direkt weitergehen mit der generierten Nummer ohne setState zu nutzen
+    // setState ist asynchron und könnte nicht bereit sein, wenn createBatchMutation aufgerufen wird
 
     // Wenn expiryDate null ist, legen wir ein Standard-MHD von 3 Monaten in der Zukunft fest
-    if (!expiryDate) {
+    let effectiveExpiryDate = expiryDate;
+    if (!effectiveExpiryDate) {
       const defaultDate = new Date();
       defaultDate.setMonth(defaultDate.getMonth() + 3);
-      setExpiryDate(defaultDate);
-      
-      toast({
-        title: 'Charge wird erstellt',
-        description: `Automatisch generierte Chargennummer: ${autoChargennummer}`,
-      });
-      
-      // Direkt fortfahren
-      setIsSubmitting(true);
-      createBatchMutation.mutate();
-      return;
+      effectiveExpiryDate = defaultDate;
+      setExpiryDate(defaultDate); // Nur für die UI-Anzeige
     }
-
+      
     toast({
       title: 'Charge wird erstellt',
       description: `Automatisch generierte Chargennummer: ${autoChargennummer}`,
     });
     
     setIsSubmitting(true);
-    createBatchMutation.mutate();
+    
+    // Erstelle Batch mit explizit übergebenen Daten, um Async-Probleme zu vermeiden
+    const batchData = {
+      productId: selectedItem?.productId,
+      batchNumber: autoChargennummer,
+      expiryDate: effectiveExpiryDate ? format(effectiveExpiryDate, 'yyyy-MM-dd') : format(new Date(new Date().setMonth(new Date().getMonth() + 3)), 'yyyy-MM-dd'),
+      initialQuantity: selectedItem?.countedQuantity || 1,
+      currentQuantity: selectedItem?.countedQuantity || 1
+    };
+    
+    // Rufe die mutationFn direkt mit den richtigen Daten auf
+    createBatchMutation.mutate(batchData);
   };
 
   // Status-Farben für Batches
