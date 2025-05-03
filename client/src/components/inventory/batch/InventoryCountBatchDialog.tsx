@@ -187,6 +187,16 @@ export default function InventoryCountBatchDialog({
           setTimeout(() => {
             setShowSuccess(false);
             onOpenChange(false);
+            
+            // Stelle die Scroll-Position wieder her
+            setTimeout(() => {
+              if (typeof window !== 'undefined') {
+                const savedPos = window.sessionStorage.getItem('inventur_scroll_position');
+                if (savedPos) {
+                  window.scrollTo(0, parseInt(savedPos, 10));
+                }
+              }
+            }, 50);
           }, 1500);
         }, 300);
       }
@@ -253,11 +263,31 @@ export default function InventoryCountBatchDialog({
         // Nutzer möchte wirklich keine Charge, also wird null übergeben
         onBatchSelect(null);
         onOpenChange(false);
+        
+        // Stelle die Scroll-Position wieder her
+        setTimeout(() => {
+          if (typeof window !== 'undefined') {
+            const savedPos = window.sessionStorage.getItem('inventur_scroll_position');
+            if (savedPos) {
+              window.scrollTo(0, parseInt(savedPos, 10));
+            }
+          }
+        }, 50);
       }
     } else if (selectedBatchId) {
       // Eine bestehende Charge wurde ausgewählt
       onBatchSelect(parseInt(selectedBatchId));
       onOpenChange(false);
+      
+      // Stelle die Scroll-Position wieder her
+      setTimeout(() => {
+        if (typeof window !== 'undefined') {
+          const savedPos = window.sessionStorage.getItem('inventur_scroll_position');
+          if (savedPos) {
+            window.scrollTo(0, parseInt(savedPos, 10));
+          }
+        }
+      }, 50);
     } else {
       toast({
         title: 'Keine Auswahl',
@@ -513,7 +543,7 @@ export default function InventoryCountBatchDialog({
                       htmlFor="batchNumber" 
                       className="block text-sm font-medium text-gray-700 mb-1"
                     >
-                      Chargennummer (automatisch generiert)
+                      Chargennummer (automatisch)
                     </label>
                     <div className="flex items-center space-x-2">
                       <Input
@@ -521,20 +551,20 @@ export default function InventoryCountBatchDialog({
                         placeholder="Automatisch generiert"
                         value={newBatchNumber}
                         readOnly
-                        className="bg-gray-50"
+                        className="bg-gray-50 font-medium"
                       />
                       <Button 
                         type="button" 
                         variant="outline" 
                         size="sm"
                         onClick={() => setNewBatchNumber(generateBatchNumber())}
-                        title="Neue Chargennummer generieren"
+                        title="Neue Chargennummer regenerieren"
                       >
                         <CircleAlert className="h-4 w-4" />
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Diese Nummer wurde automatisch für Sie generiert. Sie können sie bei Bedarf aktualisieren.
+                      Die Chargennummer wird automatisch im Format CHG-YYYYMMDD-HHMMSS-RRR generiert und muss nicht manuell eingegeben werden.
                     </p>
                   </div>
                   
