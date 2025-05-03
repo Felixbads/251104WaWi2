@@ -2716,6 +2716,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         availableBatches={availableBatches}
         onBatchSelect={handleBatchUpdate}
         inventoryId={inventurData?.id.toString() || '0'}
+        warehouseId={inventurData?.warehouseId || 0}
       />
     </div>
   );

@@ -57,6 +57,7 @@ interface InventoryCountBatchDialogProps {
   availableBatches: ProductBatch[];
   onBatchSelect: (batchId: number | null) => void;
   inventoryId: string;
+  warehouseId: number; // Lagernummer ist wichtig für die korrekte Batch-Erstellung
 }
 
 export default function InventoryCountBatchDialog({
@@ -65,7 +66,8 @@ export default function InventoryCountBatchDialog({
   selectedItem,
   availableBatches,
   onBatchSelect,
-  inventoryId
+  inventoryId,
+  warehouseId
 }: InventoryCountBatchDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -130,31 +132,18 @@ export default function InventoryCountBatchDialog({
           window.sessionStorage.setItem('inventur_scroll_position', window.scrollY.toString());
         }
   
-        // Hole zuerst die Inventurdaten, um die korrekte Lager-ID zu bekommen
-        const inventoryResponse = await fetch(`/api/inventory-counts/${inventoryId}`, {
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
-        });
-        
-        if (!inventoryResponse.ok) {
-          console.error(`Fehler beim Laden der Inventurdaten: ${inventoryResponse.status}`);
-          throw new Error(`Fehler beim Laden der Inventurdaten: ${inventoryResponse.status}`);
+        // Verwende die direkt übergebene warehouseId
+        if (!warehouseId) {
+          console.error("Keine gültige Lager-ID übergeben");
+          throw new Error("Keine gültige Lager-ID übergeben");
         }
         
-        const inventoryData = await inventoryResponse.json();
-        console.log("Inventurdaten erfolgreich geladen:", inventoryData);
-        
-        if (!inventoryData || !inventoryData.warehouseId) {
-          console.error("Keine gültige Lager-ID in den Inventurdaten gefunden");
-          throw new Error("Keine gültige Lager-ID in den Inventurdaten gefunden");
-        }
+        console.log("Verwende Lager-ID:", warehouseId);
         
         // Ergänze die vom Benutzer übergebenen Daten mit den erforderlichen Werten
         const completeBatchData = {
           ...batchData,
-          warehouseId: inventoryData.warehouseId, // Verwende die korrekte Lager-ID
+          warehouseId: warehouseId, // Verwende die übergebene Lager-ID
           receivedDate: format(new Date(), 'yyyy-MM-dd')
         };
         
