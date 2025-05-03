@@ -1089,11 +1089,15 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         expiryDate.setMonth(expiryDate.getMonth() + 6);
         const expiryDateString = expiryDate.toISOString().split('T')[0];
         
-        // Neue Charge am Server anlegen
-        const createRes = await fetch('/api/inventory-counts/product-batches', {
+        // Neue Charge am Server anlegen mit korrektem Endpunkt
+        const url = `/api/product-batches`; // Korrigierter API-Endpunkt ohne Inventur-Kontext
+        console.log(`Verwende API-Endpunkt: ${url}`);
+        
+        const createRes = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            inventoryCountId: Number(id), // Explizite Inventur-ID im Payload
             productId: selectedItem.productId,
             warehouseId: inventurData!.warehouseId,
             batchNumber: autoBatchNumber,
@@ -1105,7 +1109,17 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         });
         
         if (!createRes.ok) {
-          throw new Error(`Batch konnte nicht angelegt werden: ${createRes.status}`);
+          const errorText = await createRes.text();
+          console.error(`Fehler bei Batch-Erstellung: ${createRes.status} - ${errorText}`);
+          
+          let errorData;
+          try {
+            errorData = JSON.parse(errorText);
+            throw new Error(errorData.details || errorData.error || `Serverfehler: ${createRes.status}`);
+          } catch (parseError) {
+            // Wenn JSON-Parse fehlschlägt, verwende den Rohtext
+            throw new Error(`Serverfehler (${createRes.status}): ${errorText.substring(0, 200)}`);
+          }
         }
         
         // Neue Batch-ID und -Informationen abrufen
@@ -1136,10 +1150,17 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       // Lokales State-Update für direkte UI-Reaktion
       updateCountedItem(updatedItem);
       
+      // Speichere aktuelle Scroll-Position
+      const prevScroll = window.scrollY;
+      
       // 3) Inventur-Item mit Batch verknüpfen
       updateBatchMutation.mutate(
         { itemId: selectedItem.id, batchId },
         {
+          // Optimistisches Update: Speichere Scroll-Position
+          onMutate: () => {
+            return { prevScroll };
+          },
           onSuccess: () => {
             // Dialog schließen
             setShowBatchDialog(false);
@@ -1153,7 +1174,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                 : "Die Charge wurde erfolgreich mit dem Artikel verknüpft.",
             });
             
-            // Aktualisiere auch den React Query Cache
+            // Aktualisiere auch den React Query Cache mit gezieltem Update
             queryClient.setQueryData(
               [`/api/inventory-counts/${id}/items`],
               (old?: InventoryCountItem[]) => {
@@ -1177,6 +1198,12 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
               description: "Die Charge konnte nicht verknüpft werden.",
               variant: "destructive",
             });
+          },
+          onSettled: (_, __, ___, context) => {
+            // Stelle Scroll-Position wieder her
+            if (context?.prevScroll !== undefined) {
+              window.scrollTo(0, context.prevScroll);
+            }
           }
         }
       );
@@ -1280,14 +1307,23 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       // Aktualisiere den lokalen State sofort ohne auf Serverantwort zu warten
       updateCountedItem(optimisticUpdatedItem);
       
-      // Schritt 1: Erstelle neue Charge API-Anfrage
-      const response = await fetch('/api/inventory-counts/product-batches', {
+      // Schritt 1: Erstelle neue Charge API-Anfrage mit korrektem Endpunkt
+      const url = `/api/product-batches`; // Korrigierter API-Endpunkt
+      console.log(`Verwende API-Endpunkt zum Erstellen: ${url}`);
+      
+      // Bereite die Daten mit inventoryCountId vor
+      const enrichedBatchData = {
+        ...batchData,
+        inventoryCountId: Number(id) // Füge die Inventur-ID hinzu
+      };
+      
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Cache-Control': 'no-cache' // Verhindert Cache-Probleme
         },
-        body: JSON.stringify(batchData),
+        body: JSON.stringify(enrichedBatchData),
       });
       
       // Überprüfe auf detaillierte Fehlermeldungen
