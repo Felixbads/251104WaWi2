@@ -2261,12 +2261,30 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                                       </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                      {/* MHD-Einträge */}
-                                      <TableRow>
-                                        <TableCell colSpan={5} className="h-14 text-center text-muted-foreground">
-                                          Noch keine MHD-Einträge für dieses Produkt.
-                                        </TableCell>
-                                      </TableRow>
+                                      {/* MHD-Einträge - dynamisch je nach Vorhandensein einer Batch */}
+                                      {item.batch ? (
+                                        <TableRow>
+                                          <TableCell>{item.batch.batchNumber}</TableCell>
+                                          <TableCell>{formatBatchDate(item.batch.expiryDate)}</TableCell>
+                                          <TableCell className="text-center">{item.batch.currentQuantity}</TableCell>
+                                          <TableCell>{formatBatchDate(item.batch.createdAt)}</TableCell>
+                                          <TableCell className="text-right">
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              onClick={() => openBatchDialog(item)}
+                                            >
+                                              Bearbeiten
+                                            </Button>
+                                          </TableCell>
+                                        </TableRow>
+                                      ) : (
+                                        <TableRow>
+                                          <TableCell colSpan={5} className="h-14 text-center text-muted-foreground">
+                                            Noch keine MHD-Einträge für dieses Produkt.
+                                          </TableCell>
+                                        </TableRow>
+                                      )}
                                     </TableBody>
                                   </Table>
                                 </div>

@@ -1,0 +1,113 @@
+Warum die Batch nicht angezeigt wird
+In eurem Expanded-Bereich der Tabelle gibt es aktuell nur einen statischen Platzhalter, der immer angezeigt wird:
+
+{/* MHD-Liste */}
+<div className="rounded border overflow-hidden">
+  <Table>
+    <TableHeader>…</TableHeader>
+    <TableBody>
+      <TableRow>
+        <TableCell colSpan={5} className="h-14 text-center text-muted-foreground">
+          Noch keine MHD-Einträge für dieses Produkt.
+        </TableCell>
+      </TableRow>
+    </TableBody>
+  </Table>
+</div>
+
+Ihr prüft nicht, ob item.batch (bzw. eure lokalen State-Einträge countedItems) bereits eine Batch enthält. Deswegen bleibt der Platzhalter immer stehen – selbst wenn ihr im State batchId und batch korrekt gesetzt habt.
+
+⸻
+
+🛠 So beseitigt ihr das Problem
+	1.	Display-Logik dynamisieren
+Ersetzt den statischen Platzhalter durch eine bedingte Ausgabe:
+
+{/* MHD-Liste */}
+<div className="rounded border overflow-hidden">
+  <Table>
+    <TableHeader>
+      <TableRow>
+        <TableHead>Batch-Nummer</TableHead>
+        <TableHead>MHD</TableHead>
+        <TableHead>Menge</TableHead>
+        <TableHead>Aktionen</TableHead>
+      </TableRow>
+    </TableHeader>
+    <TableBody>
+-     <TableRow>
+-       <TableCell colSpan={5} className="h-14 text-center text-muted-foreground">
+-         Noch keine MHD-Einträge für dieses Produkt.
+-       </TableCell>
+-     </TableRow>
++     {item.batch ? (
++       <TableRow>
++         <TableCell>{item.batch.batchNumber}</TableCell>
++         <TableCell>{formatBatchDate(item.batch.expiryDate)}</TableCell>
++         <TableCell>{item.batch.quantity}</TableCell>
++         <TableCell>
++           <Button
++             size="sm"
++             variant="ghost"
++             onClick={() => openBatchDialog(item)}
++           >
++             Bearbeiten
++           </Button>
++         </TableCell>
++       </TableRow>
++     ) : (
++       <TableRow>
++         <TableCell colSpan={5} className="h-14 text-center text-muted-foreground">
++           Noch keine MHD-Einträge für dieses Produkt.
++         </TableCell>
++       </TableRow>
++     )}
+    </TableBody>
+  </Table>
+</div>
+
+
+	2.	Mehrere Batches (optional)
+Falls ihr zukünftig mehrere Batches pro Produkt unterstützt, nutzt statt einer einzelnen item.batch–Prüfung eine .map-Schleife:
+
+{item.batches && item.batches.length > 0 ? (
+  item.batches.map(b => (
+    <TableRow key={b.id}>
+      <TableCell>{b.batchNumber}</TableCell>
+      <TableCell>{formatBatchDate(b.expiryDate)}</TableCell>
+      <TableCell>{b.quantity}</TableCell>
+      <TableCell>
+        <Button … onClick={() => openBatchDialog(item, b.id)}>
+          Bearbeiten
+        </Button>
+      </TableCell>
+    </TableRow>
+  ))
+) : (
+  <TableRow>…Platzhalter…</TableRow>
+)}
+
+
+	3.	Sicherstellen, dass batch im State steht
+Wenn ihr die Batch im lokalen State aktualisiert, muss das komplette batch-Objekt gesetzt werden, nicht nur die ID:
+
+// Nach erfolgreichem API-Patch:
+const updatedItem = {
+  ...selectedItem,
+  batch: {
+    id: newBatch.id,
+    batchNumber: newBatch.batchNumber,
+    expiryDate: newBatch.expiryDate,
+    quantity: newBatch.quantity
+  },
+  batchId: newBatch.id
+};
+updateCountedItem(updatedItem);
+
+
+	4.	Neu laden vermeiden
+Stellt sicher, dass ihr nach dem Verknüpfen nicht die Query invalidiert, sondern nur den lokalen State patched. So bleibt das UI konsistent und zeigt sofort die neue Batch an.
+
+⸻
+
+Nach diesen Änderungen wird eure neu angelegte Batch unmittelbar unter dem Produkt aufgelistet, anstatt weiterhin den Platzhalter zu zeigen.
