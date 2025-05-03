@@ -73,18 +73,38 @@ export default function InventoryCountBatchDialog({
   // State-Verwaltung
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>(availableBatches.length === 0 ? 'new' : 'existing');
-  const [newBatchNumber, setNewBatchNumber] = useState('');
+  
+  // Für automatische Batch-Nummerngenerierung
+  const [newBatchNumber, setNewBatchNumber] = useState(() => generateBatchNumber());
+  
   // Setze Standarddatum auf 3 Monate in der Zukunft für neue Chargen
   const [expiryDate, setExpiryDate] = useState<Date | null>(
     new Date(new Date().setMonth(new Date().getMonth() + 3))
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  
+  /**
+   * Generiert eine eindeutige Chargennummer basierend auf dem aktuellen Zeitstempel.
+   * Format: CHG-YYYYMMDD-HHMMSS-RRR (RRR = Zufallszahl)
+   */
+  function generateBatchNumber(): string {
+    const now = new Date();
+    const dateStr = format(now, 'yyyyMMdd');
+    const timeStr = format(now, 'HHmmss');
+    const randomStr = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    return `CHG-${dateStr}-${timeStr}-${randomStr}`;
+  }
 
-  // Bei Öffnen des Dialogs den aktuellen Batch setzen
+  // Bei Öffnen des Dialogs den aktuellen Batch setzen und eine neue Chargennummer generieren
   useEffect(() => {
     if (open && selectedItem) {
       setSelectedBatchId(selectedItem.batchId ? selectedItem.batchId.toString() : null);
+      
+      // Generiere jedes Mal eine neue Chargennummer, wenn der Dialog geöffnet wird
+      if (!newBatchNumber) {
+        setNewBatchNumber(generateBatchNumber());
+      }
     }
   }, [open, selectedItem]);
 
@@ -221,27 +241,17 @@ export default function InventoryCountBatchDialog({
     }
   };
 
-  /**
-   * Generiert eine eindeutige Chargennummer basierend auf dem aktuellen Zeitstempel.
-   * Format: CHG-YYYYMMDD-HHMMSS
-   */
-  function generateBatchNumber(): string {
-    // Datum + Zeitstempel als eindeutige Nummer
-    const now = new Date();
-    const yyyy = now.getFullYear();
-    const mm = String(now.getMonth()+1).padStart(2, '0');
-    const dd = String(now.getDate()).padStart(2, '0');
-    const hh = String(now.getHours()).padStart(2, '0');
-    const min = String(now.getMinutes()).padStart(2, '0');
-    const ss = String(now.getSeconds()).padStart(2, '0');
-    const randomStr = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-    return `CHG-${yyyy}${mm}${dd}-${hh}${min}${ss}-${randomStr}`;
-  }
+  // Diese Funktion ist bereits oben definiert worden und kann entfernt werden, da sie dupliziert ist
 
   // Handler zum Erstellen einer neuen Charge
   const handleCreateNewBatch = () => {
-    // Automatisch eine Chargennummer generieren
-    const autoChargennummer = generateBatchNumber();
+    // Speichere zuerst die aktuelle Scroll-Position im sessionStorage
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem('inventur_scroll_position', window.scrollY.toString());
+    }
+    
+    // Verwende die bereits generierte Chargennummer (oder erzeuge eine neue, falls nötig)
+    const autoChargennummer = newBatchNumber || generateBatchNumber();
     
     // Setze Ablaufdatum - Standard: 3 Monate in der Zukunft
     let effectiveExpiryDate = expiryDate;

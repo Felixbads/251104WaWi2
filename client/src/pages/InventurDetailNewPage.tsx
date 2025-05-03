@@ -203,6 +203,16 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
+  // Scrollposition-Wiederherstellung beim ersten Laden der Seite
+  useEffect(() => {
+    const pos = window.sessionStorage.getItem('inventur_scroll_position');
+    if (pos) {
+      window.scrollTo(0, parseInt(pos, 10));
+      // Wir behalten die Position für nachfolgende Operationen wie Batch-Updates
+      // window.sessionStorage.removeItem('inventur_scroll_position');
+    }
+  }, []); // Leeres Dependency-Array = nur beim Mount ausführen
+  
   // State-Verwaltung
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddDialog, setShowAddDialog] = useState(false);
