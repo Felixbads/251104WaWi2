@@ -1,0 +1,151 @@
+Hier ein Überblick, was in eurem Code vermutlich schiefläuft – und wie ihr es beheben könnt:
+
+⸻
+
+1. Die Seite „lädt neu“ und springt nach oben
+
+Ursache A: Unbeabsichtigtes Abschicken von Formularen
+	•	Wenn ihr irgendwo ein <form> habt (oder auch einen <button> ohne type="button"), sendet der Browser beim Klick standardmäßig ein Formular ab und lädt die Seite neu.
+	•	Lösung:
+	•	Alle Buttons, die keine Form absenden sollen, explizit mit type="button" ausstatten.
+	•	Falls ihr doch ein <form onSubmit={…}> verwendet, im Handler event.preventDefault() aufrufen, bevor ihr eure Logik abarbeitet.
+
+// statt <button onClick={…}> …
+<button type="button" onClick={handleClick}>Speichern</button>
+
+// bzw. in einem onSubmit-Handler
+function onSubmit(e: React.FormEvent) {
+  e.preventDefault();
+  // … eure Speicherroutine …
+}
+
+
+
+⸻
+
+Ursache B: Falsche Scroll-Restoration in euren Fetch-/Mutations-Blöcken
+
+Ihr verwendet an mehreren Stellen
+
+setTimeout(() => {
+  const savedPosition = window.sessionStorage.getItem('inventur_scroll_position');
+  if (savedPosition) {
+    window.scrollTo(0, parseInt(savedPosition));
+  }
+}, 100);
+
+– aber:
+	1.	Ihr schreibt den Scroll-Wert nie in sessionStorage, also ist savedPosition oft null/undefined und window.scrollTo(0, NaN) scrollt auf 0.
+	2.	Ihr führt das in jedem Datenfetch bzw. jeder Mutation aus, nicht nur beim initialen Render.
+
+Lösungsvorschlag:
+	•	Wenn ihr überhaupt eine Scroll-Position merken wollt, dann beim Verlassen der Seite (oder beim Öffnen eines Dialogs) speichern:
+
+window.sessionStorage.setItem(
+  'inventur_scroll_position',
+  window.scrollY.toString()
+);
+
+
+	•	Und die Wiederherstellung nur einmal beim Mount der Komponente:
+
+useEffect(() => {
+  const pos = window.sessionStorage.getItem('inventur_scroll_position');
+  if (pos) {
+    window.scrollTo(0, parseInt(pos, 10));
+    window.sessionStorage.removeItem('inventur_scroll_position');
+  }
+}, []); // leeres Dependency-Array → nur einmal beim Mount
+
+
+
+Damit entfernt ihr die ungewollten, wiederholten Scroll-to-Top-Aufrufe.
+
+⸻
+
+2. Chargen werden nicht erstellt/gespeichert
+
+Wahrscheinlich fehlt in eurer InventoryCountBatchDialog–Komponente:
+	1.	Ein useMutation-Hook für das Anlegen einer neuen Charge.
+	2.	Ein Callback wie onCreate, das diesen Hook auslöst.
+	3.	Nach erfolgreichem Anlegen das Dialog-Closed und ein queryClient.invalidateQueries(['availableBatches', inventurId]), damit die Liste neu geladen wird.
+
+Beispiel (im Dialog-Component):
+
+const queryClient = useQueryClient();
+
+const createBatch = useMutation(
+  (newBatch: { inventoryId: string; productId: number; batchNumber: string; expiryDate?: string }) =>
+    fetch('/api/batches', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newBatch),
+    }).then(res => res.json()),
+  {
+    onSuccess: () => {
+      queryClient.invalidateQueries(['availableBatches', inventoryId]);
+      setOpen(false);
+      toast({ title: 'Charge angelegt' });
+    },
+    onError: () => {
+      toast({ title: 'Fehler beim Anlegen der Charge', variant: 'destructive' });
+    },
+  }
+);
+
+// Wird aufgerufen, wenn der Nutzer im Dialog auf „Speichern“ klickt:
+function handleSave() {
+  createBatch.mutate({
+    inventoryId,
+    productId: selectedItem.productId,
+    batchNumber: generateBatchNumber(),
+    expiryDate: selectedExpiryDate,
+  });
+}
+
+
+
+⸻
+
+3. Automatische Vergabe der Chargennummer
+
+Ihr könnt die Chargennummer entweder vom Backend generieren lassen (empfohlen, um Kollisionen zu vermeiden) oder im Frontend selbst zusammenbauen.
+
+A) Backend-Lösung
+	•	Endpunkt /api/batches/next-number, der den nächsten freien Sequenzwert liefert.
+	•	Im Dialog vor dem Mutate einmal await fetch('/api/batches/next-number'), dann die Nummer übernehmen.
+
+B) Frontend-Lösung (Quick & Dirty)
+
+function generateBatchNumber(): string {
+  // Datum + Zeitstempel als eindeutige Nummer
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth()+1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const hh = String(now.getHours()).padStart(2, '0');
+  const min = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  return `CHG-${yyyy}${mm}${dd}-${hh}${min}${ss}`;
+}
+
+
+
+⸻
+
+Zusammenfassung
+	1.	Page Reload & Scroll:
+	•	Form-Defaults abschalten (type="button" / e.preventDefault()).
+	•	Scroll-Restore nur beim Mount und nur, wenn ihr es wirklich braucht.
+	2.	Charge anlegen:
+	•	useMutation im Dialog implementieren.
+	•	Nach Erfolg Dialog schließen und Query invalidate.
+	3.	Chargennummer:
+	•	Entweder via Backend („next-number“-API) oder mit einem kurzen Frontend-Generator (z. B. Zeitstempel).
+
+Mit diesen Anpassungen sollten
+	•	das ständige Neuladen und Upscrollen verschwinden,
+	•	neue Chargen korrekt angelegt werden,
+	•	und jede Charge schon beim Erstellen eine eindeutige Nummer erhalten.
+
+Gib Bescheid, wenn du zu einzelnen Punkten noch Code-Snippets oder tiefergehende Hilfe brauchst!

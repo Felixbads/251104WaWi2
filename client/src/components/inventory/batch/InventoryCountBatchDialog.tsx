@@ -221,30 +221,35 @@ export default function InventoryCountBatchDialog({
     }
   };
 
+  /**
+   * Generiert eine eindeutige Chargennummer basierend auf dem aktuellen Zeitstempel.
+   * Format: CHG-YYYYMMDD-HHMMSS
+   */
+  function generateBatchNumber(): string {
+    // Datum + Zeitstempel als eindeutige Nummer
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth()+1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const hh = String(now.getHours()).padStart(2, '0');
+    const min = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    const randomStr = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    return `CHG-${yyyy}${mm}${dd}-${hh}${min}${ss}-${randomStr}`;
+  }
+
   // Handler zum Erstellen einer neuen Charge
   const handleCreateNewBatch = () => {
-    // IMMER automatisch eine Chargennummer generieren, egal ob eine angegeben wurde
-    const currentDate = new Date();
-    const year = currentDate.getFullYear();
-    const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-    const day = String(currentDate.getDate()).padStart(2, '0');
-    const hours = String(currentDate.getHours()).padStart(2, '0');
-    const minutes = String(currentDate.getMinutes()).padStart(2, '0');
-    const randomStr = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    // Automatisch eine Chargennummer generieren
+    const autoChargennummer = generateBatchNumber();
     
-    // Format: CH-YYYY-MM-DD-HHMM-RRR (CH = Charge, gefolgt von Datum, Uhrzeit und Zufallszahl)
-    const autoChargennummer = `CH-${year}-${month}-${day}-${hours}${minutes}-${randomStr}`;
-    
-    // Direkt weitergehen mit der generierten Nummer ohne setState zu nutzen
-    // setState ist asynchron und könnte nicht bereit sein, wenn createBatchMutation aufgerufen wird
-
-    // Wenn expiryDate null ist, legen wir ein Standard-MHD von 3 Monaten in der Zukunft fest
+    // Setze Ablaufdatum - Standard: 3 Monate in der Zukunft
     let effectiveExpiryDate = expiryDate;
     if (!effectiveExpiryDate) {
       const defaultDate = new Date();
       defaultDate.setMonth(defaultDate.getMonth() + 3);
       effectiveExpiryDate = defaultDate;
-      setExpiryDate(defaultDate); // Nur für die UI-Anzeige
+      setExpiryDate(defaultDate); // Für die UI aktualisieren
     }
       
     toast({
@@ -253,8 +258,9 @@ export default function InventoryCountBatchDialog({
     });
     
     setIsSubmitting(true);
-    
-    // Erstelle Batch mit explizit übergebenen Daten, um Async-Probleme zu vermeiden
+    setNewBatchNumber(autoChargennummer); // Aktualisiert das Feld für bessere UX
+
+    // Die eigentlichen Daten, die an die API gesendet werden
     const batchData = {
       productId: selectedItem?.productId,
       batchNumber: autoChargennummer,
@@ -262,6 +268,11 @@ export default function InventoryCountBatchDialog({
       initialQuantity: selectedItem?.countedQuantity || 1,
       currentQuantity: selectedItem?.countedQuantity || 1
     };
+    
+    // Speichere die aktuelle Scroll-Position vor dem API-Call
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem('inventur_scroll_position', window.scrollY.toString());
+    }
     
     // Rufe die mutationFn direkt mit den richtigen Daten auf
     createBatchMutation.mutate(batchData);
