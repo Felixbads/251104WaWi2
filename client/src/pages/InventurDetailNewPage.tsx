@@ -1073,7 +1073,8 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     if (!selectedItem) return;
     console.log("Batch-Update wird durchgeführt: Item ID =", selectedItem.id, "Batch ID =", batchId);
     
-    let finalBatch: ProductBatch | null = null;
+    // Initialisierung mit definitivem Wert (wird überschrieben)
+    let finalBatch: ProductBatch;
     
     try {
       // 1) Wenn kein Batch ausgewählt wurde, erstelle automatisch einen neuen
@@ -1108,7 +1109,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         }
         
         // Neue Batch-ID und -Informationen abrufen
-        const newBatch: ProductBatch = await createRes.json();
+        const newBatch = await createRes.json() as ProductBatch;
         console.log("Neue Charge wurde erstellt:", newBatch);
         batchId = newBatch.id;
         finalBatch = newBatch;

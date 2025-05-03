@@ -194,8 +194,25 @@ export default function InventoryCountBatchDialog({
   // Handler zum Speichern der Batch-Auswahl
   const handleSaveBatchSelection = () => {
     if (selectedBatchId === 'none') {
-      onBatchSelect(null);
-      onOpenChange(false);
+      // Wenn "Keine Charge" ausgewählt wurde, sende null für manuelle Aufhebung
+      // oder auto für automatische Chargenerstellung
+      const autoCreateBatch = confirm("Möchten Sie eine neue Charge automatisch erstellen?\n\nOK = Ja, automatisch eine Charge erstellen\nAbbrechen = Nein, keine Charge zuweisen");
+      
+      if (autoCreateBatch) {
+        // Informiere den Benutzer über den automatischen Vorgang
+        toast({
+          title: 'Automatische Erstellung',
+          description: 'Eine neue Charge wird automatisch erstellt.',
+        });
+        // Schließe Dialog sofort für besseres UI-Erlebnis
+        onOpenChange(false);
+        // Übergebe null an den Handler, der die automatische Erzeugung übernimmt
+        onBatchSelect(null);
+      } else {
+        // Nutzer möchte wirklich keine Charge, also wird null übergeben
+        onBatchSelect(null);
+        onOpenChange(false);
+      }
     } else if (selectedBatchId) {
       onBatchSelect(parseInt(selectedBatchId));
       onOpenChange(false);
