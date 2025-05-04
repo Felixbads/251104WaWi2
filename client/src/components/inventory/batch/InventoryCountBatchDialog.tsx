@@ -437,53 +437,93 @@ export default function InventoryCountBatchDialog({
   // Diese Funktion ist bereits oben definiert worden und kann entfernt werden, da sie dupliziert ist
 
   // Handler zum Erstellen einer neuen Charge
-  const handleCreateNewBatch = () => {
-    // Speichere zuerst die aktuelle Scroll-Position im sessionStorage
-    if (typeof window !== 'undefined') {
-      window.sessionStorage.setItem('inventur_scroll_position', window.scrollY.toString());
-    }
-    
-    // Verwende die bereits generierte Chargennummer (oder erzeuge eine neue, falls nötig)
-    const autoChargennummer = newBatchNumber || generateBatchNumber();
-    
-    // Log für Debugging-Zwecke
-    console.log(`Erstelle neue Charge mit Nummer: ${autoChargennummer}`);
-    
-    // Setze Ablaufdatum - Standard: 3 Monate in der Zukunft
-    let effectiveExpiryDate = expiryDate;
-    if (!effectiveExpiryDate) {
-      const defaultDate = new Date();
-      defaultDate.setMonth(defaultDate.getMonth() + 3);
-      effectiveExpiryDate = defaultDate;
-      setExpiryDate(defaultDate); // Für die UI aktualisieren
-    }
+  const handleCreateNewBatch = async () => {
+    try {
+      // Speichere zuerst die aktuelle Scroll-Position im sessionStorage
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem('inventur_scroll_position', window.scrollY.toString());
+      }
       
-    toast({
-      title: 'Charge wird erstellt',
-      description: `Automatisch generierte Chargennummer: ${autoChargennummer}`,
-    });
-    
-    setIsSubmitting(true);
-    setNewBatchNumber(autoChargennummer); // Aktualisiert das Feld für bessere UX
-
-    // Die eigentlichen Daten, die an die API gesendet werden
-    const batchData = {
-      productId: selectedItem?.productId,
-      warehouseId: warehouseId, // Wichtig: warehouseId explizit hinzufügen
-      batchNumber: autoChargennummer,
-      expiryDate: effectiveExpiryDate ? format(effectiveExpiryDate, 'yyyy-MM-dd') : format(new Date(new Date().setMonth(new Date().getMonth() + 3)), 'yyyy-MM-dd'),
-      initialQuantity: selectedItem?.countedQuantity || 1,
-      currentQuantity: selectedItem?.countedQuantity || 1,
-      receivedDate: format(new Date(), 'yyyy-MM-dd') // Aktuelles Datum als Eingangsdatum
-    };
-    
-    // Speichere die aktuelle Scroll-Position vor dem API-Call
-    if (typeof window !== 'undefined') {
-      window.sessionStorage.setItem('inventur_scroll_position', window.scrollY.toString());
+      // Verwende die bereits generierte Chargennummer (oder erzeuge eine neue, falls nötig)
+      const autoChargennummer = newBatchNumber || generateBatchNumber();
+      
+      // Log für Debugging-Zwecke
+      console.log(`Erstelle neue Charge mit Nummer: ${autoChargennummer}`);
+      
+      // Setze Ablaufdatum - Standard: 3 Monate in der Zukunft
+      let effectiveExpiryDate = expiryDate;
+      if (!effectiveExpiryDate) {
+        const defaultDate = new Date();
+        defaultDate.setMonth(defaultDate.getMonth() + 3);
+        effectiveExpiryDate = defaultDate;
+        setExpiryDate(defaultDate); // Für die UI aktualisieren
+      }
+        
+      toast({
+        title: 'Charge wird erstellt',
+        description: `Automatisch generierte Chargennummer: ${autoChargennummer}`,
+      });
+      
+      setIsSubmitting(true);
+      setNewBatchNumber(autoChargennummer); // Aktualisiert das Feld für bessere UX
+  
+      // Die eigentlichen Daten, die an die API gesendet werden
+      const batchData = {
+        productId: selectedItem?.productId,
+        warehouseId: warehouseId, // Wichtig: warehouseId explizit hinzufügen
+        batchNumber: autoChargennummer,
+        expiryDate: effectiveExpiryDate ? format(effectiveExpiryDate, 'yyyy-MM-dd') : format(new Date(new Date().setMonth(new Date().getMonth() + 3)), 'yyyy-MM-dd'),
+        initialQuantity: selectedItem?.countedQuantity || 1,
+        currentQuantity: selectedItem?.countedQuantity || 1,
+        receivedDate: format(new Date(), 'yyyy-MM-dd') // Aktuelles Datum als Eingangsdatum
+      };
+      
+      // Speichere die aktuelle Scroll-Position vor dem API-Call
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem('inventur_scroll_position', window.scrollY.toString());
+      }
+      
+      // Optimistisches UI-Update: Dialog schließen für bessere Benutzererfahrung
+      onOpenChange(false);
+      
+      // Verwende mutateAsync mit await statt mutate für bessere Kontrolle
+      try {
+        const newBatch = await createBatchMutation.mutateAsync(batchData);
+        console.log("Neue Charge erstellt:", newBatch);
+        
+        // Bei Erfolg die Verknüpfung auch direkt per async/await durchführen
+        if (newBatch && newBatch.id && selectedItem) {
+          try {
+            const updatedItem = await linkBatchMutation.mutateAsync({
+              itemId: selectedItem.id,
+              batchId: newBatch.id
+            });
+            console.log("Verknüpfung erfolgreich:", updatedItem);
+          } catch (linkErr) {
+            console.error("Fehler bei der Batch-Verknüpfung:", linkErr);
+            // Die Charge wurde erstellt, aber die Verknüpfung schlug fehl
+            // Hier könnten wir eine spezifische Benachrichtigung anzeigen
+          }
+        }
+      } catch (error) {
+        console.error("Fehler beim Erstellen der Charge:", error);
+        
+        // Stelle sicher, dass die Scroll-Position beibehalten wird
+        const savedPos = window.sessionStorage.getItem('inventur_scroll_position');
+        if (savedPos) {
+          window.scrollTo(0, parseInt(savedPos, 10));
+        }
+        
+        // Zeige Fehlermeldung an
+        toast({
+          title: "Fehler",
+          description: error.message || "Die Charge konnte nicht erstellt werden.",
+          variant: "destructive"
+        });
+      }
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    // Rufe die mutationFn direkt mit den richtigen Daten auf
-    createBatchMutation.mutate(batchData);
   };
 
   // Status-Farben für Batches

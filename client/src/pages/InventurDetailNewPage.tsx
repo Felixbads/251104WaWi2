@@ -1339,35 +1339,42 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                 : "Die Charge wurde erfolgreich mit dem Artikel verknüpft.",
             });
             
-            // Importiere Cache-Invalidierungsfunktion und führe eine vollständige Cache-Invalidierung durch
-            import('../lib/invalidateInventoryCache').then(({ invalidateInventoryCache }) => {
-              console.log("Invalidiere Cache für Inventur", id, "mit Produkt", selectedItem.productId);
-              invalidateInventoryCache(
-                queryClient, 
-                id, 
-                selectedItem.productId
-              );
-            }).catch(err => {
-              console.error("Cache-Helper konnte nicht geladen werden:", err);
+            // Importiere die invalidateInventoryCache-Funktion am Anfang der Komponente
+            // und benutze sie hier direkt
+            
+            // Optimistisches Update für einen flüssigeren UI-Übergang
+            queryClient.setQueryData(
+              [`/api/inventory-counts/${id}/items`],
+              (old?: InventoryCountItem[]) => {
+                if (!old) return old;
+                console.log("Optimistisches Update im Cache für Inventur-Items");
+                return old.map(item =>
+                  item.id === selectedItem.id
+                    ? { 
+                        ...item, 
+                        batchId: batchId,
+                        batch: finalBatch
+                      }
+                    : item
+                );
+              }
+            );
+            
+            // Nach kurzem Delay vollständig invalidieren, um UI aktuell zu halten
+            // ohne sofortigen neuen Fetch auszulösen
+            setTimeout(() => {
+              console.log("Verzögerte vollständige Cache-Invalidierung für Inventur", id);
               
-              // Fallback: manuelle Invalidierung mit gezieltem Update
-              queryClient.setQueryData(
-                [`/api/inventory-counts/${id}/items`],
-                (old?: InventoryCountItem[]) => {
-                  if (!old) return old;
-                  console.log("Aktualisiere lokalen Cache für Inventur-Items");
-                  return old.map(item =>
-                    item.id === selectedItem.id
-                      ? { 
-                          ...item, 
-                          batchId: batchId,
-                          batch: finalBatch
-                        }
-                      : item
-                  );
-                }
-              );
-            });
+              // Die überarbeiteten React Query Defaults sorgen dafür, dass die Seite nicht springt
+              // und die alten Daten angezeigt werden, bis die neuen verfügbar sind
+              import('../lib/invalidateInventoryCache').then(module => {
+                module.invalidateInventoryCache(
+                  queryClient, 
+                  id, 
+                  selectedItem.productId
+                );
+              });
+            }, 300);
 
             // Stelle Scroll-Position nach kurzer Verzögerung wieder her
             setTimeout(() => {

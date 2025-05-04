@@ -1,0 +1,99 @@
+Das Sprung- und Reload-Verhalten kommt im Kern daher, dass Du mit jedem State- oder Daten-Update neue Fetches anstößt (meist über invalidateQueries oder unkontrollierte useEffect), und Dein Router holt sich danach bei jedem Render die frischen Daten – was im Zusammenspiel mit Lade-Skeletons oder Scroll-Resets dazu führt, dass die Seite ständig springt und 5–6× nachlädt.
+
+1. Default-Optionen für React-Query
+
+Lass Deine Queries nicht auf jeder Mount neu laufen, sondern setze am besten direkt im QueryClient Default-Options:
+
+import { QueryClient } from 'react-query';
+
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5,       // 5 Minuten „frisch“ bleiben
+      cacheTime: 1000 * 60 * 30,      // 30 Minuten im Cache
+      refetchOnWindowFocus: false,    // kein Refetch beim Tab-Wechsel
+      refetchOnMount: false,          // nicht bei jedem Mount neu
+      refetchOnReconnect: false,      // kein Refetch bei Reconnect
+      keepPreviousData: true,         // behalte alte Daten während Refetch
+    },
+  },
+});
+
+Damit stellst Du sicher, dass selbst bei Invalidierungen nicht sofort ein blanker Lade-Zustand kommt, sondern das alte UI stehen bleibt.
+
+⸻
+
+2. Queries nur bei Bedarf aktivieren
+
+Wenn Du zum Beispiel Produkt-Chargen lädst, lass die Query nur laufen, wenn Du auch tatsächlich eine productId und warehouseId hast:
+
+const { data: batches } = useQuery(
+  ['product-batches', productId, warehouseId],
+  () => fetchProductBatches(productId, warehouseId),
+  {
+    enabled: !!productId && !!warehouseId,
+  }
+);
+
+So verhinderst Du, dass beim Initial-Render oder bei unvollständigen Props schon ein Fetch abgeht.
+
+⸻
+
+3. Invalidate im Mutation-Callback, nicht in useEffect
+
+Anstatt irgendwo
+
+useEffect(() => {
+  queryClient.invalidateQueries(['inventory-count-items', inventoryCountId]);
+}, [data]);
+
+zu haben, mach’s direkt in der Mutation:
+
+const updateItem = useMutation(patchItemFn, {
+  onSuccess: () => {
+    queryClient.invalidateQueries(['inventory-count-items', inventoryCountId]);
+  }
+});
+
+So lädst Du nur dann neu, wenn die Mutation wirklich erfolgreich war, und vermeidest Feedback-Loops.
+
+⸻
+
+4. Router-Navigationsaufrufe drosseln
+
+Wenn Du nach dem Speichern router.replace(...) nutzt, um Query-Params anzupassen, schalte das Scroll-Reset ab und nutze shallow Routing:
+
+router.replace(router.asPath, undefined, {
+  shallow: true,
+  scroll: false
+});
+
+Rufe das nur im onSuccess Deiner Mutationen auf – niemals in einem useEffect ohne Abhängigkeiten.
+
+⸻
+
+5. Fetch-Funktionen außerhalb des Components
+
+Definiere Deine Fetcher als eigenständige, stabile Funktionen (z. B. im api.ts), damit React-Query sie nicht bei jedem Render als „neu“ ansieht:
+
+// api.ts
+export async function fetchInventoryItems(inventoryCountId: number) { … }
+
+und im Component:
+
+const { data } = useQuery(
+  ['inventory-count-items', inventoryCountId],
+  () => fetchInventoryItems(inventoryCountId)
+);
+
+
+
+⸻
+
+Ergebnis
+	•	Keine unkontrollierten useEffect-Fetches mehr
+	•	Keine Auto-Refetches beim Mount oder Focus
+	•	KeepPreviousData verhindert Layout-Sprünge
+	•	Shallow Routing erhält die Scroll-Position
+
+Wenn Du das so umsetzt, lädst Du nur dann, wenn es wirklich nötig ist – und das nervige 5- bis 6-malige Springen ist Geschichte.
