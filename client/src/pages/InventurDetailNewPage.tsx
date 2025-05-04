@@ -797,22 +797,39 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       const apiEndpoint = `/api/inventory-counts/items/${data.itemId}/batch`;
       console.log("Verwende API-Endpunkt:", apiEndpoint);
       
-      const response = await fetch(apiEndpoint, {
-        method: 'PATCH', // Korrekte Methode für Aktualisierungen
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache' // Verhindert Cache-Probleme
-        },
-        body: JSON.stringify({ batchId: data.batchId }),
-      });
+      // Extrem detaillierte Debug-Ausgabe für jeden Schritt
+      console.log("Sende PATCH-Anfrage an:", apiEndpoint);
+      console.log("Request-Body:", JSON.stringify({ batchId: data.batchId }, null, 2));
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`Fehler beim Aktualisieren der Charge: ${response.status} - ${errorText}`);
-        throw new Error(`Fehler beim Aktualisieren der Charge: ${response.status}`);
+      try {
+        const response = await fetch(apiEndpoint, {
+          method: 'PATCH', // Korrekte Methode für Aktualisierungen
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache' // Verhindert Cache-Probleme
+          },
+          body: JSON.stringify({ batchId: data.batchId }),
+        });
+        
+        console.log("Server-Antwort erhalten:", {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Fehler beim Aktualisieren der Charge: ${response.status} - ${errorText}`);
+          throw new Error(`Fehler beim Aktualisieren der Charge: ${response.status} - ${errorText}`);
+        }
+        
+        const responseData = await response.json();
+        console.log("Erfolgreiche Antwort-Daten:", responseData);
+        return responseData;
+      } catch (error) {
+        console.error("Kritischer Fehler beim Batch-Update:", error);
+        throw error;
       }
-      
-      return await response.json();
     },
     onMutate: (data) => {
       // Speichere aktuelle Scroll-Position in sessionStorage
