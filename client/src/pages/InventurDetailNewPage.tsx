@@ -1517,33 +1517,86 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       const newBatch = await response.json();
       console.log("Neue Charge erfolgreich erstellt:", newBatch);
       
-      // Nach erfolgreicher Erstellung der Charge SOFORT einen PATCH-Aufruf
+      // Nach erfolgreicher Erstellung der Charge SOFORT mehrere PATCH-Aufrufe mit Wiederholungen
       // zum Verknüpfen des Inventory-Items mit der Batch-ID durchführen
-      try {
-        console.log(`DIREKTE VERKNÜPFUNG: Sende PATCH für Item ${selectedItem.id} mit Batch ${newBatch.id}`);
-        const linkResponse = await fetch(`/api/inventory-counts/items/${selectedItem.id}/batch`, {
-          method: 'PATCH',
-          headers: {
-            'Accept': 'application/json, text/plain, */*',
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          },
-          body: JSON.stringify({ batchId: newBatch.id })
-        });
-        
-        // Verarbeite die Antwort, egal ob erfolgreich oder nicht
-        const linkResponseText = await linkResponse.text();
-        console.log(`Verknüpfung Status: ${linkResponse.status}, Antwort: ${linkResponseText}`);
-        
-        if (!linkResponse.ok) {
-          console.error(`Fehler bei direkter Batch-Verknüpfung: ${linkResponse.status} - ${linkResponseText}`);
-        } else {
-          console.log("Direkte Batch-Verknüpfung erfolgreich");
+      const attemptBatchLinking = async (retryCount = 0, maxRetries = 3) => {
+        if (retryCount > maxRetries) {
+          console.error(`Maximale Anzahl an Wiederholungsversuchen (${maxRetries}) erreicht.`);
+          return;
         }
-      } catch (linkError) {
-        console.error("Fehler bei direkter Batch-Verknüpfung:", linkError);
-      }
+        
+        try {
+          console.log(`DIREKTE VERKNÜPFUNG (Versuch ${retryCount+1}/${maxRetries+1}): Sende PATCH für Item ${selectedItem.id} mit Batch ${newBatch.id}`);
+          
+          // Verwende beide möglichen API-Endpoints, falls einer fehlschlägt
+          const endpointOptions = [
+            `/api/inventory-counts/items/${selectedItem.id}/batch`,  // Standard-Endpoint
+            `/api/inventory-count-items/${selectedItem.id}/batch`    // Alternativer Endpoint
+          ];
+          
+          // Versuche jeden Endpoint nacheinander
+          for (const endpoint of endpointOptions) {
+            try {
+              const linkResponse = await fetch(endpoint, {
+                method: 'PATCH',
+                headers: {
+                  'Accept': 'application/json, text/plain, */*',
+                  'Content-Type': 'application/json',
+                  'Cache-Control': 'no-cache, no-store',
+                  'Pragma': 'no-cache'
+                },
+                body: JSON.stringify({ batchId: newBatch.id })
+              });
+              
+              // Verarbeite die Antwort, egal ob erfolgreich oder nicht
+              const linkResponseText = await linkResponse.text();
+              console.log(`Verknüpfung (${endpoint}) Status: ${linkResponse.status}, Antwort: ${linkResponseText}`);
+              
+              // Bei erfolgreicher Antwort sind wir fertig
+              if (linkResponse.ok) {
+                console.log(`Direkte Batch-Verknüpfung erfolgreich über ${endpoint}`);
+                return true;
+              }
+              
+              console.error(`Fehler bei direkter Batch-Verknüpfung über ${endpoint}: ${linkResponse.status} - ${linkResponseText}`);
+            } catch (error) {
+              console.error(`Verbindungsfehler bei ${endpoint}:`, error);
+            }
+          }
+          
+          // Alle Endpunkte sind fehlgeschlagen, versuche nach einer kurzen Pause erneut
+          console.log(`Alle Endpunkte fehlgeschlagen. Warte und versuche erneut...`);
+          await new Promise(resolve => setTimeout(resolve, 500 * (retryCount + 1)));
+          return attemptBatchLinking(retryCount + 1, maxRetries);
+          
+        } catch (linkError) {
+          console.error(`Fehler bei Versuch ${retryCount+1}/${maxRetries+1}:`, linkError);
+          await new Promise(resolve => setTimeout(resolve, 500 * (retryCount + 1)));
+          return attemptBatchLinking(retryCount + 1, maxRetries);
+        }
+      };
+      
+      // Führe den Wiederholungsalgorithmus aus
+      attemptBatchLinking().then(success => {
+        if (success) {
+          console.log("Batch-Verknüpfung abgeschlossen und erfolgreich");
+        } else {
+          console.warn("Batch-Verknüpfung möglicherweise nicht erfolgreich - verwende trotzdem lokales Update");
+          
+          // Verwende manuelles lokales Update, wenn die API-Verknüpfung fehlschlägt
+          queryClient.setQueryData(
+            [`/api/inventory-counts/${inventurData?.id}/items`],
+            (old?: InventoryCountItem[]) => {
+              if (!old) return old;
+              return old.map(item =>
+                item.id === selectedItem.id
+                  ? { ...item, batchId: newBatch.id, batch: newBatch }
+                  : item
+              );
+            }
+          );
+        }
+      });
       
       // Funktion zur sicheren Identifizierung des temporären Batches
       const isTemporaryBatch = (batch: ProductBatch) => {

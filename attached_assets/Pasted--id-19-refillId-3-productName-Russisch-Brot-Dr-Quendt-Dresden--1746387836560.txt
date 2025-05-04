@@ -1,0 +1,872 @@
+
+    {
+      id: 19,
+      refillId: 3,
+      productName: 'Russisch Brot (Dr. Quendt Dresden)',
+      removed: 1,
+      datetime: '2025-04-23 09:42:40',
+      machineId: 2,
+      machineName: 'Schmilka, Alte Feuerwehr'
+    },
+    {
+      id: 5,
+      refillId: 1,
+      productName: 'Menschel Erdbeerbrause 0,5l (Hainewalde)',
+      removed: 2,
+      datetime: '2025-04-23 07:36:06',
+      machineId: 5,
+      machineName: 'Schöna'
+    },
+    {
+      id: 3,
+      refillId: 1,
+      productName: 'Menschel Apfelsinenbrause 0,5l (Hainewalde)',
+      removed: 3,
+      datetime: '2025-04-23 07:36:06',
+      machineId: 5,
+      machineName: 'Schöna'
+    },
+    {
+      id: 4,
+      refillId: 1,
+      productName: 'Menschel Apfelsinenbrause 0,5l (Hainewalde)',
+      removed: 4,
+      datetime: '2025-04-23 07:36:06',
+      machineId: 5,
+      machineName: 'Schöna'
+    },
+    {
+      id: 6,
+      refillId: 1,
+      productName: 'Wehlner Milch 0,5l (Milchhof Fiedler, Wehlen)',
+      removed: 2,
+      datetime: '2025-04-23 07:36:06',
+      machineId: 5,
+      machineName: 'Schöna'
+    },
+    {
+      id: 1,
+      refillId: 1,
+      productName: '6 frische Eier, Struppen',
+      removed: 1,
+      datetime: '2025-04-23 07:36:06',
+      machineId: 5,
+      machineName: 'Schöna'
+    }
+  ],
+  fields: [
+    Field {
+      name: 'id',
+      tableID: 24908,
+      columnID: 1,
+      dataTypeID: 23,
+      dataTypeSize: 4,
+      dataTypeModifier: -1,
+      format: 'text'
+    },
+    Field {
+      name: 'refillId',
+      tableID: 24908,
+      columnID: 2,
+      dataTypeID: 23,
+      dataTypeSize: 4,
+      dataTypeModifier: -1,
+      format: 'text'
+    },
+    Field {
+      name: 'productName',
+      tableID: 24908,
+      columnID: 4,
+      dataTypeID: 25,
+      dataTypeSize: -1,
+      dataTypeModifier: -1,
+      format: 'text'
+    },
+    Field {
+      name: 'removed',
+      tableID: 24908,
+      columnID: 9,
+      dataTypeID: 23,
+      dataTypeSize: 4,
+      dataTypeModifier: -1,
+      format: 'text'
+    },
+    Field {
+      name: 'datetime',
+      tableID: 24943,
+      columnID: 5,
+      dataTypeID: 1114,
+      dataTypeSize: 8,
+      dataTypeModifier: -1,
+      format: 'text'
+    },
+    Field {
+      name: 'machineId',
+      tableID: 24943,
+      columnID: 3,
+      dataTypeID: 23,
+      dataTypeSize: 4,
+      dataTypeModifier: -1,
+      format: 'text'
+    },
+    Field {
+      name: 'machineName',
+      tableID: 24769,
+      columnID: 3,
+      dataTypeID: 25,
+      dataTypeSize: -1,
+      dataTypeModifier: -1,
+      format: 'text'
+    }
+  ],
+  _parsers: [
+    [Function: parseInteger],
+    [Function: parseInteger],
+    [Function: noParse],
+    [Function: parseInteger],
+    [Function (anonymous)],
+    [Function: parseInteger],
+    [Function: noParse]
+  ],
+  _types: { getTypeParser: [Function: getTypeParser] },
+  RowCtor: null,
+  rowAsArray: false
+}
+Unerwarteter Datenbankfehler error: terminating connection due to administrator command
+    at cn.parseErrorMessage (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1182:6)
+    at cn.handlePacket (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1143:13)
+    at cn.parse (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1127:36)
+    at v.<anonymous> (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1190:16)
+    at v.emit (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:397:12)
+    at WebSocket.<anonymous> (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:987:80)
+    at callListener (/home/runner/workspace/node_modules/ws/lib/event-target.js:290:14)
+    at WebSocket.onMessage (/home/runner/workspace/node_modules/ws/lib/event-target.js:209:9)
+    at WebSocket.emit (node:events:518:28)
+    at Receiver.receiverOnMessage (/home/runner/workspace/node_modules/ws/lib/websocket.js:1220:20)
+    at Receiver.emit (node:events:518:28)
+    at Receiver.dataMessage (/home/runner/workspace/node_modules/ws/lib/receiver.js:569:14)
+    at Receiver.getData (/home/runner/workspace/node_modules/ws/lib/receiver.js:496:10)
+    at Receiver.startLoop (/home/runner/workspace/node_modules/ws/lib/receiver.js:167:16)
+    at Receiver._write (/home/runner/workspace/node_modules/ws/lib/receiver.js:94:10)
+    at writeOrBuffer (node:internal/streams/writable:572:12)
+    at _write (node:internal/streams/writable:501:10)
+    at Writable.write (node:internal/streams/writable:510:10)
+    at TLSSocket.socketOnData (/home/runner/workspace/node_modules/ws/lib/websocket.js:1355:35)
+    at TLSSocket.emit (node:events:518:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:191:23) {
+  length: 116,
+  severity: 'FATAL',
+  code: '57P01',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'postgres.c',
+  line: '3289',
+  routine: 'ProcessInterrupts',
+  client: NeonClient {
+    _events: [Object: null prototype] { error: [Function (anonymous)] },
+    _eventsCount: 1,
+    _maxListeners: undefined,
+    connectionParameters: ConnectionParameters {
+      user: 'neondb_owner',
+      database: 'neondb',
+      port: 5432,
+      host: 'ep-billowing-poetry-a4qcfpld.us-east-1.aws.neon.tech',
+      binary: false,
+      options: undefined,
+      ssl: {},
+      client_encoding: '',
+      replication: undefined,
+      isDomainSocket: false,
+      application_name: undefined,
+      fallback_application_name: undefined,
+      statement_timeout: false,
+      lock_timeout: false,
+      idle_in_transaction_session_timeout: false,
+      query_timeout: false,
+      connect_timeout: 10
+    },
+    user: 'neondb_owner',
+    database: 'neondb',
+    port: 5432,
+    host: 'ep-billowing-poetry-a4qcfpld.us-east-1.aws.neon.tech',
+    replication: undefined,
+    _Promise: [Function: Promise],
+    _types: TypeOverrides { _types: [Object], text: {}, binary: {} },
+    _ending: true,
+    _connecting: false,
+    _connected: true,
+    _connectionError: false,
+    _queryable: false,
+    connection: Connection {
+      _events: [Object: null prototype],
+      _eventsCount: 22,
+      _maxListeners: undefined,
+      stream: [Socket],
+      _keepAlive: false,
+      _keepAliveInitialDelayMillis: 0,
+      lastBuffer: false,
+      parsedStatements: {},
+      ssl: false,
+      _ending: false,
+      _emitMessage: false,
+      _connecting: true
+    },
+    queryQueue: [],
+    binary: false,
+    processID: 2128558594,
+    secretKey: 924270641,
+    ssl: false,
+    _connectionTimeoutMillis: 10000,
+    config: {
+      connectionString: 'postgresql://neondb_owner:npg_Bg5iKZFJ1Mlm@ep-billowing-poetry-a4qcfpld.us-east-1.aws.neon.tech/neondb?sslmode=require',
+      connectionTimeoutMillis: 10000,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      maxUses: Infinity,
+      allowExitOnIdle: false,
+      maxLifetimeSeconds: 0
+    },
+    _connectionCallback: null,
+    connectionTimeoutHandle: Timeout {
+      _idleTimeout: -1,
+      _idlePrev: null,
+      _idleNext: null,
+      _idleStart: 1019290,
+      _onTimeout: null,
+      _timerArgs: undefined,
+      _repeat: null,
+      _destroyed: true,
+      [Symbol(refed)]: true,
+      [Symbol(kHasPrimitive)]: false,
+      [Symbol(asyncId)]: 65739,
+      [Symbol(triggerId)]: 0
+    },
+    release: [Function (anonymous)],
+    activeQuery: null,
+    readyForQuery: true,
+    hasExecuted: true,
+    _poolUseCount: 1
+  }
+}
+Unerwarteter Datenbankfehler error: terminating connection due to administrator command
+    at cn.parseErrorMessage (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1182:6)
+    at cn.handlePacket (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1143:13)
+    at cn.parse (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1127:36)
+    at v.<anonymous> (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1190:16)
+    at v.emit (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:397:12)
+    at WebSocket.<anonymous> (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:987:80)
+    at callListener (/home/runner/workspace/node_modules/ws/lib/event-target.js:290:14)
+    at WebSocket.onMessage (/home/runner/workspace/node_modules/ws/lib/event-target.js:209:9)
+    at WebSocket.emit (node:events:518:28)
+    at Receiver.receiverOnMessage (/home/runner/workspace/node_modules/ws/lib/websocket.js:1220:20)
+    at Receiver.emit (node:events:518:28)
+    at Receiver.dataMessage (/home/runner/workspace/node_modules/ws/lib/receiver.js:569:14)
+    at Receiver.getData (/home/runner/workspace/node_modules/ws/lib/receiver.js:496:10)
+    at Receiver.startLoop (/home/runner/workspace/node_modules/ws/lib/receiver.js:167:16)
+    at Receiver._write (/home/runner/workspace/node_modules/ws/lib/receiver.js:94:10)
+    at writeOrBuffer (node:internal/streams/writable:572:12)
+    at _write (node:internal/streams/writable:501:10)
+    at Writable.write (node:internal/streams/writable:510:10)
+    at TLSSocket.socketOnData (/home/runner/workspace/node_modules/ws/lib/websocket.js:1355:35)
+    at TLSSocket.emit (node:events:518:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:191:23) {
+  length: 116,
+  severity: 'FATAL',
+  code: '57P01',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'postgres.c',
+  line: '3289',
+  routine: 'ProcessInterrupts',
+  client: NeonClient {
+    _events: [Object: null prototype] { error: [Function (anonymous)] },
+    _eventsCount: 1,
+    _maxListeners: undefined,
+    connectionParameters: ConnectionParameters {
+      user: 'neondb_owner',
+      database: 'neondb',
+      port: 5432,
+      host: 'ep-billowing-poetry-a4qcfpld.us-east-1.aws.neon.tech',
+      binary: false,
+      options: undefined,
+      ssl: {},
+      client_encoding: '',
+      replication: undefined,
+      isDomainSocket: false,
+      application_name: undefined,
+      fallback_application_name: undefined,
+      statement_timeout: false,
+      lock_timeout: false,
+      idle_in_transaction_session_timeout: false,
+      query_timeout: false,
+      connect_timeout: 10
+    },
+    user: 'neondb_owner',
+    database: 'neondb',
+    port: 5432,
+    host: 'ep-billowing-poetry-a4qcfpld.us-east-1.aws.neon.tech',
+    replication: undefined,
+    _Promise: [Function: Promise],
+    _types: TypeOverrides { _types: [Object], text: {}, binary: {} },
+    _ending: true,
+    _connecting: false,
+    _connected: true,
+    _connectionError: false,
+    _queryable: false,
+    connection: Connection {
+      _events: [Object: null prototype],
+      _eventsCount: 22,
+      _maxListeners: undefined,
+      stream: [Socket],
+      _keepAlive: false,
+      _keepAliveInitialDelayMillis: 0,
+      lastBuffer: false,
+      parsedStatements: {},
+      ssl: false,
+      _ending: true,
+      _emitMessage: false,
+      _connecting: true
+    },
+    queryQueue: [],
+    binary: false,
+    processID: 896084871,
+    secretKey: 78765317,
+    ssl: false,
+    _connectionTimeoutMillis: 10000,
+    config: {
+      connectionString: 'postgresql://neondb_owner:npg_Bg5iKZFJ1Mlm@ep-billowing-poetry-a4qcfpld.us-east-1.aws.neon.tech/neondb?sslmode=require',
+      connectionTimeoutMillis: 10000,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      maxUses: Infinity,
+      allowExitOnIdle: false,
+      maxLifetimeSeconds: 0
+    },
+    _connectionCallback: null,
+    connectionTimeoutHandle: Timeout {
+      _idleTimeout: -1,
+      _idlePrev: null,
+      _idleNext: null,
+      _idleStart: 1019529,
+      _onTimeout: null,
+      _timerArgs: undefined,
+      _repeat: null,
+      _destroyed: true,
+      [Symbol(refed)]: true,
+      [Symbol(kHasPrimitive)]: false,
+      [Symbol(asyncId)]: 65872,
+      [Symbol(triggerId)]: 0
+    },
+    release: [Function (anonymous)],
+    activeQuery: null,
+    readyForQuery: true,
+    hasExecuted: true,
+    _poolUseCount: 1
+  }
+}
+Unerwarteter Datenbankfehler error: terminating connection due to administrator command
+    at cn.parseErrorMessage (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1182:6)
+    at cn.handlePacket (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1143:13)
+    at cn.parse (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1127:36)
+    at v.<anonymous> (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1190:16)
+    at v.emit (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:397:12)
+    at WebSocket.<anonymous> (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:987:80)
+    at callListener (/home/runner/workspace/node_modules/ws/lib/event-target.js:290:14)
+    at WebSocket.onMessage (/home/runner/workspace/node_modules/ws/lib/event-target.js:209:9)
+    at WebSocket.emit (node:events:518:28)
+    at Receiver.receiverOnMessage (/home/runner/workspace/node_modules/ws/lib/websocket.js:1220:20)
+    at Receiver.emit (node:events:518:28)
+    at Receiver.dataMessage (/home/runner/workspace/node_modules/ws/lib/receiver.js:569:14)
+    at Receiver.getData (/home/runner/workspace/node_modules/ws/lib/receiver.js:496:10)
+    at Receiver.startLoop (/home/runner/workspace/node_modules/ws/lib/receiver.js:167:16)
+    at Receiver._write (/home/runner/workspace/node_modules/ws/lib/receiver.js:94:10)
+    at writeOrBuffer (node:internal/streams/writable:572:12)
+    at _write (node:internal/streams/writable:501:10)
+    at Writable.write (node:internal/streams/writable:510:10)
+    at TLSSocket.socketOnData (/home/runner/workspace/node_modules/ws/lib/websocket.js:1355:35)
+    at TLSSocket.emit (node:events:518:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:191:23) {
+  length: 116,
+  severity: 'FATAL',
+  code: '57P01',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'postgres.c',
+  line: '3289',
+  routine: 'ProcessInterrupts',
+  client: NeonClient {
+    _events: [Object: null prototype] { error: [Function (anonymous)] },
+    _eventsCount: 1,
+    _maxListeners: undefined,
+    connectionParameters: ConnectionParameters {
+      user: 'neondb_owner',
+      database: 'neondb',
+      port: 5432,
+      host: 'ep-billowing-poetry-a4qcfpld.us-east-1.aws.neon.tech',
+      binary: false,
+      options: undefined,
+      ssl: {},
+      client_encoding: '',
+      replication: undefined,
+      isDomainSocket: false,
+      application_name: undefined,
+      fallback_application_name: undefined,
+      statement_timeout: false,
+      lock_timeout: false,
+      idle_in_transaction_session_timeout: false,
+      query_timeout: false,
+      connect_timeout: 10
+    },
+    user: 'neondb_owner',
+    database: 'neondb',
+    port: 5432,
+    host: 'ep-billowing-poetry-a4qcfpld.us-east-1.aws.neon.tech',
+    replication: undefined,
+    _Promise: [Function: Promise],
+    _types: TypeOverrides { _types: [Object], text: {}, binary: {} },
+    _ending: true,
+    _connecting: false,
+    _connected: true,
+    _connectionError: false,
+    _queryable: false,
+    connection: Connection {
+      _events: [Object: null prototype],
+      _eventsCount: 22,
+      _maxListeners: undefined,
+      stream: [Socket],
+      _keepAlive: false,
+      _keepAliveInitialDelayMillis: 0,
+      lastBuffer: false,
+      parsedStatements: {},
+      ssl: false,
+      _ending: true,
+      _emitMessage: false,
+      _connecting: true
+    },
+    queryQueue: [],
+    binary: false,
+    processID: 1348934241,
+    secretKey: -1643989930,
+    ssl: false,
+    _connectionTimeoutMillis: 10000,
+    config: {
+      connectionString: 'postgresql://neondb_owner:npg_Bg5iKZFJ1Mlm@ep-billowing-poetry-a4qcfpld.us-east-1.aws.neon.tech/neondb?sslmode=require',
+      connectionTimeoutMillis: 10000,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      maxUses: Infinity,
+      allowExitOnIdle: false,
+      maxLifetimeSeconds: 0
+    },
+    _connectionCallback: null,
+    connectionTimeoutHandle: Timeout {
+      _idleTimeout: -1,
+      _idlePrev: null,
+      _idleNext: null,
+      _idleStart: 1019298,
+      _onTimeout: null,
+      _timerArgs: undefined,
+      _repeat: null,
+      _destroyed: true,
+      [Symbol(refed)]: true,
+      [Symbol(kHasPrimitive)]: false,
+      [Symbol(asyncId)]: 65772,
+      [Symbol(triggerId)]: 0
+    },
+    release: [Function (anonymous)],
+    activeQuery: null,
+    readyForQuery: true,
+    hasExecuted: true,
+    _poolUseCount: 2
+  }
+}
+Error fetching sync status: error: terminating connection due to administrator command
+    at file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1345:74
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async NeonPreparedQuery.execute (/home/runner/workspace/node_modules/src/neon-serverless/session.ts:102:18)
+    at async DatabaseStorage.getLatestSyncLog (/home/runner/workspace/server/storage.ts:2582:19)
+    at async VendonSyncService.getSyncStatus (/home/runner/workspace/server/services/vendonSync.ts:2742:33)
+    at async <anonymous> (/home/runner/workspace/server/routes.ts:1153:22) {
+  length: 116,
+  severity: 'FATAL',
+  code: '57P01',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'postgres.c',
+  line: '3289',
+  routine: 'ProcessInterrupts'
+}
+Unerwarteter Datenbankfehler error: terminating connection due to administrator command
+    at cn.parseErrorMessage (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1182:6)
+    at cn.handlePacket (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1143:13)
+    at cn.parse (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1127:36)
+    at v.<anonymous> (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1190:16)
+    at v.emit (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:397:12)
+    at WebSocket.<anonymous> (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:987:80)
+    at callListener (/home/runner/workspace/node_modules/ws/lib/event-target.js:290:14)
+    at WebSocket.onMessage (/home/runner/workspace/node_modules/ws/lib/event-target.js:209:9)
+    at WebSocket.emit (node:events:518:28)
+    at Receiver.receiverOnMessage (/home/runner/workspace/node_modules/ws/lib/websocket.js:1220:20)
+    at Receiver.emit (node:events:518:28)
+    at Receiver.dataMessage (/home/runner/workspace/node_modules/ws/lib/receiver.js:569:14)
+    at Receiver.getData (/home/runner/workspace/node_modules/ws/lib/receiver.js:496:10)
+    at Receiver.startLoop (/home/runner/workspace/node_modules/ws/lib/receiver.js:167:16)
+    at Receiver._write (/home/runner/workspace/node_modules/ws/lib/receiver.js:94:10)
+    at writeOrBuffer (node:internal/streams/writable:572:12)
+    at _write (node:internal/streams/writable:501:10)
+    at Writable.write (node:internal/streams/writable:510:10)
+    at TLSSocket.socketOnData (/home/runner/workspace/node_modules/ws/lib/websocket.js:1355:35)
+    at TLSSocket.emit (node:events:518:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:191:23) {
+  length: 116,
+  severity: 'FATAL',
+  code: '57P01',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'postgres.c',
+  line: '3289',
+  routine: 'ProcessInterrupts',
+  client: NeonClient {
+    _events: [Object: null prototype] { error: [Function (anonymous)] },
+    _eventsCount: 1,
+    _maxListeners: undefined,
+    connectionParameters: ConnectionParameters {
+      user: 'neondb_owner',
+      database: 'neondb',
+      port: 5432,
+      host: 'ep-billowing-poetry-a4qcfpld.us-east-1.aws.neon.tech',
+      binary: false,
+      options: undefined,
+      ssl: {},
+      client_encoding: '',
+      replication: undefined,
+      isDomainSocket: false,
+      application_name: undefined,
+      fallback_application_name: undefined,
+      statement_timeout: false,
+      lock_timeout: false,
+      idle_in_transaction_session_timeout: false,
+      query_timeout: false,
+      connect_timeout: 10
+    },
+    user: 'neondb_owner',
+    database: 'neondb',
+    port: 5432,
+    host: 'ep-billowing-poetry-a4qcfpld.us-east-1.aws.neon.tech',
+    replication: undefined,
+    _Promise: [Function: Promise],
+    _types: TypeOverrides { _types: [Object], text: {}, binary: {} },
+    _ending: true,
+    _connecting: false,
+    _connected: true,
+    _connectionError: false,
+    _queryable: false,
+    connection: Connection {
+      _events: [Object: null prototype],
+      _eventsCount: 22,
+      _maxListeners: undefined,
+      stream: [Socket],
+      _keepAlive: false,
+      _keepAliveInitialDelayMillis: 0,
+      lastBuffer: false,
+      parsedStatements: {},
+      ssl: false,
+      _ending: true,
+      _emitMessage: false,
+      _connecting: true
+    },
+    queryQueue: [],
+    binary: false,
+    processID: -996389195,
+    secretKey: 2135345650,
+    ssl: false,
+    _connectionTimeoutMillis: 10000,
+    config: {
+      connectionString: 'postgresql://neondb_owner:npg_Bg5iKZFJ1Mlm@ep-billowing-poetry-a4qcfpld.us-east-1.aws.neon.tech/neondb?sslmode=require',
+      connectionTimeoutMillis: 10000,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      maxUses: Infinity,
+      allowExitOnIdle: false,
+      maxLifetimeSeconds: 0
+    },
+    _connectionCallback: null,
+    connectionTimeoutHandle: Timeout {
+      _idleTimeout: -1,
+      _idlePrev: null,
+      _idleNext: null,
+      _idleStart: 1019306,
+      _onTimeout: null,
+      _timerArgs: undefined,
+      _repeat: null,
+      _destroyed: true,
+      [Symbol(refed)]: true,
+      [Symbol(kHasPrimitive)]: false,
+      [Symbol(asyncId)]: 65801,
+      [Symbol(triggerId)]: 0
+    },
+    release: [Function (anonymous)],
+    activeQuery: null,
+    readyForQuery: true,
+    hasExecuted: true,
+    _poolUseCount: 1
+  }
+}
+Unerwarteter Datenbankfehler error: terminating connection due to administrator command
+    at cn.parseErrorMessage (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1182:6)
+    at cn.handlePacket (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1143:13)
+    at cn.parse (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1127:36)
+    at v.<anonymous> (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1190:16)
+    at v.emit (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:397:12)
+    at WebSocket.<anonymous> (file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:987:80)
+    at callListener (/home/runner/workspace/node_modules/ws/lib/event-target.js:290:14)
+    at WebSocket.onMessage (/home/runner/workspace/node_modules/ws/lib/event-target.js:209:9)
+    at WebSocket.emit (node:events:518:28)
+    at Receiver.receiverOnMessage (/home/runner/workspace/node_modules/ws/lib/websocket.js:1220:20)
+    at Receiver.emit (node:events:518:28)
+    at Receiver.dataMessage (/home/runner/workspace/node_modules/ws/lib/receiver.js:569:14)
+    at Receiver.getData (/home/runner/workspace/node_modules/ws/lib/receiver.js:496:10)
+    at Receiver.startLoop (/home/runner/workspace/node_modules/ws/lib/receiver.js:167:16)
+    at Receiver._write (/home/runner/workspace/node_modules/ws/lib/receiver.js:94:10)
+    at writeOrBuffer (node:internal/streams/writable:572:12)
+    at _write (node:internal/streams/writable:501:10)
+    at Writable.write (node:internal/streams/writable:510:10)
+    at TLSSocket.socketOnData (/home/runner/workspace/node_modules/ws/lib/websocket.js:1355:35)
+    at TLSSocket.emit (node:events:518:28)
+    at addChunk (node:internal/streams/readable:561:12)
+    at readableAddChunkPushByteMode (node:internal/streams/readable:512:3)
+    at Readable.push (node:internal/streams/readable:392:5)
+    at TLSWrap.onStreamRead (node:internal/stream_base_commons:191:23) {
+  length: 116,
+  severity: 'FATAL',
+  code: '57P01',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'postgres.c',
+  line: '3289',
+  routine: 'ProcessInterrupts',
+  client: NeonClient {
+    _events: [Object: null prototype] { error: [Function (anonymous)] },
+    _eventsCount: 1,
+    _maxListeners: undefined,
+    connectionParameters: ConnectionParameters {
+      user: 'neondb_owner',
+      database: 'neondb',
+      port: 5432,
+      host: 'ep-billowing-poetry-a4qcfpld.us-east-1.aws.neon.tech',
+      binary: false,
+      options: undefined,
+      ssl: {},
+      client_encoding: '',
+      replication: undefined,
+      isDomainSocket: false,
+      application_name: undefined,
+      fallback_application_name: undefined,
+      statement_timeout: false,
+      lock_timeout: false,
+      idle_in_transaction_session_timeout: false,
+      query_timeout: false,
+      connect_timeout: 10
+    },
+    user: 'neondb_owner',
+    database: 'neondb',
+    port: 5432,
+    host: 'ep-billowing-poetry-a4qcfpld.us-east-1.aws.neon.tech',
+    replication: undefined,
+    _Promise: [Function: Promise],
+    _types: TypeOverrides { _types: [Object], text: {}, binary: {} },
+    _ending: true,
+    _connecting: false,
+    _connected: true,
+    _connectionError: false,
+    _queryable: false,
+    connection: Connection {
+      _events: [Object: null prototype],
+      _eventsCount: 22,
+      _maxListeners: undefined,
+      stream: [Socket],
+      _keepAlive: false,
+      _keepAliveInitialDelayMillis: 0,
+      lastBuffer: false,
+      parsedStatements: {},
+      ssl: false,
+      _ending: true,
+      _emitMessage: false,
+      _connecting: true
+    },
+    queryQueue: [],
+    binary: false,
+    processID: 288650378,
+    secretKey: -715622249,
+    ssl: false,
+    _connectionTimeoutMillis: 10000,
+    config: {
+      connectionString: 'postgresql://neondb_owner:npg_Bg5iKZFJ1Mlm@ep-billowing-poetry-a4qcfpld.us-east-1.aws.neon.tech/neondb?sslmode=require',
+      connectionTimeoutMillis: 10000,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      maxUses: Infinity,
+      allowExitOnIdle: false,
+      maxLifetimeSeconds: 0
+    },
+    _connectionCallback: null,
+    connectionTimeoutHandle: Timeout {
+      _idleTimeout: -1,
+      _idlePrev: null,
+      _idleNext: null,
+      _idleStart: 1019300,
+      _onTimeout: null,
+      _timerArgs: undefined,
+      _repeat: null,
+      _destroyed: true,
+      [Symbol(refed)]: true,
+      [Symbol(kHasPrimitive)]: false,
+      [Symbol(asyncId)]: 65788,
+      [Symbol(triggerId)]: 0
+    },
+    release: [Function (anonymous)],
+    activeQuery: null,
+    readyForQuery: true,
+    hasExecuted: true,
+    _poolUseCount: 1
+  }
+}
+7:43:10 PM [express] GET /api/inventory-counts/2/items 304 in 3942ms :: [{"id":132,"inventoryCountId…
+7:43:10 PM [express] GET /api/inventory-counts/2 304 in 4008ms :: {"id":2,"warehouseId":4,"status":"…
+7:43:10 PM [express] GET /api/warehouses/4 304 in 254ms :: {"id":4,"name":"Stolpen","description":""…
+7:43:22 PM [express] GET /api/products/39/batches 200 in 3ms
+POST /api/inventory-counts/product-batches request: {
+  "productId": 39,
+  "warehouseId": 4,
+  "batchNumber": "CHG-20250504-214305-784",
+  "expiryDate": "2025-05-21",
+  "initialQuantity": 22,
+  "currentQuantity": 22,
+  "receivedDate": "2025-05-04"
+}
+expiryDate type: string value: 2025-05-21
+receivedDate type: string value: 2025-05-04
+locationInWarehouse type: undefined value: undefined
+Parsed expiry date: 2025-05-21T00:00:00.000Z Valid: true
+SQL-Anfrage ausführen: SELECT * FROM products WHERE id = $1
+7:43:25 PM [express] GET /api/inventory-counts/2 304 in 223ms :: {"id":2,"warehouseId":4,"status":"o…
+7:43:25 PM [express] GET /api/inventory-counts/2/items 304 in 683ms :: [{"id":132,"inventoryCountId"…
+Product found: 6 frische Spitzbergeier ([Freilandhaltung] Cotta)
+SQL-Anfrage ausführen: SELECT * FROM warehouses WHERE id = $1
+Warehouse found: Stolpen
+SQL-Anfrage ausführen: SELECT column_name 
+         FROM information_schema.columns 
+         WHERE table_name = 'product_batches'
+Verfügbare Spalten in product_batches: [
+  'updated_at',            'product_id',
+  'warehouse_id',          'order_id',
+  'supplier_id',           'created_by',
+  'created_at',            'id',
+  'initial_quantity',      'current_quantity',
+  'received_date',         'manufacturing_date',
+  'expiry_date',           'batch_number',
+  'supplier_batch_number', 'notes',
+  'status',                'location_in_warehouse'
+]
+Received Date vorhanden: true
+Location vorhanden: true
+Finaler Initial Quantity-Wert: 22 Finaler Current Quantity-Wert: 22
+SQL-Abfrage zum Erstellen der Charge:
+SQL Columns: product_id, warehouse_id, batch_number, expiry_date, received_date, location_in_warehouse, manufacturing_date, initial_quantity, current_quantity, notes, status, created_at, updated_at
+SQL Values: $1, $2, $3, $4, $5, $6, NULL, $7, $8, $9, $10, NOW(), NOW()
+Values Array: [
+  39,
+  4,
+  'CHG-20250504-214305-784',
+  '2025-05-21',
+  '2025-05-04',
+  null,
+  22,
+  22,
+  undefined,
+  'active'
+]
+SQL-Anfrage ausführen: INSERT INTO product_batches (product_id, warehouse_id, batch_number, expiry_date, received_date, location_in_warehouse, manufacturing_date, initial_quantity, current_quantity, notes, status, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NULL, $7, $8, $9, $10, NOW(), NOW())
+         RETURNING *
+SQL-Anfrage ausführen: SELECT * FROM inventory_items 
+         WHERE product_id = $1 AND warehouse_id = $2
+SQL-Anfrage ausführen: SELECT SUM(current_quantity) as total_quantity 
+           FROM product_batches 
+           WHERE product_id = $1 
+           AND warehouse_id = $2 
+           AND status = 'active'
+SQL-Anfrage ausführen: UPDATE inventory_items 
+           SET quantity = $1, 
+               updated_at = NOW() 
+           WHERE product_id = $2 AND warehouse_id = $3
+Inventarbestand für Produkt 39 im Lager 4 auf 22 aktualisiert
+Batch successfully created: 285
+7:43:27 PM [express] POST /api/inventory-counts/product-batches 201 in 2368ms :: {"id":285,"productI…
+7:43:28 PM [express] GET /api/inventory-counts/2/items 304 in 653ms :: [{"id":132,"inventoryCountId"…
