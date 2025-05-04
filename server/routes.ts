@@ -2731,15 +2731,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch(`${API_PREFIX}/inventory-counts/items/:itemId/batch`, async (req: Request, res: Response) => {
     try {
       const itemId = parseInt(req.params.itemId);
-      const { batchId } = req.body;
+      // Versuche die batchId sowohl als Objekt-Attribut als auch als direkten Wert zu lesen
+      let batchId = null;
+      
+      // Komplexe Fehlerbehandlung für verschiedene Body-Formate
+      console.log("[DEBUG] Vollständiger Request-Body:", req.body);
+      
+      if (req.body && typeof req.body === 'object') {
+        if ('batchId' in req.body) {
+          // Normaler JSON-Objekt Fall
+          batchId = req.body.batchId;
+        } else if (Object.keys(req.body).length === 1) {
+          // Fall, wenn das Frontend ein einfaches Objekt ohne Schlüssel sendet
+          const firstKey = Object.keys(req.body)[0];
+          try {
+            // Versuche, es als JSON zu parsen, falls es eine Zeichenkette ist
+            const possibleJson = JSON.parse(firstKey);
+            if (possibleJson && typeof possibleJson === 'object' && 'batchId' in possibleJson) {
+              batchId = possibleJson.batchId;
+            }
+          } catch (e) {
+            // Kein gültiges JSON, versuchen wir den direkten Wert
+            console.log("[DEBUG] Versuch direkte Extraktion:", firstKey);
+          }
+        }
+      }
+      
+      // Validiere, dass wir eine batchId haben
+      if (batchId === undefined || batchId === null) {
+        // Fallback: Versuche Rohtext zu parsen (für Fälle, in denen der Content-Type falsch gesetzt ist)
+        if (typeof req.body === 'string') {
+          try {
+            const bodyObj = JSON.parse(req.body);
+            if (bodyObj && 'batchId' in bodyObj) {
+              batchId = bodyObj.batchId;
+            }
+          } catch (e) {
+            console.log("[ERROR] Konnte String-Body nicht parsen:", e);
+          }
+        }
+      }
       
       // Ausführlicher Debug-Log
       console.log(`[DEBUG] PATCH /api/inventory-counts/items/${itemId}/batch:`, { 
         itemId, 
         batchId, 
         body: req.body,
+        bodyType: typeof req.body,
+        rawBody: req.body ? JSON.stringify(req.body).substring(0, 200) : 'none',
         path: req.path,
         url: req.url,
+        headers: req.headers,
         ip: req.ip,
         method: req.method
       });
@@ -2747,6 +2789,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!itemId) {
         console.log(`[ERROR] Ungültige Item-ID: ${itemId}`);
         return res.status(400).json({ error: "Inventory Count Item ID is required" });
+      }
+      
+      if (batchId === undefined) {
+        console.log(`[ERROR] Batch-ID fehlt: ${JSON.stringify(req.body)}`);
+        return res.status(400).json({ error: "Batch ID is required" });
       }
       
       // Überprüfe, ob das Item existiert, bevor ein Update versucht wird
@@ -2761,6 +2808,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       console.log(`[DEBUG] Item gefunden:`, checkResult.rows[0]);
+      
+      // Wenn wir eine Batch-ID haben, überprüfe optional, ob diese Batch existiert
+      if (batchId !== null) {
+        const batchCheck = await rawDb.query(
+          `SELECT * FROM product_batches WHERE id = $1`,
+          [batchId]
+        );
+        
+        if (!batchCheck.rows || batchCheck.rows.length === 0) {
+          console.log(`[WARN] Batch mit ID ${batchId} existiert nicht - Update wird trotzdem ausgeführt`);
+        } else {
+          console.log(`[DEBUG] Batch gefunden:`, batchCheck.rows[0]);
+        }
+      }
       
       // Aktualisiere das Inventurzählungselement mit der Batch-ID
       const result = await rawDb.query(

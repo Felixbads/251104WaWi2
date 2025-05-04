@@ -1,0 +1,73 @@
+7:36:22 PM [express] GET /api/inventory-counts/2 304 in 220ms :: {"id":2,"warehouseId":4,"status":"o…
+7:36:23 PM [express] GET /api/inventory-counts/2/items 304 in 649ms :: [{"id":132,"inventoryCountId"…
+7:36:23 PM [express] GET /api/warehouses/4 304 in 219ms :: {"id":4,"name":"Stolpen","description":""…
+7:36:38 PM [express] GET /api/products/116/batches 200 in 2ms
+POST /api/inventory-counts/product-batches request: {
+  "productId": 116,
+  "warehouseId": 4,
+  "batchNumber": "CHG-20250504-213622-710",
+  "expiryDate": "2025-05-22",
+  "initialQuantity": 112,
+  "currentQuantity": 112,
+  "receivedDate": "2025-05-04"
+}
+expiryDate type: string value: 2025-05-22
+receivedDate type: string value: 2025-05-04
+locationInWarehouse type: undefined value: undefined
+Parsed expiry date: 2025-05-22T00:00:00.000Z Valid: true
+SQL-Anfrage ausführen: SELECT * FROM products WHERE id = $1
+Product found: Bad Schandau'er Bockwurst Paar (Fleischerei Dünnebier)
+SQL-Anfrage ausführen: SELECT * FROM warehouses WHERE id = $1
+7:36:41 PM [express] GET /api/inventory-counts/2 304 in 224ms :: {"id":2,"warehouseId":4,"status":"o…
+Warehouse found: Stolpen
+SQL-Anfrage ausführen: SELECT column_name 
+         FROM information_schema.columns 
+         WHERE table_name = 'product_batches'
+7:36:42 PM [express] GET /api/inventory-counts/2/items 304 in 651ms :: [{"id":132,"inventoryCountId"…
+Verfügbare Spalten in product_batches: [
+  'updated_at',            'product_id',
+  'warehouse_id',          'order_id',
+  'supplier_id',           'created_by',
+  'created_at',            'id',
+  'initial_quantity',      'current_quantity',
+  'received_date',         'manufacturing_date',
+  'expiry_date',           'batch_number',
+  'supplier_batch_number', 'notes',
+  'status',                'location_in_warehouse'
+]
+Received Date vorhanden: true
+Location vorhanden: true
+Finaler Initial Quantity-Wert: 112 Finaler Current Quantity-Wert: 112
+SQL-Abfrage zum Erstellen der Charge:
+SQL Columns: product_id, warehouse_id, batch_number, expiry_date, received_date, location_in_warehouse, manufacturing_date, initial_quantity, current_quantity, notes, status, created_at, updated_at
+SQL Values: $1, $2, $3, $4, $5, $6, NULL, $7, $8, $9, $10, NOW(), NOW()
+Values Array: [
+  116,
+  4,
+  'CHG-20250504-213622-710',
+  '2025-05-22',
+  '2025-05-04',
+  null,
+  112,
+  112,
+  undefined,
+  'active'
+]
+SQL-Anfrage ausführen: INSERT INTO product_batches (product_id, warehouse_id, batch_number, expiry_date, received_date, location_in_warehouse, manufacturing_date, initial_quantity, current_quantity, notes, status, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NULL, $7, $8, $9, $10, NOW(), NOW())
+         RETURNING *
+SQL-Anfrage ausführen: SELECT * FROM inventory_items 
+         WHERE product_id = $1 AND warehouse_id = $2
+SQL-Anfrage ausführen: SELECT SUM(current_quantity) as total_quantity 
+           FROM product_batches 
+           WHERE product_id = $1 
+           AND warehouse_id = $2 
+           AND status = 'active'
+SQL-Anfrage ausführen: UPDATE inventory_items 
+           SET quantity = $1, 
+               updated_at = NOW() 
+           WHERE product_id = $2 AND warehouse_id = $3
+Inventarbestand für Produkt 116 im Lager 4 auf 336 aktualisiert
+Batch successfully created: 283
+7:36:43 PM [express] POST /api/inventory-counts/product-batches 201 in 1508ms :: {"id":283,"productI…
+7:36:44 PM [express] GET /api/inventory-counts/2/items 304 in 636ms :: [{"id":132,"inventoryCountId"…

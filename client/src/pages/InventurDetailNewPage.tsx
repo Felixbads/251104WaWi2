@@ -799,16 +799,21 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       
       // Extrem detaillierte Debug-Ausgabe für jeden Schritt
       console.log("Sende PATCH-Anfrage an:", apiEndpoint);
-      console.log("Request-Body:", JSON.stringify({ batchId: data.batchId }, null, 2));
+      
+      // Erzeuge einen JSON String für den Body, den wir mehrfach verwenden können
+      const bodyJson = JSON.stringify({ batchId: data.batchId });
+      console.log("Request-Body:", bodyJson);
       
       try {
         const response = await fetch(apiEndpoint, {
           method: 'PATCH', // Korrekte Methode für Aktualisierungen
           headers: {
+            'Accept': 'application/json, text/plain, */*',
             'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache' // Verhindert Cache-Probleme
+            'Cache-Control': 'no-cache', // Verhindert Cache-Probleme
+            'Pragma': 'no-cache'
           },
-          body: JSON.stringify({ batchId: data.batchId }),
+          body: bodyJson
         });
         
         console.log("Server-Antwort erhalten:", {
@@ -817,13 +822,30 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
           ok: response.ok
         });
         
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Fehler beim Aktualisieren der Charge: ${response.status} - ${errorText}`);
-          throw new Error(`Fehler beim Aktualisieren der Charge: ${response.status} - ${errorText}`);
+        let responseText;
+        try {
+          responseText = await response.text();
+          console.log("Rohe Response:", responseText);
+        } catch (e) {
+          console.error("Fehler beim Lesen der Response:", e);
+          responseText = "Konnte Response nicht lesen";
         }
         
-        const responseData = await response.json();
+        if (!response.ok) {
+          console.error(`Fehler beim Aktualisieren der Charge: ${response.status} - ${responseText}`);
+          throw new Error(`Fehler beim Aktualisieren der Charge: ${response.status} - ${responseText}`);
+        }
+        
+        // Versuche die Response als JSON zu parsen, falls möglich
+        let responseData;
+        try {
+          responseData = JSON.parse(responseText);
+        } catch (e) {
+          // Wenn die Response kein gültiges JSON ist, verwende den Text direkt
+          console.log("Response ist kein gültiges JSON, verwende Text direkt");
+          responseData = { message: responseText };
+        }
+        
         console.log("Erfolgreiche Antwort-Daten:", responseData);
         return responseData;
       } catch (error) {
@@ -1223,29 +1245,70 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       // Dieser Schritt ruft direkt die PATCH-API auf, ohne auf die Mutation zu vertrauen
       console.log("Starte manuelle PATCH-Anfrage zur Batch-Verknüpfung: Item ID =", selectedItem.id, "Batch ID =", batchId);
       
+      console.log(`Versuche direkte PATCH-Anfrage an: /api/inventory-counts/items/${selectedItem.id}/batch`);
+      console.log(`Mit Daten: ${JSON.stringify({ batchId })}`);
+      
       try {
         // Der direkte PATCH-API-Aufruf muss immer passieren
+        // Versuchen wir es mit einem verbesserten Fehlerhandling
+        
+        // Erstelle einen JSON-String für den Body
+        const jsonBody = JSON.stringify({ batchId: batchId });
+        console.log(`Request-Body als String: ${jsonBody}`);
+        
+        // Führe die PATCH-Anfrage aus mit detaillierten Debug-Informationen
+        console.log(`Sende PATCH an URL: /api/inventory-counts/items/${selectedItem.id}/batch`);
+        
+        // Verbessere Header für bessere Kompatibilität
         const patchResponse = await fetch(`/api/inventory-counts/items/${selectedItem.id}/batch`, {
-          method: 'PATCH',
+          method: 'PATCH', 
           headers: {
+            'Accept': 'application/json, text/plain, */*',
             'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache'
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
           },
-          body: JSON.stringify({ batchId: batchId }),
+          body: jsonBody
         });
         
-        const responseText = await patchResponse.text();
-        console.log(`Direkte PATCH-Antwort: Status=${patchResponse.status}, Body=${responseText}`);
-        
-        if (!patchResponse.ok) {
-          console.error(`Fehler bei direktem PATCH: ${patchResponse.status} - ${responseText}`);
-          throw new Error(`Fehler bei direktem PATCH: ${patchResponse.status} - ${responseText}`);
+        // Versuche erst, den Response als Text zu bekommen
+        let responseText;
+        try {
+          responseText = await patchResponse.text();
+          console.log(`PATCH-Response als Text: ${responseText}`);
+        } catch (textError) {
+          console.error("Fehler beim Lesen der Response als Text:", textError);
+          responseText = "Konnte Response nicht als Text lesen";
         }
+        
+        // Detaillierte Debug-Ausgabe des Response
+        console.log(`PATCH-Response Status: ${patchResponse.status} ${patchResponse.statusText}`);
+        console.log(`PATCH-Response Headers:`, Object.fromEntries([...patchResponse.headers.entries()]));
+        
+        // Prüfe den Response-Status
+        if (!patchResponse.ok) {
+          const errorMessage = `Fehler bei direktem PATCH: ${patchResponse.status} - ${responseText}`;
+          console.error(errorMessage);
+          
+          // Bei einem 404-Fehler vermuten wir, dass der Endpunkt falsch ist
+          if (patchResponse.status === 404) {
+            console.error("Endpunkt scheint nicht zu existieren. Überprüfe die Server-Route und URL.");
+          }
+          
+          throw new Error(errorMessage);
+        }
+        
+        // Erfolgsmeldung
+        console.log("Direkte PATCH-Anfrage war erfolgreich!");
       } catch (directPatchError) {
-        console.error("Fehler bei direktem PATCH:", directPatchError);
+        console.error("Detaillierter PATCH-Fehler:", directPatchError);
+        
+        // Trotz Fehler weitermachen und die Mutation versuchen
+        console.warn("Trotz PATCH-Fehler: Versuche alternative Aktualisierung über updateBatchMutation");
+        
         toast({
-          title: "Fehler bei der Batch-Verknüpfung",
-          description: "Der Fehler wurde protokolliert. Bitte versuchen Sie es erneut.",
+          title: "Fehler bei der direkten Batch-Verknüpfung",
+          description: "Es wird ein alternativer Update-Mechanismus versucht.",
           variant: "destructive"
         });
       }

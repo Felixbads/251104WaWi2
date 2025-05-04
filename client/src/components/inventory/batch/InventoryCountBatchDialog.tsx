@@ -90,6 +90,11 @@ export default function InventoryCountBatchDialog({
    * Generiert eine eindeutige Chargennummer basierend auf dem aktuellen Zeitstempel.
    * Format: CHG-YYYYMMDD-HHMMSS-RRR (RRR = Zufallszahl)
    */
+  /**
+   * Generiert eine einzigartige Chargennummer im Format CHG-YYYYMMDD-HHMMSS-XXX
+   * Diese Funktion verwendet ein konsistentes Format für alle automatisch 
+   * generierten Chargen.
+   */
   function generateBatchNumber(): string {
     const now = new Date();
     const dateStr = format(now, 'yyyyMMdd');
