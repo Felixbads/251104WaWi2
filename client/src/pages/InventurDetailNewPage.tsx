@@ -898,10 +898,14 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   const openBatchDialog = (item: InventoryCountItem) => {
     console.log("Öffne Batch-Dialog für Item:", item);
     
-    // Aktuelle Scroll-Position speichern
+    // Aktuelle Scroll-Position speichern - doppelt gesichert
     if (typeof window !== 'undefined') {
-      window.sessionStorage.setItem('inventur_scroll_position', window.scrollY.toString());
-      console.log(`Scroll-Position gespeichert: ${window.scrollY}`);
+      const currentPos = window.scrollY;
+      window.sessionStorage.setItem('inventur_scroll_position', currentPos.toString());
+      console.log(`Scroll-Position gespeichert: ${currentPos}`);
+      
+      // Speichere auch als Attribut für erhöhte Zuverlässigkeit
+      document.documentElement.setAttribute('data-saved-scroll', currentPos.toString());
     }
     
     // Prüfen, ob alle erforderlichen Daten vorhanden sind
@@ -926,7 +930,11 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     }
     
     // 1. Item und Batch-ID setzen
-    setSelectedItem(item);
+    setSelectedItem({
+      ...item,
+      // Stelle sicher, dass die Batch-Informationen komplett sind
+      batch: item.batch || null
+    });
     setSelectedBatchId(item.batchId || null);
     
     // 2. Dialog öffnen BEVOR wir die Daten laden oder UI-Status zurücksetzen

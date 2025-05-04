@@ -192,8 +192,29 @@ export async function createAndLinkBatch({
       throw new Error(`Charge erstellt, aber Fehler beim Verknüpfen: ${errorText}`);
     }
     
-    // Cache nach erfolgreicher Operation invalidieren
-    invalidateInventoryCache(queryClient, inventoryId, item.productId);
+    // Optimistisches Update des Caches, bevor wir invalidieren
+    queryClient.setQueryData(
+      [`/api/inventory-counts/${inventoryId}/items`],
+      (old?: any[]) => {
+        if (!old) return old;
+        console.log("Optimistisches Update im Cache für Inventur-Items");
+        return old.map(oldItem =>
+          oldItem.id === item.id
+            ? { 
+                ...oldItem, 
+                batchId: newBatch.id,
+                batch: newBatch
+              }
+            : oldItem
+        );
+      }
+    );
+    
+    // Cache nach erfolgreicher Operation invalidieren,
+    // aber mit Verzögerung damit die Scroll-Position beibehalten wird
+    setTimeout(() => {
+      invalidateInventoryCache(queryClient, inventoryId, item.productId);
+    }, 100);
     
     // Stelle die Scroll-Position wieder her
     if (typeof window !== 'undefined') {

@@ -50,11 +50,35 @@ export function invalidateInventoryCache(
   
   // Stelle Scroll-Position wieder her, nachdem alle Cache-Operationen abgeschlossen sind
   if (preserveScroll && savedScrollPosition !== null) {
+    // Zuerst in der Session speichern für bessere Persistenz
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem('inventur_scroll_position', savedScrollPosition.toString());
+    }
+    
+    // Verzögert wiederherstellen für bessere Zuverlässigkeit
     setTimeout(() => {
       if (typeof window !== 'undefined') {
-        window.scrollTo(0, savedScrollPosition!);
-        console.log(`Cache-Invalidierung stellte Scroll-Position wieder her: ${savedScrollPosition}`);
+        // Von Session Storage lesen für den Fall, dass zwischenzeitlich aktualisiert wurde
+        const posToRestore = window.sessionStorage.getItem('inventur_scroll_position') || savedScrollPosition.toString();
+        
+        // Mit auto-Verhalten für sofortigen Sprung ohne Animation
+        window.scrollTo({
+          top: parseInt(posToRestore, 10),
+          behavior: 'auto'
+        });
+        
+        console.log(`Cache-Invalidierung stellte Scroll-Position wieder her: ${posToRestore}`);
+        
+        // Sicherheitsmaßnahme: Nach einer Sekunde noch einmal scrollen, falls nötig
+        setTimeout(() => {
+          if (Math.abs(window.scrollY - parseInt(posToRestore, 10)) > 10) {
+            window.scrollTo({
+              top: parseInt(posToRestore, 10),
+              behavior: 'auto'
+            });
+          }
+        }, 1000);
       }
-    }, 50);
+    }, 100);
   }
 }
