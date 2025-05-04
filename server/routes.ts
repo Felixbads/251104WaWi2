@@ -2726,6 +2726,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/inventory-counts`, inventoryCountBatchesRouter);
   app.use(`${API_PREFIX}/warehouse-movements`, warehouseMovementsRouter);
   app.use(`${API_PREFIX}/warehouses`, warehousesRouter); // Neue Route für /api/warehouses
+  
+  // Direkte Route für die Batch-Verknüpfung hinzufügen, um Client-Anfragen korrekt zu verarbeiten
+  app.patch(`${API_PREFIX}/inventory-counts/items/:itemId/batch`, async (req: Request, res: Response) => {
+    try {
+      const itemId = parseInt(req.params.itemId);
+      const { batchId } = req.body;
+      
+      console.log(`Direkte Route: PATCH /api/inventory-counts/items/${itemId}/batch`, { batchId });
+      
+      if (!itemId) {
+        return res.status(400).json({ error: "Inventory Count Item ID is required" });
+      }
+      
+      // Aktualisiere das Inventurzählungselement mit der Batch-ID
+      const result = await rawDb.query(
+        `UPDATE inventory_count_items 
+         SET batch_id = $1, updated_at = NOW() 
+         WHERE id = $2 
+         RETURNING *`,
+        [batchId, itemId]
+      );
+      
+      if (!result.rows || result.rows.length === 0) {
+        console.error(`Item nicht gefunden: ${itemId}`);
+        return res.status(404).json({ error: "Inventory Count Item not found" });
+      }
+      
+      // Hole das aktualisierte Item mit Batch-Informationen
+      const updatedItem = result.rows[0];
+      
+      // Hole Batch-Informationen, wenn eine Batch-ID gesetzt wurde
+      if (batchId) {
+        const batchResult = await rawDb.query(
+          `SELECT * FROM product_batches WHERE id = $1`,
+          [batchId]
+        );
+        
+        if (batchResult.rows && batchResult.rows.length > 0) {
+          updatedItem.batch = batchResult.rows[0];
+        }
+      }
+      
+      console.log("Batch erfolgreich mit Item verknüpft:", updatedItem);
+      res.status(200).json(updatedItem);
+    } catch (error) {
+      console.error("Fehler beim Aktualisieren der Batch-ID:", error);
+      res.status(500).json({ 
+        error: "Failed to update batch ID", 
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
   app.use(`${API_PREFIX}`, warehouseLocationsRouter);
   app.use(`${API_PREFIX}`, criticalInventoryRouter); // Route für kritische Inventarposten
   // Diese Route ist doppelt definiert und bereits oben implementiert
