@@ -1150,9 +1150,18 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     );
   };
 
+  // Verbesserte Batch-Update-Funktion mit optimierter Sequenzierung 
+  // und Scroll-Position-Erhaltung
   const handleBatchUpdate = async (batchId: number | null) => {
     if (!selectedItem) return;
     console.log("Batch-Update wird durchgeführt: Item ID =", selectedItem.id, "Batch ID =", batchId);
+    
+    // Speichere aktuelle Scroll-Position vor jeglicher Operation
+    if (typeof window !== 'undefined') {
+      const scrollPos = window.scrollY;
+      window.sessionStorage.setItem('inventur_scroll_position', scrollPos.toString());
+      console.log(`Scroll-Position ${scrollPos} für Wiederherstellung gespeichert`);
+    }
     
     // Initialisierung mit definitivem Wert (wird überschrieben)
     let finalBatch: ProductBatch;
@@ -1162,8 +1171,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       if (batchId === null) {
         console.log("Neue Charge wird automatisch angelegt");
         
-        // Automatische Batch-Nummer generieren - verbesserte Lesbarkeit
-        // Verwende CHG-Datum-Zeit-Random für bessere Lesbarkeit
+        // Automatische Batch-Nummer generieren - verbesserte Lesbarkeit mit CHG-Format
         const now = new Date();
         const dateString = now.toISOString().split('T')[0].replace(/-/g, '');
         const timeString = `${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}${now.getSeconds().toString().padStart(2, '0')}`;
