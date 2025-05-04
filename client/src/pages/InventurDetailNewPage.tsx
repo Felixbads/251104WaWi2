@@ -257,7 +257,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     enabled: !!inventurData?.warehouseId
   });
 
-  // Lade Inventurelemente
+  // Lade Inventurelemente mit verbesserter Batch-Integration
   const {
     data: inventurItems = [],
     isLoading: isLoadingItems,
@@ -266,7 +266,44 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     queryKey: [`/api/inventory-counts/${id}/items`],
     staleTime: 5 * 1000,
     enabled: !!id,
-    refetchOnWindowFocus: false // Verhindere automatisches Refetchen bei Fensterfokus
+    refetchOnWindowFocus: false, // Verhindere automatisches Refetchen bei Fensterfokus
+    select: (data) => {
+      if (!Array.isArray(data)) {
+        return [];
+      }
+      
+      // Verarbeite die Daten, um sicherzustellen, dass Batch-Informationen korrekt gesetzt sind
+      return data.map(item => {
+        // Wenn das Item keine batchId hat, brauchen wir auch kein batch-Objekt
+        if (!item.batchId) {
+          return item;
+        }
+        
+        // Wenn wir bereits ein Batch-Objekt haben, behalte es
+        if (item.batch) {
+          return item;
+        }
+        
+        // Wenn eine batchId, aber kein batch-Objekt vorhanden ist, lade die Daten
+        console.log(`Item ${item.id} hat batchId ${item.batchId}, aber kein Batch-Objekt - versuche zu ergänzen`);
+        
+        // Suche in anderen Items nach der gleichen batchId und kopiere das Batch-Objekt
+        const matchingItem = data.find(otherItem => 
+          otherItem.batchId === item.batchId && otherItem.batch
+        );
+        
+        if (matchingItem && matchingItem.batch) {
+          console.log(`Batch-Objekt von Item ${matchingItem.id} für Item ${item.id} wiederverwendet`);
+          return {
+            ...item,
+            batch: matchingItem.batch
+          };
+        }
+        
+        // Wenn kein passendes Item gefunden wurde, behalte das Original-Item
+        return item;
+      });
+    }
   });
 
   // Lade verfügbare Lagerprodukte
@@ -329,6 +366,11 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       });
     },
     onSuccess: (result, variables, context) => {
+      // Aktuelle Scroll-Position sichern
+      const savedScrollPosition = window.scrollY;
+      window.sessionStorage.setItem('inventur_scroll_position', savedScrollPosition.toString());
+      console.log(`Scroll-Position gespeichert: ${savedScrollPosition}`);
+      
       // Erfolg: Toast anzeigen, aber keine Invalidierung des Caches oder Page-Scroll
       // Wir behalten die aktuelle Position bei, ohne den kompletten Cache zu invalidieren
       toast({
@@ -354,6 +396,18 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
           );
         }
       );
+      
+      // Nach einer kurzen Verzögerung die Scroll-Position wiederherstellen
+      setTimeout(() => {
+        const posToRestore = parseInt(window.sessionStorage.getItem('inventur_scroll_position') || '0', 10);
+        if (posToRestore > 0) {
+          window.scrollTo({
+            top: posToRestore,
+            behavior: 'auto'
+          });
+          console.log(`Scroll-Position wiederhergestellt: ${posToRestore}`);
+        }
+      }, 100);
     },
     // onSettled entfernt, um doppeltes Scrollen zu vermeiden
   });
@@ -612,12 +666,30 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       return await response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}`] });
+      // Aktuelle Scroll-Position sichern
+      const savedScrollPosition = window.scrollY;
+      window.sessionStorage.setItem('inventur_scroll_position', savedScrollPosition.toString());
+      console.log(`Scroll-Position vor Speichern gesichert: ${savedScrollPosition}`);
+      
+      // Verwende invalidateInventoryCache statt direkter Invalidierung für bessere Scroll-Erhaltung
+      invalidateInventoryCache(queryClient, id, undefined, true);
       
       toast({
         title: "Inventur gespeichert",
         description: "Die Inventur wurde erfolgreich gespeichert.",
       });
+      
+      // Nach einer kurzen Verzögerung die Scroll-Position wiederherstellen
+      setTimeout(() => {
+        const posToRestore = parseInt(window.sessionStorage.getItem('inventur_scroll_position') || '0', 10);
+        if (posToRestore > 0) {
+          window.scrollTo({
+            top: posToRestore,
+            behavior: 'auto'
+          });
+          console.log(`Scroll-Position nach Speichern wiederhergestellt: ${posToRestore}`);
+        }
+      }, 150);
     },
     onError: () => {
       toast({
