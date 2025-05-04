@@ -8,8 +8,10 @@
  * 4. Seite nicht neuladen, sondern mit optimistischem Update arbeiten
  */
 
-import { useMutation, QueryClient } from "@tanstack/react-query";
-import { format, addMonths } from "date-fns";
+import { format } from 'date-fns';
+import { QueryClient, useMutation } from '@tanstack/react-query';
+import { invalidateInventoryCache } from '../../../lib/invalidateInventoryCache';
+import { type Toast } from '@/hooks/use-toast';
 
 interface ProductBatch {
   id: number;
@@ -33,25 +35,38 @@ interface InventoryCountItem {
   productName?: string;
 }
 
+interface CreateAndLinkBatchOptions {
+  item: InventoryCountItem;
+  warehouseId: number;
+  inventoryId: string;
+  batchNumber: string;
+  expiryDate: string | null;
+  quantity?: number;
+  notes?: string | null;
+  queryClient: QueryClient;
+  toast?: Toast;
+  onSuccess?: (batch: ProductBatch) => void;
+}
+
 /**
  * Generiert eine einzigartige Batch-Nummer basierend auf Datum/Zeit und Zufallszahl
  * Format: CHG-YYYYMMDD-HHMMSS-XXX
  */
 export function generateBatchNumber(): string {
   const now = new Date();
-  const datePart = format(now, "yyyyMMdd");
-  const timePart = format(now, "HHmmss");
-  const randomPart = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-  
-  return `CHG-${datePart}-${timePart}-${randomPart}`;
+  const dateStr = format(now, 'yyyyMMdd');
+  const timeStr = format(now, 'HHmmss');
+  const randomStr = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return `CHG-${dateStr}-${timeStr}-${randomStr}`;
 }
 
 /**
  * Konvertiert ein Datum 3 Monate in der Zukunft in ISO-Format
  */
 export function getDefaultExpiryDate(): string {
-  const defaultDate = addMonths(new Date(), 3);
-  return defaultDate.toISOString();
+  const date = new Date();
+  date.setMonth(date.getMonth() + 3);
+  return format(date, 'yyyy-MM-dd');
 }
 
 /**
@@ -59,33 +74,50 @@ export function getDefaultExpiryDate(): string {
  */
 export function useBatchLinkMutation(
   queryClient: QueryClient,
-  inventoryId: string
+  inventoryId: string,
+  onSuccessCallback?: () => void
 ) {
   return useMutation({
-    mutationFn: async (data: { 
-      itemId: number;
-      batchId: number | null;
-    }) => {
-      const response = await fetch(`/api/inventory-count-items/${data.itemId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ batchId: data.batchId }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Fehler beim Verknüpfen: ${response.status}`);
+    mutationFn: async ({ itemId, batchId }: { itemId: number, batchId: number }) => {
+      // Speichere die aktuelle Scroll-Position
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem('inventur_scroll_position', window.scrollY.toString());
       }
-
-      return await response.json();
-    },
-    onSuccess: () => {
-      // Nur einmal Cache invalidieren
-      queryClient.invalidateQueries({ 
-        queryKey: [`/api/inventory-counts/${inventoryId}/items`],
+      
+      const response = await fetch(`/api/inventory-counts/items/${itemId}/batch`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store'
+        },
+        body: JSON.stringify({ batchId })
       });
+      
+      if (!response.ok) {
+        throw new Error(`Fehler beim Verknüpfen der Charge: ${response.status}`);
+      }
+      
+      return response.json();
     },
+    onSuccess: (data, variables) => {
+      // Cache erst nach erfolgreicher Operation invalidieren
+      invalidateInventoryCache(queryClient, inventoryId);
+      
+      // Stelle die Scroll-Position wieder her
+      setTimeout(() => {
+        if (typeof window !== 'undefined') {
+          const savedPos = window.sessionStorage.getItem('inventur_scroll_position');
+          if (savedPos) {
+            window.scrollTo(0, parseInt(savedPos, 10));
+          }
+        }
+        
+        // Optional: Callback für weitere Aktionen
+        if (onSuccessCallback) {
+          onSuccessCallback();
+        }
+      }, 50);
+    }
   });
 }
 
@@ -94,68 +126,120 @@ export function useBatchLinkMutation(
  */
 export async function createAndLinkBatch({
   item,
+  warehouseId,
+  inventoryId,
   batchNumber,
   expiryDate,
-  quantity,
-  warehouseId,
+  quantity = 0,
+  notes = null,
   queryClient,
-  inventoryId
-}: {
-  item: InventoryCountItem;
-  batchNumber: string;
-  expiryDate: string | null;
-  quantity: number;
-  warehouseId: number;
-  queryClient: QueryClient;
-  inventoryId: string;
-}): Promise<ProductBatch> {
+  toast,
+  onSuccess
+}: CreateAndLinkBatchOptions): Promise<ProductBatch> {
+  
+  // Speichere die aktuelle Scroll-Position
+  if (typeof window !== 'undefined') {
+    window.sessionStorage.setItem('inventur_scroll_position', window.scrollY.toString());
+  }
+  
   try {
-    // Schritt 1: Erstelle die neue Charge
-    const createResponse = await fetch('/api/batches', {
+    // Definiere die Batch-Daten mit Standardwerten
+    const batchData = {
+      productId: item.productId,
+      batchNumber,
+      warehouseId,
+      expiryDate,
+      initialQuantity: quantity || item.countedQuantity || 0,
+      currentQuantity: quantity || item.countedQuantity || 0,
+      receivedDate: format(new Date(), 'yyyy-MM-dd'),
+      notes: notes || `Erstellt bei Inventur #${inventoryId}`,
+      status: 'active'
+    };
+    
+    // Schritt 1: Batch erstellen
+    const createResponse = await fetch('/api/inventory-counts/product-batches', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache'
       },
-      body: JSON.stringify({
-        productId: item.productId,
-        batchNumber,
-        warehouseId,
-        expiryDate,
-        initialQuantity: quantity,
-        currentQuantity: quantity,
-        status: 'active'
-      }),
+      body: JSON.stringify(batchData)
     });
-
+    
     if (!createResponse.ok) {
-      throw new Error(`Fehler beim Erstellen der Charge: ${createResponse.status}`);
+      const errorText = await createResponse.text();
+      throw new Error(`Fehler beim Erstellen der Charge: ${errorText}`);
     }
-
+    
     const newBatch = await createResponse.json();
-
-    // Schritt 2: Verknüpfe die Charge mit dem Inventory-Item
-    const linkResponse = await fetch(`/api/inventory-count-items/${item.id}`, {
+    
+    if (!newBatch || !newBatch.id) {
+      throw new Error('Keine gültige Batch-ID in der Antwort erhalten');
+    }
+    
+    // Schritt 2: Mit dem Inventurposten verknüpfen
+    const linkResponse = await fetch(`/api/inventory-counts/items/${item.id}/batch`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache'
       },
-      body: JSON.stringify({
-        batchId: newBatch.id
-      }),
+      body: JSON.stringify({ batchId: newBatch.id })
     });
-
+    
     if (!linkResponse.ok) {
-      throw new Error(`Fehler beim Verknüpfen der Charge: ${linkResponse.status}`);
+      const errorText = await linkResponse.text();
+      throw new Error(`Charge erstellt, aber Fehler beim Verknüpfen: ${errorText}`);
     }
-
-    // Schritt 3: Aktualisiere den Cache (ohne Page-Refresh)
-    queryClient.invalidateQueries({ 
-      queryKey: [`/api/inventory-counts/${inventoryId}/items`],
-    });
-
+    
+    // Cache nach erfolgreicher Operation invalidieren
+    invalidateInventoryCache(queryClient, inventoryId, item.productId);
+    
+    // Stelle die Scroll-Position wieder her
+    if (typeof window !== 'undefined') {
+      const savedPos = window.sessionStorage.getItem('inventur_scroll_position');
+      if (savedPos) {
+        setTimeout(() => {
+          window.scrollTo({
+            top: parseInt(savedPos, 10),
+            behavior: 'auto'
+          });
+        }, 50);
+      }
+    }
+    
+    // Optional: Erfolgsmeldung anzeigen
+    if (toast) {
+      toast({
+        title: 'Charge erstellt und verknüpft',
+        description: `Die Charge ${batchNumber} wurde erfolgreich erstellt und verknüpft.`
+      });
+    }
+    
+    // Optional: Callback für weitere Aktionen
+    if (onSuccess) {
+      onSuccess(newBatch);
+    }
+    
     return newBatch;
   } catch (error) {
-    console.error('Fehler beim Erstellen und Verknüpfen der Charge:', error);
+    // Bei Fehler die Scroll-Position wiederherstellen
+    if (typeof window !== 'undefined') {
+      const savedPos = window.sessionStorage.getItem('inventur_scroll_position');
+      if (savedPos) {
+        window.scrollTo(0, parseInt(savedPos, 10));
+      }
+    }
+    
+    // Optional: Fehlermeldung anzeigen
+    if (toast) {
+      toast({
+        title: 'Fehler',
+        description: error instanceof Error ? error.message : 'Unbekannter Fehler',
+        variant: 'destructive'
+      });
+    }
+    
     throw error;
   }
 }

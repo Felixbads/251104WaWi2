@@ -88,17 +88,8 @@ export default function InventoryCountBatchDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   
-  /**
-   * Generiert eine eindeutige Chargennummer basierend auf dem aktuellen Zeitstempel.
-   * Format: CHG-YYYYMMDD-HHMMSS-RRR (RRR = Zufallszahl)
-   */
-  function generateBatchNumber(): string {
-    const now = new Date();
-    const dateStr = format(now, 'yyyyMMdd');
-    const timeStr = format(now, 'HHmmss');
-    const randomStr = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-    return `CHG-${dateStr}-${timeStr}-${randomStr}`;
-  }
+  // Wir verwenden jetzt die importierte Funktion aus CreateAndLinkBatchHandler.ts
+  // für eine konsistente Batch-Nummern-Generierung im ganzen System
 
   // Bei Öffnen des Dialogs den aktuellen Batch setzen und eine neue Chargennummer generieren
   useEffect(() => {
@@ -389,14 +380,13 @@ export default function InventoryCountBatchDialog({
       const autoCreateBatch = confirm("Möchten Sie eine neue Charge automatisch erstellen?\n\nOK = Ja, automatisch eine Charge erstellen\nAbbrechen = Nein, keine Charge zuweisen");
       
       if (autoCreateBatch) {
-        // Automatisches Erstellen einer neuen Charge
+        // Automatisches Erstellen einer neuen Charge mit optimiertem Prozess
         
-        // Generiere eine neue Chargennummer
+        // Generiere eine neue Chargennummer mit zentralisierter Funktion
         const autoChargennummer = generateBatchNumber();
         
-        // Standarddatum 3 Monate in der Zukunft
-        const defaultExpiry = new Date();
-        defaultExpiry.setMonth(defaultExpiry.getMonth() + 3);
+        // Standarddatum 3 Monate in der Zukunft mit zentralisierter Funktion
+        const defaultExpiryDate = getDefaultExpiryDate();
         
         // Informiere den Benutzer über den automatischen Vorgang
         toast({
@@ -404,20 +394,59 @@ export default function InventoryCountBatchDialog({
           description: `Neue Charge wird erstellt: ${autoChargennummer}`,
         });
         
-        // Die Daten für die neue Charge
-        const batchData = {
-          productId: selectedItem?.productId,
-          warehouseId: warehouseId, // Wichtig: warehouseId explizit hinzufügen
-          batchNumber: autoChargennummer,
-          expiryDate: format(defaultExpiry, 'yyyy-MM-dd'),
-          initialQuantity: selectedItem?.countedQuantity || 1,
-          currentQuantity: selectedItem?.countedQuantity || 1,
-          receivedDate: format(new Date(), 'yyyy-MM-dd'), // Aktuelles Datum als Eingangsdatum
-          notes: `Auto-erstellt bei Inventur #${inventoryId}` || null
-        };
+        // Speichere die aktuelle Scroll-Position
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem('inventur_scroll_position', window.scrollY.toString());
+        }
         
-        // Nutze den neuen kombinierten Handler anstatt Schritt-für-Schritt
-        handleCreateAndLink();
+        // Nutze die zentralisierte Funktion für Batch-Erstellung und Verknüpfung
+        try {
+          setIsSubmitting(true);
+          
+          if (!selectedItem) {
+            throw new Error('Kein Produkt ausgewählt');
+          }
+          
+          // Führe die kombinierte Operation aus
+          createAndLinkBatch({
+            item: selectedItem,
+            batchNumber: autoChargennummer,
+            expiryDate: defaultExpiryDate,
+            quantity: selectedItem.countedQuantity || 1,
+            warehouseId,
+            queryClient,
+            inventoryId
+          }).then(newBatch => {
+            // Erfolgsmeldung
+            toast({
+              title: 'Erfolg',
+              description: 'Charge automatisch erstellt und verknüpft.',
+            });
+            
+            // Dialog schließen
+            onOpenChange(false);
+            
+            // Stelle die Scroll-Position wieder her
+            setTimeout(() => {
+              const savedPos = window.sessionStorage.getItem('inventur_scroll_position');
+              if (savedPos) {
+                window.scrollTo(0, parseInt(savedPos, 10));
+              }
+            }, 50);
+          }).catch(error => {
+            console.error('Fehler beim automatischen Erstellen:', error);
+            toast({
+              title: 'Fehler',
+              description: 'Die Charge konnte nicht automatisch erstellt werden.',
+              variant: 'destructive',
+            });
+          }).finally(() => {
+            setIsSubmitting(false);
+          });
+        } catch (error) {
+          console.error('Fehler bei Batch-Initialisierung:', error);
+          setIsSubmitting(false);
+        }
       } else {
         // Nutzer möchte wirklich keine Charge, also wird null übergeben
         onBatchSelect(null);
