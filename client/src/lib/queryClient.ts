@@ -164,17 +164,18 @@ const handleError = (error: unknown) => {
   return null; // Wir geben null zurück, um Fehler nicht weiterzupropagieren
 };
 
-// Exportiere queryClient für die Verwendung in Komponenten
+// Exportiere queryClient für die Verwendung in Komponenten mit optimierten Einstellungen
+// Die strikteren Defaults verhindern unnötiges Neuladen/Springen der UI
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
-      staleTime: 1000 * 60 * 5,       // 5 Minuten „frisch" bleiben
-      cacheTime: 1000 * 60 * 30,      // 30 Minuten im Cache
-      refetchOnWindowFocus: false,    // kein Refetch beim Tab-Wechsel
-      refetchOnMount: false,          // nicht bei jedem Mount neu
-      refetchOnReconnect: false,      // kein Refetch bei Reconnect
-      keepPreviousData: true,         // behalte alte Daten während Refetch
+      staleTime: 5 * 60_000,           // 5 Minuten „frisch" bleiben
+      gcTime: 30 * 60_000,             // 30 Minuten im Cache (ersetzt cacheTime)
+      refetchOnWindowFocus: false,     // kein Refetch beim Tab-Wechsel
+      refetchOnMount: false,           // nicht bei jedem Mount neu
+      refetchOnReconnect: false,       // kein Refetch bei Reconnect
+      keepPreviousData: true,          // behalte alte Daten während Refetch
       retry: false
     },
     mutations: {

@@ -91,11 +91,6 @@ export default function InventoryCountBatchDialog({
    * Generiert eine eindeutige Chargennummer basierend auf dem aktuellen Zeitstempel.
    * Format: CHG-YYYYMMDD-HHMMSS-RRR (RRR = Zufallszahl)
    */
-  /**
-   * Generiert eine einzigartige Chargennummer im Format CHG-YYYYMMDD-HHMMSS-XXX
-   * Diese Funktion verwendet ein konsistentes Format für alle automatisch 
-   * generierten Chargen.
-   */
   function generateBatchNumber(): string {
     const now = new Date();
     const dateStr = format(now, 'yyyyMMdd');
@@ -294,44 +289,6 @@ export default function InventoryCountBatchDialog({
     },
     onSuccess: (data) => {
       console.log("Charge erfolgreich erstellt:", data);
-      
-      // Batch-ID aktualisieren
-      if (data && data.id && selectedItem) {
-        console.log(`SEQUENZIELLE AUFRUFKETTE: Charge ${data.id} erstellt, verknüpfe jetzt mit Item ${selectedItem.id}`);
-        
-        // WICHTIG: Führe erst jetzt die Verknüpfungs-Mutation aus
-        // Dadurch wird sichergestellt, dass die korrekte Reihenfolge eingehalten wird
-        linkBatchMutation.mutate({
-          itemId: selectedItem.id,
-          batchId: data.id
-        });
-        
-        // Update lokalen State direkt
-        onBatchSelect(data.id);
-      } else {
-        console.error("Erstellte Charge hat keine ID oder kein Item ausgewählt!");
-        
-        // Minimale Erfolgsmeldung ohne Verknüpfung
-        toast({
-          title: "Charge erstellt",
-          description: "Die Charge wurde erstellt, aber nicht verknüpft (fehlende ID).",
-          variant: "default"
-        });
-        
-        setShowSuccess(true);
-        setTimeout(() => {
-          setShowSuccess(false);
-          onOpenChange(false);
-          
-          // Stelle Scroll-Position wieder her
-          setTimeout(() => {
-            const savedPos = window.sessionStorage.getItem('inventur_scroll_position');
-            if (savedPos) {
-              window.scrollTo(0, parseInt(savedPos, 10));
-            }
-          }, 50);
-        }, 1500);
-      }
     },
     onError: (error: any) => {
       console.error('Fehler beim Erstellen der Charge:', error);
@@ -358,6 +315,123 @@ export default function InventoryCountBatchDialog({
       }, 100);
     },
   });
+
+  // Kombinierter Handler zum Erstellen und Verknüpfen einer Charge in einem Durchgang
+  // Dieser folgt dem von dir vorgeschlagenen Pattern für optimierte Abläufe
+  const handleCreateAndLink = async () => {
+    setIsSubmitting(true);
+    if (!selectedItem || !selectedItem.productId) {
+      toast({
+        title: 'Fehler',
+        description: 'Produkt kann nicht ermittelt werden.',
+        variant: 'destructive',
+      });
+      setIsSubmitting(false);
+      return;
+    }
+    
+    if (!newBatchNumber) {
+      toast({
+        title: 'Fehler',
+        description: 'Bitte geben Sie eine Chargennummer ein.',
+        variant: 'destructive',
+      });
+      setIsSubmitting(false);
+      return;
+    }
+    
+    // Speichere die aktuelle Scroll-Position
+    if (typeof window !== 'undefined') {
+      const scrollPos = window.scrollY;
+      window.sessionStorage.setItem('inventur_scroll_position', scrollPos.toString());
+      console.log(`Speichere Scroll-Position: ${scrollPos}`);
+    }
+    
+    try {
+      // 1. BATCH-DATEN VORBEREITEN
+      const batchData = {
+        productId: selectedItem.productId,
+        warehouseId: warehouseId,
+        batchNumber: newBatchNumber,
+        expiryDate: expiryDate ? format(expiryDate, 'yyyy-MM-dd') : null,
+        initialQuantity: selectedItem.countedQuantity || 1,
+        currentQuantity: selectedItem.countedQuantity || 1,
+        notes: `Erstellt bei Inventur #${inventoryId}` || null // Garantiere, dass notes nicht undefined ist
+      };
+      
+      console.log("Starte kombinierte Aktion: Charge erstellen und sofort verknüpfen");
+      console.log("1) Erstelle Charge mit:", JSON.stringify(batchData, null, 2));
+      
+      // 2. NEUE BATCH ERSTELLEN - wichtig: await, um sequenzielle Verarbeitung zu garantieren
+      const batch = await createBatchMutation.mutateAsync(batchData);
+      console.log("Batch erfolgreich erstellt:", batch);
+      
+      if (!batch || !batch.id) {
+        throw new Error("Erstellte Charge hat keine gültige ID");
+      }
+      
+      // 3. BATCH MIT INVENTUR-ITEM VERKNÜPFEN - wieder mit await für saubere Sequenzierung
+      console.log(`2) Verknüpfe Batch ${batch.id} mit Inventur-Item ${selectedItem.id}`);
+      await linkBatchMutation.mutateAsync({
+        itemId: selectedItem.id,
+        batchId: batch.id
+      });
+      
+      // 4. DIALOG SCHLIEßEN
+      onOpenChange(false);
+      
+      // 5. ERFOLGSMELDUNG ANZEIGEN
+      toast({
+        title: 'Charge erstellt und verknüpft',
+        description: `Die Charge ${newBatchNumber} wurde erfolgreich erstellt und mit dem Inventurposten verknüpft.`,
+      });
+      
+      // 6. FORMULARZUSTÄNDE ZURÜCKSETZEN
+      setNewBatchNumber('');
+      setExpiryDate(null);
+      setIsSubmitting(false);
+      setShowSuccess(true);
+      
+      // 7. INVALIDIERE CACHE NUR NACH ERFOLGREICHER OPERATION - genau wie du es empfohlen hast
+      console.log("3) Invalidiere Cache nach erfolgreicher Operation");
+      queryClient.invalidateQueries({
+        queryKey: [`/api/inventory-counts/${inventoryId}/items`],
+        refetchType: 'none' // Kein sofortiges Refetchen
+      });
+      
+      // 8. STELLE SCROLL-POSITION WIEDER HER
+      setTimeout(() => {
+        if (typeof window !== 'undefined') {
+          const savedPosition = window.sessionStorage.getItem('inventur_scroll_position');
+          if (savedPosition) {
+            console.log(`Stelle Scroll-Position wieder her: ${savedPosition}`);
+            window.scrollTo(0, parseInt(savedPosition, 10));
+          }
+        }
+      }, 50);
+      
+    } catch (error: any) {
+      console.error('Fehler bei der kombinierten Aktion:', error);
+      
+      toast({
+        title: 'Fehler',
+        description: error.message || 'Die Charge konnte nicht erstellt oder verknüpft werden.',
+        variant: 'destructive',
+      });
+      
+      setIsSubmitting(false);
+      
+      // Stelle die Scroll-Position auch bei Fehler wieder her
+      setTimeout(() => {
+        if (typeof window !== 'undefined') {
+          const savedPosition = window.sessionStorage.getItem('inventur_scroll_position');
+          if (savedPosition) {
+            window.scrollTo(0, parseInt(savedPosition, 10));
+          }
+        }
+      }, 50);
+    }
+  };
 
   // Handler für Batch-Auswahl
   const handleBatchChange = (value: string) => {
@@ -400,14 +474,12 @@ export default function InventoryCountBatchDialog({
           expiryDate: format(defaultExpiry, 'yyyy-MM-dd'),
           initialQuantity: selectedItem?.countedQuantity || 1,
           currentQuantity: selectedItem?.countedQuantity || 1,
-          receivedDate: format(new Date(), 'yyyy-MM-dd') // Aktuelles Datum als Eingangsdatum
+          receivedDate: format(new Date(), 'yyyy-MM-dd'), // Aktuelles Datum als Eingangsdatum
+          notes: `Auto-erstellt bei Inventur #${inventoryId}` || null
         };
         
-        // Schließe Dialog sofort für besseres UI-Erlebnis
-        onOpenChange(false);
-        
-        // Starte die Erstellung im Hintergrund
-        createBatchMutation.mutate(batchData);
+        // Nutze den neuen kombinierten Handler anstatt Schritt-für-Schritt
+        handleCreateAndLink();
       } else {
         // Nutzer möchte wirklich keine Charge, also wird null übergeben
         onBatchSelect(null);
@@ -446,198 +518,86 @@ export default function InventoryCountBatchDialog({
     }
   };
 
-  // Diese Funktion ist bereits oben definiert worden und kann entfernt werden, da sie dupliziert ist
-
-  // Handler zum Erstellen einer neuen Charge
-  const handleCreateNewBatch = async () => {
-    try {
-      // Speichere zuerst die aktuelle Scroll-Position im sessionStorage
-      if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem('inventur_scroll_position', window.scrollY.toString());
-      }
-      
-      // Verwende die bereits generierte Chargennummer (oder erzeuge eine neue, falls nötig)
-      const autoChargennummer = newBatchNumber || generateBatchNumber();
-      
-      // Log für Debugging-Zwecke
-      console.log(`Erstelle neue Charge mit Nummer: ${autoChargennummer}`);
-      
-      // Setze Ablaufdatum - Standard: 3 Monate in der Zukunft
-      let effectiveExpiryDate = expiryDate;
-      if (!effectiveExpiryDate) {
-        const defaultDate = new Date();
-        defaultDate.setMonth(defaultDate.getMonth() + 3);
-        effectiveExpiryDate = defaultDate;
-        setExpiryDate(defaultDate); // Für die UI aktualisieren
-      }
-        
-      toast({
-        title: 'Charge wird erstellt',
-        description: `Automatisch generierte Chargennummer: ${autoChargennummer}`,
-      });
-      
-      setIsSubmitting(true);
-      setNewBatchNumber(autoChargennummer); // Aktualisiert das Feld für bessere UX
-  
-      // Die eigentlichen Daten, die an die API gesendet werden
-      const batchData = {
-        productId: selectedItem?.productId,
-        warehouseId: warehouseId, // Wichtig: warehouseId explizit hinzufügen
-        batchNumber: autoChargennummer,
-        expiryDate: effectiveExpiryDate ? format(effectiveExpiryDate, 'yyyy-MM-dd') : format(new Date(new Date().setMonth(new Date().getMonth() + 3)), 'yyyy-MM-dd'),
-        initialQuantity: selectedItem?.countedQuantity || 1,
-        currentQuantity: selectedItem?.countedQuantity || 1,
-        receivedDate: format(new Date(), 'yyyy-MM-dd') // Aktuelles Datum als Eingangsdatum
-      };
-      
-      // Speichere die aktuelle Scroll-Position vor dem API-Call
-      if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem('inventur_scroll_position', window.scrollY.toString());
-      }
-      
-      // Optimistisches UI-Update: Dialog schließen für bessere Benutzererfahrung
-      onOpenChange(false);
-      
-      // Verwende mutateAsync mit await statt mutate für bessere Kontrolle
-      try {
-        const newBatch = await createBatchMutation.mutateAsync(batchData);
-        console.log("Neue Charge erstellt:", newBatch);
-        
-        // Bei Erfolg die Verknüpfung auch direkt per async/await durchführen
-        if (newBatch && newBatch.id && selectedItem) {
-          try {
-            const updatedItem = await linkBatchMutation.mutateAsync({
-              itemId: selectedItem.id,
-              batchId: newBatch.id
-            });
-            console.log("Verknüpfung erfolgreich:", updatedItem);
-          } catch (linkErr) {
-            console.error("Fehler bei der Batch-Verknüpfung:", linkErr);
-            // Die Charge wurde erstellt, aber die Verknüpfung schlug fehl
-            // Hier könnten wir eine spezifische Benachrichtigung anzeigen
-          }
-        }
-      } catch (error) {
-        console.error("Fehler beim Erstellen der Charge:", error);
-        
-        // Stelle sicher, dass die Scroll-Position beibehalten wird
-        const savedPos = window.sessionStorage.getItem('inventur_scroll_position');
-        if (savedPos) {
-          window.scrollTo(0, parseInt(savedPos, 10));
-        }
-        
-        // Zeige Fehlermeldung an
-        toast({
-          title: "Fehler",
-          description: error.message || "Die Charge konnte nicht erstellt werden.",
-          variant: "destructive"
-        });
-      }
-    } finally {
-      setIsSubmitting(false);
+  // Generiert eine Farbe für den Badge basierend auf dem Ablaufdatum
+  const getBatchStatusColor = (expiryDate: string | null) => {
+    if (!expiryDate) return "";
+    
+    const now = new Date();
+    const expiry = new Date(expiryDate);
+    const diffTime = expiry.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays < 0) {
+      return "bg-destructive"; // Abgelaufen
+    } else if (diffDays < 30) {
+      return "bg-warning text-warning-foreground"; // Bald ablaufend
+    } else {
+      return "bg-success text-success-foreground"; // Gültig
     }
   };
 
-  // Status-Farben für Batches
-  const getBatchStatusColor = (expiryDateStr: string | null) => {
-    if (!expiryDateStr) return "bg-gray-100 text-gray-800";
+  // Generiert einen Text für den Badge basierend auf dem Ablaufdatum
+  const getBatchStatusText = (expiryDate: string | null) => {
+    if (!expiryDate) return "Kein MHD";
     
-    try {
-      const expiryDate = new Date(expiryDateStr);
-      const now = new Date();
-      
-      if (isNaN(expiryDate.getTime())) {
-        console.warn("Ungültiges Datumsformat für MHD:", expiryDateStr);
-        return "bg-gray-100 text-gray-800";
-      }
-      
-      // Abgelaufen
-      if (expiryDate < now) {
-        return "bg-red-100 text-red-800";
-      }
-      
-      // Läuft bald ab (innerhalb von 14 Tagen)
-      const twoWeeksFromNow = new Date();
-      twoWeeksFromNow.setDate(now.getDate() + 14);
-      if (expiryDate < twoWeeksFromNow) {
-        return "bg-yellow-100 text-yellow-800";
-      }
-      
-      // OK
-      return "bg-green-100 text-green-800";
-    } catch (error) {
-      console.error("Fehler beim Verarbeiten des MHD-Datums:", error);
-      return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  // Status-Text für Batches
-  const getBatchStatusText = (expiryDateStr: string | null) => {
-    if (!expiryDateStr) return "Kein MHD";
+    const now = new Date();
+    const expiry = new Date(expiryDate);
+    const diffTime = expiry.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
-    try {
-      const expiryDate = new Date(expiryDateStr);
-      const now = new Date();
-      
-      if (isNaN(expiryDate.getTime())) {
-        console.warn("Ungültiges Datumsformat für MHD-Status-Text:", expiryDateStr);
-        return "Kein MHD";
-      }
-      
-      // Abgelaufen
-      if (expiryDate < now) {
-        return "Abgelaufen";
-      }
-      
-      // Läuft bald ab (innerhalb von 14 Tagen)
-      const twoWeeksFromNow = new Date();
-      twoWeeksFromNow.setDate(now.getDate() + 14);
-      if (expiryDate < twoWeeksFromNow) {
-        return "Läuft bald ab";
-      }
-      
-      // OK
-      return "Gültig";
-    } catch (error) {
-      console.error("Fehler beim Verarbeiten des MHD-Datums für Status-Text:", error);
-      return "Kein MHD";
+    if (diffDays < 0) {
+      return "Abgelaufen";
+    } else if (diffDays < 30) {
+      return `Läuft bald ab (${diffDays} Tage)`;
+    } else {
+      return `Gültig (${diffDays} Tage)`;
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className={`max-w-lg overflow-y-auto max-h-[90vh] ${showSuccess ? 'bg-success-100' : ''}`}>
         {showSuccess ? (
           <div className="flex flex-col items-center justify-center py-8">
-            <CheckCircle2 className="h-16 w-16 text-green-500 mb-4" />
-            <h3 className="text-xl font-semibold text-center">Charge erfolgreich gespeichert!</h3>
+            <CheckCircle2 className="text-green-500 h-16 w-16 mb-4" />
+            <h2 className="text-xl font-bold mb-2">Erfolg!</h2>
+            <p className="text-center mb-4">
+              Die Charge wurde erfolgreich verknüpft.
+            </p>
           </div>
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Charge für {selectedItem?.productName}</DialogTitle>
+              <DialogTitle>
+                <div className="flex items-center">
+                  <Package className="h-5 w-5 mr-2" />
+                  Charge auswählen oder erstellen
+                </div>
+              </DialogTitle>
               <DialogDescription>
-                Wählen Sie eine bestehende Charge oder erstellen Sie eine neue
+                Wählen Sie eine bestehende Charge aus oder erstellen Sie eine neue für den Artikel: <br />
+                <span className="font-medium">{selectedItem?.productName}</span>
               </DialogDescription>
             </DialogHeader>
 
-            <Tabs 
-              defaultValue="existing" 
-              value={activeTab}
-              onValueChange={setActiveTab}
-              className="w-full"
-            >
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="existing">Bestehende Chargen</TabsTrigger>
-                <TabsTrigger value="new">Neue Charge</TabsTrigger>
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+              <TabsList className="w-full mb-4">
+                <TabsTrigger value="existing" className="flex-1">
+                  Bestehende Chargen {availableBatches.length > 0 && `(${availableBatches.length})`}
+                </TabsTrigger>
+                <TabsTrigger value="new" className="flex-1">
+                  Neue Charge erstellen
+                </TabsTrigger>
               </TabsList>
               
-              <TabsContent value="existing" className="mt-4">
+              <TabsContent value="existing">
                 {availableBatches.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-6">
-                    <Package className="h-12 w-12 text-muted-foreground mb-2" />
-                    <p className="text-center text-muted-foreground">
-                      Keine bestehenden Chargen für dieses Produkt verfügbar.
+                  <div className="flex flex-col items-center p-4 border rounded-md mb-4">
+                    <CircleAlert className="h-12 w-12 text-amber-500 mb-2" />
+                    <h3 className="text-lg font-medium mb-1">Keine Chargen verfügbar</h3>
+                    <p className="text-center text-muted-foreground mb-4">
+                      Für dieses Produkt sind noch keine Chargen vorhanden. 
+                      Erstellen Sie eine neue Charge, um fortzufahren.
                     </p>
                     <Button 
                       variant="outline" 
@@ -696,78 +656,54 @@ export default function InventoryCountBatchDialog({
                             </Badge>
                           )}
                         </div>
-                        
-                        <Separator className="my-3" />
-                        
-                        {selectedBatchId && selectedBatchId !== 'none' && (
-                          <div className="space-y-2">
-                            {(() => {
-                              const batch = availableBatches.find(b => b.id.toString() === selectedBatchId);
-                              if (!batch) return null;
-                              
-                              return (
-                                <>
-                                  <div className="flex justify-between">
-                                    <span className="text-sm text-muted-foreground">Chargennummer:</span>
-                                    <span className="text-sm font-medium">{batch.batchNumber}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-sm text-muted-foreground">MHD:</span>
-                                    <span className="text-sm font-medium">{formatBatchDate(batch.expiryDate)}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span className="text-sm text-muted-foreground">Aktuelle Menge:</span>
-                                    <span className="text-sm font-medium">{batch.currentQuantity}</span>
-                                  </div>
-                                </>
-                              );
-                            })()}
+                        <Separator className="my-2" />
+                        <div className="text-sm space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Chargennummer:</span>
+                            <span className="font-medium">
+                              {availableBatches.find(b => b.id.toString() === selectedBatchId)?.batchNumber}
+                            </span>
                           </div>
-                        )}
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">MHD:</span>
+                            <span>
+                              {formatBatchDate(
+                                availableBatches.find(b => b.id.toString() === selectedBatchId)?.expiryDate || null
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Aktuelle Menge:</span>
+                            <span>
+                              {availableBatches.find(b => b.id.toString() === selectedBatchId)?.currentQuantity || 0}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </>
                 )}
               </TabsContent>
               
-              <TabsContent value="new" className="mt-4">
-                <div className="space-y-4">
+              <TabsContent value="new">
+                <div className="space-y-4 mb-4">
                   <div>
-                    <label 
-                      htmlFor="batchNumber" 
-                      className="block text-sm font-medium text-gray-700 mb-1"
-                    >
-                      Chargennummer (automatisch)
+                    <label className="block text-sm font-medium mb-1">
+                      Chargennummer
                     </label>
-                    <div className="flex items-center space-x-2">
-                      <Input
-                        id="batchNumber"
-                        placeholder="Automatisch generiert"
-                        value={newBatchNumber}
-                        readOnly
-                        className="bg-gray-50 font-medium"
-                      />
-                      <Button 
-                        type="button" 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => setNewBatchNumber(generateBatchNumber())}
-                        title="Neue Chargennummer regenerieren"
-                      >
-                        <CircleAlert className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <Input
+                      value={newBatchNumber}
+                      onChange={(e) => setNewBatchNumber(e.target.value)}
+                      placeholder="Chargennummer eingeben"
+                    />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Die Chargennummer wird automatisch im Format CHG-YYYYMMDD-HHMMSS-RRR generiert und muss nicht manuell eingegeben werden.
+                      Eine eindeutige Kennung für diese Charge
                     </p>
                   </div>
                   
                   <div>
-                    <label 
-                      htmlFor="expiryDate" 
-                      className="block text-sm font-medium text-gray-700 mb-1"
-                    >
-                      Mindesthaltbarkeitsdatum (MHD)
+                    <label className="block text-sm font-medium mb-1">
+                      Mindesthaltbarkeitsdatum
                     </label>
                     <Popover>
                       <PopoverTrigger asChild>
@@ -776,36 +712,21 @@ export default function InventoryCountBatchDialog({
                           className="w-full justify-start text-left font-normal"
                         >
                           <CalendarIcon className="mr-2 h-4 w-4" />
-                          {expiryDate ? (
-                            format(expiryDate, 'dd.MM.yyyy')
-                          ) : (
-                            <span>Datum wählen</span>
-                          )}
+                          {expiryDate ? format(expiryDate, 'dd.MM.yyyy') : <span>Datum auswählen</span>}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0">
                         <Calendar
                           mode="single"
                           selected={expiryDate || undefined}
-                          onSelect={(date) => setExpiryDate(date || null)}
+                          onSelect={(date) => setExpiryDate(date)}
                           initialFocus
                         />
                       </PopoverContent>
                     </Popover>
-                  </div>
-                  
-                  <div>
-                    <label 
-                      className="block text-sm font-medium text-gray-700 mb-1"
-                    >
-                      Menge
-                    </label>
-                    <div className="text-sm border rounded p-2 bg-muted">
-                      Diese wird automatisch mit dem gezählten Wert gefüllt: 
-                      <span className="font-bold ml-1">
-                        {selectedItem?.countedQuantity ?? 0}
-                      </span>
-                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Datum, an dem die Charge abläuft
+                    </p>
                   </div>
                 </div>
               </TabsContent>
@@ -824,14 +745,14 @@ export default function InventoryCountBatchDialog({
                   onClick={handleSaveBatchSelection}
                   disabled={isSubmitting}
                 >
-                  Übernehmen
+                  Auswahl speichern
                 </Button>
               ) : (
                 <Button 
-                  onClick={handleCreateNewBatch}
-                  disabled={isSubmitting}
+                  onClick={handleCreateAndLink}
+                  disabled={isSubmitting || !newBatchNumber}
                 >
-                  {isSubmitting ? 'Wird erstellt...' : 'Charge erstellen'}
+                  {isSubmitting ? 'Wird gespeichert...' : 'Charge erstellen & verknüpfen'}
                 </Button>
               )}
             </DialogFooter>

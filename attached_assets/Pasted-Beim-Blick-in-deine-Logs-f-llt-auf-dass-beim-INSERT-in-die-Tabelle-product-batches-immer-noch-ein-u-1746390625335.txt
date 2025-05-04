@@ -1,0 +1,81 @@
+Beim Blick in deine Logs fällt auf, dass beim INSERT in die Tabelle product_batches immer noch ein undefined als notes-Wert mitgeschickt wird:
+
+Values Array: [
+  …,
+  undefined,    ← das verursacht in Postgres einen Fehler (NOT NULL-Constraint o. Ä.)
+  'active'
+]
+
+Das heißt: Dein Frontend sendet notes: undefined statt null oder einem String, und der Server wirft beim Anlegen der Charge eine Datenbank- oder Validierungs-Exception.
+
+⸻
+
+1. undefined → null oder leerer String mappen
+
+In deiner Payload-Map für das createBatch-Mutation-Objekt stell sicher, dass du für optionale Felder niemals undefined schickst:
+
+const payload = {
+  productId,
+  warehouseId,
+  batchNumber,
+  expiryDate,           // string YYYY-MM-DD
+  receivedDate,         // string YYYY-MM-DD
+  locationInWarehouse: values.locationInWarehouse ?? null,
+  notes: values.notes?.trim() || null,    // ← hier: null statt undefined
+  initialQuantity: values.initialQuantity,
+  currentQuantity: values.currentQuantity,
+  status: 'active',
+};
+await createBatchMutation.mutateAsync(payload);
+
+So landet in der Datenbank entweder ein leerer String ('') oder ein echtes NULL, und du vermeidest DB-Errors.
+
+⸻
+
+2. Typsicherheit mit Zod/Joi
+
+Gib deinem Batch-Formular bzw. der Server-Route ein Schema, das notes als string().optional() bzw. string().nullable() definiert:
+
+// server/src/routes/inventory-count-batches.ts
+const batchSchema = z.object({
+  productId: z.number().int(),
+  warehouseId: z.number().int(),
+  batchNumber: z.string().nonempty(),
+  expiryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  receivedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  locationInWarehouse: z.string().nullable(),
+  notes: z.string().nullable(),
+  initialQuantity: z.number().int().min(0),
+  currentQuantity: z.number().int().min(0),
+  status: z.enum(['active','inactive']),
+});
+
+So schlägt schon im Request-Parsing fehl, falls notes gar nicht übergeben wird.
+
+⸻
+
+3. Fehler in der UI sichtbar machen
+
+Fang im Frontend alle Errors ab und zeige sie dem Anwender:
+
+const createBatch = useMutation(createBatchFn, {
+  onSuccess: () => { /* wie gehabt… */ },
+  onError: (err: any) => {
+    toast.error(
+      err?.response?.data?.message
+      || err.message
+      || "Fehler beim Anlegen der Charge"
+    );
+  }
+});
+
+– so siehst du sofort im Snackbar/Toast, wenn’s im Backend hakt.
+
+⸻
+
+4. Zusammenfassung
+	1.	Mappe undefined auf null (oder '') in deinem Payload
+	2.	Validiere mit Zod/Joi schon im Server-Endpoint
+	3.	Fange Errors in deinem useMutation ab und zeige eine verständliche Fehlermeldung
+
+Wenn du das umsetzt, sollten keine „unsichtbaren“ DB-Exceptions mehr passieren und deine Batch-Erstellung läuft sauber durch.
