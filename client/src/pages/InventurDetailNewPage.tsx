@@ -1517,6 +1517,34 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       const newBatch = await response.json();
       console.log("Neue Charge erfolgreich erstellt:", newBatch);
       
+      // Nach erfolgreicher Erstellung der Charge SOFORT einen PATCH-Aufruf
+      // zum Verknüpfen des Inventory-Items mit der Batch-ID durchführen
+      try {
+        console.log(`DIREKTE VERKNÜPFUNG: Sende PATCH für Item ${selectedItem.id} mit Batch ${newBatch.id}`);
+        const linkResponse = await fetch(`/api/inventory-counts/items/${selectedItem.id}/batch`, {
+          method: 'PATCH',
+          headers: {
+            'Accept': 'application/json, text/plain, */*',
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          },
+          body: JSON.stringify({ batchId: newBatch.id })
+        });
+        
+        // Verarbeite die Antwort, egal ob erfolgreich oder nicht
+        const linkResponseText = await linkResponse.text();
+        console.log(`Verknüpfung Status: ${linkResponse.status}, Antwort: ${linkResponseText}`);
+        
+        if (!linkResponse.ok) {
+          console.error(`Fehler bei direkter Batch-Verknüpfung: ${linkResponse.status} - ${linkResponseText}`);
+        } else {
+          console.log("Direkte Batch-Verknüpfung erfolgreich");
+        }
+      } catch (linkError) {
+        console.error("Fehler bei direkter Batch-Verknüpfung:", linkError);
+      }
+      
       // Funktion zur sicheren Identifizierung des temporären Batches
       const isTemporaryBatch = (batch: ProductBatch) => {
         return (batch.id === tempId) || 

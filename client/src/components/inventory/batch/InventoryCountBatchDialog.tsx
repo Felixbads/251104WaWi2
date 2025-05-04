@@ -362,6 +362,9 @@ export default function InventoryCountBatchDialog({
     // Verwende die bereits generierte Chargennummer (oder erzeuge eine neue, falls nötig)
     const autoChargennummer = newBatchNumber || generateBatchNumber();
     
+    // Log für Debugging-Zwecke
+    console.log(`Erstelle neue Charge mit Nummer: ${autoChargennummer}`);
+    
     // Setze Ablaufdatum - Standard: 3 Monate in der Zukunft
     let effectiveExpiryDate = expiryDate;
     if (!effectiveExpiryDate) {
