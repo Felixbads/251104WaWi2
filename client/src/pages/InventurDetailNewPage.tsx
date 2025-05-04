@@ -894,9 +894,15 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     }
   });
 
-  // Funktion zum Öffnen des Batch-Dialogs mit verbesserten Fehlerprüfungen und Verzögerung
+  // Funktion zum Öffnen des Batch-Dialogs mit optimiertem Scroll-Verhalten
   const openBatchDialog = (item: InventoryCountItem) => {
     console.log("Öffne Batch-Dialog für Item:", item);
+    
+    // Aktuelle Scroll-Position speichern
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.setItem('inventur_scroll_position', window.scrollY.toString());
+      console.log(`Scroll-Position gespeichert: ${window.scrollY}`);
+    }
     
     // Prüfen, ob alle erforderlichen Daten vorhanden sind
     if (!inventurData?.warehouseId) {
@@ -929,8 +935,14 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     // 3. Formular sofort zurücksetzen, anstatt nach dem Laden
     setShowNewBatchForm(false);
     setShowSplitForm(false);
-    setNewBatchNumber('');
-    setNewExpiryDate(null);
+    
+    // Verwende die zentralisierte Funktion für die automatische Batch-Nummer
+    setNewBatchNumber(generateBatchNumber());
+    
+    // Verwende die zentralisierte Funktion für das Default-Ablaufdatum
+    const defaultExpiryDate = new Date(getDefaultExpiryDate());
+    setNewExpiryDate(defaultExpiryDate);
+    
     setNewBatchQuantity(null);
     setSplitQuantity(null);
     setSplitTargetBatchId(null);
@@ -990,14 +1002,6 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
           setTimeout(() => {
             setShowNewBatchForm(true);
             
-            // Automatisch ein Batch-Nummer und Datum vorschlagen
-            setNewBatchNumber(`INV-${id}-${new Date().toISOString().split('T')[0]}`);
-            
-            // MHD auf 6 Monate in der Zukunft setzen
-            const futureDate = new Date();
-            futureDate.setMonth(futureDate.getMonth() + 6);
-            setNewExpiryDate(futureDate);
-            
             // Standardmenge setzen
             setNewBatchQuantity(item.expectedQuantity || 1);
           }, 100);
@@ -1010,14 +1014,6 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         
         setTimeout(() => {
           setShowNewBatchForm(true);
-          
-          // Automatisch ein Batch-Nummer und Datum vorschlagen
-          setNewBatchNumber(`INV-${id}-${new Date().toISOString().split('T')[0]}`);
-          
-          // MHD auf 6 Monate in der Zukunft setzen
-          const futureDate = new Date();
-          futureDate.setMonth(futureDate.getMonth() + 6);
-          setNewExpiryDate(futureDate);
           
           // Standardmenge setzen
           setNewBatchQuantity(item.expectedQuantity || 1);
@@ -1114,262 +1110,154 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     );
   };
 
-  // Neuer, optimierter Batch-Update-Handler mit combined create & link Muster
-  // und vermeidet unnötige Cache-Invalidierungen
+  // Optimierter Batch-Update-Handler mit zentralisierter Funktion aus CreateAndLinkBatchHandler
   const handleBatchUpdate = async (batchId: number | null) => {
     if (!selectedItem) return;
     console.log("Batch-Update wird durchgeführt: Item ID =", selectedItem.id, "Batch ID =", batchId);
     
     try {
-      // 1) Wenn kein Batch ausgewählt wurde, erstelle automatisch einen neuen
+      // Aktuelle Scroll-Position speichern
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem('inventur_scroll_position', window.scrollY.toString());
+        console.log(`Scroll-Position vor Batch-Update gespeichert: ${window.scrollY}`);
+      }
+      
+      // 1) Wenn kein Batch ausgewählt wurde, erstelle automatisch einen neuen mit der zentralen Funktion
       if (batchId === null) {
-        console.log("Neue Charge wird automatisch angelegt");
+        console.log("Neue Charge wird automatisch mit optimierter Funktion angelegt");
         
-        // Automatische Batch-Nummer generieren - verbesserte Lesbarkeit
-        const now = new Date();
-        const dateString = now.toISOString().split('T')[0].replace(/-/g, '');
-        const timeString = `${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}${now.getSeconds().toString().padStart(2, '0')}`;
-        const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-        const autoBatchNumber = `CHG-${dateString}-${timeString}-${random}`;
+        // Verwende die zentralisierte Funktion für Batch-Nummer und Ablaufdatum
+        const autoBatchNumber = generateBatchNumber();
+        const expiryDateString = getDefaultExpiryDate();
         
-        // Automatisches Ablaufdatum (6 Monate)
-        const expiryDate = new Date();
-        expiryDate.setMonth(expiryDate.getMonth() + 6);
-        const expiryDateString = expiryDate.toISOString().split('T')[0];
-        
-        // Neue Charge am Server anlegen über den korrekten Endpoint
-        const url = `/api/inventory-counts/product-batches`; // Dieser Endpoint ist in server/routes/inventory-count-batches.ts definiert
-        console.log(`Verwende API-Endpunkt: ${url}`);
-        
-        const createRes = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            productId: selectedItem.productId,
+        try {
+          // Verwende die kombinierte Erstellungs- und Verknüpfungsfunktion
+          const newBatch = await createAndLinkBatch({
+            item: selectedItem,
             warehouseId: inventurData!.warehouseId,
+            inventoryId: id.toString(),
             batchNumber: autoBatchNumber,
             expiryDate: expiryDateString,
-            initialQuantity: selectedItem.countedQuantity || 1,
-            currentQuantity: selectedItem.countedQuantity || 1,
-            notes: `Auto-erstellt bei Inventur #${id}`
-          })
-        });
-        
-        if (!createRes.ok) {
-          const errorText = await createRes.text();
-          console.error(`Fehler bei Batch-Erstellung: ${createRes.status} - ${errorText}`);
+            quantity: selectedItem.countedQuantity || 1,
+            notes: `Auto-erstellt bei Inventur #${id}`,
+            queryClient,
+            toast,
+            onSuccess: (batch) => {
+              console.log("Neue Charge wurde erstellt und verknüpft:", batch);
+              
+              // Optimistisches UI-Update
+              const updatedItem = {
+                ...selectedItem,
+                batchId: batch.id,
+                batch: batch
+              };
+              
+              // Lokales State-Update für direkte UI-Reaktion
+              updateCountedItem(updatedItem);
+              
+              // Automatisch zur Liste der verfügbaren Batches hinzufügen
+              setAvailableBatches(prev => [...prev, batch]);
+              
+              // Dialog schließen
+              setShowBatchDialog(false);
+              setSelectedItem(null);
+            }
+          });
           
-          let errorData;
-          try {
-            errorData = JSON.parse(errorText);
-            throw new Error(errorData.details || errorData.error || `Serverfehler: ${createRes.status}`);
-          } catch (parseError) {
-            // Wenn JSON-Parse fehlschlägt, verwende den Rohtext
-            throw new Error(`Serverfehler (${createRes.status}): ${errorText.substring(0, 200)}`);
-          }
+          // Erfolgsmeldung
+          toast({
+            title: "Charge erstellt und zugewiesen",
+            description: `Die Charge ${autoBatchNumber} wurde automatisch erstellt und verknüpft.`,
+          });
+          
+        } catch (createError: any) {
+          console.error("Fehler bei der automatischen Chargenerstellung:", createError);
+          throw new Error(createError.message || "Die Charge konnte nicht automatisch erstellt werden");
         }
         
-        // Neue Batch-ID und -Informationen abrufen
-        const newBatch = await createRes.json() as ProductBatch;
-        console.log("Neue Charge wurde erstellt:", newBatch);
-        batchId = newBatch.id;
-        finalBatch = newBatch;
-        
-        // Automatisch zur Liste der verfügbaren Batches hinzufügen
-        setAvailableBatches(prev => [...prev, newBatch]);
-        
       } else {
-        // 2) Wenn ein Batch ausgewählt wurde, verwende diesen
+        // 2) Wenn ein vorhandener Batch ausgewählt wurde, nur Verknüpfung durchführen
         const existingBatch = availableBatches.find(b => b.id === batchId);
         if (!existingBatch) {
           throw new Error(`Batch mit ID ${batchId} nicht gefunden`);
         }
-        finalBatch = existingBatch;
-      }
-      
-      // Optimistisches UI-Update
-      const updatedItem = {
-        ...selectedItem,
-        batchId: batchId,
-        batch: finalBatch
-      };
-      
-      // Lokales State-Update für direkte UI-Reaktion
-      updateCountedItem(updatedItem);
-      
-      // Speichere aktuelle Scroll-Position
-      const prevScroll = window.scrollY;
-      
-      // Speichere die aktuelle Scrollposition für später
-      window.sessionStorage.setItem('inventur_scroll_position', prevScroll.toString());
-      
-      // KRITISCHER SCHRITT: API-Aufruf zum Verknüpfen des Batch mit dem Inventur-Item
-      // Dieser Schritt ruft direkt die PATCH-API auf, ohne auf die Mutation zu vertrauen
-      console.log("Starte manuelle PATCH-Anfrage zur Batch-Verknüpfung: Item ID =", selectedItem.id, "Batch ID =", batchId);
-      
-      console.log(`Versuche direkte PATCH-Anfrage an: /api/inventory-counts/items/${selectedItem.id}/batch`);
-      console.log(`Mit Daten: ${JSON.stringify({ batchId })}`);
-      
-      try {
-        // Der direkte PATCH-API-Aufruf muss immer passieren
-        // Versuchen wir es mit einem verbesserten Fehlerhandling
         
-        // Erstelle einen JSON-String für den Body
-        const jsonBody = JSON.stringify({ batchId: batchId });
-        console.log(`Request-Body als String: ${jsonBody}`);
+        // Optimistisches UI-Update
+        const updatedItem = {
+          ...selectedItem,
+          batchId: batchId,
+          batch: existingBatch
+        };
         
-        // Führe die PATCH-Anfrage aus mit detaillierten Debug-Informationen
-        console.log(`Sende PATCH an URL: /api/inventory-counts/items/${selectedItem.id}/batch`);
+        // Lokales State-Update für direkte UI-Reaktion
+        updateCountedItem(updatedItem);
         
-        // Verbessere Header für bessere Kompatibilität
-        const patchResponse = await fetch(`/api/inventory-counts/items/${selectedItem.id}/batch`, {
-          method: 'PATCH', 
-          headers: {
-            'Accept': 'application/json, text/plain, */*',
+        // Sende die Batch-Verknüpfung an den Server
+        console.log(`Sende Batch-Link: Item ${selectedItem.id} mit Batch ${batchId}`);
+        
+        const linkRes = await fetch(`/api/inventory-counts/items/${selectedItem.id}/batch`, {
+          method: 'PATCH',
+          headers: { 
             'Content-Type': 'application/json',
+            'Accept': 'application/json, text/plain, */*',
             'Cache-Control': 'no-cache',
             'Pragma': 'no-cache'
           },
-          body: jsonBody
+          body: JSON.stringify({ batchId }) // Server erwartet batchId als Parameter
         });
         
-        // Versuche erst, den Response als Text zu bekommen
-        let responseText;
-        try {
-          responseText = await patchResponse.text();
-          console.log(`PATCH-Response als Text: ${responseText}`);
-        } catch (textError) {
-          console.error("Fehler beim Lesen der Response als Text:", textError);
-          responseText = "Konnte Response nicht als Text lesen";
+        if (!linkRes.ok) {
+          const errorText = await linkRes.text();
+          console.error(`Fehler bei Batch-Verknüpfung: ${linkRes.status} - ${errorText}`);
+          throw new Error(`Fehler bei Verknüpfung: ${errorText}`);
         }
         
-        // Detaillierte Debug-Ausgabe des Response
-        console.log(`PATCH-Response Status: ${patchResponse.status} ${patchResponse.statusText}`);
-        console.log(`PATCH-Response Headers:`, Object.fromEntries([...patchResponse.headers.entries()]));
+        // Dialog schließen
+        setShowBatchDialog(false);
+        setSelectedItem(null);
         
-        // Prüfe den Response-Status
-        if (!patchResponse.ok) {
-          const errorMessage = `Fehler bei direktem PATCH: ${patchResponse.status} - ${responseText}`;
-          console.error(errorMessage);
-          
-          // Bei einem 404-Fehler vermuten wir, dass der Endpunkt falsch ist
-          if (patchResponse.status === 404) {
-            console.error("Endpunkt scheint nicht zu existieren. Überprüfe die Server-Route und URL.");
-          }
-          
-          throw new Error(errorMessage);
-        }
+        // Cache nach erfolgreicher Operation invalidieren ohne Scroll-Reset
+        invalidateInventoryCache(queryClient, id, selectedItem.productId);
         
         // Erfolgsmeldung
-        console.log("Direkte PATCH-Anfrage war erfolgreich!");
-      } catch (directPatchError) {
-        console.error("Detaillierter PATCH-Fehler:", directPatchError);
-        
-        // Trotz Fehler weitermachen und die Mutation versuchen
-        console.warn("Trotz PATCH-Fehler: Versuche alternative Aktualisierung über updateBatchMutation");
-        
         toast({
-          title: "Fehler bei der direkten Batch-Verknüpfung",
-          description: "Es wird ein alternativer Update-Mechanismus versucht.",
-          variant: "destructive"
+          title: "Charge zugewiesen",
+          description: "Die vorhandene Charge wurde erfolgreich mit dem Inventurposten verknüpft.",
         });
       }
       
-      // 3) Inventur-Item mit Batch verknüpfen - Mit detailliertem Logging für Debugging
-      console.log("Beginne Batch-Verknüpfung mit updateBatchMutation:", { 
-        itemId: selectedItem.id, 
-        batchId, 
-        finalBatch: finalBatch ? { id: finalBatch.id, batchNumber: finalBatch.batchNumber } : null
-      });
-      
-      // Die API-Route ist jetzt in updateBatchMutation korrekt gesetzt, muss hier nicht erneut definiert werden
-      updateBatchMutation.mutate(
-        { itemId: selectedItem.id, batchId },
-        {
-          onSuccess: (data) => {
-            console.log("Batch-Verknüpfung erfolgreich! Server-Antwort:", data);
-            
-            // Dialog schließen
-            setShowBatchDialog(false);
-            setSelectedItem(null);
-            
-            // Erfolgsmeldung
-            toast({
-              title: batchId === null ? "Charge erstellt" : "Charge verknüpft",
-              description: batchId === null 
-                ? "Eine neue Charge wurde automatisch erstellt und mit dem Artikel verknüpft."
-                : "Die Charge wurde erfolgreich mit dem Artikel verknüpft.",
+      // Stelle die Scroll-Position wieder her
+      setTimeout(() => {
+        if (typeof window !== 'undefined') {
+          const savedPos = window.sessionStorage.getItem('inventur_scroll_position');
+          if (savedPos) {
+            console.log(`Stelle Scroll-Position wieder her: ${savedPos}`);
+            window.scrollTo({
+              top: parseInt(savedPos, 10),
+              behavior: 'auto'
             });
-            
-            // Importiere die invalidateInventoryCache-Funktion am Anfang der Komponente
-            // und benutze sie hier direkt
-            
-            // Optimistisches Update für einen flüssigeren UI-Übergang
-            queryClient.setQueryData(
-              [`/api/inventory-counts/${id}/items`],
-              (old?: InventoryCountItem[]) => {
-                if (!old) return old;
-                console.log("Optimistisches Update im Cache für Inventur-Items");
-                return old.map(item =>
-                  item.id === selectedItem.id
-                    ? { 
-                        ...item, 
-                        batchId: batchId,
-                        batch: finalBatch
-                      }
-                    : item
-                );
-              }
-            );
-            
-            // Nach kurzem Delay vollständig invalidieren, um UI aktuell zu halten
-            // ohne sofortigen neuen Fetch auszulösen
-            setTimeout(() => {
-              console.log("Verzögerte vollständige Cache-Invalidierung für Inventur", id);
-              
-              // Die überarbeiteten React Query Defaults sorgen dafür, dass die Seite nicht springt
-              // und die alten Daten angezeigt werden, bis die neuen verfügbar sind
-              import('../lib/invalidateInventoryCache').then(module => {
-                module.invalidateInventoryCache(
-                  queryClient, 
-                  id, 
-                  selectedItem.productId
-                );
-              });
-            }, 300);
-
-            // Stelle Scroll-Position nach kurzer Verzögerung wieder her
-            setTimeout(() => {
-              const savedPosition = window.sessionStorage.getItem('inventur_scroll_position');
-              if (savedPosition) {
-                window.scrollTo(0, parseInt(savedPosition));
-              }
-            }, 100);
-          },
-          onError: (error) => {
-            console.error('Fehler beim Verknüpfen der Charge:', error);
-            toast({
-              title: "Fehler",
-              description: "Die Charge konnte nicht verknüpft werden.",
-              variant: "destructive",
-            });
-            
-            // Auch bei Fehler die Scroll-Position wiederherstellen
-            const savedPosition = window.sessionStorage.getItem('inventur_scroll_position');
-            if (savedPosition) {
-              window.scrollTo(0, parseInt(savedPosition));
-            }
           }
         }
-      );
+      }, 50);
       
-    } catch (error) {
-      console.error('Fehler bei der Batch-Aktualisierung:', error);
+    } catch (error: any) {
+      console.error("Fehler beim Batch-Update:", error);
+      
       toast({
         title: "Fehler",
-        description: "Die Charge konnte nicht erstellt oder verknüpft werden.",
+        description: error.message || "Die Charge konnte nicht verknüpft werden.",
         variant: "destructive",
       });
+      
+      // Stelle die Scroll-Position auch bei Fehler wieder her
+      setTimeout(() => {
+        if (typeof window !== 'undefined') {
+          const savedPos = window.sessionStorage.getItem('inventur_scroll_position');
+          if (savedPos) {
+            window.scrollTo(0, parseInt(savedPos, 10));
+          }
+        }
+      }, 50);
     }
   };
   
