@@ -790,8 +790,14 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   // Mutation zum Aktualisieren des Batch für ein Inventurelement (mit optimistischem Update und Scroll-Erhaltung)
   const updateBatchMutation = useMutation({
     mutationFn: async (data: { itemId: number; batchId: number | null }) => {
-      // KORRIGIERT: Verwenden des richtigen API-Endpunkts für Batch-Aktualisierungen
-      const response = await fetch(`/api/inventory-count-items/${data.itemId}`, {
+      // KORRIGIERT: Verwenden des korrekten API-Endpunkts für Batch-Aktualisierungen basierend auf der Server-Route
+      console.log("Batch-Update wird durchgeführt: Item ID =", data.itemId, "Batch ID =", data.batchId);
+      
+      // Der korrekte Endpunkt entsprechend der Server-Route in routes.ts
+      const apiEndpoint = `/api/inventory-counts/items/${data.itemId}/batch`;
+      console.log("Verwende API-Endpunkt:", apiEndpoint);
+      
+      const response = await fetch(apiEndpoint, {
         method: 'PATCH', // Korrekte Methode für Aktualisierungen
         headers: {
           'Content-Type': 'application/json',
