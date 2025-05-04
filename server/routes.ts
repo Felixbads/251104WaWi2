@@ -2727,17 +2727,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/warehouse-movements`, warehouseMovementsRouter);
   app.use(`${API_PREFIX}/warehouses`, warehousesRouter); // Neue Route für /api/warehouses
   
-  // Direkte Route für die Batch-Verknüpfung hinzufügen, um Client-Anfragen korrekt zu verarbeiten
+  // Direkte Route für die Batch-Verknüpfung hinzufügen - mit ausführlicher Debug-Ausgabe
   app.patch(`${API_PREFIX}/inventory-counts/items/:itemId/batch`, async (req: Request, res: Response) => {
     try {
       const itemId = parseInt(req.params.itemId);
       const { batchId } = req.body;
       
-      console.log(`Direkte Route: PATCH /api/inventory-counts/items/${itemId}/batch`, { batchId });
+      // Ausführlicher Debug-Log
+      console.log(`[DEBUG] PATCH /api/inventory-counts/items/${itemId}/batch:`, { 
+        itemId, 
+        batchId, 
+        body: req.body,
+        path: req.path,
+        url: req.url,
+        ip: req.ip,
+        method: req.method
+      });
       
       if (!itemId) {
+        console.log(`[ERROR] Ungültige Item-ID: ${itemId}`);
         return res.status(400).json({ error: "Inventory Count Item ID is required" });
       }
+      
+      // Überprüfe, ob das Item existiert, bevor ein Update versucht wird
+      const checkResult = await rawDb.query(
+        `SELECT * FROM inventory_count_items WHERE id = $1`,
+        [itemId]
+      );
+      
+      if (!checkResult.rows || checkResult.rows.length === 0) {
+        console.log(`[ERROR] Item mit ID ${itemId} existiert nicht`);
+        return res.status(404).json({ error: "Inventory Count Item not found" });
+      }
+      
+      console.log(`[DEBUG] Item gefunden:`, checkResult.rows[0]);
       
       // Aktualisiere das Inventurzählungselement mit der Batch-ID
       const result = await rawDb.query(
@@ -2748,9 +2771,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         [batchId, itemId]
       );
       
+      // Verifiziere das Update-Ergebnis
+      console.log(`[DEBUG] UPDATE-Ergebnis:`, result.rows);
+      
       if (!result.rows || result.rows.length === 0) {
-        console.error(`Item nicht gefunden: ${itemId}`);
-        return res.status(404).json({ error: "Inventory Count Item not found" });
+        console.error(`[ERROR] Item konnte nicht aktualisiert werden: ${itemId}`);
+        return res.status(500).json({ error: "Failed to update inventory count item" });
       }
       
       // Hole das aktualisierte Item mit Batch-Informationen
@@ -2763,15 +2789,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
           [batchId]
         );
         
+        console.log(`[DEBUG] Batch-Daten:`, batchResult.rows);
+        
         if (batchResult.rows && batchResult.rows.length > 0) {
           updatedItem.batch = batchResult.rows[0];
         }
       }
       
-      console.log("Batch erfolgreich mit Item verknüpft:", updatedItem);
+      console.log("[SUCCESS] Batch erfolgreich mit Item verknüpft:", { 
+        item_id: updatedItem.id,
+        batch_id: updatedItem.batch_id,
+        product_id: updatedItem.product_id
+      });
+      
+      // Erfolgsantwort senden
       res.status(200).json(updatedItem);
     } catch (error) {
-      console.error("Fehler beim Aktualisieren der Batch-ID:", error);
+      console.error("[ERROR] Fehler beim Aktualisieren der Batch-ID:", error);
       res.status(500).json({ 
         error: "Failed to update batch ID", 
         details: error instanceof Error ? error.message : String(error)
