@@ -1219,6 +1219,37 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       // Speichere die aktuelle Scrollposition für später
       window.sessionStorage.setItem('inventur_scroll_position', prevScroll.toString());
       
+      // KRITISCHER SCHRITT: API-Aufruf zum Verknüpfen des Batch mit dem Inventur-Item
+      // Dieser Schritt ruft direkt die PATCH-API auf, ohne auf die Mutation zu vertrauen
+      console.log("Starte manuelle PATCH-Anfrage zur Batch-Verknüpfung: Item ID =", selectedItem.id, "Batch ID =", batchId);
+      
+      try {
+        // Der direkte PATCH-API-Aufruf muss immer passieren
+        const patchResponse = await fetch(`/api/inventory-counts/items/${selectedItem.id}/batch`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache'
+          },
+          body: JSON.stringify({ batchId: batchId }),
+        });
+        
+        const responseText = await patchResponse.text();
+        console.log(`Direkte PATCH-Antwort: Status=${patchResponse.status}, Body=${responseText}`);
+        
+        if (!patchResponse.ok) {
+          console.error(`Fehler bei direktem PATCH: ${patchResponse.status} - ${responseText}`);
+          throw new Error(`Fehler bei direktem PATCH: ${patchResponse.status} - ${responseText}`);
+        }
+      } catch (directPatchError) {
+        console.error("Fehler bei direktem PATCH:", directPatchError);
+        toast({
+          title: "Fehler bei der Batch-Verknüpfung",
+          description: "Der Fehler wurde protokolliert. Bitte versuchen Sie es erneut.",
+          variant: "destructive"
+        });
+      }
+      
       // 3) Inventur-Item mit Batch verknüpfen - Mit detailliertem Logging für Debugging
       console.log("Beginne Batch-Verknüpfung mit updateBatchMutation:", { 
         itemId: selectedItem.id, 

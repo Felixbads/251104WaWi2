@@ -1,0 +1,80 @@
+POST /api/inventory-counts/product-batches request: {
+  "productId": 117,
+  "warehouseId": 4,
+  "batchNumber": "CHG-20250504-213240-442",
+  "expiryDate": "2025-05-21",
+  "initialQuantity": 99,
+  "currentQuantity": 99,
+  "receivedDate": "2025-05-04"
+}
+expiryDate type: string value: 2025-05-21
+receivedDate type: string value: 2025-05-04
+locationInWarehouse type: undefined value: undefined
+Parsed expiry date: 2025-05-21T00:00:00.000Z Valid: true
+SQL-Anfrage ausführen: SELECT * FROM products WHERE id = $1
+Produkt 382185 (Provianter Linseneintopf ([Vegan] Krippen)) aktualisiert
+Synchronisiere Produkt mit Vendon ID 382187: Pasta Lucia  Tomatensauce (Wehlen)
+Produkt 382187 (Pasta Lucia  Tomatensauce (Wehlen)) aktualisiert
+Synchronisiere Produkt mit Vendon ID 382188: Pasta Lucia Tomatenpesto (Wehlen)
+Produkt 382188 (Pasta Lucia Tomatenpesto (Wehlen)) aktualisiert
+Synchronisiere Produkt mit Vendon ID 382189: Nudossi (Radebeul)
+Product found: Bad Schandau'er Leberwurst (Fleischerei Dünnebier)
+SQL-Anfrage ausführen: SELECT * FROM warehouses WHERE id = $1
+7:34:06 PM [express] GET /api/warehouses/4 304 in 884ms :: {"id":4,"name":"Stolpen","description":""…
+Warehouse found: Stolpen
+SQL-Anfrage ausführen: SELECT column_name 
+         FROM information_schema.columns 
+         WHERE table_name = 'product_batches'
+Produkt 382189 (Nudossi (Radebeul)) aktualisiert
+Synchronisiere Produkt mit Vendon ID 382193: Privat Pils Meissner Schwerter (Meißen)
+Verfügbare Spalten in product_batches: [
+  'updated_at',            'product_id',
+  'warehouse_id',          'order_id',
+  'supplier_id',           'created_by',
+  'created_at',            'id',
+  'initial_quantity',      'current_quantity',
+  'received_date',         'manufacturing_date',
+  'expiry_date',           'batch_number',
+  'supplier_batch_number', 'notes',
+  'status',                'location_in_warehouse'
+]
+Received Date vorhanden: true
+Location vorhanden: true
+Finaler Initial Quantity-Wert: 99 Finaler Current Quantity-Wert: 99
+SQL-Abfrage zum Erstellen der Charge:
+SQL Columns: product_id, warehouse_id, batch_number, expiry_date, received_date, location_in_warehouse, manufacturing_date, initial_quantity, current_quantity, notes, status, created_at, updated_at
+SQL Values: $1, $2, $3, $4, $5, $6, NULL, $7, $8, $9, $10, NOW(), NOW()
+Values Array: [
+  117,
+  4,
+  'CHG-20250504-213240-442',
+  '2025-05-21',
+  '2025-05-04',
+  null,
+  99,
+  99,
+  undefined,
+  'active'
+]
+SQL-Anfrage ausführen: INSERT INTO product_batches (product_id, warehouse_id, batch_number, expiry_date, received_date, location_in_warehouse, manufacturing_date, initial_quantity, current_quantity, notes, status, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, NULL, $7, $8, $9, $10, NOW(), NOW())
+         RETURNING *
+SQL-Anfrage ausführen: SELECT * FROM inventory_items 
+         WHERE product_id = $1 AND warehouse_id = $2
+Produkt 382193 (Privat Pils Meissner Schwerter (Meißen)) aktualisiert
+Synchronisiere Produkt mit Vendon ID 382195: Pirnaer Stadtbier (Destillerie Pirna)
+SQL-Anfrage ausführen: SELECT SUM(current_quantity) as total_quantity 
+           FROM product_batches 
+           WHERE product_id = $1 
+           AND warehouse_id = $2 
+           AND status = 'active'
+SQL-Anfrage ausführen: UPDATE inventory_items 
+           SET quantity = $1, 
+               updated_at = NOW() 
+           WHERE product_id = $2 AND warehouse_id = $3
+Produkt 382195 (Pirnaer Stadtbier (Destillerie Pirna)) aktualisiert
+Synchronisiere Produkt mit Vendon ID 382196: Heide's Sprizz Apfel Salbeiblüten ([natursüß] Großschirma)
+Inventarbestand für Produkt 117 im Lager 4 auf 99 aktualisiert
+Batch successfully created: 282
+7:34:07 PM [express] POST /api/inventory-counts/product-batches 201 in 2265ms :: {"id":282,"productI…
+7:34:07 PM [express] GET /api/inventory-counts/2 304 in 2890ms :: {"id":2,"warehouseId":4,"status":"…
