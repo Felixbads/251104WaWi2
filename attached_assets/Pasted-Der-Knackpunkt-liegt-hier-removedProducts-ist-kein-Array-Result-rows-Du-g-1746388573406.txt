@@ -1,0 +1,63 @@
+Der Knackpunkt liegt hier:
+
+removedProducts ist kein Array: Result { … rows: [ { … }, … ], … }
+
+Du gibst in deinem Endpoint offenbar direkt das rohe Result-Objekt von pg zurück, statt nur dessen rows. Deshalb ist removedProducts auf der Client-Seite kein Array, und dein Code, der darauf mit Array-Methoden (z. B. map, filter) arbeiten will, schlägt fehl.
+
+⸻
+
+So löst du das
+	1.	Server-Code anpassen
+Im Handler für /api/removed-products musst du nach dem Query nur die tatsächlich zurück­gegebenen Zeilen serialisieren:
+
+// falsch:
+const removedProducts = await db.query('SELECT … FROM removed_products …');
+res.json({ products: removedProducts, analytics });
+
+// richtig:
+const result = await db.query('SELECT … FROM removed_products …');
+const removedProducts = result.rows;           // ← hier nur die rows
+res.json({
+  products: removedProducts,                   // jetzt ein Array
+  analytics,                                   
+});
+
+
+	2.	Client-Seite prüfen
+Stelle sicher, dass du beim Fetchen nicht nochmal versehentlich das Result-Objekt erwartest:
+
+// wenn du hier result statt rows benutzt, bekommst du das pg-Objekt
+const data = await fetch('/api/removed-products').then(r => r.json());
+// richtig:
+const { products, analytics } = data;           // products ist jetzt ein Array
+
+
+	3.	TypeScript-Typen justieren
+Falls du mit TS arbeitest, definiere das Shape so, dass products: RemovedProduct[] ist:
+
+interface RemovedProduct {
+  id: number;
+  refillId: number;
+  productName: string;
+  removed: number;
+  datetime: string;
+  machineId: number;
+  machineName: string;
+}
+interface RemovedProductsResponse {
+  products: RemovedProduct[];
+  analytics: Analytics;
+}
+
+Dann wird dir der Compiler schon melden, wenn du rows vergisst.
+
+⸻
+
+Warum das so wichtig ist
+	•	Das Result-Objekt von pg enthält neben rows noch Metadaten (z. B. rowCount, fields etc.).
+	•	Wenn du es unverändert in res.json() gibst, bekommt dein Frontend diese ganze Struktur und nicht das reine Daten-Array.
+	•	Array-Methoden wie map, filter oder Spread ([...removedProducts]) greifen dann ins Leere bzw. werfen einen Laufzeitfehler.
+
+⸻
+
+Kurz: Pack im Server-Handler nur result.rows in deine JSON-Antwort, und dein Client hat wieder ein echtes Array. Dann verschwindet die Fehlermeldung „removedProducts ist kein Array“ sofort.

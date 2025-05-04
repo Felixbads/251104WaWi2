@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
+import { invalidateInventoryCache } from '../../../lib/invalidateInventoryCache';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -147,14 +148,25 @@ export default function InventoryCountBatchDialog({
     onSuccess: (data) => {
       console.log("Verknüpfung erfolgreich:", data);
       
-      // Cache invalidieren nach erfolgreicher Verknüpfung
-      queryClient.invalidateQueries({ 
-        queryKey: [`/api/inventory-counts/${inventoryId}/items`]
+      // Cache invalidieren nach erfolgreicher Verknüpfung mit neuem Cache-Helper
+      import('../../../lib/invalidateInventoryCache').then(({ invalidateInventoryCache }) => {
+        invalidateInventoryCache(
+          queryClient, 
+          inventoryId, 
+          selectedItem?.productId
+        );
+      }).catch(err => {
+        console.error("Cache-Helper konnte nicht geladen werden:", err);
+        
+        // Fallback: direktes Invalidieren
+        queryClient.invalidateQueries({ 
+          queryKey: [`/api/inventory-counts/${inventoryId}/items`]
+        });
       });
       
       // Erfolgsmeldung anzeigen
       toast({
-        title: "Verknüpfung erfolgreich",
+        title: "Charge verknüpft",
         description: "Die Charge wurde erfolgreich mit dem Inventurposten verknüpft."
       });
       

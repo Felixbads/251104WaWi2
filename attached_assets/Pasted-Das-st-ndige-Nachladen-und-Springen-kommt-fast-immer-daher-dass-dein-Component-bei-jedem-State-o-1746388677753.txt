@@ -1,0 +1,75 @@
+Das ständige Nachladen und „Springen“ kommt fast immer daher, dass dein Component bei jedem State- oder Daten-Update seinen Fetch/Refetch bzw. einen Router-Push/Replace anstößt. Ein typischer Loop könnte so aussehen:
+
+useEffect(() => {
+  // ❌ ohne Dependency-Array feuert das bei **jeder** Render-Phase
+  fetchItems();
+});
+
+oder
+
+// ❌ Du invalidierst Queries in einem Effect, der selbst wieder bei jedem Fetch feuert:
+useEffect(() => {
+  queryClient.invalidateQueries(['inventory-count-items', inventoryCountId]);
+}, [data]);
+
+1. useEffect richtig einschränken
+	•	Nur einmal beim Mount:
+
+useEffect(() => {
+  fetchItems();
+}, []); // ← leeres Array, läuft nur 1×
+
+
+	•	Oder nur bei wirklich relevanten Abhängigkeiten:
+
+useEffect(() => {
+  if (someFlag) {
+    fetchItems();
+  }
+}, [someFlag]); 
+
+
+
+2. Query-Invalidation ins Mutation-Callback
+
+Statt Refetch/Invalidate in einem Effect, koppel es an den Erfolg deiner Mutationen:
+
+const createLink = useMutation(createBatch, {
+  onSuccess: () => {
+    queryClient.invalidateQueries(['inventory-count-items', inventoryCountId]);
+  }
+});
+
+So wird nur dann neu geladen, wenn wirklich eine neue Batch angelegt oder verknüpft wurde.
+
+3. React Query Optionen nutzen
+
+Vermeide unnötige Refetches, indem du deine useQuery konfigurierst:
+
+const { data, isFetching } = useQuery(
+  ['inventory-count-items', inventoryCountId],
+  fetchItems,
+  {
+    staleTime: 1000 * 60,          // Daten 1 Minute als „frisch“ betrachten
+    refetchOnWindowFocus: false,   // kein Refetch bei Tab-Wechsel
+    keepPreviousData: true         // hält Alt-Daten beim Refetch, verhindert Jump
+  }
+);
+
+4. Router-Aufrufe sparsam einsetzen
+
+Falls du nach dem Speichern router.replace(...) nutzt, um den Pfad oder Query-String zu aktualisieren, gib immer { scroll: false } mit:
+
+router.replace(router.asPath, undefined, { scroll: false });
+
+Und rufe es nur bei echten Änderungen auf (z. B. in onSuccess), nicht on every render.
+
+⸻
+
+Zusammenfassung
+	1.	Effekte drosseln: Immer ein Dependency-Array nutzen.
+	2.	Invalidate im Callback: Refetch nur nach Mutationserfolg.
+	3.	React Query-Flags: staleTime, refetchOnWindowFocus: false, keepPreviousData: true.
+	4.	Router ersetzen: nur bei Bedarf und mit scroll: false.
+
+Mit diesen Änderungen lädst du nur dann neu, wenn es wirklich nötig ist – und die Seite bleibt statisch, ohne nerviges Springen.
