@@ -1,0 +1,63 @@
+Hier die konkrete Fehlerursache und wie ihr sie behebt:
+
+Fehleranalyse (Log-Timeline)
+	•	7:46:08 → PATCH auf /api/inventory-count-items/160 (200 OK), bevor eine neue Charge existiert
+	•	7:46:14–22 → POST an /api/inventory-counts/product-batches (201 Created) zum Anlegen der Charge
+	•	Danach kein weiterer PATCH – es wird also nie die gerade erstellte Charge-ID mit dem Inventory-Item verknüpft
+	•	Die abschließende Abfrage auf /api/inventory-counts/2/items liefert einen 304 (Not Modified), weil nach dem POST keine Änderung getriggert oder der Cache invalidiert wurde
+
+Warum das passiert
+Euer Frontend feuert die beiden Mutationen in der falschen Reihenfolge bzw. ohne sauberes await/onSuccess-Chaining ab. Dadurch:
+	1.	Update (PATCH) läuft zuerst – mit einer noch nicht existierenden (bzw. undefined) Batch-ID
+	2.	Create (POST) folgt zu spät
+	3.	Es wird anschließend kein zweiter PATCH ausgeführt, um das Item mit der frisch erstellten Charge zu verknüpfen
+	4.	Eure Queries werden nach dem POST nicht invalidiert, daher bleibt im UI der alte Zustand stehen
+
+⸻
+
+So löst ihr es
+	1.	Erst Charge anlegen, dann verknüpfen
+Verwendet mutateAsync oder das onSuccess-Callback, um die Operationen strikt hintereinander auszuführen:
+
+const handleCreateAndLink = async () => {
+  try {
+    // 1. Charge anlegen
+    const newBatch = await createBatchMutation.mutateAsync({
+      productId,
+      warehouseId,
+      batchNumber,
+      expiryDate,
+      initialQuantity,
+      currentQuantity,
+      receivedDate,
+    });
+    // 2. Inventory-Item mit neuer batchId patchen
+    await updateBatchMutation.mutateAsync({
+      itemId: selectedItem.id,
+      batchId: newBatch.id,      // <- hier kommt jetzt die echte ID rein
+    });
+    // 3. Query-Cache invalidieren, damit UI frisch lädt
+    queryClient.invalidateQueries(['inventory-count-items', inventoryCountId]);
+    queryClient.invalidateQueries(['product', productId, 'batches']);
+    toast({ title: 'Erfolg', description: 'Charge verknüpft.' });
+  } catch (err) {
+    console.error('Batch-Link-Error:', err);
+    toast({
+      title: 'Fehler',
+      description: err.message,
+      variant: 'destructive',
+    });
+  }
+};
+
+
+	2.	Payload-Keys prüfen
+Stimmt batchId im Frontend mit dem erwarteten Key im Backend überein? Manche Endpoints erwarten batch_id statt batchId. Loggt im Fehlerfall kurz den Request-Body (und die Response), um zu sehen, was wirklich geschickt wird.
+	3.	Cache-Invalidation
+Eure useQuery('/api/inventory-counts/:id/items') zieht beim POST standardmäßig nicht neu – daher nach beiden Mutationen invalidateQueries oder refetchQueries aufrufen, sonst seht ihr weiterhin die alte Liste.
+	4.	Network-Tab beobachten
+Nach dem POST muss unmittelbar ein weiterer PATCH folgen, den ihr im Devtools-Network sehen könnt. Fehlt der, habt ihr das Chaining nicht korrekt eingerichtet.
+
+⸻
+
+Kurz: Der PATCH zur Verknüpfung läuft aktuell vor dem POST zum Anlegen. Dreht die Reihenfolge um und wartet auf das Ergebnis des Create-Calls, bevor ihr das Inventory-Item updated. Dann ist Batch-ID, DB und UI wieder synchron.

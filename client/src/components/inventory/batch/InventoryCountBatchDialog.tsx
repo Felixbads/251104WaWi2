@@ -121,6 +121,83 @@ export default function InventoryCountBatchDialog({
     return format(new Date(dateStr), 'dd.MM.yyyy');
   };
 
+  // Mutation zum Verknüpfen einer Charge mit einem Inventurposten
+  const linkBatchMutation = useMutation({
+    mutationFn: async ({ itemId, batchId }: { itemId: number, batchId: number }) => {
+      console.log(`Verknüpfe Inventurposten ${itemId} mit Charge ${batchId}...`);
+      
+      const apiEndpoint = `/api/inventory-count-items/${itemId}`;
+      const response = await fetch(apiEndpoint, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
+        },
+        body: JSON.stringify({ batchId }),
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Fehler beim Verknüpfen: ${response.status} - ${errorText}`);
+        throw new Error(`Verknüpfung fehlgeschlagen: ${response.status} - ${errorText}`);
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      console.log("Verknüpfung erfolgreich:", data);
+      
+      // Cache invalidieren nach erfolgreicher Verknüpfung
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/inventory-counts/${inventoryId}/items`]
+      });
+      
+      // Erfolgsmeldung anzeigen
+      toast({
+        title: "Verknüpfung erfolgreich",
+        description: "Die Charge wurde erfolgreich mit dem Inventurposten verknüpft."
+      });
+      
+      // Dialog schließen
+      setShowSuccess(true);
+      setTimeout(() => {
+        setShowSuccess(false);
+        onOpenChange(false);
+        
+        // Stelle die Scroll-Position wieder her
+        setTimeout(() => {
+          if (typeof window !== 'undefined') {
+            const savedPos = window.sessionStorage.getItem('inventur_scroll_position');
+            if (savedPos) {
+              window.scrollTo(0, parseInt(savedPos, 10));
+            }
+          }
+        }, 50);
+      }, 1500);
+    },
+    onError: (error) => {
+      console.error("Fehler bei der Batch-Verknüpfung:", error);
+      
+      toast({
+        title: "Fehler bei der Verknüpfung",
+        description: "Die Charge wurde erstellt, konnte aber nicht mit dem Inventurposten verknüpft werden.",
+        variant: "destructive"
+      });
+      
+      // Dialog trotz Fehler schließen, da Charge erstellt wurde
+      setShowSuccess(false);
+      onOpenChange(false);
+      
+      // Stelle die Scroll-Position wieder her
+      if (typeof window !== 'undefined') {
+        const savedPos = window.sessionStorage.getItem('inventur_scroll_position');
+        if (savedPos) {
+          window.scrollTo(0, parseInt(savedPos, 10));
+        }
+      }
+    }
+  });
+
   // Mutation zum Erstellen einer neuen Charge
   const createBatchMutation = useMutation({
     mutationFn: async (batchData: any) => {
@@ -203,38 +280,41 @@ export default function InventoryCountBatchDialog({
       console.log("Charge erfolgreich erstellt:", data);
       
       // Batch-ID aktualisieren
-      if (data && data.id) {
-        // Setzte eine kurze Verzögerung, damit Backend-Updates abgeschlossen werden können
+      if (data && data.id && selectedItem) {
+        console.log(`SEQUENZIELLE AUFRUFKETTE: Charge ${data.id} erstellt, verknüpfe jetzt mit Item ${selectedItem.id}`);
+        
+        // WICHTIG: Führe erst jetzt die Verknüpfungs-Mutation aus
+        // Dadurch wird sichergestellt, dass die korrekte Reihenfolge eingehalten wird
+        linkBatchMutation.mutate({
+          itemId: selectedItem.id,
+          batchId: data.id
+        });
+        
+        // Update lokalen State direkt
+        onBatchSelect(data.id);
+      } else {
+        console.error("Erstellte Charge hat keine ID oder kein Item ausgewählt!");
+        
+        // Minimale Erfolgsmeldung ohne Verknüpfung
+        toast({
+          title: "Charge erstellt",
+          description: "Die Charge wurde erstellt, aber nicht verknüpft (fehlende ID).",
+          variant: "default"
+        });
+        
+        setShowSuccess(true);
         setTimeout(() => {
-          console.log("Aktualisiere Batch-ID auf:", data.id);
-          onBatchSelect(data.id);
+          setShowSuccess(false);
+          onOpenChange(false);
           
-          // Cache invalidieren - sowohl Items als auch Batches
-          queryClient.invalidateQueries({ 
-            queryKey: [`/api/inventory-counts/${inventoryId}/items`]
-          });
-          
-          queryClient.invalidateQueries({ 
-            queryKey: [`/api/inventory-counts/${inventoryId}/product-batches/${selectedItem?.productId}`]
-          });
-          
-          // Erfolgsmeldung anzeigen
-          setShowSuccess(true);
+          // Stelle Scroll-Position wieder her
           setTimeout(() => {
-            setShowSuccess(false);
-            onOpenChange(false);
-            
-            // Stelle die Scroll-Position wieder her
-            setTimeout(() => {
-              if (typeof window !== 'undefined') {
-                const savedPos = window.sessionStorage.getItem('inventur_scroll_position');
-                if (savedPos) {
-                  window.scrollTo(0, parseInt(savedPos, 10));
-                }
-              }
-            }, 50);
-          }, 1500);
-        }, 300);
+            const savedPos = window.sessionStorage.getItem('inventur_scroll_position');
+            if (savedPos) {
+              window.scrollTo(0, parseInt(savedPos, 10));
+            }
+          }, 50);
+        }, 1500);
       }
     },
     onError: (error: any) => {
