@@ -1197,12 +1197,20 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       // Speichere die aktuelle Scrollposition für später
       window.sessionStorage.setItem('inventur_scroll_position', prevScroll.toString());
       
-      // 3) Inventur-Item mit Batch verknüpfen - Optimierte Version ohne onMutate-Callback
-      // Dies behebt TypeScript-Fehler und potenzielle Scrollprobleme
+      // 3) Inventur-Item mit Batch verknüpfen - Mit detailliertem Logging für Debugging
+      console.log("Beginne Batch-Verknüpfung mit updateBatchMutation:", { 
+        itemId: selectedItem.id, 
+        batchId, 
+        finalBatch: finalBatch ? { id: finalBatch.id, batchNumber: finalBatch.batchNumber } : null
+      });
+      
+      // Die API-Route ist jetzt in updateBatchMutation korrekt gesetzt, muss hier nicht erneut definiert werden
       updateBatchMutation.mutate(
         { itemId: selectedItem.id, batchId },
         {
-          onSuccess: () => {
+          onSuccess: (data) => {
+            console.log("Batch-Verknüpfung erfolgreich! Server-Antwort:", data);
+            
             // Dialog schließen
             setShowBatchDialog(false);
             setSelectedItem(null);
@@ -1220,6 +1228,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
               [`/api/inventory-counts/${id}/items`],
               (old?: InventoryCountItem[]) => {
                 if (!old) return old;
+                console.log("Aktualisiere lokalen Cache für Inventur-Items");
                 return old.map(item =>
                   item.id === selectedItem.id
                     ? { 
