@@ -1140,8 +1140,13 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       if (batchId === null) {
         console.log("Neue Charge wird automatisch angelegt");
         
-        // Automatische Batch-Nummer generieren
-        const autoBatchNumber = `INV-${selectedItem.productId}-${Date.now()}`;
+        // Automatische Batch-Nummer generieren - verbesserte Lesbarkeit
+        // Verwende CHG-Datum-Zeit-Random für bessere Lesbarkeit
+        const now = new Date();
+        const dateString = now.toISOString().split('T')[0].replace(/-/g, '');
+        const timeString = `${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}${now.getSeconds().toString().padStart(2, '0')}`;
+        const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+        const autoBatchNumber = `CHG-${dateString}-${timeString}-${random}`;
         
         // Automatisches Ablaufdatum (6 Monate)
         const expiryDate = new Date();
