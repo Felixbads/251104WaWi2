@@ -1416,7 +1416,15 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         
         try {
           // KORRIGIERTER API-ENDPUNKT: Verwende den richtigen Endpunkt für Batch-Verknüpfungen
-          const linkResponse = await fetch(`/api/inventory-counts/items/${selectedItem.id}/batch`, {
+          console.log(`Batch-Update wird durchgeführt: Item ID = ${selectedItem.id}, Batch ID = ${newBatch.id}`);
+          
+          // Debugausgabe für den API-Endpunkt
+          // WICHTIG: Die Server-Router-Konfiguration verwendet einen anderen Pfad als das Frontend 
+          // Die Route ist als /api/inventory-counts (Basis) + /items/:itemId/batch (im Router) registriert
+          const apiEndpoint = `/api/inventory-counts/items/${selectedItem.id}/batch`;
+          console.log("API-Endpunkt:", apiEndpoint);
+          
+          const linkResponse = await fetch(apiEndpoint, {
             method: 'PATCH', 
             headers: {
               'Content-Type': 'application/json',
@@ -1427,10 +1435,16 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
             }),
           });
           
+          // Detaillierte Fehlerbehandlung für Debugging
           if (!linkResponse.ok) {
             const errorText = await linkResponse.text();
             console.error(`Fehler beim Verknüpfen: ${linkResponse.status} - ${errorText}`);
-            throw new Error(`Verknüpfung fehlgeschlagen: ${linkResponse.status}`);
+            console.error("Vollständige Anfrage:", {
+              url: apiEndpoint,
+              method: 'PATCH',
+              body: { batchId: newBatch.id }
+            });
+            throw new Error(`Verknüpfung fehlgeschlagen: ${linkResponse.status} - ${errorText}`);
           }
           
           const linkResult = await linkResponse.json();
