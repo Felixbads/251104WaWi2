@@ -127,14 +127,23 @@ export default function InventoryCountBatchDialog({
     mutationFn: async ({ itemId, batchId }: { itemId: number, batchId: number }) => {
       console.log(`Verknüpfe Inventurposten ${itemId} mit Charge ${batchId}...`);
       
-      const apiEndpoint = `/api/inventory-count-items/${itemId}`;
+      // Verwende den korrekten API-Endpunkt, der vom Server zur Verfügung gestellt wird
+      const apiEndpoint = `/api/inventory-counts/items/${itemId}/batch`;
+      console.log(`FETCH: ${apiEndpoint} mit Daten: { batchId: ${batchId} }`);
+      
+      // Speichere die aktuelle Scroll-Position
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem('inventur_scroll_position', window.scrollY.toString());
+      }
+      
       const response = await fetch(apiEndpoint, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache'
+          'Cache-Control': 'no-cache, no-store',
+          'Pragma': 'no-cache'
         },
-        body: JSON.stringify({ batchId }),
+        body: JSON.stringify({ batchId }), // Server erwartet batchId als Parameter
       });
       
       if (!response.ok) {
@@ -148,13 +157,16 @@ export default function InventoryCountBatchDialog({
     onSuccess: (data) => {
       console.log("Verknüpfung erfolgreich:", data);
       
-      // Cache invalidieren nach erfolgreicher Verknüpfung mit neuem Cache-Helper
-      console.log("Invalidiere Cache für Inventur", inventoryId);
-      invalidateInventoryCache(
-        queryClient, 
-        inventoryId, 
-        selectedItem?.productId
-      );
+      // Cache invalidieren nur nach erfolgreicher Verknüpfung
+      // und mit einem kleinen Verzögerung, damit UI flüssig bleibt
+      setTimeout(() => {
+        console.log("Verzögerte Cache-Invalidierung für Inventur", inventoryId);
+        invalidateInventoryCache(
+          queryClient, 
+          inventoryId, 
+          selectedItem?.productId
+        );
+      }, 300);
       
       // Erfolgsmeldung anzeigen
       toast({
