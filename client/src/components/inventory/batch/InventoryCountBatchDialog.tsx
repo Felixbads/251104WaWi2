@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { invalidateInventoryCache } from '../../../lib/invalidateInventoryCache';
-import { createAndLinkBatch } from './CreateAndLinkBatchHandler';
+import { createAndLinkBatch, generateBatchNumber, getDefaultExpiryDate } from './CreateAndLinkBatchHandler';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -106,9 +106,11 @@ export default function InventoryCountBatchDialog({
       setSelectedBatchId(selectedItem.batchId ? selectedItem.batchId.toString() : null);
       
       // Generiere jedes Mal eine neue Chargennummer, wenn der Dialog geöffnet wird
-      if (!newBatchNumber) {
-        setNewBatchNumber(generateBatchNumber());
-      }
+      // Verwende hierfür die zentralisierte Funktion aus CreateAndLinkBatchHandler
+      setNewBatchNumber(generateBatchNumber());
+      
+      // Setze auch das Default-Ablaufdatum
+      setExpiryDate(new Date(getDefaultExpiryDate()));
     }
   }, [open, selectedItem]);
 

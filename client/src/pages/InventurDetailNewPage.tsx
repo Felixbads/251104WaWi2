@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import InventoryCountBatchDialog from '@/components/inventory/batch/InventoryCountBatchDialog';
 import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
+import { generateBatchNumber, getDefaultExpiryDate, createAndLinkBatch } from '@/components/inventory/batch/CreateAndLinkBatchHandler';
 import {
   ArrowLeft, PlayCircle, Package, Ban, Trash2,
   Save, CheckCircle2, RefreshCw, Pencil,
