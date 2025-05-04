@@ -1,0 +1,74 @@
+Hier ein Überblick, was dazu führen kann, dass nach dem Batch-Dialog zwar im UI alles richtig aussieht (optimistisches Update), die Auswahl aber nicht dauerhaft in der Datenbank landet:
+	1.	Falscher API-Endpunkt
+In deinem updateBatchMutation verwendest du
+
+await fetch(`/api/inventory-count-items/${data.itemId}`, { … })
+
+Der Kommentar im Dialog selbst („Endpoint ist in server/routes/inventory-count-batches.ts definiert“) legt aber nahe, dass der eigentliche Route-Handler dort nicht unter /inventory-count-items liegt, sondern unter einem anderen Pfad (z.B. /api/inventory-count-batches oder /api/inventory-counts/product-batches). Wenn du gegen den falschen Handler patchest, passiert auf dem Server gar kein Update.
+
+	2.	Namenskonventionen: CamelCase vs. snake_case
+Du schickst im Body { batchId: 123 }, das Backend erwartet vielleicht { batch_id: 123 }. Wenn das Request-Parsing unbekannte Felder ignoriert, wird gar nichts geändert. Entweder
+	•	den JSON-Key im Frontend auf batch_id anpassen
+	•	oder im Server-Code (req.body.batchId) auslesen und in batch_id transformieren.
+	3.	Keine „Available Batches“ initial geladen
+Du hast zwar einen State availableBatches, lädst ihn aber niemals per API, sondern setzt ihn nur bei Neuanlage (setAvailableBatches(prev => [...prev, newBatch])). Wenn vorgängig schon existierende Chargen ausgewählt werden sollen, gibt es gar keine Einträge, und im Fallback-Zweig wird womöglich nicht korrekt verarbeitet.
+	4.	Optimistisches Update versus tatsächlicher Server-Status
+Im handleBatchUpdate updatest du lokal mit
+
+updateCountedItem({ …, batchId, batch: finalBatch })
+
+und scheinst auch den React-Query-Cache zu patchen. Wenn das Server-Update jedoch fehlschlägt (z.B. Inkonsistenz im Payload), bleibt dein optimistisches Update bestehen, aber beim nächsten Neu­laden der Seite (oder Abstand eines refetch) kommt der ursprüngliche, unveränderte Datensatz zurück.
+
+⸻
+
+Wie du es beheben kannst
+	1.	Endpoint prüfen
+Schau im Verzeichnis server/routes/ nach, wie der Route-Handler fürs Verknüpfen einer Charge tatsächlich definiert ist. Beispiel:
+
+// server/routes/inventory-count-batches.ts
+router.patch('/:itemId/batch', async (req, res) => {
+  const { itemId } = req.params;
+  const { batch_id } = req.body;
+  // …
+});
+
+Wenn dort z.B. /:itemId/batch steht, musst du deine URL folgendermaßen anpassen:
+
+// updateBatchMutation
+const response = await fetch(
+  `/api/inventory-count-items/${data.itemId}/batch`,
+  {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ batch_id: data.batchId })
+  }
+);
+
+
+	2.	Payload-Key anpassen
+Falls der Handler unter /inventory-count-items/:id liegt, er aber batch_id erwartet, ändere nur den Body:
+
+– body: JSON.stringify({ batchId: data.batchId }),
++ body: JSON.stringify({ batch_id: data.batchId }),
+
+
+	3.	Liste der Batches beim Öffnen neu laden
+Damit der Anwender auch vorangelegte Chargen auswählen kann, solltest du beim Öffnen des Dialogs (z.B. in handleOpenBatchDialog) noch einmal die verfügbaren Batches fetchen:
+
+const handleOpenBatchDialog = (item: InventoryCountItem) => {
+  setSelectedItem(item);
+  fetch(`/api/product-batches?productId=${item.productId}`)
+    .then(r => r.json())
+    .then(setAvailableBatches);
+  setShowBatchDialog(true);
+};
+
+
+	4.	Fehler im Network-Tab beobachten
+Öffne im Browser-Devtools die Netzwerkanfragen, schaue dir URL, Statuscode und Payload an. Wenn du siehst, dass der Patch-Request 400/404 zurückliefert oder der Body anders aussieht, weißt du schnell, woran es klemmt.
+	5.	Server-Logs prüfen
+Falls möglich, gib auf Serverseite im entsprechenden Route-Handler Konsolen­logs aus (console.log(req.body)), um zu sehen, was ankommt.
+
+⸻
+
+Kurz zusammengefasst: Am häufigsten liegt der Fehler daran, dass der Frontend-Request gegen den falschen URL-Pfad geht oder die JSON-Schlüssel nicht mit denen im Server-Code übereinstimmen. Wenn du beides korrigierst (richtiger Endpunkt + snake_case), sollten deine Chargennummern auch tatsächlich in der DB landen und beim nächsten Laden wieder angezeigt werden.

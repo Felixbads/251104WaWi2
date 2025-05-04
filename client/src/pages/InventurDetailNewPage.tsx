@@ -1416,7 +1416,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         
         try {
           // KORRIGIERTER API-ENDPUNKT: Verwende den richtigen Endpunkt für Batch-Verknüpfungen
-          const linkResponse = await fetch(`/api/inventory-count-items/${selectedItem.id}`, {
+          const linkResponse = await fetch(`/api/inventory-counts/items/${selectedItem.id}/batch`, {
             method: 'PATCH', 
             headers: {
               'Content-Type': 'application/json',
@@ -1558,16 +1558,16 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       
       // Jetzt im Hintergrund die tatsächliche API-Anfrage senden
       // KORRIGIERT: Verwenden des richtigen API-Endpunkts für Split-Operationen
-      const response = await fetch(`/api/inventory-count-items/${selectedItem.id}/split`, {
+      const response = await fetch(`/api/inventory-counts/items/${selectedItem.id}/split`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Cache-Control': 'no-cache'
         },
         body: JSON.stringify({
-          sourceBatchId: selectedBatchId,
+          originalBatchId: selectedBatchId, // Korrekter Parameter-Name laut Server-API
           targetBatchId: splitTargetBatchId,
-          quantity: splitQuantity
+          splitQuantity: splitQuantity // Korrekter Parameter-Name laut Server-API
         }),
       });
       
