@@ -1780,6 +1780,7 @@ export const inventoryCountItems = pgTable("inventory_count_items", {
   id: serial("id").primaryKey(),
   inventoryCountId: integer("inventory_count_id").notNull().references(() => inventoryCounts.id),
   productId: integer("product_id").notNull().references(() => products.id),
+  batchId: integer("batch_id").references(() => productBatches.id), // Hinzugefügt: Referenz zur Batch-Tabelle
   expectedQuantity: integer("expected_quantity").default(0),
   actualQuantity: integer("actual_quantity"),
   countedQuantity: integer("counted_quantity"), // Gezählte Menge, die vom Benutzer eingegeben wurde
