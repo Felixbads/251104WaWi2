@@ -149,20 +149,12 @@ export default function InventoryCountBatchDialog({
       console.log("Verknüpfung erfolgreich:", data);
       
       // Cache invalidieren nach erfolgreicher Verknüpfung mit neuem Cache-Helper
-      import('../../../lib/invalidateInventoryCache').then(({ invalidateInventoryCache }) => {
-        invalidateInventoryCache(
-          queryClient, 
-          inventoryId, 
-          selectedItem?.productId
-        );
-      }).catch(err => {
-        console.error("Cache-Helper konnte nicht geladen werden:", err);
-        
-        // Fallback: direktes Invalidieren
-        queryClient.invalidateQueries({ 
-          queryKey: [`/api/inventory-counts/${inventoryId}/items`]
-        });
-      });
+      console.log("Invalidiere Cache für Inventur", inventoryId);
+      invalidateInventoryCache(
+        queryClient, 
+        inventoryId, 
+        selectedItem?.productId
+      );
       
       // Erfolgsmeldung anzeigen
       toast({

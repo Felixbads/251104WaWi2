@@ -1339,23 +1339,35 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                 : "Die Charge wurde erfolgreich mit dem Artikel verknüpft.",
             });
             
-            // Aktualisiere auch den React Query Cache mit gezieltem Update
-            queryClient.setQueryData(
-              [`/api/inventory-counts/${id}/items`],
-              (old?: InventoryCountItem[]) => {
-                if (!old) return old;
-                console.log("Aktualisiere lokalen Cache für Inventur-Items");
-                return old.map(item =>
-                  item.id === selectedItem.id
-                    ? { 
-                        ...item, 
-                        batchId: batchId,
-                        batch: finalBatch
-                      }
-                    : item
-                );
-              }
-            );
+            // Importiere Cache-Invalidierungsfunktion und führe eine vollständige Cache-Invalidierung durch
+            import('../lib/invalidateInventoryCache').then(({ invalidateInventoryCache }) => {
+              console.log("Invalidiere Cache für Inventur", id, "mit Produkt", selectedItem.productId);
+              invalidateInventoryCache(
+                queryClient, 
+                id, 
+                selectedItem.productId
+              );
+            }).catch(err => {
+              console.error("Cache-Helper konnte nicht geladen werden:", err);
+              
+              // Fallback: manuelle Invalidierung mit gezieltem Update
+              queryClient.setQueryData(
+                [`/api/inventory-counts/${id}/items`],
+                (old?: InventoryCountItem[]) => {
+                  if (!old) return old;
+                  console.log("Aktualisiere lokalen Cache für Inventur-Items");
+                  return old.map(item =>
+                    item.id === selectedItem.id
+                      ? { 
+                          ...item, 
+                          batchId: batchId,
+                          batch: finalBatch
+                        }
+                      : item
+                  );
+                }
+              );
+            });
 
             // Stelle Scroll-Position nach kurzer Verzögerung wieder her
             setTimeout(() => {
