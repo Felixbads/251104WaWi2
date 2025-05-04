@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { invalidateInventoryCache } from '../../../lib/invalidateInventoryCache';
+import { createAndLinkBatch } from './CreateAndLinkBatchHandler';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -315,9 +316,8 @@ export default function InventoryCountBatchDialog({
       }, 100);
     },
   });
-
+  
   // Kombinierter Handler zum Erstellen und Verknüpfen einer Charge in einem Durchgang
-  // Dieser folgt dem von dir vorgeschlagenen Pattern für optimierte Abläufe
   const handleCreateAndLink = async () => {
     setIsSubmitting(true);
     if (!selectedItem || !selectedItem.productId) {
@@ -340,96 +340,32 @@ export default function InventoryCountBatchDialog({
       return;
     }
     
-    // Speichere die aktuelle Scroll-Position
-    if (typeof window !== 'undefined') {
-      const scrollPos = window.scrollY;
-      window.sessionStorage.setItem('inventur_scroll_position', scrollPos.toString());
-      console.log(`Speichere Scroll-Position: ${scrollPos}`);
-    }
-    
     try {
-      // 1. BATCH-DATEN VORBEREITEN
-      const batchData = {
-        productId: selectedItem.productId,
-        warehouseId: warehouseId,
+      // Verwende unseren optimierten Handler
+      await createAndLinkBatch({
+        item: selectedItem,
+        warehouseId,
+        inventoryId,
         batchNumber: newBatchNumber,
         expiryDate: expiryDate ? format(expiryDate, 'yyyy-MM-dd') : null,
-        initialQuantity: selectedItem.countedQuantity || 1,
-        currentQuantity: selectedItem.countedQuantity || 1,
-        notes: `Erstellt bei Inventur #${inventoryId}` || null // Garantiere, dass notes nicht undefined ist
-      };
-      
-      console.log("Starte kombinierte Aktion: Charge erstellen und sofort verknüpfen");
-      console.log("1) Erstelle Charge mit:", JSON.stringify(batchData, null, 2));
-      
-      // 2. NEUE BATCH ERSTELLEN - wichtig: await, um sequenzielle Verarbeitung zu garantieren
-      const batch = await createBatchMutation.mutateAsync(batchData);
-      console.log("Batch erfolgreich erstellt:", batch);
-      
-      if (!batch || !batch.id) {
-        throw new Error("Erstellte Charge hat keine gültige ID");
-      }
-      
-      // 3. BATCH MIT INVENTUR-ITEM VERKNÜPFEN - wieder mit await für saubere Sequenzierung
-      console.log(`2) Verknüpfe Batch ${batch.id} mit Inventur-Item ${selectedItem.id}`);
-      await linkBatchMutation.mutateAsync({
-        itemId: selectedItem.id,
-        batchId: batch.id
-      });
-      
-      // 4. DIALOG SCHLIEßEN
-      onOpenChange(false);
-      
-      // 5. ERFOLGSMELDUNG ANZEIGEN
-      toast({
-        title: 'Charge erstellt und verknüpft',
-        description: `Die Charge ${newBatchNumber} wurde erfolgreich erstellt und mit dem Inventurposten verknüpft.`,
-      });
-      
-      // 6. FORMULARZUSTÄNDE ZURÜCKSETZEN
-      setNewBatchNumber('');
-      setExpiryDate(null);
-      setIsSubmitting(false);
-      setShowSuccess(true);
-      
-      // 7. INVALIDIERE CACHE NUR NACH ERFOLGREICHER OPERATION - genau wie du es empfohlen hast
-      console.log("3) Invalidiere Cache nach erfolgreicher Operation");
-      queryClient.invalidateQueries({
-        queryKey: [`/api/inventory-counts/${inventoryId}/items`],
-        refetchType: 'none' // Kein sofortiges Refetchen
-      });
-      
-      // 8. STELLE SCROLL-POSITION WIEDER HER
-      setTimeout(() => {
-        if (typeof window !== 'undefined') {
-          const savedPosition = window.sessionStorage.getItem('inventur_scroll_position');
-          if (savedPosition) {
-            console.log(`Stelle Scroll-Position wieder her: ${savedPosition}`);
-            window.scrollTo(0, parseInt(savedPosition, 10));
-          }
+        notes: `Erstellt bei Inventur #${inventoryId}`,
+        queryClient,
+        toast,
+        onSuccess: () => {
+          // Dialog schließen
+          onOpenChange(false);
+          
+          // Formularzustände zurücksetzen
+          setNewBatchNumber('');
+          setExpiryDate(null);
+          setIsSubmitting(false);
+          setShowSuccess(true);
         }
-      }, 50);
+      });
       
     } catch (error: any) {
       console.error('Fehler bei der kombinierten Aktion:', error);
-      
-      toast({
-        title: 'Fehler',
-        description: error.message || 'Die Charge konnte nicht erstellt oder verknüpft werden.',
-        variant: 'destructive',
-      });
-      
       setIsSubmitting(false);
-      
-      // Stelle die Scroll-Position auch bei Fehler wieder her
-      setTimeout(() => {
-        if (typeof window !== 'undefined') {
-          const savedPosition = window.sessionStorage.getItem('inventur_scroll_position');
-          if (savedPosition) {
-            window.scrollTo(0, parseInt(savedPosition, 10));
-          }
-        }
-      }, 50);
     }
   };
 

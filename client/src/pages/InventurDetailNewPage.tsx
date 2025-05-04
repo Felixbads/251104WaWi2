@@ -787,132 +787,101 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   const [splitQuantity, setSplitQuantity] = useState<number | null>(null);
   const [splitTargetBatchId, setSplitTargetBatchId] = useState<number | null>(null);
 
-  // Mutation zum Aktualisieren des Batch für ein Inventurelement (mit optimistischem Update und Scroll-Erhaltung)
+  // Optimierte Mutation zum Aktualisieren des Batch für ein Inventurelement
   const updateBatchMutation = useMutation({
     mutationFn: async (data: { itemId: number; batchId: number | null }) => {
-      // KORRIGIERT: Verwenden des korrekten API-Endpunkts für Batch-Aktualisierungen basierend auf der Server-Route
-      console.log("Batch-Update wird durchgeführt: Item ID =", data.itemId, "Batch ID =", data.batchId);
-      
-      // Der korrekte Endpunkt entsprechend der Server-Route in routes.ts
       const apiEndpoint = `/api/inventory-counts/items/${data.itemId}/batch`;
-      console.log("Verwende API-Endpunkt:", apiEndpoint);
       
-      // Extrem detaillierte Debug-Ausgabe für jeden Schritt
-      console.log("Sende PATCH-Anfrage an:", apiEndpoint);
-      
-      // Erzeuge einen JSON String für den Body, den wir mehrfach verwenden können
-      const bodyJson = JSON.stringify({ batchId: data.batchId });
-      console.log("Request-Body:", bodyJson);
-      
-      try {
-        const response = await fetch(apiEndpoint, {
-          method: 'PATCH', // Korrekte Methode für Aktualisierungen
-          headers: {
-            'Accept': 'application/json, text/plain, */*',
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache', // Verhindert Cache-Probleme
-            'Pragma': 'no-cache'
-          },
-          body: bodyJson
-        });
-        
-        console.log("Server-Antwort erhalten:", {
-          status: response.status,
-          statusText: response.statusText,
-          ok: response.ok
-        });
-        
-        let responseText;
-        try {
-          responseText = await response.text();
-          console.log("Rohe Response:", responseText);
-        } catch (e) {
-          console.error("Fehler beim Lesen der Response:", e);
-          responseText = "Konnte Response nicht lesen";
-        }
-        
-        if (!response.ok) {
-          console.error(`Fehler beim Aktualisieren der Charge: ${response.status} - ${responseText}`);
-          throw new Error(`Fehler beim Aktualisieren der Charge: ${response.status} - ${responseText}`);
-        }
-        
-        // Versuche die Response als JSON zu parsen, falls möglich
-        let responseData;
-        try {
-          responseData = JSON.parse(responseText);
-        } catch (e) {
-          // Wenn die Response kein gültiges JSON ist, verwende den Text direkt
-          console.log("Response ist kein gültiges JSON, verwende Text direkt");
-          responseData = { message: responseText };
-        }
-        
-        console.log("Erfolgreiche Antwort-Daten:", responseData);
-        return responseData;
-      } catch (error) {
-        console.error("Kritischer Fehler beim Batch-Update:", error);
-        throw error;
+      // Speichere Scroll-Position vor API-Aufruf
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem('inventur_scroll_position', window.scrollY.toString());
       }
-    },
-    onMutate: (data) => {
-      // Speichere aktuelle Scroll-Position in sessionStorage
-      const prevScroll = window.scrollY;
-      window.sessionStorage.setItem('inventur_scroll_position', prevScroll.toString());
       
-      // Finde das Item, das aktualisiert werden soll
+      const response = await fetch(apiEndpoint, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchId: data.batchId })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Fehler: ${response.status} - ${errorText}`);
+      }
+      
+      return response.status === 204 ? {} : response.json();
+    },
+    
+    // Optimistische Update-Funktion BEVOR der Server-Request gesendet wird
+    onMutate: (data) => {
+      // Optimistisches lokales UI-Update für sofortige Reaktion
       const item = countedItems.find(item => item.id === data.itemId);
       if (item) {
-        // Finde die ausgewählte Charge
         const selectedBatch = availableBatches.find(b => b.id === data.batchId);
-        
-        // Erstelle ein aktualisiertes Item mit der neuen Charge
-        const updatedItem = {
+        updateCountedItem({
           ...item,
           batchId: data.batchId,
           batch: selectedBatch || null
-        };
-        
-        // Aktualisiere das Item im lokalen State
-        updateCountedItem(updatedItem);
+        });
       }
+      
+      // Optimistisches Update im React Query Cache
+      queryClient.setQueryData(
+        [`/api/inventory-counts/${id}/items`],
+        (old?: InventoryCountItem[]) => {
+          if (!old) return old;
+          return old.map(item =>
+            item.id === data.itemId
+              ? { 
+                  ...item, 
+                  batchId: data.batchId,
+                  batch: availableBatches.find(b => b.id === data.batchId) || null
+                }
+              : item
+          );
+        }
+      );
     },
+    
+    // Erfolgsbehandlung NACH erhaltener Server-Antwort
     onSuccess: (result, variables) => {
-      // Dialog schließen ohne Query-Invalidierung
+      // Dialog schließen
       setShowBatchDialog(false);
       setSelectedItem(null);
       
-      // Scroll-Position wiederherstellen mit sessionStorage
+      // Erfolgsmeldung
+      toast({
+        title: "Charge aktualisiert",
+        description: "Die Charge wurde erfolgreich aktualisiert.",
+      });
+      
+      // WICHTIG: Erst nach erfolgreicher Mutation den Cache aktualisieren
+      // mit Verzögerung, damit UI flüssig bleibt
+      setTimeout(() => {
+        queryClient.invalidateQueries({ 
+          queryKey: [`/api/inventory-counts/${id}/items`],
+          refetchType: 'none'
+        });
+      }, 300);
+      
+      // Stelle Scroll-Position nach kurzer Verzögerung wieder her
       setTimeout(() => {
         const savedPosition = window.sessionStorage.getItem('inventur_scroll_position');
         if (savedPosition) {
           window.scrollTo(0, parseInt(savedPosition));
         }
       }, 100);
-      
-      // React-Query-Cache für Inventar-Items aktualisieren mit dem KORREKTEN Query-Key
-      // Der korrekte Query-Key ist derselbe, der in der useQuery-Funktion verwendet wird
-      queryClient.setQueryData(
-        [`/api/inventory-counts/${id}/items`],
-        (old?: InventoryCountItem[]) => {
-          if (!old) return old;
-          return old.map(item =>
-            item.id === variables.itemId
-              ? { 
-                  ...item, 
-                  batchId: variables.batchId,
-                  batch: availableBatches.find(b => b.id === variables.batchId) || null
-                }
-              : item
-          );
-        }
-      );
-      
-      toast({
-        title: "Charge aktualisiert",
-        description: "Die Charge wurde erfolgreich aktualisiert.",
-      });
     },
+    
+    // Fehlerbehandlung
     onError: (error) => {
       console.error('Fehler beim Aktualisieren der Charge:', error);
+      
+      // Erfolgsmeldung
+      toast({
+        title: "Fehler",
+        description: "Die Charge konnte nicht aktualisiert werden.",
+        variant: "destructive",
+      });
       
       // Scroll-Position wiederherstellen
       setTimeout(() => {
@@ -921,12 +890,6 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
           window.scrollTo(0, parseInt(savedPosition));
         }
       }, 100);
-      
-      toast({
-        title: "Fehler",
-        description: "Die Charge konnte nicht aktualisiert werden.",
-        variant: "destructive",
-      });
     }
   });
 
@@ -1150,28 +1113,18 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     );
   };
 
-  // Verbesserte Batch-Update-Funktion mit optimierter Sequenzierung 
-  // und Scroll-Position-Erhaltung
+  // Neuer, optimierter Batch-Update-Handler mit combined create & link Muster
+  // und vermeidet unnötige Cache-Invalidierungen
   const handleBatchUpdate = async (batchId: number | null) => {
     if (!selectedItem) return;
     console.log("Batch-Update wird durchgeführt: Item ID =", selectedItem.id, "Batch ID =", batchId);
-    
-    // Speichere aktuelle Scroll-Position vor jeglicher Operation
-    if (typeof window !== 'undefined') {
-      const scrollPos = window.scrollY;
-      window.sessionStorage.setItem('inventur_scroll_position', scrollPos.toString());
-      console.log(`Scroll-Position ${scrollPos} für Wiederherstellung gespeichert`);
-    }
-    
-    // Initialisierung mit definitivem Wert (wird überschrieben)
-    let finalBatch: ProductBatch;
     
     try {
       // 1) Wenn kein Batch ausgewählt wurde, erstelle automatisch einen neuen
       if (batchId === null) {
         console.log("Neue Charge wird automatisch angelegt");
         
-        // Automatische Batch-Nummer generieren - verbesserte Lesbarkeit mit CHG-Format
+        // Automatische Batch-Nummer generieren - verbesserte Lesbarkeit
         const now = new Date();
         const dateString = now.toISOString().split('T')[0].replace(/-/g, '');
         const timeString = `${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}${now.getSeconds().toString().padStart(2, '0')}`;

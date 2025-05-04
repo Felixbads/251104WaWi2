@@ -1,0 +1,137 @@
+// Existierenden Code hier lassen
+// Annahme: Dies ist ein Fragment für die Änderungen am Batch-Update-Handler
+
+// Wir ersetzen den komplexen handleBatchUpdate mit einem vereinfachten Ansatz,
+// der genau deinem 4-Punkte-Plan folgt
+
+// Hier der neue Handler zum Ersetzen:
+const handleBatchUpdate = async (batchId: number | null) => {
+  if (!selectedItem) return;
+  console.log("Batch-Update wird durchgeführt: Item ID =", selectedItem.id, "Batch ID =", batchId);
+  
+  try {
+    // 1. Wenn kein Batch ausgewählt wurde, erstelle automatisch einen neuen
+    if (batchId === null) {
+      console.log("Neue Charge wird automatisch angelegt");
+      
+      // Automatische Batch-Nummer generieren - verbesserte Lesbarkeit
+      const now = new Date();
+      const dateString = now.toISOString().split('T')[0].replace(/-/g, '');
+      const timeString = `${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}${now.getSeconds().toString().padStart(2, '0')}`;
+      const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      const autoBatchNumber = `CHG-${dateString}-${timeString}-${random}`;
+      
+      // Automatisches Ablaufdatum (6 Monate)
+      const expiryDate = new Date();
+      expiryDate.setMonth(expiryDate.getMonth() + 6);
+      const expiryDateString = expiryDate.toISOString().split('T')[0];
+      
+      // 1. BATCH-DATEN VORBEREITEN
+      const batchData = {
+        productId: selectedItem.productId,
+        warehouseId: inventurData!.warehouseId,
+        batchNumber: autoBatchNumber,
+        expiryDate: expiryDateString,
+        initialQuantity: selectedItem.countedQuantity || 1,
+        currentQuantity: selectedItem.countedQuantity || 1,
+        notes: `Auto-erstellt bei Inventur #${id}` || null
+      };
+      
+      // 2. NEUE BATCH ERSTELLEN - mit await zur sequentiellen Verarbeitung
+      console.log("Erstelle neue Charge mit:", JSON.stringify(batchData));
+      const createRes = await fetch('/api/inventory-counts/product-batches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(batchData)
+      });
+      
+      if (!createRes.ok) {
+        const errorText = await createRes.text();
+        throw new Error(`Fehler bei Batch-Erstellung: ${createRes.status} - ${errorText}`);
+      }
+      
+      // Neue Batch-ID und -Informationen abrufen
+      const newBatch = await createRes.json();
+      console.log("Neue Charge wurde erstellt:", newBatch);
+      batchId = newBatch.id;
+      
+      // Automatisch zur Liste der verfügbaren Batches hinzufügen
+      setAvailableBatches(prev => [...prev, newBatch]);
+    }
+    
+    // 3. BATCH MIT ITEM VERKNÜPFEN
+    console.log(`Verknüpfe Item ${selectedItem.id} mit Batch ${batchId}`);
+    await updateBatchMutation.mutateAsync({ itemId: selectedItem.id, batchId });
+    
+    // 4. DIALOG SCHLIEßEN
+    setShowBatchDialog(false);
+    setSelectedItem(null);
+    
+    // 5. ERFOLGSMELDUNG 
+    toast({
+      title: batchId === null ? "Charge erstellt" : "Charge verknüpft",
+      description: batchId === null 
+        ? "Eine neue Charge wurde automatisch erstellt und mit dem Artikel verknüpft."
+        : "Die Charge wurde erfolgreich mit dem Artikel verknüpft."
+    });
+    
+    // 6. OPTIMISTISCHES UPDATE - keine sofortige Invalidation
+    queryClient.setQueryData(
+      [`/api/inventory-counts/${id}/items`],
+      (old?: InventoryCountItem[]) => {
+        if (!old) return old;
+        return old.map(item =>
+          item.id === selectedItem.id
+            ? { ...item, batchId: batchId }
+            : item
+        );
+      }
+    );
+    
+    // 7. ROUTER REFRESH MIT SHALLOW UND NO-SCROLL OPTION
+    // Im Browser-Kontext würde hier router.replace stehen
+    // z.B. router.replace(router.asPath, undefined, { shallow: true, scroll: false });
+    // Da wir wouter verwenden und keine direkte shallow option haben, 
+    // lassen wir das optimistische Update stattdessen wirken
+    
+  } catch (error) {
+    console.error('Fehler bei der Batch-Aktualisierung:', error);
+    toast({
+      title: "Fehler",
+      description: "Die Charge konnte nicht erstellt oder verknüpft werden.",
+      variant: "destructive",
+    });
+  }
+};
+
+// Mutation zum Aktualisieren des Batch für ein Inventurelement (stark vereinfacht)
+const updateBatchMutation = useMutation({
+  mutationFn: async (data: { itemId: number; batchId: number | null }) => {
+    const apiEndpoint = `/api/inventory-counts/items/${data.itemId}/batch`;
+    
+    const response = await fetch(apiEndpoint, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ batchId: data.batchId })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Fehler: ${response.status} - ${errorText}`);
+    }
+    
+    return response.status === 204 ? {} : response.json();
+  },
+  onSuccess: (data, variables) => {
+    // WICHTIG: Nur hier, im onSuccess Handler, invalidieren wir den Cache
+    // und erst nach einer kurzen Verzögerung
+    setTimeout(() => {
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/inventory-counts/${id}/items`],
+        refetchType: 'none'  // Verhindert sofortiges Refetching
+      });
+    }, 300);
+  }
+});
