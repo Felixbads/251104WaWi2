@@ -1,0 +1,54 @@
+Du bist ein erfahrener TypeScript-Backend-Entwickler und sollst den Express-Route-Handler für den Endpoint
+
+  POST /warehouse-movements/transfer
+
+implementieren. Die Funktionalität soll sein, Produkte zwischen zwei Lagern oder zu einem externen Ziel zu transferieren. Halte dich dabei an folgende Vorgaben:
+
+1. **Request-Validation**  
+   - `sourceWarehouseId` muss vorhanden sein.  
+   - `products`: Array von Objekten `{ productId: number; quantity: number; }`, `quantity > 0`.  
+   - `destinationType`: String, nur `'WAREHOUSE'` oder `'EXTERNAL'`.  
+   - Bei `'WAREHOUSE'`: `destinationWarehouseId` erforderlich.  
+   - Bei `'EXTERNAL'`: `externalDestination` (String) erforderlich.  
+   - Auf Validierungsfehler mit `res.status(400).json({ error: '...' })` antworten und Funktion beenden.
+
+2. **Datenbank-Transaktion**  
+   - Starte eine Knex-Transaktion: `await db.transaction(async tx => { … })`.  
+   - **Quelle**: Für jedes Produkt `quantity` von `inventory_items` des `sourceWarehouseId` abziehen.  
+   - **Ziel**: Fehlende Inventar-Einträge zuerst in Batches (z. B. 500er-Chunks) mit `tx.batchInsert(...)` anlegen, dann `quantity` hinzufügen.  
+   - Pro Produkt einen Eintrag in `warehouse_movements` schreiben (mit Feldern wie `source_warehouse_id`, `destination_type`, `product_id`, `quantity`, `notes`, `created_at`).
+
+3. **Chunking**  
+   - Erzeuge vorab eine Liste `missingRows` für alle Produkte, die im Ziellager noch nicht existieren.  
+   - Verwende `tx.batchInsert('inventory_items', missingRows, 500)` oder einen eigenen Loop über 500er-Arrays, um DB-Limits zu vermeiden.
+
+4. **Logging & Error-Handling**  
+   - Logge vor/nach dem Insert die Anzahl der `inventory_items` für Quelle und Ziel:  
+     ```ts
+     const before = await tx('inventory_items').where(...).count();
+     console.log('Before:', before);
+     …batchInsert…
+     const after = await tx('inventory_items').where(...).count();
+     console.log('After :', after);
+     ```  
+   - Fange alle Errors mit `catch (e)` ab, logge `console.error('Transfer fehlgeschlagen', e)` und wirf den Fehler weiter, damit die Transaktion zurückgerollt wird.
+
+5. **Response**  
+   - Bei Erfolg:  
+     ```ts
+     res.status(200).json({
+       success: true,
+       message: `Products transferred from ${sourceWarehouseId} to ${destinationType === 'WAREHOUSE' ? destinationWarehouseId : externalDestination}`,
+       movements: moveResults
+     });
+     ```  
+   - Bei Datenbankfehlern:  
+     ```ts
+     res.status(500).json({ error: 'Failed to transfer products', message: e.message });
+     ```
+
+6. **Imports & Types**  
+   - Nutze `import { Router } from 'express';` und `import Knex from 'knex';`.  
+   - Definiere alle Interfaces/Typen (z. B. `TransferRequest`, `MovementRecord`) für bestmögliche Typsicherheit.
+
+Stelle den vollständigen, kompilierbaren TypeScript-Code für diesen Route-Handler bereit.```
