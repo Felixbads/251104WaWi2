@@ -1,0 +1,56 @@
+Du bist ein erfahrener Frontend-Entwickler und UI/UX-Designer mit Fokus auf Mobile-First und Responsive Design. Deine Aufgabe ist es, **unserer bestehende Inventur-Seite** (Dashboard, Detail-View und Statistik) so anzupassen, dass sie auf allen Geräten (Smartphones, Tablets, Desktops) optimal funktioniert. Befolge dafür strikt dieses Vorgehen:
+
+1. **Analyse der bestehenden Seite**  
+   - Öffne den Code für `InventurDashboardPage.tsx`, `InventurDetailPage.tsx` und `InventurStatisticsPage.tsx`.  
+   - Bestimme die aktuellen Layout-Strukturen, Grid-Nutzung, Tabellen und Modal-Komponenten.  
+
+2. **Mobile-First Basis-Layout festlegen**  
+   - Definiere das Grundlayout für 320 px Breite: Navigation, Header, Listen/Tabellen, Buttons und Modals.  
+   - Ersetze bei Bedarf starre CSS-Breiten durch relative Einheiten (`%`, `rem`, `flex`).  
+
+3. **Breakpoints & Grid-System**  
+   - Richte folgende Breakpoints ein:  
+     - Small (≥ 576 px): einfache Listen/Accordions  
+     - Medium (≥ 768 px): zweispaltiges Layout  
+     - Large (≥ 992 px) und XL (≥ 1200 px): volle Tabellenansicht  
+   - Implementiere ein flexibles Grid mit CSS-Grid oder Flexbox und dokumentiere die Breakpoints in einer globalen CSS/SCSS-Datei oder in deinem Styled-Components-Theme.  
+
+4. **Responsive Tabellen und Produktlisten**  
+   - Für Small-Viewport: wechsle von Tabellen zu Accordion-Listen (jeder Eintrag klappbar).  
+   - Für Medium+: setze Sticky-Header und horizontales Scrollen mit `overflow-x: auto`.  
+   - Stelle sicher, dass Spaltenbreiten sich proportional anpassen und keine horizontale Scroll-Bar unter 768 px erzwingt.  
+
+5. **Buttons & Touch-Ziele**  
+   - Alle interaktiven Elemente (Buttons, Icons) müssen mind. 48 × 48 px groß sein.  
+   - Platziere primäre Aktionen („Speichern“, „Starten“) gut erreichbar am unteren Bildschirmrand im Mobile-Modus (Floating Action Button oder Sticky Footer).  
+
+6. **Modals / Dialoge**  
+   - Auf Smartphones: Modals als Full-Screen-Drawer von unten (height: 100vh, kein Scroll-Reset).  
+   - Ab Tablet: zentriertes Panel mit max-width (z. B. 600 px).  
+   - Achte auf ausreichend Abstand zu Bildschirmrändern und schließ-Icon im oberen Bereich.  
+
+7. **Fokus & Scroll-Management**  
+   - Ersetze sessionStorage-Scroll durch `useScrollToField` (IntersectionObserver), um Inline-Felder beim Öffnen des Modals automatisch sichtbar zu machen.  
+   - Vermeide globale `window.scrollTo(0,0)` beim Rerender.  
+
+8. **CSS-Strategie**  
+   - Verwende CSS-Modules oder Styled Components.  
+   - Definiere Utility-Klassen für Margin/Padding, Flex-Utilities und Visibility (z. B. `.d-sm-none`, `.flex-md-row`).  
+   - Lege in deiner globalen Theme-Datei die Breakpoints einmal fest und importiere sie überall.  
+
+9. **Accessibility & Testing**  
+   - Prüfe alle interaktiven Elemente mit `aria-label`, `role` und `aria-expanded` (bei Accordions).  
+   - Führe manuelle Tests im Chrome-DevTools-Device-Mode (iPhone SE, Pixel, iPad) durch.  
+   - Automatisiere responsive Snapshot-Tests mit Cypress oder Percy für alle Breakpoints.  
+
+10. **Dokumentation & Style Guide**  
+   - Ergänze im Repository eine kurze „RESPONSIVE_GUIDELINES.md“, die:  
+     - Breakpoints auflistet  
+     - Utility-Klassen beschreibt  
+     - Beispiel-Code für Tabellen, Accordions und Modals zeigt  
+
+**Ergebnis:**  
+Am Ende lieferst du:  
+- Den angepassten Code für alle drei Seiten mit klar kommentierten Änderungen.  
+- Eine kurze Dokumentation der neuen Responsive-Regeln.  
+- Einen Satz automatisierter Tests, die sicherstellen, dass kein horizontales Scrollen unter 768 px und keine überlappenden Elemente auftreten.  

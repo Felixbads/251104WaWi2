@@ -1,0 +1,242 @@
+/* Responsive Design Guidelines
+ * Dieses File definiert alle wichtigen Breakpoints und responsive Utility-Klassen
+ */
+
+/* Breakpoints:
+ * 
+ * Small (≥ 576 px): einfache Listen/Accordions
+ * Medium (≥ 768 px): zweispaltiges Layout
+ * Large (≥ 992 px): volle Tabellenansicht
+ * XL (≥ 1200 px): erweiterte Funktionen
+ */
+
+:root {
+  --breakpoint-sm: 576px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 992px;  
+  --breakpoint-xl: 1200px;
+}
+
+/* Grundlegende responsive Hilfsklassen */
+
+/* Display-Utility-Klassen */
+.d-none {
+  display: none !important;
+}
+.d-block {
+  display: block !important;
+}
+.d-flex {
+  display: flex !important;
+}
+.d-grid {
+  display: grid !important;
+}
+
+/* Small (≥ 576px) */
+@media (min-width: 576px) {
+  .d-sm-none {
+    display: none !important;
+  }
+  .d-sm-block {
+    display: block !important;
+  }
+  .d-sm-flex {
+    display: flex !important;
+  }
+  .d-sm-grid {
+    display: grid !important;
+  }
+}
+
+/* Medium (≥ 768px) */
+@media (min-width: 768px) {
+  .d-md-none {
+    display: none !important;
+  }
+  .d-md-block {
+    display: block !important;
+  }
+  .d-md-flex {
+    display: flex !important;
+  }
+  .d-md-grid {
+    display: grid !important;
+  }
+}
+
+/* Large (≥ 992px) */
+@media (min-width: 992px) {
+  .d-lg-none {
+    display: none !important;
+  }
+  .d-lg-block {
+    display: block !important;
+  }
+  .d-lg-flex {
+    display: flex !important;
+  }
+  .d-lg-grid {
+    display: grid !important;
+  }
+}
+
+/* Extra Large (≥ 1200px) */
+@media (min-width: 1200px) {
+  .d-xl-none {
+    display: none !important;
+  }
+  .d-xl-block {
+    display: block !important;
+  }
+  .d-xl-flex {
+    display: flex !important;
+  }
+  .d-xl-grid {
+    display: grid !important;
+  }
+}
+
+/* Flex-Utility-Klassen */
+.flex-column {
+  flex-direction: column !important;
+}
+.flex-row {
+  flex-direction: row !important;
+}
+
+@media (min-width: 576px) {
+  .flex-sm-column {
+    flex-direction: column !important;
+  }
+  .flex-sm-row {
+    flex-direction: row !important;
+  }
+}
+
+@media (min-width: 768px) {
+  .flex-md-column {
+    flex-direction: column !important;
+  }
+  .flex-md-row {
+    flex-direction: row !important;
+  }
+}
+
+@media (min-width: 992px) {
+  .flex-lg-column {
+    flex-direction: column !important;
+  }
+  .flex-lg-row {
+    flex-direction: row !important;
+  }
+}
+
+/* Tabellenanzeige für unterschiedliche Breakpoints */
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+}
+
+/* Auf kleinen Screens zeigen wir Tabellen als Liste an */
+@media (max-width: 767px) {
+  .table-responsive-cards .responsive-table {
+    display: none;
+  }
+  
+  .table-responsive-cards .accordion-list {
+    display: block;
+  }
+}
+
+/* Ab Medium zeigen wir Tabellen normal an mit horizontalem Scroll */
+@media (min-width: 768px) {
+  .table-responsive-cards .responsive-table {
+    display: table;
+  }
+  
+  .table-responsive-cards .accordion-list {
+    display: none;
+  }
+}
+
+/* Touch-Ziele für mobile Geräte */
+.touch-target {
+  min-height: 48px;
+  min-width: 48px;
+}
+
+/* Modal/Dialog Anpassungen */
+.mobile-drawer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: white;
+  border-top-left-radius: 1rem;
+  border-top-right-radius: 1rem;
+  box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1);
+  transform: translateY(0);
+  transition: transform 0.3s ease-in-out;
+}
+
+.mobile-drawer.hidden {
+  transform: translateY(100%);
+}
+
+/* Ab Tablets werden Modals zentriert dargestellt */
+@media (min-width: 768px) {
+  .mobile-drawer {
+    position: fixed;
+    max-width: 600px;
+    margin: 0 auto;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    border-radius: 0.5rem;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  
+  .mobile-drawer.hidden {
+    transform: translate(-50%, -50%) scale(0.9);
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+/* Sticky-Footer für Aktionsbuttons auf mobilen Geräten */
+.mobile-action-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  padding: 1rem;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+  z-index: 40;
+}
+
+@media (min-width: 768px) {
+  .mobile-action-footer {
+    position: static;
+    box-shadow: none;
+    padding: 0;
+  }
+}
+
+/* Floating Action Button für Mobile */
+.floating-action-button {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 30;
+}
