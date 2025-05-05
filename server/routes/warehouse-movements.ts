@@ -1,13 +1,72 @@
-import express from 'express';
+import { Router } from 'express';
 import { db } from '../db';
-import { products, inventoryItems, inventoryMovements, inventoryBatches } from '../../shared/schema';
+import { products, inventoryItems, inventoryMovements, inventoryBatches, warehouses } from '../../shared/schema';
 import { eq, and, sql, gte, desc, asc, inArray, gt } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
+import { z } from 'zod';
+import { chunk } from 'lodash';
 
-const router = express.Router();
+const router = Router();
 
-// POST /warehouse-movements/transfer - Produkte zwischen Lagern transferieren oder ausbuchen
+// Schema zur Validierung einer Produktübertragung
+const productTransferSchema = z.object({
+  productId: z.number().positive('Produkt-ID muss eine positive Zahl sein'),
+  quantity: z.number().positive('Menge muss größer als 0 sein')
+});
+
+// Schema zur Validierung der Transfer-Anfrage
+const transferRequestSchema = z.object({
+  sourceWarehouseId: z.number().positive('Quell-Lager-ID ist erforderlich'),
+  destinationType: z.enum(['WAREHOUSE', 'EXTERNAL'], 'Zieltyp muss entweder WAREHOUSE oder EXTERNAL sein'),
+  destinationWarehouseId: z.number().positive().optional()
+    .refine(
+      (val, ctx) => ctx.parent.destinationType !== 'WAREHOUSE' || val !== undefined, 
+      'Ziel-Lager-ID ist erforderlich, wenn der Zieltyp WAREHOUSE ist'
+    ),
+  externalDestination: z.string().optional()
+    .refine(
+      (val, ctx) => ctx.parent.destinationType !== 'EXTERNAL' || (val !== undefined && val.trim() !== ''), 
+      'Externes Ziel ist erforderlich, wenn der Zieltyp EXTERNAL ist'
+    ),
+  products: z.array(productTransferSchema)
+    .min(1, 'Mindestens ein Produkt muss angegeben werden'),
+  notes: z.string().optional()
+});
+
+type TransferRequest = z.infer<typeof transferRequestSchema>;
+type ProductTransfer = z.infer<typeof productTransferSchema>;
+
+// Interface für die Bewegungsergebnisse
+interface MovementRecord {
+  productId: number;
+  productName: string;
+  quantity: number;
+  batches?: Array<{
+    batchId: number;
+    quantity: number;
+    batchNumber?: string;
+    expiryDate?: Date;
+  }>;
+}
+
+// POST /warehouse-movements/transfer - Produkte zwischen Lagern transferieren oder zu externen Zielen
 router.post('/transfer', async (req, res) => {
+  console.log('Transferanfrage erhalten:', JSON.stringify(req.body, null, 2));
+  
+  // Validiere die Anfrage mit Zod
+  try {
+    transferRequestSchema.parse(req.body);
+  } catch (validationError) {
+    if (validationError instanceof z.ZodError) {
+      console.error('Validierungsfehler:', validationError.errors);
+      return res.status(400).json({ 
+        error: 'Validierungsfehler', 
+        details: validationError.errors.map(e => e.message).join(', ') 
+      });
+    }
+    return res.status(400).json({ error: 'Ungültige Anfrage' });
+  }
+  
   const {
     sourceWarehouseId,
     destinationType,
@@ -15,37 +74,46 @@ router.post('/transfer', async (req, res) => {
     externalDestination,
     notes,
     products: productsToTransfer
-  } = req.body;
-
-  // Validierung der Eingabe
-  if (!sourceWarehouseId) {
-    return res.status(400).json({ error: 'Source warehouse ID is required' });
-  }
-
-  if (!productsToTransfer || !Array.isArray(productsToTransfer) || productsToTransfer.length === 0) {
-    return res.status(400).json({ error: 'At least one product is required' });
-  }
-
-  if (destinationType === 'WAREHOUSE' && !destinationWarehouseId) {
-    return res.status(400).json({ error: 'Destination warehouse ID is required for warehouse transfers' });
-  }
-
-  if (destinationType === 'EXTERNAL' && !externalDestination) {
-    return res.status(400).json({ error: 'External destination is required for external transfers' });
-  }
-
+  } = req.body as TransferRequest;
+  
   try {
-    // Transaktion starten
+    // Überprüfen, ob das Quelllager existiert
+    const sourceWarehouse = await db.select()
+      .from(warehouses)
+      .where(eq(warehouses.id, sourceWarehouseId))
+      .limit(1);
+      
+    if (!sourceWarehouse.length) {
+      return res.status(400).json({ error: `Quelllager mit ID ${sourceWarehouseId} nicht gefunden` });
+    }
+    
+    // Bei Warehouse-Transfer: Überprüfen, ob das Ziellager existiert
+    if (destinationType === 'WAREHOUSE') {
+      const destWarehouse = await db.select()
+        .from(warehouses)
+        .where(eq(warehouses.id, destinationWarehouseId))
+        .limit(1);
+        
+      if (!destWarehouse.length) {
+        return res.status(400).json({ error: `Ziellager mit ID ${destinationWarehouseId} nicht gefunden` });
+      }
+      
+      // Selbsttransfer verhindern
+      if (sourceWarehouseId === destinationWarehouseId) {
+        return res.status(400).json({ error: 'Quell- und Ziellager dürfen nicht identisch sein' });
+      }
+    }
+    
+    // Starte eine Datenbank-Transaktion
     return await db.transaction(async (tx) => {
       const now = new Date();
-      const moveResults = [];
-
+      const moveResults: MovementRecord[] = [];
+      
+      // Sammle fehlende Inventory-Items, um sie später in Batches einzufügen
+      const missingRows: any[] = [];
+      
       // Für jedes Produkt in der Liste
       for (const product of productsToTransfer) {
-        if (!product.productId || product.quantity <= 0) {
-          continue; // Ungültige Produkte überspringen
-        }
-
         // 1. Verfügbaren Bestand prüfen
         const inventory = await tx.select()
           .from(inventoryItems)
@@ -71,27 +139,29 @@ router.post('/transfer', async (req, res) => {
           throw new Error(`Produkt mit ID ${product.productId} nicht gefunden`);
         }
 
-        const productName = productDetails[0].name;
+        const productName = productDetails[0].productName;
 
-        // 3. Bei einem Transfer zu einem anderen Lager: Prüfen und ggf. anlegen des Zieleintrags
+        // 3. Bei einem Transfer zu einem anderen Lager: Prüfen des Zieleintrags
         if (destinationType === 'WAREHOUSE') {
           const destInventory = await tx.select()
             .from(inventoryItems)
             .where(
               and(
-                eq(inventoryItems.warehouseId, destinationWarehouseId),
+                eq(inventoryItems.warehouseId, destinationWarehouseId!),
                 eq(inventoryItems.productId, product.productId)
               )
             )
             .limit(1);
 
+          // Fehlende Inventareinträge sammeln für späteres Batch-Insert
           if (!destInventory.length) {
-            // Eintrag im Ziellager anlegen
-            await tx.insert(inventoryItems).values({
+            missingRows.push({
               warehouseId: destinationWarehouseId,
               productId: product.productId,
               quantity: 0, // wird später aktualisiert
-              minQuantity: 0
+              minQuantity: 0,
+              createdAt: now,
+              updatedAt: now
             });
           }
         }
@@ -121,7 +191,8 @@ router.post('/transfer', async (req, res) => {
           // Chargeneintrag für das Quell-Lager aktualisieren
           await tx.update(inventoryBatches)
             .set({
-              quantity: batch.quantity - quantityFromBatch
+              quantity: batch.quantity - quantityFromBatch,
+              updatedAt: now
             })
             .where(eq(inventoryBatches.id, batch.id));
 
@@ -138,7 +209,7 @@ router.post('/transfer', async (req, res) => {
               .from(inventoryBatches)
               .where(
                 and(
-                  eq(inventoryBatches.warehouseId, destinationWarehouseId),
+                  eq(inventoryBatches.warehouseId, destinationWarehouseId!),
                   eq(inventoryBatches.productId, product.productId),
                   eq(inventoryBatches.batchNumber, batch.batchNumber),
                   eq(inventoryBatches.expiryDate, batch.expiryDate)
@@ -150,7 +221,8 @@ router.post('/transfer', async (req, res) => {
               // Bestehende Charge im Ziellager aktualisieren
               await tx.update(inventoryBatches)
                 .set({
-                  quantity: existingBatch[0].quantity + quantityFromBatch
+                  quantity: existingBatch[0].quantity + quantityFromBatch,
+                  updatedAt: now
                 })
                 .where(eq(inventoryBatches.id, existingBatch[0].id));
             } else {
@@ -162,16 +234,68 @@ router.post('/transfer', async (req, res) => {
                 expiryDate: batch.expiryDate,
                 quantity: quantityFromBatch,
                 incomingDate: new Date(),
-                status: 'active'
+                status: 'active',
+                createdAt: now,
+                updatedAt: now
               });
             }
           }
         }
+      }
 
+      // Fehlende Inventory-Items in Batches einfügen, um Datenbanklimits zu vermeiden
+      if (missingRows.length > 0) {
+        console.log(`Füge ${missingRows.length} fehlende Inventory-Items in Batches ein`);
+        
+        // Zähle die Inventory-Items vor dem Insert
+        const beforeCount = await tx.select({ count: sql`count(*)` })
+          .from(inventoryItems)
+          .where(eq(inventoryItems.warehouseId, destinationWarehouseId!));
+        console.log('Inventareinträge vor dem Insert:', beforeCount[0].count);
+        
+        // Chunked Insert für große Datenmengen (je 500 Einträge)
+        const CHUNK_SIZE = 500;
+        const chunks = chunk(missingRows, CHUNK_SIZE);
+        
+        try {
+          for (const batch of chunks) {
+            await tx.insert(inventoryItems).values(batch);
+          }
+        } catch (e) {
+          console.error('Batch-Insert fehlgeschlagen:', e);
+          throw e;
+        }
+        
+        // Zähle die Inventory-Items nach dem Insert
+        const afterCount = await tx.select({ count: sql`count(*)` })
+          .from(inventoryItems)
+          .where(eq(inventoryItems.warehouseId, destinationWarehouseId!));
+        console.log('Inventareinträge nach dem Insert:', afterCount[0].count);
+      }
+      
+      // Jetzt die eigentlichen Transfers durchführen
+      for (const product of productsToTransfer) {
         // 5. Bestand im Quelllager aktualisieren
+        const sourceInventory = await tx.select()
+          .from(inventoryItems)
+          .where(
+            and(
+              eq(inventoryItems.warehouseId, sourceWarehouseId),
+              eq(inventoryItems.productId, product.productId)
+            )
+          )
+          .limit(1);
+          
+        const productDetails = await tx.select()
+          .from(products)
+          .where(eq(products.id, product.productId))
+          .limit(1);
+          
+        const productName = productDetails[0].productName;
+          
         await tx.update(inventoryItems)
           .set({
-            quantity: inventory[0].quantity - product.quantity,
+            quantity: sourceInventory[0].quantity - product.quantity,
             updatedAt: now
           })
           .where(
@@ -187,7 +311,7 @@ router.post('/transfer', async (req, res) => {
             .from(inventoryItems)
             .where(
               and(
-                eq(inventoryItems.warehouseId, destinationWarehouseId),
+                eq(inventoryItems.warehouseId, destinationWarehouseId!),
                 eq(inventoryItems.productId, product.productId)
               )
             )
@@ -202,48 +326,56 @@ router.post('/transfer', async (req, res) => {
             })
             .where(
               and(
-                eq(inventoryItems.warehouseId, destinationWarehouseId),
+                eq(inventoryItems.warehouseId, destinationWarehouseId!),
                 eq(inventoryItems.productId, product.productId)
               )
             );
         }
 
         // 7. Warenbewegungseintrag erstellen
+        const referenceId = randomUUID();
         const movementValues = {
           productId: product.productId,
-          quantity: -product.quantity, // Negative Menge für den Ausgang
+          quantity: product.quantity,
           movementType: destinationType === 'WAREHOUSE' ? 'TRANSFER' : 'OUT',
-          sourceType: 'warehouse',
-          sourceId: sourceWarehouseId,
-          destinationType: destinationType === 'WAREHOUSE' ? 'warehouse' : 'external',
-          destinationId: destinationType === 'WAREHOUSE' ? destinationWarehouseId : null,
+          direction: destinationType === 'WAREHOUSE' ? 'INTERNAL' : 'OUT',
+          sourceWarehouseId: sourceWarehouseId,
+          destinationWarehouseId: destinationType === 'WAREHOUSE' ? destinationWarehouseId : null,
+          referenceType: 'manual_transfer',
+          referenceId: referenceId,
           status: 'completed',
-          notes: `${notes || ''} ${destinationType === 'EXTERNAL' ? `[${externalDestination}]` : ''}`.trim(),
+          notes: notes ? notes : destinationType === 'EXTERNAL' ? `Transfer zu ${externalDestination}` : `Transfer zu Lager ${destinationWarehouseId}`,
           performedAt: now,
-          referenceId: randomUUID(),
-          referenceType: 'manual_transfer'
+          previousStock: sourceInventory[0].quantity,
+          currentStock: sourceInventory[0].quantity - product.quantity,
+          createdAt: now,
+          updatedAt: now
         };
 
-        const moveResult = await tx.insert(inventoryMovements).values(movementValues);
+        try {
+          await tx.insert(inventoryMovements).values(movementValues);
+        } catch (e) {
+          console.error('Fehler beim Einfügen der Warenbewegung:', e);
+          throw e;
+        }
         
         moveResults.push({
           productId: product.productId,
           productName: productName,
-          quantity: product.quantity,
-          batches: batchMovements
+          quantity: product.quantity
         });
       }
 
       return res.status(200).json({
         success: true,
-        message: `Successfully transferred products from warehouse ${sourceWarehouseId}`,
+        message: `Produkte erfolgreich von Lager ${sourceWarehouseId} zu ${destinationType === 'WAREHOUSE' ? `Lager ${destinationWarehouseId}` : externalDestination} transferiert`,
         movements: moveResults
       });
     });
   } catch (error) {
-    console.error('Error during product transfer:', error);
+    console.error('Fehler während des Produkttransfers:', error);
     return res.status(500).json({
-      error: 'Failed to transfer products',
+      error: 'Fehler beim Transferieren von Produkten',
       message: error instanceof Error ? error.message : String(error)
     });
   }
