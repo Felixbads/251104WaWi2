@@ -4,7 +4,7 @@ import { products, inventoryItems, inventoryMovements, inventoryBatches, warehou
 import { eq, and, sql, gte, desc, asc, inArray, gt } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
-import { chunk } from 'lodash';
+import lodash from 'lodash';
 
 const router = Router();
 
@@ -255,7 +255,7 @@ router.post('/transfer', async (req, res) => {
         
         // Chunked Insert für große Datenmengen (je 500 Einträge)
         const CHUNK_SIZE = 500;
-        const chunks = chunk(missingRows, CHUNK_SIZE);
+        const chunks = lodash.chunk(missingRows, CHUNK_SIZE);
         
         try {
           for (const batch of chunks) {
