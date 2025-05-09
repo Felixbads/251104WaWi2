@@ -25,7 +25,7 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle
 } from '@/components/ui/alert-dialog';
-import { InventoryCountBatchDialog } from '@/components/inventory/InventoryCountBatchDialog';
+import InventoryCountBatchDialog from '@/components/inventory/InventoryCountBatchDialog';
 
 // Interface für Produktcharge
 interface ProductBatch {
@@ -101,6 +101,8 @@ const InventoryCountNew = ({
   const [confirmCancelDialog, setConfirmCancelDialog] = useState(false);
   const [showStartForm, setShowStartForm] = useState(false);
   const [countNotes, setCountNotes] = useState('');
+  const [showBatchDialog, setShowBatchDialog] = useState(false);
+  const [selectedItemForBatch, setSelectedItemForBatch] = useState<InventoryCountItem | null>(null);
 
   // Interne Zustände für manuellen Abruf der Inventur
   const [specificInventoryCount, setSpecificInventoryCount] = useState<InventoryCount | null>(null);
@@ -692,19 +694,36 @@ const InventoryCountNew = ({
                         {item.difference > 0 ? '+' : ''}{item.difference}
                       </TableCell>
                       <TableCell className="text-center">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleSaveItem(item)}
-                          disabled={saveInventoryItemMutation.isPending}
-                          title="Artikel speichern"
-                        >
-                          {saveInventoryItemMutation.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Check className="h-4 w-4" />
+                        <div className="flex items-center justify-center space-x-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleSaveItem(item)}
+                            disabled={saveInventoryItemMutation.isPending}
+                            title="Artikel speichern"
+                          >
+                            {saveInventoryItemMutation.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Check className="h-4 w-4" />
+                            )}
+                          </Button>
+                          
+                          {item.batches && item.batches.length > 0 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleShowBatches(item)}
+                              className="ml-1 flex items-center"
+                              title="Chargen anzeigen und bearbeiten"
+                            >
+                              <PackageOpen className="h-4 w-4 mr-1" />
+                              <span className="text-xs">
+                                Chargen ({item.batches.length})
+                              </span>
+                            </Button>
                           )}
-                        </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
