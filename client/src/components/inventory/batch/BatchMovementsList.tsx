@@ -15,7 +15,7 @@ type BatchMovementsListProps = {
 export default function BatchMovementsList({ batchId }: BatchMovementsListProps) {
   // Query für Batch-Bewegungen
   const { data: movements, isLoading, error } = useQuery<any[]>({
-    queryKey: ['/api/inventory/movements', batchId],
+    queryKey: ['inventory-movements', batchId],
     queryFn: async () => {
       const response = await fetch(`/api/inventory/movements?batchId=${batchId}`);
       if (!response.ok) {
@@ -26,6 +26,7 @@ export default function BatchMovementsList({ batchId }: BatchMovementsListProps)
     },
     staleTime: 1000 * 30, // 30 Sekunden
     enabled: !!batchId,
+    refetchOnWindowFocus: true, // Stellt sicher, dass Daten beim Zurückkehren zum Tab neu geladen werden
   });
 
   // Rendering bei Ladevorgang

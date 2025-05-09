@@ -1,3 +1,6 @@
+Adding query key invalidation after a successful batch movement to ensure the inventory list is updated when new inventories are created.
+```
+```replit_final_file
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
@@ -71,7 +74,7 @@ const InventoryCountNew = ({
 }) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  
+
   // Zustandsvariablen
   const [searchQuery, setSearchQuery] = useState('');
   const [inventoryItems, setInventoryItems] = useState<InventoryCountItem[]>([]);
@@ -84,12 +87,12 @@ const InventoryCountNew = ({
   // Interne Zustände für manuellen Abruf der Inventur
   const [specificInventoryCount, setSpecificInventoryCount] = useState<InventoryCount | null>(null);
   const [specificInventoryLoading, setSpecificInventoryLoading] = useState<boolean>(false);
-  
+
   // Manueller Abruf der spezifischen Inventurzählung, wenn inventoryId vorhanden ist
   useEffect(() => {
     if (inventoryId) {
       setSpecificInventoryLoading(true);
-      
+
       // Direkter Abruf der spezifischen Inventurzählung
       fetch(`/api/inventory-counts/${inventoryId}`)
         .then(res => {
@@ -101,7 +104,7 @@ const InventoryCountNew = ({
         .then(data => {
           console.log("Spezifische Inventurzählung geladen:", data);
           setSpecificInventoryCount(data as InventoryCount);
-          
+
           // Wenn Items-Endpoint verfügbar ist, Elemente abrufen
           return fetch(`/api/inventory-counts/${inventoryId}/items`);
         })
@@ -151,7 +154,7 @@ const InventoryCountNew = ({
     if (specificInventoryCount) {
       console.log('Spezifische Inventur geladen:', specificInventoryCount);
       setActiveCount(specificInventoryCount);
-      
+
       // Wenn die Inventur bereits Elemente hat, verwende diese
       if (specificInventoryCount.items && specificInventoryCount.items.length > 0) {
         setInventoryItems(specificInventoryCount.items);
@@ -159,12 +162,12 @@ const InventoryCountNew = ({
         // Ansonsten initialisiere mit dem aktuellen Inventar
         initializeItemsFromInventory();
       }
-      
+
       // Setze Notizen aus der geladenen Inventur
       if (specificInventoryCount.notes) {
         setCountNotes(specificInventoryCount.notes);
       }
-      
+
       // Formularansicht ausblenden, da wir eine vorhandene Inventur anzeigen
       setShowStartForm(false);
     }
@@ -177,7 +180,7 @@ const InventoryCountNew = ({
         // Setze die erste aktive Inventur als aktuell aktiv
         setActiveCount(inventoryCounts[0]);
         console.log('Aktive Inventur gefunden:', inventoryCounts[0]);
-        
+
         // Wenn die Inventur bereits Elemente hat, verwende diese
         if (inventoryCounts[0].items && inventoryCounts[0].items.length > 0) {
           setInventoryItems(inventoryCounts[0].items);
@@ -198,7 +201,7 @@ const InventoryCountNew = ({
   const initializeItemsFromInventory = () => {
     if (Array.isArray(inventory) && inventory.length > 0) {
       console.log('Initialisiere Inventur mit', inventory.length, 'Produkten');
-      
+
       setInventoryItems(
         inventory.map(item => ({
           productId: typeof item.productId === 'string' ? Number(item.productId) : item.productId,
@@ -235,17 +238,19 @@ const InventoryCountNew = ({
       });
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/inventory-counts'] });
-      
+      console.log("Inventur erfolgreich gestartet:", data);
+      // Invalidiere die Abfrage für Inventurlisten, damit neue Einträge sofort sichtbar sind
+      queryClient.invalidateQueries({ queryKey: ['inventory-counts'] });
+
       // Setze die neue Inventur als aktiv
       setActiveCount(data);
-      
+
       // UI Zustand zurücksetzen
       setShowStartForm(false);
-      
+
       // Initialisiere mit dem aktuellen Inventar
       initializeItemsFromInventory();
-      
+
       toast({
         title: 'Inventur gestartet',
         description: 'Die Inventur wurde erfolgreich gestartet.',
@@ -270,7 +275,7 @@ const InventoryCountNew = ({
         countedQuantity: Number(item.countedQuantity),
         difference: Number(item.countedQuantity) - Number(item.currentQuantity)
       };
-      
+
       return await fetch(`/api/inventory-counts/${inventoryCountId}/items`, {
         method: 'POST',
         headers: {
@@ -287,7 +292,7 @@ const InventoryCountNew = ({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/inventory-counts'] });
-      
+
       toast({
         title: 'Element gespeichert',
         description: 'Das Element wurde erfolgreich gespeichert.',
@@ -318,15 +323,15 @@ const InventoryCountNew = ({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/inventory-counts'] });
       queryClient.invalidateQueries({ queryKey: ['/api/inventory'] });
-      
+
       toast({
         title: 'Inventur abgeschlossen',
         description: 'Die Inventur wurde erfolgreich abgeschlossen und die Bestände aktualisiert.',
       });
-      
+
       // Dialog schließen
       setConfirmCompleteDialog(false);
-      
+
       // Callback für den Abschluss aufrufen
       if (onComplete) onComplete();
     },
@@ -355,19 +360,19 @@ const InventoryCountNew = ({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/inventory-counts'] });
-      
+
       toast({
         title: 'Inventur abgebrochen',
         description: 'Die Inventur wurde abgebrochen.',
       });
-      
+
       // Dialog schließen
       setConfirmCancelDialog(false);
-      
+
       // Zustand zurücksetzen
       setActiveCount(null);
       setShowStartForm(true);
-      
+
       // Callback für den Abbruch aufrufen
       if (onCancel) onCancel();
     },
@@ -417,7 +422,7 @@ const InventoryCountNew = ({
       });
       return;
     }
-    
+
     saveInventoryItemMutation.mutate({ 
       inventoryCountId: activeCount.id, 
       item 
@@ -451,7 +456,7 @@ const InventoryCountNew = ({
   // Filtere Inventurelemente basierend auf Suchbegriff
   const filteredItems = inventoryItems.filter(item => {
     if (!searchQuery.trim()) return true;
-    
+
     const lowerCaseQuery = searchQuery.toLowerCase();
     return (
       item.productName.toLowerCase().includes(lowerCaseQuery) ||
@@ -543,7 +548,7 @@ const InventoryCountNew = ({
                 </Badge>
               </div>
             </div>
-            
+
             <div className="flex flex-col sm:flex-row gap-2">
               <Button 
                 variant="outline" 
@@ -552,7 +557,7 @@ const InventoryCountNew = ({
                 <Trash className="mr-2 h-4 w-4" />
                 Abbrechen
               </Button>
-              
+
               <Button
                 onClick={handleCompleteInventory}
                 disabled={completeInventoryCountMutation.isPending}
@@ -566,7 +571,7 @@ const InventoryCountNew = ({
               </Button>
             </div>
           </div>
-          
+
           {/* Suchleiste */}
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -587,7 +592,7 @@ const InventoryCountNew = ({
               </Button>
             )}
           </div>
-          
+
           {/* Inventurtabelle */}
           <Card>
             <Table>
@@ -651,7 +656,7 @@ const InventoryCountNew = ({
               </TableBody>
             </Table>
           </Card>
-          
+
           {/* Bestätigungsdialog für Abschließen */}
           <AlertDialog open={confirmCompleteDialog} onOpenChange={setConfirmCompleteDialog}>
             <AlertDialogContent>
@@ -678,7 +683,7 @@ const InventoryCountNew = ({
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-          
+
           {/* Bestätigungsdialog für Abbrechen */}
           <AlertDialog open={confirmCancelDialog} onOpenChange={setConfirmCancelDialog}>
             <AlertDialogContent>
@@ -702,7 +707,7 @@ const InventoryCountNew = ({
           </AlertDialog>
         </>
       )}
-      
+
       {!activeCount && !showStartForm && (
         <Card>
           <CardContent className="pt-6">

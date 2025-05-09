@@ -72,8 +72,18 @@ export default function InventurListe() {
 
   // Lade Inventurdaten
   const { data: inventurDaten = [], isLoading: isLoadingInventur } = useQuery<InventoryCount[]>({
-    queryKey: ['/api/inventory-counts'],
-    staleTime: 60 * 1000, // 1 Minute Cache
+    queryKey: ['inventory-counts'],
+    queryFn: async () => {
+      const response = await fetch('/api/inventory-counts');
+      if (!response.ok) {
+        throw new Error(`Fehler beim Laden der Inventuren: ${response.status}`);
+      }
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    },
+    staleTime: 5 * 1000, // 5 Sekunden Cache - deutlich kürzere Zeit
+    refetchOnWindowFocus: true, // Aktualisiere bei Tab-Fokus
+    refetchOnMount: true,
   });
 
   // Lade verfügbare Lager
