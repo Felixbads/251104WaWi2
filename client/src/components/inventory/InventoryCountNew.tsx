@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
-  ClipboardCheck, Search, FilterX, 
+  ClipboardCheck, Search, FilterX, PackageOpen,
   Plus, Check, X, Loader2, Save, Trash, CheckCircle2, AlertCircle 
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,21 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle
 } from '@/components/ui/alert-dialog';
+import { InventoryCountBatchDialog } from '@/components/inventory/InventoryCountBatchDialog';
+
+// Interface für Produktcharge
+interface ProductBatch {
+  id: number;
+  batchNumber: string;
+  productId: number;
+  warehouseId: number;
+  initialQuantity: number;
+  currentQuantity: number;
+  expiryDate: string | null;
+  status: string;
+  locationInWarehouse?: string;
+  notes?: string;
+}
 
 // Interface für die Inventur-Zählvorgänge
 interface InventoryCountItem {
@@ -37,6 +52,11 @@ interface InventoryCountItem {
   sku?: string;
   location?: string;
   status?: string;
+  
+  // Batch-bezogene Informationen
+  batchId?: number;
+  batches?: ProductBatch[]; // Alle verfügbaren Batches für dieses Produkt
+  batchCounts?: {[batchId: number]: number}; // Gezählte Mengen pro Batch
 }
 
 // Interface für die Inventur
@@ -196,21 +216,65 @@ const InventoryCountNew = ({
   }, [inventoryCounts, warehouseId, inventoryId]);
 
   // Initialisierung der Inventurzählung mit aktuellen Bestandsdaten
-  const initializeItemsFromInventory = () => {
+  const initializeItemsFromInventory = async () => {
     if (Array.isArray(inventory) && inventory.length > 0) {
       console.log('Initialisiere Inventur mit', inventory.length, 'Produkten');
-
-      setInventoryItems(
-        inventory.map(item => ({
-          productId: typeof item.productId === 'string' ? Number(item.productId) : item.productId,
-          productName: item.productName || 'Unbekannt',
-          currentQuantity: item.quantity || 0,
-          countedQuantity: item.quantity || 0, // Standardmäßig aktueller Bestand
-          difference: 0,
-          sku: item.sku || '',
-          location: item.locationInWarehouse || ''
-        }))
-      );
+      
+      // Erstelle initiale Liste aus Inventardaten
+      const initialItems = inventory.map(item => ({
+        productId: typeof item.productId === 'string' ? Number(item.productId) : item.productId,
+        productName: item.productName || 'Unbekannt',
+        currentQuantity: item.quantity || 0,
+        countedQuantity: item.quantity || 0, // Standardmäßig aktueller Bestand
+        difference: 0,
+        sku: item.sku || '',
+        location: item.locationInWarehouse || '',
+        batches: [],               // Wird später gefüllt
+        batchCounts: {}            // Wird später gefüllt
+      }));
+      
+      setInventoryItems(initialItems);
+      
+      // Lade Batch-Informationen für jedes Produkt
+      for (const item of initialItems) {
+        try {
+          // Hole Batches für dieses Produkt im aktuellen Lager
+          const response = await fetch(`/api/products/${item.productId}/batches?warehouseId=${warehouseId}`);
+          
+          if (!response.ok) {
+            console.error(`Fehler beim Laden der Batches für Produkt ${item.productId}: ${response.status}`);
+            continue;
+          }
+          
+          const batches = await response.json();
+          
+          if (Array.isArray(batches) && batches.length > 0) {
+            console.log(`${batches.length} Batches für Produkt ${item.productId} gefunden:`, batches);
+            
+            // Aktualisiere das Item mit Batch-Informationen
+            setInventoryItems(prev => 
+              prev.map(prevItem => 
+                prevItem.productId === item.productId 
+                  ? { 
+                      ...prevItem, 
+                      batches: batches,
+                      // Erstelle ein Objekt mit BatchID als Schlüssel und aktueller Menge als Wert
+                      batchCounts: batches.reduce((acc, batch) => {
+                        acc[batch.id] = batch.currentQuantity;
+                        return acc;
+                      }, {} as {[batchId: number]: number})
+                    } 
+                  : prevItem
+              )
+            );
+          } else {
+            console.log(`Keine Batches für Produkt ${item.productId} gefunden.`);
+          }
+        } catch (error) {
+          console.error(`Fehler beim Laden der Batches für Produkt ${item.productId}:`, error);
+        }
+      }
+      
     } else {
       console.log('Inventory für Zählung ist leer oder kein Array');
       setInventoryItems([]);
