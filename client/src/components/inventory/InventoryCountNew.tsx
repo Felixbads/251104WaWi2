@@ -1,6 +1,4 @@
-Adding query key invalidation after a successful batch movement to ensure the inventory list is updated when new inventories are created.
-```
-```replit_final_file
+
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
