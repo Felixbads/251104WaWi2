@@ -1,32 +1,26 @@
 import { useState, useEffect } from 'react';
-import { format, parseISO, isValid, addDays } from 'date-fns';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
-  Calendar, PackageOpen, Plus, 
-  Save, Trash2, AlertTriangle, 
-  Check, RefreshCw, ArrowRight,
-  Loader2, X, Split
-} from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+  Dialog, DialogContent, DialogDescription,
+  DialogFooter, DialogHeader, DialogTitle, DialogClose
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { DatePicker } from '@/components/ui/date-picker';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  Table, TableBody, TableCaption, TableCell,
+import { Badge } from '@/components/ui/badge';
+import { 
+  Table, TableBody, TableCell,
   TableHead, TableHeader, TableRow
 } from '@/components/ui/table';
-import {
-  Dialog, DialogContent, DialogDescription,
-  DialogFooter, DialogHeader, DialogTitle
-} from '@/components/ui/dialog';
-import {
-  Select, SelectContent, SelectItem,
-  SelectTrigger, SelectValue
-} from '@/components/ui/select';
+import { 
+  Card, CardContent, CardDescription,
+  CardFooter, CardHeader, CardTitle
+} from '@/components/ui/card';
+import { Plus, ChevronRight, PackageOpen, Calendar } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import { de } from 'date-fns/locale';
 
 // Interface für Produktcharge
 interface ProductBatch {
@@ -42,7 +36,7 @@ interface ProductBatch {
   notes?: string;
 }
 
-// Interface für Inventurelement
+// Interface für das Inventur-Zähl-Element mit Chargen-Ansicht
 interface InventoryCountItemBatchView {
   id?: number;
   productId: number;
@@ -54,7 +48,6 @@ interface InventoryCountItemBatchView {
   expiryDate?: string | null;
 }
 
-// Props für den Dialog
 interface InventoryCountBatchDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -65,579 +58,315 @@ interface InventoryCountBatchDialogProps {
   onLoadBatches?: (productId: number) => Promise<ProductBatch[]>;
 }
 
-// InventoryCountBatchDialog Komponente
 export default function InventoryCountBatchDialog({
   open,
   onOpenChange,
   selectedItem,
-  availableBatches = [],
+  availableBatches,
   onUpdateBatch,
   onCreateBatch,
   onLoadBatches
 }: InventoryCountBatchDialogProps) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-
-  // Zustandsvariablen für die UI
-  const [currentBatches, setCurrentBatches] = useState<ProductBatch[]>([]);
-  const [selectedBatchId, setSelectedBatchId] = useState<number | null>(null);
-  const [showNewBatchForm, setShowNewBatchForm] = useState(false);
-  const [showSplitForm, setShowSplitForm] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [batches, setBatches] = useState<ProductBatch[]>([]);
   const [activeTab, setActiveTab] = useState('existing');
+  const [loading, setLoading] = useState(false);
+  const [batchCounts, setBatchCounts] = useState<{[key: number]: number}>({});
   
-  // Felder für neue Charge
+  // Status für neue Charge
   const [newBatchNumber, setNewBatchNumber] = useState('');
+  const [newQuantity, setNewQuantity] = useState<number>(0);
   const [newExpiryDate, setNewExpiryDate] = useState<Date | null>(null);
-  const [newBatchQuantity, setNewBatchQuantity] = useState<number | null>(null);
-  const [newBatchLocation, setNewBatchLocation] = useState('');
-  const [newBatchNotes, setNewBatchNotes] = useState('');
+  const [newLocation, setNewLocation] = useState('');
+  const [newNotes, setNewNotes] = useState('');
   
-  // Felder für Charge-Aufteilung
-  const [splitQuantity, setSplitQuantity] = useState<number | null>(null);
-  const [splitTargetBatchId, setSplitTargetBatchId] = useState<number | null>(null);
-  const [batchCountedQuantities, setBatchCountedQuantities] = useState<{[key: number]: number}>({});
-
-  // Setze Batches, wenn Dialog geöffnet oder selectedItem ändert
+  // Lade Batches, wenn Dialog geöffnet wird
   useEffect(() => {
     if (open && selectedItem) {
-      setCurrentBatches(availableBatches || []);
-      setSelectedBatchId(selectedItem.batchId || null);
-      
-      // Initialisiere gezählte Mengen für alle Batches
-      const initialQuantities: {[key: number]: number} = {};
-      availableBatches.forEach(batch => {
-        initialQuantities[batch.id] = batch.currentQuantity;
-      });
-      setBatchCountedQuantities(initialQuantities);
-      
-      // Wenn keine Batches geladen wurden und ein Callback verfügbar ist, lade Batches
-      if (availableBatches.length === 0 && onLoadBatches && selectedItem.productId) {
-        loadBatches(selectedItem.productId);
+      // Verfügbare Batches aus Props verwenden oder nachladen
+      if (availableBatches && availableBatches.length > 0) {
+        setBatches(availableBatches);
+        
+        // Initialisiere batchCounts mit den aktuellen Mengen
+        const initialCounts: {[key: number]: number} = {};
+        availableBatches.forEach(batch => {
+          initialCounts[batch.id] = batch.currentQuantity;
+        });
+        setBatchCounts(initialCounts);
+      } else if (onLoadBatches) {
+        loadBatches();
       }
     } else {
+      // Bei Schließen des Dialogs alle Status zurücksetzen
       resetForm();
     }
   }, [open, selectedItem, availableBatches]);
-
-  // Lade Batches für ein Produkt
-  const loadBatches = async (productId: number) => {
-    if (!onLoadBatches) return;
+  
+  // Batches laden
+  const loadBatches = async () => {
+    if (!selectedItem || !onLoadBatches) return;
     
-    setIsLoading(true);
     try {
-      const batches = await onLoadBatches(productId);
-      setCurrentBatches(batches);
+      setLoading(true);
+      const loadedBatches = await onLoadBatches(selectedItem.productId);
+      setBatches(loadedBatches);
       
-      // Initialisiere gezählte Mengen für alle geladenen Batches
-      const initialQuantities: {[key: number]: number} = {};
-      batches.forEach(batch => {
-        initialQuantities[batch.id] = batch.currentQuantity;
+      // Initialisiere batchCounts mit den aktuellen Mengen
+      const initialCounts: {[key: number]: number} = {};
+      loadedBatches.forEach(batch => {
+        initialCounts[batch.id] = batch.currentQuantity;
       });
-      setBatchCountedQuantities(initialQuantities);
-      
-      setIsLoading(false);
+      setBatchCounts(initialCounts);
     } catch (error) {
       console.error('Fehler beim Laden der Batches:', error);
-      setIsLoading(false);
-      toast({
-        title: 'Fehler beim Laden der Batches',
-        description: error instanceof Error ? error.message : 'Unbekannter Fehler',
-        variant: 'destructive'
-      });
+    } finally {
+      setLoading(false);
     }
   };
-
-  // Handler: Batch-Menge ändern
-  const handleBatchQuantityChange = (batchId: number, quantity: number) => {
-    setBatchCountedQuantities(prev => ({
+  
+  // Handler für Mengenänderung einer Charge
+  const handleQuantityChange = (batchId: number, value: number) => {
+    setBatchCounts(prev => ({
       ...prev,
-      [batchId]: quantity
+      [batchId]: value
     }));
   };
-
-  // Handler: Batch zuweisen
-  const handleAssignBatch = () => {
-    if (!selectedItem || !selectedItem.id || !selectedBatchId) {
-      toast({
-        title: 'Fehler',
-        description: 'Bitte wählen Sie eine Charge aus.',
-        variant: 'destructive'
-      });
-      return;
-    }
+  
+  // Handler für Aktualisierung der Charge-Menge
+  const handleUpdateBatch = (batchId: number) => {
+    if (!selectedItem || !selectedItem.id || !onUpdateBatch) return;
     
-    const countedQuantity = batchCountedQuantities[selectedBatchId] || 0;
-    
-    if (onUpdateBatch) {
-      onUpdateBatch(selectedItem.id, selectedBatchId, countedQuantity);
-      onOpenChange(false);
-    } else {
-      // Direkter API-Aufruf als Fallback
-      updateInventoryItemBatch(selectedItem.id, selectedBatchId, countedQuantity);
-    }
+    const countedQuantity = batchCounts[batchId] || 0;
+    onUpdateBatch(selectedItem.id, batchId, countedQuantity);
   };
-
-  // API-Aufruf: Batch für Inventurelement aktualisieren
-  const updateInventoryItemBatch = async (itemId: number, batchId: number, countedQuantity: number) => {
+  
+  // Handler für Erstellung einer neuen Charge
+  const handleCreateBatch = async () => {
+    if (!selectedItem || !onCreateBatch) return;
+    
     try {
-      const response = await fetch(`/api/inventory-counts/items/${itemId}/batch`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          batchId,
-          countedQuantity
-        }),
-      });
+      setLoading(true);
       
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Fehler ${response.status}: ${errorText}`);
-      }
+      const newBatch: Partial<ProductBatch> = {
+        productId: selectedItem.productId,
+        warehouseId: batches.length > 0 ? batches[0].warehouseId : 0, // Nehme das Lager der vorhandenen Batches
+        batchNumber: newBatchNumber,
+        initialQuantity: newQuantity,
+        currentQuantity: newQuantity,
+        expiryDate: newExpiryDate ? newExpiryDate.toISOString() : null,
+        status: 'ACTIVE',
+        locationInWarehouse: newLocation || undefined,
+        notes: newNotes || undefined
+      };
       
-      const data = await response.json();
+      await onCreateBatch(newBatch);
       
-      toast({
-        title: 'Charge zugewiesen',
-        description: 'Die Charge wurde erfolgreich zugewiesen.',
-      });
-      
-      // Schließe Dialog
-      onOpenChange(false);
-      
-      return data;
-    } catch (error) {
-      console.error('Fehler beim Zuweisen der Charge:', error);
-      toast({
-        title: 'Fehler beim Zuweisen der Charge',
-        description: error instanceof Error ? error.message : 'Unbekannter Fehler',
-        variant: 'destructive'
-      });
-      throw error;
-    }
-  };
-
-  // Mutation: Neue Batch erstellen
-  const createBatchMutation = useMutation({
-    mutationFn: async (newBatch: Partial<ProductBatch>) => {
-      if (onCreateBatch) {
-        return await onCreateBatch(newBatch);
-      }
-      
-      // Direkter API-Aufruf als Fallback
-      const response = await fetch('/api/product-batches', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newBatch),
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Fehler ${response.status}: ${errorText}`);
-      }
-      
-      return await response.json();
-    },
-    onSuccess: (data) => {
-      // Cache aktualisieren
-      queryClient.invalidateQueries({ queryKey: ['/api/product-batches'] });
-      
-      // Lokale Batch-Liste aktualisieren
-      setCurrentBatches(prev => [...prev, data]);
-      
-      // Neue Batch auswählen
-      setSelectedBatchId(data.id);
-      
-      // Batch-Mengen aktualisieren
-      setBatchCountedQuantities(prev => ({
-        ...prev,
-        [data.id]: data.initialQuantity
-      }));
-      
-      // Formular zurücksetzen
-      resetNewBatchForm();
-      
-      // Benachrichtigung
-      toast({
-        title: 'Neue Charge erstellt',
-        description: `Die Charge ${data.batchNumber} wurde erfolgreich erstellt.`,
-      });
-      
-      // Zurück zum Tab für bestehende Batches
+      // Formular zurücksetzen und zu "Vorhandene Chargen" wechseln
+      resetForm();
       setActiveTab('existing');
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Fehler beim Erstellen der Charge',
-        description: error.message || 'Die Charge konnte nicht erstellt werden.',
-        variant: 'destructive'
-      });
+      
+      // Batches neu laden, wenn onLoadBatches verfügbar ist
+      if (onLoadBatches) {
+        await loadBatches();
+      }
+    } catch (error) {
+      console.error('Fehler beim Erstellen der Charge:', error);
+    } finally {
+      setLoading(false);
     }
-  });
-
-  // Handler: Neue Batch erstellen
-  const handleCreateBatch = () => {
-    if (!selectedItem || !selectedItem.productId) {
-      toast({
-        title: 'Fehler',
-        description: 'Produkt-ID fehlt',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    if (!newBatchNumber.trim()) {
-      toast({
-        title: 'Fehler',
-        description: 'Bitte geben Sie eine Chargennummer ein',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    if (!newExpiryDate) {
-      toast({
-        title: 'Fehler',
-        description: 'Bitte wählen Sie ein Ablaufdatum',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    if (!newBatchQuantity || newBatchQuantity <= 0) {
-      toast({
-        title: 'Fehler',
-        description: 'Bitte geben Sie eine gültige Menge ein',
-        variant: 'destructive'
-      });
-      return;
-    }
-    
-    // Neue Batch erstellen
-    const newBatch: Partial<ProductBatch> = {
-      productId: selectedItem.productId,
-      warehouseId: currentBatches.length > 0 ? currentBatches[0].warehouseId : 0, // Warehouse-ID aus bestehenden Batches übernehmen
-      batchNumber: newBatchNumber,
-      expiryDate: newExpiryDate.toISOString().split('T')[0],
-      initialQuantity: newBatchQuantity,
-      currentQuantity: newBatchQuantity,
-      status: 'active',
-      locationInWarehouse: newBatchLocation,
-      notes: newBatchNotes
-    };
-    
-    createBatchMutation.mutate(newBatch);
   };
-
-  // Formular für neue Batch zurücksetzen
-  const resetNewBatchForm = () => {
-    setShowNewBatchForm(false);
-    setNewBatchNumber('');
-    setNewExpiryDate(null);
-    setNewBatchQuantity(null);
-    setNewBatchLocation('');
-    setNewBatchNotes('');
-  };
-
-  // Gesamtes Formular zurücksetzen
+  
+  // Formular zurücksetzen
   const resetForm = () => {
-    setSelectedBatchId(null);
-    setShowNewBatchForm(false);
-    setShowSplitForm(false);
-    resetNewBatchForm();
-    setSplitQuantity(null);
-    setSplitTargetBatchId(null);
-    setBatchCountedQuantities({});
+    setNewBatchNumber('');
+    setNewQuantity(0);
+    setNewExpiryDate(null);
+    setNewLocation('');
+    setNewNotes('');
   };
-
-  // Formatiere Datum für die Anzeige
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return 'Kein Datum';
-    
-    try {
-      const date = parseISO(dateString);
-      return isValid(date) ? format(date, 'dd.MM.yyyy') : 'Ungültiges Datum';
-    } catch (error) {
-      console.error('Fehler beim Parsen des Datums:', error);
-      return 'Fehler beim Parsen';
-    }
-  };
-
-  // Bestimme Status des Verfallsdatums
-  const getExpiryStatus = (dateString: string | null | undefined) => {
-    if (!dateString) return 'unknown';
-    
-    try {
-      const today = new Date();
-      const expiryDate = parseISO(dateString);
-      
-      if (!isValid(expiryDate)) return 'unknown';
-      
-      const twoWeeksFromNow = addDays(today, 14);
-      
-      if (expiryDate < today) return 'expired';
-      if (expiryDate < twoWeeksFromNow) return 'expiring-soon';
-      return 'valid';
-    } catch (error) {
-      console.error('Fehler beim Bestimmen des Ablaufstatus:', error);
-      return 'unknown';
-    }
-  };
-
-  // Render-Funktion für Verfallsdatum mit farbiger Markierung
-  const renderExpiryDate = (dateString: string | null | undefined) => {
-    const status = getExpiryStatus(dateString);
-    const formattedDate = formatDate(dateString);
-    
-    switch (status) {
-      case 'expired':
-        return (
-          <div className="flex items-center">
-            <Badge variant="destructive" className="mr-2">Abgelaufen</Badge>
-            {formattedDate}
-          </div>
-        );
-      case 'expiring-soon':
-        return (
-          <div className="flex items-center">
-            <Badge variant="warning" className="mr-2">Bald abgelaufen</Badge>
-            {formattedDate}
-          </div>
-        );
-      case 'valid':
-        return (
-          <div className="flex items-center">
-            <Badge variant="success" className="mr-2">Gültig</Badge>
-            {formattedDate}
-          </div>
-        );
-      default:
-        return formattedDate;
-    }
-  };
-
-  // Wenn kein ausgewähltes Element vorhanden ist
-  if (!selectedItem) {
-    return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Chargen-Informationen</DialogTitle>
-            <DialogDescription>
-              Kein Produkt ausgewählt. Bitte wählen Sie zuerst ein Produkt aus.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Schließen
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
+  
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center">
-            <PackageOpen className="mr-2 h-5 w-5" />
-            Chargen für {selectedItem.productName}
-          </DialogTitle>
-          <DialogDescription>
-            Verwalten Sie die Chargen und MHD-Informationen für dieses Produkt.
-          </DialogDescription>
+          <DialogTitle>Chargen verwalten</DialogTitle>
+          {selectedItem && (
+            <DialogDescription>
+              Verwalten Sie die Chargen für das Produkt "{selectedItem.productName}"
+            </DialogDescription>
+          )}
         </DialogHeader>
-
-        <Tabs defaultValue="existing" value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-2">
-            <TabsTrigger value="existing">Bestehende Chargen</TabsTrigger>
-            <TabsTrigger value="new">Neue Charge</TabsTrigger>
-          </TabsList>
-          
-          {/* Tab: Bestehende Chargen */}
-          <TabsContent value="existing" className="space-y-4 py-2">
-            {isLoading ? (
-              <div className="flex justify-center items-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : currentBatches.length === 0 ? (
-              <div className="text-center py-8">
-                <PackageOpen className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
-                <p className="text-muted-foreground">Keine Chargen für dieses Produkt gefunden.</p>
-                <Button 
-                  variant="outline" 
-                  className="mt-4"
-                  onClick={() => setActiveTab('new')}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Neue Charge erstellen
-                </Button>
-              </div>
-            ) : (
-              <>
+        
+        {selectedItem && (
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid grid-cols-2 w-full">
+              <TabsTrigger value="existing">Vorhandene Chargen</TabsTrigger>
+              <TabsTrigger value="new">Neue Charge</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="existing" className="mt-4">
+              {batches.length > 0 ? (
                 <Table>
-                  <TableCaption>Verfügbare Chargen für {selectedItem.productName}</TableCaption>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[50px]"></TableHead>
-                      <TableHead>Charge</TableHead>
-                      <TableHead>MHD</TableHead>
-                      <TableHead className="text-right">Bestand</TableHead>
+                      <TableHead>Chargennummer</TableHead>
+                      <TableHead>Ablaufdatum</TableHead>
+                      <TableHead className="text-right">Aktuell</TableHead>
                       <TableHead className="text-right">Gezählt</TableHead>
+                      <TableHead className="text-center">Aktion</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {currentBatches.map((batch) => (
-                      <TableRow 
-                        key={batch.id} 
-                        className={selectedBatchId === batch.id ? 'bg-muted' : undefined}
-                      >
+                    {batches.map((batch) => (
+                      <TableRow key={batch.id}>
                         <TableCell>
-                          <input 
-                            type="radio" 
-                            name="selectedBatch" 
-                            checked={selectedBatchId === batch.id}
-                            onChange={() => setSelectedBatchId(batch.id)}
-                            className="h-4 w-4"
-                          />
+                          <div className="font-medium">{batch.batchNumber}</div>
+                          {batch.locationInWarehouse && (
+                            <div className="text-xs text-muted-foreground">
+                              Lagerort: {batch.locationInWarehouse}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell>
-                          <div>
-                            <span className="font-medium">{batch.batchNumber}</span>
-                            {batch.locationInWarehouse && (
-                              <p className="text-xs text-muted-foreground mt-1">
-                                Lagerort: {batch.locationInWarehouse}
-                              </p>
-                            )}
-                          </div>
+                          {batch.expiryDate ? (
+                            <div className="flex items-center">
+                              <Calendar className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
+                              <span className={
+                                new Date(batch.expiryDate) < new Date() 
+                                  ? "text-red-500" 
+                                  : ""
+                              }>
+                                {format(parseISO(batch.expiryDate), 'dd.MM.yyyy', { locale: de })}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
                         </TableCell>
-                        <TableCell>
-                          {renderExpiryDate(batch.expiryDate)}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
+                        <TableCell className="text-right">
                           {batch.currentQuantity}
                         </TableCell>
                         <TableCell className="text-right">
                           <Input
                             type="number"
                             min="0"
-                            value={batchCountedQuantities[batch.id] || 0}
-                            onChange={(e) => handleBatchQuantityChange(batch.id, parseInt(e.target.value) || 0)}
-                            className="w-20 inline-block text-right"
-                            disabled={selectedBatchId !== batch.id}
+                            value={batchCounts[batch.id] || 0}
+                            onChange={(e) => handleQuantityChange(batch.id, parseInt(e.target.value) || 0)}
+                            className="w-20 text-right inline-block"
                           />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleUpdateBatch(batch.id)}
+                          >
+                            Aktualisieren
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-              </>
-            )}
-          </TabsContent>
-          
-          {/* Tab: Neue Charge */}
-          <TabsContent value="new" className="space-y-4 py-2">
-            <div className="grid gap-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="batchNumber">Chargennummer *</Label>
-                  <Input 
-                    id="batchNumber"
-                    value={newBatchNumber}
-                    onChange={(e) => setNewBatchNumber(e.target.value)}
-                    placeholder="z.B. LOT12345"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="expiryDate">MHD *</Label>
-                  <DatePicker 
-                    date={newExpiryDate} 
-                    setDate={setNewExpiryDate} 
-                    className="w-full"
-                  />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="quantity">Menge *</Label>
-                  <Input 
-                    id="quantity"
-                    type="number"
-                    min="1"
-                    value={newBatchQuantity || ''}
-                    onChange={(e) => setNewBatchQuantity(parseInt(e.target.value) || null)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="location">Lagerort</Label>
-                  <Input 
-                    id="location"
-                    value={newBatchLocation}
-                    onChange={(e) => setNewBatchLocation(e.target.value)}
-                    placeholder="z.B. Regal A3"
-                  />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="notes">Anmerkungen</Label>
-                <Textarea 
-                  id="notes"
-                  value={newBatchNotes}
-                  onChange={(e) => setNewBatchNotes(e.target.value)}
-                  placeholder="Optionale Anmerkungen zur Charge"
-                  rows={3}
-                />
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+              ) : (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="text-center py-4">
+                      <PackageOpen className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                      <p className="text-muted-foreground">
+                        Keine Chargen für dieses Produkt gefunden
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+            
+            <TabsContent value="new" className="mt-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Neue Charge anlegen</CardTitle>
+                  <CardDescription>
+                    Erstellen Sie eine neue Charge für das Produkt
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="batchNumber">Chargennummer</Label>
+                      <Input
+                        id="batchNumber"
+                        value={newBatchNumber}
+                        onChange={(e) => setNewBatchNumber(e.target.value)}
+                        placeholder="z.B. CH-2023-001"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="quantity">Menge</Label>
+                      <Input
+                        id="quantity"
+                        type="number"
+                        min="0"
+                        value={newQuantity}
+                        onChange={(e) => setNewQuantity(parseInt(e.target.value) || 0)}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="expiryDate">Ablaufdatum</Label>
+                      <DatePicker
+                        date={newExpiryDate}
+                        setDate={setNewExpiryDate}
+                        placeholder="Ablaufdatum auswählen"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="location">Lagerort</Label>
+                      <Input
+                        id="location"
+                        value={newLocation}
+                        onChange={(e) => setNewLocation(e.target.value)}
+                        placeholder="z.B. Regal A1"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Anmerkungen</Label>
+                    <Textarea
+                      id="notes"
+                      value={newNotes}
+                      onChange={(e) => setNewNotes(e.target.value)}
+                      placeholder="Optionale Anmerkungen zur Charge"
+                      rows={3}
+                    />
+                  </div>
+                </CardContent>
+                <CardFooter className="flex justify-between">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setActiveTab('existing')}
+                  >
+                    Abbrechen
+                  </Button>
+                  <Button 
+                    onClick={handleCreateBatch}
+                    disabled={!newBatchNumber || newQuantity <= 0 || loading}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Charge erstellen
+                  </Button>
+                </CardFooter>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        )}
         
-        <DialogFooter>
-          {activeTab === 'existing' && (
-            <>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                Abbrechen
-              </Button>
-              <Button 
-                variant="default" 
-                onClick={handleAssignBatch}
-                disabled={selectedBatchId === null}
-                className="ml-2"
-              >
-                <Check className="h-4 w-4 mr-2" />
-                Charge zuweisen
-              </Button>
-            </>
-          )}
-          
-          {activeTab === 'new' && (
-            <>
-              <Button variant="outline" onClick={() => setActiveTab('existing')}>
-                Zurück
-              </Button>
-              <Button 
-                variant="default" 
-                onClick={handleCreateBatch}
-                disabled={createBatchMutation.isPending}
-                className="ml-2"
-              >
-                {createBatchMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Plus className="h-4 w-4 mr-2" />
-                )}
-                Charge erstellen
-              </Button>
-            </>
-          )}
+        <DialogFooter className="mt-4">
+          <DialogClose asChild>
+            <Button variant="outline">Schließen</Button>
+          </DialogClose>
         </DialogFooter>
       </DialogContent>
     </Dialog>
