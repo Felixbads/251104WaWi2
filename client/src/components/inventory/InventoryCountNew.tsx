@@ -181,7 +181,8 @@ const InventoryCountNew = ({ warehouseId, onComplete, onCancel }: InventoryCount
   // Initialisiere Items basierend auf aktuellem Lagerbestand
   const initializeItemsFromInventory = async () => {
     try {
-      const response = await fetch(`/api/warehouses/${warehouseId}/inventory?includeBatches=true`);
+      // Lade Lagerbestand
+      const response = await fetch(`/api/warehouses/${warehouseId}/inventory`);
       if (!response.ok) {
         throw new Error('Fehler beim Abrufen des Lagerbestands');
       }
@@ -198,13 +199,46 @@ const InventoryCountNew = ({ warehouseId, onComplete, onCancel }: InventoryCount
           countedQuantity: item.quantity || 0, // Initial gleich wie currentQuantity
           difference: 0,
           sku: item.sku,
-          location: item.locationInWarehouse,
-          batches: item.batches || [],
-          batchCounts: (item.batches || []).reduce((acc: any, batch: any) => {
-            acc[batch.id] = batch.currentQuantity;
-            return acc;
-          }, {})
+          location: item.locationInWarehouse
         }));
+        
+        // Lade die Batches für jedes Produkt
+        console.log("Lade Batches für alle Produkte...");
+        
+        for (const item of items) {
+          try {
+            const batchResponse = await fetch(`/api/inventory-batches/product/${item.productId}/warehouse/${warehouseId}`);
+            
+            if (batchResponse.ok) {
+              const batches = await batchResponse.json();
+              
+              if (batches && batches.length > 0) {
+                console.log(`${batches.length} Batches für Produkt ${item.productId} (${item.productName}) gefunden`);
+                
+                // Aktualisiere das Item mit den Batch-Informationen
+                setInventoryItems(prevItems => 
+                  prevItems.map(prevItem => 
+                    prevItem.productId === item.productId 
+                      ? { 
+                          ...prevItem, 
+                          batches: batches,
+                          // Erstelle ein Objekt mit BatchID als Schlüssel und aktueller Menge als Wert
+                          batchCounts: batches.reduce((acc, batch) => {
+                            acc[batch.id] = batch.currentQuantity;
+                            return acc;
+                          }, {} as {[batchId: number]: number})
+                        } 
+                      : prevItem
+                  )
+                );
+              } else {
+                console.log(`Keine Batches für Produkt ${item.productId} gefunden.`);
+              }
+            }
+          } catch (error) {
+            console.error(`Fehler beim Laden der Batches für Produkt ${item.productId}:`, error);
+          }
+        }
         
         setInventoryItems(items);
         
