@@ -480,9 +480,9 @@ const InventoryCountNew = ({ warehouseId, onComplete, onCancel }: InventoryCount
   // Handler: Batch für ein Inventurelement aktualisieren
   const handleUpdateBatch = (itemId: number, batchId: number, countedQuantity: number) => {
     // Finde das betroffene Item
-    const item = inventoryItems.find(item => item.id === itemId);
+    const item = inventoryItems.find(item => item.productId === selectedItemForBatch?.productId);
     if (!item) {
-      console.error(`Item mit ID ${itemId} nicht gefunden`);
+      console.error(`Item mit ProductID ${selectedItemForBatch?.productId} nicht gefunden`);
       return;
     }
     
@@ -494,6 +494,8 @@ const InventoryCountNew = ({ warehouseId, onComplete, onCancel }: InventoryCount
     
     // Berechne die neue Gesamtmenge basierend auf den Batches
     const newTotalQuantity = Object.values(updatedBatchCounts).reduce((sum, qty) => sum + qty, 0);
+    
+    console.log(`Aktualisiere Batch ${batchId} für Produkt ${item.productId}: Menge=${countedQuantity}, Neue Gesamtmenge=${newTotalQuantity}`);
     
     // Aktualisiere das Item
     setInventoryItems(prevItems => 
@@ -521,11 +523,6 @@ const InventoryCountNew = ({ warehouseId, onComplete, onCancel }: InventoryCount
       
       handleSaveItem(updatedItem);
     }
-    
-    toast({
-      title: 'Charge aktualisiert',
-      description: `Die Charge wurde mit ${countedQuantity} Einheiten aktualisiert.`
-    });
   };
   
   // Handler: Batch-Informationen für ein Produkt laden
@@ -834,18 +831,10 @@ const InventoryCountNew = ({ warehouseId, onComplete, onCancel }: InventoryCount
           <InventoryCountBatchDialog 
             open={showBatchDialog}
             onOpenChange={setShowBatchDialog}
-            selectedItem={selectedItemForBatch ? {
-              id: selectedItemForBatch.id,
-              productId: selectedItemForBatch.productId,
-              productName: selectedItemForBatch.productName,
-              expectedQuantity: selectedItemForBatch.currentQuantity,
-              countedQuantity: selectedItemForBatch.countedQuantity,
-              batchId: selectedItemForBatch.batchId,
-            } : null}
-            availableBatches={selectedItemForBatch?.batches || []}
-            onUpdateBatch={handleUpdateBatch}
-            onCreateBatch={handleCreateBatch}
-            onLoadBatches={handleLoadBatches}
+            item={selectedItemForBatch}
+            onBatchUpdate={(productId, batchId, countedQuantity) => 
+              handleUpdateBatch(selectedItemForBatch?.id || 0, batchId, countedQuantity)
+            }
           />
         </>
       ) : (
