@@ -111,16 +111,15 @@ const BestellungV2: React.FC = () => {
       // Generiere PDF, nachdem die Bestellung erstellt wurde
       generateOrderPDF(data);
       
-      // Zuerst kurze Verzögerung für PDF-Generierung
+      // Aggressives Cache-Invalidieren, um sicherzustellen, dass alle Listen aktualisiert werden
+      queryClient.invalidateQueries(); // Invalidiert den gesamten Cache
+      
+      // Zuerst kurze Verzögerung für PDF-Generierung und Cache-Invalidierung
+      console.log("Bestellung erstellt, leite zur E-Mail-Seite weiter...");
       setTimeout(() => {
         // Dann zur E-Mail-Versandseite wechseln
         setStep('sendOrder');
-      }, 500);
-      
-      // Invalidiere den Cache für Bestellungslisten mit der zentralen Query-Key Struktur
-      // Und auch mit dem direkten Query-Key für OrdersOverview
-      queryClient.invalidateQueries({queryKey: orderKeys.lists()});
-      queryClient.invalidateQueries({queryKey: ['/api/orders']});
+      }, 800);
     },
     onError: (error: any) => {
       toast({
