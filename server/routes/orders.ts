@@ -225,8 +225,8 @@ router.get("/", async (req: Request, res: Response) => {
           .where(eq(orderItems.orderId, order.id));
 
         // Gesamtbetrag der Bestellung berechnen
-        const orderTotal = await db
-          .select({ total: sql`SUM(quantity * unit_price)` })
+        const orderTotalResult = await db
+          .select({ total: sql`COALESCE(SUM(quantity * unit_price), 0)` })
           .from(orderItems)
           .where(eq(orderItems.orderId, order.id));
 

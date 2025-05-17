@@ -135,16 +135,39 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
   
   // PDF-Vorschau generieren
   useEffect(() => {
-    if (pdfBlob) {
-      const url = URL.createObjectURL(pdfBlob);
-      setPdfUrl(url);
+    async function loadPdf() {
+      if (!orderId) return;
       
-      // Cleanup beim Unmount
-      return () => {
-        URL.revokeObjectURL(url);
-      };
+      try {
+        // Direkte PDF-Abfrage vom Backend
+        const response = await fetch(`/api/orders/${orderId}/pdf`);
+        if (!response.ok) throw new Error('PDF konnte nicht geladen werden');
+        
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        setPdfUrl(url);
+        
+        // Cleanup beim Unmount
+        return () => {
+          URL.revokeObjectURL(url);
+        };
+      } catch (error) {
+        console.error('Fehler beim Laden des PDFs:', error);
+        // Fallback auf übergebenes pdfBlob
+        if (pdfBlob) {
+          const url = URL.createObjectURL(pdfBlob);
+          setPdfUrl(url);
+          
+          // Cleanup beim Unmount
+          return () => {
+            URL.revokeObjectURL(url);
+          };
+        }
+      }
     }
-  }, [pdfBlob]);
+    
+    loadPdf();
+  }, [orderId, pdfBlob]);
   
   // PDF Download Handler
   const handleDownloadPdf = () => {
