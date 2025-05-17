@@ -226,11 +226,11 @@ const BestellungV2: React.FC = () => {
     error: orderError
   } = useQuery({
     queryKey: orderKeys.detail(orderId || 0),
-    // Nur aktivieren, wenn orderId gesetzt ist UND wir im Wareneingangsschritt sind (kritisch!)
-    enabled: !!orderId && step === 'warehouseReceiptOfExistingOrder',
+    // PROBLEM 2 GELÖST: Nur aktivieren, wenn orderId gesetzt ist UND wir NICHT im Overview-Step sind
+    enabled: !!orderId && step !== 'overview',
     // Versuch mit dem GET-Endpunkt anstelle des POST-Endpoints
     queryFn: () => {
-      console.log("Starte Order-Detail-Query für ID:", orderId);
+      console.log("Starte Order-Detail-Query für ID:", orderId, "im Schritt:", step);
       return apiRequest(`/api/orders/${orderId}`, null, 'get');
     },
     // Wiederholungsversuche deaktivieren, um unerwünschte Nebeneffekte zu vermeiden

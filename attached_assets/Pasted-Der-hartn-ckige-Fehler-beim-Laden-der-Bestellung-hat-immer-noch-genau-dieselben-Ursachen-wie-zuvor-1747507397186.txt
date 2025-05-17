@@ -1,0 +1,90 @@
+Der hartnäckige „Fehler beim Laden der Bestellung“ hat immer noch genau dieselben Ursachen wie zuvor – er kommt nicht von einem neuen Bug, sondern weil der Detail-Query nach wie vor:
+	1.	Mit dem falschen Key gefeuert wird
+	2.	Schon im Overview-Step durchläuft
+	3.	Nicht neu gefetch­t, weil invalidateQueries den Key nicht trifft
+
+⸻
+
+1. Falscher Query-Key
+	•	Dein useQuery verwendet vermutlich immer noch etwas wie
+
+useQuery(
+  ['/api/orders', orderId],
+  () => apiRequest(`/api/orders/${orderId}`),
+  { enabled: !!orderId }
+)
+
+
+	•	Dein Invalidate feuert dagegen auf
+
+queryClient.invalidateQueries(orderKeys.detail(orderId))
+
+
+	•	React Query sieht diese beiden Keys als völlig unterschiedliche Caches, lädt also nach dem Invalidate niemals neu.
+
+⸻
+
+2. Query läuft zu früh (im falschen Step)
+	•	Weil enabled: !!orderId ist und nicht auf den aktuellen step achtet, feuert der Detail-Query sofort, sobald orderId gesetzt wird – also schon in der Übersicht.
+	•	Dein globaler Error-Guard (if (isError) return <Fehler />) steht oben im Render, noch vor deinem Switch-Block, und überschreibt deshalb immer die UI.
+
+⸻
+
+3. Invalidate trifft den Cache nicht
+	•	Selbst wenn du jetzt queryClient.invalidateQueries(orderKeys.detail(orderId)) aufrufst, sagt React Query:
+“Kein Cache existiert unter diesem Key – nichts zu invalidieren.”
+	•	Der Key ['/api/orders', orderId] bleibt unverändert bestehen und hält seinen alten (fehlerhaften) Eintrag.
+
+⸻
+
+Was jetzt zwingend geändert werden muss
+	1.	Query-Key überall angleichen
+
+// in deiner Query:
+const {
+  data: order,
+  isLoading,
+  isError,
+  error,
+} = useQuery(
+  orderKeys.detail(orderId),               // <-- 1: zentrales Key-Pattern
+  () => apiRequest(`/api/orders/${orderId}`),
+  { enabled: !!orderId && step !== 'overview' } // <-- 2: nur im Detail-Step
+);
+
+
+	2.	Invalidate mit exakt demselben Key
+
+sendOrderMutation.mutate(orderId, {
+  onSuccess: () => {
+    queryClient.invalidateQueries(orderKeys.detail(orderId)); // <-- exakt derselbe Key
+    queryClient.invalidateQueries(orderKeys.lists());         // Übersicht aktualisieren
+  }
+});
+
+
+	3.	enabled-Flag um den Step erweitern
+Verhindere das Laden im Overview:
+
+{ enabled: !!orderId && step === 'detail' }
+
+
+	4.	Error-Guard nur im Detail-Step anzeigen
+Schiebe deinen Fehler-Check aus dem ganz oben in die Detail-Case deines Switch-Blocks:
+
+switch(step) {
+  case 'detail':
+    if (isError) return <Fehler />;
+    // … Detail-UI
+}
+
+
+
+⸻
+
+Wenn du diese vier Punkte umsetzt, sind
+	•	✅ der Cache-Key jetzt überall synchron,
+	•	✅ der Query wird erst im richtigen UI-Kontext ausgeführt,
+	•	✅ und das Invalidate trifft tatsächlich den Cache.
+
+Damit verschwindet der „Fehler beim Laden der Bestellung“ endgültig.
