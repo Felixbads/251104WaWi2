@@ -1,9 +1,10 @@
 import { Request, Response, Router } from "express";
 import { db } from "../db";
-import { orders, orderItems, suppliers } from "@shared/schema";
+import { orders, orderItems, suppliers, locations } from "@shared/schema";
 import { storage } from "../storage";
 import { eq, and, like, ilike, or, desc, asc, isNull, isNotNull, sql, count } from "drizzle-orm";
 import { sendEmail } from "../services/emailService";
+import { generatePdf } from "../services/pdfService";
 
 const router = Router();
 
@@ -249,16 +250,16 @@ router.get("/", async (req: Request, res: Response) => {
         // Ansonsten über die locationId das Lager nachschlagen
         else if (order.locationId) {
           try {
-            const warehouseResult = await db
+            const locationResult = await db
               .select()
-              .from(warehouses)
-              .where(eq(warehouses.id, order.locationId));
+              .from(locations)
+              .where(eq(locations.id, order.locationId));
             
-            if (warehouseResult && warehouseResult.length > 0) {
-              warehouseName = warehouseResult[0].name || "";
+            if (locationResult && locationResult.length > 0) {
+              warehouseName = locationResult[0].name || "";
             }
-          } catch (warehouseError) {
-            console.error(`Fehler beim Abrufen des Lagernamens für ID ${order.locationId}:`, warehouseError);
+          } catch (locationError) {
+            console.error(`Fehler beim Abrufen des Lagernamens für ID ${order.locationId}:`, locationError);
           }
         }
 
