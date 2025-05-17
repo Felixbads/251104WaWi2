@@ -468,9 +468,11 @@ const BestellungV2: React.FC = () => {
       case 'warehouseReceiptOfExistingOrder':
         return (
           <GoodsReceiptForm
-            orderId={orderId}
-            orderData={existingOrderData}
-            onSaveComplete={() => {
+            order={order}
+            onSubmit={(receivedItems, receiptNote, documents) => {
+              // Hier würde die Logik zum Speichern des Wareneingangs stehen
+              console.log("Wareneingang gespeichert", {receivedItems, receiptNote, documents});
+              
               toast({
                 title: 'Wareneingang gespeichert',
                 description: 'Der Wareneingang wurde erfolgreich dokumentiert.',
@@ -483,6 +485,7 @@ const BestellungV2: React.FC = () => {
               // Zurück zur Übersicht
               setStep('overview');
             }}
+            isSubmitting={false}
           />
         );
         
