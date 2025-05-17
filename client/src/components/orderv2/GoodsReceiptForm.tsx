@@ -66,8 +66,11 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
   onSubmit,
   isSubmitting
 }) => {
+  // Sicherstellen, dass order.items existiert und ein Array ist
+  const orderItems = order.items && Array.isArray(order.items) ? order.items : [];
+  
   const [receivedItems, setReceivedItems] = useState<OrderItem[]>(
-    order.items.map(item => ({
+    orderItems.map(item => ({
       ...item,
       receivedQuantity: item.orderedQuantity,
       damaged: false,
@@ -79,7 +82,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
   const [documents, setDocuments] = useState<File[]>([]);
   
   // Calculate total received vs ordered
-  const totalOrdered = order.items.reduce((sum, item) => sum + item.orderedQuantity, 0);
+  const totalOrdered = orderItems.reduce((sum, item) => sum + item.orderedQuantity, 0);
   const totalReceived = receivedItems.reduce((sum, item) => sum + (item.receivedQuantity || 0), 0);
   const isComplete = totalReceived === totalOrdered;
   const hasDiscrepancies = receivedItems.some(item => 
