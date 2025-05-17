@@ -160,7 +160,7 @@ const BestellungV2: React.FC = () => {
     }
   });
   
-  // Fetch order data if orderId exists
+  // Fetch order data if orderId exists and we're not in overview
   const { 
     data: order,
     isLoading: isLoadingOrder,
@@ -168,7 +168,7 @@ const BestellungV2: React.FC = () => {
     error: orderError
   } = useQuery({
     queryKey: orderKeys.detail(orderId || 0),
-    enabled: !!orderId,
+    enabled: !!orderId && step !== 'overview',
     queryFn: () => apiRequest(`/api/orders/${orderId}`),
   });
   
@@ -302,9 +302,10 @@ const BestellungV2: React.FC = () => {
   
   // Find or select order handler
   const handleSelectOrder = (orderId: number) => {
-    // Nur die ID setzen und den Schritt ändern
+    console.log("Bestellung ausgewählt:", orderId);
+    // OrderId setzen und sofort den Schritt ändern, um Query-Ausführung zu triggern
     setOrderId(orderId);
-    // PDF wird generiert, nachdem die vollständigen Bestelldaten geladen wurden
+    // Direkt zum Wareneingangsschritt wechseln - dadurch wird die Query aktiviert
     setStep('warehouseReceiptOfExistingOrder');
     // PDF wird in useEffect generiert, wenn order geladen ist
   };
