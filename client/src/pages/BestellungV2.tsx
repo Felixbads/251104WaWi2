@@ -108,18 +108,40 @@ const BestellungV2: React.FC = () => {
       setOrderNumber(data.orderNumber);
       setExistingOrderData(data);
       
-      // Generiere PDF, nachdem die Bestellung erstellt wurde
-      generateOrderPDF(data);
+      // Sicherstellen, dass selectedProducts zur Bestellung hinzugefügt wurden
+      // Dann PDF generieren und zur Email-Seite wechseln
       
-      // Aggressives Cache-Invalidieren, um sicherzustellen, dass alle Listen aktualisiert werden
-      queryClient.invalidateQueries(); // Invalidiert den gesamten Cache
+      console.log("Bestellung erstellt. ID:", data.id, "Nummer:", data.orderNumber);
+      console.log("Selected Products für Bestellung:", selectedProducts);
       
-      // Zuerst kurze Verzögerung für PDF-Generierung und Cache-Invalidierung
-      console.log("Bestellung erstellt, leite zur E-Mail-Seite weiter...");
+      // Aktualisiere das Order-Objekt mit den selectedProducts
+      const orderWithProducts = {
+        ...data,
+        items: selectedProducts.map(product => ({
+          productId: product.id,
+          productName: product.name,
+          quantity: product.orderQuantity,
+          price: product.price,
+          unit: product.unit || 'Stk.'
+        }))
+      };
+      
+      // Setze auf State, damit es für spätere PDF-Generierung verfügbar ist
+      setExistingOrderData(orderWithProducts);
+      
+      // Warte kurz, bevor PDF generiert wird
       setTimeout(() => {
+        // Generiere PDF mit dem Order-Objekt, das die Produkte enthält
+        generateOrderPDF(orderWithProducts);
+        
+        // Aggressives Cache-Invalidieren, um sicherzustellen, dass alle Listen aktualisiert werden
+        queryClient.invalidateQueries(); // Invalidiert den gesamten Cache
+        
+        console.log("Bestellung erstellt, leite zur E-Mail-Seite weiter...");
+        
         // Dann zur E-Mail-Versandseite wechseln
         setStep('sendOrder');
-      }, 800);
+      }, 1000);
     },
     onError: (error: any) => {
       toast({
@@ -286,37 +308,77 @@ const BestellungV2: React.FC = () => {
         return;
       }
       
-      // Sicherstellen, dass orderItems verfügbar sind
-      let items = orderData.items || orderData.orderItems || orderData.products || [];
-      if (!Array.isArray(items) || items.length === 0) {
-        console.error('Keine Produktdaten für PDF-Generierung vorhanden, lade nach...');
-        // Versuche, die Items aus dem API zu laden wenn nötig
-        if (orderData.id) {
-          try {
-            // Maximal 3 Versuche zum Nachladen der Items
-            let retryCount = 0;
-            const maxRetries = 3;
-            
-            while (items.length === 0 && retryCount < maxRetries) {
-              console.log(`Versuche Items zu laden (Versuch ${retryCount + 1}/${maxRetries})...`);
-              const response = await apiRequest(`/api/orders/${orderData.id}/items`, null, 'get');
-              
-              // Die API gibt die Daten direkt zurück, nicht in einem data-Objekt
-              if (response && Array.isArray(response)) {
-                items = response;
-                console.log(`Items aus API nachgeladen (${items.length} Positionen):`, items);
-                
-                // Bei Erfolg die Schleife beenden
-                if (items.length > 0) break;
-              }
-              
-              // Kurz warten vor dem nächsten Versuch
-              await new Promise(resolve => setTimeout(resolve, 500));
-              retryCount++;
+      // Sicherstellen, dass orderItems verfügbar sind - nutze alle möglichen Property-Namen
+      let items = [];
+      
+      // Prüfe alle möglichen Property-Namen für Bestellpositionen
+      if (Array.isArray(orderData.items) && orderData.items.length > 0) {
+        items = orderData.items;
+      } else if (Array.isArray(orderData.orderItems) && orderData.orderItems.length > 0) {
+        items = orderData.orderItems;
+      } else if (Array.isArray(orderData.products) && orderData.products.length > 0) {
+        items = orderData.products;
+      } else if (Array.isArray(orderData.selectedProducts) && orderData.selectedProducts.length > 0) {
+        items = orderData.selectedProducts;
+      }
+      
+      // Wenn keine Items gefunden wurden, lade sie aus der API
+      if (items.length === 0 && orderData.id) {
+        console.log('Keine Produktdaten für PDF-Generierung vorhanden, lade nach...');
+        
+        try {
+          // Maximal 3 Versuche mit längeren Wartezeiten
+          let retryCount = 0;
+          const maxRetries = 3;
+          
+          while (items.length === 0 && retryCount < maxRetries) {
+            // Längere Wartezeit zwischen Versuchen
+            if (retryCount > 0) {
+              // Exponentielles Backoff für Wartezeiten: 1s, 2s, 4s...
+              const waitTime = Math.pow(2, retryCount) * 1000;
+              console.log(`Warte ${waitTime}ms vor nächstem Versuch...`);
+              await new Promise(resolve => setTimeout(resolve, waitTime));
             }
-          } catch (err) {
-            console.error("Fehler beim Nachladen der Items:", err);
+            
+            console.log(`Versuche Items zu laden (Versuch ${retryCount + 1}/${maxRetries})...`);
+            
+            // Verwende Fetch direkt mit vollständigen Optionen
+            const response = await apiRequest(`/api/orders/${orderData.id}/items`);
+            
+            if (response && Array.isArray(response)) {
+              items = response;
+              console.log(`Items aus API nachgeladen (${items.length} Positionen):`, items);
+              
+              // Bei Erfolg Cache invalidieren und lokale Daten aktualisieren
+              if (items.length > 0) {
+                // Cache invalidieren für diese Order
+                queryClient.invalidateQueries({queryKey: orderKeys.detail(orderData.id)});
+                
+                // Lokale Daten aktualisieren
+                const updatedOrderData = {
+                  ...orderData,
+                  items: items,
+                  orderItems: items // Beide Properties setzen für maximale Kompatibilität
+                };
+                
+                // Setze State mit den neuen Daten
+                setExistingOrderData(updatedOrderData);
+                
+                break;
+              }
+            }
+            
+            retryCount++;
           }
+          
+          // Prüfe, ob wir tatsächlich die API-Daten für selectedProducts verwenden sollten
+          if (items.length === 0 && selectedProducts.length > 0) {
+            console.log("Verwende selectedProducts als Fallback:", selectedProducts);
+            items = selectedProducts;
+          }
+          
+        } catch (err) {
+          console.error("Fehler beim Nachladen der Items:", err);
         }
         
         if (items.length === 0) {
@@ -610,7 +672,7 @@ const BestellungV2: React.FC = () => {
       case 'mode':
         return (
           <OrderModeSelector
-            selectedMode={orderMode}
+            mode={orderMode}
             onSelectMode={handleModeSelect}
           />
         );
