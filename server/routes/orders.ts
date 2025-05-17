@@ -246,7 +246,7 @@ router.get("/", async (req: Request, res: Response) => {
         return {
           ...order,
           itemCount: Number(itemsCount[0].count),
-          totalAmount: Number(orderTotal[0].total) || 0,
+          totalAmount: Number(orderTotalResult[0].total) || 0,
           warehouseName
         };
       })
