@@ -118,7 +118,9 @@ const BestellungV2: React.FC = () => {
       }, 500);
       
       // Invalidiere den Cache für Bestellungslisten mit der zentralen Query-Key Struktur
+      // Und auch mit dem direkten Query-Key für OrdersOverview
       queryClient.invalidateQueries({queryKey: orderKeys.lists()});
+      queryClient.invalidateQueries({queryKey: ['/api/orders']});
     },
     onError: (error: any) => {
       toast({

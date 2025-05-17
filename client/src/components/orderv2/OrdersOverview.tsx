@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { orderKeys } from '@/lib/queryKeys';
 
 import {
   Table,
@@ -121,12 +122,9 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
     });
   };
   
-  // Import der Query Keys
-  import { orderKeys } from '@/lib/queryKeys';
-
   // Abfrage für Bestellungen mit Filtern
   const { data: apiResponse, isLoading, isError, error, refetch } = useQuery({
-    queryKey: orderKeys.list({ status: statusFilter, sortBy: sortBy.field, sortDirection: sortBy.direction, search: searchTerm }),
+    queryKey: ['/api/orders', statusFilter, sortBy.field, sortBy.direction, searchTerm],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (statusFilter) params.append('status', statusFilter);
