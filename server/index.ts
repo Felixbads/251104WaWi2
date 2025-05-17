@@ -11,7 +11,7 @@ import inventoryApiRouter from './routes/inventory-api';
 import inventoryRouter from './routes/inventory';
 import emailRouter from './routes/email';
 import mailTemplatesRouter from './routes/mail-templates';
-import pdfRouter from './routes/pdf';
+// PDF-Router deaktiviert
 
 const app = express();
 app.use(express.json());
@@ -60,8 +60,7 @@ app.use((req, res, next) => {
   // E-Mail-Vorlagen-Route hinzufügen
   app.use('/api/mail-templates', mailTemplatesRouter);
   
-  // PDF-Route für die direkte PDF-Generierung
-  app.use('/api/pdf', pdfRouter);
+  // PDF-Route deaktiviert
   
   const server = await registerRoutes(app);
 
