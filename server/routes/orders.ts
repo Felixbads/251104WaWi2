@@ -1717,7 +1717,7 @@ router.get("/:id/items", async (req: Request, res: Response) => {
             return {
               ...item,
               productDetails,
-              productName: item.productName || (productDetails ? productDetails.name : "Unbenanntes Produkt"),
+              productName: item.productName || (productDetails ? productDetails.productName || productDetails.name || "Unbenanntes Produkt" : "Unbenanntes Produkt"),
               quantity: item.quantity || 1,
               unitPrice: item.unitPrice || 0,
               totalPrice: item.totalPrice || (item.quantity || 1) * (item.unitPrice || 0),

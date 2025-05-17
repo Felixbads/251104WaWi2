@@ -398,8 +398,8 @@ const BestellungV2: React.FC = () => {
         return;
       }
       
-      // Verbesserte Extraktion von Bestellpositionen mit allen möglichen Property-Namen und Verschachtelungen
-      let items = [];
+      // Verbesserte Extraktion von Bestellpositionen mit allen möglichen Property-Namen
+      let items: any[] = [];
       
       // Umfassende Prüfung aller möglichen Feldnamen und Strukturen nach Empfehlung
       const raw = orderData;
@@ -448,9 +448,7 @@ const BestellungV2: React.FC = () => {
               }
               
               console.log(`Lade Bestellpositionen (Versuch ${retryCount + 1}/${maxRetries})...`);
-              retryCount++;
               
-              // Verwende Fetch direkt mit vollständigen Optionen
               try {
                 const response = await apiRequest(`/api/orders/${orderData.id}/items`);
                 console.log("API-Antwort für Bestellpositionen:", response);
@@ -461,40 +459,41 @@ const BestellungV2: React.FC = () => {
                   
                   // Cache invalidieren für diese Order
                   queryClient.invalidateQueries({queryKey: orderKeys.detail(orderData.id)});
-                
-                // Lokale Daten aktualisieren
-                const updatedOrderData = {
-                  ...orderData,
-                  items: items,
-                  orderItems: items // Beide Properties setzen für maximale Kompatibilität
-                };
-                
-                // Setze State mit den neuen Daten
-                setExistingOrderData(updatedOrderData);
-                
-                break;
+                  
+                  // Lokale Daten aktualisieren
+                  const updatedOrderData = {
+                    ...orderData,
+                    items: items,
+                    orderItems: items // Beide Properties setzen für maximale Kompatibilität
+                  };
+                  
+                  // Setze State mit den neuen Daten
+                  setExistingOrderData(updatedOrderData);
+                  
+                  break;
+                }
+              } catch (apiError) {
+                console.error(`API-Fehler (Versuch ${retryCount + 1}/${maxRetries}):`, apiError);
               }
+              
+              retryCount++;
             }
-            
-            retryCount++;
+          } catch (err) {
+            console.error("Fehler beim Nachladen der Items:", err);
           }
-          
-          // Prüfe, ob wir tatsächlich die API-Daten für selectedProducts verwenden sollten
-          if (items.length === 0 && selectedProducts.length > 0) {
-            console.log("Verwende selectedProducts als Fallback:", selectedProducts);
-            items = selectedProducts;
-          }
-          
-        } catch (err) {
-          console.error("Fehler beim Nachladen der Items:", err);
         }
         
+        // FALLBACK 3: Wenn immer noch keine Items, zeige Warnung und erstelle leere PDF
         if (items.length === 0) {
+          console.warn("Auch nach allen Fallbacks keine Produkte für PDF gefunden");
+          
           toast({
             title: 'Keine Produkte gefunden',
             description: 'Es konnten keine Produktdaten für die PDF-Erstellung gefunden werden.',
-            variant: 'destructive',
+            variant: 'destructive'
           });
+          
+          // Nicht fortfahren, wenn keine Items vorhanden sind
           return;
         }
       }
