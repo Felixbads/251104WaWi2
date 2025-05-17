@@ -48,15 +48,7 @@ interface OrderItem {
 }
 
 interface GoodsReceiptFormProps {
-  order: {
-    id: number;
-    orderNumber: string;
-    orderDate: Date;
-    warehouseName: string;
-    supplierName: string;
-    status: string;
-    items: OrderItem[];
-  };
+  order: any; // Make the type more flexible to accommodate different API structures
   onSubmit: (receivedItems: OrderItem[], receiptNote: string, documents: File[]) => void;
   isSubmitting: boolean;
 }
@@ -66,6 +58,24 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
   onSubmit,
   isSubmitting
 }) => {
+  // Defensive programming to handle potentially undefined or malformed order data
+  if (!order) {
+    return (
+      <Card>
+        <CardContent className="py-10">
+          <div className="text-center">
+            <AlertTriangle className="h-10 w-10 mx-auto text-amber-500 mb-4" />
+            <h3 className="text-lg font-medium mb-2">Keine Bestelldaten verfügbar</h3>
+            <p className="text-muted-foreground mb-4">
+              Die Bestelldaten konnten nicht geladen werden. Bitte versuchen Sie es später erneut.
+            </p>
+            <Button onClick={() => window.location.reload()}>Neu laden</Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  
   // Sicherstellen, dass order.items existiert und ein Array ist
   const orderItems = order.items && Array.isArray(order.items) ? order.items : [];
   

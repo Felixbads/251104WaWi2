@@ -466,12 +466,49 @@ const BestellungV2: React.FC = () => {
         );
         
       case 'warehouseReceiptOfExistingOrder':
+        // Warten auf Bestellungsdaten
+        if (isLoadingOrder) {
+          return (
+            <Card>
+              <CardContent className="py-10">
+                <div className="text-center">
+                  <Loader2 className="h-10 w-10 mx-auto text-primary animate-spin mb-4" />
+                  <h3 className="text-lg font-medium mb-2">Bestelldaten werden geladen...</h3>
+                  <p className="text-muted-foreground">
+                    Bitte warten Sie, während die Bestellungsdaten geladen werden.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        }
+        
+        // Zeige Fehlermeldung bei Ladefehlern
+        if (orderError) {
+          return (
+            <Card>
+              <CardContent className="py-10">
+                <div className="text-center">
+                  <AlertTriangle className="h-10 w-10 mx-auto text-destructive mb-4" />
+                  <h3 className="text-lg font-medium mb-2">Fehler beim Laden der Bestellung</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Die Bestelldaten konnten nicht geladen werden. Bitte versuchen Sie es später erneut.
+                  </p>
+                  <Button onClick={() => window.location.reload()}>Neu laden</Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        }
+        
         return (
           <GoodsReceiptForm
             order={order}
             onSubmit={(receivedItems, receiptNote, documents) => {
-              // Hier würde die Logik zum Speichern des Wareneingangs stehen
-              console.log("Wareneingang gespeichert", {receivedItems, receiptNote, documents});
+              // Hier die Logik zum Speichern der empfangenen Artikel implementieren
+              console.log("Empfangene Artikel:", receivedItems);
+              console.log("Notiz:", receiptNote);
+              console.log("Dokumente:", documents);
               
               toast({
                 title: 'Wareneingang gespeichert',
