@@ -678,11 +678,28 @@ const BestellungV2: React.FC = () => {
                 sourceOrderId,
               };
               
+              console.log("Sende Bestellung mit Positionsdaten:", JSON.stringify(orderData));
               createOrderMutation.mutate(orderData, {
                 onSuccess: (data) => {
+                  console.log("Bestellung erfolgreich erstellt mit Antwort:", JSON.stringify(data));
                   setExistingOrderData(data);
-                  generateOrderPDF(data);
-                  setStep('sendOrder');
+                  // Warte kurz, damit die Bestellpositionen gespeichert werden können
+                  setTimeout(() => {
+                    // Hole die vollständigen Bestelldaten inklusive Positionen
+                    apiRequest(`/api/orders/${data.id}`, null, 'get')
+                      .then(fullOrderData => {
+                        console.log("Vollständige Bestelldaten geladen:", JSON.stringify(fullOrderData));
+                        setExistingOrderData(fullOrderData);
+                        generateOrderPDF(fullOrderData);
+                        setStep('sendOrder');
+                      })
+                      .catch(err => {
+                        console.error("Fehler beim Laden der vollständigen Bestelldaten:", err);
+                        setExistingOrderData(data);
+                        generateOrderPDF(data);
+                        setStep('sendOrder');
+                      });
+                  }, 1000);
                 }
               });
             }}
