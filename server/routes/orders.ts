@@ -1434,7 +1434,8 @@ router.post("/:id/email", async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const orderId = parseInt(id);
-    const { to, subject, content, templateType = 'standard' } = req.body;
+    const { supplierEmail, subject, content, additionalNotes } = req.body;
+    const to = supplierEmail; // Umbenennung für Kompatibilität mit Frontend
 
     if (isNaN(orderId)) {
       return res.status(400).json({ error: "Ungültige Bestellungs-ID" });
@@ -1502,12 +1503,37 @@ router.post("/:id/email", async (req: Request, res: Response) => {
     // Absender-E-Mail
     const fromEmail = "bestellung@proviantomat.de";
     
-    // E-Mail senden
+    // PDF für Anhang generieren
+    const pdfBuffer = await generatePdf({
+      ...order,
+      orderItems: items
+    });
+    
+    console.log(`PDF für E-Mail generiert (${pdfBuffer.length} Bytes)`);
+    
+    // Speichere die PDF temporär
+    const tempDir = path.join(process.cwd(), 'temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    const pdfFilename = path.join(tempDir, `bestellung_${order.orderNumber}.pdf`);
+    fs.writeFileSync(pdfFilename, pdfBuffer);
+    
+    console.log(`PDF gespeichert in ${pdfFilename}`);
+    
+    // E-Mail mit Anhang senden
     const result = await sendEmail({
       to: to,
       from: fromEmail,
       subject: subject,
-      html: htmlContent
+      html: htmlContent,
+      attachments: [
+        {
+          filename: `Bestellung_${order.orderNumber}.pdf`,
+          path: pdfFilename
+        }
+      ]
     });
 
     if (result) {
@@ -1530,7 +1556,7 @@ router.post("/:id/email", async (req: Request, res: Response) => {
         
         // Neuen Statuseintrag erstellen
         const newStatusEntry = {
-          status: "ordered",
+          status: "sent",
           timestamp: new Date().toISOString(),
           note: "Bestellung per E-Mail an Lieferant gesendet"
         };
@@ -1538,7 +1564,8 @@ router.post("/:id/email", async (req: Request, res: Response) => {
         await db
           .update(orders)
           .set({
-            status: 'ordered',
+            status: 'sent',
+            sentAt: new Date(),
             updatedAt: new Date(),
             statusHistory: JSON.stringify([...currentHistory, newStatusEntry])
           })

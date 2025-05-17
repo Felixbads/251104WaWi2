@@ -47,7 +47,8 @@ interface EmailParams {
   from?: string;
   attachments?: Array<{
     filename: string;
-    content: Buffer | string;
+    content?: Buffer | string;
+    path?: string;
     contentType?: string;
   }>;
 }
@@ -71,6 +72,7 @@ export async function sendEmail(params: EmailParams): Promise<boolean> {
         attachments: params.attachments?.map(attachment => ({
           filename: attachment.filename,
           content: attachment.content,
+          path: attachment.path,
           contentType: attachment.contentType || 'application/pdf'
         }))
       });
