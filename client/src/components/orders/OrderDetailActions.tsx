@@ -4,6 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import QRCode from "qrcode";
+import { OrderPDFButton } from "./OrderPDFButton";
 
 // UI Komponenten
 import { Button } from "@/components/ui/button";
@@ -453,6 +454,13 @@ ${order.createdByName || "Ihr Bestellteam"}`);
           </>
         )}
       </Button>
+      
+      {/* Neuer direkt-Download Button, der den Backend-Endpunkt nutzt */}
+      <OrderPDFButton 
+        orderId={order?.id}
+        variant="outline"
+        size="sm"
+      />
       
       {pdfBlob && (
         <Button

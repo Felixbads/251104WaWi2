@@ -60,6 +60,9 @@ app.use((req, res, next) => {
   // E-Mail-Vorlagen-Route hinzufügen
   app.use('/api/mail-templates', mailTemplatesRouter);
   
+  // PDF-Route für die direkte PDF-Generierung
+  app.use('/api/pdf', pdfRouter);
+  
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
