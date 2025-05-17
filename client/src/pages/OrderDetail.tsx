@@ -14,6 +14,7 @@ import OrderEmailDialog from "@/components/orders/OrderEmailDialog";
 import html2canvas from "html2canvas";
 import { getOrder, updateOrder } from "@/lib/api";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { orderKeys } from "@/lib/queryKeys";
 
 // UI Komponenten
 import { Button } from "@/components/ui/button";
@@ -316,7 +317,7 @@ export default function OrderDetail() {
   
   // Lade Bestelldetails
   const { data: order, isLoading, error } = useQuery({
-    queryKey: [`/api/orders/${id}`],
+    queryKey: orderKeys.detail(Number(id)),
     staleTime: 1000 * 60, // 1 Minute
     queryFn: () => getOrder(Number(id))
   });
@@ -419,9 +420,12 @@ export default function OrderDetail() {
       return updateOrder(Number(id), updateData);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${id}`] });
-      queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/orders/dashboard/open'] });
+      // Invalidiere die Detailansicht der Bestellung
+      queryClient.invalidateQueries({ queryKey: orderKeys.detail(Number(id)) });
+      // Invalidiere alle Bestellungslisten
+      queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+      // Invalidiere die Dashboard-Anzeige für offene Bestellungen
+      queryClient.invalidateQueries({ queryKey: orderKeys.open() });
     }
   });
   
@@ -525,7 +529,14 @@ export default function OrderDetail() {
     setShowReceiveDialog(false);
     
     // Cache invalidieren - die Daten werden automatisch neu geladen
-    queryClient.invalidateQueries({ queryKey: [`/api/orders/${id}`] });
+    queryClient.invalidateQueries({ queryKey: orderKeys.detail(Number(id)) });
+    
+    // Bei Wareneingang müssen wir auch den Lagerbestand aktualisieren
+    if (updatedOrder?.warehouseId) {
+      queryClient.invalidateQueries({ 
+        queryKey: warehouseKeys.inventory(updatedOrder.warehouseId) 
+      });
+    }
   };
   
   // Bestellung stornieren
