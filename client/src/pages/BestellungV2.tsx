@@ -450,7 +450,12 @@ const BestellungV2: React.FC = () => {
               console.log(`Lade Bestellpositionen (Versuch ${retryCount + 1}/${maxRetries})...`);
               
               try {
-                const response = await apiRequest(`/api/orders/${orderData.id}/items`);
+                // Verwende POST statt GET für mehr Flexibilität
+                const response = await apiRequest(`/api/orders/${orderData.id}/items`, {
+                  method: 'POST',
+                  body: JSON.stringify({ orderId: orderData.id })
+                });
+                
                 console.log("API-Antwort für Bestellpositionen:", response);
                 
                 if (response && Array.isArray(response) && response.length > 0) {
@@ -483,18 +488,27 @@ const BestellungV2: React.FC = () => {
           }
         }
         
-        // FALLBACK 3: Wenn immer noch keine Items, zeige Warnung und erstelle leere PDF
+        // FALLBACK 3: Wenn immer noch keine Items, erstelle Platzhalter-Item damit die PDF-Generierung nicht fehlschlägt
         if (items.length === 0) {
-          console.warn("Auch nach allen Fallbacks keine Produkte für PDF gefunden");
+          console.warn("Auch nach allen Fallbacks keine Produkte für PDF gefunden - erstelle Platzhalter");
           
           toast({
             title: 'Keine Produkte gefunden',
-            description: 'Es konnten keine Produktdaten für die PDF-Erstellung gefunden werden.',
+            description: 'Es konnten keine Produktdaten für die PDF-Erstellung gefunden werden. PDF wird mit Platzhalter erstellt.',
             variant: 'destructive'
           });
           
-          // Nicht fortfahren, wenn keine Items vorhanden sind
-          return;
+          // Erstelle einen Dummy-Eintrag als letzten Fallback, damit die PDF nicht völlig fehlschlägt
+          items = [{
+            positionNumber: 1,
+            productId: '-',
+            productName: "Keine Produktdaten verfügbar",
+            quantity: 0,
+            unitPrice: 0,
+            totalPrice: 0,
+            unit: "-",
+            price: 0
+          }];
         }
       }
       
