@@ -144,11 +144,12 @@ router.get("/", async (req: Request, res: Response) => {
     if (status) {
       whereClause.push(eq(orders.status, status as string));
     } else {
-      // Wenn kein Status angegeben ist, zeige alle Status einschließlich 'draft' an
+      // Wenn kein Status angegeben ist, zeige alle Status einschließlich 'draft' und 'sent' an
       whereClause.push(
         or(
           eq(orders.status, "draft"),
           eq(orders.status, "open"), 
+          eq(orders.status, "sent"),
           eq(orders.status, "ordered"),
           eq(orders.status, "partial"),
           eq(orders.status, "completed"),
