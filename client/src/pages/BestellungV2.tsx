@@ -501,6 +501,7 @@ const BestellungV2: React.FC = () => {
           );
         }
         
+        console.log("Rendering GoodsReceiptForm with order data:", order);
         return (
           <GoodsReceiptForm
             order={order}
@@ -509,6 +510,9 @@ const BestellungV2: React.FC = () => {
               console.log("Empfangene Artikel:", receivedItems);
               console.log("Notiz:", receiptNote);
               console.log("Dokumente:", documents);
+              
+              // API-Aufruf zum Speichern des Wareneingangs hier implementieren
+              // z.B. apiRequest(`/api/orders/${orderId}/receipt`, 'POST', { items: receivedItems, note: receiptNote })
               
               toast({
                 title: 'Wareneingang gespeichert',

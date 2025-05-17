@@ -76,8 +76,12 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     );
   }
   
-  // Sicherstellen, dass order.items existiert und ein Array ist
-  const orderItems = order.items && Array.isArray(order.items) ? order.items : [];
+  // Sicherstellen, dass wir die richtigen Bestellungsposten haben (entweder items oder orderItems)
+  // API gibt tatsächlich orderItems zurück, nicht items
+  const orderItems = (order.orderItems && Array.isArray(order.orderItems)) ? 
+                    order.orderItems : 
+                    (order.items && Array.isArray(order.items)) ? 
+                    order.items : [];
   
   const [receivedItems, setReceivedItems] = useState<OrderItem[]>(
     orderItems.map(item => ({
