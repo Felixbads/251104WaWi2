@@ -656,13 +656,20 @@ const BestellungV2: React.FC = () => {
             orderData={existingOrderData}
             pdfBlob={pdfBlob}
             onCreateOrder={() => {
+              // Vollständige Produktinformationen für die Bestellpositionen hinzufügen
               const orderData = {
                 locationId: warehouseId, // Server erwartet locationId statt warehouseId
                 supplierId,
-                products: selectedProducts.map(p => ({
+                supplierName,
+                // orderItems statt products verwenden, damit der Server die Daten korrekt verarbeitet
+                orderItems: selectedProducts.map(p => ({
                   productId: p.id,
-                  quantity: p.orderQuantity || p.quantity || 0, // Sicherstellen, dass Menge korrekt ist
-                  price: p.price || 0
+                  productName: p.name || p.productName || `Produkt ${p.id}`,
+                  quantity: p.orderQuantity || p.quantity || 0,
+                  unitPrice: p.price || 0,
+                  totalPrice: (p.price || 0) * (p.orderQuantity || p.quantity || 0),
+                  unit: p.unit || 'Stk.',
+                  vatRate: 19
                 })),
                 expectedDeliveryDate: additionalInfo.expectedDeliveryDate ? additionalInfo.expectedDeliveryDate.toISOString() : null,
                 priority: additionalInfo.priority,
