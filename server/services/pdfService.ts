@@ -3,7 +3,7 @@
  * Dieser Service kümmert sich um die Generierung von PDFs für Bestellungen
  */
 
-import * as Handlebars from 'handlebars';
+import Handlebars from 'handlebars';
 import { promises as fs } from 'fs';
 import path from 'path';
 import puppeteer from 'puppeteer';
@@ -22,8 +22,21 @@ const companyData = {
 
 const logoBase64 = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjUwIiB2aWV3Qm94PSIwIDAgMjAwIDUwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDx0ZXh0IHg9IjEwIiB5PSIzNSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXdlaWdodD0iYm9sZCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzljMzAyOCI+TGFuZGZlaW48L3RleHQ+CiAgPHBhdGggZD0iTTEwIDQwIEwxOTAgNDAiIHN0cm9rZT0iIzljMzAyOCIgc3Ryb2tlLXdpZHRoPSIyIi8+Cjwvc3ZnPg==';
 
-// Template-Cache
-let compiledTemplate: Handlebars.TemplateDelegate | null = null;
+// Helper-Funktionen für das Template registrieren
+Handlebars.registerHelper('formatDate', function(date: string | Date | null | undefined) {
+  if (!date) return '-';
+  const d = new Date(date);
+  return d.toLocaleDateString('de-DE');
+});
+
+Handlebars.registerHelper('formatCurrency', function(value: number | null | undefined) {
+  if (value === null || value === undefined) return '0,00';
+  return value.toFixed(2).replace('.', ',');
+});
+
+Handlebars.registerHelper('add', function(a: number, b: number) {
+  return a + b;
+});
 
 /**
  * Generiert ein PDF aus einer Bestellung
@@ -39,9 +52,23 @@ export async function generatePdf(orderData: any): Promise<Buffer> {
       console.warn('Keine Bestellpositionen für PDF gefunden');
     }
 
-    // Template kompilieren (mit Caching)
-    if (!compiledTemplate) {
-      const templateHtml = `<!DOCTYPE html>
+    // Berechne den Gesamtbetrag und die MwSt. falls nicht angegeben
+    let totalAmount = orderData.totalAmount || 0;
+    let vatAmount = orderData.vatAmount || 0;
+
+    // Berechne Gesamtbetrag und MwSt. aus den Bestellpositionen, falls vorhanden
+    if (orderData.orderItems && orderData.orderItems.length > 0 && !totalAmount) {
+      totalAmount = orderData.orderItems.reduce((sum: number, item: any) => sum + (item.totalPrice || 0), 0);
+      
+      // Standard-MwSt. von 19% anwenden, wenn keine spezifischen Sätze angegeben sind
+      vatAmount = orderData.orderItems.reduce((sum: number, item: any) => {
+        const vatRate = item.vatRate || 19;
+        return sum + ((item.totalPrice || 0) * vatRate / 100);
+      }, 0);
+    }
+
+    // Template-HTML erstellen
+    const templateHtml = `<!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="UTF-8">
@@ -188,48 +215,8 @@ export async function generatePdf(orderData: any): Promise<Buffer> {
 </body>
 </html>`;
 
-      // Helper-Funktionen für das Template registrieren
-      const helpers = {
-        formatDate: function(date: string | Date | null | undefined) {
-          if (!date) return '-';
-          const d = new Date(date);
-          return d.toLocaleDateString('de-DE');
-        },
-        formatCurrency: function(value: number | null | undefined) {
-          if (value === null || value === undefined) return '0,00';
-          return value.toFixed(2).replace('.', ',');
-        },
-        add: function(a: number, b: number) {
-          return a + b;
-        }
-      };
-
-      // Kompiliere das Template mit Handlebars
-      // Helfer-Funktionen registrieren
-      Object.entries(helpers).forEach(([name, fn]) => {
-        Handlebars.registerHelper(name, fn);
-      });
-      
-      // Template kompilieren
-      compiledTemplate = Handlebars.compile(templateHtml);
-    }
-
-    // Berechne den Gesamtbetrag und die MwSt. falls nicht angegeben
-    let totalAmount = orderData.totalAmount || 0;
-    let vatAmount = orderData.vatAmount || 0;
-
-    // Berechne Gesamtbetrag und MwSt. aus den Bestellpositionen, falls vorhanden
-    if (orderData.orderItems && orderData.orderItems.length > 0 && !totalAmount) {
-      totalAmount = orderData.orderItems.reduce((sum: number, item: any) => sum + (item.totalPrice || 0), 0);
-      
-      // Standard-MwSt. von 19% anwenden, wenn keine spezifischen Sätze angegeben sind
-      vatAmount = orderData.orderItems.reduce((sum: number, item: any) => {
-        const vatRate = item.vatRate || 19;
-        return sum + ((item.totalPrice || 0) * vatRate / 100);
-      }, 0);
-    }
-
-    // Vollständige Daten für das Template
+    // Template kompilieren und HTML generieren
+    const compiledTemplate = Handlebars.compile(templateHtml);
     const templateData = {
       company: companyData,
       order: {
@@ -238,9 +225,7 @@ export async function generatePdf(orderData: any): Promise<Buffer> {
         vatAmount
       }
     };
-
-    // HTML generieren
-    const html = compiledTemplate ? compiledTemplate(templateData) : '';
+    const html = compiledTemplate(templateData);
 
     // Puppeteer starten und PDF generieren
     const browser = await puppeteer.launch({
@@ -263,8 +248,9 @@ export async function generatePdf(orderData: any): Promise<Buffer> {
     
     console.log(`PDF erfolgreich generiert (${pdfBuffer.length} Bytes)`);
     return Buffer.from(pdfBuffer);
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Fehler bei der PDF-Generierung:', error);
-    throw new Error(`PDF-Generierung fehlgeschlagen: ${error.message}`);
+    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
+    throw new Error(`PDF-Generierung fehlgeschlagen: ${errorMessage}`);
   }
 }
