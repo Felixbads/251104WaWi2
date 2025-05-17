@@ -73,14 +73,13 @@ const orderStatusMap = {
 interface OrdersOverviewProps {
   onSelectOrder: (orderId: number) => void;
   onStartWarehouseReceiptProcess?: (orderId: number) => void;
-  onStartNewOrder?: () => void;
-  onCreateNew?: () => void; // Neue Prop für den "Neue Bestellung"-Button
+  onCreateNew?: () => void; // Prop für den "Neue Bestellung"-Button
 }
 
 const OrdersOverview: React.FC<OrdersOverviewProps> = ({ 
   onSelectOrder, 
   onStartWarehouseReceiptProcess,
-  onStartNewOrder
+  onCreateNew
 }) => {
   const { toast } = useToast();
   
@@ -200,7 +199,7 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
       <div className="hidden md:flex justify-between items-center gap-4 mb-4">
         <div className="flex items-center gap-4">
           <Button 
-            onClick={() => onSelectOrder && onCreateNew && onCreateNew()} 
+            onClick={() => onCreateNew && onCreateNew()} 
             className="whitespace-nowrap"
           >
             <ShoppingBag className="mr-2 h-4 w-4" />
@@ -240,8 +239,8 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
             <RefreshCw className="h-4 w-4" />
           </Button>
           
-          {onStartNewOrder && (
-            <Button onClick={onStartNewOrder}>
+          {onCreateNew && (
+            <Button onClick={onCreateNew}>
               Neue Bestellung
             </Button>
           )}
@@ -284,8 +283,8 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
           </Button>
         </div>
         
-        {onStartNewOrder && (
-          <Button onClick={onStartNewOrder} className="w-full">
+        {onCreateNew && (
+          <Button onClick={onCreateNew} className="w-full">
             Neue Bestellung
           </Button>
         )}
