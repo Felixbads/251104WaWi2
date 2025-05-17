@@ -333,7 +333,7 @@ const BestellungV2: React.FC = () => {
     }
   };
   
-  // Find or select order handler
+  // Find or select order handler - Statusabhängige Weiterleitung
   const handleSelectOrder = (orderId: number) => {
     console.log("Bestellung ausgewählt:", orderId);
     
@@ -341,12 +341,37 @@ const BestellungV2: React.FC = () => {
     // Zuerst den Step zurücksetzen, um potenzielle fehlerhafte State-Kombinationen zu vermeiden
     setStep('overview');
     
-    // Nach einem kurzen Timeout die Bestellungs-ID setzen und zum Wareneingangsschritt wechseln
-    // Dies ermöglicht React, den UI-Zustand sauber zu aktualisieren
-    setTimeout(() => {
+    // Nach einem kurzen Timeout die Bestellungs-ID setzen
+    // Dann abfragen, welche Weiterleitung sinnvoll ist (basierend auf dem Status)
+    setTimeout(async () => {
       setOrderId(orderId);
-      setStep('warehouseReceiptOfExistingOrder');
-      console.log("Step gewechselt zu warehouseReceiptOfExistingOrder, orderId:", orderId);
+      
+      try {
+        // Bestelldaten abrufen
+        const response = await apiRequest(`/api/orders/${orderId}`, undefined, 'get');
+        const orderData = response;
+        
+        setExistingOrderData(orderData);
+        
+        // Statusabhängige Weiterleitung
+        if (!orderData.sentAt) {
+          // Wenn die Bestellung noch nicht gesendet wurde -> E-Mail-Schritt
+          console.log("Bestellung ist noch ein Entwurf, leite zum E-Mail-Schritt weiter");
+          setStep('sendOrder');
+        } else {
+          // Wenn die Bestellung bereits gesendet wurde -> Wareneingang
+          console.log("Bestellung wurde bereits versendet, leite zum Wareneingang weiter");
+          setStep('warehouseReceiptOfExistingOrder');
+        }
+      } catch (error) {
+        console.error("Fehler beim Laden der Bestelldaten:", error);
+        toast({
+          title: "Fehler beim Laden der Bestellung",
+          description: "Die Bestelldaten konnten nicht geladen werden.",
+          variant: "destructive"
+        });
+        setStep('overview');
+      }
     }, 50);
     
     // PDF wird in useEffect generiert, wenn order geladen ist

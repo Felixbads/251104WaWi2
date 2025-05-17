@@ -1,0 +1,88 @@
+Natürlich. Hier ist eine strukturierte Übersicht der aktuellen Probleme im Bestellprozess und ihrer Ursachen, gegliedert nach Themenbereichen – inklusive klarer Hinweise, was jeweils zu tun ist:
+
+⸻
+
+🔧 A. Problem: Neue Bestellungen erscheinen nicht in der Übersicht
+
+❓ Was passiert?
+
+Nach dem Anlegen einer Bestellung wird eine Bestellnummer angezeigt, aber die Bestellung erscheint nicht in der Bestellübersicht.
+
+🔍 Ursache
+	•	Neue Bestellungen haben standardmäßig den Status draft.
+	•	Die Bestellübersicht (Komponente OrdersOverview) lädt nur Bestellungen mit dem Status sent oder delivered.
+	•	Es fehlt eine Abfrage oder Filtermöglichkeit für draft.
+
+✅ Lösung
+	•	Erweiterung der Datenabfrage in OrdersOverview, damit auch draft-Bestellungen angezeigt werden:
+
+orderKeys.lists({ status: ['draft', 'sent', 'delivered'] })
+
+
+	•	Alternativ: Filter dynamisch steuerbar machen (z. B. über Dropdown).
+
+⸻
+
+📩 B. Problem: Nach Erstellung kein Übergang zum E-Mail-Versand
+
+❓ Was passiert?
+
+Nach dem Anlegen der Bestellung wird der Vorgang mit einer Bestellnummer beendet. Es erfolgt kein automatischer Übergang zum Schritt „E-Mail senden“.
+
+🔍 Ursache
+	•	Nach erfolgreicher Erstellung (createOrderMutation.onSuccess) wird zwar orderId gesetzt, aber kein neuer Step aktiviert.
+	•	Der UI-Flow bleibt in einem unklaren Zustand oder springt zurück zur Übersicht.
+
+✅ Lösung
+	•	Ergänze in onSuccess nach PDF-Generierung:
+
+setStep('sendOrder');
+
+
+	•	So gelangt der Benutzer direkt in den nächsten sinnvollen Schritt im UI-Flow.
+
+⸻
+
+🧭 C. Problem: Falsche Weiterleitung beim Öffnen bestehender Bestellungen
+
+❓ Was passiert?
+
+Beim Klick auf eine bestehende Bestellung wirst du immer direkt in den Wareneingang weitergeleitet – auch wenn die Bestellung nur ein Entwurf ist.
+
+🔍 Ursache
+	•	In handleSelectOrder wird immer direkt:
+
+setStep('warehouseReceiptOfExistingOrder');
+
+aufgerufen – ohne Berücksichtigung des Bestellstatus.
+
+✅ Lösung
+	•	Statusbasiertes Routing in handleSelectOrder einführen:
+
+if (!selectedOrder.sentAt) {
+  setStep('sendOrder'); // noch nicht versendet → E-Mail-Versand
+} else {
+  setStep('warehouseReceiptOfExistingOrder'); // versendet → Wareneingang
+}
+
+
+
+⸻
+
+🧩 Zusätzliche Hinweise
+
+Bereich	Empfehlung
+Query-Keys	Einheitliche Nutzung von orderKeys.detail() & lists()
+Statusverwaltung	Status nur über zentrale Enum-Liste steuern (draft, sent, delivered)
+Übersicht filtern	UI-Filter mit Statusauswahl ergänzen oder sichtbar machen
+
+
+⸻
+
+✅ Nächste Schritte
+	1.	OrdersOverview anpassen → draft-Bestellungen einbeziehen.
+	2.	In createOrderMutation.onSuccess → setStep('sendOrder') ergänzen.
+	3.	In handleSelectOrder → routing basierend auf sentAt/Status umstellen.
+	4.	Optional: Übersicht mit Statusfilter ausstatten (Entwurf, Versendet etc.).
+
+Wenn du willst, kann ich dir zu jedem dieser Schritte konkrete Codeabschnitte bereitstellen.

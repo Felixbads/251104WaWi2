@@ -1,0 +1,46 @@
+Die Ursachen liegen im Wesentlichen an drei Stellen:
+	1.	Neue Bestellungen werden als „draft“ angelegt, aber in der Übersicht nicht abgefragt
+	•	Was passiert: Dein OrdersOverview holt per Default nur Bestellungen mit Status sent oder ähnlichen Stati. Neue Bestellungen starten aber mit Status draft und werden deshalb gar nicht angezeigt.
+	•	Lösung:
+	•	Entweder OrdersOverview so anpassen, dass es alle Stati (u. a. auch draft) abruft,
+	•	oder beim Anlegen über die Mutation den Status sofort auf sent setzen (wenngleich das den eigentlichen E-Mail-Schritt überspringt).
+	•	Besser: Erweitere den Filter-Parameter in deinem Query für orderKeys.lists({ status }) um status: ['draft','sent','delivered'] oder übergib status: undefined, damit alle Bestellungen geladen werden.
+	2.	Nach createOrder gibt es kein setStep('sendOrder')
+	•	Was passiert: Deine createOrderMutation.onSuccess setzt orderId, existingOrderData und generiert die PDF, springt aber nicht in den nächsten UI-Step (den E-Mail-Versand). Deshalb tauchst du anschließend wieder in der Übersicht auf oder im Review-Step, ohne in die E-Mail-Maske zu wechseln.
+	•	Lösung: In deiner onSuccess-Callback-Zeile
+
+// nach generateOrderPDF(data)
+setStep('sendOrder');
+
+einfügen. Dadurch kommst Du direkt in den E-Mail-Dialog, kannst die Bestellung versenden und erst danach in den Wareneingang springen.
+
+	3.	handleSelectOrder navigiert immer direkt in den Wareneingang
+	•	Was passiert: Egal welchen Status die Bestellung hat, handleSelectOrder macht nach dem Klick immer
+
+setStep('warehouseReceiptOfExistingOrder');
+
+und lässt Dich nie wieder in den E-Mail-Schritt (sendOrder) zurückspringen.
+
+	•	Lösung: Mach das Routing status-abhängig:
+
+const handleSelectOrder = (id: number) => {
+  setOrderId(id);
+  if (!existingOrderData?.sentAt) {
+    // wenn noch nicht versendet, zurück in den Versand-Schritt
+    setStep('sendOrder');
+  } else {
+    // wenn bereits versendet, in den Wareneingang
+    setStep('warehouseReceiptOfExistingOrder');
+  }
+};
+
+So landen Entwürfe wieder im E-Mail-Dialog, versendete Bestellungen im Wareneingang.
+
+–––
+
+Kurzfassung der To-Dos
+	1.	OrdersOverview-Query so erweitern, dass draft-Bestellungen mitgeladen werden.
+	2.	In createOrderMutation.onSuccess nach der PDF-Generierung setStep('sendOrder') aufrufen.
+	3.	handleSelectOrder so umbauen, dass der nächste Step vom aktuellen Status (sentAt) abhängt.
+
+Mit diesen drei Änderungen tauchen Deine neuen Bestellungen wieder in der Übersicht auf, Du kommst automatisch in den E-Mail-Versand und nach dem Versand in den Wareneingang.

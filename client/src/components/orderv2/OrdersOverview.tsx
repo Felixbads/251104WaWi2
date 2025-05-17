@@ -84,8 +84,9 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
 }) => {
   const { toast } = useToast();
   
-  // Filter-State
+  // Filter-State - 'draft' mit einbeziehen
   const [searchTerm, setSearchTerm] = useState('');
+  // Kein Filter als Standard, damit auch Bestellungen mit Status 'draft' angezeigt werden
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<{ field: string; direction: 'asc' | 'desc' }>({ 
     field: 'orderDate', 
