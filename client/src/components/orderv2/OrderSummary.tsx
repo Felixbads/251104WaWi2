@@ -43,8 +43,12 @@ interface OrderSummaryProps {
     priority: string;
     notes: string;
   };
-  onSubmit: () => void;
-  isSubmitting: boolean;
+  onCreateOrder: () => void;
+  isCreatingOrder: boolean;
+  onSendOrderEmail?: () => void;
+  pdfBlob?: Blob | null;
+  orderId?: number | null;
+  orderData?: any;
 }
 
 const OrderSummary: React.FC<OrderSummaryProps> = ({
@@ -52,8 +56,12 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
   supplierName,
   selectedProducts,
   additionalInfo,
-  onSubmit,
-  isSubmitting
+  onCreateOrder,
+  isCreatingOrder,
+  onSendOrderEmail,
+  pdfBlob,
+  orderId,
+  orderData
 }) => {
   // Calculate total
   const total = selectedProducts.reduce((sum, product) => {
@@ -179,11 +187,11 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
       </CardContent>
       <CardFooter className="flex flex-col sm:flex-row gap-3">
         <Button 
-          onClick={onSubmit}
-          disabled={isSubmitting}
+          onClick={onCreateOrder}
+          disabled={isCreatingOrder}
           className="w-full sm:w-auto"
         >
-          {isSubmitting ? (
+          {isCreatingOrder ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Bestellung wird erstellt...
