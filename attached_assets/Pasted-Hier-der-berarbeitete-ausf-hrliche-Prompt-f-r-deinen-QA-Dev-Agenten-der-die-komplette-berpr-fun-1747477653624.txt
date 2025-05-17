@@ -1,0 +1,130 @@
+Hier der überarbeitete, ausführliche Prompt für deinen QA-/Dev-Agenten, der die komplette Überprüfung und Korrektur des Bestell- und Wareneingangsprozesses übernimmt:
+
+⸻
+
+🛠️ PROMPT FÜR QA/DEV-AGENT: UMFASSENDE REVIEW & BUGFIX DES BESTELL- UND WARENEINGANGSPROZESSES
+
+Ziel:
+Vollständige technische und funktionale Überprüfung des Bestell-Workflows sowie des Wareneingangs. Identifiziere Inkonsistenzen, Bugs, fehlende Validierungen, unklare Statusübergänge und Lücken im Datenbank-/API-Zugriff. Schlage konkrete Verbesserungen vor und erstelle eine To-Do-Liste für die Korrekturen.
+
+⸻
+
+1. ARCHITEKTUR & DATENQUELLEN
+
+1.1 Query-Key-Konsistenz
+	•	Verwende ein einheitliches Schema, z. B. ['orders', orderId], ['warehouses'], ['suppliers', { warehouseId }], ['products', { supplierId, warehouseId }], ['prices', { productId, supplierId }].
+	•	Überprüfe alle invalidateQueries-Aufrufe auf korrekte Keys.
+
+1.2 Loading- & Error-Handling
+	•	Stelle sicher, dass jeder useQuery-Hook (Warehouses, Suppliers, Products, Order-Data) ein isLoading, isError und entsprechende UI-Fälle (<Spinner>, <ErrorMessage>) ausspielt.
+	•	Fehlerfälle müssen dem User verständlich angezeigt werden.
+
+1.3 API-Endpunkte
+	•	Prüfe alle genutzten Endpunkte:
+	•	GET /api/warehouses
+	•	GET /api/suppliers?warehouseId=…
+	•	GET /api/products?warehouseId=…&supplierId=…
+	•	GET /api/prices?productId=…&supplierId=…
+	•	GET /api/orders/:orderId
+	•	POST /api/orders
+	•	PATCH /api/orders/:orderId/send
+	•	POST /api/receipts
+	•	Verifiziere, dass die Backend-Responses alle benötigten Felder (z. B. sentAt, status, items[]) enthalten.
+
+⸻
+
+2. BESTELLVORGANG – STEP-FLOW & VALIDIERUNG
+
+2.1 Schritt-Definition
+	•	Steps:
+	1.	warehouse
+	2.	mode (new | copy)
+	3.	supplier
+	4.	productSelection
+	5.	quantityInput
+	6.	review
+	7.	send
+
+2.2 Step-Navigation (Pager)
+	•	Nutze useLocation() korrekt:
+
+const [location, setLocation] = useLocation();
+// Navigation: setLocation('/orders/new');
+
+
+	•	Entferne ungültige Step-Keys (z. B. Tippfehler ...cts').
+
+2.3 Validierungsregeln
+	•	warehouse: mindestens ein Lager ausgewählt
+	•	mode: bei „copy“ muss sourceOrderId gesetzt sein
+	•	supplier: mindestens ein Lieferant ausgewählt
+	•	productSelection: selectedProducts.length > 0
+	•	quantityInput: jede Position hat quantity > 0
+	•	review: Gesamtsumme, MwSt., Pfand korrekt berechnet
+	•	send: order.sentAt muss nach Versand gesetzt werden
+
+2.4 Mutation & State-Sync
+	•	createOrder und updateOrder mit mutation.mutate(orderData, { onSuccess: (…) })
+	•	Bei Versand (sendOrder):
+
+sendOrderMutation.mutate(orderId, {
+  onSuccess: (updated) => {
+    queryClient.invalidateQueries(['orders', orderId]);
+    // optional: lokale Order-State mit updated synchronisieren
+  },
+});
+
+
+
+⸻
+
+3. BESTANDSAKTUALISIERUNG (WARENEINGANG)
+
+3.1 Offene Bestellungen
+	•	Liste aller Bestellungen mit Status sent oder partiallyDelivered
+	•	Klicke auf eine Bestellung → Detailseite mit orderedItems[] und Mengen
+
+3.2 Eingabe im Wareneingang
+	•	Felder pro Position:
+	•	deliveredQuantity (≤ orderedQuantity)
+	•	MHD (Datum ≥ heute)
+	•	Validierung:
+	•	Keine Negativ- oder Übermengen
+	•	MHD nicht in der Vergangenheit
+
+3.3 Bestandsbuchung & Batch-Erzeugung
+	•	Nach Bestätigung:
+	1.	POST /api/receipts mit { orderId, items: [{ productId, quantity, mhd, warehouseId }] }
+	2.	Backend muss Lagerbestand erhöhen und Batch-Records mit MHD anlegen
+	3.	Status der Bestellung auf delivered oder partiallyDelivered setzen
+	4.	QueryCache invalidieren: ['orders', orderId], ['inventory', warehouseId]
+
+⸻
+
+4. UI-KONSISTENZ & STATUSDARSTELLUNG
+	•	Status-Labels: „Entwurf“, „Versendet“, „Eingetroffen“, „Teilweise geliefert“, „Abgeschlossen“
+	•	Prüfe, dass der UI-Status in Bestellübersicht, Detailansicht und Wareneingang übereinstimmt
+	•	Buttons aktivieren/deaktivieren je nach aktuellem Status
+
+⸻
+
+5. TESTS & DOCUMENTATION
+	•	Unit-Tests für
+	•	Step-Validierungen
+	•	Mutation-Callbacks
+	•	API-Fehlerfälle
+	•	Integrationstests
+	•	Komplettdurchlauf: Erstellung → Versand → Wareneingang
+	•	Dokumentation
+	•	API-Specs aktualisieren
+	•	Query-Key-Konventionen dokumentieren
+	•	Fehler- und Loading-States dokumentieren
+
+⸻
+
+❓ Antworte mit:
+	•	einer Liste der Top-5 kritischsten Bugs, die du zuerst fixen würdest
+	•	einem groben Zeitaufwandsschätzwert pro Bug
+	•	weiteren Fragen, die du zur Klärung benötigst
+
+Danke!
