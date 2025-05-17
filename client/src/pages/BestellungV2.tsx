@@ -164,9 +164,10 @@ const BestellungV2: React.FC = () => {
   const { 
     data: order,
     isLoading: isLoadingOrder,
+    isError: isErrorOrder,
     error: orderError
   } = useQuery({
-    queryKey: [`/api/orders/${orderId}`],
+    queryKey: orderKeys.detail(orderId || 0),
     enabled: !!orderId,
     queryFn: () => apiRequest(`/api/orders/${orderId}`),
   });
@@ -484,7 +485,7 @@ const BestellungV2: React.FC = () => {
         }
         
         // Zeige Fehlermeldung bei Ladefehlern
-        if (orderError) {
+        if (isErrorOrder) {
           return (
             <Card>
               <CardContent className="py-10">

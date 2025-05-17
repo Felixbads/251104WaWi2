@@ -1,0 +1,66 @@
+Der „Fehler beim Laden der Bestellung“ kommt deshalb immer noch, weil dein Fetch-Hook und dein Cache-Invalidation-Setup noch nicht zusammenpassen:
+	1.	Mismatched Query-Keys
+	•	In deiner Mutation invalidierst du inzwischen mit den neuen, zentralen Keys:
+
+queryClient.invalidateQueries({ queryKey: orderKeys.detail(orderId) });
+
+
+	•	Dein useQuery zum Nachladen der Bestellung aber sieht immer noch so aus:
+
+useQuery({
+  queryKey: [`/api/orders/${orderId}`],
+  enabled: !!orderId,
+  queryFn: () => apiRequest(`/api/orders/${orderId}`),
+});
+
+
+React Query kann den Literal-Key ['/api/orders/…'] nicht mit orderKeys.detail(…) abgleichen. Dadurch wird im Anschluss an deine Mutation nie wirklich neu gefetched, sondern der alte (und inzwischen fehlerhafte) Cache-Eintrag bleibt aktiv – und löst deine Error-UI aus.
+
+	2.	Falsches Error-Flag
+Du ziehst dir nur das error-Objekt aus dem Hook:
+
+const { data: order, isLoading: isLoadingOrder, error: orderError } = useQuery(…);
+
+Stattdessen solltest du auch das isError-Flag mitnehmen und gegen dieses prüfen:
+
+const {
+  data: order,
+  isLoading: isLoadingOrder,
+  isError: isErrorOrder,
+  error,
+} = useQuery(orderKeys.detail(orderId), () => apiRequest(`/api/orders/${orderId}`), {
+  enabled: !!orderId,
+});
+
+if (isErrorOrder) {
+  // … deine Error-UI
+}
+
+
+
+⸻
+
+To-Do zum Fixen
+	1.	Standardisiere deinen Fetch-Hook auf den neuen Key:
+
+const {
+  data: order,
+  isLoading: isLoadingOrder,
+  isError: isErrorOrder,
+  error: orderError,
+} = useQuery(
+  orderKeys.detail(orderId),
+  () => apiRequest(`/api/orders/${orderId}`),
+  { enabled: !!orderId }
+);
+
+
+	2.	Passe alle Invalidierungen an, sodass sie genau diesen Key treffen:
+
+queryClient.invalidateQueries({ queryKey: orderKeys.detail(orderId) });
+queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+
+
+	3.	Prüfe in deinem Render-Switch nur noch if (isErrorOrder) (statt if (orderError)), dann verschwindet die Fehlermeldung, sobald das Query erfolgreich durchläuft.
+
+Wenn du diese beiden Punkte umsetzt, wird React Query deine Bestellung nach jeder Mutation sauber nachladen – und die „Fehler beim Laden“-Meldung sollte nicht mehr kommen.
