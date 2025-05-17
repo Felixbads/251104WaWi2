@@ -1649,10 +1649,10 @@ router.get("/:id", async (req: Request, res: Response) => {
   }
 });
 
-// Bestellpositionen einer Bestellung abrufen
+// Bestellpositionen einer Bestellung abrufen (GET)
 router.get("/:id/items", async (req: Request, res: Response) => {
   try {
-    console.log(`Bestellpositionen werden für Bestellung ${req.params.id} abgerufen...`);
+    console.log(`[GET] Bestellpositionen werden für Bestellung ${req.params.id} abgerufen...`);
     const { id } = req.params;
     const orderId = parseInt(id);
 
@@ -1671,88 +1671,81 @@ router.get("/:id/items", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Bestellung nicht gefunden" });
     }
 
-    console.log(`Bestellung ${orderId} gefunden, lade Bestellpositionen...`);
+    console.log(`[GET] Bestellung ${orderId} gefunden, lade Bestellpositionen...`);
     
     try {
-      // Bestellpositionen abrufen - mit robuster Fehlerbehandlung
+      // Bestellpositionen direkt aus der Datenbank abrufen
       const items = await db
         .select()
         .from(orderItems)
         .where(eq(orderItems.orderId, orderId));
       
-      console.log(`${items.length} Bestellpositionen für Bestellung ${orderId} gefunden`);
+      console.log(`[GET] ${items.length} Bestellpositionen für Bestellung ${orderId} gefunden`);
 
-      // Produkt-Details für jede Position anreichern - mit zusätzlicher Fehlerbehandlung
-      const enrichedItems = await Promise.all(
-        items.map(async (item, index) => {
-          try {
-            let productDetails = null;
-            // Produkt Details nur laden, wenn eine ProductId vorhanden ist
-            if (item.productId) {
-              try {
-                productDetails = await storage.getProduct(item.productId);
-                console.log(`Produktdetails für Position ${index + 1} (Produkt-ID: ${item.productId}) geladen`);
-              } catch (productError) {
-                console.error(`Fehler beim Laden der Produktdetails für ID ${item.productId}:`, productError);
-                // Trotz Fehler beim Laden der Produktdetails weitermachen
-                productDetails = {
-                  id: item.productId,
-                  name: item.productName || "Produkt nicht gefunden",
-                  sku: item.sku || ""
-                };
-              }
-            }
-            
-            // Sicherstellen, dass alle erwarteten Felder vorhanden sind
-            return {
-              ...item,
-              productDetails,
-              productName: item.productName || (productDetails ? productDetails.productName || productDetails.name || "Unbenanntes Produkt" : "Unbenanntes Produkt"),
-              quantity: item.quantity || 1,
-              unitPrice: item.unitPrice || 0,
-              totalPrice: item.totalPrice || (item.quantity || 1) * (item.unitPrice || 0),
-              unit: item.unit || "stk"
-            };
-          } catch (itemError) {
-            console.error(`Fehler bei der Verarbeitung von Bestellposition ${index + 1}:`, itemError);
-            // Bei Fehler ein Minimal-Objekt zurückgeben, damit die Bestellung nicht komplett fehlschlägt
-            return {
-              ...item,
-              productName: item.productName || "Fehler - Position konnte nicht verarbeitet werden",
-              error: true
-            };
-          }
-        })
-      );
-
-      console.log(`${enrichedItems.length} angereicherte Bestellpositionen werden zurückgegeben`);
-      res.json(enrichedItems);
-    } catch (itemsError) {
-      console.error(`Schwerwiegender Fehler beim Laden der Bestellpositionen für Bestellung ${orderId}:`, itemsError);
+      // Direkt antworten mit den Items ohne weitere Verarbeitung für mehr Zuverlässigkeit
+      res.json(items);
       
-      // Fallback: Versuche, wenigstens die Basis-Bestellpositionen ohne Anreicherung zurückzugeben
-      try {
-        const basicItems = await db
-          .select()
-          .from(orderItems)
-          .where(eq(orderItems.orderId, orderId));
-        
-        console.log(`Fallback: ${basicItems.length} einfache Bestellpositionen werden zurückgegeben`);
-        res.json(basicItems);
-      } catch (fallbackError) {
-        console.error(`Auch Fallback fehlgeschlagen:`, fallbackError);
-        res.status(500).json({
-          error: "Fehler beim Abrufen der Bestellpositionen",
-          message: "Die Bestellpositionen konnten nicht geladen werden."
-        });
-      }
+    } catch (error) {
+      console.error(`[GET] Fehler beim Laden der Bestellpositionen für Bestellung ${orderId}:`, error);
+      res.status(500).json({
+        error: "Fehler beim Abrufen der Bestellpositionen",
+        message: "Die Bestellpositionen konnten nicht geladen werden."
+      });
     }
   } catch (error) {
-    console.error("Allgemeiner Fehler beim Abrufen der Bestellpositionen:", error);
+    console.error("[GET] Allgemeiner Fehler beim Abrufen der Bestellpositionen:", error);
     res.status(500).json({
       error: "Fehler beim Abrufen der Bestellpositionen",
-      message: error.message || "Ein unerwarteter Fehler ist aufgetreten."
+      message: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten."
     });
+  }
+});
+
+// Bestellpositionen einer Bestellung abrufen (POST) - für dynamische Anfragen
+router.post("/:id/items", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const orderId = parseInt(id);
+    console.log(`[POST] Bestellpositionen werden für Bestellung ${orderId} abgerufen...`);
+
+    if (isNaN(orderId)) {
+      return res.status(400).json({ error: "Ungültige Bestellungs-ID" });
+    }
+
+    // Direkter Datenbankzugriff für höchste Zuverlässigkeit
+    try {
+      // Prüfen, ob die Bestellung existiert
+      const orderExists = await db.query.orders.findFirst({
+        where: eq(orders.id, orderId)
+      });
+
+      if (!orderExists) {
+        return res.status(404).json({ 
+          error: "Bestellung nicht gefunden",
+          message: `Bestellung mit ID ${orderId} existiert nicht.`
+        });
+      }
+
+      // Bestellpositionen direkt laden
+      const items = await db
+        .select()
+        .from(orderItems)
+        .where(eq(orderItems.orderId, orderId));
+      
+      // Erfolg loggen und Antwort senden
+      console.log(`[POST] ${items.length} Bestellpositionen für Bestellung ${orderId} gefunden`);
+      res.json(items);
+      
+    } catch (dbError) {
+      // Bei Datenbankfehlern einen leeren Array zurückgeben aber mit Status 200
+      // damit die Frontend-Anwendung nicht abstürzt
+      console.error("[POST] Datenbankfehler beim Abrufen der Bestellpositionen:", dbError);
+      res.status(200).json([]);
+    }
+  } catch (error) {
+    // Bei anderen Fehlern ebenfalls einen leeren Array zurückgeben
+    console.error("[POST] Allgemeiner Fehler:", error);
+    res.status(200).json([]);
   }
 });
 
