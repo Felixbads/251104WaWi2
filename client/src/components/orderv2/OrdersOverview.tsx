@@ -121,9 +121,12 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
     });
   };
   
+  // Import der Query Keys
+  import { orderKeys } from '@/lib/queryKeys';
+
   // Abfrage für Bestellungen mit Filtern
   const { data: apiResponse, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['/api/orders', statusFilter, sortBy.field, sortBy.direction, searchTerm],
+    queryKey: orderKeys.list({ status: statusFilter, sortBy: sortBy.field, sortDirection: sortBy.direction, search: searchTerm }),
     queryFn: async () => {
       const params = new URLSearchParams();
       if (statusFilter) params.append('status', statusFilter);

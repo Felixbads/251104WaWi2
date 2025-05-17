@@ -111,8 +111,11 @@ const BestellungV2: React.FC = () => {
       // Generiere PDF, nachdem die Bestellung erstellt wurde
       generateOrderPDF(data);
       
-      // Direkt zur E-Mail-Versandseite wechseln
-      setStep('sendOrder');
+      // Zuerst kurze Verzögerung für PDF-Generierung
+      setTimeout(() => {
+        // Dann zur E-Mail-Versandseite wechseln
+        setStep('sendOrder');
+      }, 500);
       
       // Invalidiere den Cache für Bestellungslisten mit der zentralen Query-Key Struktur
       queryClient.invalidateQueries({queryKey: orderKeys.lists()});
