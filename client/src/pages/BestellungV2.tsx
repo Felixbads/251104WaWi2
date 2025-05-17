@@ -427,11 +427,11 @@ const BestellungV2: React.FC = () => {
             pdfBlob={pdfBlob}
             onCreateOrder={() => {
               const orderData = {
-                warehouseId,
+                locationId: warehouseId, // Server erwartet locationId statt warehouseId
                 supplierId,
                 products: selectedProducts.map(p => ({
                   productId: p.id,
-                  quantity: p.quantity,
+                  quantity: p.orderQuantity || p.quantity || 0, // Sicherstellen, dass Menge korrekt ist
                   price: p.price || 0
                 })),
                 expectedDeliveryDate: additionalInfo.expectedDeliveryDate ? formatDate(additionalInfo.expectedDeliveryDate) : null,
