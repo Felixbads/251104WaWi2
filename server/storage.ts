@@ -646,8 +646,49 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getOrder(id: number): Promise<Order | undefined> {
-    const [order] = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
-    return order;
+    try {
+      // Bestellung mit Grundinformationen abrufen
+      const [order] = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
+      
+      if (!order) {
+        return undefined;
+      }
+      
+      // Bestellpositionen abrufen
+      const items = await db
+        .select()
+        .from(orderItems)
+        .where(eq(orderItems.orderId, id));
+      
+      // Die vollständigen Produktinformationen für jede Position abrufen
+      const itemsWithProductDetails = await Promise.all(
+        items.map(async (item) => {
+          if (item.productId) {
+            const [product] = await db
+              .select()
+              .from(products)
+              .where(eq(products.id, item.productId));
+            
+            return {
+              ...item,
+              productName: product ? product.name : "Unbekanntes Produkt",
+              productNumber: product ? product.productNumber : "",
+              unit: item.unit || (product ? product.unit : "Stk.")
+            };
+          }
+          return item;
+        })
+      );
+      
+      // Vollständige Bestellinformationen zurückgeben
+      return {
+        ...order,
+        orderItems: itemsWithProductDetails
+      };
+    } catch (error) {
+      console.error("Fehler beim Abrufen der Bestellung:", error);
+      return undefined;
+    }
   }
 
   async createOrder(data: Omit<InsertOrder, "id">): Promise<Order> {
