@@ -1662,6 +1662,7 @@ router.get("/:id", async (req: Request, res: Response) => {
 // Bestellpositionen einer Bestellung abrufen
 router.get("/:id/items", async (req: Request, res: Response) => {
   try {
+    console.log(`Bestellpositionen werden für Bestellung ${req.params.id} abgerufen...`);
     const { id } = req.params;
     const orderId = parseInt(id);
 
@@ -1680,33 +1681,88 @@ router.get("/:id/items", async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Bestellung nicht gefunden" });
     }
 
-    // Bestellpositionen abrufen
-    const items = await db
-      .select()
-      .from(orderItems)
-      .where(eq(orderItems.orderId, orderId));
-
-    // Produkt-Details für jede Position anreichern
-    const enrichedItems = await Promise.all(items.map(async (item) => {
-      let productDetails = null;
-      if (item.productId) {
-        try {
-          productDetails = await storage.getProductById(item.productId);
-        } catch (err) {
-          console.error(`Fehler beim Laden der Produktdetails für ID ${item.productId}:`, err);
-        }
-      }
+    console.log(`Bestellung ${orderId} gefunden, lade Bestellpositionen...`);
+    
+    try {
+      // Bestellpositionen abrufen - mit robuster Fehlerbehandlung
+      const items = await db
+        .select()
+        .from(orderItems)
+        .where(eq(orderItems.orderId, orderId));
       
-      return {
-        ...item,
-        productDetails
-      };
-    }));
+      console.log(`${items.length} Bestellpositionen für Bestellung ${orderId} gefunden`);
 
-    res.json(enrichedItems);
+      // Produkt-Details für jede Position anreichern - mit zusätzlicher Fehlerbehandlung
+      const enrichedItems = await Promise.all(
+        items.map(async (item, index) => {
+          try {
+            let productDetails = null;
+            // Produkt Details nur laden, wenn eine ProductId vorhanden ist
+            if (item.productId) {
+              try {
+                productDetails = await storage.getProductById(item.productId);
+                console.log(`Produktdetails für Position ${index + 1} (Produkt-ID: ${item.productId}) geladen`);
+              } catch (productError) {
+                console.error(`Fehler beim Laden der Produktdetails für ID ${item.productId}:`, productError);
+                // Trotz Fehler beim Laden der Produktdetails weitermachen
+                productDetails = {
+                  id: item.productId,
+                  name: item.productName || "Produkt nicht gefunden",
+                  sku: item.sku || ""
+                };
+              }
+            }
+            
+            // Sicherstellen, dass alle erwarteten Felder vorhanden sind
+            return {
+              ...item,
+              productDetails,
+              productName: item.productName || (productDetails ? productDetails.name : "Unbenanntes Produkt"),
+              quantity: item.quantity || 1,
+              unitPrice: item.unitPrice || 0,
+              totalPrice: item.totalPrice || (item.quantity || 1) * (item.unitPrice || 0),
+              unit: item.unit || "stk"
+            };
+          } catch (itemError) {
+            console.error(`Fehler bei der Verarbeitung von Bestellposition ${index + 1}:`, itemError);
+            // Bei Fehler ein Minimal-Objekt zurückgeben, damit die Bestellung nicht komplett fehlschlägt
+            return {
+              ...item,
+              productName: item.productName || "Fehler - Position konnte nicht verarbeitet werden",
+              error: true
+            };
+          }
+        })
+      );
+
+      console.log(`${enrichedItems.length} angereicherte Bestellpositionen werden zurückgegeben`);
+      res.json(enrichedItems);
+    } catch (itemsError) {
+      console.error(`Schwerwiegender Fehler beim Laden der Bestellpositionen für Bestellung ${orderId}:`, itemsError);
+      
+      // Fallback: Versuche, wenigstens die Basis-Bestellpositionen ohne Anreicherung zurückzugeben
+      try {
+        const basicItems = await db
+          .select()
+          .from(orderItems)
+          .where(eq(orderItems.orderId, orderId));
+        
+        console.log(`Fallback: ${basicItems.length} einfache Bestellpositionen werden zurückgegeben`);
+        res.json(basicItems);
+      } catch (fallbackError) {
+        console.error(`Auch Fallback fehlgeschlagen:`, fallbackError);
+        res.status(500).json({
+          error: "Fehler beim Abrufen der Bestellpositionen",
+          message: "Die Bestellpositionen konnten nicht geladen werden."
+        });
+      }
+    }
   } catch (error) {
-    console.error("Fehler beim Abrufen der Bestellpositionen:", error);
-    res.status(500).json({ error: "Fehler beim Abrufen der Bestellpositionen" });
+    console.error("Allgemeiner Fehler beim Abrufen der Bestellpositionen:", error);
+    res.status(500).json({
+      error: "Fehler beim Abrufen der Bestellpositionen",
+      message: error.message || "Ein unerwarteter Fehler ist aufgetreten."
+    });
   }
 });
 
