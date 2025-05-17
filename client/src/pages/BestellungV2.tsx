@@ -506,7 +506,7 @@ const BestellungV2: React.FC = () => {
                 toast({
                   title: 'Warnung',
                   description: 'Der Wareneingang wurde gespeichert, aber der Status konnte nicht aktualisiert werden.',
-                  variant: 'warning'
+                  variant: 'destructive'
                 });
                 
                 // Trotzdem zur Übersicht zurückkehren
