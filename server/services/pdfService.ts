@@ -3,7 +3,7 @@
  * Dieser Service kümmert sich um die Generierung von PDFs für Bestellungen
  */
 
-import { compile } from 'handlebars';
+import * as Handlebars from 'handlebars';
 import { promises as fs } from 'fs';
 import path from 'path';
 import puppeteer from 'puppeteer';
@@ -23,7 +23,7 @@ const companyData = {
 const logoBase64 = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjUwIiB2aWV3Qm94PSIwIDAgMjAwIDUwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDx0ZXh0IHg9IjEwIiB5PSIzNSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXdlaWdodD0iYm9sZCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzljMzAyOCI+TGFuZGZlaW48L3RleHQ+CiAgPHBhdGggZD0iTTEwIDQwIEwxOTAgNDAiIHN0cm9rZT0iIzljMzAyOCIgc3Ryb2tlLXdpZHRoPSIyIi8+Cjwvc3ZnPg==';
 
 // Template-Cache
-let compiledTemplate: HandlebarsTemplateDelegate | null = null;
+let compiledTemplate: Handlebars.TemplateDelegate | null = null;
 
 /**
  * Generiert ein PDF aus einer Bestellung
@@ -205,11 +205,13 @@ export async function generatePdf(orderData: any): Promise<Buffer> {
       };
 
       // Kompiliere das Template mit Handlebars
-      compiledTemplate = compile(templateHtml);
+      // Helfer-Funktionen registrieren
       Object.entries(helpers).forEach(([name, fn]) => {
-        // @ts-ignore
-        compile.registerHelper(name, fn);
+        Handlebars.registerHelper(name, fn);
       });
+      
+      // Template kompilieren
+      compiledTemplate = Handlebars.compile(templateHtml);
     }
 
     // Berechne den Gesamtbetrag und die MwSt. falls nicht angegeben
@@ -238,7 +240,7 @@ export async function generatePdf(orderData: any): Promise<Buffer> {
     };
 
     // HTML generieren
-    const html = compiledTemplate(templateData);
+    const html = compiledTemplate ? compiledTemplate(templateData) : '';
 
     // Puppeteer starten und PDF generieren
     const browser = await puppeteer.launch({
