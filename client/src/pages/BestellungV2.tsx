@@ -289,18 +289,12 @@ const BestellungV2: React.FC = () => {
   };
   
   // Find or select order handler
-  const handleSelectOrder = (selectedOrder: any) => {
-    setOrderId(selectedOrder.id);
-    setOrderNumber(selectedOrder.orderNumber);
-    setExistingOrderData(selectedOrder);
-    setSupplierName(selectedOrder.supplierName || '');
-    setSupplierId(selectedOrder.supplierId);
-    setWarehouseId(selectedOrder.warehouseId);
-    setWarehouseName(selectedOrder.warehouseName || '');
+  const handleSelectOrder = (orderId: number) => {
+    // Nur die ID setzen und den Schritt ändern
+    setOrderId(orderId);
+    // PDF wird generiert, nachdem die vollständigen Bestelldaten geladen wurden
     setStep('warehouseReceiptOfExistingOrder');
-    
-    // Generiere PDF für die ausgewählte Bestellung
-    generateOrderPDF(selectedOrder);
+    // PDF wird in useEffect generiert, wenn order geladen ist
   };
   
   // Go back to overview
