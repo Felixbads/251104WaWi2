@@ -1700,7 +1700,7 @@ router.get("/:id/items", async (req: Request, res: Response) => {
             // Produkt Details nur laden, wenn eine ProductId vorhanden ist
             if (item.productId) {
               try {
-                productDetails = await storage.getProductById(item.productId);
+                productDetails = await storage.getProduct(item.productId);
                 console.log(`Produktdetails für Position ${index + 1} (Produkt-ID: ${item.productId}) geladen`);
               } catch (productError) {
                 console.error(`Fehler beim Laden der Produktdetails für ID ${item.productId}:`, productError);

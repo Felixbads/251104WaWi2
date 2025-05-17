@@ -384,59 +384,83 @@ const BestellungV2: React.FC = () => {
   // Function to generate PDF from order data
   const generateOrderPDF = async (orderData: any) => {
     try {
-      console.log("PDF-Generierung gestartet mit Daten:", orderData);
+      // Detailliertes Logging, um die exakte Datenstruktur zu sehen
+      console.log("PDF-Generierung gestartet mit Daten:", JSON.stringify(orderData, null, 2));
       
       // Sicherstellen, dass Bestelldaten vollständig sind
       if (!orderData || typeof orderData !== 'object') {
         console.error('Keine gültigen Bestelldaten für PDF-Generierung:', orderData);
+        toast({
+          title: 'Fehler bei der PDF-Erstellung',
+          description: 'Die Bestelldaten sind unvollständig oder fehlerhaft.',
+          variant: 'destructive'
+        });
         return;
       }
       
-      // Sicherstellen, dass orderItems verfügbar sind - nutze alle möglichen Property-Namen
+      // Verbesserte Extraktion von Bestellpositionen mit allen möglichen Property-Namen und Verschachtelungen
       let items = [];
       
-      // Prüfe alle möglichen Property-Namen für Bestellpositionen
-      if (Array.isArray(orderData.items) && orderData.items.length > 0) {
-        items = orderData.items;
-      } else if (Array.isArray(orderData.orderItems) && orderData.orderItems.length > 0) {
-        items = orderData.orderItems;
-      } else if (Array.isArray(orderData.products) && orderData.products.length > 0) {
-        items = orderData.products;
-      } else if (Array.isArray(orderData.selectedProducts) && orderData.selectedProducts.length > 0) {
-        items = orderData.selectedProducts;
-      }
+      // Umfassende Prüfung aller möglichen Feldnamen und Strukturen nach Empfehlung
+      const raw = orderData;
+      items = 
+        (Array.isArray(raw.items) && raw.items.length > 0 ? raw.items : null) || 
+        (Array.isArray(raw.orderItems) && raw.orderItems.length > 0 ? raw.orderItems : null) || 
+        (raw.data?.items && Array.isArray(raw.data.items) && raw.data.items.length > 0 ? raw.data.items : null) ||
+        (raw.data?.orderItems && Array.isArray(raw.data.orderItems) && raw.data.orderItems.length > 0 ? raw.data.orderItems : null) || 
+        (Array.isArray(raw.products) && raw.products.length > 0 ? raw.products : null) || 
+        (Array.isArray(raw.selectedProducts) && raw.selectedProducts.length > 0 ? raw.selectedProducts : null) || 
+        (Array.isArray(raw.lineItems) && raw.lineItems.length > 0 ? raw.lineItems : null) ||
+        (raw.data && Array.isArray(raw.data) && raw.data.length > 0 ? raw.data : []);
       
-      // Wenn keine Items gefunden wurden, lade sie aus der API
-      if (items.length === 0 && orderData.id) {
-        console.log('Keine Produktdaten für PDF-Generierung vorhanden, lade nach...');
+      console.log("Extrahierte Items für PDF:", items.length > 0 ? items : "Keine Items gefunden");
+      
+      // Wenn keine Items gefunden wurden, lade sie aus der API oder verwende Fallbacks
+      if (items.length === 0) {
+        console.log('Keine Produktdaten für PDF-Generierung vorhanden, versuche Alternativen...');
         
-        try {
-          // Maximal 3 Versuche mit längeren Wartezeiten
-          let retryCount = 0;
-          const maxRetries = 3;
-          
-          while (items.length === 0 && retryCount < maxRetries) {
-            // Längere Wartezeit zwischen Versuchen
-            if (retryCount > 0) {
-              // Exponentielles Backoff für Wartezeiten: 1s, 2s, 4s...
-              const waitTime = Math.pow(2, retryCount) * 1000;
-              console.log(`Warte ${waitTime}ms vor nächstem Versuch...`);
-              await new Promise(resolve => setTimeout(resolve, waitTime));
-            }
+        // FALLBACK 1: Verwende selectedProducts aus dem aktuellen Schritt, falls verfügbar
+        if (Array.isArray(selectedProducts) && selectedProducts.length > 0) {
+          console.log("Verwende aktuelle selectedProducts als Fallback:", selectedProducts);
+          items = selectedProducts.map(product => ({
+            productId: product.id,
+            productName: product.name,
+            quantity: product.orderQuantity || 1,
+            unitPrice: product.price || 0,
+            totalPrice: (product.price || 0) * (product.orderQuantity || 1),
+            unit: product.unit || 'Stk.'
+          }));
+        }
+        // FALLBACK 2: Nur wenn wir eine Bestellungs-ID haben und FALLBACK 1 keine Daten geliefert hat
+        else if (orderData.id) {
+          try {
+            // Maximal 3 Versuche mit längeren Wartezeiten
+            let retryCount = 0;
+            const maxRetries = 3;
             
-            console.log(`Versuche Items zu laden (Versuch ${retryCount + 1}/${maxRetries})...`);
-            
-            // Verwende Fetch direkt mit vollständigen Optionen
-            const response = await apiRequest(`/api/orders/${orderData.id}/items`);
-            
-            if (response && Array.isArray(response)) {
-              items = response;
-              console.log(`Items aus API nachgeladen (${items.length} Positionen):`, items);
+            while (items.length === 0 && retryCount < maxRetries) {
+              // Längere Wartezeit zwischen Versuchen
+              if (retryCount > 0) {
+                // Exponentielles Backoff für Wartezeiten: 1s, 2s, 4s...
+                const waitTime = Math.pow(2, retryCount) * 1000;
+                console.log(`Fehler beim Laden, warte ${waitTime}ms vor nächstem Versuch...`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+              }
               
-              // Bei Erfolg Cache invalidieren und lokale Daten aktualisieren
-              if (items.length > 0) {
-                // Cache invalidieren für diese Order
-                queryClient.invalidateQueries({queryKey: orderKeys.detail(orderData.id)});
+              console.log(`Lade Bestellpositionen (Versuch ${retryCount + 1}/${maxRetries})...`);
+              retryCount++;
+              
+              // Verwende Fetch direkt mit vollständigen Optionen
+              try {
+                const response = await apiRequest(`/api/orders/${orderData.id}/items`);
+                console.log("API-Antwort für Bestellpositionen:", response);
+                
+                if (response && Array.isArray(response) && response.length > 0) {
+                  items = response;
+                  console.log(`Items aus API nachgeladen (${items.length} Positionen)`);
+                  
+                  // Cache invalidieren für diese Order
+                  queryClient.invalidateQueries({queryKey: orderKeys.detail(orderData.id)});
                 
                 // Lokale Daten aktualisieren
                 const updatedOrderData = {
