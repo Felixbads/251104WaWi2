@@ -260,42 +260,126 @@ const BestellungV2: React.FC = () => {
     }
   }, [order]);
   
-  // Separate useEffect for PDF generation to ensure it only runs when we have complete data
+  // Verbesserte useEffect für PDF-Generierung mit besserem Timing
   useEffect(() => {
-    if ((step === 'sendOrder' || step === 'warehouseReceiptOfExistingOrder') && existingOrderData) {
-      console.log("PDF-Generierung starten mit existingOrderData:", existingOrderData);
+    // Nur ausführen wenn wir im richtigen Schritt sind UND existingOrderData vorhanden ist
+    if ((step === 'sendOrder' || step === 'warehouseReceiptOfExistingOrder') && existingOrderData && orderId) {
+      console.log("PDF-Generierung vorbereiten. Prüfe Bestellungsdetails:", existingOrderData);
       
-      // Nachdem die Bestellung geladen ist, zusätzlich die Orderitems laden, wenn sie fehlen
-      if (!existingOrderData.items && !existingOrderData.orderItems && orderId) {
-        console.log("Bestellpositionen werden nachgeladen für PDF-Generierung");
-        apiRequest(`/api/orders/${orderId}/items`, undefined, 'get')
-          .then(response => {
-            if (response && Array.isArray(response)) {
-              console.log("Bestellpositionen nachgeladen:", response);
-              const updatedOrderData = {
-                ...existingOrderData,
-                items: response
-              };
-              setExistingOrderData(updatedOrderData);
-              generateOrderPDF(updatedOrderData);
-            }
-          })
-          .catch(error => {
-            console.error("Fehler beim Nachladen der Bestellpositionen:", error);
-            toast({
-              title: 'Fehler beim Laden der Bestellpositionen',
-              description: 'Die Bestellpositionen konnten nicht geladen werden für die PDF-Erstellung.',
-              variant: 'destructive',
-            });
-          });
-      } else {
-        // Items sind bereits vorhanden, PDF direkt generieren
+      // Prüfen, ob bereits Bestellpositionen in irgendeinem bekannten Format vorhanden sind
+      const hasItems = !!(
+        (Array.isArray(existingOrderData.items) && existingOrderData.items.length > 0) ||
+        (Array.isArray(existingOrderData.orderItems) && existingOrderData.orderItems.length > 0) ||
+        (Array.isArray(existingOrderData.selectedProducts) && existingOrderData.selectedProducts.length > 0) ||
+        (existingOrderData.data && Array.isArray(existingOrderData.data.items) && existingOrderData.data.items.length > 0)
+      );
+      
+      if (hasItems) {
+        // Items sind bereits vorhanden, PDF direkt generieren mit kurzer Verzögerung
+        console.log("Bestellpositionen bereits vorhanden, generiere PDF direkt");
         setTimeout(() => {
           generateOrderPDF(existingOrderData);
-        }, 500);
+        }, 800);
+      } else {
+        // Nachladen der Items mit verbesserter Fehlerbehandlung und Retry-Logik
+        console.log("Bestellpositionen fehlen, lade nach für Bestellung ID:", orderId);
+        
+        // Toast-Nachricht für den Benutzer, dass die Bestellpositionen geladen werden
+        toast({
+          title: 'Bestellpositionen werden geladen',
+          description: 'Die Bestellpositionen werden für die PDF-Erstellung geladen...',
+        });
+        
+        // Verwenden Sie eine rekursive Funktion für bessere Fehlerbehandlung und Retries
+        const loadOrderItems = async (retryCount = 0, maxRetries = 3) => {
+          try {
+            console.log(`Lade Bestellpositionen (Versuch ${retryCount + 1}/${maxRetries})...`);
+            
+            // API-Anfrage mit verbesserter Fehlerbehandlung
+            const response = await apiRequest(`/api/orders/${orderId}/items`);
+            console.log("API-Antwort für Bestellpositionen:", response);
+            
+            // Verschiedene mögliche Antwortformate prüfen
+            let items = [];
+            if (Array.isArray(response)) {
+              items = response;
+            } else if (response && typeof response === 'object') {
+              // Prüfen verschiedener möglicher Property-Namen in der Antwort
+              items = response.items || response.orderItems || response.data || [];
+              
+              // Falls items in einem data-Objekt verschachtelt sind
+              if (response.data && Array.isArray(response.data.items)) {
+                items = response.data.items;
+              }
+            }
+            
+            if (Array.isArray(items) && items.length > 0) {
+              console.log(`${items.length} Bestellpositionen erfolgreich geladen`);
+              
+              // Aktualisiere Bestelldaten mit geladenen Items
+              const updatedOrderData = {
+                ...existingOrderData,
+                items: items,              // Standard-Eigenschaft
+                orderItems: items,         // Alternative Eigenschaft
+                products: items            // Weitere Alternative
+              };
+              
+              // State aktualisieren und PDF generieren
+              setExistingOrderData(updatedOrderData);
+              
+              // Cache invalidieren
+              queryClient.invalidateQueries({queryKey: orderKeys.detail(orderId)});
+              
+              // Nach kurzer Verzögerung PDF generieren
+              setTimeout(() => {
+                generateOrderPDF(updatedOrderData);
+              }, 800);
+              
+              return; // Erfolgreicher Fall, Funktion beenden
+            } else if (retryCount < maxRetries) {
+              // Exponentielles Backoff für Wartezeiten
+              const waitTime = Math.pow(2, retryCount) * 1000;
+              console.log(`Keine Items gefunden, warte ${waitTime}ms vor nächstem Versuch...`);
+              setTimeout(() => loadOrderItems(retryCount + 1, maxRetries), waitTime);
+            } else {
+              // Fallback: Wenn keine Items geladen werden konnten, selectedProducts verwenden
+              console.log("Keine Items geladen nach mehreren Versuchen, verwende selectedProducts als Fallback");
+              if (selectedProducts.length > 0) {
+                const fallbackOrderData = {
+                  ...existingOrderData,
+                  items: selectedProducts,
+                  orderItems: selectedProducts
+                };
+                setExistingOrderData(fallbackOrderData);
+                generateOrderPDF(fallbackOrderData);
+              } else {
+                throw new Error("Keine Bestellpositionen gefunden");
+              }
+            }
+          } catch (error) {
+            console.error("Fehler beim Laden der Bestellpositionen:", error);
+            
+            if (retryCount < maxRetries) {
+              // Bei Fehler erneut versuchen mit Backoff
+              const waitTime = Math.pow(2, retryCount) * 1000;
+              console.log(`Fehler beim Laden, warte ${waitTime}ms vor nächstem Versuch...`);
+              setTimeout(() => loadOrderItems(retryCount + 1, maxRetries), waitTime);
+            } else {
+              // Nach allen Versuchen Fehlermeldung anzeigen
+              toast({
+                title: 'Keine Produkte gefunden',
+                description: 'Es konnten keine Produktdaten für die PDF-Erstellung gefunden werden.',
+                variant: 'destructive',
+              });
+            }
+          }
+        };
+        
+        // Starte den Ladevorgang
+        loadOrderItems();
       }
     }
-  }, [step, existingOrderData, orderId]);
+  }, [step, existingOrderData, orderId, selectedProducts, queryClient]);
   
   // Function to generate PDF from order data
   const generateOrderPDF = async (orderData: any) => {
@@ -689,15 +773,22 @@ const BestellungV2: React.FC = () => {
         );
         
       case 'products':
-        return (
+        // Prüfen, ob die Komponente überhaupt angezeigt werden soll
+        return supplierId !== null && warehouseId !== null ? (
           <ProductSelectionTable
-            supplierId={supplierId}
-            warehouseId={warehouseId}
+            supplierId={supplierId as number} 
+            warehouseId={warehouseId as number}
             selectedProducts={selectedProducts}
             onProductsChange={setSelectedProducts}
             sourceOrderId={sourceOrderId}
             mode={orderMode}
           />
+        ) : (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <p>Bitte wählen Sie zuerst einen Lieferanten und ein Lager aus.</p>
+            </CardContent>
+          </Card>
         );
         
       case 'additionalInfo':
