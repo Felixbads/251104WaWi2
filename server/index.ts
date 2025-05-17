@@ -11,6 +11,7 @@ import inventoryApiRouter from './routes/inventory-api';
 import inventoryRouter from './routes/inventory';
 import emailRouter from './routes/email';
 import mailTemplatesRouter from './routes/mail-templates';
+import pdfRouter from './routes/pdf';
 
 const app = express();
 app.use(express.json());

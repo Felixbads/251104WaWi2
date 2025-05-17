@@ -3,14 +3,28 @@ import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import QRCode from 'qrcode';
 import { useToast } from '@/hooks/use-toast';
-import { formatDate } from '@/lib/utils';
+// Import formatDate directly
+const formatDate = (date: string | Date | null) => {
+  if (!date) return '';
+  try {
+    const d = new Date(date);
+    return d.toLocaleDateString('de-DE', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
+  } catch (error) {
+    console.error('Fehler beim Formatieren des Datums:', error);
+    return '';
+  }
+};
 
 // PDFGenerator Komponente für zuverlässige PDF-Erstellung
 export function usePDFGenerator() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const toast = useToast();
+  const { toast } = useToast();
 
   // Aufräumen beim Unmount
   useEffect(() => {

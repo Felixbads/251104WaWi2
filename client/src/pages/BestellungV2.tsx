@@ -4,7 +4,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { updateOrderStatus } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { orderKeys, supplierKeys, warehouseKeys, productKeys } from '@/lib/queryKeys';
-import { orderPDFTemplate, formatDate, calculateTotalPrice, formatPrice } from '@/components/orders/PDFTemplate';
+import { formatDate, calculateTotalPrice, formatPrice } from '@/components/orders/PDFTemplate';
 import { format } from 'date-fns';
 import {
   ChevronRight,
@@ -45,8 +45,7 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert";
-import html2canvas from 'html2canvas';
-import { jsPDF } from 'jspdf';
+import { usePDFGenerator } from "@/components/orders/PDFGenerator";
 
 // Import custom components
 import WarehouseSelector from '@/components/orderv2/WarehouseSelector';
