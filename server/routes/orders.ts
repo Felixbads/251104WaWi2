@@ -1709,4 +1709,63 @@ router.get("/:id/items", async (req: Request, res: Response) => {
   }
 });
 
+// API-Endpunkt zum manuellen Erstellen von Bestellpositionen
+router.post("/order-items", async (req: Request, res: Response) => {
+  try {
+    const itemData = req.body;
+    
+    // Prüfen, ob alle Pflichtfelder vorhanden sind
+    if (!itemData.orderId) {
+      return res.status(400).json({ error: "Bestellungs-ID muss angegeben werden" });
+    }
+    
+    if (!itemData.productName) {
+      return res.status(400).json({ error: "Produktname muss angegeben werden" });
+    }
+    
+    // Bestellposition erstellen mit Standardwerten für fehlende Felder
+    const completeItemData = {
+      orderId: itemData.orderId,
+      productId: itemData.productId || null,
+      productName: itemData.productName,
+      quantity: itemData.quantity || 1,
+      unitPrice: itemData.unitPrice || 0,
+      totalPrice: itemData.totalPrice || (itemData.unitPrice || 0) * (itemData.quantity || 1),
+      unit: itemData.unit || 'stk',
+      vatRate: itemData.vatRate || 19,
+      status: itemData.status || 'pending',
+      positionNumber: itemData.positionNumber || 1,
+      sku: itemData.sku || '',
+      supplierSku: itemData.supplierSku || '',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    
+    console.log("Erstelle Bestellposition manuell:", JSON.stringify(completeItemData, null, 2));
+    
+    // Bestellposition in der Datenbank speichern
+    const savedItem = await storage.createOrderItem(completeItemData);
+    
+    // Bestellung aktualisieren mit der Anzahl der Bestellpositionen
+    const items = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, itemData.orderId));
+    
+    // Bestellung aktualisieren mit der Anzahl der Bestellpositionen
+    await storage.updateOrder(itemData.orderId, {
+      itemCount: items.length,
+      lastModifiedAt: new Date()
+    });
+    
+    res.status(201).json(savedItem);
+  } catch (error) {
+    console.error("Fehler beim Erstellen der Bestellposition:", error);
+    res.status(500).json({ 
+      error: "Fehler beim Erstellen der Bestellposition", 
+      details: error.message 
+    });
+  }
+});
+
 export default router;

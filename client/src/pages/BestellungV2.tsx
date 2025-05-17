@@ -679,27 +679,60 @@ const BestellungV2: React.FC = () => {
               };
               
               console.log("Sende Bestellung mit Positionsdaten:", JSON.stringify(orderData));
+              
+              // Zuerst die Bestellung ohne PDF erstellen
               createOrderMutation.mutate(orderData, {
-                onSuccess: (data) => {
+                onSuccess: async (data) => {
                   console.log("Bestellung erfolgreich erstellt mit Antwort:", JSON.stringify(data));
                   setExistingOrderData(data);
-                  // Warte kurz, damit die Bestellpositionen gespeichert werden können
-                  setTimeout(() => {
-                    // Hole die vollständigen Bestelldaten inklusive Positionen
-                    apiRequest(`/api/orders/${data.id}`, null, 'get')
-                      .then(fullOrderData => {
-                        console.log("Vollständige Bestelldaten geladen:", JSON.stringify(fullOrderData));
+                  
+                  try {
+                    // Manuell die Bestellpositionen erstellen, falls sie in der Antwort nicht enthalten sind
+                    if (!data.orderItems || data.orderItems.length === 0) {
+                      console.log("Bestellpositionen manuell erstellen, da keine in der Antwort enthalten sind");
+                      
+                      // Bestellpositionen separat speichern
+                      for (let i = 0; i < orderData.orderItems.length; i++) {
+                        const item = orderData.orderItems[i];
+                        
+                        // Alle erforderlichen Felder für eine Bestellposition angeben
+                        const orderItem = {
+                          orderId: data.id,
+                          productId: item.productId,
+                          productName: item.productName,
+                          quantity: item.quantity,
+                          unitPrice: item.unitPrice,
+                          totalPrice: item.totalPrice,
+                          unit: item.unit,
+                          vatRate: item.vatRate,
+                          positionNumber: i + 1,
+                          status: 'pending'
+                        };
+                        
+                        console.log(`Speichere Bestellposition ${i+1}:`, JSON.stringify(orderItem));
+                        await apiRequest('/api/order-items', orderItem, 'post');
+                      }
+                      
+                      // Warte kurz, um sicherzustellen, dass alle Positionen gespeichert wurden
+                      setTimeout(async () => {
+                        // Vollständige Bestelldaten mit Positionen neu laden
+                        const fullOrderData = await apiRequest(`/api/orders/${data.id}`, null, 'get');
+                        console.log("Vollständige Bestelldaten nach manueller Erstellung der Positionen:", JSON.stringify(fullOrderData));
                         setExistingOrderData(fullOrderData);
                         generateOrderPDF(fullOrderData);
                         setStep('sendOrder');
-                      })
-                      .catch(err => {
-                        console.error("Fehler beim Laden der vollständigen Bestelldaten:", err);
-                        setExistingOrderData(data);
-                        generateOrderPDF(data);
-                        setStep('sendOrder');
-                      });
-                  }, 1000);
+                      }, 1000);
+                    } else {
+                      // Bestellpositionen sind bereits in der Antwort enthalten
+                      console.log(`Bestellung enthält bereits ${data.orderItems.length} Positionen`);
+                      generateOrderPDF(data);
+                      setStep('sendOrder');
+                    }
+                  } catch (error) {
+                    console.error("Fehler bei der manuellen Erstellung der Bestellpositionen:", error);
+                    generateOrderPDF(data);
+                    setStep('sendOrder');
+                  }
                 }
               });
             }}
