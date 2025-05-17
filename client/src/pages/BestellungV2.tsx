@@ -259,6 +259,8 @@ const BestellungV2: React.FC = () => {
   // Function to generate PDF from order data
   const generateOrderPDF = async (orderData: any) => {
     try {
+      console.log("PDF-Generierung gestartet mit Daten:", orderData);
+      
       // Sicherstellen, dass Bestelldaten vollständig sind
       if (!orderData || typeof orderData !== 'object') {
         console.error('Keine gültigen Bestelldaten für PDF-Generierung:', orderData);
@@ -266,34 +268,141 @@ const BestellungV2: React.FC = () => {
       }
       
       // Sicherstellen, dass orderItems verfügbar sind
-      const items = orderData.items || orderData.orderItems || [];
+      let items = orderData.items || orderData.orderItems || [];
       if (!Array.isArray(items) || items.length === 0) {
         console.error('Keine Produktdaten für PDF-Generierung vorhanden');
-        return;
+        // Versuche, die Items aus dem API zu laden wenn nötig
+        if (orderData.id) {
+          try {
+            const response = await apiRequest(`/api/orders/${orderData.id}/items`, null, 'get');
+            if (response && Array.isArray(response.data) && response.data.length > 0) {
+              items = response.data;
+              console.log("Items aus API nachgeladen:", items);
+            }
+          } catch (err) {
+            console.error("Fehler beim Nachladen der Items:", err);
+          }
+        }
+        
+        if (items.length === 0) {
+          toast({
+            title: 'Keine Produkte gefunden',
+            description: 'Es konnten keine Produktdaten für die PDF-Erstellung gefunden werden.',
+            variant: 'destructive',
+          });
+          return;
+        }
       }
       
-      // Normalisierte Bestelldaten erstellen
+      // Normalisierte Bestelldaten erstellen und fehlende Werte ergänzen
+      const formattedItems = items.map((item: any, index: number) => ({
+        ...item,
+        positionNumber: index + 1,
+        unit: item.unit || 'Stk.',
+        price: item.price || 0,
+        quantity: item.quantity || 1,
+        totalPrice: calculateTotalPrice(item.price || 0, item.quantity || 1)
+      }));
+      
+      const totalAmount = formattedItems.reduce((sum: number, item: any) => 
+        sum + (item.totalPrice || 0), 0);
+      const vatAmount = parseFloat((totalAmount * 0.19).toFixed(2));
+      const totalWithTax = parseFloat((totalAmount + vatAmount).toFixed(2));
+      
       const normalizedOrderData = {
         ...orderData,
-        items: items,
+        items: formattedItems,
+        orderDate: formatDate(orderData.orderDate || new Date()),
+        expectedDeliveryDate: formatDate(orderData.expectedDeliveryDate),
+        warehouseName: orderData.warehouseName || 'Hauptlager',
+        priority: orderData.priority || 'Normal',
+        notes: orderData.notes || '',
+        supplierName: orderData.supplierName || 'Unbekannter Lieferant',
+        supplierAddress: orderData.supplierAddress || '',
+        supplierEmail: orderData.supplierEmail || '',
+        totalAmount: formatPrice(totalAmount),
+        vatAmount: formatPrice(vatAmount),
+        totalWithTax: formatPrice(totalWithTax)
       };
       
-      const pdfContent = orderPDFTemplate(normalizedOrderData);
+      console.log("Normalisierte Daten für PDF:", normalizedOrderData);
+      
+      // HTML-Template in einen String mit ersetzten Variablen umwandeln
+      let htmlContent = orderPDFTemplate;
+      
+      // Fix für das Logo - absoluten Pfad verwenden
+      htmlContent = htmlContent.replace(
+        'src="/images/Proviantomat_Logo_rot.png"',
+        'src="https://www.elbsandstein-proviant.de/images/Proviantomat_Logo_rot.png"'
+      );
+      
+      // Einfache Handlebars-ähnliche Template-Verarbeitung
+      // Ersetze {{variable}} mit den tatsächlichen Werten
+      Object.entries(normalizedOrderData).forEach(([key, value]) => {
+        if (key !== 'items') {
+          const regex = new RegExp(`{{${key}}}`, 'g');
+          htmlContent = htmlContent.replace(regex, String(value || ''));
+        }
+      });
+      
+      // Verarbeite die Items-Liste
+      let itemsHtml = '';
+      formattedItems.forEach((item: any) => {
+        itemsHtml += `
+          <tr>
+            <td>${item.positionNumber}</td>
+            <td>${item.productId || ''}</td>
+            <td>${item.productName || ''}</td>
+            <td style="text-align:right">${item.quantity}</td>
+            <td>${item.unit}</td>
+            <td style="text-align:right">${formatPrice(item.price)} €</td>
+            <td style="text-align:right">${formatPrice(item.totalPrice)} €</td>
+          </tr>`;
+      });
+      
+      // Ersetze den {{#each items}} Block mit dem generierten HTML
+      htmlContent = htmlContent.replace(/{{#each items}}[\s\S]*?{{\/each}}/g, itemsHtml);
+      
+      // Ersetze bedingte Blöcke
+      if (normalizedOrderData.notes) {
+        htmlContent = htmlContent.replace(
+          /{{#if notes}}[\s\S]*?{{\/if}}/g, 
+          `<tr><th>Notizen</th><td colspan="3">${normalizedOrderData.notes}</td></tr>`
+        );
+      } else {
+        htmlContent = htmlContent.replace(/{{#if notes}}[\s\S]*?{{\/if}}/g, '');
+      }
+      
+      if (normalizedOrderData.supplierEmail) {
+        htmlContent = htmlContent.replace(
+          /{{#if supplierEmail}}{{supplierEmail}}{{\/if}}/g,
+          normalizedOrderData.supplierEmail
+        );
+      } else {
+        htmlContent = htmlContent.replace(/{{#if supplierEmail}}{{supplierEmail}}{{\/if}}/g, '');
+      }
+      
+      // Debug-Ausgabe des HTML-Inhalts zur Prüfung
+      console.log("Generierter HTML-Inhalt:", htmlContent.substring(0, 500) + "... (gekürzt)");
       
       // Erstelle ein div-Element mit dem PDF-Inhalt
       const element = document.createElement('div');
-      element.innerHTML = pdfContent;
+      element.innerHTML = htmlContent;
       element.style.width = '210mm'; // A4 Breite
       element.style.padding = '10mm';
-      element.style.visibility = 'hidden';
+      element.style.backgroundColor = 'white';
+      // Element sichtbar machen für Debugging
       document.body.appendChild(element);
       
       // Rendere das Element zu einem Canvas
       const canvas = await html2canvas(element, {
         scale: 2, // Höhere Qualität
         useCORS: true,
-        logging: false
+        logging: true, // Logging aktivieren für Debugging
+        backgroundColor: '#ffffff'
       });
+      
+      console.log("Canvas erstellt mit Größe:", canvas.width, "x", canvas.height);
       
       // Erstelle ein PDF aus dem Canvas
       const pdf = new jsPDF({
@@ -310,15 +419,20 @@ const BestellungV2: React.FC = () => {
       
       // Speichere das PDF als Blob
       const blob = pdf.output('blob');
+      console.log("PDF-Blob erstellt:", blob);
       setPdfBlob(blob);
       
-      // Entferne das temporäre Element
-      document.body.removeChild(element);
+      // Element wieder ausblenden, aber nicht entfernen für Debugging
+      element.style.display = 'none';
+      toast({
+        title: 'PDF erstellt',
+        description: 'Die PDF-Vorschau wurde erfolgreich generiert.',
+      });
     } catch (error) {
       console.error('Fehler beim Generieren des PDFs:', error);
       toast({
         title: 'Fehler beim Generieren des PDFs',
-        description: 'Die PDF-Vorschau konnte nicht erstellt werden.',
+        description: 'Die PDF-Vorschau konnte nicht erstellt werden. Details in der Konsole.',
         variant: 'destructive',
       });
     }
