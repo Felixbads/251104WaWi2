@@ -338,6 +338,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                       />
                     </TableCell>
                     <TableCell className="text-right hidden md:table-cell">{(item.price || item.unitPrice || 0).toFixed(2)} €</TableCell>
+
                     <TableCell>
                       <Input
                         type="date"
