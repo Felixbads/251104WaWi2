@@ -31,23 +31,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -81,8 +72,8 @@ const orderStatusMap = {
 
 interface OrdersOverviewProps {
   onSelectOrder: (orderId: number) => void;
-  onStartWarehouseReceiptProcess: (orderId: number) => void;
-  onStartNewOrder: () => void;
+  onStartWarehouseReceiptProcess?: (orderId: number) => void;
+  onStartNewOrder?: () => void;
 }
 
 const OrdersOverview: React.FC<OrdersOverviewProps> = ({ 
@@ -130,102 +121,34 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
     });
   };
   
-  // Abfrage für Bestellungen
-  const { data: ordersResponse, isLoading, error, refetch } = useQuery({
-    queryKey: ['/api/orders'],
+  // Abfrage für Bestellungen mit Filtern
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ['/api/orders', statusFilter, sortBy.field, sortBy.direction, searchTerm],
     queryFn: async () => {
-      const response = await fetch('/api/orders');
-      if (!response.ok) {
-        throw new Error('Fehler beim Laden der Bestellungen');
-      }
-      return response.json();
+      const params = new URLSearchParams();
+      if (statusFilter) params.append('status', statusFilter);
+      params.append('sortBy', sortBy.field);
+      params.append('sortDirection', sortBy.direction);
+      if (searchTerm) params.append('search', searchTerm);
+      
+      return apiRequest(`/api/orders?${params.toString()}`);
     }
   });
   
-  // Extrahiere das Datenarray aus der Antwort
-  const orders = ordersResponse?.data || [];
-  
-  // Filterfunktion für Bestellungen
-  const filteredOrders = React.useMemo(() => {
-    if (!orders || !Array.isArray(orders)) return [];
-    
-    return orders.filter((order: any) => {
-      // Suche
-      const searchFields = [
-        order.orderNumber,
-        order.supplierName,
-        order.warehouseName || order.locationName,
-        order.notes
-      ].filter(Boolean).join(' ').toLowerCase();
-      
-      const matchesSearch = !searchTerm || searchFields.includes(searchTerm.toLowerCase());
-      
-      // Status-Filter
-      const matchesStatus = !statusFilter || order.status === statusFilter;
-      
-      return matchesSearch && matchesStatus;
+  // Sortierfunktion
+  const handleSort = (field: string) => {
+    setSortBy({
+      field,
+      direction: sortBy.field === field && sortBy.direction === 'asc' ? 'desc' : 'asc'
     });
-  }, [orders, searchTerm, statusFilter]);
-  
-  // Sortierfunktion für Bestellungen
-  const sortedOrders = React.useMemo(() => {
-    if (!filteredOrders.length) return [];
-    
-    return [...filteredOrders].sort((a, b) => {
-      let aValue, bValue;
-      
-      switch (sortBy.field) {
-        case 'orderDate':
-          aValue = new Date(a.orderDate || a.createdAt || 0).getTime();
-          bValue = new Date(b.orderDate || b.createdAt || 0).getTime();
-          break;
-        case 'supplierName':
-          aValue = a.supplierName?.toLowerCase() || '';
-          bValue = b.supplierName?.toLowerCase() || '';
-          break;
-        case 'warehouseName':
-          aValue = (a.warehouseName || a.locationName || '').toLowerCase();
-          bValue = (b.warehouseName || b.locationName || '').toLowerCase();
-          break;
-        case 'totalAmount':
-          aValue = a.totalAmount || 0;
-          bValue = b.totalAmount || 0;
-          break;
-        case 'status':
-          aValue = a.status || '';
-          bValue = b.status || '';
-          break;
-        default:
-          aValue = a.orderDate || a.createdAt || 0;
-          bValue = b.orderDate || b.createdAt || 0;
-      }
-      
-      const sortOrder = sortBy.direction === 'asc' ? 1 : -1;
-      
-      if (aValue < bValue) return -1 * sortOrder;
-      if (aValue > bValue) return 1 * sortOrder;
-      return 0;
-    });
-  }, [filteredOrders, sortBy]);
-  
-  // Sortierung umschalten
-  const toggleSort = (field: string) => {
-    if (sortBy.field === field) {
-      setSortBy({
-        field,
-        direction: sortBy.direction === 'asc' ? 'desc' : 'asc'
-      });
-    } else {
-      setSortBy({ field, direction: 'asc' });
-    }
   };
   
-  // Formatierungsfunktionen
-  const formatDate = (dateString: string) => {
+  // Funktionen für Datumsformatierung und Währungsformatierung
+  const formatDate = (date: string | null) => {
+    if (!date) return 'Kein Datum';
     try {
-      const date = parseISO(dateString);
-      return format(date, 'dd.MM.yyyy', { locale: de });
-    } catch (e) {
+      return format(parseISO(date), 'dd.MM.yyyy', { locale: de });
+    } catch {
       return 'Ungültiges Datum';
     }
   };
@@ -292,12 +215,11 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Alle Status</SelectItem>
-              <SelectItem value="draft">Entwurf</SelectItem>
-              <SelectItem value="pending">In Bearbeitung</SelectItem>
-              <SelectItem value="shipped">Versandt</SelectItem>
+              <SelectItem value="open">Offen</SelectItem>
+              <SelectItem value="ordered">Bestellt</SelectItem>
+              <SelectItem value="partial">Teilgeliefert</SelectItem>
               <SelectItem value="delivered">Geliefert</SelectItem>
-              <SelectItem value="completed">Abgeschlossen</SelectItem>
-              <SelectItem value="cancelled">Storniert</SelectItem>
+              <SelectItem value="canceled">Storniert</SelectItem>
             </SelectContent>
           </Select>
           
@@ -305,9 +227,11 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
             <RefreshCw className="h-4 w-4" />
           </Button>
           
-          <Button onClick={onStartNewOrder}>
-            Neue Bestellung
-          </Button>
+          {onStartNewOrder && (
+            <Button onClick={onStartNewOrder}>
+              Neue Bestellung
+            </Button>
+          )}
         </div>
       </div>
       
@@ -324,7 +248,7 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
           />
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex gap-2">
           <Select
             value={statusFilter || 'all'}
             onValueChange={(value) => setStatusFilter(value === 'all' ? null : value)}
@@ -334,12 +258,11 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Alle Status</SelectItem>
-              <SelectItem value="draft">Entwurf</SelectItem>
-              <SelectItem value="pending">In Bearbeitung</SelectItem>
-              <SelectItem value="shipped">Versandt</SelectItem>
+              <SelectItem value="open">Offen</SelectItem>
+              <SelectItem value="ordered">Bestellt</SelectItem>
+              <SelectItem value="partial">Teilgeliefert</SelectItem>
               <SelectItem value="delivered">Geliefert</SelectItem>
-              <SelectItem value="completed">Abgeschlossen</SelectItem>
-              <SelectItem value="cancelled">Storniert</SelectItem>
+              <SelectItem value="canceled">Storniert</SelectItem>
             </SelectContent>
           </Select>
           
@@ -348,9 +271,11 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
           </Button>
         </div>
         
-        <Button onClick={onStartNewOrder} className="w-full">
-          Neue Bestellung
-        </Button>
+        {onStartNewOrder && (
+          <Button onClick={onStartNewOrder} className="w-full">
+            Neue Bestellung
+          </Button>
+        )}
       </div>
       
       {/* Desktop-Tabelle */}
@@ -360,154 +285,191 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead 
-                    className="cursor-pointer"
-                    onClick={() => toggleSort('orderDate')}
-                  >
-                    <div className="flex items-center">
-                      Datum
-                      {sortBy.field === 'orderDate' && (
-                        <ArrowUpDown className={`ml-1 h-4 w-4 ${sortBy.direction === 'asc' ? 'rotate-180' : ''}`} />
-                      )}
-                    </div>
+                  <TableHead className="w-[100px]">
+                    <Button 
+                      variant="ghost" 
+                      className="flex items-center gap-1 px-0 font-medium"
+                      onClick={() => handleSort('orderNumber')}
+                    >
+                      Nr.
+                      {sortBy.field === 'orderNumber' && 
+                        <ArrowUpDown className={`h-3 w-3 ${sortBy.direction === 'asc' ? 'rotate-180' : ''}`} />
+                      }
+                    </Button>
                   </TableHead>
-                  <TableHead 
-                    className="cursor-pointer"
-                    onClick={() => toggleSort('supplierName')}
-                  >
-                    <div className="flex items-center">
+                  <TableHead>
+                    <Button 
+                      variant="ghost" 
+                      className="flex items-center gap-1 px-0 font-medium"
+                      onClick={() => handleSort('supplierName')}
+                    >
                       Lieferant
-                      {sortBy.field === 'supplierName' && (
-                        <ArrowUpDown className={`ml-1 h-4 w-4 ${sortBy.direction === 'asc' ? 'rotate-180' : ''}`} />
-                      )}
-                    </div>
+                      {sortBy.field === 'supplierName' && 
+                        <ArrowUpDown className={`h-3 w-3 ${sortBy.direction === 'asc' ? 'rotate-180' : ''}`} />
+                      }
+                    </Button>
                   </TableHead>
-                  <TableHead 
-                    className="cursor-pointer"
-                    onClick={() => toggleSort('warehouseName')}
-                  >
-                    <div className="flex items-center">
+                  <TableHead>
+                    <Button 
+                      variant="ghost" 
+                      className="flex items-center gap-1 px-0 font-medium"
+                      onClick={() => handleSort('warehouseName')}
+                    >
                       Lager
-                      {sortBy.field === 'warehouseName' && (
-                        <ArrowUpDown className={`ml-1 h-4 w-4 ${sortBy.direction === 'asc' ? 'rotate-180' : ''}`} />
-                      )}
-                    </div>
+                      {sortBy.field === 'warehouseName' && 
+                        <ArrowUpDown className={`h-3 w-3 ${sortBy.direction === 'asc' ? 'rotate-180' : ''}`} />
+                      }
+                    </Button>
                   </TableHead>
-                  <TableHead 
-                    className="cursor-pointer text-right"
-                    onClick={() => toggleSort('totalAmount')}
-                  >
-                    <div className="flex items-center justify-end">
-                      Wert netto
-                      {sortBy.field === 'totalAmount' && (
-                        <ArrowUpDown className={`ml-1 h-4 w-4 ${sortBy.direction === 'asc' ? 'rotate-180' : ''}`} />
-                      )}
-                    </div>
-                  </TableHead>
-                  <TableHead 
-                    className="cursor-pointer"
-                    onClick={() => toggleSort('status')}
-                  >
-                    <div className="flex items-center">
+                  <TableHead>
+                    <Button 
+                      variant="ghost" 
+                      className="flex items-center gap-1 px-0 font-medium"
+                      onClick={() => handleSort('status')}
+                    >
                       Status
-                      {sortBy.field === 'status' && (
-                        <ArrowUpDown className={`ml-1 h-4 w-4 ${sortBy.direction === 'asc' ? 'rotate-180' : ''}`} />
-                      )}
-                    </div>
+                      {sortBy.field === 'status' && 
+                        <ArrowUpDown className={`h-3 w-3 ${sortBy.direction === 'asc' ? 'rotate-180' : ''}`} />
+                      }
+                    </Button>
+                  </TableHead>
+                  <TableHead>
+                    <Button 
+                      variant="ghost" 
+                      className="flex items-center gap-1 px-0 font-medium"
+                      onClick={() => handleSort('orderDate')}
+                    >
+                      Bestelldatum
+                      {sortBy.field === 'orderDate' && 
+                        <ArrowUpDown className={`h-3 w-3 ${sortBy.direction === 'asc' ? 'rotate-180' : ''}`} />
+                      }
+                    </Button>
+                  </TableHead>
+                  <TableHead>
+                    <Button 
+                      variant="ghost" 
+                      className="flex items-center gap-1 px-0 font-medium"
+                      onClick={() => handleSort('totalAmount')}
+                    >
+                      Betrag
+                      {sortBy.field === 'totalAmount' && 
+                        <ArrowUpDown className={`h-3 w-3 ${sortBy.direction === 'asc' ? 'rotate-180' : ''}`} />
+                      }
+                    </Button>
                   </TableHead>
                   <TableHead className="text-right">Aktionen</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  Array.from({ length: 5 }).map((_, index) => (
-                    <TableRow key={index}>
-                      <TableCell><Skeleton className="h-6 w-24" /></TableCell>
-                      <TableCell><Skeleton className="h-6 w-40" /></TableCell>
-                      <TableCell><Skeleton className="h-6 w-32" /></TableCell>
-                      <TableCell><Skeleton className="h-6 w-20" /></TableCell>
-                      <TableCell><Skeleton className="h-6 w-24" /></TableCell>
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell><Skeleton className="h-6 w-16" /></TableCell>
+                      <TableCell><Skeleton className="h-6 w-36" /></TableCell>
                       <TableCell><Skeleton className="h-6 w-28" /></TableCell>
+                      <TableCell><Skeleton className="h-6 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-6 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-6 w-20" /></TableCell>
+                      <TableCell className="text-right"><Skeleton className="h-8 w-24 ml-auto" /></TableCell>
                     </TableRow>
                   ))
-                ) : error ? (
+                ) : isError ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-10 text-rose-500">
-                      <AlertCircle className="mx-auto h-8 w-8 mb-2" />
-                      <p>Fehler beim Laden der Bestellungen</p>
-                      <Button variant="outline" size="sm" onClick={() => refetch()} className="mt-2">
+                    <TableCell colSpan={7} className="text-center py-4">
+                      <AlertCircle className="mx-auto h-6 w-6 text-destructive mb-2" />
+                      <p className="text-destructive font-medium">Fehler beim Laden der Bestellungen</p>
+                      <p className="text-muted-foreground text-sm">{(error as Error).message}</p>
+                      <Button onClick={() => refetch()} variant="outline" size="sm" className="mt-2">
                         Erneut versuchen
                       </Button>
                     </TableCell>
                   </TableRow>
-                ) : sortedOrders.length === 0 ? (
+                ) : data?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6}>
+                    <TableCell colSpan={7}>
                       <EmptyState />
                     </TableCell>
                   </TableRow>
                 ) : (
-                  sortedOrders.map((order: any) => (
+                  data?.map((order: any) => (
                     <TableRow 
                       key={order.id} 
                       className="cursor-pointer hover:bg-muted/50"
                       onClick={() => onSelectOrder(order.id)}
                     >
                       <TableCell className="font-medium">
-                        {order.orderDate || order.createdAt
-                          ? formatDate(order.orderDate || order.createdAt)
-                          : 'Kein Datum'}
+                        {order.orderNumber}
                       </TableCell>
-                      <TableCell>
-                        {order.supplierName || 'Unbekannter Lieferant'}
-                      </TableCell>
-                      <TableCell>
-                        {order.warehouseName || order.locationName || 'Unbekanntes Lager'}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {order.totalAmount ? formatCurrency(order.totalAmount) : '—'}
-                      </TableCell>
+                      <TableCell>{order.supplierName}</TableCell>
+                      <TableCell>{order.warehouseName}</TableCell>
                       <TableCell>
                         <OrderStatusBadge status={order.status} />
                       </TableCell>
+                      <TableCell>{formatDate(order.orderDate)}</TableCell>
+                      <TableCell>{formatCurrency(order.totalAmount)}</TableCell>
                       <TableCell className="text-right">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Aktionen</span>
+                        <div className="flex justify-end gap-1">
+                          {order.status === 'open' && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              title="Als versendet markieren"
+                              onClick={(e) => handleMarkAsSent(order.id, e)}
+                              disabled={markAsSentMutation.isPending}
+                            >
+                              <Send className="h-4 w-4" />
                             </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Aktionen</DropdownMenuLabel>
-                            <DropdownMenuItem onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectOrder(order.id);
-                            }}>
-                              <ExternalLink className="mr-2 h-4 w-4" />
-                              Details anzeigen
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            {order.status === 'draft' && (
-                              <DropdownMenuItem 
-                                onClick={(e) => handleMarkAsSent(order.id, e)}
-                              >
-                                <Send className="mr-2 h-4 w-4" />
-                                Als versendet markieren
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem 
+                          )}
+                          
+                          {order.status === 'ordered' && onStartWarehouseReceiptProcess && (
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              title="Wareneingang buchen"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onStartWarehouseReceiptProcess(order.id);
                               }}
-                              disabled={!['shipped', 'delivered'].includes(order.status)}
                             >
-                              <Package className="mr-2 h-4 w-4" />
-                              Wareneingang erfassen
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              <Truck className="h-4 w-4" />
+                            </Button>
+                          )}
+                          
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.open(`/orderDetail/${order.id}`, '_blank');
+                                }}
+                              >
+                                <ExternalLink className="mr-2 h-4 w-4" />
+                                Öffnen
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.open(`/api/orders/${order.id}/pdf`, '_blank');
+                                }}
+                              >
+                                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                                PDF anzeigen
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={(e) => {
+                                e.stopPropagation();
+                                window.location.href = `/sendOrderEmail/${order.id}`;
+                              }}>
+                                <Mail className="mr-2 h-4 w-4" />
+                                E-Mail senden
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -518,127 +480,131 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
         </Card>
       </div>
       
-      {/* Mobile Kartenansicht */}
-      <div className="md:hidden space-y-4">
+      {/* Mobile-Ansicht: Karten */}
+      <div className="md:hidden space-y-3">
         {isLoading ? (
-          Array.from({ length: 3 }).map((_, index) => (
-            <Card key={index} className="animate-pulse">
-              <CardHeader className="pb-2">
-                <Skeleton className="h-5 w-28 mb-1" />
-                <Skeleton className="h-4 w-40" />
-              </CardHeader>
-              <CardContent className="pb-3">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <Skeleton className="h-4 w-20" />
-                    <Skeleton className="h-4 w-24" />
-                  </div>
-                  <div className="flex justify-between">
-                    <Skeleton className="h-4 w-16" />
-                    <Skeleton className="h-4 w-20" />
-                  </div>
+          Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i} className="p-4">
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <Skeleton className="h-6 w-24" />
+                  <Skeleton className="h-6 w-20" />
                 </div>
-              </CardContent>
-              <CardFooter className="flex justify-between pt-0">
-                <Skeleton className="h-8 w-24" />
-                <Skeleton className="h-8 w-8" />
-              </CardFooter>
+                <Skeleton className="h-5 w-36" />
+                <div className="flex justify-between">
+                  <Skeleton className="h-5 w-28" />
+                  <Skeleton className="h-6 w-24" />
+                </div>
+              </div>
             </Card>
           ))
-        ) : error ? (
-          <Card>
-            <CardContent className="text-center py-10 text-rose-500">
-              <AlertCircle className="mx-auto h-8 w-8 mb-2" />
-              <p>Fehler beim Laden der Bestellungen</p>
-              <Button variant="outline" size="sm" onClick={() => refetch()} className="mt-2">
+        ) : isError ? (
+          <Card className="p-4">
+            <div className="text-center py-4">
+              <AlertCircle className="mx-auto h-6 w-6 text-destructive mb-2" />
+              <p className="text-destructive font-medium">Fehler beim Laden der Bestellungen</p>
+              <p className="text-muted-foreground text-sm mb-2">{(error as Error).message}</p>
+              <Button onClick={() => refetch()} variant="outline" size="sm">
                 Erneut versuchen
               </Button>
-            </CardContent>
+            </div>
           </Card>
-        ) : sortedOrders.length === 0 ? (
-          <Card>
-            <CardContent>
-              <EmptyState />
-            </CardContent>
+        ) : data?.length === 0 ? (
+          <Card className="p-4">
+            <EmptyState />
           </Card>
         ) : (
-          sortedOrders.map((order: any) => (
+          data?.map((order: any) => (
             <Card 
               key={order.id} 
-              className="cursor-pointer hover:bg-accent/5"
+              className="overflow-hidden"
               onClick={() => onSelectOrder(order.id)}
             >
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-start">
-                  <CardTitle className="text-base">
-                    {order.orderNumber || `Bestellung #${order.id}`}
-                  </CardTitle>
-                  <OrderStatusBadge status={order.status} />
+              <CardContent className="p-0">
+                <div className="p-4 cursor-pointer hover:bg-muted/50">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <div className="font-medium">{order.orderNumber}</div>
+                      <div className="text-sm text-muted-foreground">{order.supplierName}</div>
+                    </div>
+                    <OrderStatusBadge status={order.status} />
+                  </div>
+                  
+                  <div className="flex justify-between items-center text-sm">
+                    <div>{order.warehouseName}</div>
+                    <div className="font-medium">{formatCurrency(order.totalAmount)}</div>
+                  </div>
+                  
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Bestellt am {formatDate(order.orderDate)}
+                  </div>
                 </div>
-                <CardDescription>
-                  {order.orderDate || order.createdAt
-                    ? formatDate(order.orderDate || order.createdAt)
-                    : 'Kein Datum'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pb-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Lieferant</p>
-                    <p className="text-sm font-medium truncate">
-                      {order.supplierName || 'Unbekannt'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Lager</p>
-                    <p className="text-sm font-medium truncate">
-                      {order.warehouseName || order.locationName || 'Unbekannt'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Wert netto</p>
-                    <p className="text-sm font-medium">
-                      {order.totalAmount ? formatCurrency(order.totalAmount) : '—'}
-                    </p>
-                  </div>
+                
+                <div className="border-t border-border p-2 bg-muted/50 flex justify-end gap-1">
+                  {order.status === 'open' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      title="Als versendet markieren"
+                      onClick={(e) => handleMarkAsSent(order.id, e)}
+                      disabled={markAsSentMutation.isPending}
+                    >
+                      <Send className="h-4 w-4 mr-1" />
+                      Versandt
+                    </Button>
+                  )}
+                  
+                  {order.status === 'ordered' && onStartWarehouseReceiptProcess && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      title="Wareneingang buchen"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onStartWarehouseReceiptProcess(order.id);
+                      }}
+                    >
+                      <Truck className="h-4 w-4 mr-1" />
+                      Wareneingang
+                    </Button>
+                  )}
+                  
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(`/orderDetail/${order.id}`, '_blank');
+                        }}
+                      >
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        Öffnen
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(`/api/orders/${order.id}/pdf`, '_blank');
+                        }}
+                      >
+                        <FileSpreadsheet className="mr-2 h-4 w-4" />
+                        PDF anzeigen
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={(e) => {
+                        e.stopPropagation();
+                        window.location.href = `/sendOrderEmail/${order.id}`;
+                      }}>
+                        <Mail className="mr-2 h-4 w-4" />
+                        E-Mail senden
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </CardContent>
-              <CardFooter className="flex justify-between pt-0">
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSelectOrder(order.id);
-                  }}
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Details
-                </Button>
-                {order.status === 'draft' ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => handleMarkAsSent(order.id, e)}
-                  >
-                    <Send className="mr-2 h-4 w-4" />
-                    Versenden
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={!['shipped', 'delivered'].includes(order.status)}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onStartWarehouseReceiptProcess(order.id);
-                    }}
-                  >
-                    <Package className="mr-2 h-4 w-4" />
-                    Wareneingang
-                  </Button>
-                )}
-              </CardFooter>
             </Card>
           ))
         )}
