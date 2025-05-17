@@ -74,6 +74,7 @@ interface OrdersOverviewProps {
   onSelectOrder: (orderId: number) => void;
   onStartWarehouseReceiptProcess?: (orderId: number) => void;
   onStartNewOrder?: () => void;
+  onCreateNew?: () => void; // Neue Prop für den "Neue Bestellung"-Button
 }
 
 const OrdersOverview: React.FC<OrdersOverviewProps> = ({ 
@@ -197,6 +198,15 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
     <div className="space-y-4">
       {/* Desktop-Ansicht: Filter-Leiste */}
       <div className="hidden md:flex justify-between items-center gap-4 mb-4">
+        <div className="flex items-center gap-4">
+          <Button 
+            onClick={() => onSelectOrder && onCreateNew && onCreateNew()} 
+            className="whitespace-nowrap"
+          >
+            <ShoppingBag className="mr-2 h-4 w-4" />
+            Neue Bestellung
+          </Button>
+        </div>
         <div className="flex-1 max-w-sm relative">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input

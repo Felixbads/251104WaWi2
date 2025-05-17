@@ -91,7 +91,9 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
       ...item,
       // Stellen sicher, dass der Name vorhanden ist (entweder name oder productName)
       name: item.name || item.productName || 'Artikel ohne Namen',
-      receivedQuantity: item.orderedQuantity,
+      // Stellen sicher, dass die orderedQuantity korrekt ist (kann quantity oder orderedQuantity sein)
+      orderedQuantity: item.orderedQuantity || item.quantity || 0,
+      receivedQuantity: item.orderedQuantity || item.quantity || 0,
       damaged: false,
       comment: '',
       expiryDate: '' // Leeres Feld für MHD hinzufügen
