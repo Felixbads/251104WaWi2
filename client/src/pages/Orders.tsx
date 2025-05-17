@@ -851,7 +851,7 @@ export default function Orders() {
                     </Button>
                   </TableCell>
                   <TableCell>{order.supplierName}</TableCell>
-                  <TableCell>{order.locationName}</TableCell>
+                  <TableCell>{order.warehouseName || order.locationName}</TableCell>
                   <TableCell>
                     <OrderStatusBadge status={order.status} />
                   </TableCell>

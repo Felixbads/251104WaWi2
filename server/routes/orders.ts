@@ -215,17 +215,39 @@ router.get("/", async (req: Request, res: Response) => {
       .limit(Number(limit))
       .offset(Number(offset));
 
-    // Anzahl der Bestellpositionen für jede Bestellung abrufen
-    const ordersWithItemCount = await Promise.all(
+    // Erweiterte Informationen für jede Bestellung abrufen
+    const ordersWithDetails = await Promise.all(
       ordersList.map(async (order) => {
-        const items = await db
+        // Bestellungspositionen zählen
+        const itemsCount = await db
           .select({ count: sql`count(*)` })
           .from(orderItems)
           .where(eq(orderItems.orderId, order.id));
 
+        // Gesamtbetrag der Bestellung berechnen
+        const orderTotal = await db
+          .select({ total: sql`SUM(quantity * unit_price)` })
+          .from(orderItems)
+          .where(eq(orderItems.orderId, order.id));
+
+        // Lager-Informationen abrufen, falls locationId vorhanden ist
+        let warehouseName = "";
+        if (order.locationId) {
+          const warehouseResult = await db
+            .select()
+            .from(warehouses)
+            .where(eq(warehouses.id, order.locationId));
+          
+          if (warehouseResult.length > 0) {
+            warehouseName = warehouseResult[0].name || "";
+          }
+        }
+
         return {
           ...order,
-          itemCount: Number(items[0].count),
+          itemCount: Number(itemsCount[0].count),
+          totalAmount: Number(orderTotal[0].total) || 0,
+          warehouseName
         };
       })
     );
@@ -240,7 +262,7 @@ router.get("/", async (req: Request, res: Response) => {
     };
 
     res.json({
-      data: ordersWithItemCount,
+      data: ordersWithDetails,
       meta,
     });
   } catch (error) {
