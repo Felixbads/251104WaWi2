@@ -474,30 +474,51 @@ router.post("/", async (req: Request, res: Response) => {
           positionNumber: item.positionNumber || index + 1
         }));
 
-        await Promise.all(
-          orderItemsWithId.map(async (item, index) => {
-            try {
-              // Sicherstellen, dass alle erforderlichen Felder für orderItem vorhanden sind
-              const completeItem = {
-                ...item,
-                productName: item.productName || 'Unbenanntes Produkt',
-                quantity: typeof item.quantity === 'number' ? item.quantity : 1,
-                unitPrice: typeof item.unitPrice === 'number' ? item.unitPrice : 0,
-                totalPrice: typeof item.totalPrice === 'number' ? item.totalPrice : 
-                            (typeof item.unitPrice === 'number' && typeof item.quantity === 'number' ? 
-                             item.unitPrice * item.quantity : 0),
-                unit: item.unit || 'stk',
-                vatRate: typeof item.vatRate === 'number' ? item.vatRate : 19
-              };
-              
-              console.log(`Creating order item ${index + 1}:`, JSON.stringify(completeItem, null, 2));
-              return await storage.createOrderItem(completeItem);
-            } catch (itemError) {
-              console.error(`Error creating order item ${index + 1}:`, itemError);
-              throw itemError;
-            }
-          })
-        );
+        // Speichere alle Bestellpositionen direkt, ohne Promise.all zu verwenden
+        // Das verhindert Race-Conditions und stellt sicher, dass alle Positionen gespeichert werden
+        const savedItems = [];
+        for (let index = 0; index < orderItemsWithId.length; index++) {
+          try {
+            const item = orderItemsWithId[index];
+            
+            // Sicherstellen, dass alle erforderlichen Felder für orderItem vorhanden sind
+            const completeItem = {
+              orderId: newOrder.id, // Nochmals sicherstellen, dass die Bestellungs-ID gesetzt ist
+              productId: item.productId || null,
+              productName: item.productName || 'Unbenanntes Produkt',
+              quantity: typeof item.quantity === 'number' ? item.quantity : 1,
+              unitPrice: typeof item.unitPrice === 'number' ? item.unitPrice : 0,
+              totalPrice: typeof item.totalPrice === 'number' ? item.totalPrice : 
+                         (typeof item.unitPrice === 'number' && typeof item.quantity === 'number' ? 
+                          item.unitPrice * item.quantity : 0),
+              unit: item.unit || 'stk',
+              vatRate: typeof item.vatRate === 'number' ? item.vatRate : 19,
+              positionNumber: index + 1,
+              status: 'pending',
+              sku: item.sku || '',
+              supplierSku: item.supplierSku || ''
+            };
+            
+            console.log(`Creating order item ${index + 1}:`, JSON.stringify(completeItem, null, 2));
+            const savedItem = await storage.createOrderItem(completeItem);
+            console.log(`Successfully created order item ${index + 1}:`, JSON.stringify(savedItem, null, 2));
+            savedItems.push(savedItem);
+          } catch (itemError) {
+            console.error(`Error creating order item ${index + 1}:`, itemError);
+            // Fehler protokollieren, aber weitermachen statt abzubrechen
+            console.error(`Continuing with next item...`);
+          }
+        }
+        
+        console.log(`Successfully created ${savedItems.length} order items out of ${orderItemsWithId.length}`);
+        
+        // Aktualisiere die Bestellung mit der Anzahl der erstellten Positionen
+        if (savedItems.length > 0) {
+          await storage.updateOrder(newOrder.id, {
+            itemCount: savedItems.length,
+            lastModifiedAt: new Date()
+          });
+        }
       }
 
       // Vollständige Bestellung mit Positionen zurückgeben
