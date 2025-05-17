@@ -1,0 +1,62 @@
+Der Toast „Keine Produkte gefunden – Es konnten keine Produktdaten für die PDF-Erstellung gefunden werden“ kommt genau an der Stelle, an der der Generator einmal versucht, aus orderData eine items-Liste zu ziehen, kein Array findet und dann auch das Nachladen per API nicht zum Erfolg führt. Konkret liegt es an einer (oder mehreren) dieser Ursachen:
+	1.	Falscher Property-Name in orderData
+Dein Code sucht in erster Linie nach
+
+orderData.items || orderData.orderItems || orderData.products
+
+Wenn deine Bestellung-Daten tatsächlich unter einem anderen Feld stecken (z. B. orderData.lineItems oder orderData.order_items), bleibt items leer.
+
+	2.	Inkonsistente Endpoint-Response
+Du rufst /api/orders/${orderData.id}/items auf und erwartest direkt ein Array. Wenn deine API aber stattdessen
+
+{ "data": [ … ] }
+
+oder
+
+{ "orderItems": [ … ] }
+
+zurückliefert, dann fällt auch der Reload-Loop jedes Mal durch und liefert wieder ein leeres Array.
+
+	3.	PDF-Generator wird noch mit Summary-Daten aufgerufen
+Wenn generateOrderPDF bereits ausgeführt wird, bevor dein Detail-Query wirklich das ausführliche Order-Objekt inklusive Items geladen hat, ist orderData.items immer leer.
+
+⸻
+
+Was zu tun ist
+	1.	Property-Mapping angleichen
+Passe die Items-Extraktion an das tatsächliche Shape deiner API-Antwort an, z. B.:
+
+// Beispiel: Backend liefert `orderItems` im Feld `data`
+let items = 
+  orderData.items
+  || orderData.orderItems
+  || orderData.data?.orderItems
+  || orderData.lineItems
+  || [];
+
+
+	2.	Endpoint-Response prüfen
+Schaue in dein Backend-Log oder netzwerk-Tab, was /api/orders/:id/items wirklich zurückschickt. Passe ggf. deinen Aufruf an:
+
+const resp = await apiRequest(`/api/orders/${orderData.id}/items`);
+// wenn resp.data das Array enthält:
+items = Array.isArray(resp) ? resp : resp.data;
+
+
+	3.	Erst nachladen, dann PDF erzeugen
+Verlege den Aufruf von generateOrderPDF in ein useEffect, das erst feuert, wenn dein Detail-Hook mit useQuery(orderKeys.detail(orderId)) wirklich existingOrderData.items enthält:
+
+useEffect(() => {
+  if (step === 'sendOrder' && existingOrderData?.items?.length > 0) {
+    generateOrderPDF(existingOrderData);
+  }
+}, [step, existingOrderData]);
+
+
+
+Fasse diese drei Punkte zusammen:
+	•	Shape prüfen (unter welchem Feld liefert dein Backend die Positionsdaten?)
+	•	Endpoint prüfen (liefert /items tatsächlich ein Array oder ist es in data verschachtelt?)
+	•	Timing prüfen (PDF erst aufrufen, wenn der Detail-Query fertig und items nicht leer sind)
+
+Wenn du das Shape deiner API hier kurz postest, kann ich dir auch direkt den exakten Code-Snipped geben.
