@@ -1,0 +1,83 @@
+Hier ist eine strukturierte Analyse der drei genannten Probleme aus BestellungV2-18.tsx, basierend auf dem aktuellen Codezustand:
+
+⸻
+
+❗ 1. Ziellager und Wert werden in der Übersicht nicht angezeigt
+
+🔍 Ursache:
+	•	In der Komponente OrdersOverview (bzw. deren Einbindung in dieser Datei) wird höchstwahrscheinlich nur ein Teildatensatz (z. B. id, orderNumber, status) von jeder Bestellung geladen.
+	•	Wichtige Felder wie warehouseName, totalNet, totalGross, sumWithDeposit oder ähnliches werden nicht mitgeladen oder nicht gerendert.
+
+✅ Hinweise zur Behebung:
+	•	Stelle sicher, dass die API/Query GET /api/orders auch diese Felder liefert.
+	•	Falls das Backend sie nicht liefert: anpassen oder explizit nachladen.
+	•	Falls die Daten da sind, aber im Frontend nicht gerendert werden:
+→ In der OrdersOverview-Komponente entsprechende Spalten ergänzen:
+
+<td>{order.warehouse?.name}</td>
+<td>{order.totalGross?.toFixed(2)} €</td>
+
+
+
+⸻
+
+❗ 2. PDF wird nicht erzeugt
+
+🔍 Ursache:
+	•	In der Methode generateOrderPDF() wird weiterhin ein unvollständiges Objekt (selectedOrder) übergeben.
+	•	selectedOrder enthält in der Übersicht nicht alle nötigen Felder (z. B. items, additionalInfo, prices, supplier.contact, etc.).
+	•	Der PDF-Template-Renderer erwartet vollständige Daten und wirft Fehler, wenn z. B. .items.map(...) auf undefined läuft.
+
+✅ Hinweise zur Behebung:
+	•	PDF-Erzeugung erst starten, wenn existingOrderData (vollständig) geladen ist.
+	•	Nie mit einem Teildatensatz aus der Übersicht das PDF erzeugen.
+	•	Typisch ist ein useEffect wie:
+
+useEffect(() => {
+  if (step === 'sendOrder' && existingOrderData) {
+    generateOrderPDF(existingOrderData);
+  }
+}, [step, existingOrderData]);
+
+
+
+⸻
+
+❗ 3. Versand von E-Mails funktioniert nicht
+
+🔍 Ursache:
+	•	Der Button oder die Funktion sendOrder ruft eine Mutation auf, die intern ein API-Request wie POST /api/orders/:id/send erwartet.
+	•	Folgende Fehlerursachen sind möglich:
+	1.	orderId ist nicht korrekt gesetzt.
+	2.	existingOrderData fehlt oder ist nicht vollständig geladen.
+	3.	Die sendOrderMutation hat keinen funktionierenden onSuccess- oder onError-Handler, sodass Fehler stillschweigend ignoriert werden.
+	4.	Der Mailserver oder die Funktion auf dem Server funktioniert nicht bzw. erwartet Pflichtfelder (z. B. Empfängeradresse), die im Frontend fehlen.
+
+✅ Hinweise zur Behebung:
+	•	Stelle sicher, dass die E-Mail-Versandfunktion korrekt aufgerufen wird:
+
+sendOrderMutation.mutate(orderId, {
+  onSuccess: () => {
+    queryClient.invalidateQueries(orderKeys.detail(orderId));
+    toast.success('Bestellung versendet');
+  },
+  onError: (err) => {
+    toast.error('Versand fehlgeschlagen');
+    console.error(err);
+  },
+});
+
+
+	•	Im Backend prüfen: Ist ein Empfänger (z. B. supplier.email) vorhanden? Wird order.items[] gebraucht?
+	•	Im Frontend prüfen: Wird der Button zur richtigen Zeit aktiv? (z. B. nur wenn existingOrderData?.sentAt === null)
+
+⸻
+
+✅ Zusammenfassung: Warum die Fehler auftreten
+
+Problem	Ursache	Lösung
+1. Ziellager / Wert fehlt	API liefert keine vollständigen Daten oder UI rendert sie nicht	API & UI überprüfen, ggf. ergänzen
+2. PDF nicht erzeugt	PDF-Generator wird mit unvollständigen Daten gefüttert (z. B. aus Übersicht)	Nur mit existingOrderData arbeiten
+3. E-Mail-Versand geht nicht	orderId fehlt, supplier.email fehlt, Mutation falsch implementiert oder Backend-Error	Mutation + Logik + Backend prüfen
+
+Wenn du möchtest, gehe ich die Mutation und die PDF-Funktion noch einmal Zeile für Zeile durch. Sag einfach Bescheid.
