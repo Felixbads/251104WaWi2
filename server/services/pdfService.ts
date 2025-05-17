@@ -11,6 +11,127 @@ import fs from 'fs';
 import path from 'path';
 import { Request, Response } from 'express';
 
+// Diese Funktion wird vom alten Code erwartet
+// Wir behalten den alten Namen, verbessern aber die Implementation
+export async function generatePdf(orderId: any) {
+  console.log("PDF generieren für Bestellung:", orderId);
+  
+  // Wenn orderId ein Objekt ist, extrahiere die ID
+  const id = typeof orderId === 'object' ? orderId.id : orderId;
+  
+  try {
+    // Bestellung abrufen
+    const orderResult = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, parseInt(id)))
+      .limit(1);
+    
+    if (!orderResult || orderResult.length === 0) {
+      console.error("Bestellung nicht gefunden:", id);
+      throw new Error("Bestellung nicht gefunden");
+    }
+    
+    const order = orderResult[0];
+    console.log("Bestellung gefunden:", order.orderNumber);
+    
+    // Bestellpositionen abrufen
+    const items = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, parseInt(id)));
+    
+    console.log(`${items.length} Bestellpositionen gefunden`);
+    
+    if (items.length === 0) {
+      console.warn("Warnung: Keine Bestellpositionen gefunden für Bestellung", id);
+    }
+    
+    // Lieferanten-Informationen (falls vorhanden)
+    let supplier = null;
+    if (order.supplierId) {
+      try {
+        const supplierResult = await db
+          .select()
+          .from(suppliers)
+          .where(eq(suppliers.id, order.supplierId as number))
+          .limit(1);
+        
+        if (supplierResult && supplierResult.length > 0) {
+          supplier = supplierResult[0];
+          console.log("Lieferant gefunden:", supplier.name);
+        }
+      } catch (error) {
+        console.error("Fehler beim Abrufen des Lieferanten:", error);
+      }
+    }
+    
+    // Lager-Informationen (falls vorhanden)
+    let warehouse = null;
+    if (order.locationId) {
+      try {
+        const warehouseResult = await db
+          .select()
+          .from(warehouses)
+          .where(eq(warehouses.id, order.locationId as number))
+          .limit(1);
+        
+        if (warehouseResult && warehouseResult.length > 0) {
+          warehouse = warehouseResult[0];
+          console.log("Lager gefunden:", warehouse.name);
+        }
+      } catch (error) {
+        console.error("Fehler beim Abrufen des Lagers:", error);
+      }
+    }
+    
+    // Angereicherte Bestellpositionen mit Produktdetails
+    const enrichedItems = await Promise.all(
+      items.map(async (item, index) => {
+        let product = null;
+        
+        if (item.productId) {
+          try {
+            const productResult = await db
+              .select()
+              .from(products)
+              .where(eq(products.id, item.productId as number))
+              .limit(1);
+              
+            if (productResult && productResult.length > 0) {
+              product = productResult[0];
+              console.log(`Produkt gefunden für Position ${index+1}:`, product.name);
+            } else {
+              console.warn(`Kein Produkt gefunden für ID ${item.productId} (Position ${index+1})`);
+            }
+          } catch (error) {
+            console.error(`Fehler beim Abrufen des Produkts ${item.productId}:`, error);
+          }
+        } else {
+          console.log(`Position ${index+1} hat keine Produkt-ID, verwende direkten Namen:`, item.productName);
+        }
+        
+        return {
+          ...item,
+          productDetails: product
+        };
+      })
+    );
+    
+    // Gesamtpreis berechnen
+    const totalAmount = items.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
+    console.log("Gesamtbetrag der Bestellung:", totalAmount);
+    
+    // Template laden und PDF generieren
+    const pdfBuffer = await generateOrderPDFFromTemplate(order, enrichedItems, supplier, warehouse, totalAmount);
+    console.log("PDF erfolgreich generiert");
+    return pdfBuffer;
+  } catch (error) {
+    console.error("Fehler bei der PDF-Generierung:", error);
+    throw error;
+  }
+}
+
 // Direkte PDF-Generierung mit einem Backend-Endpunkt
 export async function generateOrderPDF(req: Request, res: Response) {
   const orderId = parseInt(req.params.id);

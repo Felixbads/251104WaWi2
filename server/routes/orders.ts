@@ -4,7 +4,7 @@ import { orders, orderItems, suppliers, locations } from "@shared/schema";
 import { storage } from "../storage";
 import { eq, and, like, ilike, or, desc, asc, isNull, isNotNull, sql, count } from "drizzle-orm";
 import { sendEmail } from "../services/emailService";
-import { generateOrderPDF } from "../services/pdfService";
+import { generatePdf } from "../services/pdfService";
 
 const router = Router();
 

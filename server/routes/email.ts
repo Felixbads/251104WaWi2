@@ -4,7 +4,7 @@ import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
 import fs from 'fs';
 import path from 'path';
 import { sendEmail } from '../services/emailService';
-import { generateOrderPDF } from '../services/pdfService';
+import { generatePdf } from '../services/pdfService';
 import { z } from 'zod';
 
 const router = express.Router();
