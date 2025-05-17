@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Truck, Search, CheckCircle2, PhoneCall, Mail } from 'lucide-react';
+import { Truck, Search, CheckCircle2, PhoneCall, Mail, RefreshCw } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface Supplier {
@@ -81,10 +81,26 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
+            <div className="flex items-center justify-center py-2 text-sm text-muted-foreground">
+              <span className="animate-pulse">Lieferanten werden geladen...</span>
+            </div>
           </div>
         ) : error ? (
-          <div className="bg-destructive/20 p-4 rounded-md text-destructive">
-            Fehler beim Laden der Lieferanten. Bitte versuchen Sie es später erneut.
+          <div className="bg-destructive/10 p-6 rounded-md border border-destructive text-center space-y-4">
+            <div className="text-destructive font-medium">
+              Fehler beim Laden der Lieferanten
+            </div>
+            <p className="text-muted-foreground text-sm mb-4">
+              Die Lieferantenliste konnte nicht geladen werden. Bitte überprüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.
+            </p>
+            <Button 
+              variant="outline" 
+              onClick={() => window.location.reload()}
+              className="gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Neu laden
+            </Button>
           </div>
         ) : (
           <Table>
