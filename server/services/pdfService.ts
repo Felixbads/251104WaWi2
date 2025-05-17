@@ -1,28 +1,136 @@
 /**
- * PDF-Generierungsdienst
- * Dieser Service kümmert sich um die Generierung von PDFs für Bestellungen
+ * Zuverlässiger PDF-Generierungsdienst (Neue Version)
+ * 
+ * Dieser Service arbeitet direkt mit der Datenbank und ist komplett unabhängig 
+ * vom State der Anwendung. Er erzeugt zuverlässig PDFs für Bestellungen.
  */
 
 import Handlebars from 'handlebars';
-import { promises as fs } from 'fs';
-import path from 'path';
 import puppeteer from 'puppeteer';
+import { db } from '../db';
+import { orders, orderItems, products, suppliers, warehouses } from '../../shared/schema';
+import { eq } from 'drizzle-orm';
 
-// Standard-Daten für die Firma
+// Firmendaten für Elbsandstein Proviant
 const companyData = {
-  name: "Landfein GmbH",
-  address: "Hauptstraße 1",
-  city: "01445 Radebeul",
+  name: "Elbsandstein Proviant & Quartier GmbH",
+  address: "Dresdner Str. 2b",
+  city: "01814 Bad Schandau",
   country: "Deutschland",
-  phone: "+49 (0) 351 123456",
-  email: "info@landfein.de",
-  website: "www.landfein.de",
-  taxId: "DE123456789"
+  phone: "035022 / 500911",
+  email: "info@elbsandstein-proviant.de",
+  website: "www.elbsandstein-proviant.de",
+  taxId: "210/108/11389"
 };
 
-const logoBase64 = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjUwIiB2aWV3Qm94PSIwIDAgMjAwIDUwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDx0ZXh0IHg9IjEwIiB5PSIzNSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXdlaWdodD0iYm9sZCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzljMzAyOCI+TGFuZGZlaW48L3RleHQ+CiAgPHBhdGggZD0iTTEwIDQwIEwxOTAgNDAiIHN0cm9rZT0iIzljMzAyOCIgc3Ryb2tlLXdpZHRoPSIyIi8+Cjwvc3ZnPg==';
+// Logo als Base64 damit es immer verfügbar ist, unabhängig von externen Dateien
+const logoBase64 = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjUwIiB2aWV3Qm94PSIwIDAgMjAwIDUwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgogIDx0ZXh0IHg9IjEwIiB5PSIzNSIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXdlaWdodD0iYm9sZCIgZm9udC1zaXplPSIyNCIgZmlsbD0iIzljMzAyOCI+RWxic2FuZHN0ZWluPC90ZXh0PgogIDxwYXRoIGQ9Ik0xMCA0MCBMMTkwIDQwIiBzdHJva2U9IiM5YzMwMjgiIHN0cm9rZS13aWR0aD0iMiIvPgo8L3N2Zz4=';
 
-// Helper-Funktionen für das Template registrieren
+/**
+ * Lädt alle Daten einer Bestellung direkt aus der Datenbank
+ * Dieser Ansatz umgeht alle Zwischenschichten für maximale Zuverlässigkeit
+ */
+async function getCompleteOrderData(orderId: number) {
+  console.log(`[PDF] Lade vollständige Bestelldaten für ID ${orderId} direkt aus der Datenbank`);
+  
+  try {
+    // 1. Basisdaten der Bestellung laden
+    const orderData = await db.query.orders.findFirst({
+      where: eq(orders.id, orderId)
+    });
+    
+    if (!orderData) {
+      throw new Error(`Bestellung mit ID ${orderId} nicht gefunden`);
+    }
+    
+    // 2. Bestellpositionen laden
+    const itemsData = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, orderId));
+    
+    console.log(`[PDF] ${itemsData.length} Bestellpositionen für Bestellung ${orderData.orderNumber} gefunden`);
+    
+    // 3. Lieferantendaten laden (falls vorhanden)
+    let supplierData = null;
+    if (orderData.supplierId) {
+      supplierData = await db.query.suppliers.findFirst({
+        where: eq(suppliers.id, orderData.supplierId)
+      });
+    }
+    
+    // 4. Lagerdaten laden (falls vorhanden)
+    let warehouseData = null;
+    if (orderData.locationId) {
+      warehouseData = await db.query.warehouses.findFirst({
+        where: eq(warehouses.id, orderData.locationId)
+      });
+    }
+    
+    // 5. Für jede Bestellposition die vollständigen Produktdaten laden
+    const enrichedItems = await Promise.all(
+      itemsData.map(async (item, index) => {
+        // Produktdaten laden, wenn eine ID vorhanden ist
+        let productData = null;
+        if (item.productId) {
+          try {
+            productData = await db.query.products.findFirst({
+              where: eq(products.id, item.productId)
+            });
+          } catch (err) {
+            console.error(`[PDF] Fehler beim Laden des Produkts ID ${item.productId}:`, err);
+          }
+        }
+        
+        // Bestellposition anreichern
+        return {
+          ...item,
+          positionNumber: index + 1, // 1-basierte Position
+          productName: item.productName || 
+                      (productData?.productName) || 
+                      (productData && 'name' in productData ? productData.name : null) || 
+                      "Produkt ohne Namen",
+          quantity: item.quantity || 1,
+          unitPrice: item.unitPrice || 0,
+          totalPrice: (item.totalPrice) || ((item.quantity || 1) * (item.unitPrice || 0)),
+          unit: item.unit || "Stk.",
+          vatRate: item.vatRate || 19
+        };
+      })
+    );
+    
+    // 6. Gesamtbeträge berechnen
+    const totalAmount = enrichedItems.reduce((sum, item) => {
+      return sum + (item.totalPrice || (item.quantity * item.unitPrice));
+    }, 0);
+    
+    const vatAmount = enrichedItems.reduce((sum, item) => {
+      const itemTotal = item.totalPrice || (item.quantity * item.unitPrice);
+      const vatRate = item.vatRate || 19;
+      return sum + (itemTotal * vatRate / 100);
+    }, 0);
+    
+    // 7. Vollständiges Datenobjekt zusammenstellen
+    return {
+      ...orderData,
+      orderItems: enrichedItems,
+      supplierName: orderData.supplierName || supplierData?.name || "Unbekannter Lieferant",
+      supplierAddress: supplierData?.address || "",
+      supplierEmail: supplierData?.email || "",
+      locationName: orderData.locationName || warehouseData?.name || "Hauptlager",
+      supplier: supplierData,
+      location: warehouseData,
+      totalAmount: totalAmount,
+      vatAmount: vatAmount,
+      totalWithTax: totalAmount + vatAmount
+    };
+  } catch (error) {
+    console.error("[PDF] Fehler beim Laden der Bestelldaten:", error);
+    throw new Error(`Konnte Bestelldaten nicht laden: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
+  }
+}
+
+// Helper-Funktionen für das Template
 Handlebars.registerHelper('formatDate', function(date: string | Date | null | undefined) {
   if (!date) return '-';
   const d = new Date(date);
@@ -39,35 +147,17 @@ Handlebars.registerHelper('add', function(a: number, b: number) {
 });
 
 /**
- * Generiert ein PDF aus einer Bestellung
- * @param orderData - Die Bestelldaten mit Bestellpositionen
- * @returns Ein Buffer mit dem generierten PDF
+ * Generiert ein PDF für eine Bestellung direkt aus der Datenbank
+ * @param orderId Die ID der Bestellung
+ * @returns Ein Buffer mit dem PDF-Inhalt
  */
-export async function generatePdf(orderData: any): Promise<Buffer> {
+export async function generatePdf(orderId: number): Promise<Buffer> {
   try {
-    console.log('PDF-Generierung gestartet mit Daten:', JSON.stringify(orderData, null, 2));
-
-    // Prüfe, ob orderItems vorhanden sind
-    if (!orderData.orderItems || orderData.orderItems.length === 0) {
-      console.warn('Keine Bestellpositionen für PDF gefunden');
-    }
-
-    // Berechne den Gesamtbetrag und die MwSt. falls nicht angegeben
-    let totalAmount = orderData.totalAmount || 0;
-    let vatAmount = orderData.vatAmount || 0;
-
-    // Berechne Gesamtbetrag und MwSt. aus den Bestellpositionen, falls vorhanden
-    if (orderData.orderItems && orderData.orderItems.length > 0 && !totalAmount) {
-      totalAmount = orderData.orderItems.reduce((sum: number, item: any) => sum + (item.totalPrice || 0), 0);
-      
-      // Standard-MwSt. von 19% anwenden, wenn keine spezifischen Sätze angegeben sind
-      vatAmount = orderData.orderItems.reduce((sum: number, item: any) => {
-        const vatRate = item.vatRate || 19;
-        return sum + ((item.totalPrice || 0) * vatRate / 100);
-      }, 0);
-    }
-
-    // Template-HTML erstellen
+    // 1. Alle Daten für die Bestellung direkt aus der Datenbank laden
+    const orderData = await getCompleteOrderData(orderId);
+    console.log(`[PDF] Vollständige Daten für Bestellung ${orderId} geladen, erstelle PDF...`);
+    
+    // 2. HTML-Template für die PDF-Generierung
     const templateHtml = `<!DOCTYPE html>
 <html lang="de">
 <head>
@@ -86,6 +176,7 @@ export async function generatePdf(orderData: any): Promise<Buffer> {
     .footer { text-align: center; font-size: 10px; color: #666; margin-top: 32px; }
     .company-header { display: flex; align-items: center; margin-bottom: 15px; }
     .subtitle { font-size: 14px; color: #666; margin-top: -5px; margin-bottom: 15px; }
+    .text-right { text-align: right; }
   </style>
 </head>
 <body>
@@ -95,7 +186,7 @@ export async function generatePdf(orderData: any): Promise<Buffer> {
     </div>
     <div>
       <div class="company-name">{{company.name}}</div>
-      <div>{{company.address}}, {{company.city}}, {{company.country}}</div>
+      <div>{{company.address}}, {{company.city}}</div>
     </div>
   </div>
 
@@ -106,30 +197,13 @@ export async function generatePdf(orderData: any): Promise<Buffer> {
     <div class="address-block">
       <h3>Lieferant</h3>
       <div>{{order.supplierName}}</div>
-      {{#if order.supplier}}
-        {{#if order.supplier.address}}<div>{{order.supplier.address}}</div>{{/if}}
-        {{#if order.supplier.city}}
-          <div>
-            {{#if order.supplier.postalCode}}{{order.supplier.postalCode}}{{/if}} 
-            {{order.supplier.city}}
-          </div>
-        {{/if}}
-        {{#if order.supplier.country}}<div>{{order.supplier.country}}</div>{{/if}}
-      {{/if}}
+      {{#if order.supplierAddress}}<div>{{order.supplierAddress}}</div>{{/if}}
+      {{#if order.supplierEmail}}<div>E-Mail: {{order.supplierEmail}}</div>{{/if}}
     </div>
 
     <div class="address-block">
       <h3>Lieferort</h3>
       <div>{{order.locationName}}</div>
-      {{#if order.location}}
-        {{#if order.location.address}}<div>{{order.location.address}}</div>{{/if}}
-        {{#if order.location.city}}
-          <div>
-            {{#if order.location.postalCode}}{{order.location.postalCode}}{{/if}} 
-            {{order.location.city}}
-          </div>
-        {{/if}}
-      {{/if}}
     </div>
   </div>
 
@@ -156,22 +230,22 @@ export async function generatePdf(orderData: any): Promise<Buffer> {
     <table>
       <tr>
         <th>Pos.</th>
+        <th>Artikel-Nr.</th>
         <th>Produkt</th>
         <th>Menge</th>
         <th>Einheit</th>
         <th>Einzelpreis</th>
         <th>Gesamt</th>
-        <th>MwSt.</th>
       </tr>
       {{#each order.orderItems}}
       <tr>
-        <td>{{positionNumber}}</td>
+        <td class="text-right">{{positionNumber}}</td>
+        <td>{{productId}}</td>
         <td>{{productName}}</td>
-        <td>{{quantity}}</td>
+        <td class="text-right">{{quantity}}</td>
         <td>{{unit}}</td>
-        <td>{{formatCurrency unitPrice}} €</td>
-        <td>{{formatCurrency totalPrice}} €</td>
-        <td>{{vatRate}}%</td>
+        <td class="text-right">{{formatCurrency unitPrice}} €</td>
+        <td class="text-right">{{formatCurrency totalPrice}} €</td>
       </tr>
       {{/each}}
     </table>
@@ -181,15 +255,15 @@ export async function generatePdf(orderData: any): Promise<Buffer> {
     <table style="width: 300px; margin-left: auto;">
       <tr>
         <th>Gesamtsumme (netto)</th>
-        <td>{{formatCurrency order.totalAmount}} €</td>
+        <td class="text-right">{{formatCurrency order.totalAmount}} €</td>
       </tr>
       <tr>
-        <th>MwSt.</th>
-        <td>{{formatCurrency order.vatAmount}} €</td>
+        <th>MwSt. (19%)</th>
+        <td class="text-right">{{formatCurrency order.vatAmount}} €</td>
       </tr>
       <tr>
         <th>Gesamtsumme (brutto)</th>
-        <td>{{formatCurrency (add order.totalAmount order.vatAmount)}} €</td>
+        <td class="text-right">{{formatCurrency order.totalWithTax}} €</td>
       </tr>
     </table>
   </div>
@@ -210,24 +284,21 @@ export async function generatePdf(orderData: any): Promise<Buffer> {
 
   <div class="footer">
     <p>{{company.name}} - {{company.address}}, {{company.city}} - Tel: {{company.phone}} - E-Mail: {{company.email}}</p>
-    <p>USt-IdNr: {{company.taxId}} - www.landfein.de</p>
+    <p>USt-IdNr: {{company.taxId}} - {{company.website}}</p>
   </div>
 </body>
 </html>`;
 
-    // Template kompilieren und HTML generieren
+    // 3. Template kompilieren und HTML generieren
     const compiledTemplate = Handlebars.compile(templateHtml);
     const templateData = {
       company: companyData,
-      order: {
-        ...orderData,
-        totalAmount,
-        vatAmount
-      }
+      order: orderData
     };
+    
     const html = compiledTemplate(templateData);
-
-    // Puppeteer starten und PDF generieren
+    
+    // 4. Puppeteer starten und PDF generieren
     const browser = await puppeteer.launch({
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
       headless: true
@@ -236,7 +307,7 @@ export async function generatePdf(orderData: any): Promise<Buffer> {
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: 'networkidle0' });
     
-    // PDF konfigurieren und generieren
+    // 5. PDF konfigurieren und generieren
     const pdfBuffer = await page.pdf({
       format: 'A4',
       margin: { top: '1cm', right: '1cm', bottom: '1cm', left: '1cm' },
@@ -246,11 +317,22 @@ export async function generatePdf(orderData: any): Promise<Buffer> {
 
     await browser.close();
     
-    console.log(`PDF erfolgreich generiert (${pdfBuffer.length} Bytes)`);
-    return Buffer.from(pdfBuffer);
-  } catch (error: unknown) {
-    console.error('Fehler bei der PDF-Generierung:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unbekannter Fehler';
-    throw new Error(`PDF-Generierung fehlgeschlagen: ${errorMessage}`);
+    console.log(`[PDF] PDF erfolgreich generiert (${pdfBuffer.length} Bytes)`);
+    return pdfBuffer;
+    
+  } catch (error) {
+    console.error('[PDF] Fehler bei der PDF-Generierung:', error);
+    throw new Error(`PDF-Generierung fehlgeschlagen: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`);
   }
+}
+
+/**
+ * Legacy-Kompatibilitätsfunktion, die das neue Format nutzt
+ */
+export async function generateOrderPDF(orderData: any): Promise<Buffer> {
+  console.log('[PDF] Legacy-Funktion wurde aufgerufen, verwende neue PDF-Generierungsfunktion');
+  if (!orderData || !orderData.id) {
+    throw new Error('Ungültige Bestellungsdaten: ID fehlt');
+  }
+  return generatePdf(orderData.id);
 }

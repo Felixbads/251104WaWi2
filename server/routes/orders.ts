@@ -1308,44 +1308,34 @@ router.get("/:id/pdf", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Ungültige Bestellungs-ID" });
     }
 
-    // Bestellung mit allen Details abrufen
-    console.log(`Bestellungsdetails für PDF abrufen: Bestellung ${orderId}`);
-    const order = await storage.getOrder(orderId);
+    console.log(`PDF für Bestellung ${orderId} wird generiert`);
     
-    if (!order) {
-      return res.status(404).json({ error: "Bestellung nicht gefunden" });
-    }
+    // Neuen PDF-Generator direkt mit der Bestellungs-ID verwenden
+    // Diese Methode lädt alle benötigten Daten direkt aus der Datenbank
+    const { generatePdf } = await import('../services/pdfService');
+    const pdfBuffer = await generatePdf(orderId);
     
-    // Bestellpositionen abrufen
-    const items = await db
-      .select()
-      .from(orderItems)
-      .where(eq(orderItems.orderId, orderId));
+    // Bestellnummer abrufen für den Dateinamen
+    const order = await db.query.orders.findFirst({
+      where: eq(orders.id, orderId)
+    });
     
-    // Bestellung mit Positionen ergänzen für die PDF-Generierung
-    const orderWithItems = {
-      ...order,
-      orderItems: items
-    };
-    
-    console.log(`PDF für Bestellung ${orderId} wird generiert (${items.length} Positionen)`);
-    
-    // PDF generieren
-    const pdfBuffer = await generatePdf(orderWithItems);
+    const orderNumber = order?.orderNumber || orderId.toString();
     
     console.log(`PDF erfolgreich generiert (${pdfBuffer.length} Bytes)`);
     
     // PDF an den Client senden
     res.contentType("application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename="Bestellung_${order.orderNumber}.pdf"`);
+    res.setHeader("Content-Disposition", `inline; filename="Bestellung_${orderNumber}.pdf"`);
     res.setHeader("Content-Length", pdfBuffer.length);
     return res.send(pdfBuffer);
   } catch (error) {
     console.error("Fehler beim Generieren des PDFs:", error);
+    // Verbesserte Fehlerbehandlung mit mehr Details
     return res.status(500).json({ 
       error: "Fehler beim Generieren des PDFs",
-      details: error.message,
-      stack: error.stack
+      message: error instanceof Error ? error.message : "Unbekannter Fehler",
+      details: "Bitte versuchen Sie es erneut oder kontaktieren Sie den Support."
     });
   }
 });
