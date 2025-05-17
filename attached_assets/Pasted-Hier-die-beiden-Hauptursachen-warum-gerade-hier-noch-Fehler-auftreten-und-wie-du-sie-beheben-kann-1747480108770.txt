@@ -1,0 +1,85 @@
+Hier die beiden Hauptursachen, warum gerade hier noch Fehler auftreten – und wie du sie beheben kannst:
+
+⸻
+
+1. PDF-Fehler beim Klick in der Bestellübersicht
+
+Symptom:
+Beim Anklicken einer Zeile in OrdersOverview siehst du sofort den Toast „Die PDF-Vorschau konnte nicht erstellt werden.“
+
+Ursache:
+Du rufst in handleSelectOrder unmittelbar
+
+generateOrderPDF(selectedOrder);
+
+auf, verwendest dabei aber das selectedOrder-Objekt aus der Übersicht, das nur Summary-Felder (z. B. id, orderNumber, supplierName) enthält.
+Deine PDF-Template-Funktion (orderPDFTemplate) erwartet dagegen ein vollständiges Order-Objekt mit items[], additionalInfo, prices usw. Fehlende Properties in orderData führen in html2canvas oder in der Template-Logik zum Crash.
+
+Lösung:
+	1.	Details nachladen, bevor du die PDF erstellst:
+
+// statt direkt generateOrderPDF(selectedOrder) aufzurufen,
+// setze nur den Schritt und die ID:
+setOrderId(selectedOrder.id);
+setStep('warehouseReceiptOfExistingOrder');
+// lade via useQuery das vollständige Order-Objekt nach
+
+
+	2.	PDF erst nach erfolgreichem Laden erzeugen, z. B. in einem useEffect, der auf existingOrderData hört:
+
+useEffect(() => {
+  if (step === 'warehouseReceiptOfExistingOrder' && existingOrderData) {
+    generateOrderPDF(existingOrderData);
+  }
+}, [step, existingOrderData]);
+
+
+	3.	Alternativ: Erweitere dein Summary-Objekt in OrdersOverview, sodass es schon alle nötigen Felder mitliefert – ist aber weniger performant.
+
+⸻
+
+2. Filter zeigt falsche Status an
+
+Symptom:
+Die in der Übersicht einstellbaren Filter („Entwurf“, „Versendet“, „Eingetroffen“ etc.) liefern nicht die erwarteten Zeilen.
+
+Ursache:
+	•	Status-Mapping passt nicht: Deine Filter-Komponente erwartet Status-Keys wie 'draft' | 'sent' | 'delivered', deine Orders-Datenbank/API liefert aber evtl. 'Entwurf' | 'Versendet' | 'Eingetroffen' oder Groß-/Kleinschreibungsunterschiede.
+	•	Stale Cache: Weil die Query-Keys in OrdersOverview noch nicht durchgehend auf eure neuen orderKeys.lists() umgestellt sind, kommen unter Umständen alte Query-Ergebnisse ohne den Filter-Parameter zurück.
+
+Lösung:
+	1.	Status-Enums angleichen
+	•	Definiere in queryKeys.ts ein gemeinsames Enum, z. B.
+
+export const OrderStatus = { DRAFT: 'draft', SENT: 'sent', DELIVERED: 'delivered' } as const;
+
+
+	•	Lass OrdersOverview strikt nur diese Keys verwenden und mappe ggf. in der Anzeige auf deutschsprachige Labels.
+
+	2.	Filter-Param ins Query einschleusen
+
+const { data: orders } = useQuery({
+  queryKey: orderKeys.lists({ status: selectedStatus }),
+  queryFn: () => apiRequest(`/api/orders?status=${selectedStatus}`),
+});
+
+
+	3.	InvalidateCache
+Nach Status-Änderungen (z. B. in ManualStatusChange) musst du nicht nur
+
+queryClient.invalidateQueries(orderKeys.detail(orderId));
+
+sondern auch
+
+queryClient.invalidateQueries(orderKeys.lists());
+
+damit der Filter neu gezogen wird.
+
+⸻
+
+Nächste Schritte:
+	1.	Passe handleSelectOrder so an, dass erst die vollständigen Order-Daten nachgeladen werden, bevor generateOrderPDF aufgerufen wird.
+	2.	Überarbeite OrdersOverview, sodass Filter-Parameter und Query-Keys durchgängig mit eurem orderKeys.lists({ status }) verwendet werden und das Mapping zwischen API-Status und UI-Label eindeutig ist.
+	3.	Teste beides mit einem echten Datensatz: Klicke erst, warte auf Daten-Ladevorgang → dann sollte das PDF fehlerfrei erscheinen und der Filter nur passende Bestellungen zurückliefern.
+
+Falls du bei einzelnen Schritten Beispielcode brauchst oder Hilfe beim Mapping der Status-Enums, sag Bescheid!
