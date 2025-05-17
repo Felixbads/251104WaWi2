@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
+import { updateOrderStatus } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { orderKeys, supplierKeys, warehouseKeys, productKeys } from '@/lib/queryKeys';
 import { orderPDFTemplate, formatDate, calculateTotalPrice, formatPrice } from '@/components/orders/PDFTemplate';
@@ -467,8 +468,8 @@ const BestellungV2: React.FC = () => {
       case 'goodsReceipt':
         return (
           <GoodsReceiptForm
-            orderId={orderId}
-            orderData={existingOrderData}
+            order={existingOrderData}
+            isSubmitting={false}
             onSaveComplete={async (receivedItems) => {
               // Bestimme den neuen Status basierend auf den empfangenen Artikeln
               let newStatus = 'delivered';

@@ -52,13 +52,15 @@ interface OrderItem {
 
 interface GoodsReceiptFormProps {
   order: any; // Make the type more flexible to accommodate different API structures
-  onSubmit: (receivedItems: OrderItem[], receiptNote: string, documents: File[]) => void;
+  onSubmit?: (receivedItems: OrderItem[], receiptNote: string, documents: File[]) => void;
+  onSaveComplete?: (receivedItems: OrderItem[]) => void;
   isSubmitting: boolean;
 }
 
 const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
   order,
   onSubmit,
+  onSaveComplete,
   isSubmitting
 }) => {
   // Defensive programming to handle potentially undefined or malformed order data
@@ -162,7 +164,13 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
   
   // Handle submit
   const handleSubmit = () => {
-    onSubmit(receivedItems, receiptNote, documents);
+    if (onSubmit) {
+      onSubmit(receivedItems, receiptNote, documents);
+    }
+    
+    if (onSaveComplete) {
+      onSaveComplete(receivedItems);
+    }
   };
   
   return (
