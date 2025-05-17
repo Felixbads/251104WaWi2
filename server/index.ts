@@ -9,9 +9,8 @@ import WebSocket from 'ws';
 import http from 'http';
 import inventoryApiRouter from './routes/inventory-api';
 import inventoryRouter from './routes/inventory';
-import emailRouter from './routes/email';
 import mailTemplatesRouter from './routes/mail-templates';
-// PDF-Router deaktiviert
+import simpleEmailRouter from './routes/simple-email';
 
 const app = express();
 app.use(express.json());
@@ -54,13 +53,11 @@ app.use((req, res, next) => {
   app.use(inventoryApiRouter);
   app.use('/api', inventoryRouter);
   
-  // E-Mail-Route für PDF-Vorschau und Versand hinzufügen
-  app.use('/api', emailRouter);
+  // Einfache E-Mail-Route ohne PDF-Anhang
+  app.use('/api', simpleEmailRouter); // Vereinfachte E-Mail-Funktion ohne PDF
   
   // E-Mail-Vorlagen-Route hinzufügen
   app.use('/api/mail-templates', mailTemplatesRouter);
-  
-  // PDF-Route deaktiviert
   
   const server = await registerRoutes(app);
 
