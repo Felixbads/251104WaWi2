@@ -165,6 +165,37 @@ const BestellungV2: React.FC = () => {
     }
   });
   
+  // Email sending mutation
+  const sendOrderMutation = useMutation({
+    mutationFn: () => apiRequest(`/api/orders/${orderId}/send`, {}, 'post'),
+    onSuccess: () => {
+      toast({
+        title: 'Bestellung versendet',
+        description: 'Die Bestellung wurde erfolgreich per E-Mail versendet.'
+      });
+      
+      // Invalidiere den Cache für die aktuelle Bestellung und die Listenansicht
+      queryClient.invalidateQueries({queryKey: orderKeys.detail(Number(orderId))});
+      queryClient.invalidateQueries({queryKey: orderKeys.lists()});
+      
+      // Aktualisiere lokale Daten
+      if (existingOrderData) {
+        setExistingOrderData({
+          ...existingOrderData,
+          sentAt: new Date().toISOString(),
+        });
+      }
+    },
+    onError: (err) => {
+      toast({
+        title: 'Fehler beim Versand',
+        description: `Es ist ein Fehler aufgetreten: ${(err as Error).message}`,
+        variant: 'destructive'
+      });
+      console.error(err);
+    }
+  });
+  
   // Fetch order data if orderId exists and we're in the relevant step
   const { 
     data: order,
@@ -204,22 +235,26 @@ const BestellungV2: React.FC = () => {
       setSupplierId(order.supplierId);
       setWarehouseId(order.warehouseId);
       setWarehouseName(order.warehouseName || '');
-      
-      // Generiere PDF für existierende Bestellung nur wenn die vollständigen Daten vorliegen
-      if (order.items && Array.isArray(order.items) && step === 'warehouseReceiptOfExistingOrder') {
-        try {
-          generateOrderPDF(order);
-        } catch (error) {
-          console.error('Fehler beim Generieren des PDFs:', error);
-          toast({
-            title: 'PDF-Erstellung fehlgeschlagen',
-            description: 'Die PDF-Vorschau konnte nicht erstellt werden. Vollständige Bestelldaten werden nachgeladen.',
-            variant: 'destructive',
-          });
-        }
+    }
+  }, [order]);
+  
+  // Separate useEffect for PDF generation to ensure it only runs when we have complete data
+  useEffect(() => {
+    if (step === 'sendOrder' && existingOrderData) {
+      generateOrderPDF(existingOrderData);
+    } else if (step === 'warehouseReceiptOfExistingOrder' && existingOrderData?.items && Array.isArray(existingOrderData.items)) {
+      try {
+        generateOrderPDF(existingOrderData);
+      } catch (error) {
+        console.error('Fehler beim Generieren des PDFs:', error);
+        toast({
+          title: 'PDF-Erstellung fehlgeschlagen',
+          description: 'Die PDF-Vorschau konnte nicht erstellt werden. Vollständige Bestelldaten werden nachgeladen.',
+          variant: 'destructive',
+        });
       }
     }
-  }, [order, step]);
+  }, [step, existingOrderData]);
   
   // Function to generate PDF from order data
   const generateOrderPDF = async (orderData: any) => {
@@ -373,8 +408,6 @@ const BestellungV2: React.FC = () => {
         setStep('overview');
       }
     }, 50);
-    
-    // PDF wird in useEffect generiert, wenn order geladen ist
   };
   
   // Go back to overview
