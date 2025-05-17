@@ -218,36 +218,60 @@ router.get("/", async (req: Request, res: Response) => {
     // Erweiterte Informationen für jede Bestellung abrufen
     const ordersWithDetails = await Promise.all(
       ordersList.map(async (order) => {
-        // Bestellungspositionen zählen
+        // Bestellungspositionen zählen und Details abrufen
         const itemsCount = await db
           .select({ count: sql`count(*)` })
           .from(orderItems)
           .where(eq(orderItems.orderId, order.id));
-
-        // Gesamtbetrag der Bestellung berechnen
-        const orderTotalResult = await db
-          .select({ total: sql`COALESCE(SUM(quantity * unit_price), 0)` })
+          
+        // Bestellpositionen abrufen
+        const items = await db
+          .select()
           .from(orderItems)
           .where(eq(orderItems.orderId, order.id));
 
-        // Lager-Informationen abrufen, falls locationId vorhanden ist
+        // Gesamtbetrag der Bestellung berechnen
+        // Verwende die tatsächlichen Positionen oder berechne aus quantity * unitPrice
+        let totalAmount = 0;
+        if (items && items.length > 0) {
+          totalAmount = items.reduce((sum, item) => {
+            return sum + (Number(item.quantity) * Number(item.unitPrice) || 0);
+          }, 0);
+        }
+
+        // Lager-Informationen abrufen
         let warehouseName = "";
-        if (order.locationId) {
-          const warehouseResult = await db
-            .select()
-            .from(warehouses)
-            .where(eq(warehouses.id, order.locationId));
-          
-          if (warehouseResult.length > 0) {
-            warehouseName = warehouseResult[0].name || "";
+        
+        // Direkt den Lagernamen aus der Haupttabelle verwenden, falls vorhanden
+        if (order.locationName) {
+          warehouseName = order.locationName;
+        }
+        // Ansonsten über die locationId das Lager nachschlagen
+        else if (order.locationId) {
+          try {
+            const warehouseResult = await db
+              .select()
+              .from(warehouses)
+              .where(eq(warehouses.id, order.locationId));
+            
+            if (warehouseResult && warehouseResult.length > 0) {
+              warehouseName = warehouseResult[0].name || "";
+            }
+          } catch (warehouseError) {
+            console.error(`Fehler beim Abrufen des Lagernamens für ID ${order.locationId}:`, warehouseError);
           }
         }
 
+        // Detaillierte Version des Order-Objekts zurückgeben
+        console.log(`Bestellung ${order.id} hat ${items.length} Positionen mit Gesamtwert ${totalAmount} und Lager ${warehouseName}`);
+        
         return {
           ...order,
           itemCount: Number(itemsCount[0].count),
-          totalAmount: Number(orderTotalResult[0].total) || 0,
-          warehouseName
+          totalAmount: totalAmount,
+          warehouseName: warehouseName,
+          // Zusätzlich die Artikel mitliefern für die PDF-Generierung
+          orderItems: items
         };
       })
     );
