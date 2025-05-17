@@ -14,7 +14,7 @@ import OrderEmailDialog from "@/components/orders/OrderEmailDialog";
 import html2canvas from "html2canvas";
 import { getOrder, updateOrder } from "@/lib/api";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { orderKeys } from "@/lib/queryKeys";
+import { orderKeys, warehouseKeys } from "@/lib/queryKeys";
 
 // UI Komponenten
 import { Button } from "@/components/ui/button";

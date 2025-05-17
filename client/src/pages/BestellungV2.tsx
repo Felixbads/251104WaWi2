@@ -113,8 +113,8 @@ const BestellungV2: React.FC = () => {
       // Gehe zum nächsten Schritt (summary)
       setStep('summary');
       
-      // Invalidiere den Cache für Bestellungen
-      queryClient.invalidateQueries({queryKey: ['/api/orders']});
+      // Invalidiere den Cache für Bestellungslisten mit der zentralen Query-Key Struktur
+      queryClient.invalidateQueries({queryKey: orderKeys.lists()});
     },
     onError: (error: any) => {
       toast({
@@ -136,9 +136,9 @@ const BestellungV2: React.FC = () => {
         description: 'Der Status der Bestellung wurde aktualisiert.',
       });
       
-      // Invalidiere den Cache für Bestellungen
-      queryClient.invalidateQueries({queryKey: ['/api/orders']});
-      queryClient.invalidateQueries({queryKey: [`/api/orders/${orderId}`]});
+      // Invalidiere den Cache für Bestellungen mit strukturierten Query-Keys
+      queryClient.invalidateQueries({queryKey: orderKeys.lists()});
+      queryClient.invalidateQueries({queryKey: orderKeys.detail(Number(orderId))});
       
       // Aktualisiere die lokalen Daten
       if (existingOrderData) {
