@@ -448,7 +448,9 @@ router.post("/", async (req: Request, res: Response) => {
     };
 
     // Bestellpositionen trennen
-    const { orderItems: itemsArray, ...orderOnly } = orderData;
+    // Akzeptiere sowohl 'orderItems' als auch 'products' als Quelle der Bestellpositionen
+    const { orderItems, products, ...orderOnly } = orderData;
+    const itemsArray = orderItems || products || [];
 
     // Fehlende Felder setzen
     const completeOrderData = {

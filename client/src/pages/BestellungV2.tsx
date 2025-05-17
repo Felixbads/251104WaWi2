@@ -287,17 +287,32 @@ const BestellungV2: React.FC = () => {
       }
       
       // Sicherstellen, dass orderItems verfügbar sind
-      let items = orderData.items || orderData.orderItems || [];
+      let items = orderData.items || orderData.orderItems || orderData.products || [];
       if (!Array.isArray(items) || items.length === 0) {
-        console.error('Keine Produktdaten für PDF-Generierung vorhanden');
+        console.error('Keine Produktdaten für PDF-Generierung vorhanden, lade nach...');
         // Versuche, die Items aus dem API zu laden wenn nötig
         if (orderData.id) {
           try {
-            const response = await apiRequest(`/api/orders/${orderData.id}/items`, null, 'get');
-            // Die API gibt die Daten direkt zurück, nicht in einem data-Objekt
-            if (response && Array.isArray(response) && response.length > 0) {
-              items = response;
-              console.log("Items aus API nachgeladen:", items);
+            // Maximal 3 Versuche zum Nachladen der Items
+            let retryCount = 0;
+            const maxRetries = 3;
+            
+            while (items.length === 0 && retryCount < maxRetries) {
+              console.log(`Versuche Items zu laden (Versuch ${retryCount + 1}/${maxRetries})...`);
+              const response = await apiRequest(`/api/orders/${orderData.id}/items`, null, 'get');
+              
+              // Die API gibt die Daten direkt zurück, nicht in einem data-Objekt
+              if (response && Array.isArray(response)) {
+                items = response;
+                console.log(`Items aus API nachgeladen (${items.length} Positionen):`, items);
+                
+                // Bei Erfolg die Schleife beenden
+                if (items.length > 0) break;
+              }
+              
+              // Kurz warten vor dem nächsten Versuch
+              await new Promise(resolve => setTimeout(resolve, 500));
+              retryCount++;
             }
           } catch (err) {
             console.error("Fehler beim Nachladen der Items:", err);
