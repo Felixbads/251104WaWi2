@@ -190,10 +190,21 @@ const BestellungV2: React.FC = () => {
       setWarehouseId(order.warehouseId);
       setWarehouseName(order.warehouseName || '');
       
-      // Generiere PDF für existierende Bestellung
-      generateOrderPDF(order);
+      // Generiere PDF für existierende Bestellung nur wenn die vollständigen Daten vorliegen
+      if (order.items && Array.isArray(order.items) && step === 'warehouseReceiptOfExistingOrder') {
+        try {
+          generateOrderPDF(order);
+        } catch (error) {
+          console.error('Fehler beim Generieren des PDFs:', error);
+          toast({
+            title: 'PDF-Erstellung fehlgeschlagen',
+            description: 'Die PDF-Vorschau konnte nicht erstellt werden. Vollständige Bestelldaten werden nachgeladen.',
+            variant: 'destructive',
+          });
+        }
+      }
     }
-  }, [order]);
+  }, [order, step]);
   
   // Function to generate PDF from order data
   const generateOrderPDF = async (orderData: any) => {

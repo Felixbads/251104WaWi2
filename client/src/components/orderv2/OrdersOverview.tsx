@@ -60,11 +60,19 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 
 // Status-Mapping für Bestellungen
+// Einheitliches Status-Mapping für die gesamte Anwendung
 const orderStatusMap = {
+  // Aktuelle API-Status
+  open: { label: 'Offen', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300' },
+  ordered: { label: 'Bestellt', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300' },
+  partial: { label: 'Teilgeliefert', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300' },
+  delivered: { label: 'Geliefert', color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/20 dark:text-cyan-300' },
+  canceled: { label: 'Storniert', color: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300' },
+  
+  // Legacy-Status für Abwärtskompatibilität
   draft: { label: 'Entwurf', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300' },
   pending: { label: 'In Bearbeitung', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300' },
   shipped: { label: 'Versandt', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300' },
-  delivered: { label: 'Geliefert', color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/20 dark:text-cyan-300' },
   completed: { label: 'Abgeschlossen', color: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300' },
   cancelled: { label: 'Storniert', color: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300' },
   sent: { label: 'Gesendet', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300' },
