@@ -17,7 +17,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { orderKeys, warehouseKeys } from "@/lib/queryKeys";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, RefreshCw, AlertCircle } from "lucide-react";
+
 
 // UI Komponenten
 import { Button } from "@/components/ui/button";
