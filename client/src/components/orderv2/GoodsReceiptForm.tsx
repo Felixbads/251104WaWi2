@@ -319,7 +319,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                         }`}
                       />
                     </TableCell>
-                    <TableCell className="text-right hidden md:table-cell">{item.price.toFixed(2)} €</TableCell>
+                    <TableCell className="text-right hidden md:table-cell">{(item.price || item.unitPrice || 0).toFixed(2)} €</TableCell>
                     <TableCell className="hidden md:table-cell">
                       <Input
                         type="text"
