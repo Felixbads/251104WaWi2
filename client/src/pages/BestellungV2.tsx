@@ -219,6 +219,7 @@ const BestellungV2: React.FC = () => {
   });
   
   // Fetch order data if orderId exists and we're in the relevant step
+  // PROBLEM 1 & 2 GELÖST: Konsistente Query-Keys und korrekte Step-Bedingung
   const { 
     data: order,
     isLoading: isLoadingOrder,
@@ -226,9 +227,8 @@ const BestellungV2: React.FC = () => {
     error: orderError
   } = useQuery({
     queryKey: orderKeys.detail(orderId || 0),
-    // PROBLEM 2 GELÖST: Nur aktivieren, wenn orderId gesetzt ist UND wir NICHT im Overview-Step sind
-    enabled: !!orderId && step !== 'overview',
-    // Versuch mit dem GET-Endpunkt anstelle des POST-Endpoints
+    // Nur aktivieren, wenn orderId gesetzt ist UND wir NICHT im Overview-Step sind
+    enabled: !!orderId && step !== 'overview', 
     queryFn: () => {
       console.log("Starte Order-Detail-Query für ID:", orderId, "im Schritt:", step);
       return apiRequest(`/api/orders/${orderId}`, null, 'get');
@@ -963,6 +963,40 @@ const BestellungV2: React.FC = () => {
         );
         
       case 'warehouseReceiptOfExistingOrder':
+        // PROBLEM #3 GELÖST: Error-Guard NUR im richtigen Kontext (Detail-Schritt) platzieren
+        if (isErrorOrder) {
+          return (
+            <Card>
+              <CardContent className="py-10">
+                <div className="text-center">
+                  <AlertTriangle className="h-10 w-10 mx-auto text-destructive mb-4" />
+                  <h3 className="text-lg font-medium mb-2">Fehler beim Laden der Bestellung</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Die Bestelldaten konnten nicht geladen werden. Bitte versuchen Sie es später erneut.
+                  </p>
+                  <div className="flex justify-center gap-2">
+                    <Button 
+                      onClick={() => {
+                        // PROBLEM #4 GELÖST: Korrekte Cache-Invalidierung mit konsistenten Keys
+                        queryClient.invalidateQueries({queryKey: orderKeys.detail(orderId || 0)});
+                        queryClient.invalidateQueries({queryKey: orderKeys.lists()});
+                      }}
+                      variant="outline"
+                    >
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Cache leeren
+                    </Button>
+                    <Button onClick={() => window.location.reload()}>
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Neu laden
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        }
+        
         // Warten auf Bestellungsdaten
         if (isLoadingOrder) {
           return (
@@ -974,24 +1008,6 @@ const BestellungV2: React.FC = () => {
                   <p className="text-muted-foreground">
                     Bitte warten Sie, während die Bestellungsdaten geladen werden.
                   </p>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        }
-        
-        // Zeige Fehlermeldung bei Ladefehlern
-        if (isErrorOrder) {
-          return (
-            <Card>
-              <CardContent className="py-10">
-                <div className="text-center">
-                  <AlertTriangle className="h-10 w-10 mx-auto text-destructive mb-4" />
-                  <h3 className="text-lg font-medium mb-2">Fehler beim Laden der Bestellung</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Die Bestelldaten konnten nicht geladen werden. Bitte versuchen Sie es später erneut.
-                  </p>
-                  <Button onClick={() => window.location.reload()}>Neu laden</Button>
                 </div>
               </CardContent>
             </Card>
