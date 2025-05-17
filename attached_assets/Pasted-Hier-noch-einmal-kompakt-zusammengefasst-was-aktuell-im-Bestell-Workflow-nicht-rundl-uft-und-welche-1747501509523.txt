@@ -1,0 +1,139 @@
+Hier noch einmal kompakt zusammengefasst, was aktuell im Bestell-Workflow nicht rundläuft und welche Änderungen dafür notwendig sind:
+
+⸻
+
+1. Bestellungen tauchen nicht in der Übersicht auf
+	•	Ursache: Neue Bestellungen starten mit Status draft, OrdersOverview lädt aber nur sent/delivered.
+	•	Änderung:
+	•	Query in OrdersOverview erweitern auf alle relevanten Stati, z. B.
+
+useQuery(
+  orderKeys.lists({ status: ['draft','sent','delivered'] }),
+  fetchOrders
+)
+
+
+	•	Optional: Status-Filter im UI anbieten (Dropdown „Entwurf“, „Versendet“, …).
+
+⸻
+
+2. Nach Anlage kein Übergang zum E-Mail-Versand
+	•	Ursache: createOrderMutation.onSuccess setzt nur orderId, springt aber nicht auf den nächsten Step.
+	•	Änderung:
+
+createOrderMutation.mutate(orderData, {
+  onSuccess: (data) => {
+    setExistingOrderData(data);
+    generateOrderPDF(data);
+    setStep('sendOrder');     // ← hier hinzufügen
+  }
+});
+
+
+
+⸻
+
+3. Klick auf Bestellung führt immer in den Wareneingang
+	•	Ursache: handleSelectOrder macht pauschal setStep('warehouseReceiptOfExistingOrder').
+	•	Änderung:
+
+const handleSelectOrder = (id) => {
+  setOrderId(id);
+  if (!existingOrderData?.sentAt) {
+    setStep('sendOrder');
+  } else {
+    setStep('warehouseReceiptOfExistingOrder');
+  }
+};
+
+
+
+⸻
+
+4. Ziellager & Bestellwert fehlen in der Übersicht
+	•	Ursache: OrdersOverview rendert nur Basisspalten (ID, Datum, Status).
+	•	Änderung:
+
+<td>{order.warehouse?.name || '–'}</td>
+<td>{order.totalGross?.toFixed(2)} €</td>
+
+
+
+⸻
+
+5. PDF-Erstellung schlägt fehl
+	•	Ursache: generateOrderPDF() wird mit unvollständigem Summary-Objekt aus der Übersicht aufgerufen.
+	•	Änderung:
+	•	Entferne direkten Aufruf in handleSelectOrder.
+	•	Erzeuge das PDF erst in einem useEffect, sobald existingOrderData (vollständig) geladen ist:
+
+useEffect(() => {
+  if (step === 'sendOrder' && existingOrderData) {
+    generateOrderPDF(existingOrderData);
+  }
+}, [step, existingOrderData]);
+
+
+
+⸻
+
+6. E-Mail-Versand funktioniert nicht
+	•	Ursache: Mutation für /api/orders/:id/send ist nicht korrekt implementiert oder erhält unvollständige Daten (z. B. keine supplier.email).
+	•	Änderung:
+
+const sendOrderMutation = useMutation(
+  () => api.post(`/api/orders/${orderId}/send`),
+  {
+    onSuccess: () => {
+      toast.success('Bestellung versendet');
+      queryClient.invalidateQueries(orderKeys.detail(orderId));
+      queryClient.invalidateQueries(orderKeys.lists());
+    },
+    onError: (err) => {
+      toast.error('Fehler beim Versand');
+      console.error(err);
+    }
+  }
+);
+
+
+
+⸻
+
+7. Query-Key-Inkonsistenzen & Caching
+	•	Ursache: useQuery und invalidateQueries nutzen unterschiedliche Keys (['/api/orders'] vs. orderKeys.lists() etc.), so kommt es zu stale Daten.
+	•	Änderung:
+	•	Überall dieselben zentralen Keys verwenden:
+
+// Fetch
+useQuery(orderKeys.detail(orderId), fetchOrder)
+// Invalidate
+queryClient.invalidateQueries(orderKeys.detail(orderId));
+
+
+
+⸻
+
+8. Fehlendes Loading- & Error-Handling
+	•	Ursache: Nahezu alle useQuery-Hooks zeigen keinen Spinner oder Error-State.
+	•	Änderung:
+
+const { data, isLoading, isError } = useQuery(...);
+if (isLoading)  return <Spinner />;
+if (isError)    return <ErrorMessage text="Ladefehler" />;
+
+in jeder beteiligten Komponente (WarehouseSelector, SupplierSelector, ProductSelectionTable, OrderDetail, ManualStatusChange, ReceiptPage).
+
+⸻
+
+Nächste Schritte
+	1.	Status-Filter in OrdersOverview erweitern
+	2.	Automatischen Step-Wechsel nach createOrder implementieren
+	3.	handleSelectOrder statusbasiert routen
+	4.	Übersicht um Ziellager und Wert erweitern
+	5.	PDF-Generierung nur nach vollständigem Laden starten
+	6.	E-Mail-Mutation korrigieren und fehlende Felder prüfen
+	7.	Einheitliche Query-Key-Struktur durchsetzen
+	8.	Loading- und Error-UI überall ergänzen
+
+Mit diesen Änderungen läuft der Bestell- und Wareneingangsprozess wieder durchgehend und konsistent.
