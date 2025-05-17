@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { orderKeys } from "@/lib/queryKeys";
 
 // UI Komponenten
 import {
@@ -65,9 +66,12 @@ export default function ManualStatusChange({ order, isOpen, onClose }: ManualSta
       return updateOrderStatus(order.id, data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/orders/${order.id}`] });
-      queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/orders/dashboard/open'] });
+      // Invalidiere die Detailansicht dieser spezifischen Bestellung
+      queryClient.invalidateQueries({ queryKey: orderKeys.detail(order.id) });
+      // Invalidiere alle Bestellungslisten
+      queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+      // Invalidiere offene Bestellungen für das Dashboard
+      queryClient.invalidateQueries({ queryKey: orderKeys.open() });
       
       toast({
         title: "Status aktualisiert",
