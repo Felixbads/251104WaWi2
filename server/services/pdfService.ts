@@ -9,11 +9,16 @@ import autoTable from 'jspdf-autotable';
  */
 export async function generatePdf(order: any): Promise<Buffer> {
   try {
+    console.log('PDF-Generation gestartet für Bestellung:', order.orderNumber);
+    console.log('Bestellungsdaten:', JSON.stringify(order, null, 2));
+    
     // Neue PDF-Instanz erstellen
     const doc = new jsPDF();
     
     // Daten vorbereiten
     const items = order.orderItems || [];
+    console.log(`Anzahl Bestellpositionen: ${items.length}`);
+    
     const orderDate = formatDate(order.orderDate || new Date());
     const deliveryDate = formatDate(order.expectedDeliveryDate);
     const orderNumber = order.orderNumber || '';
