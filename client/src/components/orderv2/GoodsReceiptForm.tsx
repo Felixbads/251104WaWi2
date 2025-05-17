@@ -39,12 +39,15 @@ import { de } from 'date-fns/locale';
 
 interface OrderItem {
   id: number;
-  name: string;
+  name?: string;
+  productName?: string; // API kann auch productName statt name zurückgeben
   orderedQuantity: number;
   receivedQuantity?: number;
-  price: number;
+  price?: number;
+  unitPrice?: number; // API kann auch unitPrice statt price zurückgeben
   damaged?: boolean;
   comment?: string;
+  expiryDate?: string; // MHD für die Batch-Erstellung
 }
 
 interface GoodsReceiptFormProps {
@@ -86,9 +89,12 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
   const [receivedItems, setReceivedItems] = useState<OrderItem[]>(
     orderItems.map(item => ({
       ...item,
+      // Stellen sicher, dass der Name vorhanden ist (entweder name oder productName)
+      name: item.name || item.productName || 'Artikel ohne Namen',
       receivedQuantity: item.orderedQuantity,
       damaged: false,
-      comment: ''
+      comment: '',
+      expiryDate: '' // Leeres Feld für MHD hinzufügen
     }))
   );
   
@@ -126,6 +132,15 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
     setReceivedItems(items =>
       items.map(item =>
         item.id === id ? { ...item, comment } : item
+      )
+    );
+  };
+  
+  // Handler für MHD-Änderung
+  const handleExpiryDateChange = (id: number, expiryDate: string) => {
+    setReceivedItems(items =>
+      items.map(item =>
+        item.id === id ? { ...item, expiryDate } : item
       )
     );
   };
@@ -282,6 +297,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                 <TableHead className="text-right">Bestellt</TableHead>
                 <TableHead className="text-right">Erhalten</TableHead>
                 <TableHead className="text-right hidden md:table-cell">Preis</TableHead>
+                <TableHead className="text-center">MHD</TableHead>
                 <TableHead className="hidden md:table-cell">Anmerkung</TableHead>
               </TableRow>
             </TableHeader>
@@ -306,7 +322,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                         </label>
                       </div>
                     </TableCell>
-                    <TableCell className="font-medium">{item.name}</TableCell>
+                    <TableCell className="font-medium">{item.name || item.productName || 'Unbekannter Artikel'}</TableCell>
                     <TableCell className="text-right">{item.orderedQuantity}</TableCell>
                     <TableCell className="text-right">
                       <Input
@@ -320,6 +336,15 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                       />
                     </TableCell>
                     <TableCell className="text-right hidden md:table-cell">{(item.price || item.unitPrice || 0).toFixed(2)} €</TableCell>
+                    <TableCell>
+                      <Input
+                        type="date"
+                        value={item.expiryDate || ''}
+                        onChange={(e) => handleExpiryDateChange(item.id, e.target.value)}
+                        className="w-32 h-8 text-xs"
+                        placeholder="TT.MM.JJJJ"
+                      />
+                    </TableCell>
                     <TableCell className="hidden md:table-cell">
                       <Input
                         type="text"
