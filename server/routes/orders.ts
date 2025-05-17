@@ -1635,4 +1635,55 @@ router.get("/:id", async (req: Request, res: Response) => {
   }
 });
 
+// Bestellpositionen einer Bestellung abrufen
+router.get("/:id/items", async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const orderId = parseInt(id);
+
+    if (isNaN(orderId)) {
+      return res.status(400).json({ error: "Ungültige Bestellungs-ID" });
+    }
+
+    // Prüfen, ob die Bestellung existiert
+    const order = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+
+    if (!order || order.length === 0) {
+      return res.status(404).json({ error: "Bestellung nicht gefunden" });
+    }
+
+    // Bestellpositionen abrufen
+    const items = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, orderId));
+
+    // Produkt-Details für jede Position anreichern
+    const enrichedItems = await Promise.all(items.map(async (item) => {
+      let productDetails = null;
+      if (item.productId) {
+        try {
+          productDetails = await storage.getProductById(item.productId);
+        } catch (err) {
+          console.error(`Fehler beim Laden der Produktdetails für ID ${item.productId}:`, err);
+        }
+      }
+      
+      return {
+        ...item,
+        productDetails
+      };
+    }));
+
+    res.json(enrichedItems);
+  } catch (error) {
+    console.error("Fehler beim Abrufen der Bestellpositionen:", error);
+    res.status(500).json({ error: "Fehler beim Abrufen der Bestellpositionen" });
+  }
+});
+
 export default router;

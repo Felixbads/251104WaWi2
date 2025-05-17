@@ -294,8 +294,9 @@ const BestellungV2: React.FC = () => {
         if (orderData.id) {
           try {
             const response = await apiRequest(`/api/orders/${orderData.id}/items`, null, 'get');
-            if (response && Array.isArray(response.data) && response.data.length > 0) {
-              items = response.data;
+            // Die API gibt die Daten direkt zurück, nicht in einem data-Objekt
+            if (response && Array.isArray(response) && response.length > 0) {
+              items = response;
               console.log("Items aus API nachgeladen:", items);
             }
           } catch (err) {
