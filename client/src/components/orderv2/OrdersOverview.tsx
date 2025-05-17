@@ -122,7 +122,7 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
   };
   
   // Abfrage für Bestellungen mit Filtern
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const { data: apiResponse, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['/api/orders', statusFilter, sortBy.field, sortBy.direction, searchTerm],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -134,6 +134,9 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
       return apiRequest(`/api/orders?${params.toString()}`, undefined, 'get');
     }
   });
+  
+  // Daten aus der API-Antwort extrahieren
+  const data = apiResponse?.data;
   
   // Sortierfunktion
   const handleSort = (field: string) => {

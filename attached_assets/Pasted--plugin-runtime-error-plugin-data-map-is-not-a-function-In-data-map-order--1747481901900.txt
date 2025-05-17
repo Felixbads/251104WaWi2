@@ -1,0 +1,213 @@
+[plugin:runtime-error-plugin] data?.map is not a function. (In 'data?.map(
+        (order) => /* @__PURE__ */ jsxDEV(
+          TableRow,
+          {
+            "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:395:16",
+            "data-component-name": "TableRow",
+            className: "cursor-pointer hover:bg-muted/50",
+            onClick: () => onSelectOrder(order.id),
+            children: [
+              /* @__PURE__ */ jsxDEV(TableCell, { "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:400:22", "data-component-name": "TableCell", className: "font-medium", children: order.orderNumber }, void 0, false, {
+                fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                lineNumber: 400,
+                columnNumber: 23
+              }, this),
+              /* @__PURE__ */ jsxDEV(TableCell, { "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:403:22", "data-component-name": "TableCell", children: order.supplierName }, void 0, false, {
+                fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                lineNumber: 403,
+                columnNumber: 23
+              }, this),
+              /* @__PURE__ */ jsxDEV(TableCell, { "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:404:22", "data-component-name": "TableCell", children: order.warehouseName }, void 0, false, {
+                fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                lineNumber: 404,
+                columnNumber: 23
+              }, this),
+              /* @__PURE__ */ jsxDEV(TableCell, { "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:405:22", "data-component-name": "TableCell", children: /* @__PURE__ */ jsxDEV(OrderStatusBadge, { "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:406:24", "data-component-name": "OrderStatusBadge", status: order.status }, void 0, false, {
+                fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                lineNumber: 406,
+                columnNumber: 25
+              }, this) }, void 0, false, {
+                fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                lineNumber: 405,
+                columnNumber: 23
+              }, this),
+              /* @__PURE__ */ jsxDEV(TableCell, { "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:408:22", "data-component-name": "TableCell", children: formatDate(order.orderDate) }, void 0, false, {
+                fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                lineNumber: 408,
+                columnNumber: 23
+              }, this),
+              /* @__PURE__ */ jsxDEV(TableCell, { "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:409:22", "data-component-name": "TableCell", children: formatCurrency(order.totalAmount) }, void 0, false, {
+                fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                lineNumber: 409,
+                columnNumber: 23
+              }, this),
+              /* @__PURE__ */ jsxDEV(TableCell, { "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:410:22", "data-component-name": "TableCell", className: "text-right", children: /* @__PURE__ */ jsxDEV("div", { "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:411:24", "data-component-name": "div", className: "flex justify-end gap-1", children: [
+                order.status === "open" && /* @__PURE__ */ jsxDEV(
+                  Button,
+                  {
+                    "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:413:22",
+                    "data-component-name": "Button",
+                    variant: "outline",
+                    size: "icon",
+                    title: "Als versendet markieren",
+                    onClick: (e) => handleMarkAsSent(order.id, e),
+                    disabled: markAsSentMutation.isPending,
+                    children: /* @__PURE__ */ jsxDEV(Send, { "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:420:30", "data-component-name": "Send", className: "h-4 w-4" }, void 0, false, {
+                      fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                      lineNumber: 420,
+                      columnNumber: 31
+                    }, this)
+                  },
+                  void 0,
+                  false,
+                  {
+                    fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                    lineNumber: 413,
+                    columnNumber: 23
+                  },
+                  this
+                ),
+                order.status === "ordered" && onStartWarehouseReceiptProcess && /* @__PURE__ */ jsxDEV(
+                  Button,
+                  {
+                    "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:425:22",
+                    "data-component-name": "Button",
+                    variant: "outline",
+                    size: "icon",
+                    title: "Wareneingang buchen",
+                    onClick: (e) => {
+                      e.stopPropagation();
+                      onStartWarehouseReceiptProcess(order.id);
+                    },
+                    children: /* @__PURE__ */ jsxDEV(Truck, { "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:434:30", "data-component-name": "Truck", className: "h-4 w-4" }, void 0, false, {
+                      fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                      lineNumber: 434,
+                      columnNumber: 31
+                    }, this)
+                  },
+                  void 0,
+                  false,
+                  {
+                    fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                    lineNumber: 425,
+                    columnNumber: 23
+                  },
+                  this
+                ),
+                /* @__PURE__ */ jsxDEV(DropdownMenu, { "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:438:26", "data-component-name": "DropdownMenu", children: [
+                  /* @__PURE__ */ jsxDEV(DropdownMenuTrigger, { "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:439:28", "data-component-name": "DropdownMenuTrigger", asChild: true, children: /* @__PURE__ */ jsxDEV(Button, { "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:440:30", "data-component-name": "Button", variant: "outline", size: "icon", children: /* @__PURE__ */ jsxDEV(MoreHorizontal, { "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:441:32", "data-component-name": "MoreHorizontal", className: "h-4 w-4" }, void 0, false, {
+                    fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                    lineNumber: 441,
+                    columnNumber: 33
+                  }, this) }, void 0, false, {
+                    fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                    lineNumber: 440,
+                    columnNumber: 31
+                  }, this) }, void 0, false, {
+                    fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                    lineNumber: 439,
+                    columnNumber: 29
+                  }, this),
+                  /* @__PURE__ */ jsxDEV(DropdownMenuContent, { "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:444:28", "data-component-name": "DropdownMenuContent", align: "end", children: [
+                    /* @__PURE__ */ jsxDEV(
+                      DropdownMenuItem,
+                      {
+                        "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:445:30",
+                        "data-component-name": "DropdownMenuItem",
+                        onClick: (e) => {
+                          e.stopPropagation();
+                          window.open(`/orderDetail/${order.id}`, "_blank");
+                        },
+                        children: [
+                          /* @__PURE__ */ jsxDEV(ExternalLink, { "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:451:32", "data-component-name": "ExternalLink", className: "mr-2 h-4 w-4" }, void 0, false, {
+                            fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                            lineNumber: 451,
+                            columnNumber: 33
+                          }, this),
+                          "Öffnen"
+                        ]
+                      },
+                      void 0,
+                      true,
+                      {
+                        fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                        lineNumber: 445,
+                        columnNumber: 31
+                      },
+                      this
+                    ),
+                    /* @__PURE__ */ jsxDEV(
+                      DropdownMenuItem,
+                      {
+                        "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:454:30",
+                        "data-component-name": "DropdownMenuItem",
+                        onClick: (e) => {
+                          e.stopPropagation();
+                          window.open(`/api/orders/${order.id}/pdf`, "_blank");
+                        },
+                        children: [
+                          /* @__PURE__ */ jsxDEV(FileSpreadsheet, { "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:460:32", "data-component-name": "FileSpreadsheet", className: "mr-2 h-4 w-4" }, void 0, false, {
+                            fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                            lineNumber: 460,
+                            columnNumber: 33
+                          }, this),
+                          "PDF anzeigen"
+                        ]
+                      },
+                      void 0,
+                      true,
+                      {
+                        fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                        lineNumber: 454,
+                        columnNumber: 31
+                      },
+                      this
+                    ),
+                    /* @__PURE__ */ jsxDEV(DropdownMenuItem, { "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:463:30", "data-component-name": "DropdownMenuItem", onClick: (e) => {
+                      e.stopPropagation();
+                      window.location.href = `/sendOrderEmail/${order.id}`;
+                    }, children: [
+                      /* @__PURE__ */ jsxDEV(Mail, { "data-replit-metadata": "client/src/components/orderv2/OrdersOverview.tsx:467:32", "data-component-name": "Mail", className: "mr-2 h-4 w-4" }, void 0, false, {
+                        fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                        lineNumber: 467,
+                        columnNumber: 33
+                      }, this),
+                      "E-Mail senden"
+                    ] }, void 0, true, {
+                      fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                      lineNumber: 463,
+                      columnNumber: 31
+                    }, this)
+                  ] }, void 0, true, {
+                    fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                    lineNumber: 444,
+                    columnNumber: 29
+                  }, this)
+                ] }, void 0, true, {
+                  fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                  lineNumber: 438,
+                  columnNumber: 27
+                }, this)
+              ] }, void 0, true, {
+                fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                lineNumber: 411,
+                columnNumber: 25
+              }, this) }, void 0, false, {
+                fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+                lineNumber: 410,
+                columnNumber: 23
+              }, this)
+            ]
+          },
+          order.id,
+          true,
+          {
+            fileName: "/home/runner/workspace/client/src/components/orderv2/OrdersOverview.tsx",
+            lineNumber: 395,
+            columnNumber: 17
+          },
+          this
+        )
+      )', 'data?.map' is undefined)
+Click outside, press Esc key, or fix the code to dismiss.
+You can also disable this overlay by setting server.hmr.overlay to false in vite.config.js.
