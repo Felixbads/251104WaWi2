@@ -489,7 +489,13 @@ const BestellungV2: React.FC = () => {
                 sourceOrderId,
               };
               
-              createOrderMutation.mutate(orderData);
+              createOrderMutation.mutate(orderData, {
+                onSuccess: (data) => {
+                  setExistingOrderData(data);
+                  generateOrderPDF(data);
+                  setStep('sendOrder');
+                }
+              });
             }}
             isCreatingOrder={createOrderMutation.isPending}
             onSendOrderEmail={() => setStep('sendOrder')}

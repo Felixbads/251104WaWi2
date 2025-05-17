@@ -125,7 +125,7 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
   
   // Abfrage für Bestellungen mit Filtern
   const { data: apiResponse, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['/api/orders', statusFilter, sortBy.field, sortBy.direction, searchTerm],
+    queryKey: orderKeys.lists({ status: statusFilter ? [statusFilter] : ['draft', 'sent', 'delivered'] }),
     queryFn: async () => {
       const params = new URLSearchParams();
       if (statusFilter) params.append('status', statusFilter);
