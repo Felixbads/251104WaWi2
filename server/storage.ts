@@ -747,17 +747,40 @@ export class DatabaseStorage implements IStorage {
   
   async markOrderAsSent(id: number): Promise<Order | undefined> {
     const now = new Date();
+    
+    // Aktuelle Bestellung abrufen um den aktuellen statusHistory-Wert zu erhalten
+    const [currentOrder] = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, id))
+      .limit(1);
+    
+    if (!currentOrder) {
+      return undefined;
+    }
+    
+    // Neuen Statuseintrag erstellen
+    const newStatusEntry = {
+      status: 'sent',
+      timestamp: now.toISOString(),
+      note: 'E-Mail an Lieferanten gesendet'
+    };
+    
+    // Statushistorie aktualisieren
+    let newStatusHistory;
+    if (!currentOrder.statusHistory) {
+      newStatusHistory = [newStatusEntry];
+    } else {
+      newStatusHistory = [...currentOrder.statusHistory, newStatusEntry];
+    }
+    
     // Bestellung auf "sent" setzen und Zeitstempel aktualisieren
     const [updatedOrder] = await db
       .update(orders)
       .set({ 
         status: 'sent', 
         updatedAt: now,
-        // Optional: Protokollieren des Versandzeitpunkts in der Bestellungshistorie
-        statusHistory: sql`CASE 
-          WHEN ${orders.statusHistory} IS NULL THEN JSON_BUILD_ARRAY(JSON_BUILD_OBJECT('status', 'sent', 'timestamp', ${now}::TEXT, 'note', 'E-Mail an Lieferanten gesendet'))
-          ELSE ${orders.statusHistory} || JSON_BUILD_OBJECT('status', 'sent', 'timestamp', ${now}::TEXT, 'note', 'E-Mail an Lieferanten gesendet')
-        END`
+        statusHistory: newStatusHistory
       })
       .where(eq(orders.id, id))
       .returning();
