@@ -1,6 +1,7 @@
 import express from 'express';
 import { storage } from '../storage';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
+import fs from 'fs';
 import path from 'path';
 import { sendEmail } from '../services/emailService';
 import { generatePdf } from '../services/pdfService';
@@ -93,10 +94,21 @@ router.post('/orders/:id/email', async (req, res) => {
     }
     
     // PDF für diese Bestellung generieren
+    console.log(`Generiere PDF für Bestellung ${orderId}...`);
     const pdfBuffer = await generatePdf(order);
+    console.log(`PDF erfolgreich generiert (${pdfBuffer.length} Bytes)`);
+    
+    // PDF in temp Verzeichnis speichern, damit wir es inspizieren können
+    const tempDir = path.join(process.cwd(), 'temp');
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    fs.writeFileSync(path.join(tempDir, `bestellung_${order.orderNumber}.pdf`), pdfBuffer);
+    console.log(`PDF gespeichert in temp/bestellung_${order.orderNumber}.pdf`);
     
     // E-Mail mit PDF-Anhang senden
-    await sendEmail({
+    console.log(`Sende E-Mail an ${supplierEmail}...`);
+    const emailSent = await sendEmail({
       to: supplierEmail,
       subject: subject || `Bestellung ${order.orderNumber} von Elbsandstein Proviant & Quartier GmbH`,
       text: content || `Sehr geehrte Damen und Herren,
@@ -116,14 +128,44 @@ Elbsandstein Proviant & Quartier GmbH`,
       ]
     });
     
-    // Bestellung als "gesendet" markieren
-    if (storage.markOrderAsSent) {
-      await storage.markOrderAsSent(orderId);
-    } else {
-      console.log('Methode markOrderAsSent nicht verfügbar, Status wird nicht aktualisiert');
+    console.log(`E-Mail-Versand Status: ${emailSent ? 'Erfolgreich' : 'Fehlgeschlagen'}`);
+    
+    // Wenn kein SMTP-Server konfiguriert ist, zeige Hinweis an
+    if (!process.env.SMTP_HOST) {
+      console.log('HINWEIS: SMTP nicht konfiguriert - E-Mail wurde nur simuliert');
     }
     
-    res.json({ success: true, message: 'E-Mail erfolgreich gesendet' });
+    // Bestellung als "gesendet" markieren
+    try {
+      if (storage.markOrderAsSent) {
+        const updatedOrder = await storage.markOrderAsSent(orderId);
+        console.log(`Bestellung ${orderId} auf "sent" gesetzt:`, updatedOrder?.status);
+        
+        if (!updatedOrder) {
+          console.error(`Fehler: Bestellung mit ID ${orderId} nicht gefunden`);
+        } else if (updatedOrder.status !== 'sent') {
+          console.error(`Status wurde nicht korrekt aktualisiert, bleibt: ${updatedOrder.status}`);
+        }
+      } else {
+        console.warn('Methode markOrderAsSent nicht verfügbar');
+      }
+    } catch (error) {
+      console.error(`Fehler beim Aktualisieren des Bestellstatus:`, error);
+      // Trotzdem fortfahren, da die E-Mail ja versendet wurde
+    }
+    
+    // SMTP-Konfiguration prüfen und entsprechende Nachricht zurückgeben
+    const smtpConfigured = process.env.SMTP_HOST && process.env.SMTP_USER;
+    const message = smtpConfigured 
+      ? 'E-Mail erfolgreich versendet' 
+      : 'E-Mail-Versand simuliert (kein SMTP-Server konfiguriert)';
+    
+    res.json({ 
+      success: true, 
+      message: message,
+      orderStatus: 'sent',
+      emailSimulated: !smtpConfigured
+    });
   } catch (error: any) {
     console.error('Fehler beim Senden der E-Mail:', error);
     res.status(500).json({ error: `Fehler beim Senden der E-Mail: ${error.message}` });
