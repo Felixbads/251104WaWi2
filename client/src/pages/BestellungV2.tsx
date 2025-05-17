@@ -412,7 +412,7 @@ const BestellungV2: React.FC = () => {
         return (
           <AdditionalInfoForm
             additionalInfo={additionalInfo}
-            onChange={setAdditionalInfo}
+            onAdditionalInfoChange={setAdditionalInfo}
           />
         );
         
