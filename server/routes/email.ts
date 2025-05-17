@@ -4,7 +4,6 @@ import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
 import fs from 'fs';
 import path from 'path';
 import { sendEmail } from '../services/emailService';
-import { generatePdf } from '../services/pdfService';
 import { z } from 'zod';
 
 const router = express.Router();
@@ -93,20 +92,46 @@ router.post('/orders/:id/email', async (req, res) => {
       return res.status(404).json({ error: 'Bestellung nicht gefunden' });
     }
     
-    // PDF für diese Bestellung generieren
-    console.log(`Generiere PDF für Bestellung ${orderId}...`);
-    const pdfBuffer = await generatePdf(order);
-    console.log(`PDF erfolgreich generiert (${pdfBuffer.length} Bytes)`);
+    // Bestellpositionen abrufen
+    const orderItems = await storage.getOrderItems(orderId);
+    console.log(`${orderItems.length} Bestellpositionen gefunden für Bestellung ${order.orderNumber}`);
     
-    // PDF in temp Verzeichnis speichern, damit wir es inspizieren können
-    const tempDir = path.join(process.cwd(), 'temp');
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
+    // Formatiere die Bestellpositionen als Text
+    let itemsText = '';
+    if (orderItems.length > 0) {
+      itemsText = '\nBestellpositionen:\n';
+      itemsText += '----------------------------------------------------\n';
+      itemsText += 'Pos | Produktname | Menge | Einzelpreis | Gesamtpreis\n';
+      itemsText += '----------------------------------------------------\n';
+      
+      orderItems.forEach((item, index) => {
+        const unitPrice = item.unitPrice ? `${item.unitPrice.toFixed(2)} €` : 'k.A.';
+        const totalPrice = item.totalPrice ? `${item.totalPrice.toFixed(2)} €` : 'k.A.';
+        itemsText += `${index + 1} | ${item.productName} | ${item.quantity} ${item.unit || 'stk'} | ${unitPrice} | ${totalPrice}\n`;
+      });
+      
+      // Gesamtsumme
+      const totalAmount = orderItems.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
+      itemsText += '----------------------------------------------------\n';
+      itemsText += `Gesamtbetrag: ${totalAmount.toFixed(2)} €\n\n`;
+    } else {
+      itemsText = '\nKeine Bestellpositionen vorhanden.\n\n';
     }
-    fs.writeFileSync(path.join(tempDir, `bestellung_${order.orderNumber}.pdf`), pdfBuffer);
-    console.log(`PDF gespeichert in temp/bestellung_${order.orderNumber}.pdf`);
     
-    // E-Mail mit PDF-Anhang senden
+    // Lieferantendaten anzeigen, falls vorhanden
+    let supplierText = '';
+    if (order.supplierName) {
+      supplierText = `\nLieferant: ${order.supplierName}\n`;
+    }
+    
+    // Lieferdatum anzeigen, falls vorhanden
+    let deliveryText = '';
+    if (order.expectedDeliveryDate) {
+      const deliveryDate = new Date(order.expectedDeliveryDate);
+      deliveryText = `\nGewünschtes Lieferdatum: ${deliveryDate.toLocaleDateString('de-DE')}\n`;
+    }
+    
+    // E-Mail mit Bestelldetails im Text senden
     console.log(`Sende E-Mail an ${supplierEmail}...`);
     const emailSent = await sendEmail({
       to: supplierEmail,
@@ -115,17 +140,12 @@ router.post('/orders/:id/email', async (req, res) => {
 
 hiermit senden wir Ihnen unsere Bestellung mit der Nummer ${order.orderNumber}.
 
+${supplierText}${deliveryText}
 ${additionalNotes ? `Anmerkungen: ${additionalNotes}\n\n` : ''}
-Details entnehmen Sie bitte dem angehängten PDF-Dokument.
-
+${itemsText}
 Mit freundlichen Grüßen
 Elbsandstein Proviant & Quartier GmbH`,
-      attachments: [
-        {
-          filename: `Bestellung_${order.orderNumber}.pdf`,
-          content: pdfBuffer
-        }
-      ]
+      // Keine Anhänge mehr
     });
     
     console.log(`E-Mail-Versand Status: ${emailSent ? 'Erfolgreich' : 'Fehlgeschlagen'}`);
