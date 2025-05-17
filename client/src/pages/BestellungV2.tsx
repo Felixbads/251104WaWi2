@@ -220,7 +220,26 @@ const BestellungV2: React.FC = () => {
   // Function to generate PDF from order data
   const generateOrderPDF = async (orderData: any) => {
     try {
-      const pdfContent = orderPDFTemplate(orderData);
+      // Sicherstellen, dass Bestelldaten vollständig sind
+      if (!orderData || typeof orderData !== 'object') {
+        console.error('Keine gültigen Bestelldaten für PDF-Generierung:', orderData);
+        return;
+      }
+      
+      // Sicherstellen, dass orderItems verfügbar sind
+      const items = orderData.items || orderData.orderItems || [];
+      if (!Array.isArray(items) || items.length === 0) {
+        console.error('Keine Produktdaten für PDF-Generierung vorhanden');
+        return;
+      }
+      
+      // Normalisierte Bestelldaten erstellen
+      const normalizedOrderData = {
+        ...orderData,
+        items: items,
+      };
+      
+      const pdfContent = orderPDFTemplate(normalizedOrderData);
       
       // Erstelle ein div-Element mit dem PDF-Inhalt
       const element = document.createElement('div');
@@ -434,7 +453,7 @@ const BestellungV2: React.FC = () => {
                   quantity: p.orderQuantity || p.quantity || 0, // Sicherstellen, dass Menge korrekt ist
                   price: p.price || 0
                 })),
-                expectedDeliveryDate: additionalInfo.expectedDeliveryDate ? formatDate(additionalInfo.expectedDeliveryDate) : null,
+                expectedDeliveryDate: additionalInfo.expectedDeliveryDate ? additionalInfo.expectedDeliveryDate.toISOString() : null,
                 priority: additionalInfo.priority,
                 notes: additionalInfo.notes,
                 orderMode,
