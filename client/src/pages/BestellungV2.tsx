@@ -456,9 +456,9 @@ const BestellungV2: React.FC = () => {
                 description: 'Der Wareneingang wurde erfolgreich dokumentiert.',
               });
               
-              // Invalidiere den Cache für Bestellungen
-              queryClient.invalidateQueries({queryKey: ['/api/orders']});
-              queryClient.invalidateQueries({queryKey: [`/api/orders/${orderId}`]});
+              // Invalidiere den Cache für Bestellungen mit zentralisierten Keys
+              queryClient.invalidateQueries({queryKey: orderKeys.lists()});
+              queryClient.invalidateQueries({queryKey: orderKeys.detail(orderId || 0)});
               
               // Zurück zur Übersicht
               setStep('overview');
@@ -520,9 +520,9 @@ const BestellungV2: React.FC = () => {
                 description: 'Der Wareneingang wurde erfolgreich dokumentiert.',
               });
               
-              // Invalidiere den Cache für Bestellungen
-              queryClient.invalidateQueries({queryKey: ['/api/orders']});
-              queryClient.invalidateQueries({queryKey: [`/api/orders/${orderId}`]});
+              // Invalidiere den Cache für Bestellungen mit zentralisierten Keys
+              queryClient.invalidateQueries({queryKey: orderKeys.lists()});
+              queryClient.invalidateQueries({queryKey: orderKeys.detail(orderId || 0)});
               
               // Zurück zur Übersicht
               setStep('overview');
