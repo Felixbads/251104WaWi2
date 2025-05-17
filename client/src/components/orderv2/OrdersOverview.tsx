@@ -131,7 +131,7 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
       params.append('sortDirection', sortBy.direction);
       if (searchTerm) params.append('search', searchTerm);
       
-      return apiRequest(`/api/orders?${params.toString()}`);
+      return apiRequest(`/api/orders?${params.toString()}`, undefined, 'get');
     }
   });
   
