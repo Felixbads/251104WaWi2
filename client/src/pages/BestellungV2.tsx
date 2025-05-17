@@ -240,21 +240,40 @@ const BestellungV2: React.FC = () => {
   
   // Separate useEffect for PDF generation to ensure it only runs when we have complete data
   useEffect(() => {
-    if (step === 'sendOrder' && existingOrderData) {
-      generateOrderPDF(existingOrderData);
-    } else if (step === 'warehouseReceiptOfExistingOrder' && existingOrderData?.items && Array.isArray(existingOrderData.items)) {
-      try {
-        generateOrderPDF(existingOrderData);
-      } catch (error) {
-        console.error('Fehler beim Generieren des PDFs:', error);
-        toast({
-          title: 'PDF-Erstellung fehlgeschlagen',
-          description: 'Die PDF-Vorschau konnte nicht erstellt werden. Vollständige Bestelldaten werden nachgeladen.',
-          variant: 'destructive',
-        });
+    if ((step === 'sendOrder' || step === 'warehouseReceiptOfExistingOrder') && existingOrderData) {
+      console.log("PDF-Generierung starten mit existingOrderData:", existingOrderData);
+      
+      // Nachdem die Bestellung geladen ist, zusätzlich die Orderitems laden, wenn sie fehlen
+      if (!existingOrderData.items && !existingOrderData.orderItems && orderId) {
+        console.log("Bestellpositionen werden nachgeladen für PDF-Generierung");
+        apiRequest(`/api/orders/${orderId}/items`, undefined, 'get')
+          .then(response => {
+            if (response && Array.isArray(response)) {
+              console.log("Bestellpositionen nachgeladen:", response);
+              const updatedOrderData = {
+                ...existingOrderData,
+                items: response
+              };
+              setExistingOrderData(updatedOrderData);
+              generateOrderPDF(updatedOrderData);
+            }
+          })
+          .catch(error => {
+            console.error("Fehler beim Nachladen der Bestellpositionen:", error);
+            toast({
+              title: 'Fehler beim Laden der Bestellpositionen',
+              description: 'Die Bestellpositionen konnten nicht geladen werden für die PDF-Erstellung.',
+              variant: 'destructive',
+            });
+          });
+      } else {
+        // Items sind bereits vorhanden, PDF direkt generieren
+        setTimeout(() => {
+          generateOrderPDF(existingOrderData);
+        }, 500);
       }
     }
-  }, [step, existingOrderData]);
+  }, [step, existingOrderData, orderId]);
   
   // Function to generate PDF from order data
   const generateOrderPDF = async (orderData: any) => {
