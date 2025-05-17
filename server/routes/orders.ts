@@ -1701,51 +1701,153 @@ router.get("/:id/items", async (req: Request, res: Response) => {
   }
 });
 
-// Bestellpositionen einer Bestellung abrufen (POST) - für dynamische Anfragen
-router.post("/:id/items", async (req: Request, res: Response) => {
+// Neue dedizierte API für PDF-Daten - liefert alle Daten für PDF-Erstellung in einem Aufruf
+router.get("/:id/pdf-data", async (req: Request, res: Response) => {
   try {
+    console.log(`📄 PDF-Daten werden für Bestellung ${req.params.id} gesammelt...`);
     const { id } = req.params;
     const orderId = parseInt(id);
-    console.log(`[POST] Bestellpositionen werden für Bestellung ${orderId} abgerufen...`);
 
     if (isNaN(orderId)) {
       return res.status(400).json({ error: "Ungültige Bestellungs-ID" });
     }
 
-    // Direkter Datenbankzugriff für höchste Zuverlässigkeit
+    // Bestellung abrufen
+    const orderResult = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+
+    if (!orderResult || orderResult.length === 0) {
+      return res.status(404).json({ error: "Bestellung nicht gefunden" });
+    }
+
+    const order = orderResult[0];
+    console.log(`📄 Bestellung ${orderId} gefunden, sammle alle benötigten Daten...`);
+    
     try {
-      // Prüfen, ob die Bestellung existiert
-      const orderExists = await db.query.orders.findFirst({
-        where: eq(orders.id, orderId)
-      });
-
-      if (!orderExists) {
-        return res.status(404).json({ 
-          error: "Bestellung nicht gefunden",
-          message: `Bestellung mit ID ${orderId} existiert nicht.`
-        });
-      }
-
-      // Bestellpositionen direkt laden
+      // 1. Bestellpositionen abrufen
       const items = await db
         .select()
         .from(orderItems)
         .where(eq(orderItems.orderId, orderId));
       
-      // Erfolg loggen und Antwort senden
-      console.log(`[POST] ${items.length} Bestellpositionen für Bestellung ${orderId} gefunden`);
-      res.json(items);
+      console.log(`📄 ${items.length} Bestellpositionen für PDF-Daten gefunden`);
       
-    } catch (dbError) {
-      // Bei Datenbankfehlern einen leeren Array zurückgeben aber mit Status 200
-      // damit die Frontend-Anwendung nicht abstürzt
-      console.error("[POST] Datenbankfehler beim Abrufen der Bestellpositionen:", dbError);
-      res.status(200).json([]);
+      // 2. Lieferanten-Informationen (falls vorhanden)
+      let supplier = null;
+      if (order.supplierId) {
+        try {
+          const supplierResult = await db
+            .select()
+            .from(suppliers)
+            .where(eq(suppliers.id, order.supplierId))
+            .limit(1);
+          
+          if (supplierResult && supplierResult.length > 0) {
+            supplier = supplierResult[0];
+            console.log(`📄 Lieferanten-Informationen für PDF-Daten gefunden: ${supplier.name}`);
+          }
+        } catch (supplierError) {
+          console.error(`📄 Fehler beim Abrufen des Lieferanten:`, supplierError);
+          // Kein Abbruch, nur Logging
+        }
+      }
+      
+      // 3. Lager-Informationen (falls vorhanden)
+      let warehouse = null;
+      if (order.warehouseId) {
+        try {
+          const warehouseResult = await db
+            .select()
+            .from(warehouses)
+            .where(eq(warehouses.id, order.warehouseId))
+            .limit(1);
+          
+          if (warehouseResult && warehouseResult.length > 0) {
+            warehouse = warehouseResult[0];
+            console.log(`📄 Lager-Informationen für PDF-Daten gefunden: ${warehouse.name}`);
+          }
+        } catch (warehouseError) {
+          console.error(`📄 Fehler beim Abrufen des Lagers:`, warehouseError);
+          // Kein Abbruch, nur Logging
+        }
+      }
+      
+      // 4. Produkt-Informationen für jede Position
+      const enrichedItems = await Promise.all(
+        items.map(async (item) => {
+          let product = null;
+          
+          // Wenn eine Produkt-ID vorhanden ist, Produkt-Details abrufen
+          if (item.productId) {
+            try {
+              const productResult = await db
+                .select()
+                .from(products)
+                .where(eq(products.id, item.productId))
+                .limit(1);
+                
+              if (productResult && productResult.length > 0) {
+                product = productResult[0];
+              }
+            } catch (productError) {
+              console.error(`📄 Fehler beim Abrufen des Produkts ${item.productId}:`, productError);
+              // Fehler im Produkt sollte nicht zum Abbruch führen
+            }
+          }
+          
+          // Produkt- und Item-Informationen zusammenführen
+          return {
+            ...item,
+            productDetails: product || {
+              name: item.productName || "Unbekanntes Produkt",
+              sku: item.sku || ""
+            }
+          };
+        })
+      );
+      
+      // Alle Daten zusammenführen und zurückgeben
+      const pdfData = {
+        order,
+        items: enrichedItems,
+        supplier,
+        warehouse,
+        // Zusätzliche Metadaten für die PDF-Erstellung
+        metadata: {
+          generatedAt: new Date().toISOString(),
+          totalItems: items.length,
+          totalAmount: order.totalAmount || items.reduce((sum, item) => sum + (item.totalPrice || 0), 0)
+        }
+      };
+      
+      console.log(`📄 PDF-Daten erfolgreich gesammelt, sende Antwort...`);
+      res.json(pdfData);
+      
+    } catch (dataError) {
+      console.error(`📄 Fehler beim Sammeln der PDF-Daten:`, dataError);
+      
+      // Im Fehlerfall eine Minimal-Struktur zurückgeben mit leeren Arrays für die Items
+      res.json({
+        order: orderResult[0],
+        items: [],
+        supplier: null,
+        warehouse: null,
+        metadata: {
+          generatedAt: new Date().toISOString(),
+          error: true,
+          errorMessage: "Fehler beim Laden der vollständigen Daten"
+        }
+      });
     }
   } catch (error) {
-    // Bei anderen Fehlern ebenfalls einen leeren Array zurückgeben
-    console.error("[POST] Allgemeiner Fehler:", error);
-    res.status(200).json([]);
+    console.error("📄 Kritischer Fehler beim Sammeln der PDF-Daten:", error);
+    res.status(500).json({
+      error: "Fehler bei der PDF-Datenerstellung",
+      message: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten."
+    });
   }
 });
 
