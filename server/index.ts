@@ -10,6 +10,7 @@ import http from 'http';
 import inventoryApiRouter from './routes/inventory-api';
 import inventoryRouter from './routes/inventory';
 import emailRouter from './routes/email';
+import mailTemplatesRouter from './routes/mail-templates';
 
 const app = express();
 app.use(express.json());
@@ -54,6 +55,9 @@ app.use((req, res, next) => {
   
   // E-Mail-Route für PDF-Vorschau und Versand hinzufügen
   app.use('/api', emailRouter);
+  
+  // E-Mail-Vorlagen-Route hinzufügen
+  app.use('/api/mail-templates', mailTemplatesRouter);
   
   const server = await registerRoutes(app);
 
