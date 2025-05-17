@@ -469,18 +469,48 @@ const BestellungV2: React.FC = () => {
           <GoodsReceiptForm
             orderId={orderId}
             orderData={existingOrderData}
-            onSaveComplete={() => {
-              toast({
-                title: 'Wareneingang gespeichert',
-                description: 'Der Wareneingang wurde erfolgreich dokumentiert.',
-              });
+            onSaveComplete={async (receivedItems) => {
+              // Bestimme den neuen Status basierend auf den empfangenen Artikeln
+              let newStatus = 'delivered';
               
-              // Invalidiere den Cache für Bestellungen mit zentralisierten Keys
-              queryClient.invalidateQueries({queryKey: orderKeys.lists()});
-              queryClient.invalidateQueries({queryKey: orderKeys.detail(orderId || 0)});
+              // Wenn einige Artikel fehlen oder beschädigt sind, setze auf 'partial'
+              const isPartial = receivedItems.some(item => 
+                item.receivedQuantity !== item.orderedQuantity || item.damaged
+              );
               
-              // Zurück zur Übersicht
-              setStep('overview');
+              if (isPartial) {
+                newStatus = 'partial';
+              }
+              
+              try {
+                // Aktualisiere den Bestellstatus in der API
+                if (orderId) {
+                  await updateOrderStatus(orderId, newStatus, 
+                    `Wareneingang am ${new Date().toLocaleDateString('de-DE')} erfasst.`);
+                }
+                
+                toast({
+                  title: 'Wareneingang gespeichert',
+                  description: 'Der Wareneingang wurde erfolgreich dokumentiert und der Status aktualisiert.',
+                });
+                
+                // Invalidiere den Cache für Bestellungen mit zentralisierten Keys
+                queryClient.invalidateQueries({queryKey: orderKeys.lists()});
+                queryClient.invalidateQueries({queryKey: orderKeys.detail(orderId || 0)});
+                
+                // Zurück zur Übersicht
+                setStep('overview');
+              } catch (error) {
+                console.error('Fehler beim Aktualisieren des Bestellstatus:', error);
+                toast({
+                  title: 'Warnung',
+                  description: 'Der Wareneingang wurde gespeichert, aber der Status konnte nicht aktualisiert werden.',
+                  variant: 'warning'
+                });
+                
+                // Trotzdem zur Übersicht zurückkehren
+                setStep('overview');
+              }
             }}
           />
         );
