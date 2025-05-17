@@ -1,0 +1,49 @@
+Der Grund, warum Du immer noch die Meldung „Fehler beim Laden der Bestellung“ siehst, liegt im Zusammenspiel von drei Dingen:
+	1.	Die Detail-Query feuert sofort, sobald orderId gesetzt wird
+Du hast das Query so konfiguriert:
+
+useQuery({
+  queryKey: orderKeys.detail(orderId || 0),
+  enabled: !!orderId,
+  queryFn: () => apiRequest(`/api/orders/${orderId}`),
+});
+
+Sobald Du in der Übersicht auf eine Zeile klickst, setzt handleSelectOrder(orderId) nur den State, löst also direkt das Detail-Query aus – auch wenn Du noch im „overview“-Step bist. Da Du handleSelectOrder aktuell nicht auf einen anderen Step (z. B. summary oder warehouseReceiptOfExistingOrder) umschaltest und Dein globaler Error-Guard if (isErrorOrder) return <Fehler-UI> oberhalb des Switch-Blocks sitzt, überschreibt das den Overview-Screen und zeigt Dir sofort die Fehlermeldung.
+
+	2.	Der Schlüssel für invalidateQueries und der für useQuery müssen exakt übereinstimmen
+Prüfe bitte, ob
+
+orderKeys.detail(orderId)
+
+in genau derselben Form sowohl in Deinem useQuery({ queryKey: … }) als auch in allen queryClient.invalidateQueries({ queryKey: … })-Aufrufen verwendet wird. Ein winziger Unterschied (z. B. Zahl vs. String, oder eine zusätzliche Ebene im Array) führt dazu, dass React-Query nie wirklich nachlädt und immer den alten (fehlerhaften) Cache-Eintrag liefert.
+
+	3.	Kein Step-Change → immer noch im falschen UI-Kontext
+Damit das Detail-Query erst ausgeführt wird, wenn Du in der Detail-Ansicht bist, hast Du zwei Möglichkeiten:
+	•	HandleSelectOrder anpassen
+
+const handleSelectOrder = (id: number) => {
+  setOrderId(id);
+  setStep('summary');  // oder 'warehouseReceiptOfExistingOrder'
+}
+
+
+	•	enabled konditional erweitern
+
+useQuery({
+  queryKey: orderKeys.detail(orderId),
+  queryFn: () => apiRequest(`/api/orders/${orderId}`),
+  enabled: !!orderId && step !== 'overview',
+});
+
+
+So verhinderst Du, dass das Detail-Query im Overview-Step feuert.
+
+⸻
+
+Zusammenfassung der Fix-Schritte
+	1.	handleSelectOrder unbedingt um setStep('summary') (oder den gewünschten Detail-Step) ergänzen.
+	2.	useQuery für das Order-Detail nur noch dann aktivieren, wenn Du tatsächlich im Detail-Step bist.
+	3.	Query-Keys in beiden Kontexten (Fetch und Invalidate) 1:1 identisch halten.
+	4.	Optional: Deinen globalen Error-Guard so einschränken, dass er nicht mehr für den Step 'overview' greift.
+
+Wenn Du das umsetzt, wird das Detail-Query nicht mehr versehentlich im Overview-Modus gestartet und die Fehlermeldung verschwindet.

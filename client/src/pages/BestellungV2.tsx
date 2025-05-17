@@ -160,7 +160,7 @@ const BestellungV2: React.FC = () => {
     }
   });
   
-  // Fetch order data if orderId exists and we're not in overview
+  // Fetch order data if orderId exists and we're in the relevant step
   const { 
     data: order,
     isLoading: isLoadingOrder,
@@ -168,8 +168,17 @@ const BestellungV2: React.FC = () => {
     error: orderError
   } = useQuery({
     queryKey: orderKeys.detail(orderId || 0),
-    enabled: !!orderId && step !== 'overview',
-    queryFn: () => apiRequest(`/api/orders/${orderId}`),
+    // Nur aktivieren, wenn orderId gesetzt ist UND wir im Wareneingangsschritt sind (kritisch!)
+    enabled: !!orderId && step === 'warehouseReceiptOfExistingOrder',
+    // Versuch mit dem GET-Endpunkt anstelle des POST-Endpoints
+    queryFn: () => {
+      console.log("Starte Order-Detail-Query für ID:", orderId);
+      return apiRequest(`/api/orders/${orderId}`, null, 'get');
+    },
+    // Wiederholungsversuche deaktivieren, um unerwünschte Nebeneffekte zu vermeiden
+    retry: false,
+    // Stale-Zeit erhöhen, um zu vermeiden, dass stale Daten zu schnell als "veraltet" markiert werden
+    staleTime: 30000, // 30 Sekunden
   });
   
   // Initialize from URL params if any
@@ -303,10 +312,19 @@ const BestellungV2: React.FC = () => {
   // Find or select order handler
   const handleSelectOrder = (orderId: number) => {
     console.log("Bestellung ausgewählt:", orderId);
-    // OrderId setzen und sofort den Schritt ändern, um Query-Ausführung zu triggern
-    setOrderId(orderId);
-    // Direkt zum Wareneingangsschritt wechseln - dadurch wird die Query aktiviert
-    setStep('warehouseReceiptOfExistingOrder');
+    
+    // State-Updates in einer Batch-Operation durchführen, um Race-Conditions zu vermeiden
+    // Zuerst den Step zurücksetzen, um potenzielle fehlerhafte State-Kombinationen zu vermeiden
+    setStep('overview');
+    
+    // Nach einem kurzen Timeout die Bestellungs-ID setzen und zum Wareneingangsschritt wechseln
+    // Dies ermöglicht React, den UI-Zustand sauber zu aktualisieren
+    setTimeout(() => {
+      setOrderId(orderId);
+      setStep('warehouseReceiptOfExistingOrder');
+      console.log("Step gewechselt zu warehouseReceiptOfExistingOrder, orderId:", orderId);
+    }, 50);
+    
     // PDF wird in useEffect generiert, wenn order geladen ist
   };
   
