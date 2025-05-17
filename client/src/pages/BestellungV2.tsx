@@ -402,9 +402,9 @@ const BestellungV2: React.FC = () => {
             supplierId={supplierId}
             warehouseId={warehouseId}
             selectedProducts={selectedProducts}
-            onChange={setSelectedProducts}
+            onProductsChange={setSelectedProducts}
             sourceOrderId={sourceOrderId}
-            orderMode={orderMode}
+            mode={orderMode}
           />
         );
         
