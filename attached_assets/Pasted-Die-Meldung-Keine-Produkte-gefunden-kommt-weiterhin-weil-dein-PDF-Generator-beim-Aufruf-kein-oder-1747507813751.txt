@@ -1,0 +1,68 @@
+Die Meldung „Keine Produkte gefunden“ kommt weiterhin, weil dein PDF-Generator beim Aufruf kein oder ein leeres items-Array im übergebenen orderData sieht. Um das jetzt nachhaltig zu beheben, geh bitte so vor:
+	1.	Vergewissere dich, welche Feldnamen deine API wirklich liefert
+Öffne die Netzwerkanalyse (DevTools → Network) und rufe das Detail-Endpunkt /api/orders/:id auf. Schau dir an, wie die Positionsdaten heißen, z. B.
+
+{
+  "id": 123,
+  "orderItems": [ { "productId": 1, "quantity": 5, … }, … ],
+  …
+}
+
+oder
+
+{
+  "data": {
+    "lineItems": [ … ]
+  }
+}
+
+
+	2.	Passe die Extraktion in deiner PDF-Routine an
+Stelle sicher, dass dein Code all diese Varianten abfängt, z. B.:
+
+const raw = existingOrderData;
+const items = 
+  raw.items 
+  || raw.orderItems 
+  || raw.data?.orderItems 
+  || raw.lineItems 
+  || [];
+
+if (items.length === 0) {
+  toast.error('Keine Produkte gefunden. Es konnten keine Produktdaten für die PDF-Erstellung gefunden werden.');
+  return;
+}
+
+
+	3.	Erzeuge das PDF wirklich erst, wenn items geladen sind
+Verlege deinen generateOrderPDF(...)-Aufruf in ein useEffect, das zusätzlich auf existingOrderData und auf das gefüllte items-Array wartet:
+
+useEffect(() => {
+  if (
+    step === 'sendOrder' &&
+    existingOrderData &&
+    (existingOrderData.items?.length || existingOrderData.orderItems?.length) > 0
+  ) {
+    generateOrderPDF(existingOrderData);
+  }
+}, [step, existingOrderData]);
+
+
+	4.	Log-Level Debugging
+Baue vor dem PDF-Aufruf ein kurzes console.log(existingOrderData) ein, um zu sehen, was tatsächlich ankommt:
+
+console.log('PDF-Daten:', existingOrderData);
+
+
+	5.	Nachladen von Items separat (falls nötig)
+Falls deine Detail-Query die Positionsdaten nicht mitliefert, lade sie gesondert nach:
+
+const { data: items } = useQuery(
+  orderKeys.items(orderId),
+  () => api.get(`/api/orders/${orderId}/items`),
+  { enabled: !!orderId }
+);
+
+
+
+Wenn du diese Punkte umsetzt, stellst du sicher, dass der PDF-Generator wirklich ein nicht-leeres Array erhält und der Fehler verschwindet. Falls du nach dem Logging bemerkst, dass deine API-Antwort komplett anders strukturiert ist, poste hier kurz das JSON-Shape, dann liefere ich dir den exakten Mapping-Code.
