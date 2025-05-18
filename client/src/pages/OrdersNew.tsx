@@ -81,6 +81,27 @@ const StatusBadge = ({ status }: { status: string }) => {
   return <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>;
 };
 
+// Interface für die Bestellungsantwort-Struktur
+interface OrdersResponse {
+  data: Array<{
+    id: number;
+    orderNumber: string;
+    supplierId?: number | null;
+    supplierName?: string | null;
+    status: string;
+    orderDate?: string | null;
+    expectedDeliveryDate?: string | null;
+    totalAmount?: number | null;
+    [key: string]: any; // Für andere mögliche Felder
+  }>;
+  meta?: {
+    totalCount: number;
+    totalPages: number;
+    currentPage: number;
+    pageSize: number;
+  };
+}
+
 /**
  * Haupt-Komponente für die Bestellungen-Seite
  */
@@ -89,7 +110,7 @@ export default function OrdersNew() {
   const { toast } = useToast();
 
   // Daten abrufen
-  const { data: ordersResponse, isLoading, error } = useQuery({
+  const { data: ordersResponse, isLoading, error } = useQuery<OrdersResponse>({
     queryKey: ['/api/orders'],
     queryFn: () => getOrders(),
   });
@@ -100,7 +121,7 @@ export default function OrdersNew() {
   }
 
   // Funktion zum Navigieren zur richtigen Detailseite basierend auf Status
-  const handleOrderClick = (order: any) => {
+  const handleOrderClick = (order: OrdersResponse['data'][0]) => {
     try {
       const status = order.status?.toLowerCase();
       
@@ -133,8 +154,8 @@ export default function OrdersNew() {
         <CardContent>
           {isLoading ? (
             <div className="flex justify-center items-center py-8">
-              <Spinner />
-              <span className="ml-2">Bestellungen werden geladen...</span>
+              <Loader2 className="h-6 w-6 animate-spin mr-2" />
+              <span>Bestellungen werden geladen...</span>
             </div>
           ) : error ? (
             <div className="text-center py-8 text-destructive">
@@ -160,7 +181,7 @@ export default function OrdersNew() {
                     onClick={() => handleOrderClick(order)}
                   >
                     <TableCell className="font-medium">{order.orderNumber}</TableCell>
-                    <TableCell>{order.supplierName}</TableCell>
+                    <TableCell>{order.supplierName || "-"}</TableCell>
                     <TableCell>{formatDate(order.orderDate)}</TableCell>
                     <TableCell>{formatDate(order.expectedDeliveryDate)}</TableCell>
                     <TableCell>

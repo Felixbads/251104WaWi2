@@ -195,7 +195,11 @@ function AuthenticatedRouter() {
         )} />
 
         <Route path="/bestellungen">
-          <Redirect to="/bestellungen/neu-v2" />
+          {() => (
+            <ApprovedUserRoute>
+              <OrdersNew />
+            </ApprovedUserRoute>
+          )}
         </Route>
 
         <Route path="/bestellungen/neu">
