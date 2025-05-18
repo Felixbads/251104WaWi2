@@ -239,8 +239,21 @@ router.get('/orders', async (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'application/json');
     console.log("Sende Bestellungen-Daten zurück:", sanitizedData.length);
     
-    // Setze den Status auf 200 OK und sende direkt das Array zurück
-    res.status(200).json(sanitizedData);
+    // Strukturierte Antwort mit Metadaten und dem Daten-Array
+    const response = {
+      orders: sanitizedData,
+      pagination: {
+        total: totalCount,
+        pages: totalPages,
+        page: page,
+        limit: limit
+      },
+      statusCode: 200,
+      success: true
+    };
+    
+    // Setze den Status auf 200 OK und sende die strukturierte Antwort zurück
+    res.status(200).json(response);
   } catch (error) {
     console.error('Fehler beim Abrufen der Bestellungen:', error);
     res.status(500).json({ error: 'Fehler beim Abrufen der Bestellungen' });

@@ -208,19 +208,46 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
   // Verbesserte API-Antwort-Verarbeitung
   let data = [];
   
-  // 1. Wenn apiResponse selbst ein Array ist
-  if (Array.isArray(apiResponse)) {
-    data = apiResponse;
-    console.log("API-Antwort ist bereits ein Array mit", data.length, "Elementen");
-  } 
-  // 2. Wenn apiResponse.data ein Array ist
-  else if (apiResponse?.data && Array.isArray(apiResponse.data)) {
-    data = apiResponse.data;
-    console.log("API-Antwort.data ist ein Array mit", data.length, "Elementen");
-  }
-  // 3. Wenn der API-Response leer oder ungültig ist
-  else {
-    console.log("API-Antwort enthält keine nutzbaren Daten");
+  try {
+    // 1. Wenn apiResponse selbst ein Array ist
+    if (Array.isArray(apiResponse)) {
+      data = apiResponse;
+      console.log("API-Antwort ist bereits ein Array mit", data.length, "Elementen");
+    } 
+    // 2. Wenn apiResponse.data ein Array ist
+    else if (apiResponse?.data && Array.isArray(apiResponse.data)) {
+      data = apiResponse.data;
+      console.log("API-Antwort.data ist ein Array mit", data.length, "Elementen");
+    }
+    // 3. Wenn apiResponse.orders ein Array ist (alternative API-Struktur)
+    else if (apiResponse?.orders && Array.isArray(apiResponse.orders)) {
+      data = apiResponse.orders;
+      console.log("API-Antwort.orders ist ein Array mit", data.length, "Elementen");
+    }
+    // 4. Wenn apiResponse selbst ein Objekt ist, aber nicht die erwartete Struktur hat
+    else if (apiResponse && typeof apiResponse === 'object') {
+      // Suche nach einer Array-Eigenschaft im Objekt
+      const arrayProps = Object.entries(apiResponse)
+        .filter(([_, value]) => Array.isArray(value))
+        .map(([key, value]) => ({ key, length: (value as any[]).length }));
+      
+      if (arrayProps.length > 0) {
+        // Verwende das längste Array
+        const largestArrayProp = arrayProps.reduce((prev, current) => 
+          current.length > prev.length ? current : prev
+        );
+        data = apiResponse[largestArrayProp.key] as any[];
+        console.log(`Verwendete Array-Eigenschaft "${largestArrayProp.key}" mit ${data.length} Elementen`);
+      } else {
+        console.log("API-Antwort ist ein Objekt ohne Array-Eigenschaften");
+      }
+    }
+    // 5. Wenn der API-Response leer oder ungültig ist
+    else {
+      console.log("API-Antwort enthält keine nutzbaren Daten");
+    }
+  } catch (error) {
+    console.error("Fehler bei der Verarbeitung der API-Antwort:", error);
   }
   
   // Sortierfunktion
