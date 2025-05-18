@@ -323,7 +323,8 @@ router.post('/orders', async (req: Request, res: Response) => {
           locationName: warehouse.locationName,
           status: 'draft', // Entwurf
           orderDate: new Date(),
-          expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
+          // Ensure expectedDeliveryDate is always a valid date or omitted entirely
+          ...(expectedDeliveryDate ? { expectedDeliveryDate: new Date(expectedDeliveryDate) } : {}),
           notes,
           createdBy: userId,
           createdByName: userName,
