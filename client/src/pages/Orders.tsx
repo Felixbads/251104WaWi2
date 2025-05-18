@@ -89,7 +89,7 @@ import {
   Edit,
   Download,
   MoreVertical,
-  FileText,
+  Mail,
   Truck,
   Package,
   Clock,
@@ -872,7 +872,7 @@ export default function Orders() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openOrderDetail(order.id)}>
-                          <FileText className="h-4 w-4 mr-2" />
+                          <Mail className="h-4 w-4 mr-2" />
                           Details anzeigen
                         </DropdownMenuItem>
                         {(order.status === "ordered" || order.status === "partial") && (
@@ -989,7 +989,7 @@ export default function Orders() {
                   Lieferant
                 </TabsTrigger>
                 <TabsTrigger value="documents">
-                  <FileText className="h-4 w-4 mr-2" />
+                  <Mail className="h-4 w-4 mr-2" />
                   Dokumente
                 </TabsTrigger>
                 <TabsTrigger value="history">
@@ -1194,7 +1194,7 @@ export default function Orders() {
                           <Card key={index}>
                             <CardContent className="p-4 flex justify-between items-center">
                               <div className="flex items-center">
-                                <FileText className="h-5 w-5 mr-2 text-blue-500" />
+                                <Mail className="h-5 w-5 mr-2 text-blue-500" />
                                 <div>
                                   <p className="font-medium">{doc.filename}</p>
                                   <p className="text-sm text-muted-foreground">
