@@ -38,11 +38,15 @@ interface AdditionalInfoFormProps {
     priority: string;
     notes: string;
   }) => void;
+  onNext: () => void;
+  onBack: () => void;
 }
 
 const AdditionalInfoForm: React.FC<AdditionalInfoFormProps> = ({
   additionalInfo,
-  onAdditionalInfoChange
+  onAdditionalInfoChange,
+  onNext,
+  onBack
 }) => {
   // Update expected delivery date
   const handleDateChange = (date: Date | undefined) => {
@@ -137,6 +141,23 @@ const AdditionalInfoForm: React.FC<AdditionalInfoFormProps> = ({
             onChange={handleNotesChange}
             rows={5}
           />
+        </div>
+        
+        {/* Navigation Buttons */}
+        <div className="flex justify-between mt-6 pt-4 border-t">
+          <Button 
+            variant="outline" 
+            onClick={onBack}
+            type="button"
+          >
+            Zurück
+          </Button>
+          <Button 
+            onClick={onNext}
+            type="button"
+          >
+            Weiter
+          </Button>
         </div>
       </CardContent>
     </Card>

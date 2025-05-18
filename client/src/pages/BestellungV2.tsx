@@ -550,8 +550,8 @@ const BestellungV2: React.FC = () => {
       case 'additionalInfo':
         return (
           <AdditionalInfoForm
-            value={additionalInfo}
-            onChange={setAdditionalInfo}
+            additionalInfo={additionalInfo}
+            onAdditionalInfoChange={setAdditionalInfo}
             onNext={() => setStep('summary')}
             onBack={() => setStep('products')}
           />
