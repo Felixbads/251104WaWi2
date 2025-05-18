@@ -59,7 +59,7 @@ import {
   Clipboard,
   FileCheck,
   ShoppingBag,
-  FileText,
+  Mail,
   Eye,
   RotateCcw,
   Clock,
@@ -543,7 +543,7 @@ export default function RefillsTab({ warehouseId }: RefillsTabProps) {
                           )}
                           <DropdownMenuItem asChild>
                             <Link href={`/warehouse3/${warehouseId}/refills/${refill.id}/print`}>
-                              <FileText className="mr-2 h-4 w-4" /> Drucken
+                              <Mail className="mr-2 h-4 w-4" /> Drucken
                             </Link>
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
@@ -637,7 +637,7 @@ export default function RefillsTab({ warehouseId }: RefillsTabProps) {
         </div>
         <Link href={`/warehouse3/${warehouseId}/refills/report`}>
           <Button variant="outline" size="sm">
-            <FileText className="mr-2 h-4 w-4" /> Bericht erstellen
+            <Mail className="mr-2 h-4 w-4" /> Bericht erstellen
           </Button>
         </Link>
       </CardFooter>

@@ -72,7 +72,7 @@ import {
   Clock,
   XCircle,
   CalendarCheck,
-  FileText,
+  Mail,
   Eye,
   ArrowUpRightSquare,
   Trash2,
@@ -536,7 +536,7 @@ export default function InventoryCountTab({ warehouseId }: InventoryCountTabProp
                           <DropdownMenuSeparator />
                           <DropdownMenuItem asChild>
                             <Link href={`/warehouse3/${warehouseId}/counts/${count.id}/print`}>
-                              <FileText className="mr-2 h-4 w-4" /> Drucken
+                              <Mail className="mr-2 h-4 w-4" /> Drucken
                             </Link>
                           </DropdownMenuItem>
                           {count.status === 'pending' && (
@@ -628,7 +628,7 @@ export default function InventoryCountTab({ warehouseId }: InventoryCountTabProp
         </div>
         <Link href={`/warehouse3/${warehouseId}/counts/report`}>
           <Button variant="outline" size="sm">
-            <FileText className="mr-2 h-4 w-4" /> Inventurbericht
+            <Mail className="mr-2 h-4 w-4" /> Inventurbericht
           </Button>
         </Link>
       </CardFooter>
