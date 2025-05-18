@@ -250,6 +250,11 @@ router.get('/orders', async (req: Request, res: Response) => {
 // Bestellung erstellen
 router.post('/orders', async (req: Request, res: Response) => {
   try {
+    console.log("Neue Bestellung erhalten mit Daten:", JSON.stringify(req.body).substring(0, 200));
+    
+    // Explizit Content-Type Header für JSON setzen
+    res.setHeader('Content-Type', 'application/json');
+    
     const {
       warehouseId,
       supplierId,
@@ -431,6 +436,8 @@ router.post('/orders', async (req: Request, res: Response) => {
       // Vor dem Senden nochmals prüfen und sicherstellen, dass wir eine gültige JSON-Antwort haben
       console.log("Sende Bestellungsantwort als JSON:", JSON.stringify(orderResponse).substring(0, 100) + "...");
       
+      // Explizit den Content-Type headers nochmals setzen und sicherstellen, dass der Status 200 ist
+      res.setHeader('Content-Type', 'application/json');
       return res.status(200).json(orderResponse);
     } catch (storageError) {
       console.error('Fehler beim Speichern der Bestellung:', storageError);

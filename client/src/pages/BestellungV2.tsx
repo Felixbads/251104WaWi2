@@ -93,8 +93,44 @@ const BestellungV2: React.FC = () => {
   
   // Create order mutation
   const createOrderMutation = useMutation({
-    mutationFn: (orderData: any) => {
-      return apiRequest('/api/orders', orderData, 'post');
+    mutationFn: async (orderData: any) => {
+      console.log("Sende Bestellung an API mit direkt manueller Methode");
+      // Nutze fetch direkt um Fehlerbehandlung zu verbessern
+      const storedToken = localStorage.getItem('auth_token');
+      
+      try {
+        const response = await fetch('/api/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {})
+          },
+          body: JSON.stringify(orderData)
+        });
+        
+        // Prüfen ob die Antwort erfolgreich war
+        if (!response.ok) {
+          throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
+        }
+        
+        // Versuche JSON zu parsen
+        try {
+          const data = await response.json();
+          return data;
+        } catch (jsonError) {
+          console.warn("Fehler beim JSON-Parsen:", jsonError);
+          // Wenn kein gültiges JSON zurückgegeben wird, ein Ersatzobjekt erstellen
+          return {
+            id: null,
+            orderNumber: "Unbekannt",
+            success: true,
+            message: "Bestellung erstellt, aber Response konnte nicht geparst werden"
+          };
+        }
+      } catch (error) {
+        console.error("Fehler bei Bestellung:", error);
+        throw error;
+      }
     },
     onSuccess: (data) => {
       // Debugging zur Analyse der empfangenen Daten
@@ -111,12 +147,6 @@ const BestellungV2: React.FC = () => {
           title: 'Bestellung erfolgreich erstellt',
           description: `Bestellungsnummer: ${data.orderNumber}`,
         });
-        
-        // Invalidiere Abfragen, damit die Liste aktualisiert wird
-        queryClient.invalidateQueries({queryKey: orderKeys.lists()});
-        
-        // Direkt zum nächsten Schritt (E-Mail-Versand) wechseln
-        setStep("sendOrder");
       } else {
         console.warn("Unvollständige Daten vom Server erhalten:", data);
         
@@ -125,10 +155,10 @@ const BestellungV2: React.FC = () => {
           title: 'Bestellung erfolgreich erstellt',
           description: 'Die Bestellung wurde gespeichert.',
         });
-        
-        // Auch hier direkt zum E-Mail-Versand wechseln
-        setStep("sendOrder");
       }
+      
+      // Invalidiere Abfragen, damit die Liste aktualisiert wird
+      queryClient.invalidateQueries({queryKey: orderKeys.lists()});
       
       // Sicherstellen, dass selectedProducts zur Bestellung hinzugefügt wurden
       console.log("Bestellung erstellt. ID:", data?.id, "Nummer:", data?.orderNumber);
@@ -148,6 +178,9 @@ const BestellungV2: React.FC = () => {
       
       // Setze auf State für spätere Verwendung
       setExistingOrderData(orderWithProducts);
+      
+      // Direkt zum nächsten Schritt (E-Mail-Versand) wechseln
+      setStep("sendOrder");
       
       // Kurze Verzögerung vor der Weiterleitung
       setTimeout(() => {
