@@ -98,8 +98,8 @@ type OrderStep = 'overview' | 'warehouse' | 'supplier' | 'products' | 'additiona
 
 // Query-Keys für die Daten
 const orderKeys = {
-  lists: () => ['/api/orders'],
-  detail: (id: number) => ['/api/orders', id],
+  lists: () => ['/api/sql-orders'],  // Direkter SQL-Endpunkt für echte Daten
+  detail: (id: number) => ['/api/sql-orders', id],
 };
 
 // Interface für Produkt-Items in der Bestellung

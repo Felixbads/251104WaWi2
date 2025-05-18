@@ -64,9 +64,32 @@ app.use((req, res, next) => {
   // E-Mail-Vorlagen-Route hinzufügen
   app.use('/api/mail-templates', mailTemplatesRouter);
   
-  const dbDirectRouter = require('./routes/db-direct').default;
-  // Direkter Datenbankzugriff für die Bestellungen und andere Daten
-  app.use('/api', dbDirectRouter);
+  // SQL-Direktzugriff-Endpunkte für Datenbankabfragen
+  app.get('/api/sql-orders', async (req, res) => {
+    try {
+      const result = await pool.query('SELECT * FROM orders ORDER BY created_at DESC');
+      return res.json(result.rows);
+    } catch (error) {
+      console.error('Fehler beim SQL-Abrufen der Bestellungen:', error);
+      return res.status(500).json({ 
+        error: 'Datenbankfehler', 
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+      });
+    }
+  });
+
+  app.get('/api/sql-warehouses', async (req, res) => {
+    try {
+      const result = await pool.query('SELECT * FROM warehouses WHERE is_active = true ORDER BY name');
+      return res.json(result.rows);
+    } catch (error) {
+      console.error('Fehler beim SQL-Abrufen der Lager:', error);
+      return res.status(500).json({ 
+        error: 'Datenbankfehler', 
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+      });
+    }
+  });
   
   const server = await registerRoutes(app);
 
