@@ -200,4 +200,127 @@ router.get('/warehouses-direct', async (req, res) => {
   }
 });
 
+// Direkter Endpunkt zum Erstellen von Bestellungen
+router.post('/orders-direct', async (req, res) => {
+  try {
+    console.log('Erstelle Bestellung direkt in der Datenbank...');
+    console.log('Bestellungsdaten:', req.body);
+    
+    const {
+      supplierId,
+      supplierName,
+      warehouseId,
+      warehouseName,
+      expectedDeliveryDate,
+      products,
+      priority,
+      notes
+    } = req.body;
+    
+    if (!supplierId || !warehouseId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Fehlende Pflichtfelder',
+        message: 'Lieferanten-ID und Lager-ID sind erforderlich'
+      });
+    }
+    
+    // Generiere Bestellnummer
+    const now = new Date();
+    const formattedDate = now.toISOString().slice(0, 10).replace(/-/g, '');
+    const randomNumber = Math.floor(1000 + Math.random() * 9000);
+    const orderNumber = `ORD-${formattedDate.substring(2)}-${randomNumber}`;
+    
+    // Berechne Gesamtbetrag
+    let totalAmount = 0;
+    if (Array.isArray(products)) {
+      for (const product of products) {
+        if (product.price && product.quantity) {
+          totalAmount += Number(product.price) * Number(product.quantity);
+        }
+      }
+    }
+    
+    // Erstelle Bestellung in der Datenbank
+    const result = await pool.query(`
+      INSERT INTO orders (
+        order_number, 
+        supplier_id, 
+        supplier_name, 
+        location_id, 
+        location_name, 
+        status, 
+        order_date, 
+        expected_delivery_date, 
+        total_amount, 
+        currency, 
+        created_by_id,
+        created_by_name,
+        notes,
+        priority
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+      ) RETURNING *
+    `, [
+      orderNumber,
+      supplierId,
+      supplierName,
+      warehouseId,
+      warehouseName,
+      'draft', // Standardstatus für neue Bestellungen
+      now.toISOString(),
+      expectedDeliveryDate || null,
+      totalAmount,
+      'EUR', // Standardwährung
+      1, // Annahme: Admin-Benutzer mit ID 1
+      'System',
+      notes || '',
+      priority || 'normal'
+    ]);
+    
+    const order = result.rows[0];
+    
+    // Füge Bestellpositionen hinzu, wenn vorhanden
+    if (Array.isArray(products) && products.length > 0) {
+      for (const product of products) {
+        await pool.query(`
+          INSERT INTO order_items (
+            order_id,
+            product_id,
+            product_name,
+            quantity,
+            unit,
+            price,
+            total_price
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7
+          )
+        `, [
+          order.id,
+          product.id || null,
+          product.name || product.productName,
+          product.quantity || 0,
+          product.unit || 'Stück',
+          product.price || 0,
+          (product.price && product.quantity) ? product.price * product.quantity : 0
+        ]);
+      }
+    }
+    
+    return res.json({
+      success: true,
+      message: 'Bestellung erfolgreich erstellt',
+      data: order
+    });
+    
+  } catch (error) {
+    console.error('Fehler beim Erstellen der Bestellung:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Datenbankfehler',
+      message: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    });
+  }
+});
+
 export default router;
