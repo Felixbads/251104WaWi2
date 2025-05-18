@@ -26,7 +26,7 @@ import {
   CardContent
 } from "@/components/ui/card";
 import { apiRequest } from "@/lib/queryClient";
-import { Loader2, Mail, Download, Send, Eye } from "lucide-react";
+import { Loader2, Mail, Send } from "lucide-react";
 
 interface OrderEmailDialogProps {
   open: boolean;
@@ -35,16 +35,14 @@ interface OrderEmailDialogProps {
   supplierEmail?: string;
   orderNumber: string;
   supplierName: string;
-  pdfBlob?: Blob | null;
   onSendEmail?: (supplierEmail: string, additionalNotes: string) => void;
 }
 
 /**
- * Erweiterte E-Mail-Dialog-Komponente mit PDF-Vorschau
+ * Erweiterte E-Mail-Dialog-Komponente
  * 
  * Diese Komponente bietet:
  * - Auswahl aus verschiedenen E-Mail-Vorlagen
- * - Vorschau der PDF (falls verfügbar)
  * - Volle Bearbeitungsmöglichkeit des E-Mail-Textes
  * - Anpassung der E-Mail-Empfänger und Betreff
  */
@@ -55,7 +53,6 @@ const OrderEmailDialog: React.FC<OrderEmailDialogProps> = ({
   supplierEmail: initialSupplierEmail = "",
   orderNumber,
   supplierName,
-  pdfBlob,
   onSendEmail,
 }) => {
   const { toast } = useToast();
@@ -142,27 +139,7 @@ const OrderEmailDialog: React.FC<OrderEmailDialogProps> = ({
     });
   };
 
-  // PDF herunterladen
-  const handleDownloadPdf = () => {
-    if (pdfBlob) {
-      const url = URL.createObjectURL(pdfBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Bestellung_${orderNumber}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    }
-  };
-
-  // PDF in neuem Tab öffnen
-  const handleOpenPdfInNewTab = () => {
-    if (pdfBlob) {
-      const url = URL.createObjectURL(pdfBlob);
-      window.open(url, '_blank');
-    }
-  };
+  // Keine PDF-Funktionen mehr
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -174,116 +151,75 @@ const OrderEmailDialog: React.FC<OrderEmailDialogProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "edit" | "preview")} className="flex-1 overflow-hidden flex flex-col">
-          <div className="flex justify-between items-center mb-4">
-            <TabsList>
-              <TabsTrigger value="edit">E-Mail bearbeiten</TabsTrigger>
-              <TabsTrigger value="preview">PDF-Vorschau</TabsTrigger>
-            </TabsList>
-            
-            {pdfBlob && (
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={handleOpenPdfInNewTab}>
-                  <Eye className="h-4 w-4 mr-1" />
-                  In neuem Tab öffnen
-                </Button>
-                <Button variant="outline" size="sm" onClick={handleDownloadPdf}>
-                  <Download className="h-4 w-4 mr-1" />
-                  PDF herunterladen
-                </Button>
+        <div className="flex-1 overflow-auto border-0 p-0 m-0">
+          <div className="grid gap-4 py-2">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="email" className="text-right">
+                E-Mail-Adresse
+              </Label>
+              <Input
+                id="email"
+                value={supplierEmail}
+                onChange={(e) => setSupplierEmail(e.target.value)}
+                placeholder="lieferant@example.com"
+                className="col-span-3"
+              />
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="subject" className="text-right">
+                Betreff
+              </Label>
+              <Input
+                id="subject"
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+                className="col-span-3"
+              />
+            </div>
+
+            <div className="mb-4">
+              <Label>Vorlage auswählen</Label>
+              <Tabs
+                defaultValue="standard"
+                value={templateType}
+                onValueChange={handleTemplateChange}
+                className="w-full"
+              >
+                <TabsList className="grid w-full grid-cols-3 mt-2">
+                  <TabsTrigger value="standard">Standard</TabsTrigger>
+                  <TabsTrigger value="dringend">Dringend</TabsTrigger>
+                  <TabsTrigger value="nachbestellung">Nachbestellung</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+
+            {templateLoading ? (
+              <div className="flex items-center justify-center p-6">
+                <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                <p>Vorlage wird geladen...</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <Label htmlFor="emailContent" className="mb-2 block">
+                    E-Mail-Inhalt
+                  </Label>
+                  <Textarea
+                    id="emailContent"
+                    value={emailContent}
+                    onChange={(e) => setEmailContent(e.target.value)}
+                    className="min-h-[300px] font-mono text-sm"
+                    placeholder="E-Mail-Inhalt wird geladen..."
+                  />
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Der Platzhalter &#123;&#123;orderItems&#125;&#125; wird automatisch durch die Artikeltabelle ersetzt
+                  </p>
+                </div>
               </div>
             )}
           </div>
-
-          <TabsContent value="edit" className="flex-1 overflow-auto border-0 p-0 m-0">
-            <div className="grid gap-4 py-2">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="email" className="text-right">
-                  E-Mail-Adresse
-                </Label>
-                <Input
-                  id="email"
-                  value={supplierEmail}
-                  onChange={(e) => setSupplierEmail(e.target.value)}
-                  placeholder="lieferant@example.com"
-                  className="col-span-3"
-                />
-              </div>
-
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="subject" className="text-right">
-                  Betreff
-                </Label>
-                <Input
-                  id="subject"
-                  value={emailSubject}
-                  onChange={(e) => setEmailSubject(e.target.value)}
-                  className="col-span-3"
-                />
-              </div>
-
-              <div className="mb-4">
-                <Label>Vorlage auswählen</Label>
-                <Tabs
-                  defaultValue="standard"
-                  value={templateType}
-                  onValueChange={handleTemplateChange}
-                  className="w-full"
-                >
-                  <TabsList className="grid w-full grid-cols-3 mt-2">
-                    <TabsTrigger value="standard">Standard</TabsTrigger>
-                    <TabsTrigger value="dringend">Dringend</TabsTrigger>
-                    <TabsTrigger value="nachbestellung">Nachbestellung</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-
-              {templateLoading ? (
-                <div className="flex items-center justify-center p-6">
-                  <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                  <p>Vorlage wird geladen...</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
-                    <Label htmlFor="emailContent" className="mb-2 block">
-                      E-Mail-Inhalt
-                    </Label>
-                    <Textarea
-                      id="emailContent"
-                      value={emailContent}
-                      onChange={(e) => setEmailContent(e.target.value)}
-                      className="min-h-[300px] font-mono text-sm"
-                      placeholder="E-Mail-Inhalt wird geladen..."
-                    />
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Der Platzhalter &#123;&#123;orderItems&#125;&#125; wird automatisch durch die Artikeltabelle ersetzt
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="preview" className="flex-1 overflow-auto border-0 p-0 m-0">
-            {pdfBlob ? (
-              <div className="w-full h-full min-h-[400px] border rounded-md overflow-hidden">
-                <iframe 
-                  src={URL.createObjectURL(pdfBlob)} 
-                  className="w-full h-full" 
-                  title="PDF Vorschau"
-                />
-              </div>
-            ) : (
-              <Card className="h-full flex items-center justify-center min-h-[400px]">
-                <CardContent className="flex flex-col items-center justify-center p-6">
-                  <Loader2 className="h-10 w-10 animate-spin text-primary mb-4" />
-                  <p className="text-muted-foreground">PDF wird geladen...</p>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-        </Tabs>
+        </div>
 
         <DialogFooter className="gap-2 sm:justify-end mt-4">
           <DialogClose asChild>
