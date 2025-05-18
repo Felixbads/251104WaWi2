@@ -692,6 +692,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createOrder(data: Omit<InsertOrder, "id">): Promise<Order> {
+    console.log("Eingehende Bestellungsdaten:", JSON.stringify(data, null, 2));
+    
     // Datum-Felder sicher formatieren
     const cleanData = { ...data };
     
@@ -703,16 +705,31 @@ export class DatabaseStorage implements IStorage {
         try {
           // Wenn es bereits ein gültiges Date-Objekt ist, nichts tun
           if (cleanData[field] instanceof Date && !isNaN(cleanData[field].getTime())) {
+            console.log(`Feld ${field} ist bereits ein gültiges Date-Objekt`);
             // Bereits korrekt, lasse es unverändert
           } 
           // Wenn es ein String ist, konvertieren wir es in ein Date-Objekt
           else if (typeof cleanData[field] === 'string') {
-            const parsedDate = new Date(cleanData[field]);
-            if (!isNaN(parsedDate.getTime())) {
+            console.log(`Verarbeite String-Datum für ${field}: "${cleanData[field]}"`);
+            
+            // Bessere Validierung für YYYY-MM-DD Format
+            if (/^\d{4}-\d{2}-\d{2}$/.test(cleanData[field])) {
+              // Für YYYY-MM-DD Formate ist es besser, direkt ein neues Datum zu erstellen
+              const [year, month, day] = cleanData[field].split('-').map(Number);
+              // Monate in JavaScript sind 0-basiert
+              const parsedDate = new Date(year, month - 1, day);
+              console.log(`Parsen von YYYY-MM-DD für ${field}: ${year}-${month}-${day} -> ${parsedDate.toISOString()}`);
               cleanData[field] = parsedDate;
             } else {
-              console.warn(`Ungültiger Datumswert für ${field}: ${cleanData[field]}, setze auf null`);
-              cleanData[field] = null;
+              // Standard-Parsing für andere Formate
+              const parsedDate = new Date(cleanData[field]);
+              if (!isNaN(parsedDate.getTime())) {
+                console.log(`Standard-Parsen für ${field} erfolgreich: ${parsedDate.toISOString()}`);
+                cleanData[field] = parsedDate;
+              } else {
+                console.warn(`Ungültiger Datumswert für ${field}: ${cleanData[field]}, setze auf null`);
+                cleanData[field] = null;
+              }
             }
           } 
           // Alle anderen Typen werden auf null gesetzt
