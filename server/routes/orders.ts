@@ -762,6 +762,9 @@ router.get('/orders/:id/email-template', async (req: Request, res: Response) => 
       return res.status(400).json({ error: "Ungültige Bestellungs-ID" });
     }
 
+    // Die neue orderEmailUtils-Funktionen importieren
+    const { createOrderEmailTemplate } = await import('../utils/orderEmailUtils');
+    
     // Bestellung abrufen
     const orderData = await db
       .select()
@@ -789,15 +792,17 @@ router.get('/orders/:id/email-template', async (req: Request, res: Response) => 
       }
     }
 
-    // E-Mail-Vorlage erstellen
+    // E-Mail-Vorlage erstellen mit neuer Utility-Funktion
     const emailTemplate = createOrderEmailTemplate(order, supplier || {}, templateType);
 
     // E-Mail-Betreff erstellen
     let subject = "";
     switch (templateType) {
+      case "urgent":
       case "dringend":
         subject = `DRINGEND: Bestellung ${order.orderNumber} - ${order.supplierName || supplier?.name || 'Unbekannt'}`;
         break;
+      case "reorder":
       case "nachbestellung":
         subject = `Nachbestellung ${order.orderNumber} - ${order.supplierName || supplier?.name || 'Unbekannt'}`;
         break;
@@ -855,37 +860,38 @@ router.post('/orders/:id/send-email', async (req: Request, res: Response) => {
         
         // Bestellung als versandt markieren, wenn sie noch im Entwurfsstatus ist
         if (order.status === 'draft') {
-        // Bestehende Statushistorie konsistent verarbeiten
-        let currentHistory = [];
-        try {
-          if (order.statusHistory) {
-            if (typeof order.statusHistory === 'string') {
-              currentHistory = JSON.parse(order.statusHistory);
-            } else if (Array.isArray(order.statusHistory)) {
-              currentHistory = order.statusHistory;
+          // Bestehende Statushistorie konsistent verarbeiten
+          let currentHistory = [];
+          try {
+            if (order.statusHistory) {
+              if (typeof order.statusHistory === 'string') {
+                currentHistory = JSON.parse(order.statusHistory);
+              } else if (Array.isArray(order.statusHistory)) {
+                currentHistory = order.statusHistory;
+              }
             }
+          } catch (parseError) {
+            console.error("Fehler beim Parsen der Statushistorie:", parseError);
+            currentHistory = [];
           }
-        } catch (parseError) {
-          console.error("Fehler beim Parsen der Statushistorie:", parseError);
-          currentHistory = [];
+          
+          // Neuen Statuseintrag erstellen
+          const newStatusEntry = {
+            status: "sent",
+            timestamp: new Date().toISOString(),
+            note: "Bestellung per E-Mail an Lieferant gesendet"
+          };
+          
+          await db
+            .update(orders)
+            .set({
+              status: 'sent',
+              sentAt: new Date(),
+              updatedAt: new Date(),
+              statusHistory: JSON.stringify([...currentHistory, newStatusEntry])
+            })
+            .where(eq(orders.id, orderId));
         }
-        
-        // Neuen Statuseintrag erstellen
-        const newStatusEntry = {
-          status: "sent",
-          timestamp: new Date().toISOString(),
-          note: "Bestellung per E-Mail an Lieferant gesendet"
-        };
-        
-        await db
-          .update(orders)
-          .set({
-            status: 'sent',
-            sentAt: new Date(),
-            updatedAt: new Date(),
-            statusHistory: JSON.stringify([...currentHistory, newStatusEntry])
-          })
-          .where(eq(orders.id, orderId));
       }
       
       res.json({ 
