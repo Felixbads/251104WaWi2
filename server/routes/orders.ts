@@ -452,9 +452,27 @@ router.post('/orders', async (req: Request, res: Response) => {
       // Vor dem Senden nochmals prüfen und sicherstellen, dass wir eine gültige JSON-Antwort haben
       console.log("Sende Bestellungsantwort als JSON:", JSON.stringify(orderResponse).substring(0, 100) + "...");
       
-      // Explizit den Content-Type headers nochmals setzen und sicherstellen, dass der Status 200 ist
+      // Explizit den Content-Type headers setzen und eine saubere Antwort zurückgeben
       res.setHeader('Content-Type', 'application/json');
-      return res.status(200).json(orderResponse);
+      
+      // Statt direkt das komplexe orderResponse-Objekt zu senden, erstellen wir ein
+      // einfacheres Antwortformat, das weniger anfällig für Serialisierungsprobleme ist
+      return res.status(200).json({
+        success: true,
+        id: order.id,
+        orderNumber: order.orderNumber,
+        message: "Bestellung erfolgreich erstellt",
+        order: {
+          ...order,
+          items: orderItemsList.map(item => ({
+            id: item.id,
+            productId: item.productId,
+            quantity: item.quantity,
+            price: item.price,
+            discount: item.discount || 0
+          }))
+        }
+      });
     } catch (storageError) {
       console.error('Fehler beim Speichern der Bestellung:', storageError);
       return res.status(500).json({ 
@@ -547,7 +565,9 @@ router.get('/orders/:id', async (req: Request, res: Response) => {
     const vatAmount = subtotal * (vatRate / 100);
     const totalAmount = subtotal + vatAmount;
     
-    res.json({
+    // Setze explizit den Content-Type auf application/json
+    res.setHeader('Content-Type', 'application/json');
+    res.status(200).json({
       ...orderResult[0],
       items: orderItemsResult,
       supplier,
