@@ -60,7 +60,7 @@ import {
   X,
   Check,
   Plus,
-  FileText
+  Mail
 } from "lucide-react";
 
 // API-Funktion zum Speichern des Wareneingangs
@@ -428,7 +428,7 @@ export default function ReceiveOrderDialog({
                 value="summary" 
                 className="flex items-center data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full"
               >
-                <FileText className="h-4 w-4 mr-2" />
+                <Mail className="h-4 w-4 mr-2" />
                 <span className="hidden sm:inline">Zusammenfassung</span>
                 <span className="sm:hidden">Übersicht</span>
               </TabsTrigger>
@@ -515,7 +515,7 @@ export default function ReceiveOrderDialog({
                 <Card>
                   <CardHeader className="p-3">
                     <CardTitle className="text-sm font-medium flex items-center">
-                      <FileText className="h-4 w-4 mr-2" />
+                      <Mail className="h-4 w-4 mr-2" />
                       Chargennummern
                     </CardTitle>
                     <CardDescription className="text-xs">
