@@ -224,9 +224,20 @@ router.get('/orders', async (req: Request, res: Response) => {
     // Berechne die Gesamtanzahl an Seiten
     const totalPages = Math.ceil(totalCount / limit);
     
+    // Daten-Sanitization für Datumsfelder, um Fehler beim Parsen zu vermeiden
+    const sanitizedData = data.map(order => {
+      // Fallback für erwartetes Lieferdatum (häufigste Fehlerquelle)
+      if (order.expectedDeliveryDate === null || order.expectedDeliveryDate === undefined) {
+        // In diesem Fall entfernen wir das Feld komplett statt null zu haben
+        const { expectedDeliveryDate, ...rest } = order;
+        return rest;
+      }
+      return order;
+    });
+    
     // Sende die Ergebnisse zurück
     res.json({
-      data,
+      data: sanitizedData,
       meta: {
         totalCount,
         totalPages,
