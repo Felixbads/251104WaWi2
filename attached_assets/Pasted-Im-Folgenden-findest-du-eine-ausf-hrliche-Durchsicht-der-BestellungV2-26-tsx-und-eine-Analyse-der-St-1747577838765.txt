@@ -1,0 +1,128 @@
+Im Folgenden findest du eine ausführliche Durchsicht der BestellungV2-26.tsx und eine Analyse der Stelle(n), an denen die Meldung
+
+„The string did not match the expected pattern.“
+
+erzielt wird – sowohl beim Anlegen einer neuen Bestellung als auch beim Laden der Bestell­übersicht.
+
+⸻
+
+1. Grundlegender Aufbau der Komponente
+	1.	Importe & Hooks
+Die Komponente verwendet React, TanStack Query (useQuery, useMutation), einen apiRequest-Wrapper für HTTP-Aufrufe, verschiedene UI-Komponenten und eigene Hooks (z. B. useToast) sowie orderKeys, supplierKeys usw. für die Query-Keys.
+	2.	State-Maschinen-Logik
+Über den State step: OrderStep werden verschiedene Schritte („overview“, „warehouse“, „supplier“, „products“, „additionalInfo“, „create“, „sendOrder“ …) gesteuert. Je nach step wird jeweils ein anderes Unterformular oder die Übersicht gerendert.
+	3.	Datenabruf und -mutationen
+	•	Fetching einer existierenden Bestellung (nur, wenn orderId gesetzt):
+
+useQuery({
+  queryKey: orderKeys.detail(orderId),
+  queryFn: () => apiRequest(`/api/orders/${orderId}`),
+  enabled: !!orderId,
+});
+
+
+	•	Mutation zum Anlegen
+
+const createOrderMutation = useMutation({
+  mutationFn: (orderData: any) =>
+    apiRequest('/api/orders', orderData, 'post'),
+  onError: (error) => toast({ description: error.message }),
+  /* onSuccess invalidiert orderKeys.lists() … */
+});
+
+
+
+⸻
+
+2. Wo und warum der Pattern-Fehler auftritt
+
+Die Server-Antwort mit „The string did not match the expected pattern.“ ist eine Validierungs­fehlermeldung, die vom Backend kommt – typischerweise ausgelöst durch eine Schema- oder Regex-Prüfung einer oder mehrerer übertragener String-Eigenschaften.
+
+In unserem Client-Code stechen insbesondere zwei Kandidaten ins Auge:
+
+2.1. Das Lieferdatum (expectedDeliveryDate)
+
+// Vorbereitung in onCreateOrder
+let formattedDeliveryDate;
+if (additionalInfo?.expectedDeliveryDate) {
+  const date = additionalInfo.expectedDeliveryDate;        // JavaScript-Date-Objekt
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  formattedDeliveryDate = `${year}-${month}-${day}`;       // z. B. "2025-05-19"
+}
+
+createOrderMutation.mutate({
+  warehouseId,
+  supplierId,
+  expectedDeliveryDate: formattedDeliveryDate,
+  orderDate: new Date().toISOString().split('T')[0],        // z. B. "2025-05-18"
+  items: selectedProducts.map(…),
+  priority: …,
+  notes: …,
+});
+
+	•	Problem:
+Wenn der Nutzer kein Datum auswählt, bleibt formattedDeliveryDate undefiniert. Dann enthält das JSON entweder gar keinen expectedDeliveryDate-Eintrag (je nach Serialisierung) oder einen Wert undefined.
+	•	Folge:
+Das Backend erwartet laut Schema vermutlich eine Zeichenkette im Format YYYY-MM-DD (also z. B. /^\d{4}-\d{2}-\d{2}$/). Ein fehlender oder falscher Wert bricht diese Prüfung und führt genau zur Meldung
+„The string did not match the expected pattern.“
+
+Lösung:
+	•	Entweder ein Pflichtfeld fürs Lieferdatum erzwingen,
+	•	oder formattedDeliveryDate immer mitliefern (z. B. default auf orderDate oder null) und im Backend optional behandeln.
+	•	Vor dem Absenden clientseitig prüfen, dass formattedDeliveryDate ein valider Date-String ist.
+
+⸻
+
+2.2. Die Positionen (items)
+
+items: selectedProducts.map(product => ({
+  productId:   Number(product.id),              // ggf. NaN, wenn id kein numerischer String
+  quantity:    Number(product.orderQuantity),   // NaN oder 0
+  price:       Number(product.price),           // …
+  discountPercent: 0,
+  notes:       product.orderNotes || ''
+}))
+
+	•	Mögliche Muster–Fehlerquellen:
+	1.	productId: Falls product.id gar kein numerischer String ist (z. B. GUID oder leerer Wert), liefert Number(...) NaN. Dieses wird zu "NaN" serialisiert und passt zu keinem Integer-Pattern.
+	2.	quantity oder price: Analog zu NaN oder leeren Strings.
+	•	Folge:
+Eine Schema-Validierung auf der Serverseite, die z. B. ^\d+$ für IDs und Mengen verlangt, bricht ebenfalls mit exakt demselben Muster-Fehler.
+
+Lösung:
+	•	Vor der Mutation sicherstellen, dass product.id, orderQuantity und price gültige Numerics sind (z. B. mit isNaN oder Number.isInteger).
+	•	Fehlermeldung anzeigen, wenn eine Position fehlerhafte Eingaben enthält.
+
+⸻
+
+3. Warum die Übersicht leer ist („Fehler beim Laden der Bestellungen“)
+
+Der Fehlertext stammt vermutlich aus der OrdersOverview-Komponente beim Ausführen von
+
+useQuery({
+  queryKey: orderKeys.lists(),
+  queryFn: () => apiRequest('/api/orders'),
+  onError: () => toast({ title: 'Fehler beim Laden der Bestellungen', description: error.message }),
+});
+
+Da dieselbe Validierung im Backend für GET /api/orders nicht anders behandelt wird, liefert der Server bereits beim Ausliefern der Liste einen Validierungs­fehler – weil z. B. ein Datumsfeld oder ein GUID-Feld in mindestens einem vorhandenen Datensatz in der Datenbank nicht der erwarteten Regex entspricht. Darum schlägt schon das Abrufen fehl.
+
+⸻
+
+4. Zusammenfassung & Empfehlungen
+	1.	Client-seitige Validierung verstärken
+	•	Unbedingt prüfen, dass alle Strings, die server-seitig per Regex geprüft werden, dem Muster entsprechen
+	•	insbesondere Datum (YYYY-MM-DD)
+	•	IDs/Mengen (^\d+$)
+	2.	Fehlendes Datum automatisch füllen oder als Pflichtfeld markieren
+	•	Entweder immer expectedDeliveryDate setzen,
+	•	oder dem Nutzer die Auswahl aufzwingen.
+	3.	Logging & Netzwerk-Analyse
+	•	Nutze die Browser-Console (bereits im Code: console.log("Vorbereitete Bestelldaten:", …)) und die DevTools-Netzwerkanalyse, um Payload und HTTP-Antwort zu inspizieren.
+	•	Der Server-Response-Body enthält meist ein JSON mit Details, welches Feld genau die Pattern-Validation verletzt.
+	4.	Backend-Schema prüfen
+	•	Schaue ins Backend-Schema (z. B. OpenAPI/Swagger oder Zod/Yup-Definition), welche Felder welche Regex erwarten, und passe Client-Code entsprechend an.
+
+Mit diesen Schritten solltest du den exakten Parameter identifizieren, der nicht dem erwarteten Muster entspricht, und den Fehler dauerhaft beheben können.

@@ -67,7 +67,6 @@ import Suppliers from "@/pages/Suppliers";
 import SupplierDetail from "@/pages/SupplierDetail";
 import Reporting from "@/pages/Reporting";
 import Orders from "@/pages/Orders";
-import OrdersNew from "@/pages/OrdersNew";
 import NewOrder from "@/pages/NewOrder";
 import BestellungV2 from "@/pages/BestellungV2"; // Neue Bestellung 2.0 Seite
 import OrderDetail from "@/pages/OrderDetail";
@@ -195,11 +194,7 @@ function AuthenticatedRouter() {
         )} />
 
         <Route path="/bestellungen">
-          {() => (
-            <ApprovedUserRoute>
-              <OrdersNew />
-            </ApprovedUserRoute>
-          )}
+          <Redirect to="/bestellungen/neu-v2" />
         </Route>
 
         <Route path="/bestellungen/neu">
@@ -208,7 +203,7 @@ function AuthenticatedRouter() {
 
         <Route path="/bestellungen/neu-v2" component={props => (
           <ApprovedUserRoute>
-            <OrdersNew />
+            <BestellungV2 {...props} />
           </ApprovedUserRoute>
         )} />
 

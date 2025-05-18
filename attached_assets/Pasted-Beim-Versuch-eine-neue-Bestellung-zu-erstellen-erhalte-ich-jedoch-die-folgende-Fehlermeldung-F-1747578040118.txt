@@ -1,0 +1,43 @@
+Beim Versuch, eine neue Bestellung zu erstellen, erhalte ich jedoch die folgende Fehlermeldung:
+
+**Fehler beim Erstellen der Bestellung:**
+`The string did not match the expected pattern.`
+
+Zusätzlich wird in der Übersicht aller Bestellungen keine einzige Bestellung angezeigt – stattdessen erscheint:
+**Fehler beim Laden der Bestellungen:**
+`The string did not match the expected pattern.`
+
+Bitte analysiere die Datei mit Fokus auf folgenden Punkten:
+
+---
+
+### ✅ **Untersuchungsschwerpunkte**
+
+1. **Welche Felder werden beim Erstellen einer Bestellung an den Server gesendet?**
+   - Bitte prüfe insbesondere: `expectedDeliveryDate`, `orderDate`, `items`, `productId`, `quantity`, `price`.
+
+2. **Welche Felder könnten gegen ein typisches Regex-Muster verstoßen (z. B. Datum `YYYY-MM-DD` oder Integer-Felder wie `^\d+$`)?**
+   - Achte darauf, ob Felder leer, `undefined`, `NaN` oder in falschem Format sein könnten.
+
+3. **Gibt es clientseitige Validierungen, die unzureichend sind und dadurch zu ungültigen Werten führen?**
+   - Z. B. kein Pflichtfeld für das Lieferdatum oder fehlerhafte Konvertierung von Produkt-IDs.
+
+4. **Prüfe die Mutation `createOrderMutation` und deren Payload genau – was könnte hier zu einer Schema-Validierung im Backend führen?**
+
+5. **Untersuche auch den Datenabruf in der Bestellübersicht (GET `/api/orders`) – könnte ein bestehender ungültiger Datensatz den Fehler verursachen?**
+
+6. **Bitte identifiziere den exakten Pfad oder Feldnamen, der mit hoher Wahrscheinlichkeit die Pattern-Mismatch-Meldung verursacht.**
+
+---
+
+### 🧩 Ziel
+
+Am Ende möchte ich wissen:
+
+- Welche konkreten Felder müssen im Client anders behandelt werden?
+- Wo genau im Code (Zeilennummer oder Funktionsname) ist die Änderung erforderlich?
+- Welche serverseitigen Pattern-Vorgaben (z. B. Regex für Datum, Integer) könnten verletzt sein?
+
+---
+
+Verhalte dich wie ein sorgfältiger Code-Reviewer und prüfe nicht nur die Mutations-Funktion, sondern auch die Konstruktion der Payloads und das Mapping von Datenfeldern in den Zwischenschritten des Bestellprozesses.

@@ -645,34 +645,19 @@ export class DatabaseStorage implements IStorage {
     try {
       const result = await db.select().from(orders).orderBy(desc(orders.orderDate));
       
-      // Verbesserte Datumsformatierung mit Fehlerbehandlung
+      // Sicherstellen, dass Datumswerte korrekt formatiert sind
       return result.map(order => {
-        // Hilfsfunktion für sichere Datumsformatierung
-        const safeFormatDate = (dateValue: any): string | null => {
-          if (!dateValue) return null;
-          try {
-            // Versuche, das Datum zu parsen
-            const date = new Date(dateValue);
-            // Prüfe, ob das Datum gültig ist
-            if (isNaN(date.getTime())) {
-              console.warn(`Ungültiges Datum: ${dateValue}`);
-              return null;
-            }
-            // Formatierung als YYYY-MM-DD
-            return date.toISOString().split('T')[0];
-          } catch (err) {
-            console.error(`Fehler bei der Datumsformatierung für Wert: ${dateValue}`, err);
-            return null;
-          }
-        };
-
         return {
           ...order,
-          orderDate: safeFormatDate(order.orderDate),
-          expectedDeliveryDate: safeFormatDate(order.expectedDeliveryDate),
-          deliveryDate: safeFormatDate(order.deliveryDate),
-          createdAt: safeFormatDate(order.createdAt),
-          updatedAt: safeFormatDate(order.updatedAt)
+          orderDate: order.orderDate ? new Date(order.orderDate).toISOString().split('T')[0] : null,
+          expectedDeliveryDate: order.expectedDeliveryDate ? 
+            new Date(order.expectedDeliveryDate).toISOString().split('T')[0] : null,
+          deliveryDate: order.deliveryDate ? 
+            new Date(order.deliveryDate).toISOString().split('T')[0] : null,
+          createdAt: order.createdAt ? 
+            new Date(order.createdAt).toISOString().split('T')[0] : null,
+          updatedAt: order.updatedAt ? 
+            new Date(order.updatedAt).toISOString().split('T')[0] : null
         };
       });
     } catch (error) {
@@ -707,7 +692,7 @@ export class DatabaseStorage implements IStorage {
             
             return {
               ...item,
-              productName: product ? product.productName : "Unbekanntes Produkt",
+              productName: product ? product.name : "Unbekanntes Produkt",
               productNumber: product ? product.productNumber : "",
               unit: item.unit || (product ? product.unit : "Stk.")
             };
@@ -716,35 +701,10 @@ export class DatabaseStorage implements IStorage {
         })
       );
       
-      // Hilfsfunktion für sichere Datumsformatierung
-      const safeFormatDate = (dateValue: any): string | null => {
-        if (!dateValue) return null;
-        try {
-          // Versuche, das Datum zu parsen
-          const date = new Date(dateValue);
-          // Prüfe, ob das Datum gültig ist
-          if (isNaN(date.getTime())) {
-            console.warn(`Ungültiges Datum in getOrder: ${dateValue}`);
-            return null;
-          }
-          // Formatierung als YYYY-MM-DD
-          return date.toISOString().split('T')[0];
-        } catch (err) {
-          console.error(`Fehler bei der Datumsformatierung für Wert: ${dateValue}`, err);
-          return null;
-        }
-      };
-      
       // Vollständige Bestellinformationen zurückgeben
       return {
         ...order,
-        orderItems: itemsWithProductDetails,
-        // Robuste Formatierung der Datumsfelder
-        orderDate: safeFormatDate(order.orderDate),
-        expectedDeliveryDate: safeFormatDate(order.expectedDeliveryDate),
-        deliveryDate: safeFormatDate(order.deliveryDate),
-        createdAt: safeFormatDate(order.createdAt),
-        updatedAt: safeFormatDate(order.updatedAt)
+        orderItems: itemsWithProductDetails
       };
     } catch (error) {
       console.error("Fehler beim Abrufen der Bestellung:", error);
