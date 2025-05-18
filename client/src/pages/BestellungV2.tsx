@@ -165,6 +165,22 @@ const BestellungV2: React.FC = () => {
         setOrderNumber(data.orderNumber || '');
         setExistingOrderData(data);
         
+        // Bestellungsdaten anreichern mit ausgewählten Produkten
+        if (selectedProducts && selectedProducts.length > 0) {
+          console.log("Füge ausgewählte Produkte zu Bestellungsdaten hinzu:", selectedProducts.length);
+          const enrichedOrderData = {
+            ...data,
+            items: selectedProducts.map(product => ({
+              productId: product.id,
+              productName: product.name || product.productName,
+              quantity: product.orderQuantity || 1,
+              price: product.price || 0,
+              unit: product.unit || 'Stk.'
+            }))
+          };
+          setExistingOrderData(enrichedOrderData);
+        }
+        
         // Toast mit der tatsächlichen Bestellnummer anzeigen
         toast({
           title: 'Bestellung erfolgreich erstellt',
@@ -173,11 +189,42 @@ const BestellungV2: React.FC = () => {
         
         // Zum E-Mail-Versand-Schritt wechseln
         setStep('sendOrder');
+        
+        // Zusätzliche API-Anfrage um sicherzustellen, dass die Bestellungsdaten vollständig sind
+        if (data.id) {
+          console.log("Lade vollständige Bestellungsdaten für ID:", data.id);
+          apiRequest(`/api/orders/${data.id}`)
+            .then(orderData => {
+              if (orderData && orderData.id) {
+                console.log("Vollständige Bestellungsdaten geladen:", orderData);
+                setExistingOrderData(orderData);
+              }
+            })
+            .catch(err => {
+              console.warn("Fehler beim Laden der vollständigen Bestellungsdaten:", err);
+            });
+        }
       } else if (data && data.order && data.order.id) {
         // Geschachteltes Format mit order-Objekt
         setOrderId(data.order.id);
         setOrderNumber(data.order.orderNumber || '');
         setExistingOrderData(data.order);
+        
+        // Bestellungsdaten anreichern mit ausgewählten Produkten
+        if (selectedProducts && selectedProducts.length > 0) {
+          console.log("Füge ausgewählte Produkte zu Bestellungsdaten hinzu:", selectedProducts.length);
+          const enrichedOrderData = {
+            ...data.order,
+            items: selectedProducts.map(product => ({
+              productId: product.id,
+              productName: product.name || product.productName,
+              quantity: product.orderQuantity || 1,
+              price: product.price || 0,
+              unit: product.unit || 'Stk.'
+            }))
+          };
+          setExistingOrderData(enrichedOrderData);
+        }
         
         // Toast mit der tatsächlichen Bestellnummer anzeigen
         toast({
@@ -186,15 +233,33 @@ const BestellungV2: React.FC = () => {
         });
         
         // Zum E-Mail-Versand-Schritt wechseln
-        setStep('sendOrder');  
+        setStep('sendOrder');
+        
+        // Zusätzliche API-Anfrage um sicherzustellen, dass die Bestellungsdaten vollständig sind
+        if (data.order.id) {
+          console.log("Lade vollständige Bestellungsdaten für ID:", data.order.id);
+          apiRequest(`/api/orders/${data.order.id}`)
+            .then(orderData => {
+              if (orderData && orderData.id) {
+                console.log("Vollständige Bestellungsdaten geladen:", orderData);
+                setExistingOrderData(orderData);
+              }
+            })
+            .catch(err => {
+              console.warn("Fehler beim Laden der vollständigen Bestellungsdaten:", err);
+            });
+        }
       } else if (data && data.success) {
         console.warn("Erfolgsmeldung, aber unvollständige Daten vom Server erhalten:", data);
         
-        // Fallback-Toast mit einer allgemeinen Erfolgsmeldung
+        // Bei Erfolg ohne ID Bestellungsliste neu laden und zurück zur Übersicht
         toast({
           title: 'Bestellung erfolgreich erstellt',
           description: data.message || 'Die Bestellung wurde gespeichert.',
         });
+        
+        // Cache unbedingt invalidieren, damit neue Bestellungen angezeigt werden
+        queryClient.invalidateQueries({queryKey: orderKeys.lists()});
         
         // Zur Übersicht zurückkehren
         setStep('overview');
@@ -207,6 +272,9 @@ const BestellungV2: React.FC = () => {
           description: 'Die Bestellung wurde möglicherweise gespeichert. Bitte prüfen Sie die Übersicht.',
           variant: 'default'
         });
+        
+        // Cache unbedingt invalidieren, damit neue Bestellungen angezeigt werden
+        queryClient.invalidateQueries({queryKey: orderKeys.lists()});
         
         // Zur Übersicht zurückkehren
         setStep('overview');
@@ -314,11 +382,11 @@ const BestellungV2: React.FC = () => {
     }
   });
   
-  // Liste aller Bestellungen für die Übersicht laden
+  // Liste aller Bestellungen für die Übersicht laden - immer aktiv für korrekte Aktualisierung
   const { data: ordersList, isLoading: isLoadingOrdersList } = useQuery({
     queryKey: orderKeys.lists(),
-    queryFn: () => apiRequest('/api/orders'),
-    enabled: step === 'overview' // Nur laden, wenn die Übersicht angezeigt wird
+    queryFn: () => apiRequest('/api/orders')
+    // enabled: step === 'overview' - entfernt, damit die Liste immer geladen wird, auch nach Statusänderungen
   });
   
   // Fetch order data if editing an existing order
