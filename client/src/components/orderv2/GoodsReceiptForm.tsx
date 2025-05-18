@@ -30,7 +30,7 @@ import {
   CalendarCheck, 
   Loader2,
   Save,
-  FileText,
+  Mail,
   Camera,
   X
 } from 'lucide-react';
@@ -245,7 +245,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
           <label className="text-sm font-medium">Dokumente hochladen (Lieferschein, Fotos, etc.)</label>
           <div className="flex items-center gap-2">
             <Button variant="outline" className="w-full sm:w-auto" onClick={() => document.getElementById('document-upload')?.click()}>
-              <FileText className="mr-2 h-4 w-4" />
+              <Mail className="mr-2 h-4 w-4" />
               Dokument hinzufügen
             </Button>
             <Button variant="outline" className="w-full sm:w-auto" onClick={() => document.getElementById('photo-upload')?.click()}>
@@ -279,7 +279,7 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                     {doc.type.startsWith('image/') ? (
                       <Camera className="h-3 w-3" />
                     ) : (
-                      <FileText className="h-3 w-3" />
+                      <Mail className="h-3 w-3" />
                     )}
                     <span className="max-w-[200px] truncate">{doc.name}</span>
                     <button 

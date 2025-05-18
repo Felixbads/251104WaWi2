@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FileText, Download, Trash2, Upload, Plus, Eye } from 'lucide-react';
+import { Mail, Download, Trash2, Upload, Plus, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -169,7 +169,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
                     }`}
                     onClick={() => handleViewDocument(doc)}
                   >
-                    <FileText className="h-5 w-5 mr-3 text-muted-foreground flex-shrink-0 mt-0.5" />
+                    <Mail className="h-5 w-5 mr-3 text-muted-foreground flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">{doc.name}</p>
                       <div className="flex items-center justify-between mt-1">
