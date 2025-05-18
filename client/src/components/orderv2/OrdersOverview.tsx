@@ -202,7 +202,11 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
   });
   
   // Daten aus der API-Antwort extrahieren
-  const data = apiResponse?.data;
+  console.log("API-Antwort:", apiResponse);
+  // Wenn apiResponse.data ein Array ist, verwende es direkt, 
+  // andernfalls prüfe, ob apiResponse selbst ein Array ist oder gebe einen leeren Array zurück
+  const data = Array.isArray(apiResponse?.data) ? apiResponse.data : 
+               Array.isArray(apiResponse) ? apiResponse : [];
   
   // Sortierfunktion
   const handleSort = (field: string) => {
