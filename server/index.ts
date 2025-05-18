@@ -64,6 +64,10 @@ app.use((req, res, next) => {
   // E-Mail-Vorlagen-Route hinzufügen
   app.use('/api/mail-templates', mailTemplatesRouter);
   
+  const dbDirectRouter = require('./routes/db-direct').default;
+  // Direkter Datenbankzugriff für die Bestellungen und andere Daten
+  app.use('/api', dbDirectRouter);
+  
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

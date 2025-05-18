@@ -3,13 +3,13 @@ import { pool } from '../db';
 
 const router = Router();
 
-// SQL-Direktzugriff-Endpunkt für echte Datenbankdaten
-router.get('/sql-orders', async (req, res) => {
+// Direkte Bestellungsdaten aus der Datenbank abrufen
+router.get('/direct-orders', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM orders ORDER BY created_at DESC');
     return res.json(result.rows);
   } catch (error) {
-    console.error('Fehler beim SQL-Abrufen der Bestellungen:', error);
+    console.error('Fehler beim Abrufen der Bestellungen:', error);
     return res.status(500).json({ 
       error: 'Datenbankfehler', 
       message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
@@ -17,12 +17,13 @@ router.get('/sql-orders', async (req, res) => {
   }
 });
 
-router.get('/sql-warehouses', async (req, res) => {
+// Direkte Lagerdaten aus der Datenbank abrufen
+router.get('/direct-warehouses', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM warehouses WHERE is_active = true ORDER BY name');
     return res.json(result.rows);
   } catch (error) {
-    console.error('Fehler beim SQL-Abrufen der Lager:', error);
+    console.error('Fehler beim Abrufen der Lager:', error);
     return res.status(500).json({ 
       error: 'Datenbankfehler', 
       message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
@@ -30,12 +31,13 @@ router.get('/sql-warehouses', async (req, res) => {
   }
 });
 
-router.get('/sql-suppliers', async (req, res) => {
+// Direkte Lieferantendaten aus der Datenbank abrufen
+router.get('/direct-suppliers', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM suppliers WHERE is_active = true ORDER BY name');
     return res.json(result.rows);
   } catch (error) {
-    console.error('Fehler beim SQL-Abrufen der Lieferanten:', error);
+    console.error('Fehler beim Abrufen der Lieferanten:', error);
     return res.status(500).json({ 
       error: 'Datenbankfehler', 
       message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
