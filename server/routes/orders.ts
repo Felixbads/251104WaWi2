@@ -235,9 +235,12 @@ router.get('/orders', async (req: Request, res: Response) => {
       return order;
     });
     
-    // Sende die Ergebnisse direkt zurück ohne Wrapper-Objekt für bessere Kompatibilität mit Frontend
+    // Setze explizit Content-Type Header für JSON-Antwort
+    res.setHeader('Content-Type', 'application/json');
     console.log("Sende Bestellungen-Daten zurück:", sanitizedData.length);
-    res.json(sanitizedData);
+    
+    // Setze den Status auf 200 OK und sende direkt das Array zurück
+    res.status(200).json(sanitizedData);
   } catch (error) {
     console.error('Fehler beim Abrufen der Bestellungen:', error);
     res.status(500).json({ error: 'Fehler beim Abrufen der Bestellungen' });
@@ -419,10 +422,16 @@ router.post('/orders', async (req: Request, res: Response) => {
         itemCount: orderItemsResult.length
       });
       
-      res.status(200).json({
+      // Die fertige Bestellung mit allen Positionen zurückgeben (als einfaches Objekt ohne Wrapper)
+      const orderResponse = {
         ...newOrder,
         items: orderItemsResult
-      });
+      };
+      
+      // Vor dem Senden nochmals prüfen und sicherstellen, dass wir eine gültige JSON-Antwort haben
+      console.log("Sende Bestellungsantwort als JSON:", JSON.stringify(orderResponse).substring(0, 100) + "...");
+      
+      return res.status(200).json(orderResponse);
     } catch (storageError) {
       console.error('Fehler beim Speichern der Bestellung:', storageError);
       return res.status(500).json({ 

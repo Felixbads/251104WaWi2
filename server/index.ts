@@ -23,6 +23,11 @@ app.use((req, res, next) => {
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
+  // Setze explizit den Content-Type für API-Anfragen
+  if (req.path.startsWith('/api')) {
+    res.setHeader('Content-Type', 'application/json');
+  }
+
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
     capturedJsonResponse = bodyJson;

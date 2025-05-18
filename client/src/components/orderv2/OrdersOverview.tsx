@@ -203,10 +203,25 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
   
   // Daten aus der API-Antwort extrahieren
   console.log("API-Antwort:", apiResponse);
-  // Wenn apiResponse.data ein Array ist, verwende es direkt, 
-  // andernfalls prüfe, ob apiResponse selbst ein Array ist oder gebe einen leeren Array zurück
-  const data = Array.isArray(apiResponse?.data) ? apiResponse.data : 
-               Array.isArray(apiResponse) ? apiResponse : [];
+  console.log("API-Antwort Typ:", typeof apiResponse);
+  
+  // Verbesserte API-Antwort-Verarbeitung
+  let data = [];
+  
+  // 1. Wenn apiResponse selbst ein Array ist
+  if (Array.isArray(apiResponse)) {
+    data = apiResponse;
+    console.log("API-Antwort ist bereits ein Array mit", data.length, "Elementen");
+  } 
+  // 2. Wenn apiResponse.data ein Array ist
+  else if (apiResponse?.data && Array.isArray(apiResponse.data)) {
+    data = apiResponse.data;
+    console.log("API-Antwort.data ist ein Array mit", data.length, "Elementen");
+  }
+  // 3. Wenn der API-Response leer oder ungültig ist
+  else {
+    console.log("API-Antwort enthält keine nutzbaren Daten");
+  }
   
   // Sortierfunktion
   const handleSort = (field: string) => {
