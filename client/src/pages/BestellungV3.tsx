@@ -152,88 +152,65 @@ const BestellungV3: React.FC = () => {
   const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
   const [orderNumber, setOrderNumber] = useState<string>('');
 
-  // Verwende den funktionierenden API-Endpunkt, um Bestellungen aus der Datenbank zu lesen
+  // Bestellungen direkt aus der Datenbank lesen
   const { 
     data: ordersResponse, 
     isLoading: ordersLoading, 
     isError: ordersError,
     error: ordersErrorData
   } = useQuery({
-    queryKey: ['orders'],
+    queryKey: ['orders-direct-db'],
     queryFn: async () => {
-      console.log("Lade Bestellungen direkt aus der Datenbank...");
-      
-      // Da der API-Endpunkt Probleme hat, verwenden wir direkt die vorhandenen Demo-Daten
-      // aus der Datenbank, die im vorherigen Tests sichtbar waren
-      const demoOrders = [
-        {
-          id: 1,
-          order_number: "ORD-20250426-0912",
-          supplier_id: 29,
-          supplier_name: "Dr. Quendt GmbH & Co. KG",
-          location_id: 3,
-          location_name: "Bahnhof",
-          status: "shipped",
-          order_date: "2025-04-26 05:41:29.926",
-          expected_delivery_date: "2025-04-29 22:00:00",
-          total_amount: 9,
-          currency: "EUR",
-          vat_amount: 1.71,
-          created_at: "2025-04-26 05:41:30.04"
-        },
-        {
-          id: 2,
-          order_number: "ORD-20250426-0984",
-          supplier_id: 29,
-          supplier_name: "Dr. Quendt GmbH & Co. KG",
-          location_id: 3,
-          location_name: "Bahnhof",
-          status: "shipped",
-          order_date: "2025-04-26 05:59:12.116",
-          expected_delivery_date: "2025-04-29 22:00:00",
-          total_amount: 9,
-          currency: "EUR",
-          vat_amount: 1.71,
-          created_at: "2025-04-26 05:59:12.3"
-        },
-        {
-          id: 3,
-          order_number: "ORD-20250426-0026",
-          supplier_id: 13,
-          supplier_name: "Geflügelhof Struppen GmbH",
-          location_id: 3,
-          location_name: "Bahnhof",
-          status: "shipped",
-          order_date: "2025-04-26 08:20:17.485",
-          expected_delivery_date: "2025-04-29 22:00:00",
-          total_amount: 10.53,
-          currency: "EUR",
-          vat_amount: 2.0007,
-          created_at: "2025-04-26 08:20:17.599"
-        },
-        {
-          id: 4,
-          order_number: "ORD-20250427-0235",
-          supplier_id: 29,
-          supplier_name: "Dr. Quendt GmbH & Co. KG",
-          location_id: 3,
-          location_name: "Bahnhof",
-          status: "draft",
-          order_date: "2025-04-27 21:26:07.147",
-          expected_delivery_date: "2025-04-28 22:00:00",
-          total_amount: 15,
-          currency: "EUR",
-          vat_amount: 2.85,
-          created_at: "2025-04-27 21:26:07.273"
+      try {
+        console.log("Lade Bestellungen direkt aus der Datenbank...");
+        
+        // Direkter Datenbankzugriff über einen SQL-Endpunkt
+        const response = await fetch('/api/execute-sql', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: 'SELECT * FROM orders ORDER BY created_at DESC'
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Fehler beim Abrufen der Bestellungen: ${response.status} ${response.statusText}`);
         }
-      ];
-      
-      return demoOrders;
+        
+        const data = await response.json();
+        console.log("Bestellungsdaten geladen:", data);
+        
+        return data.rows || data;
+      } catch (error) {
+        console.error("Fehler beim Laden der Bestellungen:", error);
+        throw error;
+      }
     }
   });
   
-  // Verwende die Direktdaten als Orders (keine komplexe Extraktion mehr nötig)
-  const orders = ordersResponse || [];
+  // Verwende die echten Daten aus der Datenbank
+  const orders = React.useMemo(() => {
+    if (!ordersResponse) return [];
+    
+    // Wenn wir direkt ein Array bekommen, verwenden wir das
+    if (Array.isArray(ordersResponse)) {
+      return ordersResponse;
+    }
+    
+    // Sonst versuchen wir das Ergebnis aus verschiedenen Formaten zu extrahieren
+    if (typeof ordersResponse === 'object') {
+      if ('rows' in ordersResponse && Array.isArray(ordersResponse.rows)) {
+        return ordersResponse.rows;
+      }
+      if ('data' in ordersResponse && Array.isArray(ordersResponse.data)) {
+        return ordersResponse.data;
+      }
+    }
+    
+    return [];
+  }, [ordersResponse]);
 
   // Lager über den funktionierenden API-Endpunkt abrufen
   const { 
