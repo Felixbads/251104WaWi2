@@ -474,23 +474,25 @@ const BestellungV2: React.FC = () => {
       case 'mode':
         return (
           <OrderModeSelector
-            onSelect={(mode, sourceId = null) => {
+            mode={orderMode}
+            onSelectMode={(mode) => {
               setOrderMode(mode);
-              setSourceOrderId(sourceId);
+              setSourceOrderId(null);
               setStep('supplier');
             }}
-            onBack={() => setStep('warehouse')}
+            sourceOrderId={sourceOrderId}
+            onSourceOrderChange={(id) => setSourceOrderId(id)}
           />
         );
       case 'supplier':
         return (
           <SupplierSelector
-            onSelect={(id, name) => {
+            selectedSupplierId={supplierId}
+            onSelectSupplier={(id, name) => {
               setSupplierId(id);
               setSupplierName(name);
               setStep('products');
             }}
-            onBack={() => setStep('mode')}
           />
         );
       case 'products':
