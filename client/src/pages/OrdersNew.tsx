@@ -147,7 +147,7 @@ export default function OrdersNew() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Bestellungen</CardTitle>
-          <Button onClick={() => navigate("/bestellung")}>
+          <Button onClick={() => navigate("/bestellungen/neu-v2")}>
             Neue Bestellung
           </Button>
         </CardHeader>
