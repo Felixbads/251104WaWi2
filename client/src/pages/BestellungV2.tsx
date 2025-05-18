@@ -579,10 +579,10 @@ const BestellungV2: React.FC = () => {
           <OrderSummary
             warehouseName={warehouseName}
             supplierName={supplierName}
-            products={selectedProducts}
+            selectedProducts={selectedProducts}
             additionalInfo={additionalInfo}
             onBack={() => setStep('additionalInfo')}
-            onSubmit={() => {
+            onCreateOrder={() => {
               console.log("Übermittle Bestellung mit folgenden Daten:");
               console.log("- Lager:", warehouseId, warehouseName);
               console.log("- Lieferant:", supplierId, supplierName);

@@ -63,10 +63,12 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
   orderId,
   orderData
 }) => {
-  // Calculate total
-  const total = selectedProducts.reduce((sum, product) => {
-    return sum + (product.price * product.orderQuantity);
-  }, 0);
+  // Calculate total with safety checks
+  const total = Array.isArray(selectedProducts) ? selectedProducts.reduce((sum, product) => {
+    const price = product?.price || 0;
+    const quantity = product?.orderQuantity || 0;
+    return sum + (price * quantity);
+  }, 0) : 0;
   
   // Get priority display text and color
   const getPriorityInfo = (priority: string) => {
@@ -157,16 +159,16 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {selectedProducts.map((product, index) => (
+              {Array.isArray(selectedProducts) ? selectedProducts.map((product, index) => (
                 <TableRow key={index}>
-                  <TableCell className="font-medium">{product.name}</TableCell>
-                  <TableCell className="text-right">{product.price?.toFixed(2)} €</TableCell>
-                  <TableCell className="text-right">{product.orderQuantity}</TableCell>
+                  <TableCell className="font-medium">{product?.name || ''}</TableCell>
+                  <TableCell className="text-right">{(product?.price || 0).toFixed(2)} €</TableCell>
+                  <TableCell className="text-right">{product?.orderQuantity || 0}</TableCell>
                   <TableCell className="text-right">
-                    {(product.price * product.orderQuantity).toFixed(2)} €
+                    {((product?.price || 0) * (product?.orderQuantity || 0)).toFixed(2)} €
                   </TableCell>
                 </TableRow>
-              ))}
+              )) : null}
             </TableBody>
             <TableFooter>
               <TableRow>
@@ -178,7 +180,7 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
         </div>
         
         {/* Warning if no prices are set */}
-        {selectedProducts.some(product => !product.price) && (
+        {Array.isArray(selectedProducts) && selectedProducts.some(product => !product?.price) && (
           <div className="flex items-center bg-amber-100 text-amber-800 p-3 rounded-md text-sm">
             <AlertTriangle className="h-4 w-4 mr-2" />
             <span>Einige Produkte haben keinen Preis. Die Gesamtsumme kann unvollständig sein.</span>
