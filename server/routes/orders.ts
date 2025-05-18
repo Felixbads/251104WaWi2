@@ -8,7 +8,6 @@ import {
   suppliers,
   products,
   warehouses,
-  warehouseInventory,
   inventoryMovements,
   users
 } from '../../shared/schema';
@@ -1108,11 +1107,11 @@ router.post('/orders/:id/receipt', async (req: Request, res: Response) => {
             // Überprüfen, ob der Artikel bereits im Lagerbestand ist
             const inventoryResult = await db
               .select()
-              .from(warehouseInventory)
+              .from(inventoryItems)
               .where(
                 and(
-                  eq(warehouseInventory.warehouseId, warehouseId),
-                  eq(warehouseInventory.productId, item.productId)
+                  eq(inventoryItems.warehouseId, warehouseId),
+                  eq(inventoryItems.productId, item.productId)
                 )
               )
               .limit(1);
