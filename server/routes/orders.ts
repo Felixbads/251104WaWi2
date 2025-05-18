@@ -263,12 +263,33 @@ router.post('/orders', async (req: Request, res: Response) => {
       items
     } = req.body;
     
+    // Validierung der Pflichtfelder
     if (!warehouseId || !supplierId) {
       return res.status(400).json({ error: 'Lager und Lieferant müssen angegeben werden' });
     }
     
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ error: 'Mindestens ein Artikel muss bestellt werden' });
+    }
+    
+    // Validieren und Konvertieren von expectedDeliveryDate
+    let parsedDeliveryDate: Date | null = null;
+    if (expectedDeliveryDate && typeof expectedDeliveryDate === 'string') {
+      // Normalisieren des Datums auf YYYY-MM-DD Format oder null
+      if (/^\d{4}-\d{2}-\d{2}$/.test(expectedDeliveryDate)) {
+        // Das Datum ist bereits im richtigen Format YYYY-MM-DD
+        parsedDeliveryDate = new Date(expectedDeliveryDate);
+      } else {
+        // Versuche andere Formate zu parsen
+        try {
+          const tempDate = new Date(expectedDeliveryDate);
+          if (!isNaN(tempDate.getTime())) {
+            parsedDeliveryDate = tempDate;
+          }
+        } catch (e) {
+          console.warn("Ungültiges Datumsformat, verwende Standarddatum:", e);
+        }
+      }
     }
     
     // Abrufen von Lager- und Lieferanteninformationen
@@ -334,8 +355,8 @@ router.post('/orders', async (req: Request, res: Response) => {
           locationName: warehouse.locationName,
           status: 'draft', // Entwurf
           orderDate: new Date(),
-          // Ensure expectedDeliveryDate is always a valid date or omitted entirely
-          ...(expectedDeliveryDate ? { expectedDeliveryDate: new Date(expectedDeliveryDate) } : {}),
+                // Verwende das zuvor validierte und konvertierte Datum
+          ...(parsedDeliveryDate ? { expectedDeliveryDate: parsedDeliveryDate } : {}),
           notes,
           createdBy: userId,
           createdByName: userName,
