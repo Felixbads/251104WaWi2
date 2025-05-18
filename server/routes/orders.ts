@@ -9,7 +9,8 @@ import {
   products,
   warehouses,
   inventoryMovements,
-  users
+  users,
+  inventoryItems
 } from '../../shared/schema';
 // Direkte sendEmail Funktion anstelle des Imports
 function sendEmail(to: string, from: string, subject: string, html: string) {
@@ -1123,21 +1124,21 @@ router.post('/orders/:id/receipt', async (req: Request, res: Response) => {
               const currentQuantity = inventoryResult[0].quantity || 0;
               
               await db
-                .update(warehouseInventory)
+                .update(inventoryItems)
                 .set({
                   quantity: currentQuantity + quantityToAdd,
                   updatedAt: new Date()
                 })
                 .where(
                   and(
-                    eq(warehouseInventory.warehouseId, warehouseId),
-                    eq(warehouseInventory.productId, item.productId)
+                    eq(inventoryItems.warehouseId, warehouseId),
+                    eq(inventoryItems.productId, item.productId)
                   )
                 );
             } else {
               // Ansonsten Artikel neu zum Lager hinzufügen
               await db
-                .insert(warehouseInventory)
+                .insert(inventoryItems)
                 .values({
                   warehouseId,
                   productId: item.productId,
