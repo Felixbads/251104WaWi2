@@ -239,27 +239,44 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
           name: product.name,
           price: product.price,
           sku: product.sku,
-          orderQuantity: quantity
+          orderQuantity: quantity,
+          packageSize: product.packageSize || 1
         });
       }
     }
     
-    onProductsChange(updatedProducts);
+    if (onProductsChange) {
+      onProductsChange(updatedProducts);
+    }
+    if (setSelectedProducts) {
+      setSelectedProducts(updatedProducts);
+    }
   };
   
-  // Increment quantity
+  // Increment quantity basierend auf Gebindegröße
   const incrementQuantity = (productId: number) => {
     const selectedProduct = selectedProducts.find(p => p.id === productId);
+    const product = enrichedProducts.find((p: any) => p.id === productId);
+    const packageSize = product?.packageSize || 1;
     const currentQuantity = selectedProduct?.orderQuantity || 0;
-    handleQuantityChange(productId, currentQuantity + 1);
+    
+    // Wenn die aktuelle Menge 0 ist, setzen wir sie auf die Gebindegröße,
+    // ansonsten erhöhen wir um die Gebindegröße
+    const newQuantity = currentQuantity === 0 ? packageSize : currentQuantity + packageSize;
+    handleQuantityChange(productId, newQuantity);
   };
   
-  // Decrement quantity
+  // Decrement quantity basierend auf Gebindegröße
   const decrementQuantity = (productId: number) => {
     const selectedProduct = selectedProducts.find(p => p.id === productId);
+    const product = enrichedProducts.find((p: any) => p.id === productId);
+    const packageSize = product?.packageSize || 1;
     const currentQuantity = selectedProduct?.orderQuantity || 0;
+    
     if (currentQuantity > 0) {
-      handleQuantityChange(productId, currentQuantity - 1);
+      // Reduzieren um die Gebindegröße, aber nicht unter 0
+      const newQuantity = Math.max(0, currentQuantity - packageSize);
+      handleQuantityChange(productId, newQuantity);
     }
   };
   
@@ -426,8 +443,7 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
               <TableHeader>
                 <TableRow>
                   <TableHead>Produktname</TableHead>
-                  <TableHead className="hidden md:table-cell">SKU</TableHead>
-                  <TableHead className="text-right">Preis</TableHead>
+                  <TableHead className="text-right">Gebindegröße</TableHead>
                   <TableHead className="text-right">Lagerbestand</TableHead>
                   <TableHead className="text-right">Menge</TableHead>
                 </TableRow>
@@ -453,8 +469,7 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="hidden md:table-cell">{product.sku || '-'}</TableCell>
-                      <TableCell className="text-right">{product.price?.toFixed(2) || '-'} €</TableCell>
+                      <TableCell className="text-right">{product.packageSize || 1}</TableCell>
                       <TableCell className="text-right">
                         {product.inStock}
                         {product.inStock <= 5 && (
