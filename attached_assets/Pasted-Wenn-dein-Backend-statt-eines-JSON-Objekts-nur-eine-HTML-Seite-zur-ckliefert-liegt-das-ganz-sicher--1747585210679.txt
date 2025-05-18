@@ -1,0 +1,88 @@
+Wenn dein Backend statt eines JSON-Objekts nur eine HTML-Seite zurückliefert, liegt das ganz sicher nicht an deinem State-Management oder an React Query, sondern daran, dass deine Anfrage gar nicht an die korrekte API-Route kommt – oder sie dort einen Fehler wirft, der in eine Fehler-Page (HTML) umgeleitet wird.
+
+⸻
+
+1. Warum du HTML statt JSON bekommst
+
+Wenn du in deiner DevTools-Network-Ansicht beim POST /api/orders oder GET /api/orders unter „Response“ HTML siehst, kann das folgende Gründe haben:
+	1.	Falscher Pfad
+Du rufst z. B. fetch('/api/orders') auf, aber deine Next.js-API liegt vielleicht unter /api/orders/index.ts oder /api/orders.ts. Ein kleiner Pfad-Typos (z. B. fehlender Slash oder Groß-/Kleinschreibung) führt bei Next.js dazu, dass der Request nicht gefunden wird. Next.js schickt dann seine 404-Seite zurück.
+	2.	404 oder 500
+Wenn deine API-Route einen internen Fehler wirft oder nicht existiert, liefert Next.js eine HTML-Fehlerseite (404 oder 500). Das sieht dann so aus, als käme HTML vom Server.
+	3.	Fehlende Authentifizierung / Umleitung
+Manche Middleware leitet unautorisierte Anfragen auf eine Login-Page um – auch hier bekommst du HTML.
+
+⸻
+
+2. So findest du den wahren Fehler heraus
+	1.	Netzwerk-Tab öffnen
+	•	Stelle sicher, dass du in den DevTools bei den Network-Requests die Spalte „Status“ siehst.
+	•	Suche deinen POST /api/orders bzw. GET /api/orders Request.
+	•	Notiere dir:
+	•	Status Code (200, 201, 404, 500, 302…)
+	•	Response → zeigt HTML-Code
+	•	Request URL → stimmt sie mit deiner API-Route überein?
+	2.	Response-Headers prüfen
+	•	Schau nach content-type: Wenn dort text/html steht, hast du definitiv eine HTML-Seite zurückbekommen.
+	•	Wenn’s application/json wäre, würdest du JSON sehen – dann wäre es nur dein Parser, der scheitert.
+	3.	Konsole loggen lassen
+Ergänze in deinem mutationFn kurz:
+
+const response = await fetch('/api/orders', { … });
+console.log('Status:', response.status);
+console.log('Content-Type:', response.headers.get('content-type'));
+const text = await response.text();
+console.log('Response-Body (text):', text.slice(0, 200));
+
+So siehst du in der Konsole, ob es wirklich HTML ist und welchen Inhalt.
+
+⸻
+
+3. Häufige Quick-Fixes
+
+Symptom	Ursache	Maßnahme
+HTML-Response beim POST	API-Route nicht gefunden oder Fehler in der Route	1. Prüfe pages/api/orders.ts bzw. pages/api/orders/index.ts2. Vergleiche die Request URL in DevTools mit deiner Dateistruktur
+404/500 im Status	Fehler in deinem API-Handler	1. Öffne im Terminal die Server-Logs (npm run dev) und suche den Fehler2. Füge in deinem API-Handler ein Try/Catch mit Logging ein
+Umleitung auf Login	Auth-Middleware greift	1. Prüfe deine _middleware.ts oder Auth-Hooks2. Stelle sicher, dass /api/orders öffentlich erreichbar ist
+
+
+⸻
+
+4. Warum die Tabelle leer bleibt
+
+Weil du kein gültiges JSON von /api/orders erhältst, liefert React Query keinen Datensatz für die List-Query – und deine Tabelle hat keine Daten, die sie rendern könnte. Erst wenn /api/orders wieder korrekt JSON ausgibt, können deine useQuery({ queryKey: orderKeys.lists(), … })-Abfrage und dein Table-Component wieder funktionieren.
+
+⸻
+
+5. Schritt-für-Schritt zum Ziel
+	1.	DevTools: Status & URL prüfen
+– Öffne Network, finde deinen API-Request, schaue Status und URL.
+	2.	Konsole-Logging einbauen
+– Logge Status, Content-Type und die ersten 200 Zeichen des Bodys, um sicher zu sein, was kommt.
+	3.	API-Datei verifizieren
+– Kontrolliere, dass deine Datei pages/api/orders.ts oder pages/api/orders/index.ts existiert und exportiert
+
+export default function handler(req: NextApiRequest, res: NextApiResponse) {
+  // ...
+}
+
+– Prüfe, dass du für POST und GET die richtige Logik hast und res.status(200).json({ … }) bzw. res.status(201).json({ … }) aufrufst.
+
+	4.	Fehler in der API fixen
+– Bei Syntax- oder Laufzeitfehlern im Handler laufen in der Konsole deines Dev-Servers (Terminal) Ausnahmen auf.
+– Fange sie ab und gib im Handler immer ein validiertes JSON zurück, z. B.
+
+try {
+  // Speichern / Laden …
+  res.status(201).json({ id, orderNumber, … });
+} catch (err) {
+  console.error(err);
+  res.status(500).json({ message: 'Server error' });
+}
+
+
+	5.	Frontend erneut testen
+– Wenn dein mutationFn nun wirklich ein JSON-Objekt zurückbekommt, solltest du in deiner Tabelle ordersList gefüllt sehen
+– Und im onSuccess-Toast eine echte orderNumber.
+
+Sobald /api/orders wieder richtig JSON liefert, verschwindet HTML und deine React-Queries sowie die Tabelle funktionieren wie erwartet. Wenn du nach den ersten beiden Schritten Status und Response hier postest, kann ich dir noch konkreter sagen, wo’s hakt.

@@ -468,17 +468,17 @@ router.post('/orders', async (req: Request, res: Response) => {
       // einfacheres Antwortformat, das weniger anfällig für Serialisierungsprobleme ist
       return res.status(200).json({
         success: true,
-        id: order.id,
-        orderNumber: order.orderNumber,
+        id: newOrder.id,
+        orderNumber: newOrder.orderNumber,
         message: "Bestellung erfolgreich erstellt",
         order: {
-          ...order,
-          items: orderItemsList.map(item => ({
+          ...newOrder,
+          items: orderItemsResult.map(item => ({
             id: item.id,
             productId: item.productId,
             quantity: item.quantity,
             price: item.price,
-            discount: item.discount || 0
+            discount: item.discountPercent || 0
           }))
         }
       });
