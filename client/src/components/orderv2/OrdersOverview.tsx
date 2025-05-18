@@ -646,17 +646,36 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
                     <TableRow 
                       key={order.id} 
                       className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => onSelectOrder(order.id)}
+                      onClick={() => {
+                        console.log("Bestellung angeklickt:", order);
+                        
+                        // Prüfen, ob die Bestellung eine gültige ID hat
+                        if (!order.id || order.id <= 0) {
+                          toast({
+                            title: "Ungültige Bestellung",
+                            description: "Diese Bestellung hat keine gültige ID und kann nicht geöffnet werden.",
+                            variant: "destructive"
+                          });
+                          return;
+                        }
+                        
+                        onSelectOrder(order.id);
+                      }}
                     >
                       <TableCell className="font-medium">
-                        {order.orderNumber}
+                        {order.orderNumber || order.order_number || 'Ohne Nummer'}
                       </TableCell>
-                      <TableCell>{order.supplierName || 'Unbekannter Lieferant'}</TableCell>
-                      <TableCell>{order.warehouseName || 'Unbekanntes Lager'}</TableCell>
+                      <TableCell>
+                        {/* Lieferant in auffälliger Farbe für bessere mobile Ansicht */}
+                        <span className="text-primary font-medium">
+                          {order.supplierName || order.supplier_name || 'Unbekannter Lieferant'}
+                        </span>
+                      </TableCell>
+                      <TableCell>{order.warehouseName || order.location_name || order.warehouse_name || 'Unbekanntes Lager'}</TableCell>
                       <TableCell>
                         <div className="flex items-center">
                           <OrderStatusBadge status={order.status || 'draft'} />
-                          {order.priority === 'high' && (
+                          {(order.priority === 'high' || order.priority === 'urgent') && (
                             <span className="ml-2 bg-amber-100 text-amber-800 text-xs px-1.5 py-0.5 rounded-full flex items-center">
                               <AlertTriangle className="h-3 w-3 mr-1" />
                               Dringend
