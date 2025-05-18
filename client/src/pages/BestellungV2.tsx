@@ -672,14 +672,12 @@ const BestellungV2: React.FC = () => {
                 return;
               }
               
-              // Sicherstellen, dass alle benötigten Felder vorhanden sind
-              createOrderMutation.mutate({
+              // Erstelle ein Payload-Objekt ohne das expectedDeliveryDate
+              const orderPayload: any = {
                 warehouseId: Number(warehouseId),
                 supplierId: Number(supplierId),
-                expectedDeliveryDate: formattedDeliveryDate, // Als String im Format "YYYY-MM-DD"
                 priority: additionalInfo?.priority || 'normal',
                 notes: additionalInfo?.notes || '',
-                // Explizite Ausgabe des orderDate für die API
                 orderDate: new Date().toISOString().split('T')[0], // Als String im Format "YYYY-MM-DD"
                 items: selectedProducts.map(product => ({
                   productId: Number(product.id),
@@ -688,7 +686,18 @@ const BestellungV2: React.FC = () => {
                   discountPercent: 0,
                   notes: product.orderNotes || ''
                 }))
-              });
+              };
+              
+              // Füge expectedDeliveryDate nur hinzu, wenn es tatsächlich einen gültigen Wert hat
+              if (formattedDeliveryDate && typeof formattedDeliveryDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(formattedDeliveryDate)) {
+                orderPayload.expectedDeliveryDate = formattedDeliveryDate;
+                console.log("Lieferdatum zur Bestellung hinzugefügt:", formattedDeliveryDate);
+              } else {
+                console.log("Kein Lieferdatum gesetzt oder ungültiges Format");
+              }
+              
+              // Sende die Bestellung ab
+              createOrderMutation.mutate(orderPayload);
             }}
             isSubmitting={createOrderMutation.isPending}
           />

@@ -1,0 +1,92 @@
+Die Mutation, die die Bestellung anlegt, sieht aktuell so aus:
+
+createOrderMutation.mutate({
+  warehouseId: Number(warehouseId),
+  supplierId: Number(supplierId),
+  expectedDeliveryDate: formattedDeliveryDate, // Als String im Format "YYYY-MM-DD"
+  priority: additionalInfo?.priority || 'normal',
+  notes: additionalInfo?.notes || '',
+  orderDate: new Date().toISOString().split('T')[0], // "YYYY-MM-DD"
+  items: selectedProducts.map(product => ({
+    productId: Number(product.id),
+    quantity: Number(product.orderQuantity || 0),
+    price: Number(product.price || 0),
+    discountPercent: 0,
+    notes: product.orderNotes || ''
+  }))
+});
+
+
+⸻
+
+❗ Problem: formattedDeliveryDate kann weiterhin undefined sein!
+
+Im Gegensatz zu den anderen Feldern wie orderDate, priority oder notes, die Fallbacks haben (||), wird formattedDeliveryDate direkt verwendet.
+
+Wenn kein Datum gewählt wurde oder der Formatierungsschritt schiefgeht, bleibt formattedDeliveryDate undefined – was den Fehler „The string did not match the expected pattern“ verursacht.
+
+⸻
+
+✅ Lösung
+
+Du musst vorher sicherstellen, dass formattedDeliveryDate entweder ein valider YYYY-MM-DD-String ist oder gar nicht im Payload enthalten ist.
+
+🛠️ Konkrete Anpassungsidee:
+
+let formattedDeliveryDate: string | undefined;
+
+try {
+  if (additionalInfo?.expectedDeliveryDate) {
+    const date = new Date(additionalInfo.expectedDeliveryDate);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    formattedDeliveryDate = `${year}-${month}-${day}`;
+  }
+} catch (e) {
+  formattedDeliveryDate = undefined;
+}
+
+Und dann:
+
+const orderPayload: any = {
+  warehouseId: Number(warehouseId),
+  supplierId: Number(supplierId),
+  priority: additionalInfo?.priority || 'normal',
+  notes: additionalInfo?.notes || '',
+  orderDate: new Date().toISOString().split('T')[0],
+  items: selectedProducts.map(product => ({
+    productId: Number(product.id),
+    quantity: Number(product.orderQuantity || 0),
+    price: Number(product.price || 0),
+    discountPercent: 0,
+    notes: product.orderNotes || ''
+  }))
+};
+
+if (formattedDeliveryDate) {
+  orderPayload.expectedDeliveryDate = formattedDeliveryDate;
+}
+
+createOrderMutation.mutate(orderPayload);
+
+
+⸻
+
+🔁 Alternativ:
+
+Falls expectedDeliveryDate Pflichtfeld sein soll, zeige vorher einen Fehler, wenn es fehlt – statt es leer zu übergeben.
+
+if (!formattedDeliveryDate) {
+  toast({ title: 'Fehler', description: 'Bitte ein Lieferdatum auswählen.' });
+  return;
+}
+
+
+⸻
+
+Fazit
+
+Der Fehler besteht weiterhin, weil der Payload das Feld expectedDeliveryDate: undefined enthält – was der Server als ungültig bewertet. Durch korrektes Setzen oder Weglassen des Feldes kannst du den Fehler beheben.
+
+Möchtest du, dass ich dir den korrigierten Block direkt einsatzfertig schreibe? ￼
