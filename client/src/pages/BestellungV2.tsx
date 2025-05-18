@@ -593,9 +593,9 @@ const BestellungV2: React.FC = () => {
               createOrderMutation.mutate({
                 warehouseId,
                 supplierId,
-                expectedDeliveryDate: additionalInfo.expectedDeliveryDate,
-                priority: additionalInfo.priority,
-                notes: additionalInfo.notes,
+                expectedDeliveryDate: additionalInfo?.expectedDeliveryDate || null,
+                priority: additionalInfo?.priority || 'normal',
+                notes: additionalInfo?.notes || '',
                 items: selectedProducts.map(product => ({
                   productId: product.id,
                   quantity: product.orderQuantity,
