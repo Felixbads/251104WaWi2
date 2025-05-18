@@ -1,0 +1,67 @@
+Hier ist eine strukturierte Zusammenfassung deiner Änderungswünsche mit konkreten Maßnahmenvorschlägen zur Umsetzung:
+
+⸻
+
+🔧 Seite: Bestellübersicht
+
+1. Layout-Anpassung
+	•	Ziel: Angleichen an die Struktur der Seite Produkte.
+	•	Maßnahmen:
+	•	Einheitliche Seitentitel (z. B. „Bestellungen“ mit Untertitel).
+	•	Gleiche Schriftgrößen und Zeilenabstände für Überschriften und Tabellen.
+	•	Abstand und Padding der Komponenten nach dem Vorbild der Produkteseite gestalten.
+	•	Filter und Aktionsleisten optisch vereinheitlichen.
+
+2. Buttons für „Neue Bestellung“
+	•	Ziel: Doppelte Buttons entfernen.
+	•	Maßnahme: Einen der beiden Buttons entfernen – idealerweise den weniger prominenten bzw. funktional redundant platzierten.
+
+3. Suchfeld
+	•	Problem: Keine Funktion.
+	•	Maßnahme: Implementierung der richtigen Filterlogik:
+	•	Suche nach Bestellnummer, Lieferant oder Produktname.
+	•	Optional: debounce für Suchanfragen.
+
+4. Status-Filter
+	•	Problem: Auswahl eines Status verändert die Ergebnisliste nicht.
+	•	Maßnahmen:
+	•	Sicherstellen, dass der Statusfilter korrekt mit dem Backend verknüpft ist.
+	•	Filterlogik im Frontend korrekt binden.
+	•	Fehlerhafte useEffect-/useState-Abhängigkeiten prüfen.
+
+5. Status-Darstellung in Tabelle
+	•	Ziel: Grafische Unterscheidbarkeit.
+	•	Maßnahmen:
+	•	Einführung farblicher Badges oder Icons:
+	•	Entwurf = Grau mit Stift-Icon
+	•	Gesendet = Blau mit Flugpost-/Paperplane-Icon
+	•	Geliefert = Grün mit Haken-Icon
+	•	Tooltip oder Mouseover-Hilfe zur Erklärung des Status.
+
+⸻
+
+📦 Seite: Lager
+
+1. Layout-Angleichung
+	•	Ziel: Optische und strukturelle Übereinstimmung mit der neuen Bestellübersicht.
+	•	Maßnahmen:
+	•	Gleiche Tabellenstruktur und Filterleiste.
+	•	Einheitliches Karten-/Tabellenlayout.
+	•	Klare Trennung von Aktionen (Lager auswählen, Lager erstellen etc.).
+
+2. Wiederholte Dropdowns/Buttons
+	•	Problem: Redundante Auswahlmöglichkeiten wie „Lager auswählen“, „Lieferant auswählen“ mehrfach.
+	•	Maßnahme: Konsolidierung:
+	•	Dropdowns in ein kombiniertes Filterfeld mit Gruppierung überführen.
+	•	Auswahlfelder dynamisch befüllen – nach Auswahl eines Lagers z. B. nur passende Lieferanten anzeigen.
+
+⸻
+
+✅ Zusätzliche Empfehlungen
+	•	In der Datenbankstruktur die Status-Eigenschaft als ENUM oder ENUM-Äquivalent abbilden, um eindeutige Darstellung und Filterbarkeit zu gewährleisten.
+	•	Prüfung auf Konsistenz bei Navigation, Buttons und Aktionen über alle Seiten hinweg.
+	•	Wenn noch nicht vorhanden: zentrale Komponentensammlung (Designsystem oder UI-Guide) einführen.
+
+⸻
+
+Wenn du möchtest, kann ich auch direkt Beispielcode liefern oder die Umstellung in Form von Mockups skizzieren. Sag einfach Bescheid!
