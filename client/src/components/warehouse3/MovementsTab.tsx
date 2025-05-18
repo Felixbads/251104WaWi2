@@ -67,7 +67,7 @@ import {
   ArrowDown,
   ArrowUp,
   Info,
-  FileText,
+  Mail,
   Truck,
   Package,
   ArrowUpDown,
@@ -718,7 +718,7 @@ export default function MovementsTab({ warehouseId }: MovementsTabProps) {
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild>
                               <Link href={`/warehouse3/${warehouseId}/movements/${movement.id}/print`}>
-                                <FileText className="mr-2 h-4 w-4" /> Drucken
+                                <Mail className="mr-2 h-4 w-4" /> Drucken
                               </Link>
                             </DropdownMenuItem>
                             {movement.status === 'pending' && (
@@ -806,7 +806,7 @@ export default function MovementsTab({ warehouseId }: MovementsTabProps) {
         </div>
         <Link href={`/warehouse3/${warehouseId}/movements/report`}>
           <Button variant="outline" size="sm">
-            <FileText className="mr-2 h-4 w-4" /> Bericht erstellen
+            <Mail className="mr-2 h-4 w-4" /> Bericht erstellen
           </Button>
         </Link>
       </CardFooter>

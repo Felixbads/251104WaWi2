@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, subDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { motion } from 'framer-motion';
-import { Calendar as CalendarIcon, Loader2, FileText, Info, AlertCircle } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, Mail, Info, AlertCircle } from 'lucide-react';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
