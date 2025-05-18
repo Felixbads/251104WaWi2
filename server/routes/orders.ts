@@ -1377,11 +1377,8 @@ router.get("/:id/email-template", async (req: Request, res: Response) => {
       }
     }
 
-    // E-Mail-Vorlage erstellen
-    const emailTemplate = getOrderEmailTemplate(order, supplier || {}, templateType);
-    
-// Hilfsfunktion zum Erstellen einer E-Mail-Vorlage
-function getOrderEmailTemplate(order: any, supplier: any, templateType: string = 'standard'): string {
+    // E-Mail-Vorlage erstellen mit der Hilfsfunktion aus utils
+    const { getOrderEmailTemplate, getOrderEmailSubject } = require('../utils/orderEmailUtils');
   const now = new Date().toLocaleDateString('de-DE');
   const deliveryDate = order.expectedDeliveryDate 
     ? new Date(order.expectedDeliveryDate).toLocaleDateString('de-DE') 
@@ -1522,8 +1519,8 @@ router.post("/:id/email", async (req: Request, res: Response) => {
     // Tabelle mit Bestellpositionen erstellen
     const itemsTable = createOrderItemsTable(items);
     
-// Hilfsfunktion zum Erstellen einer einfachen HTML-Tabelle mit Bestellpositionen
-function createOrderItemsTable(items: any[]): string {
+// Zum Anfang der Datei verschieben
+}
   if (!items || !Array.isArray(items) || items.length === 0) {
     return 'Keine Artikel in dieser Bestellung.';
   }
