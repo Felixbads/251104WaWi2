@@ -268,7 +268,7 @@ const BestellungV2: React.FC = () => {
     }
   };
   
-  // Funktion zur E-Mail-Vorbereitung
+  // Funktion zur E-Mail-Vorbereitung mit robusten Fehlerprüfungen
   const prepareOrderEmail = (orderData: any) => {
     try {
       console.log("E-Mail-Vorbereitung für Bestellung:", orderData?.orderNumber || "Unbekannt");
@@ -284,22 +284,42 @@ const BestellungV2: React.FC = () => {
         return;
       }
       
-      // Extrahiere Bestellpositionen (für Logging)
+      // Extrahiere Bestellpositionen (für Logging) mit umfassenden Sicherheitsprüfungen
       let items: any[] = [];
       
       // Umfassende Prüfung aller möglichen Feldnamen und Strukturen
       const raw = orderData;
-      items = 
-        (Array.isArray(raw.items) && raw.items.length > 0 ? raw.items : null) || 
-        (Array.isArray(raw.orderItems) && raw.orderItems.length > 0 ? raw.orderItems : null) || 
-        (raw.data?.items && Array.isArray(raw.data.items) && raw.data.items.length > 0 ? raw.data.items : null) ||
-        (raw.data?.orderItems && Array.isArray(raw.data.orderItems) && raw.data.orderItems.length > 0 ? raw.data.orderItems : null) || 
-        (Array.isArray(raw.products) && raw.products.length > 0 ? raw.products : null) || 
-        (Array.isArray(raw.selectedProducts) && raw.selectedProducts.length > 0 ? raw.selectedProducts : null) || 
-        (Array.isArray(raw.lineItems) && raw.lineItems.length > 0 ? raw.lineItems : null) ||
-        [];
+      try {
+        items = 
+          (Array.isArray(raw.items) && raw.items.length > 0 ? raw.items : null) || 
+          (Array.isArray(raw.orderItems) && raw.orderItems.length > 0 ? raw.orderItems : null) || 
+          (raw.data?.items && Array.isArray(raw.data.items) && raw.data.items.length > 0 ? raw.data.items : null) ||
+          (raw.data?.orderItems && Array.isArray(raw.data.orderItems) && raw.data.orderItems.length > 0 ? raw.data.orderItems : null) || 
+          (Array.isArray(raw.products) && raw.products.length > 0 ? raw.products : null) || 
+          (Array.isArray(raw.selectedProducts) && raw.selectedProducts.length > 0 ? raw.selectedProducts : null) || 
+          (Array.isArray(raw.lineItems) && raw.lineItems.length > 0 ? raw.lineItems : null) ||
+          [];
+      } catch (err) {
+        console.error("Fehler beim Extrahieren der Bestellpositionen:", err);
+        items = [];
+      }
+      
+      // Sicherstellen, dass items wirklich ein Array ist
+      if (!Array.isArray(items)) {
+        console.warn("Items ist kein Array, wird auf leeres Array gesetzt");
+        items = [];
+      }
       
       console.log(`E-Mail-Vorbereitung: Bestellung ${orderData.orderNumber || ""} enthält ${items.length} Positionen`);
+      
+      // Bestelldaten für E-Mail aktualisieren
+      if (items.length > 0) {
+        // Sicherstellen, dass existingOrderData ein Array von items hat
+        setExistingOrderData(prev => ({
+          ...prev,
+          items: items
+        }));
+      }
       
       // Info-Toast anzeigen
       toast({
