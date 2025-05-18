@@ -630,18 +630,25 @@ const BestellungV2: React.FC = () => {
               // Vorbereitung der Bestelldaten
               // Datumsformatierung für die API
               let formattedDeliveryDate = null;
-              if (additionalInfo?.expectedDeliveryDate) {
-                try {
-                  // Einfaches String-Format "YYYY-MM-DD" für die API (ohne Zeit-Komponente)
-                  const date = additionalInfo.expectedDeliveryDate;
-                  const year = date.getFullYear();
-                  const month = String(date.getMonth() + 1).padStart(2, '0');
-                  const day = String(date.getDate()).padStart(2, '0');
-                  formattedDeliveryDate = `${year}-${month}-${day}`;
-                  console.log("Formatiertes Lieferdatum:", formattedDeliveryDate);
-                } catch (e) {
-                  console.error("Fehler bei der Datumsformatierung:", e);
-                }
+              
+              // Wenn kein Lieferdatum angegeben, setzen wir es auf 3 Tage in der Zukunft
+              const defaultDate = new Date();
+              defaultDate.setDate(defaultDate.getDate() + 3);
+              
+              // Verwende entweder das gewählte Datum oder das Standarddatum
+              const dateToFormat = additionalInfo?.expectedDeliveryDate || defaultDate;
+              
+              try {
+                // Einfaches String-Format "YYYY-MM-DD" für die API (ohne Zeit-Komponente)
+                const year = dateToFormat.getFullYear();
+                const month = String(dateToFormat.getMonth() + 1).padStart(2, '0');
+                const day = String(dateToFormat.getDate()).padStart(2, '0');
+                formattedDeliveryDate = `${year}-${month}-${day}`;
+                console.log("Formatiertes Lieferdatum:", formattedDeliveryDate);
+              } catch (e) {
+                console.error("Fehler bei der Datumsformatierung:", e);
+                // Fallback zum heutigen Datum im Format YYYY-MM-DD
+                formattedDeliveryDate = new Date().toISOString().split('T')[0];
               }
               
               console.log("Vorbereitete Bestelldaten:", {
