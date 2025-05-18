@@ -465,7 +465,7 @@ const BestellungV3: React.FC = () => {
             </Card>
           ))}
         </div>
-      ) : warehouses && warehouses.length > 0 ? (
+      ) : warehouses && Array.isArray(warehouses) && warehouses.length > 0 ? (
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
           {warehouses.map((warehouse: any) => (
             <Card 
@@ -537,7 +537,7 @@ const BestellungV3: React.FC = () => {
             </Card>
           ))}
         </div>
-      ) : suppliers && suppliers.length > 0 ? (
+      ) : suppliers && Array.isArray(suppliers) && suppliers.length > 0 ? (
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
           {suppliers.map((supplier: any) => (
             <Card 
@@ -612,7 +612,7 @@ const BestellungV3: React.FC = () => {
                     </div>
                   ))}
                 </div>
-              ) : products && products.length > 0 ? (
+              ) : products && Array.isArray(products) && products.length > 0 ? (
                 <Table>
                   <TableHeader>
                     <TableRow>
