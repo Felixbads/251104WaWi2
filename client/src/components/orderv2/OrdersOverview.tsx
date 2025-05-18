@@ -52,23 +52,71 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 
 // Status-Mapping für Bestellungen
-// Einheitliches Status-Mapping für die gesamte Anwendung
+// Einheitliches Status-Mapping für die gesamte Anwendung mit Icons
 const orderStatusMap = {
   // Aktuelle API-Status
-  open: { label: 'Offen', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300' },
-  ordered: { label: 'Bestellt', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300' },
-  partial: { label: 'Teilgeliefert', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300' },
-  delivered: { label: 'Geliefert', color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/20 dark:text-cyan-300' },
-  canceled: { label: 'Storniert', color: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300' },
+  open: { 
+    label: 'Offen', 
+    color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300',
+    icon: Clock
+  },
+  ordered: { 
+    label: 'Bestellt', 
+    color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300',
+    icon: Package
+  },
+  partial: { 
+    label: 'Teilgeliefert', 
+    color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300',
+    icon: Truck
+  },
+  delivered: { 
+    label: 'Geliefert', 
+    color: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300',
+    icon: CheckCircle2
+  },
+  canceled: { 
+    label: 'Storniert', 
+    color: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300',
+    icon: XCircle
+  },
   
   // Legacy-Status für Abwärtskompatibilität
-  draft: { label: 'Entwurf', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300' },
-  pending: { label: 'In Bearbeitung', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300' },
-  shipped: { label: 'Versandt', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300' },
-  completed: { label: 'Abgeschlossen', color: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300' },
-  cancelled: { label: 'Storniert', color: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300' },
-  sent: { label: 'Gesendet', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300' },
-  confirmed: { label: 'Bestätigt', color: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300' }
+  draft: { 
+    label: 'Entwurf', 
+    color: 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300',
+    icon: FileText
+  },
+  pending: { 
+    label: 'In Bearbeitung', 
+    color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300',
+    icon: Clock
+  },
+  shipped: { 
+    label: 'Versandt', 
+    color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-300',
+    icon: Truck
+  },
+  completed: { 
+    label: 'Abgeschlossen', 
+    color: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300',
+    icon: CheckCircle2
+  },
+  cancelled: { 
+    label: 'Storniert', 
+    color: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300',
+    icon: XCircle
+  },
+  sent: { 
+    label: 'Gesendet', 
+    color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-300',
+    icon: Send
+  },
+  confirmed: { 
+    label: 'Bestätigt', 
+    color: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300',
+    icon: CheckCircle2
+  }
 };
 
 interface OrdersOverviewProps {
@@ -123,15 +171,30 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
     });
   };
   
+  // Verbesserte Abfrage für Bestellungen mit Filtern und debounce für die Suche
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+  
+  // Debounce für Suchbegriff
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300); // 300ms Debounce-Zeit
+    
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+  
   // Abfrage für Bestellungen mit Filtern
   const { data: apiResponse, isLoading, isError, error, refetch } = useQuery({
-    queryKey: orderKeys.lists({ status: statusFilter ? [statusFilter] : ['draft', 'sent', 'delivered'] }),
+    queryKey: orderKeys.lists({ 
+      status: statusFilter ? [statusFilter] : ['draft', 'sent', 'delivered', 'canceled'], 
+      search: debouncedSearchTerm
+    }),
     queryFn: async () => {
       const params = new URLSearchParams();
       if (statusFilter) params.append('status', statusFilter);
       params.append('sortBy', sortBy.field);
       params.append('sortDirection', sortBy.direction);
-      if (searchTerm) params.append('search', searchTerm);
+      if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
       
       return apiRequest(`/api/orders?${params.toString()}`, undefined, 'get');
     }
@@ -166,13 +229,16 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
     }).format(amount);
   };
   
-  // Status-Badge Komponente
+  // Status-Badge Komponente mit Icons
   const OrderStatusBadge = ({ status }: { status: string }) => {
     const statusConfig = orderStatusMap[status as keyof typeof orderStatusMap] || 
-                        { label: status, color: 'bg-gray-100 text-gray-800' };
+                        { label: status, color: 'bg-gray-100 text-gray-800', icon: AlertCircle };
+    
+    const IconComponent = statusConfig.icon;
     
     return (
-      <Badge variant="outline" className={`font-medium ${statusConfig.color}`}>
+      <Badge variant="outline" className={`font-medium ${statusConfig.color} flex items-center gap-1.5 py-1 px-2`}>
+        {IconComponent && <IconComponent className="h-3.5 w-3.5" />}
         {statusConfig.label}
       </Badge>
     );
@@ -197,99 +263,66 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
   
   return (
     <div className="space-y-4">
-      {/* Desktop-Ansicht: Filter-Leiste */}
-      <div className="hidden md:flex justify-between items-center gap-4 mb-4">
-        <div className="flex items-center gap-4">
-          <Button 
-            onClick={() => onCreateNew && onCreateNew()} 
-            className="whitespace-nowrap"
-          >
-            <ShoppingBag className="mr-2 h-4 w-4" />
-            Neue Bestellung
-          </Button>
-        </div>
-        <div className="flex-1 max-w-sm relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Suchen..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Select
-            value={statusFilter || 'all'}
-            onValueChange={(value) => setStatusFilter(value === 'all' ? null : value)}
-          >
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Status filtern" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle Status</SelectItem>
-              <SelectItem value="open">Offen</SelectItem>
-              <SelectItem value="ordered">Bestellt</SelectItem>
-              <SelectItem value="partial">Teilgeliefert</SelectItem>
-              <SelectItem value="delivered">Geliefert</SelectItem>
-              <SelectItem value="canceled">Storniert</SelectItem>
-            </SelectContent>
-          </Select>
+      <div className="flex flex-col gap-3 mb-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Bestellungen</h1>
           
-          <Button variant="outline" onClick={() => refetch()} size="icon" title="Aktualisieren">
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-          
+          {/* Nur einen Button für neue Bestellung anzeigen */}
           {onCreateNew && (
-            <Button onClick={onCreateNew}>
+            <Button onClick={onCreateNew} className="whitespace-nowrap">
+              <ShoppingBag className="mr-2 h-4 w-4" />
               Neue Bestellung
             </Button>
           )}
         </div>
-      </div>
-      
-      {/* Mobile-Ansicht: Filter-Leiste */}
-      <div className="flex flex-col md:hidden gap-3 mb-4">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="search"
-            placeholder="Suchen..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-          />
-        </div>
+        <p className="text-muted-foreground mb-4">
+          Verwalten Sie Ihre Bestellungen und überwachen Sie deren Status
+        </p>
         
-        <div className="flex gap-2">
-          <Select
-            value={statusFilter || 'all'}
-            onValueChange={(value) => setStatusFilter(value === 'all' ? null : value)}
-          >
-            <SelectTrigger className="flex-1">
-              <SelectValue placeholder="Status filtern" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle Status</SelectItem>
-              <SelectItem value="open">Offen</SelectItem>
-              <SelectItem value="ordered">Bestellt</SelectItem>
-              <SelectItem value="partial">Teilgeliefert</SelectItem>
-              <SelectItem value="delivered">Geliefert</SelectItem>
-              <SelectItem value="canceled">Storniert</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Filter-Leiste für Desktop und Mobile */}
+        <div className="flex flex-col sm:flex-row gap-3 w-full">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Suchen nach Bestellnummer, Lieferant oder Produktname..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9"
+            />
+          </div>
           
-          <Button variant="outline" onClick={() => refetch()} size="icon" title="Aktualisieren">
-            <RefreshCw className="h-4 w-4" />
-          </Button>
+          <div className="flex gap-2">
+            <Select
+              value={statusFilter || 'all'}
+              onValueChange={(value) => {
+                // Sofort das Filter anwenden
+                setStatusFilter(value === 'all' ? null : value);
+                // Sofort aktualisieren
+                setTimeout(() => refetch(), 10);
+              }}
+            >
+              <SelectTrigger className="w-[180px] bg-background">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  <SelectValue placeholder="Status filtern" />
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle Status</SelectItem>
+                <SelectItem value="draft">Entwurf</SelectItem>
+                <SelectItem value="sent">Gesendet</SelectItem>
+                <SelectItem value="delivered">Geliefert</SelectItem>
+                <SelectItem value="canceled">Storniert</SelectItem>
+                {/* Weitere Status entsprechend der API-Anforderungen */}
+              </SelectContent>
+            </Select>
+            
+            <Button variant="outline" onClick={() => refetch()} size="icon" title="Aktualisieren">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
-        
-        {onCreateNew && (
-          <Button onClick={onCreateNew} className="w-full">
-            Neue Bestellung
-          </Button>
-        )}
       </div>
       
       {/* Desktop-Tabelle */}
@@ -417,21 +450,50 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
                       <TableCell>{order.supplierName}</TableCell>
                       <TableCell>{order.warehouseName}</TableCell>
                       <TableCell>
-                        <OrderStatusBadge status={order.status} />
+                        <div className="flex items-center">
+                          <OrderStatusBadge status={order.status} />
+                          {order.priority === 'high' && (
+                            <span className="ml-2 bg-amber-100 text-amber-800 text-xs px-1.5 py-0.5 rounded-full flex items-center">
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Dringend
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>{formatDate(order.orderDate)}</TableCell>
                       <TableCell>{formatCurrency(order.totalAmount)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          {order.status === 'open' && (
+                          {/* Verbesserte und konsistentere Bestellaktionen basierend auf Status */}
+                          {order.status === 'draft' && (
                             <Button
                               variant="outline"
-                              size="icon"
-                              title="Als versendet markieren"
-                              onClick={(e) => handleMarkAsSent(order.id, e)}
-                              disabled={markAsSentMutation.isPending}
+                              size="sm"
+                              title="E-Mail senden"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectOrder(order.id);
+                              }}
                             >
-                              <Send className="h-4 w-4" />
+                              <Mail className="h-4 w-4 mr-1" />
+                              Senden
+                            </Button>
+                          )}
+                          
+                          {order.status === 'sent' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              title="Wareneingang buchen"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onStartWarehouseReceiptProcess) {
+                                  onStartWarehouseReceiptProcess(order.id);
+                                }
+                              }}
+                            >
+                              <Truck className="h-4 w-4 mr-1" />
+                              Eingang
                             </Button>
                           )}
                           
