@@ -208,7 +208,7 @@ function AuthenticatedRouter() {
 
         <Route path="/bestellungen/neu-v2" component={props => (
           <ApprovedUserRoute>
-            <BestellungV2 {...props} />
+            <OrdersNew />
           </ApprovedUserRoute>
         )} />
 
