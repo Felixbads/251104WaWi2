@@ -651,11 +651,11 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
                       <TableCell className="font-medium">
                         {order.orderNumber}
                       </TableCell>
-                      <TableCell>{order.supplierName}</TableCell>
-                      <TableCell>{order.warehouseName}</TableCell>
+                      <TableCell>{order.supplierName || 'Unbekannter Lieferant'}</TableCell>
+                      <TableCell>{order.warehouseName || 'Unbekanntes Lager'}</TableCell>
                       <TableCell>
                         <div className="flex items-center">
-                          <OrderStatusBadge status={order.status} />
+                          <OrderStatusBadge status={order.status || 'draft'} />
                           {order.priority === 'high' && (
                             <span className="ml-2 bg-amber-100 text-amber-800 text-xs px-1.5 py-0.5 rounded-full flex items-center">
                               <AlertTriangle className="h-3 w-3 mr-1" />
@@ -665,11 +665,11 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
                         </div>
                       </TableCell>
                       <TableCell>{formatDate(order.orderDate)}</TableCell>
-                      <TableCell>{formatCurrency(order.totalAmount)}</TableCell>
+                      <TableCell>{formatCurrency(order.totalAmount || 0)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           {/* Verbesserte und konsistentere Bestellaktionen basierend auf Status */}
-                          {order.status === 'draft' && (
+                          {(order.status === 'draft' || !order.status) && (
                             <Button
                               variant="outline"
                               size="sm"

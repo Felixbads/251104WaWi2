@@ -41,15 +41,42 @@ const WarehouseSelector: React.FC<WarehouseSelectorProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   
   // Fetch warehouses
-  const { data: warehouses, isLoading, error } = useQuery<Warehouse[]>({
+  const { data: warehousesData, isLoading, error } = useQuery({
     queryKey: ['/api/warehouses'],
   });
   
+  // Normalisiere das Datenformat aus dem direkten SQL-Zugriff
+  const warehouses = React.useMemo(() => {
+    if (!warehousesData) return [];
+    
+    // Prüfe auf verschiedene Datenformate und normalisiere
+    if (Array.isArray(warehousesData)) {
+      return warehousesData.map(w => ({
+        id: w.id,
+        name: w.name || '',
+        location: w.location || '',
+        type: w.type || ''
+      }));
+    }
+    
+    // Wenn wir ein Objekt mit rows bekommen
+    if (warehousesData.rows && Array.isArray(warehousesData.rows)) {
+      return warehousesData.rows.map(w => ({
+        id: w.id,
+        name: w.name || '',
+        location: w.location || '',
+        type: w.type || ''
+      }));
+    }
+    
+    return [];
+  }, [warehousesData]);
+  
   // Filter warehouses based on search query
-  const filteredWarehouses = warehouses?.filter(warehouse => 
+  const filteredWarehouses = warehouses.filter(warehouse => 
     warehouse.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    warehouse.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    warehouse.type.toLowerCase().includes(searchQuery.toLowerCase())
+    (warehouse.location && warehouse.location.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (warehouse.type && warehouse.type.toLowerCase().includes(searchQuery.toLowerCase()))
   );
   
   return (
