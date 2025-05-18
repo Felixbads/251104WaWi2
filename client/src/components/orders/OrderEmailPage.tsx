@@ -221,7 +221,7 @@ Ihr Proviantomat Team`);
               />
             )}
             <p className="mt-2 text-sm text-muted-foreground">
-              Der Platzhalter {{orderItems}} wird durch die Artikeltabelle ersetzt
+              Der Platzhalter {'{'}{'{'}'orderItems'{'}'}{'}'} wird durch die Artikeltabelle ersetzt
             </p>
           </CardContent>
           <CardFooter className="flex justify-between">

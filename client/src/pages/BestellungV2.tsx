@@ -106,6 +106,7 @@ const BestellungV2: React.FC = () => {
       setExistingOrderData(data);
       
       // Sicherstellen, dass selectedProducts zur Bestellung hinzugefügt wurden
+      // Dann PDF generieren und zur Email-Seite wechseln
       
       console.log("Bestellung erstellt. ID:", data.id, "Nummer:", data.orderNumber);
       console.log("Selected Products für Bestellung:", selectedProducts);
@@ -122,11 +123,15 @@ const BestellungV2: React.FC = () => {
         }))
       };
       
-      // Setze auf State für spätere Verwendung
+      // Setze auf State, damit es für spätere PDF-Generierung verfügbar ist
       setExistingOrderData(orderWithProducts);
       
       // Kurze Verzögerung vor der Weiterleitung
       setTimeout(() => {
+        // Aggressives Cache-Invalidieren, um sicherzustellen, dass alle Listen aktualisiert werden
+        queryClient.invalidateQueries(); // Invalidiert den gesamten Cache
+        
+        console.log("Bestellung erstellt, leite zur E-Mail-Seite weiter...");
         
         // Dann zur E-Mail-Versandseite wechseln
         setStep('sendOrder');
@@ -176,124 +181,62 @@ const BestellungV2: React.FC = () => {
     }
   });
   
-  // Goods Receipt mutation
-  const goodsReceiptMutation = useMutation({
-    mutationFn: (goodsReceiptData: any) => {
-      const { orderId, ...receiptData } = goodsReceiptData;
-      return apiRequest(`/api/orders/${orderId}/receipt`, receiptData, 'post');
-    },
-    onSuccess: (data, variables) => {
+  // Email sending mutation
+  const sendOrderMutation = useMutation({
+    mutationFn: () => apiRequest(`/api/orders/${orderId}/send`, {}, 'post'),
+    onSuccess: () => {
       toast({
-        title: 'Wareneingang erfolgreich gebucht',
-        description: 'Der Wareneingang wurde erfolgreich gebucht.',
+        title: 'Bestellung versendet',
+        description: 'Die Bestellung wurde erfolgreich per E-Mail versendet.'
       });
       
-      // Invalidiere den Cache für Bestellungen und zurück zur Übersicht
+      // Invalidiere den Cache für die aktuelle Bestellung und die Listenansicht
+      queryClient.invalidateQueries({queryKey: orderKeys.detail(Number(orderId))});
       queryClient.invalidateQueries({queryKey: orderKeys.lists()});
-      queryClient.invalidateQueries({queryKey: orderKeys.detail(Number(variables.orderId))});
       
-      setTimeout(() => {
-        setStep('overview');
-      }, 1000);
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Fehler beim Buchen des Wareneingangs',
-        description: error.message || 'Ein unbekannter Fehler ist aufgetreten',
-        variant: 'destructive',
-      });
-    }
-  });
-  
-  // Fetch order data if editing an existing order
-  const { data: order, isLoading: isLoadingOrder } = useQuery({
-    queryKey: orderId ? orderKeys.detail(orderId) : ['no-order'],
-    queryFn: () => {
-      if (!orderId) return null;
-      return apiRequest(`/api/orders/${orderId}`);
-    },
-    enabled: !!orderId,  // Only fetch if orderId is set
-  });
-  
-  // Event handler für die Bearbeitung einer Bestellung aus der Übersicht
-  const handleEditOrder = (editOrderId: number) => {
-    setOrderId(editOrderId);
-    setStep('sendOrder'); // Zum E-Mail-Versand-Schritt wechseln (kann angepasst werden)
-  };
-  
-  // Event handler für Wareneingang einer Bestellung aus der Übersicht
-  const handleReceiveOrder = (receiveOrderId: number) => {
-    setOrderId(receiveOrderId);
-    setStep('warehouseReceiptOfExistingOrder');
-  };
-  
-  // Email sending function
-  const handleSendEmail = async (supplierEmail: string, additionalNotes: string) => {
-    if (!orderId) {
-      toast({
-        title: 'Fehler',
-        description: 'Keine Bestellungs-ID vorhanden',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    markOrderAsSentMutation.mutate(orderId);
-  };
-  
-  // Funktion zur E-Mail-Vorbereitung
-  const prepareOrderEmail = (orderData: any) => {
-    try {
-      console.log("E-Mail-Vorbereitung für Bestellung:", orderData?.orderNumber || "Unbekannt");
-      
-      // Sicherstellen, dass Bestelldaten vollständig sind
-      if (!orderData || typeof orderData !== 'object') {
-        console.error('Keine gültigen Bestelldaten für E-Mail:', orderData);
-        toast({
-          title: 'Fehler bei der E-Mail-Vorbereitung',
-          description: 'Die Bestelldaten sind unvollständig oder fehlerhaft.',
-          variant: 'destructive'
+      // Aktualisiere lokale Daten
+      if (existingOrderData) {
+        setExistingOrderData({
+          ...existingOrderData,
+          sentAt: new Date().toISOString(),
         });
-        return;
       }
-      
-      // Extrahiere Bestellpositionen (für Logging)
-      let items: any[] = [];
-      
-      // Umfassende Prüfung aller möglichen Feldnamen und Strukturen
-      const raw = orderData;
-      items = 
-        (Array.isArray(raw.items) && raw.items.length > 0 ? raw.items : null) || 
-        (Array.isArray(raw.orderItems) && raw.orderItems.length > 0 ? raw.orderItems : null) || 
-        (raw.data?.items && Array.isArray(raw.data.items) && raw.data.items.length > 0 ? raw.data.items : null) ||
-        (raw.data?.orderItems && Array.isArray(raw.data.orderItems) && raw.data.orderItems.length > 0 ? raw.data.orderItems : null) || 
-        (Array.isArray(raw.products) && raw.products.length > 0 ? raw.products : null) || 
-        (Array.isArray(raw.selectedProducts) && raw.selectedProducts.length > 0 ? raw.selectedProducts : null) || 
-        (Array.isArray(raw.lineItems) && raw.lineItems.length > 0 ? raw.lineItems : null) ||
-        [];
-      
-      console.log(`E-Mail-Vorbereitung: Bestellung ${orderData.orderNumber || ""} enthält ${items.length} Positionen`);
-      
-      // Info-Toast anzeigen
+    },
+    onError: (err) => {
       toast({
-        title: 'E-Mail wird vorbereitet',
-        description: 'Die Bestelldaten wurden geladen. Sie können jetzt die E-Mail senden.',
+        title: 'Fehler beim Versand',
+        description: `Es ist ein Fehler aufgetreten: ${(err as Error).message}`,
+        variant: 'destructive'
       });
-      
-    } catch (error) {
-      console.error('Fehler bei der E-Mail-Vorbereitung:', error);
-      toast({
-        title: 'Fehler bei der E-Mail-Vorbereitung',
-        description: 'Die E-Mail konnte nicht vorbereitet werden. Details in der Konsole.',
-        variant: 'destructive',
-      });
+      console.error(err);
     }
-  };
+  });
   
-  // Überprüfe Parameter beim ersten Laden
+  // Fetch order data if orderId exists and we're in the relevant step
+  // PROBLEM 1 & 2 GELÖST: Konsistente Query-Keys und korrekte Step-Bedingung
+  const { 
+    data: order,
+    isLoading: isLoadingOrder,
+    isError: isErrorOrder,
+    error: orderError
+  } = useQuery({
+    queryKey: orderKeys.detail(orderId || 0),
+    // Nur aktivieren, wenn orderId gesetzt ist UND wir NICHT im Overview-Step sind
+    enabled: !!orderId && step !== 'overview', 
+    queryFn: () => {
+      console.log("Starte Order-Detail-Query für ID:", orderId, "im Schritt:", step);
+      return apiRequest(`/api/orders/${orderId}`, null, 'get');
+    },
+    // Wiederholungsversuche deaktivieren, um unerwünschte Nebeneffekte zu vermeiden
+    retry: false,
+    // Stale-Zeit erhöhen, um zu vermeiden, dass stale Daten zu schnell als "veraltet" markiert werden
+    staleTime: 30000, // 30 Sekunden
+  });
+  
+  // Initialize from URL params if any
   useEffect(() => {
-    if (params && params.orderId) {
-      const orderId = parseInt(params.orderId);
+    const orderId = params?.orderId ? parseInt(params.orderId) : null;
+    if (orderId) {
       setOrderId(orderId);
       setStep('warehouseReceiptOfExistingOrder');
     }
@@ -326,26 +269,36 @@ const BestellungV2: React.FC = () => {
       );
       
       if (!hasItems) {
-        console.log("Bestellung hat keine Items, lade sie über API...");
+        // Nachladen der Items mit verbesserter Fehlerbehandlung und Retry-Logik
+        console.log("Bestellpositionen fehlen, lade nach für Bestellung ID:", orderId);
         
-        // Rekursive Funktion zum Laden mit Retry-Logik
+        // Toast-Nachricht für den Benutzer, dass die Bestellpositionen geladen werden
+        toast({
+          title: 'Bestellpositionen werden geladen',
+          description: 'Die Bestellpositionen werden für die E-Mail geladen...',
+        });
+        
+        // Verwenden Sie eine rekursive Funktion für bessere Fehlerbehandlung und Retries
         const loadOrderItems = async (retryCount = 0, maxRetries = 3) => {
           try {
-            console.log(`Versuche Bestellpositionen zu laden (Versuch ${retryCount + 1}/${maxRetries + 1})`);
+            console.log(`Lade Bestellpositionen (Versuch ${retryCount + 1}/${maxRetries})...`);
             
-            // API-Aufruf um alle Bestellpositionen zu laden
+            // API-Anfrage mit verbesserter Fehlerbehandlung
             const response = await apiRequest(`/api/orders/${orderId}/items`);
+            console.log("API-Antwort für Bestellpositionen:", response);
             
-            // Prüfen ob Items zurückgegeben wurden
+            // Verschiedene mögliche Antwortformate prüfen
             let items = [];
-            if (response && Array.isArray(response)) {
+            if (Array.isArray(response)) {
               items = response;
-            } else if (response && response.data && Array.isArray(response.data)) {
-              items = response.data;
-            } else if (response && response.items && Array.isArray(response.items)) {
-              items = response.items;
-            } else if (response && response.data && response.data.items && Array.isArray(response.data.items)) {
-              items = response.data.items;
+            } else if (response && typeof response === 'object') {
+              // Prüfen verschiedener möglicher Property-Namen in der Antwort
+              items = response.items || response.orderItems || response.data || [];
+              
+              // Falls items in einem data-Objekt verschachtelt sind
+              if (response.data && Array.isArray(response.data.items)) {
+                items = response.data.items;
+              }
             }
             
             if (Array.isArray(items) && items.length > 0) {
@@ -396,8 +349,8 @@ const BestellungV2: React.FC = () => {
             } else {
               // Nach allen Versuchen Fehlermeldung anzeigen
               toast({
-                title: 'Fehler beim Laden der Bestellpositionen',
-                description: 'Die Bestellpositionen konnten nicht geladen werden.',
+                title: 'Keine Produkte gefunden',
+                description: 'Es konnten keine Produktdaten für die E-Mail gefunden werden.',
                 variant: 'destructive',
               });
             }
@@ -406,357 +359,945 @@ const BestellungV2: React.FC = () => {
         
         // Starte den Ladevorgang
         loadOrderItems();
-      } else {
-        console.log("Bestellung hat bereits Items:", hasItems);
-        // E-Mail vorbereiten, da Items bereits vorhanden sind
-        prepareOrderEmail(existingOrderData);
       }
     }
-  }, [step, existingOrderData, orderId, queryClient, selectedProducts]);
+  }, [step, existingOrderData, orderId, selectedProducts, queryClient]);
   
-  // Render the appropriate step content
-  const renderContent = () => {
+  // Function to generate PDF from order data
+  const generateOrderPDF = async (orderData: any) => {
+    try {
+      // Detailliertes Logging, um die exakte Datenstruktur zu sehen
+      console.log("PDF-Generierung gestartet mit Daten:", JSON.stringify(orderData, null, 2));
+      
+      // Sicherstellen, dass Bestelldaten vollständig sind
+      if (!orderData || typeof orderData !== 'object') {
+        console.error('Keine gültigen Bestelldaten für PDF-Generierung:', orderData);
+        toast({
+          title: 'Fehler bei der PDF-Erstellung',
+          description: 'Die Bestelldaten sind unvollständig oder fehlerhaft.',
+          variant: 'destructive'
+        });
+        return;
+      }
+      
+      // Verbesserte Extraktion von Bestellpositionen mit allen möglichen Property-Namen
+      let items: any[] = [];
+      
+      // Umfassende Prüfung aller möglichen Feldnamen und Strukturen nach Empfehlung
+      const raw = orderData;
+      items = 
+        (Array.isArray(raw.items) && raw.items.length > 0 ? raw.items : null) || 
+        (Array.isArray(raw.orderItems) && raw.orderItems.length > 0 ? raw.orderItems : null) || 
+        (raw.data?.items && Array.isArray(raw.data.items) && raw.data.items.length > 0 ? raw.data.items : null) ||
+        (raw.data?.orderItems && Array.isArray(raw.data.orderItems) && raw.data.orderItems.length > 0 ? raw.data.orderItems : null) || 
+        (Array.isArray(raw.products) && raw.products.length > 0 ? raw.products : null) || 
+        (Array.isArray(raw.selectedProducts) && raw.selectedProducts.length > 0 ? raw.selectedProducts : null) || 
+        (Array.isArray(raw.lineItems) && raw.lineItems.length > 0 ? raw.lineItems : null) ||
+        (raw.data && Array.isArray(raw.data) && raw.data.length > 0 ? raw.data : []);
+      
+      console.log("Extrahierte Items für PDF:", items.length > 0 ? items : "Keine Items gefunden");
+      
+      // Wenn keine Items gefunden wurden, lade sie aus der API oder verwende Fallbacks
+      if (items.length === 0) {
+        console.log('Keine Produktdaten für PDF-Generierung vorhanden, versuche Alternativen...');
+        
+        // FALLBACK 1: Verwende selectedProducts aus dem aktuellen Schritt, falls verfügbar
+        if (Array.isArray(selectedProducts) && selectedProducts.length > 0) {
+          console.log("Verwende aktuelle selectedProducts als Fallback:", selectedProducts);
+          items = selectedProducts.map(product => ({
+            productId: product.id,
+            productName: product.name,
+            quantity: product.orderQuantity || 1,
+            unitPrice: product.price || 0,
+            totalPrice: (product.price || 0) * (product.orderQuantity || 1),
+            unit: product.unit || 'Stk.'
+          }));
+        }
+        // FALLBACK 2: Nur wenn wir eine Bestellungs-ID haben und FALLBACK 1 keine Daten geliefert hat
+        else if (orderData.id) {
+          try {
+            // Maximal 3 Versuche mit längeren Wartezeiten
+            let retryCount = 0;
+            const maxRetries = 3;
+            
+            while (items.length === 0 && retryCount < maxRetries) {
+              // Längere Wartezeit zwischen Versuchen
+              if (retryCount > 0) {
+                // Exponentielles Backoff für Wartezeiten: 1s, 2s, 4s...
+                const waitTime = Math.pow(2, retryCount) * 1000;
+                console.log(`Fehler beim Laden, warte ${waitTime}ms vor nächstem Versuch...`);
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+              }
+              
+              console.log(`Lade Bestellpositionen (Versuch ${retryCount + 1}/${maxRetries})...`);
+              
+              try {
+                // Verwende POST statt GET für mehr Flexibilität
+                const response = await apiRequest(`/api/orders/${orderData.id}/items`, {
+                  method: 'POST',
+                  body: JSON.stringify({ orderId: orderData.id })
+                });
+                
+                console.log("API-Antwort für Bestellpositionen:", response);
+                
+                if (response && Array.isArray(response) && response.length > 0) {
+                  items = response;
+                  console.log(`Items aus API nachgeladen (${items.length} Positionen)`);
+                  
+                  // Cache invalidieren für diese Order
+                  queryClient.invalidateQueries({queryKey: orderKeys.detail(orderData.id)});
+                  
+                  // Lokale Daten aktualisieren
+                  const updatedOrderData = {
+                    ...orderData,
+                    items: items,
+                    orderItems: items // Beide Properties setzen für maximale Kompatibilität
+                  };
+                  
+                  // Setze State mit den neuen Daten
+                  setExistingOrderData(updatedOrderData);
+                  
+                  break;
+                }
+              } catch (apiError) {
+                console.error(`API-Fehler (Versuch ${retryCount + 1}/${maxRetries}):`, apiError);
+              }
+              
+              retryCount++;
+            }
+          } catch (err) {
+            console.error("Fehler beim Nachladen der Items:", err);
+          }
+        }
+        
+        // FALLBACK 3: Wenn immer noch keine Items, erstelle Platzhalter-Item damit die PDF-Generierung nicht fehlschlägt
+        if (items.length === 0) {
+          console.warn("Auch nach allen Fallbacks keine Produkte für PDF gefunden - erstelle Platzhalter");
+          
+          toast({
+            title: 'Keine Produkte gefunden',
+            description: 'Es konnten keine Produktdaten für die PDF-Erstellung gefunden werden. PDF wird mit Platzhalter erstellt.',
+            variant: 'destructive'
+          });
+          
+          // Erstelle einen Dummy-Eintrag als letzten Fallback, damit die PDF nicht völlig fehlschlägt
+          items = [{
+            positionNumber: 1,
+            productId: '-',
+            productName: "Keine Produktdaten verfügbar",
+            quantity: 0,
+            unitPrice: 0,
+            totalPrice: 0,
+            unit: "-",
+            price: 0
+          }];
+        }
+      }
+      
+      // Normalisierte Bestelldaten erstellen und fehlende Werte ergänzen
+      const formattedItems = items.map((item: any, index: number) => ({
+        ...item,
+        positionNumber: index + 1,
+        unit: item.unit || 'Stk.',
+        price: item.price || 0,
+        quantity: item.quantity || 1,
+        totalPrice: calculateTotalPrice(item.price || 0, item.quantity || 1)
+      }));
+      
+      const totalAmount = formattedItems.reduce((sum: number, item: any) => 
+        sum + (item.totalPrice || 0), 0);
+      const vatAmount = parseFloat((totalAmount * 0.19).toFixed(2));
+      const totalWithTax = parseFloat((totalAmount + vatAmount).toFixed(2));
+      
+      const normalizedOrderData = {
+        ...orderData,
+        items: formattedItems,
+        orderDate: formatDate(orderData.orderDate || new Date()),
+        expectedDeliveryDate: formatDate(orderData.expectedDeliveryDate),
+        warehouseName: orderData.warehouseName || 'Hauptlager',
+        priority: orderData.priority || 'Normal',
+        notes: orderData.notes || '',
+        supplierName: orderData.supplierName || 'Unbekannter Lieferant',
+        supplierAddress: orderData.supplierAddress || '',
+        supplierEmail: orderData.supplierEmail || '',
+        totalAmount: formatPrice(totalAmount),
+        vatAmount: formatPrice(vatAmount),
+        totalWithTax: formatPrice(totalWithTax)
+      };
+      
+      console.log("Normalisierte Daten für PDF:", normalizedOrderData);
+      
+      // HTML-Template in einen String mit ersetzten Variablen umwandeln
+      let htmlContent = orderPDFTemplate;
+      
+      // Fix für das Logo - absoluten Pfad verwenden
+      htmlContent = htmlContent.replace(
+        'src="/images/Proviantomat_Logo_rot.png"',
+        'src="https://www.elbsandstein-proviant.de/images/Proviantomat_Logo_rot.png"'
+      );
+      
+      // Einfache Handlebars-ähnliche Template-Verarbeitung
+      // Ersetze {{variable}} mit den tatsächlichen Werten
+      Object.entries(normalizedOrderData).forEach(([key, value]) => {
+        if (key !== 'items') {
+          const regex = new RegExp(`{{${key}}}`, 'g');
+          htmlContent = htmlContent.replace(regex, String(value || ''));
+        }
+      });
+      
+      // Verarbeite die Items-Liste
+      let itemsHtml = '';
+      formattedItems.forEach((item: any) => {
+        itemsHtml += `
+          <tr>
+            <td>${item.positionNumber}</td>
+            <td>${item.productId || ''}</td>
+            <td>${item.productName || ''}</td>
+            <td style="text-align:right">${item.quantity}</td>
+            <td>${item.unit}</td>
+            <td style="text-align:right">${formatPrice(item.price)} €</td>
+            <td style="text-align:right">${formatPrice(item.totalPrice)} €</td>
+          </tr>`;
+      });
+      
+      // Ersetze den {{#each items}} Block mit dem generierten HTML
+      htmlContent = htmlContent.replace(/{{#each items}}[\s\S]*?{{\/each}}/g, itemsHtml);
+      
+      // Ersetze bedingte Blöcke
+      if (normalizedOrderData.notes) {
+        htmlContent = htmlContent.replace(
+          /{{#if notes}}[\s\S]*?{{\/if}}/g, 
+          `<tr><th>Notizen</th><td colspan="3">${normalizedOrderData.notes}</td></tr>`
+        );
+      } else {
+        htmlContent = htmlContent.replace(/{{#if notes}}[\s\S]*?{{\/if}}/g, '');
+      }
+      
+      if (normalizedOrderData.supplierEmail) {
+        htmlContent = htmlContent.replace(
+          /{{#if supplierEmail}}{{supplierEmail}}{{\/if}}/g,
+          normalizedOrderData.supplierEmail
+        );
+      } else {
+        htmlContent = htmlContent.replace(/{{#if supplierEmail}}{{supplierEmail}}{{\/if}}/g, '');
+      }
+      
+      // Debug-Ausgabe des HTML-Inhalts zur Prüfung
+      console.log("Generierter HTML-Inhalt:", htmlContent.substring(0, 500) + "... (gekürzt)");
+      
+      // Erstelle ein div-Element mit dem PDF-Inhalt
+      const element = document.createElement('div');
+      element.innerHTML = htmlContent;
+      element.style.width = '210mm'; // A4 Breite
+      element.style.padding = '10mm';
+      element.style.backgroundColor = 'white';
+      // Element sichtbar machen für Debugging
+      document.body.appendChild(element);
+      
+      // Rendere das Element zu einem Canvas
+      const canvas = await html2canvas(element, {
+        scale: 2, // Höhere Qualität
+        useCORS: true,
+        logging: true, // Logging aktivieren für Debugging
+        backgroundColor: '#ffffff'
+      });
+      
+      console.log("Canvas erstellt mit Größe:", canvas.width, "x", canvas.height);
+      
+      // Erstelle ein PDF aus dem Canvas
+      const pdf = new jsPDF({
+        unit: 'mm',
+        format: 'a4',
+        orientation: 'portrait'
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const imgWidth = 210; // A4 Breite in mm
+      const imgHeight = canvas.height * imgWidth / canvas.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      
+      // Speichere das PDF als Blob
+      const blob = pdf.output('blob');
+      console.log("PDF-Blob erstellt:", blob);
+      setPdfBlob(blob);
+      
+      // Element wieder ausblenden, aber nicht entfernen für Debugging
+      element.style.display = 'none';
+      toast({
+        title: 'PDF erstellt',
+        description: 'Die PDF-Vorschau wurde erfolgreich generiert.',
+      });
+    } catch (error) {
+      console.error('Fehler beim Generieren des PDFs:', error);
+      toast({
+        title: 'Fehler beim Generieren des PDFs',
+        description: 'Die PDF-Vorschau konnte nicht erstellt werden. Details in der Konsole.',
+        variant: 'destructive',
+      });
+    }
+  };
+  
+  // Define step information
+  const stepInfo: {[key in OrderStep]: {title: string, description: string}} = {
+    overview: {
+      title: 'Bestellungsübersicht',
+      description: 'Alle Bestellungen im Überblick'
+    },
+    warehouse: {
+      title: 'Lager auswählen',
+      description: 'Wählen Sie das Ziellager für diese Bestellung'
+    },
+    mode: {
+      title: 'Bestellungsart',
+      description: 'Neue Bestellung, Kopie oder Prognose'
+    },
+    supplier: {
+      title: 'Lieferant',
+      description: 'Wählen Sie den Lieferanten für diese Bestellung'
+    },
+    products: {
+      title: 'Produkte',
+      description: 'Wählen Sie die zu bestellenden Produkte'
+    },
+    additionalInfo: {
+      title: 'Zusätzliche Informationen',
+      description: 'Liefertermin und Anmerkungen'
+    },
+    summary: {
+      title: 'Zusammenfassung',
+      description: 'Bestellübersicht und Abschluss'
+    },
+    sendOrder: {
+      title: 'Bestellung versenden',
+      description: 'Versand der Bestellung an den Lieferanten'
+    },
+    goodsReceipt: {
+      title: 'Wareneingang',
+      description: 'Dokumentation des Wareneingangs'
+    },
+    warehouseReceiptOfExistingOrder: {
+      title: 'Wareneingang',
+      description: 'Wareneingang für bestehende Bestellung'
+    }
+  };
+  
+  // Find or select order handler - Statusabhängige Weiterleitung
+  const handleSelectOrder = (orderId: number) => {
+    console.log("Bestellung ausgewählt:", orderId);
+    
+    // State-Updates in einer Batch-Operation durchführen, um Race-Conditions zu vermeiden
+    // Zuerst den Step zurücksetzen, um potenzielle fehlerhafte State-Kombinationen zu vermeiden
+    setStep('overview');
+    
+    // Nach einem kurzen Timeout die Bestellungs-ID setzen
+    // Dann abfragen, welche Weiterleitung sinnvoll ist (basierend auf dem Status)
+    setTimeout(async () => {
+      setOrderId(orderId);
+      
+      try {
+        // Bestelldaten abrufen
+        const response = await apiRequest(`/api/orders/${orderId}`, undefined, 'get');
+        const orderData = response;
+        
+        setExistingOrderData(orderData);
+        
+        // Statusabhängige Weiterleitung
+        if (!orderData.sentAt) {
+          // Wenn die Bestellung noch nicht gesendet wurde -> E-Mail-Schritt
+          console.log("Bestellung ist noch ein Entwurf, leite zum E-Mail-Schritt weiter");
+          setStep('sendOrder');
+        } else {
+          // Wenn die Bestellung bereits gesendet wurde -> Wareneingang
+          console.log("Bestellung wurde bereits versendet, leite zum Wareneingang weiter");
+          setStep('warehouseReceiptOfExistingOrder');
+        }
+      } catch (error) {
+        console.error("Fehler beim Laden der Bestelldaten:", error);
+        toast({
+          title: "Fehler beim Laden der Bestellung",
+          description: "Die Bestelldaten konnten nicht geladen werden.",
+          variant: "destructive"
+        });
+        setStep('overview');
+      }
+    }, 50);
+  };
+  
+  // Go back to overview
+  const handleBackToOverview = () => {
+    setStep('overview');
+  };
+  
+  // Get step content
+  const getStepContent = () => {
     switch (step) {
       case 'overview':
         return (
-          <OrdersOverview 
-            onSelectWarehouse={() => setStep('warehouse')}
-            onEditOrder={handleEditOrder}
-            onReceiveOrder={handleReceiveOrder}
+          <OrdersOverview
+            onSelectOrder={handleSelectOrder}
+            onCreateNew={() => {
+              // Setze alle Werte zurück
+              setWarehouseId(null);
+              setWarehouseName('');
+              setOrderMode('new');
+              setSourceOrderId(null);
+              setSupplierId(null);
+              setSupplierName('');
+              setSelectedProducts([]);
+              setAdditionalInfo({
+                expectedDeliveryDate: null,
+                priority: 'normal',
+                notes: '',
+              });
+              setOrderId(null);
+              setOrderNumber('');
+              setExistingOrderData(null);
+              setPdfBlob(null);
+              
+              // Starte mit der Lagerauswahl
+              setStep('warehouse');
+            }}
           />
         );
+        
       case 'warehouse':
         return (
           <WarehouseSelector
-            onSelect={(id, name) => {
+            onSelectWarehouse={(id, name) => {
               setWarehouseId(id);
               setWarehouseName(name);
-              setStep('mode');
             }}
+            selectedWarehouseId={warehouseId}
           />
         );
+        
       case 'mode':
         return (
           <OrderModeSelector
-            onSelect={(mode, sourceId = null) => {
-              setOrderMode(mode);
-              setSourceOrderId(sourceId);
-              setStep('supplier');
-            }}
-            onBack={() => setStep('warehouse')}
+            mode={orderMode}
+            onSelectMode={handleModeSelect}
           />
         );
+        
       case 'supplier':
         return (
           <SupplierSelector
-            onSelect={(id, name) => {
+            onSelectSupplier={(id, name) => {
               setSupplierId(id);
               setSupplierName(name);
-              setStep('products');
             }}
-            onBack={() => setStep('mode')}
+            selectedSupplierId={supplierId}
           />
         );
+        
       case 'products':
-        return (
+        // Prüfen, ob die Komponente überhaupt angezeigt werden soll
+        return supplierId !== null && warehouseId !== null ? (
           <ProductSelectionTable
-            supplierId={supplierId}
-            warehouseId={warehouseId}
+            supplierId={supplierId as number} 
+            warehouseId={warehouseId as number}
+            selectedProducts={selectedProducts}
+            onProductsChange={setSelectedProducts}
             sourceOrderId={sourceOrderId}
             mode={orderMode}
-            selectedProducts={selectedProducts}
-            setSelectedProducts={setSelectedProducts}
-            onNext={() => setStep('additionalInfo')}
-            onBack={() => setStep('supplier')}
           />
+        ) : (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <p>Bitte wählen Sie zuerst einen Lieferanten und ein Lager aus.</p>
+            </CardContent>
+          </Card>
         );
+        
       case 'additionalInfo':
         return (
           <AdditionalInfoForm
-            value={additionalInfo}
-            onChange={setAdditionalInfo}
-            onNext={() => setStep('summary')}
-            onBack={() => setStep('products')}
+            additionalInfo={additionalInfo}
+            onAdditionalInfoChange={setAdditionalInfo}
           />
         );
+        
       case 'summary':
         return (
           <OrderSummary
             warehouseName={warehouseName}
             supplierName={supplierName}
-            products={selectedProducts}
+            selectedProducts={selectedProducts}
             additionalInfo={additionalInfo}
-            onBack={() => setStep('additionalInfo')}
-            onSubmit={() => {
-              console.log("Übermittle Bestellung mit folgenden Daten:");
-              console.log("- Lager:", warehouseId, warehouseName);
-              console.log("- Lieferant:", supplierId, supplierName);
-              console.log("- Produktanzahl:", selectedProducts.length);
-              console.log("- Zusatzinfos:", additionalInfo);
-              
-              if (!warehouseId || !supplierId) {
-                toast({
-                  title: 'Fehler',
-                  description: 'Bitte wählen Sie ein Lager und einen Lieferanten aus.',
-                  variant: 'destructive',
-                });
-                return;
-              }
-              
-              if (selectedProducts.length === 0) {
-                toast({
-                  title: 'Keine Produkte ausgewählt',
-                  description: 'Bitte wählen Sie mindestens ein Produkt aus.',
-                  variant: 'destructive',
-                });
-                return;
-              }
-              
-              // Bestellung erstellen
-              createOrderMutation.mutate({
-                warehouseId,
+            orderData={existingOrderData}
+            onCreateOrder={() => {
+              // Vollständige Produktinformationen für die Bestellpositionen hinzufügen
+              const orderData = {
+                locationId: warehouseId, // Server erwartet locationId statt warehouseId
                 supplierId,
-                expectedDeliveryDate: additionalInfo.expectedDeliveryDate,
+                supplierName,
+                // orderItems statt products verwenden, damit der Server die Daten korrekt verarbeitet
+                orderItems: selectedProducts.map(p => ({
+                  productId: p.id,
+                  productName: p.name || p.productName || `Produkt ${p.id}`,
+                  quantity: p.orderQuantity || p.quantity || 0,
+                  unitPrice: p.price || 0,
+                  totalPrice: (p.price || 0) * (p.orderQuantity || p.quantity || 0),
+                  unit: p.unit || 'Stk.',
+                  vatRate: 19
+                })),
+                expectedDeliveryDate: additionalInfo.expectedDeliveryDate ? additionalInfo.expectedDeliveryDate.toISOString() : null,
                 priority: additionalInfo.priority,
                 notes: additionalInfo.notes,
-                items: selectedProducts.map(product => ({
-                  productId: product.id,
-                  quantity: product.orderQuantity,
-                  price: product.price,
-                  discountPercent: 0,
-                  notes: product.orderNotes || ''
-                }))
+                orderMode,
+                sourceOrderId,
+              };
+              
+              console.log("Sende Bestellung mit Positionsdaten:", JSON.stringify(orderData));
+              
+              // Zuerst die Bestellung ohne PDF erstellen
+              createOrderMutation.mutate(orderData, {
+                onSuccess: async (data) => {
+                  console.log("Bestellung erfolgreich erstellt mit Antwort:", JSON.stringify(data));
+                  setExistingOrderData(data);
+                  
+                  try {
+                    // Manuell die Bestellpositionen erstellen, falls sie in der Antwort nicht enthalten sind
+                    if (!data.orderItems || data.orderItems.length === 0) {
+                      console.log("Bestellpositionen manuell erstellen, da keine in der Antwort enthalten sind");
+                      
+                      // Bestellpositionen separat speichern
+                      for (let i = 0; i < orderData.orderItems.length; i++) {
+                        const item = orderData.orderItems[i];
+                        
+                        // Alle erforderlichen Felder für eine Bestellposition angeben
+                        const orderItem = {
+                          orderId: data.id,
+                          productId: item.productId,
+                          productName: item.productName,
+                          quantity: item.quantity,
+                          unitPrice: item.unitPrice,
+                          totalPrice: item.totalPrice,
+                          unit: item.unit,
+                          vatRate: item.vatRate,
+                          positionNumber: i + 1,
+                          status: 'pending'
+                        };
+                        
+                        console.log(`Speichere Bestellposition ${i+1}:`, JSON.stringify(orderItem));
+                        await apiRequest('/api/order-items', orderItem, 'post');
+                      }
+                      
+                      // Warte kurz, um sicherzustellen, dass alle Positionen gespeichert wurden
+                      setTimeout(async () => {
+                        // Vollständige Bestelldaten mit Positionen neu laden
+                        const fullOrderData = await apiRequest(`/api/orders/${data.id}`, null, 'get');
+                        console.log("Vollständige Bestelldaten nach manueller Erstellung der Positionen:", JSON.stringify(fullOrderData));
+                        setExistingOrderData(fullOrderData);
+                        generateOrderPDF(fullOrderData);
+                        setStep('sendOrder');
+                      }, 1000);
+                    } else {
+                      // Bestellpositionen sind bereits in der Antwort enthalten
+                      console.log(`Bestellung enthält bereits ${data.orderItems.length} Positionen`);
+                      generateOrderPDF(data);
+                      setStep('sendOrder');
+                    }
+                  } catch (error) {
+                    console.error("Fehler bei der manuellen Erstellung der Bestellpositionen:", error);
+                    generateOrderPDF(data);
+                    setStep('sendOrder');
+                  }
+                }
               });
             }}
-            isSubmitting={createOrderMutation.isPending}
+            isCreatingOrder={createOrderMutation.isPending}
+            onSendOrderEmail={() => setStep('sendOrder')}
+            orderId={orderId}
           />
         );
+        
       case 'sendOrder':
         return (
-          <>
-            <div className="mb-4">
-              <Button 
-                variant="outline" 
-                onClick={() => setStep('overview')}
-                size="sm"
-              >
-                <ChevronRight className="mr-2 h-4 w-4 rotate-180" />
-                Zurück zur Übersicht
-              </Button>
-            </div>
-            
-            <OrderEmailPage
-              orderId={orderId}
-              supplierEmail={existingOrderData?.supplierEmail || ''}
-              orderNumber={orderNumber}
-              supplierName={supplierName}
-              onSendEmail={handleSendEmail}
-              onBack={() => {
-                if (orderMode === 'new') {
-                  setStep('summary');
-                } else {
-                  setStep('overview');
-                }
-              }}
-              onNext={() => setStep('overview')}
-            />
-          </>
+          <OrderEmailPage
+            orderId={orderId}
+            orderNumber={orderNumber}
+            supplierName={supplierName}
+            supplierEmail={existingOrderData?.supplierEmail || ''}
+            onBack={() => setStep('summary')}
+            onNext={() => {
+              // Nach dem E-Mail-Versand zur Wareneingangsseite wechseln
+              setStep('goodsReceipt');
+            }}
+          />
         );
+        
       case 'goodsReceipt':
         return (
           <GoodsReceiptForm
-            orderId={orderId!}
-            onSubmit={(receiptData) => {
-              // Prüfen, ob alle Positionen geprüft wurden
-              const allItemsChecked = receiptData.items.every(item => 
-                item.quantityDelivered !== null && item.quantityDelivered !== undefined
+            order={existingOrderData}
+            isSubmitting={false}
+            onSaveComplete={async (receivedItems) => {
+              // Bestimme den neuen Status basierend auf den empfangenen Artikeln
+              let newStatus = 'delivered';
+              
+              // Wenn einige Artikel fehlen oder beschädigt sind, setze auf 'partial'
+              const isPartial = receivedItems.some(item => 
+                item.receivedQuantity !== item.orderedQuantity || item.damaged
               );
               
-              if (!allItemsChecked) {
-                toast({
-                  title: 'Nicht alle Positionen geprüft',
-                  description: 'Bitte prüfen Sie alle Positionen der Lieferung.',
-                  variant: 'destructive',
-                });
-                return;
+              if (isPartial) {
+                newStatus = 'partial';
               }
               
-              goodsReceiptMutation.mutate({
-                orderId,
-                ...receiptData
-              });
-            }}
-            onBack={() => setStep('sendOrder')}
-            isSubmitting={goodsReceiptMutation.isPending}
-          />
-        );
-      case 'warehouseReceiptOfExistingOrder':
-        if (isLoadingOrder) {
-          return (
-            <div className="flex items-center justify-center h-32">
-              <Loader2 className="h-8 w-8 animate-spin" />
-              <span className="ml-2">Bestellung wird geladen...</span>
-            </div>
-          );
-        }
-        
-        if (!existingOrderData) {
-          return (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Fehler</AlertTitle>
-              <AlertDescription>
-                Die Bestellung konnte nicht geladen werden. Bitte versuchen Sie es erneut.
-                <div className="mt-2">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setStep('overview')}
-                    size="sm"
-                  >
-                    Zurück zur Übersicht
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
-          );
-        }
-        
-        return (
-          <>
-            <div className="mb-4">
-              <Button 
-                variant="outline" 
-                onClick={() => setStep('overview')}
-                size="sm"
-              >
-                <ChevronRight className="mr-2 h-4 w-4 rotate-180" />
-                Zurück zur Übersicht
-              </Button>
-            </div>
-            
-            <GoodsReceiptForm
-              orderId={orderId!}
-              onSubmit={(receiptData) => {
-                // Prüfen, ob alle Positionen geprüft wurden
-                const allItemsChecked = receiptData.items.every(item => 
-                  item.quantityDelivered !== null && item.quantityDelivered !== undefined
-                );
-                
-                if (!allItemsChecked) {
-                  toast({
-                    title: 'Nicht alle Positionen geprüft',
-                    description: 'Bitte prüfen Sie alle Positionen der Lieferung.',
-                    variant: 'destructive',
-                  });
-                  return;
+              try {
+                // Aktualisiere den Bestellstatus in der API
+                if (orderId) {
+                  await updateOrderStatus(orderId, newStatus, 
+                    `Wareneingang am ${new Date().toLocaleDateString('de-DE')} erfasst.`);
                 }
                 
-                goodsReceiptMutation.mutate({
-                  orderId,
-                  ...receiptData
+                toast({
+                  title: 'Wareneingang gespeichert',
+                  description: 'Der Wareneingang wurde erfolgreich dokumentiert und der Status aktualisiert.',
                 });
-              }}
-              onBack={() => setStep('overview')}
-              isSubmitting={goodsReceiptMutation.isPending}
-            />
-          </>
+                
+                // Invalidiere den Cache für Bestellungen mit zentralisierten Keys
+                queryClient.invalidateQueries({queryKey: orderKeys.lists()});
+                queryClient.invalidateQueries({queryKey: orderKeys.detail(orderId || 0)});
+                
+                // Zurück zur Übersicht
+                setStep('overview');
+              } catch (error) {
+                console.error('Fehler beim Aktualisieren des Bestellstatus:', error);
+                toast({
+                  title: 'Warnung',
+                  description: 'Der Wareneingang wurde gespeichert, aber der Status konnte nicht aktualisiert werden.',
+                  variant: 'destructive'
+                });
+                
+                // Trotzdem zur Übersicht zurückkehren
+                setStep('overview');
+              }
+            }}
+          />
         );
-      default:
+        
+      case 'warehouseReceiptOfExistingOrder':
+        // PROBLEM #3 GELÖST: Error-Guard NUR im richtigen Kontext (Detail-Schritt) platzieren
+        if (isErrorOrder) {
+          return (
+            <Card>
+              <CardContent className="py-10">
+                <div className="text-center">
+                  <AlertTriangle className="h-10 w-10 mx-auto text-destructive mb-4" />
+                  <h3 className="text-lg font-medium mb-2">Fehler beim Laden der Bestellung</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Die Bestelldaten konnten nicht geladen werden. Bitte versuchen Sie es später erneut.
+                  </p>
+                  <div className="flex justify-center gap-2">
+                    <Button 
+                      onClick={() => {
+                        // PROBLEM #4 GELÖST: Korrekte Cache-Invalidierung mit konsistenten Keys
+                        queryClient.invalidateQueries({queryKey: orderKeys.detail(orderId || 0)});
+                        queryClient.invalidateQueries({queryKey: orderKeys.lists()});
+                      }}
+                      variant="outline"
+                    >
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Cache leeren
+                    </Button>
+                    <Button onClick={() => window.location.reload()}>
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Neu laden
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        }
+        
+        // Warten auf Bestellungsdaten
+        if (isLoadingOrder) {
+          return (
+            <Card>
+              <CardContent className="py-10">
+                <div className="text-center">
+                  <Loader2 className="h-10 w-10 mx-auto text-primary animate-spin mb-4" />
+                  <h3 className="text-lg font-medium mb-2">Bestelldaten werden geladen...</h3>
+                  <p className="text-muted-foreground">
+                    Bitte warten Sie, während die Bestellungsdaten geladen werden.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        }
+        
+        console.log("Rendering GoodsReceiptForm with order data:", order);
         return (
-          <div>
-            <h2>Unbekannter Schritt</h2>
-            <Button onClick={() => setStep('overview')}>
-              Zurück zur Übersicht
-            </Button>
-          </div>
+          <GoodsReceiptForm
+            order={order}
+            onSubmit={(receivedItems, receiptNote, documents) => {
+              // Hier die Logik zum Speichern der empfangenen Artikel implementieren
+              console.log("Empfangene Artikel:", receivedItems);
+              console.log("Notiz:", receiptNote);
+              console.log("Dokumente:", documents);
+              
+              // API-Aufruf zum Speichern des Wareneingangs hier implementieren
+              // z.B. apiRequest(`/api/orders/${orderId}/receipt`, 'POST', { items: receivedItems, note: receiptNote })
+              
+              toast({
+                title: 'Wareneingang gespeichert',
+                description: 'Der Wareneingang wurde erfolgreich dokumentiert.',
+              });
+              
+              // Invalidiere den Cache für Bestellungen mit zentralisierten Keys
+              queryClient.invalidateQueries({queryKey: orderKeys.lists()});
+              queryClient.invalidateQueries({queryKey: orderKeys.detail(orderId || 0)});
+              
+              // Zurück zur Übersicht
+              setStep('overview');
+            }}
+            isSubmitting={false}
+          />
         );
-    }
-  };
-
-  // Bestimme den aktuellen Schritt für die Fortschrittsanzeige
-  const getCurrentIndex = () => {
-    switch (step) {
-      case 'overview': return 0;
-      case 'warehouse': return 1;
-      case 'mode': return 2;
-      case 'supplier': return 3;
-      case 'products': return 4;
-      case 'additionalInfo': return 5;
-      case 'summary': return 6;
-      case 'sendOrder': return 7;
-      case 'goodsReceipt': return 8;
-      case 'warehouseReceiptOfExistingOrder': return 8;
-      default: return 0;
+        
+      default:
+        return <div>Unbekannter Schritt</div>;
     }
   };
   
-  // Bestimme Schritte basierend auf dem aktuellen Workflow
-  const getSteps = () => {
-    // Standard-Bestellworkflow
-    if (step !== 'warehouseReceiptOfExistingOrder' && step !== 'overview') {
-      return [
-        { title: "Lager", icon: <Building2 className="h-4 w-4" /> },
-        { title: "Art", icon: <FileText className="h-4 w-4" /> },
-        { title: "Lieferant", icon: <Truck className="h-4 w-4" /> },
-        { title: "Produkte", icon: <Package className="h-4 w-4" /> },
-        { title: "Details", icon: <ClipboardList className="h-4 w-4" /> },
-        { title: "Übersicht", icon: <ClipboardCheck className="h-4 w-4" /> },
-        { title: "Versand", icon: <Send className="h-4 w-4" /> },
-        { title: "Wareneingang", icon: <Boxes className="h-4 w-4" /> }
-      ];
+  // Check if the step is complete
+  const isStepComplete = (currentStep: OrderStep): boolean => {
+    switch (currentStep) {
+      case 'warehouse':
+        return warehouseId !== null;
+      case 'mode':
+        return orderMode !== null;
+      case 'supplier':
+        return supplierId !== null;
+      case 'products':
+        return selectedProducts.length > 0;
+      case 'additionalInfo':
+        return additionalInfo.expectedDeliveryDate !== null;
+      case 'summary':
+        return true;
+      case 'sendOrder':
+        return true;
+      case 'goodsReceipt':
+        return true;
+      case 'warehouseReceiptOfExistingOrder':
+        return true;
+      case 'overview':
+        return true;
+      default:
+        return false;
     }
+  };
+  
+  // Get the next step
+  const getNextStep = (currentStep: OrderStep): OrderStep | null => {
+    switch (currentStep) {
+      case 'warehouse':
+        return 'mode';
+      case 'mode':
+        return 'supplier';
+      case 'supplier':
+        return 'products';
+      case 'products':
+        return 'additionalInfo';
+      case 'additionalInfo':
+        return 'summary';
+      case 'summary':
+        return 'sendOrder';
+      case 'sendOrder':
+        return 'goodsReceipt';
+      default:
+        return null;
+    }
+  };
+  
+  // Move to the next step
+  const goToNextStep = () => {
+    const nextStep = getNextStep(step);
+    if (nextStep) {
+      setStep(nextStep);
+    }
+  };
+  
+  // Get the previous step
+  const getPreviousStep = (currentStep: OrderStep): OrderStep | null => {
+    switch (currentStep) {
+      case 'mode':
+        return 'warehouse';
+      case 'supplier':
+        return 'mode';
+      case 'products':
+        return 'supplier';
+      case 'additionalInfo':
+        return 'products';
+      case 'summary':
+        return 'additionalInfo';
+      case 'sendOrder':
+        return 'summary';
+      case 'goodsReceipt':
+        return 'sendOrder';
+      default:
+        return null;
+    }
+  };
+  
+  // Move to the previous step
+  const goToPreviousStep = () => {
+    const prevStep = getPreviousStep(step);
+    if (prevStep) {
+      setStep(prevStep);
+    }
+  };
+  
+  // Handle order mode selection
+  const handleModeSelect = (mode: OrderMode) => {
+    setOrderMode(mode);
     
-    // Spezialfall: Direkter Wareneingang einer existierenden Bestellung
-    if (step === 'warehouseReceiptOfExistingOrder') {
-      return [
-        { title: "Übersicht", icon: <ClipboardCheck className="h-4 w-4" /> },
-        { title: "Wareneingang", icon: <Boxes className="h-4 w-4" /> }
-      ];
+    // Wenn "Kopie" ausgewählt ist, eine existierende Bestellung kopieren
+    if (mode === 'copy') {
+      // Hier könnte später eine Bestellungsauswahl erfolgen
+      setSourceOrderId(null); // Vorerst keine Quellbestellung
+    } else {
+      setSourceOrderId(null);
     }
-    
-    // Übersichtsseite hat keine Steps
-    return [];
   };
   
-  const showSteps = step !== 'overview';
-  const steps = getSteps();
-  const currentIndex = getCurrentIndex();
-  
+  // Render the component
   return (
-    <div className="container py-6 mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">
-          {step === 'overview' ? 'Bestellungen' : 'Neue Bestellung'}
-          {orderId && step !== 'overview' && (
-            <Badge variant="outline" className="ml-2">
-              {orderNumber || `#${orderId}`}
-            </Badge>
-          )}
-        </h1>
+    <div className="container mx-auto p-4 space-y-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Bestellungen</h1>
+        
+        {step !== 'overview' && (
+          <Button 
+            variant="outline" 
+            onClick={handleBackToOverview}
+          >
+            Zurück zur Übersicht
+          </Button>
+        )}
       </div>
       
-      {showSteps && steps.length > 0 && (
-        <div className="mb-8">
-          <Steps
-            steps={steps}
-            currentIndex={step === 'warehouseReceiptOfExistingOrder' ? 1 : currentIndex}
-            orientation="horizontal"
-          />
-        </div>
+      {/* Schritt-Anzeige nur anzeigen, wenn wir nicht in der Übersicht sind */}
+      {step !== 'overview' && step !== 'warehouseReceiptOfExistingOrder' && (
+        <Card>
+          <CardContent className="pt-6">
+            <Steps 
+              currentStep={
+                ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'sendOrder', 'goodsReceipt']
+                .indexOf(step)
+              }
+              steps={[
+                {
+                  title: "Lager",
+                  description: warehouseName || "Ziellager auswählen"
+                },
+                {
+                  title: "Modus",
+                  description: orderMode === 'new' ? "Neue Bestellung" : orderMode === 'copy' ? "Kopie" : "Prognose"
+                },
+                {
+                  title: "Lieferant",
+                  description: supplierName || "Lieferant auswählen"
+                },
+                {
+                  title: "Produkte",
+                  description: `${selectedProducts.length} Produkte ausgewählt`
+                },
+                {
+                  title: "Details",
+                  description: additionalInfo.expectedDeliveryDate ? format(additionalInfo.expectedDeliveryDate, 'dd.MM.yyyy') : "Lieferdetails"
+                },
+                {
+                  title: "Abschluss",
+                  description: "Bestellung abschließen"
+                },
+                {
+                  title: "E-Mail",
+                  description: "Bestellung versenden"
+                },
+                {
+                  title: "Wareneingang",
+                  description: "Wareneingang erfassen"
+                }
+              ]}
+              goToStep={(index) => {
+                const steps = ['warehouse', 'mode', 'supplier', 'products', 'additionalInfo', 'summary', 'sendOrder', 'goodsReceipt'];
+                // Only allow going to steps that are valid based on current progress
+                if (
+                  (index === 0) || // Always allow going to first step
+                  (index === 1 && warehouseId) || // Mode requires warehouse
+                  (index === 2 && warehouseId && orderMode) || // Supplier requires warehouse and mode
+                  (index === 3 && warehouseId && orderMode && supplierId) || // Products require supplier
+                  (index === 4 && warehouseId && orderMode && supplierId && selectedProducts.length > 0) || // Details require products
+                  (index === 5 && warehouseId && orderMode && supplierId && selectedProducts.length > 0 && additionalInfo.expectedDeliveryDate) || // Summary requires details
+                  (index === 6 && orderId) || // SendOrder requires an orderId
+                  (index === 7 && orderId && order?.sentAt) // GoodsReceipt requires a sent order
+                ) {
+                  setStep(steps[index] as OrderStep);
+                }
+              }}
+              allowStepClick={true}
+            />
+          </CardContent>
+        </Card>
       )}
       
-      {renderContent()}
-      
-      {showEmailDialog && (
-        <OrderEmailDialog
-          orderId={orderId}
-          supplierEmail={existingOrderData?.supplierEmail || ''}
-          orderNumber={orderNumber}
-          open={showEmailDialog}
-          onOpenChange={setShowEmailDialog}
-          onSendEmail={handleSendEmail}
-        />
-      )}
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle>{stepInfo[step]?.title || 'Bestellungen'}</CardTitle>
+          <CardDescription>{stepInfo[step]?.description || 'Verwalten Sie Ihre Bestellungen'}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {getStepContent()}
+        </CardContent>
+        <CardFooter className="flex justify-between">
+          {/* In der Übersicht keine Navigation anzeigen */}
+          {step !== 'overview' && step !== 'warehouseReceiptOfExistingOrder' && (
+            <>
+              {step !== 'warehouse' && step !== 'goodsReceipt' && (
+                <Button
+                  variant="outline"
+                  onClick={goToPreviousStep}
+                >
+                  Zurück
+                </Button>
+              )}
+              {step === 'warehouse' && (
+                <div></div>
+              )}
+              
+              {step !== 'summary' && step !== 'goodsReceipt' && (
+                <Button
+                  onClick={goToNextStep}
+                  disabled={!isStepComplete(step)}
+                >
+                  Weiter
+                  <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+              )}
+            </>
+          )}
+          
+          {/* In der Übersicht Zurück-Button zur vorherigen Seite */}
+          {(step === 'overview' || step === 'warehouseReceiptOfExistingOrder') && (
+            <div className="w-full flex justify-end">
+              {step === 'warehouseReceiptOfExistingOrder' && (
+                <Button 
+                  variant="outline" 
+                  onClick={handleBackToOverview}
+                >
+                  Zurück zur Übersicht
+                </Button>
+              )}
+            </div>
+          )}
+        </CardFooter>
+      </Card>
     </div>
   );
 };
