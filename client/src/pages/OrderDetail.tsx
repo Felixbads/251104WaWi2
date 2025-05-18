@@ -1,17 +1,16 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isValid } from "date-fns";
 import { de } from "date-fns/locale";
-import { jsPDF } from "jspdf";
 // @ts-ignore
 import QRCode from "qrcode";
 import ReceiveOrderDialog from "@/components/orders/ReceiveOrderDialog";
 import OrderDetailActions from "@/components/orders/OrderDetailActions";
 import ManualStatusChange from "@/components/orders/ManualStatusChange";
 import OrderEmailDialog from "@/components/orders/OrderEmailDialog";
-import html2canvas from "html2canvas";
+import OrderEmailPage from "@/components/orders/OrderEmailPage";
 import { getOrder, updateOrder } from "@/lib/api";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { orderKeys, warehouseKeys } from "@/lib/queryKeys";
