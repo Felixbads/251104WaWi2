@@ -20,7 +20,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 
 // Icons importieren
@@ -156,31 +156,11 @@ const BestellungV3: React.FC = () => {
   const { 
     data: orders, 
     isLoading: ordersLoading, 
-    isError: ordersError 
+    isError: ordersError,
+    error: ordersErrorData
   } = useQuery({
     queryKey: orderKeys.lists(),
-    queryFn: async () => {
-      try {
-        console.log("Rufe Bestellungen ab...");
-        const response = await fetch('/api/orders', {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        console.log("Bestellungen erfolgreich abgerufen:", data);
-        return data || [];
-      } catch (error) {
-        console.error("Fehler beim Abrufen der Bestellungen:", error);
-        throw error;
-      }
-    },
+    // Wir verwenden den vordefinierten queryFn aus dem QueryClient
   });
 
   // Lager abrufen
@@ -189,28 +169,6 @@ const BestellungV3: React.FC = () => {
     isLoading: warehousesLoading 
   } = useQuery({
     queryKey: ['/api/warehouses'],
-    queryFn: async () => {
-      try {
-        console.log("Rufe Lager ab...");
-        const response = await fetch('/api/warehouses', {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        console.log("Lager erfolgreich abgerufen:", data);
-        return data || [];
-      } catch (error) {
-        console.error("Fehler beim Abrufen der Lager:", error);
-        throw error;
-      }
-    },
     enabled: step === 'overview' || step === 'warehouse',
   });
 
@@ -220,28 +178,6 @@ const BestellungV3: React.FC = () => {
     isLoading: suppliersLoading 
   } = useQuery({
     queryKey: ['/api/suppliers'],
-    queryFn: async () => {
-      try {
-        console.log("Rufe Lieferanten ab...");
-        const response = await fetch('/api/suppliers', {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        console.log("Lieferanten erfolgreich abgerufen:", data);
-        return data || [];
-      } catch (error) {
-        console.error("Fehler beim Abrufen der Lieferanten:", error);
-        throw error;
-      }
-    },
     enabled: step === 'supplier',
   });
 
@@ -251,28 +187,6 @@ const BestellungV3: React.FC = () => {
     isLoading: productsLoading 
   } = useQuery({
     queryKey: ['/api/products'],
-    queryFn: async () => {
-      try {
-        console.log("Rufe Produkte ab...");
-        const response = await fetch('/api/products', {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        console.log("Produkte erfolgreich abgerufen:", data);
-        return data || [];
-      } catch (error) {
-        console.error("Fehler beim Abrufen der Produkte:", error);
-        throw error;
-      }
-    },
     enabled: step === 'products',
   });
 
@@ -280,27 +194,7 @@ const BestellungV3: React.FC = () => {
   const createOrderMutation = useMutation({
     mutationFn: async (orderData: any) => {
       console.log("Sende Bestellung an API mit Datum:", orderData.expectedDeliveryDate);
-      try {
-        const response = await fetch('/api/orders', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
-          },
-          body: JSON.stringify(orderData)
-        });
-        
-        if (!response.ok) {
-          throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        console.log("Bestellung erfolgreich erstellt:", data);
-        return data;
-      } catch (error) {
-        console.error("Fehler beim Erstellen der Bestellung:", error);
-        throw error;
-      }
+      return apiRequest('/api/orders', orderData);
     },
     onSuccess: (data) => {
       // Cache invalidieren und neu laden
@@ -511,7 +405,7 @@ const BestellungV3: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {orders && orders.length > 0 ? (
+                {orders && Array.isArray(orders) && orders.length > 0 ? (
                   orders.map((order: any) => (
                     <TableRow key={order.id}>
                       <TableCell className="font-medium">{order.orderNumber || `-`}</TableCell>
