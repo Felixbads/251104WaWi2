@@ -308,7 +308,7 @@ export default function SupplierPortal() {
   const dashboardCards = [
     {
       title: "Neue Bestellungen",
-      icon: FileText,
+      icon: Mail,
       value: orders ? orders.filter(o => o.status === "new").length : 0,
       color: "bg-blue-100 text-blue-800",
       link: () => setStatusFilter("new")

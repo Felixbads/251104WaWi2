@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings, FileText, Mail } from 'lucide-react';
+import { Settings, Mail } from 'lucide-react';
 import { EmailServerConfig } from '@/components/email/EmailServerConfig';
 import { EmailTemplateManager } from '@/components/email/EmailTemplateManager';
 
@@ -27,7 +27,7 @@ const MailSettings: React.FC = () => {
             Server-Einstellungen
           </TabsTrigger>
           <TabsTrigger value="templates">
-            <FileText className="mr-2 h-4 w-4" />
+            <Mail className="mr-2 h-4 w-4" />
             E-Mail-Vorlagen
           </TabsTrigger>
         </TabsList>
