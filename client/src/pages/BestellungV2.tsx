@@ -4,7 +4,6 @@ import { apiRequest } from '@/lib/queryClient';
 import { updateOrderStatus } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { orderKeys, supplierKeys, warehouseKeys, productKeys } from '@/lib/queryKeys';
-import { formatDate, calculateTotalPrice, formatPrice } from '@/components/orders/PDFTemplate';
 import { format } from 'date-fns';
 import {
   ChevronRight,
@@ -45,7 +44,7 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert";
-import { usePDFGenerator } from "@/components/orders/PDFGenerator";
+
 
 // Import custom components
 import WarehouseSelector from '@/components/orderv2/WarehouseSelector';
@@ -90,7 +89,6 @@ const BestellungV2: React.FC = () => {
   const [orderId, setOrderId] = useState<number | null>(null);
   const [orderNumber, setOrderNumber] = useState<string>('');
   const [existingOrderData, setExistingOrderData] = useState<any>(null);
-  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [showEmailDialog, setShowEmailDialog] = useState<boolean>(false);
   
   // Create order mutation
