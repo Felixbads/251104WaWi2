@@ -128,11 +128,8 @@ const BestellungV2: React.FC = () => {
       // Setze auf State, damit es für spätere PDF-Generierung verfügbar ist
       setExistingOrderData(orderWithProducts);
       
-      // Warte kurz, bevor PDF generiert wird
+      // Kurze Verzögerung vor der Weiterleitung
       setTimeout(() => {
-        // Generiere PDF mit dem Order-Objekt, das die Produkte enthält
-        generateOrderPDF(orderWithProducts);
-        
         // Aggressives Cache-Invalidieren, um sicherzustellen, dass alle Listen aktualisiert werden
         queryClient.invalidateQueries(); // Invalidiert den gesamten Cache
         
@@ -259,11 +256,11 @@ const BestellungV2: React.FC = () => {
     }
   }, [order]);
   
-  // Verbesserte useEffect für PDF-Generierung mit besserem Timing
+  // useEffect für das Laden von Bestellpositionen
   useEffect(() => {
     // Nur ausführen wenn wir im richtigen Schritt sind UND existingOrderData vorhanden ist
     if ((step === 'sendOrder' || step === 'warehouseReceiptOfExistingOrder') && existingOrderData && orderId) {
-      console.log("PDF-Generierung vorbereiten. Prüfe Bestellungsdetails:", existingOrderData);
+      console.log("Prüfe Bestellungsdetails für E-Mail-Versand:", existingOrderData);
       
       // Prüfen, ob bereits Bestellpositionen in irgendeinem bekannten Format vorhanden sind
       const hasItems = !!(
@@ -273,20 +270,14 @@ const BestellungV2: React.FC = () => {
         (existingOrderData.data && Array.isArray(existingOrderData.data.items) && existingOrderData.data.items.length > 0)
       );
       
-      if (hasItems) {
-        // Items sind bereits vorhanden, PDF direkt generieren mit kurzer Verzögerung
-        console.log("Bestellpositionen bereits vorhanden, generiere PDF direkt");
-        setTimeout(() => {
-          generateOrderPDF(existingOrderData);
-        }, 800);
-      } else {
+      if (!hasItems) {
         // Nachladen der Items mit verbesserter Fehlerbehandlung und Retry-Logik
         console.log("Bestellpositionen fehlen, lade nach für Bestellung ID:", orderId);
         
         // Toast-Nachricht für den Benutzer, dass die Bestellpositionen geladen werden
         toast({
           title: 'Bestellpositionen werden geladen',
-          description: 'Die Bestellpositionen werden für die PDF-Erstellung geladen...',
+          description: 'Die Bestellpositionen werden für die E-Mail geladen...',
         });
         
         // Verwenden Sie eine rekursive Funktion für bessere Fehlerbehandlung und Retries
@@ -323,16 +314,11 @@ const BestellungV2: React.FC = () => {
                 products: items            // Weitere Alternative
               };
               
-              // State aktualisieren und PDF generieren
+              // State aktualisieren
               setExistingOrderData(updatedOrderData);
               
               // Cache invalidieren
               queryClient.invalidateQueries({queryKey: orderKeys.detail(orderId)});
-              
-              // Nach kurzer Verzögerung PDF generieren
-              setTimeout(() => {
-                generateOrderPDF(updatedOrderData);
-              }, 800);
               
               return; // Erfolgreicher Fall, Funktion beenden
             } else if (retryCount < maxRetries) {
@@ -350,7 +336,6 @@ const BestellungV2: React.FC = () => {
                   orderItems: selectedProducts
                 };
                 setExistingOrderData(fallbackOrderData);
-                generateOrderPDF(fallbackOrderData);
               } else {
                 throw new Error("Keine Bestellpositionen gefunden");
               }
@@ -367,7 +352,7 @@ const BestellungV2: React.FC = () => {
               // Nach allen Versuchen Fehlermeldung anzeigen
               toast({
                 title: 'Keine Produkte gefunden',
-                description: 'Es konnten keine Produktdaten für die PDF-Erstellung gefunden werden.',
+                description: 'Es konnten keine Produktdaten für die E-Mail gefunden werden.',
                 variant: 'destructive',
               });
             }
