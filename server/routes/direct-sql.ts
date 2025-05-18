@@ -197,6 +197,44 @@ router.get('/email-templates-direct', async (req, res) => {
   }
 });
 
+// Direkter Endpunkt für Bestellpositionen
+router.get('/order-items-direct/:orderId', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    
+    if (!orderId || isNaN(Number(orderId))) {
+      return res.status(400).json({ 
+        error: 'Ungültige Bestellungs-ID', 
+        message: 'Bitte geben Sie eine gültige Bestellungs-ID an'
+      });
+    }
+    
+    console.log(`Lade Bestellpositionen für Bestellung ${orderId} direkt aus der Datenbank...`);
+    
+    // SQL-Abfrage für Bestellpositionen mit Produktdetails
+    const result = await pool.query(`
+      SELECT oi.*, p.name as product_name, p.unit
+      FROM order_items oi
+      LEFT JOIN products p ON oi.product_id = p.id
+      WHERE oi.order_id = $1
+      ORDER BY oi.id ASC
+    `, [orderId]);
+    
+    return res.json({
+      success: true,
+      data: result.rows,
+      message: `${result.rows.length} Bestellpositionen für Bestellung ${orderId} geladen`
+    });
+  } catch (error) {
+    console.error(`Fehler beim Laden der Bestellpositionen für Bestellung ${req.params.orderId}:`, error);
+    return res.status(500).json({ 
+      error: 'Fehler beim Laden der Bestellpositionen', 
+      message: error instanceof Error ? error.message : 'Unbekannter Fehler',
+      success: false
+    });
+  }
+});
+
 // Direkter Endpunkt für Lager
 router.get('/warehouses-direct', async (req, res) => {
   try {
