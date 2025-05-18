@@ -247,7 +247,25 @@ const BestellungV2: React.FC = () => {
       return;
     }
     
-    markOrderAsSentMutation.mutate(orderId);
+    try {
+      // Die Bestellung als gesendet markieren
+      markOrderAsSentMutation.mutate(orderId);
+      
+      toast({
+        title: 'E-Mail gesendet',
+        description: 'Die Bestellung wurde erfolgreich per E-Mail versendet.',
+      });
+      
+      // Nach erfolgreichem Versand zurück zur Übersicht
+      setTimeout(() => setStep('overview'), 1500);
+    } catch (error) {
+      console.error('Fehler beim Senden der E-Mail:', error);
+      toast({
+        title: 'Fehler beim Senden',
+        description: `Die E-Mail konnte nicht gesendet werden: ${(error as Error).message}`,
+        variant: 'destructive',
+      });
+    }
   };
   
   // Funktion zur E-Mail-Vorbereitung
