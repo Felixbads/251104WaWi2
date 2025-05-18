@@ -202,7 +202,13 @@ router.get('/orders', async (req: Request, res: Response) => {
     
     // Sortierung und Paginierung für die Hauptabfrage
     query = query
-      .orderBy(sortField === 'id' ? orders.id : sortOrder(orders[sortField]))
+      .orderBy(sortField === 'id' ? orders.id : 
+               sortField === 'orderDate' ? orders.orderDate : 
+               sortField === 'expectedDeliveryDate' ? orders.expectedDeliveryDate : 
+               sortField === 'supplierName' ? orders.supplierName : 
+               sortField === 'totalAmount' ? orders.totalAmount : 
+               sortField === 'status' ? orders.status : 
+               orders.orderDate, sortOrder)
       .limit(limit)
       .offset(offset);
     
