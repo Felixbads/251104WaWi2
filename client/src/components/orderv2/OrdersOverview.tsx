@@ -312,7 +312,7 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
         </div>
         
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          <Select value={statusFilter || ''} onValueChange={(value) => setStatusFilter(value || null)}>
+          <Select value={statusFilter || 'all'} onValueChange={(value) => setStatusFilter(value === 'all' ? null : value)}>
             <SelectTrigger className="w-full sm:w-[180px]">
               <div className="flex items-center">
                 <Filter className="mr-2 h-4 w-4" />
@@ -320,7 +320,7 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
               </div>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Alle Status</SelectItem>
+              <SelectItem value="all">Alle Status</SelectItem>
               {Object.entries(ORDER_STATUS).map(([key, {label}]) => (
                 <SelectItem key={key} value={key}>{label}</SelectItem>
               ))}
