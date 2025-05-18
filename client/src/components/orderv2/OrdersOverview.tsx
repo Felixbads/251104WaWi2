@@ -124,12 +124,16 @@ interface OrdersOverviewProps {
   onSelectOrder: (orderId: number) => void;
   onStartWarehouseReceiptProcess?: (orderId: number) => void;
   onCreateNew?: () => void; // Prop für den "Neue Bestellung"-Button
+  ordersData?: any; // Bestellungsdaten direkt von der Elternkomponente
+  isLoading?: boolean; // Ladezustand von der Elternkomponente
 }
 
 const OrdersOverview: React.FC<OrdersOverviewProps> = ({ 
   onSelectOrder, 
   onStartWarehouseReceiptProcess,
-  onCreateNew
+  onCreateNew,
+  ordersData,
+  isLoading: externalLoading
 }) => {
   const { toast } = useToast();
   
@@ -184,13 +188,19 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
     return () => clearTimeout(timer);
   }, [searchTerm]);
   
-  // Abfrage für Bestellungen mit Filtern
-  const { data: apiResponse, isLoading, isError, error, refetch } = useQuery({
+  // Abfrage für Bestellungen mit Filtern - externe Daten oder eigene Abfrage
+  const { data: apiResponse, isLoading: queryLoading, isError, error, refetch } = useQuery({
     queryKey: orderKeys.list({ 
       status: statusFilter ? [statusFilter] : ['draft', 'sent', 'delivered', 'canceled'], 
       search: debouncedSearchTerm
     }),
     queryFn: async () => {
+      // Wenn externe Daten vorhanden sind, diese verwenden
+      if (ordersData) {
+        return ordersData;
+      }
+      
+      // Ansonsten normale API-Abfrage durchführen
       const params = new URLSearchParams();
       if (statusFilter) params.append('status', statusFilter);
       params.append('sortField', sortBy.field);
@@ -198,8 +208,12 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
       if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
       
       return apiRequest(`/api/orders?${params.toString()}`, undefined, 'get');
-    }
+    },
+    enabled: !externalLoading // Nicht ausführen, wenn externes Laden noch aktiv ist
   });
+  
+  // Kombinierter Ladezustand
+  const isLoading = queryLoading || externalLoading;
   
   // Daten aus der API-Antwort extrahieren
   console.log("API-Antwort:", apiResponse);
@@ -209,20 +223,41 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
   let data = [];
   
   try {
-    // 1. Wenn apiResponse selbst ein Array ist
-    if (Array.isArray(apiResponse)) {
-      data = apiResponse;
-      console.log("API-Antwort ist bereits ein Array mit", data.length, "Elementen");
+    // Zunächst prüfen, ob externe Daten vorhanden sind
+    if (ordersData) {
+      // Direkt die externen Daten verwenden
+      if (Array.isArray(ordersData)) {
+        data = ordersData;
+        console.log("Externe Daten als Array mit", data.length, "Elementen");
+      } else if (ordersData?.data && Array.isArray(ordersData.data)) {
+        data = ordersData.data;
+        console.log("Externe Daten.data als Array mit", data.length, "Elementen");
+      } else if (ordersData?.orders && Array.isArray(ordersData.orders)) {
+        data = ordersData.orders;
+        console.log("Externe Daten.orders als Array mit", data.length, "Elementen");
+      } else {
+        console.log("Externe Daten sind weder ein Array noch enthalten sie ein data/orders-Array");
+      }
     } 
-    // 2. Wenn apiResponse.data ein Array ist
-    else if (apiResponse?.data && Array.isArray(apiResponse.data)) {
-      data = apiResponse.data;
-      console.log("API-Antwort.data ist ein Array mit", data.length, "Elementen");
-    }
-    // 3. Wenn apiResponse.orders ein Array ist (alternative API-Struktur)
-    else if (apiResponse?.orders && Array.isArray(apiResponse.orders)) {
-      data = apiResponse.orders;
-      console.log("API-Antwort.orders ist ein Array mit", data.length, "Elementen");
+    // Falls keine externen Daten, apiResponse verwenden
+    else if (apiResponse) {
+      // 1. Wenn apiResponse selbst ein Array ist
+      if (Array.isArray(apiResponse)) {
+        data = apiResponse;
+        console.log("API-Antwort ist bereits ein Array mit", data.length, "Elementen");
+      } 
+      // 2. Wenn apiResponse.data ein Array ist
+      else if (apiResponse?.data && Array.isArray(apiResponse.data)) {
+        data = apiResponse.data;
+        console.log("API-Antwort.data ist ein Array mit", data.length, "Elementen");
+      }
+      // 3. Wenn apiResponse.orders ein Array ist (alternative API-Struktur)
+      else if (apiResponse?.orders && Array.isArray(apiResponse.orders)) {
+        data = apiResponse.orders;
+        console.log("API-Antwort.orders ist ein Array mit", data.length, "Elementen");
+      } else {
+        console.log("API-Antwort konnte nicht verarbeitet werden:", apiResponse);
+      }
     }
     // 4. Wenn apiResponse selbst ein Objekt ist, aber nicht die erwartete Struktur hat
     else if (apiResponse && typeof apiResponse === 'object') {
