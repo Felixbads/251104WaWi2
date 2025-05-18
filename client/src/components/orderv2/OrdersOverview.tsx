@@ -802,21 +802,37 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
             >
               <CardContent className="p-0">
                 <div className="p-4 cursor-pointer hover:bg-muted/50">
+                  {/* Header: Bestellnummer und Status */}
                   <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <div className="font-medium">{order.orderNumber}</div>
-                      <div className="text-sm text-muted-foreground">{order.supplierName}</div>
+                    <div className="flex flex-col">
+                      <div className="font-medium text-sm">{order.orderNumber || 'Keine Nummer'}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {formatDate(order.orderDate)}
+                        {order.priority === 'high' && (
+                          <span className="ml-2 bg-amber-100 text-amber-800 text-xs px-1.5 py-0.5 rounded-full inline-flex items-center">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            Dringend
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <OrderStatusBadge status={order.status} />
+                    <OrderStatusBadge status={order.status || 'draft'} />
                   </div>
                   
-                  <div className="flex justify-between items-center text-sm">
-                    <div>{order.warehouseName}</div>
-                    <div className="font-medium">{formatCurrency(order.totalAmount)}</div>
+                  {/* Hervorgehobener Lieferant */}
+                  <div className="my-2">
+                    <div className="font-semibold text-base text-primary">
+                      {order.supplierName || 'Unbekannter Lieferant'}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Lager: {order.warehouseName || 'Unbekanntes Lager'}
+                    </div>
                   </div>
                   
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Bestellt am {formatDate(order.orderDate)}
+                  {/* Betrag deutlich hervorgehoben */}
+                  <div className="flex justify-between items-center mt-3 pt-2 border-t border-border/30">
+                    <div className="text-sm">Summe:</div>
+                    <div className="font-semibold text-base">{formatCurrency(order.totalAmount || 0)}</div>
                   </div>
                 </div>
                 
