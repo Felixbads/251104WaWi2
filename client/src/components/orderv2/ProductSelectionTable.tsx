@@ -29,7 +29,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
-import { Search, Plus, Minus, Package2, AlertCircle, Tag } from 'lucide-react';
+import { Search, Plus, Minus, Package2, AlertCircle, Tag, ArrowRight } from 'lucide-react';
 import { Skeleton } from "@/components/ui/skeleton";
 import { OrderMode } from './OrderModeSelector';
 
@@ -109,6 +109,8 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
       price: condition.unitPrice,
       packagingUnit: condition.packagingUnit,
       minQuantity: condition.minQuantity || 1,
+      // Gebindegröße aus der Einkaufsbedingung
+      packageSize: condition.packageSize || condition.minQuantity || 1,
       // Additional fields from purchase condition
       purchaseConditionId: condition.id,
       isPreferred: condition.isPreferred,
@@ -511,6 +513,26 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
             </Table>
             
             {renderPagination()}
+            
+            <div className="flex justify-between mt-6">
+              <Button
+                variant="outline"
+                onClick={onBack}
+                className="gap-2"
+              >
+                <ArrowRight className="h-4 w-4 rotate-180" />
+                Zurück
+              </Button>
+              
+              <Button
+                onClick={onNext}
+                disabled={selectedProducts.length === 0}
+                className="gap-2"
+              >
+                Bestätigen
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
           </>
         ) : (
           <div className="bg-muted p-8 rounded-md flex flex-col items-center justify-center text-center">
