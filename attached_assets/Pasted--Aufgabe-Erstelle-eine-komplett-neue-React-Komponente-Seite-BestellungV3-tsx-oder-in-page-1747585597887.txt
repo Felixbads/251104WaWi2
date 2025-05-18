@@ -1,0 +1,97 @@
+## Aufgabe
+
+Erstelle eine **komplett neue** React-Komponente/Seite `BestellungV3.tsx` (oder in `pages/BestellungV3.tsx` bei Next.js), die den gesamten Bestellprozess abbildet. **Übernimm keinen Code** aus den bisherigen Versionen (BestellungV2-xx), sondern verfasse alles von Grund auf neu – aber halte dich streng an das gewünschte Multi-Step-Design, die Daten-Architektur und die Interaktionsanforderungen, die bisher definiert wurden.
+
+---
+
+### 1) Struktur & Schritte
+
+Die Seite soll folgende sieben Schritte (Steps) als mehrstufiges Formular umsetzen:
+
+1. **Übersicht (Overview)**  
+   - Zeige alle bestehenden Bestellungen in einer Tabelle mit Spalten: Bestellnummer, Datum, Lieferant, Status.  
+   - Nutze `useQuery` von TanStack Query, um GET `/api/orders` zu laden.  
+   - Lade die Liste **immer** im Hintergrund (ohne `enabled`-Bedingung), damit wir sie jederzeit nach Mutationen invalidieren können.
+
+2. **Lager auswählen (Warehouse)**  
+   - Zeige eine Liste oder Dropdown aller Läger (GET `/api/warehouses`).  
+   - Klicke auf eine Zeile oder wähle im Dropdown, um `warehouseId` zu setzen.  
+   - Keine weiteren Details anzeigen (kein Standort, kein Typ).
+
+3. **Lieferant auswählen (Supplier)**  
+   - Zeige eine Liste oder Dropdown aller Lieferanten (GET `/api/suppliers`).  
+   - Klicke auf eine Zeile oder wähle im Dropdown, um `supplierId` zu setzen.  
+   - Keine Kontaktpersonen oder Adressen anzeigen.
+
+4. **Produkte auswählen (Products)**  
+   - Lade Produktdaten aus GET `/api/products`.  
+   - Zeige Name und Gebindegröße (Mindestbestellmenge) pro Zeile.  
+   - Erlaube Mengenangabe als Vielfaches der Gebindegröße (z. B. Stepper mit Step = Gebindegröße).  
+   - SKU und Preis **nicht** anzeigen.  
+   - Erlaube optionale Notizen pro Position.
+
+5. **Zusatzinfos (AdditionalInfo)**  
+   - Optionales Lieferdatum (`expectedDeliveryDate`), Pflichtfeld oder klarer Hinweis, wenn ausgelassen.  
+   - Priorität (`low`/`normal`/`high`) als Auswahl.  
+   - Freitext für Notizen.
+
+6. **Überprüfung (Review)**  
+   - Zeige alle eingegebenen Daten in read-only zusammengefasst.  
+   - Button **Zurück** und **Bestellung abschicken**.
+
+7. **Versand / E-Mail (SendOrder)**  
+   - Nach erfolgreichem POST `/api/orders` navigiere automatisch per `router.push('/orders/[id]/send-mail')` zur Mailversand-Seite.  
+   - Auf dieser Seite: Formular zum Verfassen der Versand-E-Mail, mit Empfänger‐Adresse des Lieferanten, Bestellnummer und Link zur Bestellung.
+
+---
+
+### 2) Technische Vorgaben
+
+- **Framework & Libraries**  
+  - React + Next.js (Seiten in `pages/` oder App‐Router).  
+  - TypeScript.  
+  - TanStack Query (`useQuery`, `useMutation`, `queryClient.invalidateQueries`).  
+  - UI-Komponenten aus `@/components/ui` (Card, Button, Table, Input, DatePicker, Select).  
+  - `apiRequest`-Wrapper oder `fetch` mit `application/json`.
+
+- **State & Navigation**  
+  - Multi-Step via `useState<'overview'|'warehouse'|...>` oder `useReducer`.  
+  - Für interne Navigation keine Seitenreloads, nur State‐Switch.  
+  - Für E-Mail‐Versand: Next.js‐Router `useRouter().push()`.
+
+- **Formate & Validierung**  
+  - `expectedDeliveryDate`: immer String `YYYY-MM-DD`; wenn nicht gesetzt, Fallback oder Pflichtmeldung.  
+  - `orderDate`: automatisch `today` im Format `YYYY-MM-DD`.  
+  - `items`: Array mit Objekten `{ productId: number, quantity: number, price: number, discountPercent: number, notes: string }`.  
+  - Client‐seitige Validierung: alle Pflichtfelder müssen gesetzt sein, Mengen > 0, Datumsformat geprüft.
+
+- **Fehlermeldungen & Toaster**  
+  - `useToast` für Errors und Success.  
+  - Im Error-Fall: toast mit `title: 'Fehler beim Erstellen'`, `description: error.message`.  
+  - Im Success-Fall (onSuccess): toast mit Bestellnummer direkt aus `data.orderNumber`, keine State-Zwischenvariante.
+
+- **Query‐Invalidation**  
+  - Nach erfolgreicher Mutation `createOrderMutation`, immer `queryClient.invalidateQueries(orderKeys.lists())`, um Liste neu zu laden.
+
+---
+
+### 3) APIs & Endpunkte
+
+- **GET** `/api/orders` → Liste aller Bestellungen  
+- **GET** `/api/warehouses` → Liste aller Lager  
+- **GET** `/api/suppliers` → Liste aller Lieferanten  
+- **GET** `/api/products` → Liste aller Produkte  
+- **POST** `/api/orders`  
+  - Body: `{ warehouseId, supplierId, orderDate, expectedDeliveryDate, priority, notes, items }`  
+  - Response: `{ id: number, orderNumber: string, ... }`  
+- **GET** `/api/orders/[id]` → Detail zu einer Bestellung  
+
+---
+
+### 4) Deliverables
+
+1. Neue Datei `pages/BestellungV3.tsx` (bzw. `src/pages/BestellungV3.tsx`) mit vollständigem Code.  
+2. Keinerlei Referenzen auf alte Komponenten oder Utility‐Funktionen aus V2.  
+3. Ein kurzes README‐Kommentar am Anfang, das die Architektur und die Steps erläutert.
+
+Bitte setze die Implementierung **sehr detailliert** um, sodass danach **kein** weiterer Refactoring-Bedarf besteht und der Bestellprozess **reibungslos** funktioniert.
