@@ -148,6 +148,9 @@ function createOrderItemsTable(items: any[]): string {
 
 // Alle Bestellungen abrufen
 router.get('/orders', async (req: Request, res: Response) => {
+  // Header zur Sicherstellung der richtigen Antwortformatierung
+  res.setHeader('Content-Type', 'application/json');
+  
   try {
     // Paginierungsparameter
     const page = parseInt(req.query.page as string) || 1;
