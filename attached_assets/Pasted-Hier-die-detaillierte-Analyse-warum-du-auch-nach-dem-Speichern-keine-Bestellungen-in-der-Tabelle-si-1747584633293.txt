@@ -1,0 +1,98 @@
+Hier die detaillierte Analyse, warum du auch nach dem Speichern keine Bestellungen in der Tabelle siehst und weshalb du nicht automatisch zum E-Mail-Versand weitergeleitet wirst – und wie du das beheben kannst.
+
+⸻
+
+1. Die Übersicht lädt nur, wenn step === 'overview'
+
+const { data: ordersList, isLoading: isLoadingOrdersList } = useQuery({
+  queryKey: orderKeys.lists(),
+  queryFn: () => apiRequest('/api/orders'),
+  enabled: step === 'overview'
+});
+
+	•	Default ist step = 'overview' – beim ersten Laden der Komponente wird die Liste geholt und angezeigt.
+	•	Nach dem Anlegen rufst du setStep("sendOrder") auf. Danach ist step !== 'overview', also ist enabled: false und die List-Query ist deaktiviert.
+	•	Ein anschließender queryClient.invalidateQueries({ queryKey: orderKeys.lists() }) kann gar nicht nachladen, weil die Abfrage derzeit nicht läuft.
+
+Folge: Du siehst dauerhaft keine Bestellungen mehr, sobald step auf etwas anderes als 'overview' steht.
+
+🔧 Lösung:
+	1.	Abfrage unabhängig vom Step aktivieren
+Entferne das enabled: step === 'overview', damit die Liste immer im Hintergrund geladen (und nach invalidateQueries neu geladen) wird:
+
+const { data: ordersList, isLoading: isLoadingOrdersList } = useQuery({
+  queryKey: orderKeys.lists(),
+  queryFn: () => apiRequest('/api/orders'),
+  // enabled: step === 'overview'  ← weg damit
+});
+
+
+	2.	Oder nach dem Anlegen wieder zurück zur Übersicht springen
+Wenn du bei Erfolg setStep("overview") statt "sendOrder" setzt, siehst du direkt die aktualisierte Tabelle:
+
+onSuccess: (data) => {
+  /* … toast … */
+  queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+  setStep("overview");  // zurück zur Übersicht
+}
+
+
+
+⸻
+
+2. Die Bestellung wird möglicherweise nicht gespeichert
+
+Bevor du weiter debuggen kannst, prüfe im Browser-Netzwerk-Tab, ob der POST /api/orders:
+	•	Status 201/200 zurückliefert und
+	•	im Response Body wirklich ein eindeutiges id und orderNumber enthält.
+
+mutationFn: async (orderData) => {
+  const response = await fetch('/api/orders', { method: 'POST', … });
+  console.log("Response-Status:", response.status);
+  const payload = await response.json();
+  console.log("Response-Body:", payload);
+  return payload;
+},
+
+	•	Wenn du gar kein id siehst, liegt das Problem im Backend:
+	•	Entweder akzeptiert die Route dein Payload nicht und speichert nichts
+	•	Oder sie liefert die Daten verschachtelt zurück ({ data: { id: … } }), du greifst aber auf das falsche Feld zu.
+
+Maßnahme:
+Passe entweder deinen Fetch-Wrapper so an, dass er return payload.data, oder verändere deinen onSuccess-Handler, um die verschachtelte Struktur zu nutzen.
+
+⸻
+
+3. Keine automatische Weiterleitung zum E-Mail-Versand
+
+Aktuell machst du in onSuccess nur:
+
+setStep("sendOrder");
+
+	•	step = 'sendOrder' ändert nur den internen State, es navigiert aber nicht auf eine andere URL und zeigt vermutlich gar kein Mail-Formular an (weil in deinem JSX kein Fall für step === 'sendOrder' gerendert wird).
+
+🔧 Lösung:
+	•	Wenn du eine E-Mail-Seite als eigene Route hast, importiere useRouter() von Next.js und mache z. B.:
+
+onSuccess: (data) => {
+  router.push(`/orders/${data.id}/send-mail`);
+}
+
+
+	•	Oder erweitere dein Render-Switch um einen Block für step === 'sendOrder', der das Mailformular tatsächlich anzeigt.
+
+⸻
+
+Zusammenfassung der Quick-Fixes
+
+Symptom	Ursache	Sofortmaßnahme
+Keine Tabelle sichtbar	useQuery mit enabled: step==='overview' ist deaktiviert	enabled-Zeile entfernen oder nach Erfolg setStep('overview')
+Bestellung nicht gespeichert	POST liefert kein id/orderNumber oder falsches Feld genutzt	Network-Log prüfen, Payload/Response-Struktur anpassen
+Keine Mail-Weiterleitung	setStep('sendOrder') zeigt kein Mail-UI; keine router.push(...)	Navigationsaufruf hinzufügen oder UI für sendOrder implementieren
+
+Wenn du diese drei Stellschrauben anpasst, solltest du
+	1.	die Bestellungen dauerhaft in der Übersicht sehen,
+	2.	sicherstellen, dass deine Bestellung wirklich im Backend landet,
+	3.	direkt zum Mailversand kommen, sobald die Bestellung angelegt wurde.
+
+Gib Bescheid, falls du bei einem dieser Schritte noch konkrete Code-Snippets oder Network-Outputs brauchst!
