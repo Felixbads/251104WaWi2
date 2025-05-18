@@ -653,16 +653,31 @@ const BestellungV2: React.FC = () => {
               });
               
               // Bestellung mit formatierten Daten erstellen
+              console.log("Sende Bestellung an API mit Datum:", formattedDeliveryDate);
+              
+              // Prüfen, ob selectedProducts ein Array ist
+              if (!Array.isArray(selectedProducts) || selectedProducts.length === 0) {
+                toast({
+                  title: "Keine Produkte",
+                  description: "Bitte wählen Sie mindestens ein Produkt aus.",
+                  variant: "destructive",
+                });
+                return;
+              }
+              
+              // Sicherstellen, dass alle benötigten Felder vorhanden sind
               createOrderMutation.mutate({
-                warehouseId,
-                supplierId,
-                expectedDeliveryDate: formattedDeliveryDate,
+                warehouseId: Number(warehouseId),
+                supplierId: Number(supplierId),
+                expectedDeliveryDate: formattedDeliveryDate, // Als String im Format "YYYY-MM-DD"
                 priority: additionalInfo?.priority || 'normal',
                 notes: additionalInfo?.notes || '',
+                // Explizite Ausgabe des orderDate für die API
+                orderDate: new Date().toISOString().split('T')[0], // Als String im Format "YYYY-MM-DD"
                 items: selectedProducts.map(product => ({
-                  productId: product.id,
-                  quantity: product.orderQuantity || 0, // Fallback für fehlende Mengen
-                  price: product.price || 0, // Fallback für fehlende Preise
+                  productId: Number(product.id),
+                  quantity: Number(product.orderQuantity || 0), // Fallback für fehlende Mengen
+                  price: Number(product.price || 0), // Fallback für fehlende Preise
                   discountPercent: 0,
                   notes: product.orderNotes || ''
                 }))
