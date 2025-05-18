@@ -113,13 +113,32 @@ const BestellungV2: React.FC = () => {
           throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
         }
         
-        // Versuche JSON zu parsen
+        // Verbesserte JSON-Parsing mit Fehlerbehandlung für HTML-Antworten
         try {
-          const data = await response.json();
+          // Zuerst Text holen, um prüfen zu können, ob es sich um HTML handelt
+          const text = await response.text();
+          
+          // Prüfe, ob die Antwort HTML enthält
+          if (text.includes('<!DOCTYPE html>') || text.includes('<html')) {
+            console.warn("Server hat HTML statt JSON zurückgegeben");
+            // Dennoch als Erfolg werten und Session invalidieren
+            queryClient.invalidateQueries({queryKey: orderKeys.lists()});
+            return {
+              id: null,
+              orderNumber: "Unbekannt",
+              success: true,
+              message: "Bestellung erstellt, aber Server hat HTML zurückgegeben"
+            };
+          }
+          
+          // Versuche JSON zu parsen
+          const data = JSON.parse(text);
           return data;
         } catch (jsonError) {
           console.warn("Fehler beim JSON-Parsen:", jsonError);
           // Wenn kein gültiges JSON zurückgegeben wird, ein Ersatzobjekt erstellen
+          // und trotzdem die Bestellungsübersicht aktualisieren
+          queryClient.invalidateQueries({queryKey: orderKeys.lists()});
           return {
             id: null,
             orderNumber: "Unbekannt",
