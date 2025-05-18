@@ -515,9 +515,9 @@ const BestellungV3: React.FC = () => {
                 {orders && Array.isArray(orders) && orders.length > 0 ? (
                   orders.map((order: any) => (
                     <TableRow key={order.id}>
-                      <TableCell className="font-medium">{order.orderNumber || `-`}</TableCell>
-                      <TableCell>{order.orderDate ? new Date(order.orderDate).toLocaleDateString('de-DE') : '-'}</TableCell>
-                      <TableCell>{order.supplierName || '-'}</TableCell>
+                      <TableCell className="font-medium">{order.order_number || order.orderNumber || `-`}</TableCell>
+                      <TableCell>{(order.order_date || order.orderDate) ? new Date(order.order_date || order.orderDate).toLocaleDateString('de-DE') : '-'}</TableCell>
+                      <TableCell>{order.supplier_name || order.supplierName || '-'}</TableCell>
                       <TableCell>
                         {renderStatusBadge(order.status || 'draft')}
                       </TableCell>
