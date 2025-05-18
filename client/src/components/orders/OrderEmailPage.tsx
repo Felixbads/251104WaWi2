@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Mail, FileText, Download, Send, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Mail, Send, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { apiRequest } from '@/lib/queryClient';
@@ -15,7 +15,6 @@ interface OrderEmailPageProps {
   supplierEmail?: string;
   orderNumber?: string;
   supplierName?: string;
-  pdfBlob?: Blob | null;
   onSendEmail?: (supplierEmail: string, additionalNotes: string) => void;
   onBack?: () => void;
   onNext?: () => void;
@@ -133,53 +132,14 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
     loadTemplate();
   }, [orderId, selectedTemplate, orderNumber, supplierName, toast]);
   
-  // PDF-Vorschau generieren
+  // Keine PDF-Vorschau mehr benötigt - nur E-Mail
   useEffect(() => {
-    async function loadPdf() {
-      if (!orderId) return;
-      
-      try {
-        // Direkte PDF-Abfrage vom Backend
-        const response = await fetch(`/api/orders/${orderId}/pdf`);
-        if (!response.ok) throw new Error('PDF konnte nicht geladen werden');
-        
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        setPdfUrl(url);
-        
-        // Cleanup beim Unmount
-        return () => {
-          URL.revokeObjectURL(url);
-        };
-      } catch (error) {
-        console.error('Fehler beim Laden des PDFs:', error);
-        // Fallback auf übergebenes pdfBlob
-        if (pdfBlob) {
-          const url = URL.createObjectURL(pdfBlob);
-          setPdfUrl(url);
-          
-          // Cleanup beim Unmount
-          return () => {
-            URL.revokeObjectURL(url);
-          };
-        }
-      }
-    }
+    if (!orderId) return;
     
-    loadPdf();
-  }, [orderId, pdfBlob]);
+    console.log('E-Mail-Versand wird vorbereitet für Bestellung:', orderId);
+  }, [orderId]);
   
-  // PDF Download Handler
-  const handleDownloadPdf = () => {
-    if (pdfUrl) {
-      const link = document.createElement('a');
-      link.href = pdfUrl;
-      link.download = `Bestellung_${orderNumber}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-  };
+  // Kein PDF-Download mehr nötig
   
   // E-Mail senden
   const handleSendEmail = async () => {
