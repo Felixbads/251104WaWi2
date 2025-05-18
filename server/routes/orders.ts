@@ -415,7 +415,8 @@ router.post('/orders', async (req: Request, res: Response) => {
         .from(orderItems)
         .where(eq(orderItems.orderId, newOrder.id));
       
-      res.status(201).json({
+      // Status 200 anstelle von 201 zurückgeben, um Kompatibilitätsprobleme mit dem Frontend zu vermeiden
+      res.status(200).json({
         ...newOrder,
         items: orderItemsResult
       });
