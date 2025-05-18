@@ -154,7 +154,21 @@ router.get('/email-templates-direct', async (req, res) => {
       ORDER BY created_at DESC
     `);
     
-    return res.json(formatDirectResponse(result.rows, 'E-Mail-Vorlagen'));
+    // Wenn keine Vorlagen in der Datenbank gefunden wurden, die Standardvorlage zurückgeben
+    if (result.rows.length === 0) {
+      console.log('Keine E-Mail-Vorlagen in der Datenbank gefunden, gebe Standardvorlage zurück');
+      return res.json({
+        success: true,
+        data: [defaultTemplate],
+        message: '1 Standard-Vorlage erstellt, da keine E-Mail-Vorlagen in der Datenbank gefunden wurden'
+      });
+    }
+    
+    return res.json({
+      success: true,
+      data: result.rows,
+      message: `${result.rows.length} E-Mail-Vorlagen geladen`
+    });
   } catch (error) {
     console.error('Fehler beim Laden der E-Mail-Vorlagen:', error);
     // Bei Fehler eine Standard-Vorlage zurückgeben
