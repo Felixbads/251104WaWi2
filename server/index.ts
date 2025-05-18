@@ -12,6 +12,7 @@ import inventoryRouter from './routes/inventory';
 import mailTemplatesRouter from './routes/mail-templates';
 import simpleEmailRouter from './routes/simple-email';
 import dbDirectRouter from './routes/db-direct';
+import directSqlRouter from './routes/direct-sql';
 
 const app = express();
 app.use(express.json());
@@ -67,6 +68,9 @@ app.use((req, res, next) => {
   
   // Direkten Datenbank-Zugriff für Bestellung V3 bereitstellen
   app.use('/api', dbDirectRouter);
+  
+  // Direkten SQL-Zugriff für Bestellungen und andere DB-Abfragen bereitstellen
+  app.use('/api', directSqlRouter);
   
   // SQL-Direktzugriff-Endpunkte für Datenbankabfragen
   app.get('/api/sql-orders', async (req, res) => {

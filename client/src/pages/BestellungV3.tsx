@@ -152,20 +152,20 @@ const BestellungV3: React.FC = () => {
   const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
   const [orderNumber, setOrderNumber] = useState<string>('');
 
-  // Bestellungen direkt aus der Datenbank lesen über den SQL-Endpunkt
+  // Bestellungen direkt aus der Datenbank mit dem neuen SQL-Router laden
   const { 
     data: ordersResponse, 
     isLoading: ordersLoading, 
     isError: ordersError,
     error: ordersErrorData
   } = useQuery({
-    queryKey: ['/api/db-direct/orders'],
+    queryKey: ['/api/orders-direct'],
     queryFn: async () => {
       try {
-        console.log("Lade Bestellungen über den direkten DB-Router...");
+        console.log("Lade Bestellungen direkt aus der Datenbank...");
         
-        // Direkter Endpunkt für Bestellungen
-        const response = await fetch('/api/sql-orders', {
+        // Direkten SQL-Endpunkt nutzen
+        const response = await fetch('/api/orders-direct', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -178,21 +178,23 @@ const BestellungV3: React.FC = () => {
         }
         
         const data = await response.json();
-        console.log("Bestellungsdaten aus db-direct geladen:", data);
+        console.log("Bestellungsdaten direkt aus DB geladen:", data);
         
-        // Wenn die Daten in einem rows-Array zurückgegeben werden
-        if (data && data.rows && Array.isArray(data.rows)) {
-          console.log(`${data.rows.length} Bestellungen gefunden`);
-          return data.rows;
-        }
-        
-        // Fallback für verschiedene Antwortformate
-        if (data && Array.isArray(data)) {
-          console.log(`${data.length} Bestellungen gefunden`);
+        // Rückgabe der direkten Daten aus dem JSON
+        if (Array.isArray(data)) {
+          console.log(`${data.length} Bestellungen direkt aus DB geladen`);
           return data;
         }
         
-        console.warn("Unerwartetes Datenformat empfangen:", data);
+        console.warn("Unerwartetes Datenformat, versuche alternative Struktur...");
+        
+        if (data && data.rows && Array.isArray(data.rows)) {
+          console.log(`${data.rows.length} Bestellungen aus DB-Reihen geladen`);
+          return data.rows;
+        }
+        
+        // Wenn kein erwartetes Format gefunden wurde
+        console.warn("Keine Bestellungsdaten im erwarteten Format gefunden");
         return [];
       } catch (error) {
         console.error("Fehler beim Laden der Bestellungen:", error);
