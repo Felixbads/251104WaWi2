@@ -462,38 +462,77 @@ const BestellungV2: React.FC = () => {
         );
       case 'warehouse':
         return (
-          <WarehouseSelector
-            selectedWarehouseId={warehouseId}
-            onSelectWarehouse={(id, name) => {
-              setWarehouseId(id);
-              setWarehouseName(name);
-              setStep('mode');
-            }}
-          />
+          <>
+            <div className="mb-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/bestellungen')}
+                className="gap-2 text-muted-foreground"
+              >
+                <ArrowRight className="h-4 w-4 rotate-180" />
+                Zurück zur Übersicht
+              </Button>
+            </div>
+            <WarehouseSelector
+              selectedWarehouseId={warehouseId}
+              onSelectWarehouse={(id, name) => {
+                setWarehouseId(id);
+                setWarehouseName(name);
+                setStep('mode');
+              }}
+            />
+          </>
         );
       case 'mode':
         return (
-          <OrderModeSelector
-            mode={orderMode}
-            onSelectMode={(mode) => {
-              setOrderMode(mode);
-              setSourceOrderId(null);
-              setStep('supplier');
-            }}
-            sourceOrderId={sourceOrderId}
-            onSourceOrderChange={(id) => setSourceOrderId(id)}
-          />
+          <>
+            <div className="mb-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setStep('warehouse')}
+                className="gap-2 text-muted-foreground"
+              >
+                <ArrowRight className="h-4 w-4 rotate-180" />
+                Zurück zur Lagerauswahl
+              </Button>
+            </div>
+            <OrderModeSelector
+              mode={orderMode}
+              onSelectMode={(mode) => {
+                setOrderMode(mode);
+                setSourceOrderId(null);
+                setStep('supplier');
+              }}
+              sourceOrderId={sourceOrderId}
+              onSourceOrderChange={(id) => setSourceOrderId(id)}
+            />
+          </>
         );
       case 'supplier':
         return (
-          <SupplierSelector
-            selectedSupplierId={supplierId}
-            onSelectSupplier={(id, name) => {
-              setSupplierId(id);
-              setSupplierName(name);
-              setStep('products');
-            }}
-          />
+          <>
+            <div className="mb-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setStep('mode')}
+                className="gap-2 text-muted-foreground"
+              >
+                <ArrowRight className="h-4 w-4 rotate-180" />
+                Zurück zur Bestellmodus-Auswahl
+              </Button>
+            </div>
+            <SupplierSelector
+              selectedSupplierId={supplierId}
+              onSelectSupplier={(id, name) => {
+                setSupplierId(id);
+                setSupplierName(name);
+                setStep('products');
+              }}
+            />
+          </>
         );
       case 'products':
         return (
