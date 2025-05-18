@@ -52,6 +52,32 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
     const loadTemplate = async () => {
       setIsLoading(true);
       try {
+        // Zuerst versuchen, die Vorlage über den direkten SQL-Endpunkt zu laden
+        const directResponse = await fetch('/api/email-templates-direct');
+        
+        if (directResponse.ok) {
+          const templateData = await directResponse.json();
+          console.log("Direkte E-Mail-Vorlagen geladen:", templateData);
+          
+          if (templateData && templateData.success && Array.isArray(templateData.data) && templateData.data.length > 0) {
+            // Wählen Sie die passende Vorlage basierend auf dem Template-Typ
+            const template = templateData.data.find((tpl: any) => {
+              if (selectedTemplate === 'urgent' && tpl.name.toLowerCase().includes('dringend')) return true;
+              if (selectedTemplate === 'reorder' && tpl.name.toLowerCase().includes('nachbestellung')) return true;
+              if (selectedTemplate === 'standard' && tpl.is_default) return true;
+              return false;
+            }) || templateData.data[0]; // Fallback zur ersten Vorlage
+            
+            // Vorlage anwenden
+            setEmailText(template.body || template.content || '');
+            setEmailSubject(template.subject || `Bestellung ${orderNumber || ''} vom ${new Date().toLocaleDateString('de-DE')}`);
+            
+            setIsLoading(false);
+            return;
+          }
+        }
+        
+        // Fallback zur alten API
         const response = await apiRequest(`/api/orders/${orderId}/email-template?type=${selectedTemplate}`);
         
         if (response && response.content) {
@@ -66,20 +92,24 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
         }
       } catch (error) {
         console.error('Fehler beim Laden der E-Mail-Vorlage:', error);
-        toast({
-          title: 'Fehler beim Laden der Vorlage',
-          description: 'Die E-Mail-Vorlage konnte nicht geladen werden.',
-          variant: 'destructive',
-        });
+        
+        // Immer eine Standard-Vorlage anzeigen
+        const supplierText = supplierName ? ` von ${supplierName}` : '';
+        const orderText = orderNumber ? ` (Bestellnummer: ${orderNumber})` : '';
         
         // Fallback: Einfache Standard-E-Mail
         setEmailText(`Sehr geehrte Damen und Herren,
 
-hiermit bestellen wir folgende Artikel:
+hiermit bestellen wir folgende Artikel${supplierText}${orderText}:
+
 {'{{orderItems}}'}
+
+Bitte bestätigen Sie den Eingang dieser Bestellung.
 
 Mit freundlichen Grüßen
 Ihr Proviantomat Team`);
+        
+        setEmailSubject(`Bestellung ${orderNumber || ''} vom ${new Date().toLocaleDateString('de-DE')}`);
       } finally {
         setIsLoading(false);
       }
