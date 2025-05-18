@@ -823,7 +823,6 @@ export default function Orders() {
               <TableHead>Datum</TableHead>
               <TableHead>Liefertermin</TableHead>
               <TableHead>Priorität</TableHead>
-              {/* Überflüssige Spalten entfernt */}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -861,42 +860,50 @@ export default function Orders() {
                     <TableCell className="font-medium">
                       {order.orderNumber}
                     </TableCell>
-                  <TableCell>{order.supplierName}</TableCell>
-                  <TableCell>
-                    <OrderStatusBadge status={order.status} />
-                  </TableCell>
-                  <TableCell>{formatDate(order.orderDate)}</TableCell>
-                  <TableCell>{formatDate(order.expectedDeliveryDate)}</TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant={order.priority === 'high' || order.priority === 'urgent' ? 'destructive' : 'outline'} 
-                      className={order.priority === 'normal' ? 'bg-blue-100 text-blue-800 border-blue-300' : ''}
+                    <TableCell>{order.supplierName}</TableCell>
+                    <TableCell>
+                      <OrderStatusBadge status={order.status} />
+                    </TableCell>
+                    <TableCell>
+                      {order.orderDate && isValid(parseISO(order.orderDate)) 
+                        ? format(parseISO(order.orderDate), 'dd.MM.yyyy')
+                        : '-'}
+                    </TableCell>
+                    <TableCell>
+                      {order.expectedDeliveryDate && isValid(parseISO(order.expectedDeliveryDate)) 
+                        ? format(parseISO(order.expectedDeliveryDate), 'dd.MM.yyyy')
+                        : '-'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant={order.priority === 'high' || order.priority === 'urgent' ? 'destructive' : 'outline'} 
+                        className={order.priority === 'normal' ? 'bg-blue-100 text-blue-800 border-blue-300' : ''}
+                      >
+                        {priorityMap[order.priority as keyof typeof priorityMap]?.label || order.priority}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            ) : (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <PackageOpen className="h-8 w-8 text-muted-foreground" />
+                    <span>Keine Bestellungen gefunden</span>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setLocation('/bestellungen/neu')}
                     >
-                      {priorityMap[order.priority as keyof typeof priorityMap]?.label || order.priority}
-                    </Badge>
-                  </TableCell>
-                        {(order.status === "ordered" || order.status === "partial") && (
-                          <DropdownMenuItem onClick={() => {
-                            setSelectedOrderForReceipt(order);
-                            setIsGoodsReceiptOpen(true);
-                          }}>
-                            <Package className="h-4 w-4 mr-2" />
-                            Wareneingang erfassen
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem>
-                          <Edit className="h-4 w-4 mr-2" />
-                          Bearbeiten
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem>
-                          <Download className="h-4 w-4 mr-2" />
-                          Exportieren
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Neue Bestellung
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+
+                  </TableRow>
               ))
             ) : (
               <TableRow>
