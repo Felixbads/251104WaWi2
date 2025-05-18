@@ -2,8 +2,16 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    let errorText;
+    try {
+      // Versuche, die Antwort als JSON zu parsen
+      const errorData = await res.json();
+      errorText = errorData.error || errorData.message || JSON.stringify(errorData);
+    } catch (e) {
+      // Wenn das Parsen fehlschlägt, verwende den Text oder den Statustext
+      errorText = (await res.text()) || res.statusText;
+    }
+    throw new Error(`${res.status}: ${errorText}`);
   }
 }
 
@@ -90,8 +98,14 @@ async function handleResponse(res: Response) {
     return {};
   }
   
-  // Ansonsten JSON parsen
-  return await res.json();
+  try {
+    // Versuche, die Antwort als JSON zu parsen
+    return await res.json();
+  } catch (e) {
+    console.warn("Fehler beim Parsen der API-Antwort:", e);
+    // Bei Parsing-Fehler leeres Objekt zurückgeben statt zu scheitern
+    return {};
+  }
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
