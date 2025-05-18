@@ -11,6 +11,7 @@ import inventoryApiRouter from './routes/inventory-api';
 import inventoryRouter from './routes/inventory';
 import mailTemplatesRouter from './routes/mail-templates';
 import simpleEmailRouter from './routes/simple-email';
+import dbDirectRouter from './routes/db-direct';
 
 const app = express();
 app.use(express.json());

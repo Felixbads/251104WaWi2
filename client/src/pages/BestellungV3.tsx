@@ -159,18 +159,21 @@ const BestellungV3: React.FC = () => {
     isError: ordersError,
     error: ordersErrorData
   } = useQuery({
-    queryKey: ['/api/sql-orders'],
+    queryKey: ['/api/execute-sql'],
     queryFn: async () => {
       try {
-        console.log("Lade Bestellungen direkt aus der SQL-Datenbank...");
+        console.log("Lade Bestellungen direkt aus der SQL-Datenbank mit execute-sql...");
         
-        // Direkter SQL-Endpunkt für Bestellungen
-        const response = await fetch('/api/sql-orders', {
-          method: 'GET',
+        // Direkter SQL-Zugriff über die execute-sql-API
+        const response = await fetch('/api/execute-sql', {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': localStorage.getItem('authToken') ? `Bearer ${localStorage.getItem('authToken')}` : ''
           },
+          body: JSON.stringify({
+            query: 'SELECT * FROM orders ORDER BY created_at DESC'
+          })
         });
         
         if (!response.ok) {
@@ -178,9 +181,22 @@ const BestellungV3: React.FC = () => {
         }
         
         const data = await response.json();
-        console.log("Bestellungsdaten aus SQL geladen:", data);
+        console.log("Bestellungsdaten aus execute-sql geladen:", data);
         
-        return data;
+        // Wenn die Daten in einem rows-Array zurückgegeben werden
+        if (data && data.rows && Array.isArray(data.rows)) {
+          console.log(`${data.rows.length} Bestellungen gefunden`);
+          return data.rows;
+        }
+        
+        // Fallback für verschiedene Antwortformate
+        if (data && Array.isArray(data)) {
+          console.log(`${data.length} Bestellungen gefunden`);
+          return data;
+        }
+        
+        console.warn("Unerwartetes Datenformat empfangen:", data);
+        return [];
       } catch (error) {
         console.error("Fehler beim Laden der Bestellungen:", error);
         throw error;
