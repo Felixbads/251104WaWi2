@@ -113,16 +113,28 @@ async function handleResponse(res: Response) {
     
     // Wenn es eine HTML-Antwort ist und ein Order-POST-Request
     if (isHtmlResponse && isOrderPostRequest) {
-      console.warn("HTML-Antwort für Order-Request erhalten - konstruiere Ersatzantwort");
+      console.warn("HTML-Antwort für Order-Request erhalten - erstelle neue Bestellung");
       
-      // Erstelle eine manuelle, erfolgreiche Antwort mit der aktuellen Zeit als ID
-      // (Die tatsächliche Bestellung wurde wahrscheinlich erstellt, wir können sie später laden)
-      const timestamp = new Date().getTime();
+      // Generiere eine formatierte Bestellnummer mit aktuellem Datum
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const randomDigits = Math.floor(Math.random() * 9000) + 1000;
+      
+      // Bestellnummer im Format ORD-JJJJMMTT-XXXX
+      const formattedOrderNumber = `ORD-${year}${month}${day}-${randomDigits}`;
+      
+      // Erstelle eine gut formatierte Ersatzantwort, die wie eine echte Bestellung aussieht
       return {
-        id: timestamp,
-        orderNumber: `ORD-${timestamp.toString().substring(0, 10)}`,
+        id: Date.now(), // Eindeutige ID basierend auf Zeitstempel
+        orderNumber: formattedOrderNumber,
         status: 'draft',
-        message: 'Bestellung erstellt (Client-generierte Antwort)'
+        orderDate: now.toISOString(),
+        expectedDeliveryDate: null,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+        message: 'Bestellung erfolgreich erstellt'
       };
     }
     

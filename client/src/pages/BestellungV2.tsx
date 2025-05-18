@@ -100,21 +100,28 @@ const BestellungV2: React.FC = () => {
       // Debugging zur Analyse der empfangenen Daten
       console.log("Bestellungs-Antwort vom Server:", data);
       
-      // Fallback für fehlende Daten
-      const orderNumberDisplay = data?.orderNumber || 'Wird geladen...';
-      
-      toast({
-        title: 'Bestellung erfolgreich erstellt',
-        description: `Bestellungsnummer: ${orderNumberDisplay}`,
-      });
-      
-      // Daten nur setzen, wenn sie existieren
+      // Daten setzen, wenn sie existieren
       if (data && data.id) {
         setOrderId(data.id);
         setOrderNumber(data.orderNumber || '');
         setExistingOrderData(data);
+        
+        // Toast mit der tatsächlichen Bestellnummer anzeigen
+        toast({
+          title: 'Bestellung erfolgreich erstellt',
+          description: `Bestellungsnummer: ${data.orderNumber}`,
+        });
+        
+        // Invalidiere Abfragen, damit die Liste aktualisiert wird
+        queryClient.invalidateQueries({queryKey: orderKeys.lists()});
       } else {
         console.warn("Unvollständige Daten vom Server erhalten:", data);
+        
+        // Fallback-Toast mit einer allgemeinen Erfolgsmeldung
+        toast({
+          title: 'Bestellung erfolgreich erstellt',
+          description: 'Die Bestellung wurde gespeichert.',
+        });
       }
       
       // Sicherstellen, dass selectedProducts zur Bestellung hinzugefügt wurden

@@ -183,6 +183,12 @@ export function sendWebSocketMessage(type: string, data: any) {
 export async function registerRoutes(app: Express): Promise<Server> {
   // HTTP-Server für Express erstellen
   const httpServer = createServer(app);
+  
+  // Middleware für Content-Type-Header für alle API-Antworten
+  app.use(`${API_PREFIX}`, (req, res, next) => {
+    res.setHeader('Content-Type', 'application/json');
+    next();
+  });
   // GET /warehouses - Liste aller Lager
   app.get(`${API_PREFIX}/warehouses`, async (_req: Request, res: Response) => {
     try {
