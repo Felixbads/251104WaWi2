@@ -1477,37 +1477,12 @@ router.post("/:id/email", async (req: Request, res: Response) => {
     // Absender-E-Mail
     const fromEmail = "bestellung@proviantomat.de";
     
-    // PDF für Anhang generieren
-    const pdfBuffer = await generatePdf({
-      ...order,
-      orderItems: items
-    });
-    
-    console.log(`PDF für E-Mail generiert (${pdfBuffer.length} Bytes)`);
-    
-    // Speichere die PDF temporär
-    const tempDir = path.join(process.cwd(), 'temp');
-    if (!fs.existsSync(tempDir)) {
-      fs.mkdirSync(tempDir, { recursive: true });
-    }
-    
-    const pdfFilename = path.join(tempDir, `bestellung_${order.orderNumber}.pdf`);
-    fs.writeFileSync(pdfFilename, pdfBuffer);
-    
-    console.log(`PDF gespeichert in ${pdfFilename}`);
-    
-    // E-Mail mit Anhang senden
+    // E-Mail ohne PDF-Anhang senden
     const result = await sendEmail({
       to: to,
       from: fromEmail,
       subject: subject,
-      html: htmlContent,
-      attachments: [
-        {
-          filename: `Bestellung_${order.orderNumber}.pdf`,
-          path: pdfFilename
-        }
-      ]
+      html: htmlContent
     });
 
     if (result) {
@@ -1661,155 +1636,7 @@ router.get("/:id/items", async (req: Request, res: Response) => {
   }
 });
 
-// Neue dedizierte API für PDF-Daten - liefert alle Daten für PDF-Erstellung in einem Aufruf
-router.get("/:id/pdf-data", async (req: Request, res: Response) => {
-  try {
-    console.log(`📄 PDF-Daten werden für Bestellung ${req.params.id} gesammelt...`);
-    const { id } = req.params;
-    const orderId = parseInt(id);
-
-    if (isNaN(orderId)) {
-      return res.status(400).json({ error: "Ungültige Bestellungs-ID" });
-    }
-
-    // Bestellung abrufen
-    const orderResult = await db
-      .select()
-      .from(orders)
-      .where(eq(orders.id, orderId))
-      .limit(1);
-
-    if (!orderResult || orderResult.length === 0) {
-      return res.status(404).json({ error: "Bestellung nicht gefunden" });
-    }
-
-    const order = orderResult[0];
-    console.log(`📄 Bestellung ${orderId} gefunden, sammle alle benötigten Daten...`);
-    
-    try {
-      // 1. Bestellpositionen abrufen
-      const items = await db
-        .select()
-        .from(orderItems)
-        .where(eq(orderItems.orderId, orderId));
-      
-      console.log(`📄 ${items.length} Bestellpositionen für PDF-Daten gefunden`);
-      
-      // 2. Lieferanten-Informationen (falls vorhanden)
-      let supplier = null;
-      if (order.supplierId) {
-        try {
-          const supplierResult = await db
-            .select()
-            .from(suppliers)
-            .where(eq(suppliers.id, order.supplierId))
-            .limit(1);
-          
-          if (supplierResult && supplierResult.length > 0) {
-            supplier = supplierResult[0];
-            console.log(`📄 Lieferanten-Informationen für PDF-Daten gefunden: ${supplier.name}`);
-          }
-        } catch (supplierError) {
-          console.error(`📄 Fehler beim Abrufen des Lieferanten:`, supplierError);
-          // Kein Abbruch, nur Logging
-        }
-      }
-      
-      // 3. Lager-Informationen (falls vorhanden)
-      let warehouse = null;
-      if (order.warehouseId) {
-        try {
-          const warehouseResult = await db
-            .select()
-            .from(warehouses)
-            .where(eq(warehouses.id, order.warehouseId))
-            .limit(1);
-          
-          if (warehouseResult && warehouseResult.length > 0) {
-            warehouse = warehouseResult[0];
-            console.log(`📄 Lager-Informationen für PDF-Daten gefunden: ${warehouse.name}`);
-          }
-        } catch (warehouseError) {
-          console.error(`📄 Fehler beim Abrufen des Lagers:`, warehouseError);
-          // Kein Abbruch, nur Logging
-        }
-      }
-      
-      // 4. Produkt-Informationen für jede Position
-      const enrichedItems = await Promise.all(
-        items.map(async (item) => {
-          let product = null;
-          
-          // Wenn eine Produkt-ID vorhanden ist, Produkt-Details abrufen
-          if (item.productId) {
-            try {
-              const productResult = await db
-                .select()
-                .from(products)
-                .where(eq(products.id, item.productId))
-                .limit(1);
-                
-              if (productResult && productResult.length > 0) {
-                product = productResult[0];
-              }
-            } catch (productError) {
-              console.error(`📄 Fehler beim Abrufen des Produkts ${item.productId}:`, productError);
-              // Fehler im Produkt sollte nicht zum Abbruch führen
-            }
-          }
-          
-          // Produkt- und Item-Informationen zusammenführen
-          return {
-            ...item,
-            productDetails: product || {
-              name: item.productName || "Unbekanntes Produkt",
-              sku: item.sku || ""
-            }
-          };
-        })
-      );
-      
-      // Alle Daten zusammenführen und zurückgeben
-      const pdfData = {
-        order,
-        items: enrichedItems,
-        supplier,
-        warehouse,
-        // Zusätzliche Metadaten für die PDF-Erstellung
-        metadata: {
-          generatedAt: new Date().toISOString(),
-          totalItems: items.length,
-          totalAmount: order.totalAmount || items.reduce((sum, item) => sum + (item.totalPrice || 0), 0)
-        }
-      };
-      
-      console.log(`📄 PDF-Daten erfolgreich gesammelt, sende Antwort...`);
-      res.json(pdfData);
-      
-    } catch (dataError) {
-      console.error(`📄 Fehler beim Sammeln der PDF-Daten:`, dataError);
-      
-      // Im Fehlerfall eine Minimal-Struktur zurückgeben mit leeren Arrays für die Items
-      res.json({
-        order: orderResult[0],
-        items: [],
-        supplier: null,
-        warehouse: null,
-        metadata: {
-          generatedAt: new Date().toISOString(),
-          error: true,
-          errorMessage: "Fehler beim Laden der vollständigen Daten"
-        }
-      });
-    }
-  } catch (error) {
-    console.error("📄 Kritischer Fehler beim Sammeln der PDF-Daten:", error);
-    res.status(500).json({
-      error: "Fehler bei der PDF-Datenerstellung",
-      message: error instanceof Error ? error.message : "Ein unerwarteter Fehler ist aufgetreten."
-    });
-  }
-});
+// PDF-Daten-API wurde entfernt, da keine PDF-Generierung mehr benötigt wird
 
 // API-Endpunkt zum manuellen Erstellen von Bestellpositionen
 router.post("/order-items", async (req: Request, res: Response) => {
