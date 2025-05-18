@@ -1,10 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { jsPDF } from "jspdf";
-import html2canvas from "html2canvas";
-import QRCode from "qrcode";
-import { OrderPDFButton } from "./OrderPDFButton";
 
 // UI Komponenten
 import { Button } from "@/components/ui/button";
@@ -46,18 +42,7 @@ import {
   Building
 } from "lucide-react";
 
-// PDF Viewer Component
-const PdfViewer = ({ url }: { url: string }) => {
-  return (
-    <div className="w-full h-[60vh] md:h-[70vh] overflow-hidden rounded-md border">
-      <iframe 
-        src={url} 
-        className="w-full h-full" 
-        title="PDF Vorschau"
-      />
-    </div>
-  );
-};
+// PDF Viewer Component wurde entfernt
 
 // E-Mail senden
 const sendEmail = async (data: any) => {
@@ -82,17 +67,11 @@ interface OrderDetailActionsProps {
   pdfContentRef: React.RefObject<HTMLDivElement>;
 }
 
-export default function OrderDetailActions({ order, pdfContentRef }: OrderDetailActionsProps) {
+export default function OrderDetailActions({ order }: OrderDetailActionsProps) {
   const { toast } = useToast();
   
-  // Dialog & Tab State
+  // Dialog State
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<string>("pdf");
-  
-  // PDF State
-  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
-  const [pdfUrl, setPdfUrl] = useState<string>("");
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   
   // E-Mail State
   const [emailSubject, setEmailSubject] = useState("");
@@ -119,221 +98,38 @@ export default function OrderDetailActions({ order, pdfContentRef }: OrderDetail
     }
   });
   
-  // PDF generieren
-  const handleGeneratePdf = async () => {
+  // E-Mail-Dialog öffnen - Direkte Funktion anstelle der PDF-Generierung
+  const handleOpenEmailDialog = () => {
     if (!order) return;
     
-    try {
-      setIsGeneratingPdf(true);
-      
-      // Status setzen
-      toast({
-        title: "PDF wird generiert",
-        description: "Bitte warten Sie einen Moment...",
-      });
-      
-      // Manuell ein temporäres HTML-Element für die PDF-Generierung erstellen
-      const tempDiv = document.createElement('div');
-      tempDiv.style.width = '800px';
-      tempDiv.style.padding = '20px';
-      tempDiv.style.position = 'absolute';
-      tempDiv.style.left = '-9999px';
-      
-      // QR-Code generieren für das PDF
-      const portalUrl = `${window.location.origin}/lieferantenportal/${order.supplierId}/bestellung/${order.id}`;
-      const qrDataUrl = await QRCode.toDataURL(portalUrl, {
-        width: 150,
-        margin: 1,
-      });
-      
-      // HTML-Inhalt für die Bestellung generieren
-      tempDiv.innerHTML = `
-        <div style="font-family: Arial, sans-serif; max-width: 800px;">
-          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 30px;">
-            <div>
-              <h1 style="margin: 0; font-size: 24px;">Bestellung ${order.orderNumber || `#${order.id}`}</h1>
-              <p style="margin: 5px 0; font-size: 14px;">Datum: ${new Date(order.createdAt || order.orderDate).toLocaleDateString('de-DE')}</p>
-            </div>
-          </div>
-          
-          <div style="display: flex; justify-content: space-between; margin-bottom: 30px; font-size: 14px;">
-            <div style="width: 48%;">
-              <h2 style="margin: 0 0 10px 0; font-size: 16px;">Lieferant</h2>
-              <p style="margin: 0; font-weight: bold;">${order.supplierName}</p>
-              ${order.supplier?.address ? `<p style="margin: 5px 0;">${order.supplier.address}</p>` : ''}
-              ${order.supplier?.phone ? `<p style="margin: 5px 0;">Tel: ${order.supplier.phone}</p>` : ''}
-              ${order.supplier?.email ? `<p style="margin: 5px 0;">E-Mail: ${order.supplier.email}</p>` : ''}
-            </div>
-            <div style="width: 48%;">
-              <h2 style="margin: 0 0 10px 0; font-size: 16px;">Lieferadresse</h2>
-              <p style="margin: 0; font-weight: bold;">${order.warehouseName || order.locationName || "Nationalpark Zentrum"}</p>
-              <p style="margin: 5px 0;">Bad Schandau</p>
-            </div>
-          </div>
-          
-          <div style="margin-bottom: 30px;">
-            <h2 style="margin: 0 0 10px 0; font-size: 16px;">Bestellpositionen</h2>
-            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-              <tr style="background-color: #f3f4f6;">
-                <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Produkt</th>
-                <th style="text-align: right; padding: 8px; border-bottom: 1px solid #ddd;">Menge</th>
-                <th style="text-align: right; padding: 8px; border-bottom: 1px solid #ddd;">Einzelpreis</th>
-                <th style="text-align: right; padding: 8px; border-bottom: 1px solid #ddd;">Gesamt</th>
-              </tr>
-              ${(order.orderItems || []).map((item: any) => `
-                <tr>
-                  <td style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">${item.productName || item.name}</td>
-                  <td style="text-align: right; padding: 8px; border-bottom: 1px solid #ddd;">${item.quantity} ${item.unit || "Stk."}</td>
-                  <td style="text-align: right; padding: 8px; border-bottom: 1px solid #ddd;">${item.unitPrice ? (item.unitPrice).toFixed(2) : "0.00"} €</td>
-                  <td style="text-align: right; padding: 8px; border-bottom: 1px solid #ddd;">${item.totalPrice ? (item.totalPrice).toFixed(2) : (item.unitPrice * item.quantity).toFixed(2)} €</td>
-                </tr>
-              `).join('')}
-              <tr style="font-weight: bold;">
-                <td colspan="3" style="text-align: right; padding: 8px; font-size: 14px;">Gesamtsumme:</td>
-                <td style="text-align: right; padding: 8px; font-size: 14px;">${order.totalAmount ? order.totalAmount.toFixed(2) : (order.orderItems || []).reduce((sum: number, item: any) => sum + (item.totalPrice || (item.unitPrice * item.quantity)), 0).toFixed(2)} €</td>
-              </tr>
-            </table>
-          </div>
-          
-          <div style="margin-top: 30px;">
-            <h3 style="margin: 0; font-size: 16px;">Zusätzliche Informationen:</h3>
-            <p style="margin: 5px 0; font-size: 14px;">Lieferdatum: ${order.expectedDeliveryDate ? new Date(order.expectedDeliveryDate).toLocaleDateString('de-DE') : 'Nicht festgelegt'}</p>
-            <p style="margin: 5px 0; font-size: 14px;">Priorität: ${order.priority || 'Normal'}</p>
-            ${order.notes ? `<p style="margin: 5px 0; font-size: 14px;">Anmerkungen: ${order.notes}</p>` : ''}
-          </div>
-        </div>
-      `;
-      
-      // Element temporär zum DOM hinzufügen
-      document.body.appendChild(tempDiv);
-      
-      // HTML in Canvas umwandeln
-      const canvas = await html2canvas(tempDiv, {
-        scale: 1.5,
-        useCORS: true,
-        logging: false,
-        allowTaint: true,
-      });
-      
-      // Temporäres Element wieder entfernen
-      document.body.removeChild(tempDiv);
-      
-      // PDF erstellen
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      
-      // Berechnungen für die Bildanpassung
-      const imgWidth = 190;
-      const imgHeight = canvas.height * imgWidth / canvas.width;
-      
-      // Bild zum PDF hinzufügen
-      const imgData = canvas.toDataURL('image/png');
-      pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
-      
-      // QR-Code zum PDF hinzufügen, wenn wir einen haben
-      pdf.addImage(qrDataUrl, 'PNG', 155, 10, 35, 35);
-      
-      // PDF als Blob speichern
-      const blob = pdf.output('blob');
-      setPdfBlob(blob);
-      
-      // URL für die Vorschau erstellen
-      const url = URL.createObjectURL(blob);
-      setPdfUrl(url);
-      
-      // Dialog öffnen
-      setIsDialogOpen(true);
-      setActiveTab("pdf");
-      
-      // Status aktualisieren
-      toast({
-        title: "PDF erfolgreich generiert",
-        description: "Das PDF wurde erfolgreich erstellt."
-      });
-    } catch (error) {
-      toast({
-        title: "Fehler beim Generieren",
-        description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
-        variant: "destructive"
-      });
-    } finally {
-      setIsGeneratingPdf(false);
-    }
-  };
-  
-  // PDF herunterladen und in Dokumentenverwaltung speichern
-  const handleDownloadPdf = async () => {
-    if (!pdfBlob || !order) {
-      toast({
-        title: "Fehler beim Herunterladen",
-        description: "PDF konnte nicht gefunden werden.",
-        variant: "destructive"
-      });
-      return;
+    // Standardwerte für die E-Mail setzen
+    if (order.supplier?.email) {
+      setEmailAddress(order.supplier.email);
+    } else if (order.supplierEmail) {
+      setEmailAddress(order.supplierEmail);
     }
     
-    try {
-      // 1. Zuerst das PDF in der Dokumentenverwaltung speichern
-      // Datei in FormData umwandeln für den Upload
-      const formData = new FormData();
-      formData.append('file', pdfBlob, `Bestellung_${order.orderNumber || order.id}_${new Date().toISOString().split('T')[0]}.pdf`);
-      formData.append('type', 'order');
-      formData.append('referenceId', order.id.toString());
-      formData.append('title', `Bestellung ${order.orderNumber || order.id}`);
-      formData.append('description', `Automatisch generiertes PDF für Bestellung ${order.orderNumber || order.id}`);
-      
-      // API-Aufruf zum Speichern des Dokuments
-      const saveResponse = await fetch('/api/documents', {
-        method: 'POST',
-        body: formData,
-        // Kein Content-Type header, damit der Browser die boundary korrekt setzt
-      });
-      
-      if (!saveResponse.ok) {
-        console.error("Fehler beim Speichern des Dokuments", await saveResponse.text());
-        throw new Error("Das Dokument konnte nicht gespeichert werden");
-      }
-      
-      // 2. Download für den Benutzer starten
-      const url = URL.createObjectURL(pdfBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Bestellung_${order?.orderNumber || order.id}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      // URL-Objekt wieder freigeben
-      setTimeout(() => URL.revokeObjectURL(url), 100);
-      
-      // Rückmeldung an den Benutzer
-      toast({
-        title: "PDF erfolgreich gespeichert",
-        description: "Das PDF wurde in der Dokumentenverwaltung gespeichert und steht zum Download bereit.",
-      });
-      
-      // Dokumente neu laden, falls nötig (Feld für die Zukunft)
-      // invalidateDocumentsQuery();
-      
-    } catch (error) {
-      console.error("Download/Speichern-Fehler:", error);
-      toast({
-        title: "Fehler beim Verarbeiten",
-        description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
-        variant: "destructive"
-      });
-    }
-  };
-  
-  // PDF drucken
-  const handlePrintPdf = () => {
-    if (!pdfUrl) return;
-    
-    const printWindow = window.open(pdfUrl, '_blank');
-    if (printWindow) {
-      printWindow.onload = () => {
-        printWindow.print();
-      };
-    }
+    setEmailSubject(`Bestellung ${order.orderNumber} vom ${new Date(order.orderDate).toLocaleDateString('de-DE')}`);
+    setEmailText(`Sehr geehrte Damen und Herren,
+
+anbei erhalten Sie unsere Bestellung ${order.orderNumber} vom ${new Date(order.orderDate).toLocaleDateString('de-DE')}.
+
+Bestellpositionen:
+${(order.orderItems || []).map((item: any) => `- ${item.productName || item.name}: ${item.quantity} ${item.unit || "Stk."} x ${item.unitPrice ? (item.unitPrice).toFixed(2) : "0.00"} € = ${item.totalPrice ? (item.totalPrice).toFixed(2) : (item.unitPrice * item.quantity).toFixed(2)} €`).join('\n')}
+
+Gesamtsumme: ${order.totalAmount ? order.totalAmount.toFixed(2) : (order.orderItems || []).reduce((sum: number, item: any) => sum + (item.totalPrice || (item.unitPrice * item.quantity)), 0).toFixed(2)} €
+
+Lieferdatum: ${order.expectedDeliveryDate ? new Date(order.expectedDeliveryDate).toLocaleDateString('de-DE') : 'Nicht festgelegt'}
+Priorität: ${order.priority || 'Normal'}
+${order.notes ? `Anmerkungen: ${order.notes}` : ''}
+
+Bitte bestätigen Sie uns den Erhalt und den voraussichtlichen Liefertermin.
+
+Mit freundlichen Grüßen
+${order.createdByName || "Ihr Bestellteam"}`);
+
+    // Dialog öffnen
+    setIsDialogOpen(true);
   };
   
   // E-Mail Dialog öffnen
