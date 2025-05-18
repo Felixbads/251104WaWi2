@@ -65,6 +65,9 @@ app.use((req, res, next) => {
   // E-Mail-Vorlagen-Route hinzufügen
   app.use('/api/mail-templates', mailTemplatesRouter);
   
+  // Direkten Datenbank-Zugriff für Bestellung V3 bereitstellen
+  app.use('/api', dbDirectRouter);
+  
   // SQL-Direktzugriff-Endpunkte für Datenbankabfragen
   app.get('/api/sql-orders', async (req, res) => {
     try {

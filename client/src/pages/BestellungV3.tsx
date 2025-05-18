@@ -159,21 +159,18 @@ const BestellungV3: React.FC = () => {
     isError: ordersError,
     error: ordersErrorData
   } = useQuery({
-    queryKey: ['/api/execute-sql'],
+    queryKey: ['/api/db-direct/orders'],
     queryFn: async () => {
       try {
-        console.log("Lade Bestellungen direkt aus der SQL-Datenbank mit execute-sql...");
+        console.log("Lade Bestellungen über den direkten DB-Router...");
         
-        // Direkter SQL-Zugriff über die execute-sql-API
-        const response = await fetch('/api/execute-sql', {
-          method: 'POST',
+        // Direkter Endpunkt für Bestellungen
+        const response = await fetch('/api/db-direct/orders', {
+          method: 'GET',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': localStorage.getItem('authToken') ? `Bearer ${localStorage.getItem('authToken')}` : ''
-          },
-          body: JSON.stringify({
-            query: 'SELECT * FROM orders ORDER BY created_at DESC'
-          })
+          }
         });
         
         if (!response.ok) {
@@ -181,7 +178,7 @@ const BestellungV3: React.FC = () => {
         }
         
         const data = await response.json();
-        console.log("Bestellungsdaten aus execute-sql geladen:", data);
+        console.log("Bestellungsdaten aus db-direct geladen:", data);
         
         // Wenn die Daten in einem rows-Array zurückgegeben werden
         if (data && data.rows && Array.isArray(data.rows)) {
