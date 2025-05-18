@@ -154,7 +154,7 @@ const BestellungV3: React.FC = () => {
 
   // Bestellungen abrufen
   const { 
-    data: orders, 
+    data: ordersResponse, 
     isLoading: ordersLoading, 
     isError: ordersError,
     error: ordersErrorData
@@ -162,33 +162,76 @@ const BestellungV3: React.FC = () => {
     queryKey: orderKeys.lists(),
     // Wir verwenden den vordefinierten queryFn aus dem QueryClient
   });
+  
+  // Extrahiere Bestellungen aus der Antwort
+  const orders = React.useMemo(() => {
+    if (!ordersResponse) return [];
+    if (Array.isArray(ordersResponse)) return ordersResponse;
+    if (ordersResponse && typeof ordersResponse === 'object' && 'data' in ordersResponse) {
+      return ordersResponse.data;
+    }
+    if (ordersResponse && typeof ordersResponse === 'object' && 'orders' in ordersResponse) {
+      return ordersResponse.orders;
+    }
+    return [];
+  }, [ordersResponse]);
 
   // Lager abrufen
   const { 
-    data: warehouses, 
+    data: warehousesResponse, 
     isLoading: warehousesLoading 
   } = useQuery({
     queryKey: ['/api/warehouses'],
     enabled: step === 'overview' || step === 'warehouse',
   });
+  
+  // Extrahiere Lager aus der Antwort
+  const warehouses = React.useMemo(() => {
+    if (!warehousesResponse) return [];
+    if (Array.isArray(warehousesResponse)) return warehousesResponse;
+    if (warehousesResponse && typeof warehousesResponse === 'object' && 'data' in warehousesResponse) {
+      return warehousesResponse.data;
+    }
+    return [];
+  }, [warehousesResponse]);
 
   // Lieferanten abrufen
   const { 
-    data: suppliers, 
+    data: suppliersResponse, 
     isLoading: suppliersLoading 
   } = useQuery({
     queryKey: ['/api/suppliers'],
     enabled: step === 'supplier',
   });
+  
+  // Extrahiere Lieferanten aus der Antwort
+  const suppliers = React.useMemo(() => {
+    if (!suppliersResponse) return [];
+    if (Array.isArray(suppliersResponse)) return suppliersResponse;
+    if (suppliersResponse && typeof suppliersResponse === 'object' && 'data' in suppliersResponse) {
+      return suppliersResponse.data;
+    }
+    return [];
+  }, [suppliersResponse]);
 
   // Produkte abrufen
   const { 
-    data: products, 
+    data: productsResponse, 
     isLoading: productsLoading 
   } = useQuery({
     queryKey: ['/api/products'],
     enabled: step === 'products',
   });
+  
+  // Extrahiere Produkte aus der Antwort, die entweder ein Array oder ein Objekt mit data-Property sein kann
+  const products = React.useMemo(() => {
+    if (!productsResponse) return [];
+    if (Array.isArray(productsResponse)) return productsResponse;
+    if (productsResponse && typeof productsResponse === 'object' && 'data' in productsResponse) {
+      return productsResponse.data;
+    }
+    return [];
+  }, [productsResponse]);
 
   // Bestellung erstellen Mutation
   const createOrderMutation = useMutation({
