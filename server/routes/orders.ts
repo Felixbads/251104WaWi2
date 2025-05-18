@@ -271,6 +271,15 @@ router.post('/orders', async (req: Request, res: Response) => {
     // Explizit Content-Type Header für JSON setzen
     res.setHeader('Content-Type', 'application/json');
     
+    // Fehlerbehandlungshelfer, um sicherzustellen, dass immer JSON zurückgegeben wird
+    const sendJsonError = (statusCode: number, message: string) => {
+      return res.status(statusCode).json({
+        success: false,
+        error: message,
+        statusCode: statusCode
+      });
+    };
+    
     const {
       warehouseId,
       supplierId,
@@ -280,13 +289,13 @@ router.post('/orders', async (req: Request, res: Response) => {
       items
     } = req.body;
     
-    // Validierung der Pflichtfelder
+    // Validierung der Pflichtfelder mit verbesserter JSON-Antwort
     if (!warehouseId || !supplierId) {
-      return res.status(400).json({ error: 'Lager und Lieferant müssen angegeben werden' });
+      return sendJsonError(400, 'Lager und Lieferant müssen angegeben werden');
     }
     
     if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ error: 'Mindestens ein Artikel muss bestellt werden' });
+      return sendJsonError(400, 'Mindestens ein Artikel muss bestellt werden');
     }
     
     // Validieren und Konvertieren von expectedDeliveryDate
