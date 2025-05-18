@@ -114,6 +114,9 @@ const BestellungV2: React.FC = () => {
         
         // Invalidiere Abfragen, damit die Liste aktualisiert wird
         queryClient.invalidateQueries({queryKey: orderKeys.lists()});
+        
+        // Direkt zum nächsten Schritt (E-Mail-Versand) wechseln
+        setActiveStep("sendOrder");
       } else {
         console.warn("Unvollständige Daten vom Server erhalten:", data);
         
@@ -122,6 +125,9 @@ const BestellungV2: React.FC = () => {
           title: 'Bestellung erfolgreich erstellt',
           description: 'Die Bestellung wurde gespeichert.',
         });
+        
+        // Auch hier direkt zum E-Mail-Versand wechseln
+        setActiveStep("sendOrder");
       }
       
       // Sicherstellen, dass selectedProducts zur Bestellung hinzugefügt wurden
