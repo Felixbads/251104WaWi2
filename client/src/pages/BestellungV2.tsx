@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import { updateOrderStatus } from '@/lib/api';
 import { useToast } from '@/hooks/use-toast';
 import { orderKeys, supplierKeys, warehouseKeys, productKeys } from '@/lib/queryKeys';
@@ -382,11 +382,35 @@ const BestellungV2: React.FC = () => {
     }
   });
   
-  // Liste aller Bestellungen für die Übersicht laden - immer aktiv für korrekte Aktualisierung
+  // Liste aller Bestellungen für die Übersicht laden - direkt aus der Datenbank
   const { data: ordersList, isLoading: isLoadingOrdersList } = useQuery({
-    queryKey: orderKeys.lists(),
-    queryFn: () => apiRequest('/api/orders')
-    // enabled: step === 'overview' - entfernt, damit die Liste immer geladen wird, auch nach Statusänderungen
+    queryKey: ['/api/orders-direct'],
+    queryFn: async () => {
+      try {
+        console.log("BestellungV2: Lade Bestellungen direkt aus der Datenbank...");
+        
+        // Direkten SQL-Endpunkt nutzen
+        const response = await fetch('/api/orders-direct', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': localStorage.getItem('authToken') ? `Bearer ${localStorage.getItem('authToken')}` : ''
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Fehler beim Abrufen der Bestellungen: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log("BestellungV2: Bestellungsdaten direkt aus DB geladen:", data);
+        
+        return data;
+      } catch (error) {
+        console.error("BestellungV2: Fehler beim Laden der Bestellungen:", error);
+        return [];
+      }
+    }
   });
   
   // Fetch order data if editing an existing order
