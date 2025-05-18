@@ -100,9 +100,25 @@ async function handleResponse(res: Response) {
   
   try {
     // Versuche, die Antwort als JSON zu parsen
-    return await res.json();
+    const text = await res.text();
+    
+    // Debugging-Ausgabe für die Analyse der Antwort
+    console.log("API-Antwort (Rohtext):", text);
+    
+    // Versuche JSON zu parsen, nur wenn es nicht leer ist
+    if (text && text.trim()) {
+      try {
+        return JSON.parse(text);
+      } catch (parseError) {
+        console.warn("Fehler beim JSON-Parsen:", parseError);
+        return {};
+      }
+    } else {
+      console.warn("Leere API-Antwort erhalten");
+      return {};
+    }
   } catch (e) {
-    console.warn("Fehler beim Parsen der API-Antwort:", e);
+    console.warn("Fehler beim Abrufen der API-Antwort:", e);
     // Bei Parsing-Fehler leeres Objekt zurückgeben statt zu scheitern
     return {};
   }
