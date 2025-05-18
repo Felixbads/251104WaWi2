@@ -1298,46 +1298,7 @@ router.post("/:id/receipt", async (req: Request, res: Response) => {
 });
 
 // PDF einer Bestellung herunterladen
-router.get("/:id/pdf", async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const orderId = parseInt(id);
-
-    if (isNaN(orderId)) {
-      return res.status(400).json({ error: "Ungültige Bestellungs-ID" });
-    }
-
-    console.log(`PDF für Bestellung ${orderId} wird generiert`);
-    
-    // Neuen PDF-Generator direkt mit der Bestellungs-ID verwenden
-    // Diese Methode lädt alle benötigten Daten direkt aus der Datenbank
-    const { generatePdf } = await import('../services/pdfService');
-    const pdfBuffer = await generatePdf(orderId);
-    
-    // Bestellnummer abrufen für den Dateinamen
-    const order = await db.query.orders.findFirst({
-      where: eq(orders.id, orderId)
-    });
-    
-    const orderNumber = order?.orderNumber || orderId.toString();
-    
-    console.log(`PDF erfolgreich generiert (${pdfBuffer.length} Bytes)`);
-    
-    // PDF an den Client senden
-    res.contentType("application/pdf");
-    res.setHeader("Content-Disposition", `inline; filename="Bestellung_${orderNumber}.pdf"`);
-    res.setHeader("Content-Length", pdfBuffer.length);
-    return res.send(pdfBuffer);
-  } catch (error) {
-    console.error("Fehler beim Generieren des PDFs:", error);
-    // Verbesserte Fehlerbehandlung mit mehr Details
-    return res.status(500).json({ 
-      error: "Fehler beim Generieren des PDFs",
-      message: error instanceof Error ? error.message : "Unbekannter Fehler",
-      details: "Bitte versuchen Sie es erneut oder kontaktieren Sie den Support."
-    });
-  }
-});
+// PDF-Endpunkt wurde entfernt, da keine PDF-Generierung mehr benötigt wird
 
 // Bestellung löschen
 router.delete("/:id", async (req: Request, res: Response) => {
