@@ -731,7 +731,7 @@ const BestellungV2: React.FC = () => {
     if (step !== 'warehouseReceiptOfExistingOrder' && step !== 'overview') {
       return [
         { title: "Lager", icon: <Building2 className="h-4 w-4" /> },
-        { title: "Art", icon: <FileText className="h-4 w-4" /> },
+        { title: "Art", icon: <Mail className="h-4 w-4" /> },
         { title: "Lieferant", icon: <Truck className="h-4 w-4" /> },
         { title: "Produkte", icon: <Package className="h-4 w-4" /> },
         { title: "Details", icon: <ClipboardList className="h-4 w-4" /> },
