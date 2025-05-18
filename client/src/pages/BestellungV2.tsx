@@ -632,8 +632,13 @@ const BestellungV2: React.FC = () => {
               let formattedDeliveryDate = null;
               if (additionalInfo?.expectedDeliveryDate) {
                 try {
-                  // ISO-String für die API erzeugen, nur Datum ohne Zeit
-                  formattedDeliveryDate = additionalInfo.expectedDeliveryDate.toISOString().split('T')[0];
+                  // Einfaches String-Format "YYYY-MM-DD" für die API (ohne Zeit-Komponente)
+                  const date = additionalInfo.expectedDeliveryDate;
+                  const year = date.getFullYear();
+                  const month = String(date.getMonth() + 1).padStart(2, '0');
+                  const day = String(date.getDate()).padStart(2, '0');
+                  formattedDeliveryDate = `${year}-${month}-${day}`;
+                  console.log("Formatiertes Lieferdatum:", formattedDeliveryDate);
                 } catch (e) {
                   console.error("Fehler bei der Datumsformatierung:", e);
                 }
