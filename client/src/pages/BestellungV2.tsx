@@ -463,7 +463,8 @@ const BestellungV2: React.FC = () => {
       case 'warehouse':
         return (
           <WarehouseSelector
-            onSelect={(id, name) => {
+            selectedWarehouseId={warehouseId}
+            onSelectWarehouse={(id, name) => {
               setWarehouseId(id);
               setWarehouseName(name);
               setStep('mode');

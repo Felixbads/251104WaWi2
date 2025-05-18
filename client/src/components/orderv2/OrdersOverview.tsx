@@ -186,7 +186,7 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
   
   // Abfrage für Bestellungen mit Filtern
   const { data: apiResponse, isLoading, isError, error, refetch } = useQuery({
-    queryKey: orderKeys.lists({ 
+    queryKey: orderKeys.list({ 
       status: statusFilter ? [statusFilter] : ['draft', 'sent', 'delivered', 'canceled'], 
       search: debouncedSearchTerm
     }),
