@@ -1,11 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isValid } from "date-fns";
 import { de } from "date-fns/locale";
-// @ts-ignore
-import QRCode from "qrcode";
 import ReceiveOrderDialog from "@/components/orders/ReceiveOrderDialog";
 import OrderDetailActions from "@/components/orders/OrderDetailActions";
 import ManualStatusChange from "@/components/orders/ManualStatusChange";
@@ -17,8 +15,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { orderKeys, warehouseKeys } from "@/lib/queryKeys";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-
-// Wir haben die PDF-Funktionalität komplett entfernt
 
 
 // UI Komponenten
@@ -304,15 +300,7 @@ export default function OrderDetail() {
   const [showReceiveDialog, setShowReceiveDialog] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showStatusChangeDialog, setShowStatusChangeDialog] = useState(false);
-  const [showQrDialog, setShowQrDialog] = useState(false);
-  // PDF-Dialog-State wurde entfernt
   const [showEmailDialog, setShowEmailDialog] = useState(false);
-  
-  // Ref für QR Code
-  const qrCodeRef = useRef<HTMLDivElement>(null);
-  
-  // QR Code State
-  const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
   
   // Form States
   const [sendNote, setSendNote] = useState("");
