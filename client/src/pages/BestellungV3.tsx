@@ -152,67 +152,182 @@ const BestellungV3: React.FC = () => {
   const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
   const [orderNumber, setOrderNumber] = useState<string>('');
 
-  // Bestellungen abrufen
+  // Bestellungen direkt aus der Datenbank abrufen
   const { 
-    data: ordersResponse, 
+    data: ordersData, 
     isLoading: ordersLoading, 
     isError: ordersError,
     error: ordersErrorData
   } = useQuery({
-    queryKey: orderKeys.lists(),
-    // Wir verwenden den vordefinierten queryFn aus dem QueryClient
+    queryKey: ['/api/orders/database'],
+    queryFn: async () => {
+      try {
+        // Hier verwenden wir direkt einen SQL-Endpunkt, der sicher JSON zurückgibt
+        const response = await fetch('/api/sql/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: 'SELECT * FROM orders ORDER BY created_at DESC LIMIT 50'
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        console.log("Bestellungen aus Datenbank geladen:", result);
+        
+        return result;
+      } catch (error) {
+        console.error("Fehler beim Laden der Bestellungen:", error);
+        throw error;
+      }
+    }
   });
   
   // Extrahiere Bestellungen aus der Antwort
   const orders = React.useMemo(() => {
-    if (!ordersResponse) return [];
-    if (Array.isArray(ordersResponse)) return ordersResponse;
-    if (ordersResponse && typeof ordersResponse === 'object' && 'data' in ordersResponse) {
-      return ordersResponse.data;
+    if (!ordersData) return [];
+    
+    if (Array.isArray(ordersData)) {
+      return ordersData;
     }
-    if (ordersResponse && typeof ordersResponse === 'object' && 'orders' in ordersResponse) {
-      return ordersResponse.orders;
+    
+    if (ordersData && typeof ordersData === 'object') {
+      if ('data' in ordersData && Array.isArray(ordersData.data)) {
+        return ordersData.data;
+      }
+      if ('orders' in ordersData && Array.isArray(ordersData.orders)) {
+        return ordersData.orders;
+      }
+      if ('rows' in ordersData && Array.isArray(ordersData.rows)) {
+        return ordersData.rows;
+      }
+      if ('result' in ordersData && Array.isArray(ordersData.result)) {
+        return ordersData.result;
+      }
     }
+    
+    console.log("Keine Bestellungen in der Antwort gefunden. Format:", typeof ordersData, ordersData);
     return [];
-  }, [ordersResponse]);
+  }, [ordersData]);
 
-  // Lager abrufen
+  // Lager direkt aus der Datenbank abrufen
   const { 
-    data: warehousesResponse, 
+    data: warehousesData, 
     isLoading: warehousesLoading 
   } = useQuery({
-    queryKey: ['/api/warehouses'],
+    queryKey: ['/api/warehouses/direct'],
+    queryFn: async () => {
+      try {
+        const response = await fetch('/api/sql/warehouses', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: "SELECT * FROM warehouses WHERE is_active = true ORDER BY name"
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`API-Fehler bei Lagerabfrage: ${response.status} ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        console.log("Lager aus Datenbank geladen:", result);
+        
+        return result;
+      } catch (error) {
+        console.error("Fehler beim Laden der Lager:", error);
+        throw error;
+      }
+    },
     enabled: step === 'overview' || step === 'warehouse',
   });
   
   // Extrahiere Lager aus der Antwort
   const warehouses = React.useMemo(() => {
-    if (!warehousesResponse) return [];
-    if (Array.isArray(warehousesResponse)) return warehousesResponse;
-    if (warehousesResponse && typeof warehousesResponse === 'object' && 'data' in warehousesResponse) {
-      return warehousesResponse.data;
+    if (!warehousesData) return [];
+    
+    if (Array.isArray(warehousesData)) {
+      return warehousesData;
     }
+    
+    if (warehousesData && typeof warehousesData === 'object') {
+      if ('data' in warehousesData && Array.isArray(warehousesData.data)) {
+        return warehousesData.data;
+      }
+      if ('rows' in warehousesData && Array.isArray(warehousesData.rows)) {
+        return warehousesData.rows;
+      }
+      if ('result' in warehousesData && Array.isArray(warehousesData.result)) {
+        return warehousesData.result;
+      }
+    }
+    
     return [];
-  }, [warehousesResponse]);
+  }, [warehousesData]);
 
-  // Lieferanten abrufen
+  // Lieferanten direkt aus der Datenbank abrufen
   const { 
-    data: suppliersResponse, 
+    data: suppliersData, 
     isLoading: suppliersLoading 
   } = useQuery({
-    queryKey: ['/api/suppliers'],
+    queryKey: ['/api/suppliers/direct'],
+    queryFn: async () => {
+      try {
+        const response = await fetch('/api/sql/suppliers', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            query: "SELECT * FROM suppliers WHERE is_active = true ORDER BY name"
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`API-Fehler bei Lieferantenabfrage: ${response.status} ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        console.log("Lieferanten aus Datenbank geladen:", result);
+        
+        return result;
+      } catch (error) {
+        console.error("Fehler beim Laden der Lieferanten:", error);
+        throw error;
+      }
+    },
     enabled: step === 'supplier',
   });
   
   // Extrahiere Lieferanten aus der Antwort
   const suppliers = React.useMemo(() => {
-    if (!suppliersResponse) return [];
-    if (Array.isArray(suppliersResponse)) return suppliersResponse;
-    if (suppliersResponse && typeof suppliersResponse === 'object' && 'data' in suppliersResponse) {
-      return suppliersResponse.data;
+    if (!suppliersData) return [];
+    
+    if (Array.isArray(suppliersData)) {
+      return suppliersData;
     }
+    
+    if (suppliersData && typeof suppliersData === 'object') {
+      if ('data' in suppliersData && Array.isArray(suppliersData.data)) {
+        return suppliersData.data;
+      }
+      if ('rows' in suppliersData && Array.isArray(suppliersData.rows)) {
+        return suppliersData.rows;
+      }
+      if ('result' in suppliersData && Array.isArray(suppliersData.result)) {
+        return suppliersData.result;
+      }
+    }
+    
     return [];
-  }, [suppliersResponse]);
+  }, [suppliersData]);
 
   // Produkte abrufen
   const { 
