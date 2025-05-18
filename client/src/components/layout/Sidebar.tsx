@@ -1,7 +1,7 @@
 import { useLocation, Link } from "wouter";
 import {
   Home,
-  FileText,
+  Mail,
   Package,
   ShoppingBag,
   RefreshCw,
@@ -123,7 +123,7 @@ export default function Sidebar() {
             </NavItem>
             <NavItem 
               href="/transactions" 
-              icon={<FileText className="h-5 w-5 mr-3" />}
+              icon={<Mail className="h-5 w-5 mr-3" />}
               isActive={isActive("/transactions")}
             >
               Transaktionen

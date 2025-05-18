@@ -4,7 +4,7 @@ import MobileHeader from "./MobileHeader";
 import MobileFooter from "./MobileFooter";
 import MobileMenu from "./MobileMenu";
 import { 
-  LogOut, Users, Home, Package, ShoppingBag, Truck, FileText, 
+  LogOut, Users, Home, Package, ShoppingBag, Truck, Mail, 
   ShoppingCart, Building2, TrashIcon, BarChart2, RefreshCw, 
   Clock, Settings, LineChart, Database, PieChart, BarChart4,
   ClipboardCheck, MoveHorizontal
@@ -26,7 +26,7 @@ export const menuItems = {
     { title: 'Automaten', icon: <Package className="h-5 w-5 mr-3" />, path: '/automaten' },
     { title: 'Produkte', icon: <ShoppingBag className="h-5 w-5 mr-3" />, path: '/produkte' },
     { title: 'Lieferanten', icon: <Truck className="h-5 w-5 mr-3" />, path: '/lieferanten' },
-    { title: 'Transaktionen', icon: <FileText className="h-5 w-5 mr-3" />, path: '/transactions' },
+    { title: 'Transaktionen', icon: <Mail className="h-5 w-5 mr-3" />, path: '/transactions' },
   ] as MenuItem[],
   management: [] as MenuItem[],
   storage: [

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { FileText, Package, Activity, Send } from 'lucide-react';
+import { Mail, Package, Activity, Send } from 'lucide-react';
 import DocumentViewer from '@/components/documents/DocumentViewer';
 
 interface Order {
@@ -36,7 +36,7 @@ const OrderDetailTab: React.FC<OrderDetailTabProps> = ({
     >
       <TabsList className="grid grid-cols-4 mb-6">
         <TabsTrigger value="overview">
-          <FileText className="mr-2 h-4 w-4" />
+          <Mail className="mr-2 h-4 w-4" />
           Übersicht
         </TabsTrigger>
         <TabsTrigger value="positions">
@@ -48,7 +48,7 @@ const OrderDetailTab: React.FC<OrderDetailTabProps> = ({
           Verlauf
         </TabsTrigger>
         <TabsTrigger value="documents">
-          <FileText className="mr-2 h-4 w-4" />
+          <Mail className="mr-2 h-4 w-4" />
           Dokumente
         </TabsTrigger>
       </TabsList>
