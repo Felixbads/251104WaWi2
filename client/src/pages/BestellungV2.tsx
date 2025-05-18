@@ -627,17 +627,37 @@ const BestellungV2: React.FC = () => {
                 return;
               }
               
-              // Bestellung erstellen
+              // Vorbereitung der Bestelldaten
+              // Datumsformatierung für die API
+              let formattedDeliveryDate = null;
+              if (additionalInfo?.expectedDeliveryDate) {
+                try {
+                  // ISO-String für die API erzeugen, nur Datum ohne Zeit
+                  formattedDeliveryDate = additionalInfo.expectedDeliveryDate.toISOString().split('T')[0];
+                } catch (e) {
+                  console.error("Fehler bei der Datumsformatierung:", e);
+                }
+              }
+              
+              console.log("Vorbereitete Bestelldaten:", {
+                warehouseId,
+                supplierId,
+                expectedDeliveryDate: formattedDeliveryDate,
+                priority: additionalInfo?.priority || 'normal',
+                notes: additionalInfo?.notes || ''
+              });
+              
+              // Bestellung mit formatierten Daten erstellen
               createOrderMutation.mutate({
                 warehouseId,
                 supplierId,
-                expectedDeliveryDate: additionalInfo?.expectedDeliveryDate || null,
+                expectedDeliveryDate: formattedDeliveryDate,
                 priority: additionalInfo?.priority || 'normal',
                 notes: additionalInfo?.notes || '',
                 items: selectedProducts.map(product => ({
                   productId: product.id,
-                  quantity: product.orderQuantity,
-                  price: product.price,
+                  quantity: product.orderQuantity || 0, // Fallback für fehlende Mengen
+                  price: product.price || 0, // Fallback für fehlende Preise
                   discountPercent: 0,
                   notes: product.orderNotes || ''
                 }))
