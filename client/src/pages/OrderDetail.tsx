@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -305,7 +305,7 @@ export default function OrderDetail() {
   // PDF-Dialog-State wurde entfernt
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   
-  // Refs für QR Code
+  // Ref für QR Code
   const qrCodeRef = useRef<HTMLDivElement>(null);
   
   // QR Code State
@@ -628,24 +628,7 @@ export default function OrderDetail() {
     setShowEmailDialog(true);
   };
   
-  /**
-   * Sendet die Bestellung per E-Mail an den Lieferanten
-   */
-  const sendOrderEmail = async () => {
-    if (!order || !supplier) return;
-    
-    try {
-      // E-Mail-Dialog öffnen
-      setShowEmailDialog(true);
-    } catch (error) {
-      console.error("Fehler beim Vorbereiten der E-Mail:", error);
-      toast({
-        title: "Fehler",
-        description: "Die E-Mail konnte nicht vorbereitet werden.",
-        variant: "destructive",
-      });
-    }
-  };
+
   
   // Ladeansicht
   if (isLoading) {
@@ -764,88 +747,9 @@ export default function OrderDetail() {
         )}
       </div>
       
-      {/* Unsichtbares PDF-Template für die Generierung */}
+      {/* Verstecktes Element für QR-Code-Rendering */}
       <div className="hidden">
-        <div ref={pdfContentRef} className="p-8 bg-white" style={{ width: '210mm', height: '297mm' }}>
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-xl font-bold">Bestellung #{order.orderNumber}</h1>
-              <p className="text-sm">Erstellt am: {formatDate(order.createdAt)}</p>
-            </div>
-            <div className="text-right">
-              <h2 className="font-bold">Nationale Parkverwaltung Sächsische Schweiz</h2>
-              <p className="text-sm">Nationalpark Zentrum</p>
-              <p className="text-sm">Dresdner Str. 2B, 01814 Bad Schandau</p>
-              <p className="text-sm">info@nationalpark-saechsische-schweiz.de</p>
-            </div>
-          </div>
-          
-          <div className="mt-10">
-            <h2 className="font-bold mb-1">Lieferant:</h2>
-            <p>{order.supplierName}</p>
-            <p>[Lieferantenadresse]</p>
-            <p>Kundennummer: [Kundennummer]</p>
-          </div>
-          
-          <div className="mt-6">
-            <h2 className="font-bold mb-1">Lieferadresse:</h2>
-            <p>{order.warehouseName}</p>
-            <p>Hauptstraße 123, 01307 Dresden</p>
-          </div>
-          
-          <div className="mt-8">
-            <h3 className="font-bold border-b pb-2 mb-2">Bestellpositionen</h3>
-            <table className="w-full">
-              <thead>
-                <tr className="text-left">
-                  <th className="py-2">Pos.</th>
-                  <th className="py-2">Artikel</th>
-                  <th className="py-2">Artikel-Nr.</th>
-                  <th className="py-2 text-right">Menge</th>
-                  <th className="py-2 text-right">Einzelpreis</th>
-                  <th className="py-2 text-right">Gesamt</th>
-                </tr>
-              </thead>
-              <tbody>
-                {order.orderItems.map((item: any, index: number) => (
-                  <tr key={item.id} className="border-t">
-                    <td className="py-2">{index + 1}</td>
-                    <td className="py-2">{item.productName}</td>
-                    <td className="py-2">{item.supplierSku || item.sku || "-"}</td>
-                    <td className="py-2 text-right">{item.quantity} {item.unit}</td>
-                    <td className="py-2 text-right">{formatCurrency(item.unitPrice)}</td>
-                    <td className="py-2 text-right">{formatCurrency(item.totalPrice)}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t font-bold">
-                  <td colSpan={5} className="py-2 text-right">Gesamtsumme:</td>
-                  <td className="py-2 text-right">{formatCurrency(order.totalAmount)}</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-          
-          {order.notes && (
-            <div className="mt-6">
-              <h3 className="font-bold mb-1">Anmerkungen:</h3>
-              <p>{order.notes}</p>
-            </div>
-          )}
-          
-          <div className="mt-8">
-            <h3 className="font-bold mb-1">Lieferinformationen:</h3>
-            <p>Gewünschter Liefertermin: {formatDate(order.expectedDeliveryDate)}</p>
-            <p>Öffnungszeiten Wareneingang: Mo-Fr 08:00 - 16:00 Uhr</p>
-          </div>
-          
-          <div className="mt-8 pt-4 border-t text-sm">
-            <p>Bitte bestätigen Sie diese Bestellung über unser Lieferantenportal.</p>
-            <p>Sie können den QR-Code scannen oder folgende URL besuchen:</p>
-            <p>{window.location.origin}/lieferantenportal/{order.supplierId}/bestellung/{order.id}</p>
-          </div>
-        </div>
+        <div ref={qrCodeRef}></div>
       </div>
       
       {/* Tabs */}
