@@ -1,155 +1,298 @@
-/**
- * Hilfsfunktionen für die Generierung von E-Mail-Inhalten für Bestellungen
- */
+import { createTransport } from 'nodemailer';
+import { render } from 'handlebars';
+import { orders, orderItems, suppliers } from '../../shared/schema';
+import { db } from '../db';
+import { eq } from 'drizzle-orm';
+import sgMail from '@sendgrid/mail';
+
+// Prüfen, ob SendGrid-API-Key vorhanden ist
+if (process.env.SENDGRID_API_KEY) {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+}
+
+// Standard-E-Mail-Absender
+const DEFAULT_FROM_EMAIL = 'orders@proviantomat.de';
 
 /**
- * Erstellt eine E-Mail-Vorlage für eine Bestellung
+ * Formatiert ein Datum nach deutschem Format
  */
-export function getOrderEmailTemplate(order: any, supplier: any, templateType: string = 'standard'): string {
-  const now = new Date().toLocaleDateString('de-DE');
-  const deliveryDate = order.expectedDeliveryDate 
-    ? new Date(order.expectedDeliveryDate).toLocaleDateString('de-DE') 
-    : 'so bald wie möglich';
-
-  // Basis-Vorlage je nach Typ
-  let template = '';
-  
-  switch(templateType) {
-    case 'urgent':
-    case 'dringend':
-      template = `Sehr geehrte Damen und Herren,
-
-DRINGENDE BESTELLUNG - Bitte um bevorzugte Bearbeitung!
-
-hiermit bestellen wir dringend folgende Artikel mit der Bestellnummer ${order.orderNumber}:
-
-{{orderItems}}
-
-Bitte liefern Sie die Ware bis spätestens ${deliveryDate}.
-Bei Rückfragen erreichen Sie uns unter der Telefonnummer: 030 123456789.
-
-Vielen Dank für die schnelle Bearbeitung.
-
-Mit freundlichen Grüßen
-Ihr Proviantomat Team`;
-      break;
-      
-    case 'reorder':
-    case 'nachbestellung':
-      template = `Sehr geehrte Damen und Herren,
-
-hiermit senden wir Ihnen eine Nachbestellung zu unserer ursprünglichen Bestellung.
-
-Bestellnummer: ${order.orderNumber}
-Datum: ${now}
-
-Folgende Artikel bestellen wir nach:
-
-{{orderItems}}
-
-Lieferung bitte bis zum ${deliveryDate}.
-
-Mit freundlichen Grüßen
-Ihr Proviantomat Team`;
-      break;
-      
-    default: // Standard-Template
-      template = `Sehr geehrte Damen und Herren,
-
-hiermit bestellen wir folgende Artikel:
-
-{{orderItems}}
-
-Bestellnummer: ${order.orderNumber}
-Gewünschter Liefertermin: ${deliveryDate}
-
-${order.notes ? 'Hinweise: ' + order.notes + '\n' : ''}
-Mit freundlichen Grüßen
-Ihr Proviantomat Team`;
+export function formatDate(date: string | Date | null): string {
+  if (!date) return '';
+  try {
+    const d = new Date(date);
+    return d.toLocaleDateString('de-DE', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric' 
+    });
+  } catch (error) {
+    console.error('Fehler beim Formatieren des Datums:', error);
+    return '';
   }
-  
-  return template;
 }
 
 /**
- * Erstellt eine HTML-Tabelle mit den Bestellpositionen
+ * Erstellt die HTML-Tabelle für Bestellpositionen
  */
 export function createOrderItemsTable(items: any[]): string {
-  if (!items || !Array.isArray(items) || items.length === 0) {
-    return 'Keine Artikel in dieser Bestellung.';
+  if (!items || items.length === 0) {
+    return '<p>Keine Positionen in dieser Bestellung.</p>';
   }
   
-  // Einfache HTML-Tabelle erstellen
+  // HTML-Tabelle erstellen
   let tableHtml = `
-<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-  <thead>
-    <tr style="background-color: #f2f2f2;">
-      <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Artikel</th>
-      <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Menge</th>
-      <th style="border: 1px solid #ddd; padding: 8px; text-align: left;">Einheit</th>
-      <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Einzelpreis</th>
-      <th style="border: 1px solid #ddd; padding: 8px; text-align: right;">Gesamt</th>
-    </tr>
-  </thead>
-  <tbody>`;
+    <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px;">
+      <thead>
+        <tr style="background-color: #f3f4f6;">
+          <th style="border: 1px solid #e5e7eb; padding: 8px; text-align: left;">Artikel</th>
+          <th style="border: 1px solid #e5e7eb; padding: 8px; text-align: left;">Artikelnummer</th>
+          <th style="border: 1px solid #e5e7eb; padding: 8px; text-align: right;">Menge</th>
+          <th style="border: 1px solid #e5e7eb; padding: 8px; text-align: left;">Einheit</th>
+          <th style="border: 1px solid #e5e7eb; padding: 8px; text-align: right;">Einzelpreis</th>
+          <th style="border: 1px solid #e5e7eb; padding: 8px; text-align: right;">Gesamtpreis</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
   
-  // Zeilen für jeden Artikel hinzufügen
-  items.forEach((item, index) => {
-    const productName = item.productName || item.name || 'Unbekannter Artikel';
-    const quantity = item.quantity || item.orderQuantity || 1;
-    const unit = item.unit || 'Stk.';
-    const price = typeof item.price === 'number' ? item.price : 
-                 (typeof item.price === 'string' ? parseFloat(item.price) : 0);
-    const total = price * quantity;
-    
-    const bgColor = index % 2 === 0 ? '#ffffff' : '#f9f9f9';
+  // Zeilen für jede Position
+  items.forEach((item) => {
+    const unitPrice = item.unitPrice || 0;
+    const quantity = item.quantity || 0;
+    const totalPrice = unitPrice * quantity;
     
     tableHtml += `
-    <tr style="background-color: ${bgColor};">
-      <td style="border: 1px solid #ddd; padding: 8px;">${productName}</td>
-      <td style="border: 1px solid #ddd; padding: 8px;">${quantity}</td>
-      <td style="border: 1px solid #ddd; padding: 8px;">${unit}</td>
-      <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${price.toFixed(2)} €</td>
-      <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${total.toFixed(2)} €</td>
-    </tr>`;
+      <tr>
+        <td style="border: 1px solid #e5e7eb; padding: 8px;">${item.productName || 'Unbekanntes Produkt'}</td>
+        <td style="border: 1px solid #e5e7eb; padding: 8px;">${item.sku || item.supplierSku || '-'}</td>
+        <td style="border: 1px solid #e5e7eb; padding: 8px; text-align: right;">${quantity}</td>
+        <td style="border: 1px solid #e5e7eb; padding: 8px;">${item.unit || 'Stk.'}</td>
+        <td style="border: 1px solid #e5e7eb; padding: 8px; text-align: right;">${formatCurrency(unitPrice)}</td>
+        <td style="border: 1px solid #e5e7eb; padding: 8px; text-align: right;">${formatCurrency(totalPrice)}</td>
+      </tr>
+    `;
   });
   
-  // Gesamtsumme berechnen
-  const subtotal = items.reduce((sum, item) => {
-    const quantity = item.quantity || item.orderQuantity || 1;
-    const price = typeof item.price === 'number' ? item.price : 
-                 (typeof item.price === 'string' ? parseFloat(item.price) : 0);
-    return sum + (price * quantity);
-  }, 0);
+  // Summenzeile
+  const totalAmount = items.reduce((sum, item) => sum + ((item.unitPrice || 0) * (item.quantity || 0)), 0);
   
-  // Tabelle abschließen mit Gesamtsumme
   tableHtml += `
-  </tbody>
-  <tfoot>
-    <tr style="background-color: #f2f2f2; font-weight: bold;">
-      <td colspan="4" style="border: 1px solid #ddd; padding: 8px; text-align: right;">Gesamtsumme:</td>
-      <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${subtotal.toFixed(2)} €</td>
-    </tr>
-  </tfoot>
-</table>`;
+      </tbody>
+      <tfoot>
+        <tr style="font-weight: bold;">
+          <td colspan="5" style="border: 1px solid #e5e7eb; padding: 8px; text-align: right;">Gesamtbetrag (netto):</td>
+          <td style="border: 1px solid #e5e7eb; padding: 8px; text-align: right;">${formatCurrency(totalAmount)}</td>
+        </tr>
+        <tr style="font-weight: bold;">
+          <td colspan="5" style="border: 1px solid #e5e7eb; padding: 8px; text-align: right;">MwSt. (19%):</td>
+          <td style="border: 1px solid #e5e7eb; padding: 8px; text-align: right;">${formatCurrency(totalAmount * 0.19)}</td>
+        </tr>
+        <tr style="font-weight: bold;">
+          <td colspan="5" style="border: 1px solid #e5e7eb; padding: 8px; text-align: right;">Gesamtbetrag (brutto):</td>
+          <td style="border: 1px solid #e5e7eb; padding: 8px; text-align: right;">${formatCurrency(totalAmount * 1.19)}</td>
+        </tr>
+      </tfoot>
+    </table>
+  `;
   
   return tableHtml;
 }
 
 /**
- * Erzeugt den Betreff für eine Bestellungs-E-Mail
+ * Formatiert einen Betrag als Euro-Währung
  */
-export function getOrderEmailSubject(order: any, supplier: any, templateType: string = 'standard'): string {
-  const supplierName = order.supplierName || supplier?.name || 'Unbekannt';
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('de-DE', {
+    style: 'currency',
+    currency: 'EUR',
+    minimumFractionDigits: 2
+  }).format(amount);
+}
+
+/**
+ * Erstellt eine E-Mail-Vorlage für eine Bestellung
+ */
+export function createOrderEmailTemplate(order: any, supplier: any, templateType: string = 'standard'): string {
+  // Template je nach Typ auswählen
+  let template = '';
   
   switch (templateType) {
-    case "dringend":
-    case "urgent":
-      return `DRINGEND: Bestellung ${order.orderNumber} - ${supplierName}`;
-    case "nachbestellung":
-    case "reorder":
-      return `Nachbestellung ${order.orderNumber} - ${supplierName}`;
-    default:
-      return `Bestellung ${order.orderNumber} - ${supplierName}`;
+    case 'urgent':
+    case 'dringend':
+      template = `<h2 style="color: #e11d48;">!! DRINGENDE BESTELLUNG !!</h2>
+        <p>Sehr geehrter Lieferant {{supplierName}},</p>
+        <p><strong>wir benötigen dringend folgende Artikel und bitten um schnellstmögliche Lieferung:</strong></p>
+        {{orderItems}}
+        <p>Bitte bestätigen Sie den Empfang dieser Bestellung und teilen Sie uns den voraussichtlichen Liefertermin mit.</p>
+        <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>
+        <p>Mit freundlichen Grüßen<br>Ihr Proviantomat Team</p>`;
+      break;
+    
+    case 'reorder':
+    case 'nachbestellung':
+      template = `<h2 style="color: #0891b2;">Nachbestellung</h2>
+        <p>Sehr geehrter Lieferant {{supplierName}},</p>
+        <p>hiermit bestellen wir in Ergänzung zu unserer vorherigen Bestellung folgende Artikel:</p>
+        {{orderItems}}
+        <p>Diese Bestellung bezieht sich auf unsere vorherige Bestellung <strong>{{orderNumber}}</strong> vom {{orderDate}}.</p>
+        <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>
+        <p>Mit freundlichen Grüßen<br>Ihr Proviantomat Team</p>`;
+      break;
+      
+    default: // standard
+      template = `<h2>Bestellung {{orderNumber}}</h2>
+        <p>Sehr geehrter Lieferant {{supplierName}},</p>
+        <p>hiermit bestellen wir folgende Artikel:</p>
+        {{orderItems}}
+        <p>Lieferadresse: {{warehouseName}}, {{warehouseAddress}}</p>
+        <p>Bitte liefern Sie die Ware innerhalb der vereinbarten Lieferzeit.</p>
+        <p>Bei Fragen stehen wir Ihnen gerne zur Verfügung.</p>
+        <p>Mit freundlichen Grüßen<br>Ihr Proviantomat Team</p>`;
+  }
+  
+  // Platzhalter ersetzen
+  const compiled = template
+    .replace('{{supplierName}}', supplier.name || order.supplierName || 'Unbekannt')
+    .replace('{{orderNumber}}', order.orderNumber || `#${order.id}`)
+    .replace('{{orderDate}}', formatDate(order.orderDate))
+    .replace('{{warehouseName}}', order.warehouseName || 'Hauptlager')
+    .replace('{{warehouseAddress}}', order.warehouseAddress || 'Keine Adresse angegeben');
+  
+  return compiled;
+}
+
+/**
+ * Sendet eine E-Mail für eine Bestellung
+ */
+export async function sendOrderEmail(
+  to: string, 
+  from: string, 
+  subject: string, 
+  html: string, 
+  orderId: number
+): Promise<boolean> {
+  try {
+    // Bestellpositionen holen
+    const items = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, orderId));
+    
+    // Erstelle HTML-Tabelle für Bestellpositionen
+    const itemsTable = createOrderItemsTable(items);
+    
+    // Ersetze den Platzhalter in der HTML-E-Mail mit der tatsächlichen Tabelle
+    const fullHtml = html.replace('{{orderItems}}', itemsTable);
+    
+    // Entscheide, ob SendGrid oder Nodemailer verwendet werden soll
+    if (process.env.SENDGRID_API_KEY) {
+      // SendGrid für E-Mail-Versand verwenden
+      const msg = {
+        to,
+        from,
+        subject,
+        html: fullHtml,
+      };
+      
+      await sgMail.send(msg);
+    } else {
+      // Nodemailer als Fallback verwenden
+      const transporter = createTransport({
+        host: process.env.SMTP_HOST || 'smtp.example.com',
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: process.env.SMTP_SECURE === 'true',
+        auth: {
+          user: process.env.SMTP_USER || '',
+          pass: process.env.SMTP_PASS || '',
+        },
+      });
+      
+      await transporter.sendMail({
+        from,
+        to,
+        subject,
+        html: fullHtml,
+      });
+    }
+    
+    console.log(`E-Mail erfolgreich gesendet an: ${to}`);
+    return true;
+  } catch (error) {
+    console.error('Fehler beim Senden der E-Mail:', error);
+    return false;
+  }
+}
+
+/**
+ * Komplette Funktion zum Erstellen und Versenden einer Bestellungs-E-Mail
+ */
+export async function createAndSendOrderEmail(
+  orderId: number, 
+  emailAddress: string, 
+  customSubject?: string, 
+  customContent?: string, 
+  templateType: string = 'standard'
+): Promise<boolean> {
+  try {
+    // 1. Bestellungsdaten abrufen
+    const orderResult = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+    
+    if (!orderResult || orderResult.length === 0) {
+      throw new Error('Bestellung nicht gefunden');
+    }
+    
+    const order = orderResult[0];
+    
+    // 2. Lieferantendaten abrufen, falls vorhanden
+    let supplier = { name: order.supplierName || 'Unbekannter Lieferant' };
+    
+    if (order.supplierId) {
+      const supplierResult = await db
+        .select()
+        .from(suppliers)
+        .where(eq(suppliers.id, order.supplierId))
+        .limit(1);
+      
+      if (supplierResult && supplierResult.length > 0) {
+        supplier = supplierResult[0];
+      }
+    }
+    
+    // 3. E-Mail-Inhalt erstellen (entweder angepasst oder aus Vorlage)
+    let emailContent = customContent;
+    
+    if (!emailContent) {
+      emailContent = createOrderEmailTemplate(order, supplier, templateType);
+    }
+    
+    // 4. E-Mail-Betreff erstellen
+    let subject = customSubject;
+    
+    if (!subject) {
+      subject = `Bestellung ${order.orderNumber} - ${order.supplierName || supplier.name}`;
+      
+      // Spezielle Betreffzeile für verschiedene Vorlagentypen
+      if (templateType === 'urgent' || templateType === 'dringend') {
+        subject = `DRINGEND: ${subject}`;
+      } else if (templateType === 'reorder' || templateType === 'nachbestellung') {
+        subject = `Nachbestellung: ${subject}`;
+      }
+    }
+    
+    // 5. E-Mail senden
+    return await sendOrderEmail(
+      emailAddress,
+      DEFAULT_FROM_EMAIL,
+      subject,
+      emailContent,
+      orderId
+    );
+  } catch (error) {
+    console.error('Fehler beim Erstellen und Senden der Bestell-E-Mail:', error);
+    return false;
   }
 }

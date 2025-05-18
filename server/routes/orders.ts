@@ -830,75 +830,31 @@ router.post('/orders/:id/send-email', async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Eine gültige E-Mail-Adresse des Empfängers muss angegeben werden" });
     }
     
-    // Bestellung abrufen
-    const orderResult = await db
-      .select()
-      .from(orders)
-      .where(eq(orders.id, orderId))
-      .limit(1);
+    // Neue optimierte E-Mail-Funktion verwenden
+    const { createAndSendOrderEmail } = await import('../utils/orderEmailUtils');
     
-    if (!orderResult || orderResult.length === 0) {
-      return res.status(404).json({ error: "Bestellung nicht gefunden" });
-    }
-    
-    const order = orderResult[0];
-    
-    // Bestellpositionen abrufen
-    const items = await db
-      .select()
-      .from(orderItems)
-      .where(eq(orderItems.orderId, orderId));
-    
-    // Lieferanten abrufen
-    let supplier = null;
-    if (order.supplierId) {
-      const supplierData = await db
-        .select()
-        .from(suppliers)
-        .where(eq(suppliers.id, order.supplierId))
-        .limit(1);
-      
-      if (supplierData && supplierData.length > 0) {
-        supplier = supplierData[0];
-      }
-    }
-
-    // Tabelle mit Bestellpositionen erstellen
-    const itemsTable = createOrderItemsTable(items);
-
-    // HTML-Inhalt für die E-Mail
-    let htmlContent;
-    
-    if (content) {
-      // Benutzerdefinierter Inhalt wird verwendet
-      htmlContent = content;
-      
-      // Bestelldetails einfügen, falls Platzhalter vorhanden sind
-      if (htmlContent.includes('{{orderItems}}')) {
-        htmlContent = htmlContent.replace('{{orderItems}}', itemsTable);
-      }
-    } else {
-      // Standardvorlage basierend auf dem Typ verwenden
-      const emailTemplate = createOrderEmailTemplate(order, supplier || { name: order.supplierName || "Unbekannter Lieferant" }, templateType);
-      
-      // HTML für E-Mail mit Tabelle ergänzen
-      htmlContent = emailTemplate.replace('{{orderItems}}', itemsTable);
-    }
-    
-    // Absender-E-Mail
-    const fromEmail = "bestellung@proviantomat.de";
-    
-    // E-Mail senden
-    const result = await sendEmail(
+    // E-Mail senden mit der neuen Utility-Funktion
+    const result = await createAndSendOrderEmail(
+      orderId,
       to,
-      fromEmail, 
-      subject || `Bestellung ${order.orderNumber}`,
-      htmlContent
+      subject,
+      content,
+      templateType
     );
     
     if (result) {
-      // Bestellung als versandt markieren, wenn sie noch im Entwurfsstatus ist
-      if (order.status === 'draft') {
+      // Bestellung abrufen, um den aktuellen Status zu überprüfen
+      const orderResult = await db
+        .select()
+        .from(orders)
+        .where(eq(orders.id, orderId))
+        .limit(1);
+      
+      if (orderResult && orderResult.length > 0) {
+        const order = orderResult[0];
+        
+        // Bestellung als versandt markieren, wenn sie noch im Entwurfsstatus ist
+        if (order.status === 'draft') {
         // Bestehende Statushistorie konsistent verarbeiten
         let currentHistory = [];
         try {
