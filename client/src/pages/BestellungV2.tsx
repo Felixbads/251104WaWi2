@@ -906,8 +906,25 @@ const BestellungV2: React.FC = () => {
                 console.log("Kein Lieferdatum gesetzt oder ungültiges Format");
               }
               
+              // Erweitere das Payload für den direkten SQL-Endpunkt
+              const directSqlPayload = {
+                ...orderPayload,
+                warehouseName: warehouseName,
+                supplierName: supplierName,
+                // Produkte mit den richtigen Feldnamen für den direkten SQL-Endpunkt
+                products: selectedProducts.map(product => ({
+                  id: Number(product.id),
+                  name: product.name || product.productName,
+                  quantity: Number(product.orderQuantity || 0),
+                  price: Number(product.price || 0),
+                  unit: product.unit || 'Stück',
+                  orderNotes: product.orderNotes || ''
+                }))
+              };
+              
+              console.log("Sende Bestellung an direkten SQL-Endpunkt", directSqlPayload);
               // Sende die Bestellung ab
-              createOrderMutation.mutate(orderPayload);
+              createOrderMutation.mutate(directSqlPayload);
             }}
             isSubmitting={createOrderMutation.isPending}
           />
