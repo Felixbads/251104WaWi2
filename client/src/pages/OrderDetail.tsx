@@ -11,6 +11,7 @@ import OrderDetailActions from "@/components/orders/OrderDetailActions";
 import ManualStatusChange from "@/components/orders/ManualStatusChange";
 import OrderEmailDialog from "@/components/orders/OrderEmailDialog";
 import OrderEmailPage from "@/components/orders/OrderEmailPage";
+import SimpleEmailActionButton from "@/components/orders/SimpleEmailActionButton";
 import { getOrder, updateOrder } from "@/lib/api";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { orderKeys, warehouseKeys } from "@/lib/queryKeys";
@@ -696,10 +697,7 @@ export default function OrderDetail() {
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={sendOrderEmail} className="gap-2">
-            <Mail className="h-4 w-4" />
-            <span className="hidden sm:inline">E-Mail</span>
-          </Button>
+          <SimpleEmailActionButton order={order} variant="outline" size="sm" />
           <Button variant="outline" size="sm" onClick={() => setShowQrDialog(true)} className="gap-2">
             <QrCode className="h-4 w-4" />
             <span className="hidden sm:inline">QR-Code</span>
@@ -713,10 +711,6 @@ export default function OrderDetail() {
             <RefreshCw className="h-4 w-4" />
             <span className="hidden sm:inline">Status ändern</span>
             <span className="sm:hidden">Status</span>
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setShowEmailDialog(true)} className="gap-2">
-            <Mail className="h-4 w-4" />
-            <span className="hidden sm:inline">E-Mail</span>
           </Button>
         </div>
       </div>
