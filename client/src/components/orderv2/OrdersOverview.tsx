@@ -85,7 +85,7 @@ const orderStatusMap = {
   draft: { 
     label: 'Entwurf', 
     color: 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-300',
-    icon: FileText
+    icon: Mail
   },
   pending: { 
     label: 'In Bearbeitung', 

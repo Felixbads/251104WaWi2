@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Mail, Save, Plus, Trash, FileText, AlertCircle } from 'lucide-react';
+import { Mail, Save, Plus, Trash, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
@@ -433,7 +433,7 @@ Ihr Team`,
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full border rounded-md p-8">
-                  <FileText className="h-12 w-12 text-muted-foreground opacity-30 mb-4" />
+                  <Mail className="h-12 w-12 text-muted-foreground opacity-30 mb-4" />
                   <h3 className="text-lg font-medium mb-2">Keine Vorlage ausgewählt</h3>
                   <p className="text-sm text-muted-foreground text-center">
                     Wählen Sie eine Vorlage aus der Liste oder erstellen Sie eine neue Vorlage.

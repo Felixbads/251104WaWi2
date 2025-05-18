@@ -144,7 +144,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
           </div>
         ) : documents.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-4 border border-dashed rounded-lg">
-            <FileText className="h-12 w-12 text-muted-foreground opacity-40 mb-4" />
+            <Mail className="h-12 w-12 text-muted-foreground opacity-40 mb-4" />
             <h3 className="text-lg font-medium mb-1">Keine Dokumente gefunden</h3>
             <p className="text-sm text-muted-foreground text-center mb-6">
               Es wurden keine Dokumente für diese Bestellung gefunden.
@@ -225,7 +225,7 @@ export const DocumentViewer: React.FC<DocumentViewerProps> = ({
                 <div className="aspect-[3/4] bg-slate-50 flex items-center justify-center">
                   {/* Hier würde in einer echten Anwendung der PDF-Viewer oder Bildvorschau stehen */}
                   <div className="text-center p-6">
-                    <FileText className="h-16 w-16 mx-auto text-muted-foreground opacity-40 mb-4" />
+                    <Mail className="h-16 w-16 mx-auto text-muted-foreground opacity-40 mb-4" />
                     <h3 className="text-lg font-medium mb-2">{activeDocument.name}</h3>
                     <p className="text-sm text-muted-foreground mb-6">
                       Die Vorschau für dieses Dokument ist in der aktuellen Version noch nicht verfügbar.

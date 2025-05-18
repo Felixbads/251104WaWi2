@@ -47,7 +47,7 @@ import {
   ClipboardList,
   ExternalLink,
   FileCheck,
-  FileText,
+  Mail,
   Info,
   Loader2,
   LucideIcon,

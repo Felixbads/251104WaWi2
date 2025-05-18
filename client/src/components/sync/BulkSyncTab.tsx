@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
 import { format, parse, parseISO, isValid } from 'date-fns';
 import { de } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Download, Upload, RefreshCw, AlertCircle, CheckCircle, Clock, FileText } from 'lucide-react';
+import { Calendar as CalendarIcon, Download, Upload, RefreshCw, AlertCircle, CheckCircle, Clock, Mail } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
