@@ -262,6 +262,13 @@ const BestellungV2: React.FC = () => {
     }
   });
   
+  // Liste aller Bestellungen für die Übersicht laden
+  const { data: ordersList, isLoading: isLoadingOrdersList } = useQuery({
+    queryKey: orderKeys.lists(),
+    queryFn: () => apiRequest('/api/orders'),
+    enabled: step === 'overview' // Nur laden, wenn die Übersicht angezeigt wird
+  });
+  
   // Fetch order data if editing an existing order
   const { data: order, isLoading: isLoadingOrder } = useQuery({
     queryKey: orderId ? orderKeys.detail(orderId) : ['no-order'],
@@ -532,6 +539,8 @@ const BestellungV2: React.FC = () => {
           <OrdersOverview 
             onSelectOrder={handleSelectOrder}
             onStartWarehouseReceiptProcess={handleReceiveOrder}
+            ordersData={ordersList}
+            isLoading={isLoadingOrdersList}
             onCreateNew={() => {
               // Setze alle Werte zurück
               setWarehouseId(null);

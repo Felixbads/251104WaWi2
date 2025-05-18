@@ -1,0 +1,109 @@
+Nach eingehender Analyse der aktuellen BestellungV2-30.tsx sind im Wesentlichen drei Punkte zu klären:
+
+⸻
+
+1. Warum keine Bestellungen in der Übersicht angezeigt werden
+
+Befund: In dieser Version gibt es keine useQuery–Abfrage, die alle Bestellungen (GET /api/orders) lädt. Stattdessen wird nur eine Detail-Query ausgeführt:
+
+useQuery({
+  queryKey: orderId
+    ? orderKeys.detail(orderId)
+    : ['no-order'],
+  queryFn: () => {
+    if (!orderId) return null;
+    return apiRequest(`/api/orders/${orderId}`);
+  },
+  enabled: !!orderId,
+});
+
+➔ Folge: Solange orderId nicht gesetzt ist, läuft keine Abfrage; und selbst wenn sie gesetzt ist, wird nur genau eine Bestellung nachgeladen – es gibt keine Liste aller Bestellungen in dieser Komponente.
+
+Lösung:
+	1.	Füge ganz oben eine Liste-Abfrage ein, z. B.:
+
+const ordersListQuery = useQuery({
+  queryKey: orderKeys.lists(),
+  queryFn: () => apiRequest('/api/orders'),
+  // enabled: true  (Standard)
+});
+
+
+	2.	Binde ordersListQuery.data in deine Tabelle ein, anstatt nur den Detail-Datensatz anzuzeigen.
+	3.	Wenn du nach dem Anlegen einer Bestellung die Tabelle automatisch aktualisieren willst, brauchst du diese List-Query, damit queryClient.invalidateQueries({ queryKey: orderKeys.lists() }) sie tatsächlich neu abruft.
+
+⸻
+
+2. Speichert die Bestellung überhaupt?
+
+Du siehst im Code:
+
+mutationFn: async (orderData) => {
+  const response = await fetch('/api/orders', { …, body: JSON.stringify(orderData) });
+  if (!response.ok) throw new Error(...);
+  return await response.json();
+},
+onSuccess: (data) => {
+  console.log("Bestellungs-Antwort vom Server:", data);
+  if (data && data.id) {
+    // … setOrderId(data.id) …
+  } else {
+    // Fallback: toast ohne ID
+  }
+  queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+  setStep("sendOrder");
+}
+
+Prüfpunkte:
+	1.	Netzwerkanalyse:
+Öffne die DevTools → Network → filtere nach POST /api/orders.
+	•	Status: 201 (oder 200)?
+	•	Response-Body: Gibt es ein Feld id und orderNumber direkt im JSON-Root, oder liegt es in data.id?
+	2.	Datenformate:
+	•	Wenn dein Backend { data: { id: 123, orderNumber: 'XYZ' } } zurückliefert, musst du im Frontend const payload = await response.json(); return payload.data; oder in onSuccess auf data.data.id zugreifen.
+	3.	Console-Logs:
+Schau dir console.log("Bestellungs-Antwort vom Server:", data) an.
+	•	Ist data.id wirklich gesetzt?
+	•	Wenn nicht, liegt das Problem im Backend-Response oder in der falschen Serialisierung des Request-Payloads.
+
+Erst wenn du sicher bist, dass der Server wirklich eine neue Bestellung abspeichert und die id zurückgibt, kannst du davon ausgehen, dass die Mutation erfolgreich war.
+
+⸻
+
+3. Warum keine Weiterleitung zum E-Mail-Versand erfolgt
+
+Im onSuccess steht:
+
+// unmittelbar nach dem Toast
+queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+setExistingOrderData(orderWithProducts);
+setStep("sendOrder");
+setTimeout(() => setStep("sendOrder"), 1000);
+
+Aber:
+	•	setStep("sendOrder") allein ändert nur internen State – es navigiert nicht auf eine neue URL.
+	•	Möglicherweise rendert deine Komponente nie einen „sendOrder“-Screen, weil im JSX kein Fall für step === 'sendOrder' implementiert ist.
+
+Lösung:
+	1.	Wenn du eine neue Route für den E-Mail-Versand hast, rufe nach dem Speichern z. B.
+
+router.push(`/orders/${data.id}/send-mail`);
+
+
+	2.	Wenn es ein internes Tab/Multi-Step-Formular ist, stelle sicher, dass im Render-Switch auch ein Fall für step === 'sendOrder' existiert, der das Mail-Versand-Formular zeigt.
+
+⸻
+
+Zusammenfassung der To-Dos
+
+Punkt	Maßnahme
+1. Liste leer	useQuery für GET /api/orders ergänzen und in Tabelle rendern.
+2. Bestellung gespeichert?	DevTools → Network prüfen, Console-Log auswerten, ggf. Backend-Response parsen anpassen.
+3. Keine Navigation zu Mails	Entweder router.push(...) verwenden oder im JSX einen step === 'sendOrder'-Block ergänzen.
+
+Wenn du diese drei Kernpunkte umsetzt, wird…
+	1.	die Tabelle korrekt Bestellungen anzeigen,
+	2.	eindeutig erkennbar sein, ob das Backend tatsächlich speichert,
+	3.	und du wirst unmittelbar nach dem Speichern zum Mail-Versand weitergeleitet.
+
+Gib Bescheid, wenn du über die Network-Logs weitere Details hast oder Code-Snippets zur E-Mail-Darstellung brauchst!
