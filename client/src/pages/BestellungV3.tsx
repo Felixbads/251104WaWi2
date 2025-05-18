@@ -165,7 +165,7 @@ const BestellungV3: React.FC = () => {
         console.log("Lade Bestellungen über den direkten DB-Router...");
         
         // Direkter Endpunkt für Bestellungen
-        const response = await fetch('/api/db-direct/orders', {
+        const response = await fetch('/api/sql-orders', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
