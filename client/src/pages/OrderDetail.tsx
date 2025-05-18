@@ -59,7 +59,6 @@ import {
   ArrowLeft,
   Truck,
   Calendar,
-  FileText,
   Building2,
   Package,
   PackageCheck,
@@ -752,7 +751,7 @@ export default function OrderDetail() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-6">
           <TabsTrigger value="overview" className="gap-1.5">
-            <FileText className="h-4 w-4" />
+            <ClipboardCheck className="h-4 w-4" />
             <span>Übersicht</span>
           </TabsTrigger>
           <TabsTrigger value="items" className="gap-1.5">
@@ -764,7 +763,7 @@ export default function OrderDetail() {
             <span>Verlauf</span>
           </TabsTrigger>
           <TabsTrigger value="documents" className="gap-1.5">
-            <FileText className="h-4 w-4" />
+            <Mail className="h-4 w-4" />
             <span>Dokumente</span>
           </TabsTrigger>
         </TabsList>
@@ -1024,7 +1023,7 @@ export default function OrderDetail() {
                     <li key={entry.id || index} className="relative pl-14">
                       <div className="absolute left-0 flex h-14 w-14 items-center justify-center rounded-full border bg-card">
                         {/* Vereinfachter Workflow hat nur 3 Status + Storniert */}
-                        {entry.status === "draft" && <FileText className="h-6 w-6 text-blue-500" />}
+                        {entry.status === "draft" && <Mail className="h-6 w-6 text-blue-500" />}
                         {entry.status === "ordered" && <Send className="h-6 w-6 text-yellow-500" />}
                         {entry.status === "completed" && <CheckCircle2 className="h-6 w-6 text-green-500" />}
                         {entry.status === "cancelled" && <XCircle className="h-6 w-6 text-red-500" />}
@@ -1086,7 +1085,7 @@ export default function OrderDetail() {
                       className="flex items-center justify-between p-3 rounded-md border hover:bg-accent transition-colors"
                     >
                       <div className="flex items-center gap-3">
-                        <FileText className="h-5 w-5 text-primary" />
+                        <Mail className="h-5 w-5 text-primary" />
                         <div>
                           <p className="font-medium text-sm">{doc.title}</p>
                           <p className="text-xs text-muted-foreground">
@@ -1115,10 +1114,10 @@ export default function OrderDetail() {
                 </div>
               ) : (
                 <div className="text-center py-8">
-                  <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <Mail className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <h3 className="text-lg font-medium mb-1">Keine Dokumente</h3>
                   <p className="text-muted-foreground">
-                    Generieren Sie ein PDF-Dokument durch Klicken auf "PDF generieren"
+                    Senden Sie eine E-Mail durch Klicken auf "E-Mail senden"
                     in der Aktionsleiste.
                   </p>
                 </div>
