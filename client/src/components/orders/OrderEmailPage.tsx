@@ -76,7 +76,7 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
         setEmailText(`Sehr geehrte Damen und Herren,
 
 hiermit bestellen wir folgende Artikel:
-{{orderItems}}
+{'{{orderItems}}'}
 
 Mit freundlichen Grüßen
 Ihr Proviantomat Team`);
@@ -189,7 +189,7 @@ Ihr Proviantomat Team`);
             
             <div className="space-y-2">
               <Label>Vorlage</Label>
-              <Tabs defaultValue={selectedTemplate} onValueChange={handleTemplateChange}>
+              <Tabs value={selectedTemplate} onValueChange={handleTemplateChange} defaultValue="standard">
                 <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="standard">Standard</TabsTrigger>
                   <TabsTrigger value="urgent">Dringend</TabsTrigger>
@@ -221,7 +221,7 @@ Ihr Proviantomat Team`);
               />
             )}
             <p className="mt-2 text-sm text-muted-foreground">
-              Der Platzhalter {'{'}{'{'}'orderItems'{'}'}{'}'} wird durch die Artikeltabelle ersetzt
+              Der Platzhalter {'{{orderItems}}'} wird durch die Artikeltabelle ersetzt
             </p>
           </CardContent>
           <CardFooter className="flex justify-between">
