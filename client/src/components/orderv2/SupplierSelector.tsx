@@ -108,49 +108,23 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Kontaktperson</TableHead>
-                <TableHead>Kontakt</TableHead>
-                <TableHead className="text-right">Aktion</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredSuppliers && filteredSuppliers.length > 0 ? (
                 filteredSuppliers.map((supplier: Supplier) => (
-                  <TableRow key={supplier.id} className={selectedSupplierId === supplier.id ? 'bg-primary/10' : ''}>
-                    <TableCell className="font-medium">{supplier.name}</TableCell>
-                    <TableCell>{supplier.contactPerson || '-'}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        {supplier.email && (
-                          <div className="flex items-center text-xs">
-                            <Mail className="h-3 w-3 mr-1" />
-                            {supplier.email}
-                          </div>
-                        )}
-                        {supplier.phone && (
-                          <div className="flex items-center text-xs">
-                            <PhoneCall className="h-3 w-3 mr-1" />
-                            {supplier.phone}
-                          </div>
+                  <TableRow 
+                    key={supplier.id} 
+                    className={`cursor-pointer hover:bg-muted/50 ${selectedSupplierId === supplier.id ? 'bg-primary/10' : ''}`}
+                    onClick={() => onSelectSupplier(supplier.id, supplier.name)}
+                  >
+                    <TableCell className="font-medium">
+                      <div className="flex items-center justify-between">
+                        <span>{supplier.name}</span>
+                        {selectedSupplierId === supplier.id && (
+                          <CheckCircle2 className="h-4 w-4 text-primary" />
                         )}
                       </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {selectedSupplierId === supplier.id ? (
-                        <Button variant="outline" size="sm" className="text-primary" disabled>
-                          <CheckCircle2 className="mr-1 h-4 w-4" />
-                          Ausgewählt
-                        </Button>
-                      ) : (
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => onSelectSupplier(supplier.id, supplier.name)}
-                        >
-                          <Truck className="mr-1 h-4 w-4" />
-                          Auswählen
-                        </Button>
-                      )}
                     </TableCell>
                   </TableRow>
                 ))

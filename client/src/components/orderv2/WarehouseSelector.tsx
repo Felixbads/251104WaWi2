@@ -87,37 +87,23 @@ const WarehouseSelector: React.FC<WarehouseSelectorProps> = ({
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Standort</TableHead>
-                <TableHead>Typ</TableHead>
-                <TableHead className="text-right">Aktion</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredWarehouses && filteredWarehouses.length > 0 ? (
                 filteredWarehouses.map((warehouse) => (
-                  <TableRow key={warehouse.id} className={selectedWarehouseId === warehouse.id ? 'bg-primary/10' : ''}>
-                    <TableCell className="font-medium">{warehouse.name}</TableCell>
-                    <TableCell>{warehouse.location}</TableCell>
-                    <TableCell>{warehouse.type}</TableCell>
-                    <TableCell className="text-right">
-                      {selectedWarehouseId === warehouse.id ? (
-                        <Button variant="outline" size="sm" className="text-primary" disabled>
-                          <CheckCircle2 className="mr-1 h-4 w-4" />
-                          Ausgewählt
-                        </Button>
-                      ) : (
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => {
-                            onSelectWarehouse(warehouse.id, warehouse.name);
-                            // Automatisch zum nächsten Schritt gehen
-                          }}
-                        >
-                          <Building2 className="mr-1 h-4 w-4" />
-                          Auswählen
-                        </Button>
-                      )}
+                  <TableRow 
+                    key={warehouse.id} 
+                    className={`cursor-pointer hover:bg-muted/50 ${selectedWarehouseId === warehouse.id ? 'bg-primary/10' : ''}`}
+                    onClick={() => onSelectWarehouse(warehouse.id, warehouse.name)}
+                  >
+                    <TableCell className="font-medium">
+                      <div className="flex items-center justify-between">
+                        <span>{warehouse.name}</span>
+                        {selectedWarehouseId === warehouse.id && (
+                          <CheckCircle2 className="h-4 w-4 text-primary" />
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
