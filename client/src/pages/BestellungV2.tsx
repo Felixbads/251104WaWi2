@@ -826,7 +826,6 @@ const BestellungV2: React.FC = () => {
             selectedProducts={selectedProducts}
             additionalInfo={additionalInfo}
             orderData={existingOrderData}
-            pdfBlob={pdfBlob}
             onCreateOrder={() => {
               // Vollständige Produktinformationen für die Bestellpositionen hinzufügen
               const orderData = {
@@ -921,7 +920,6 @@ const BestellungV2: React.FC = () => {
             orderNumber={orderNumber}
             supplierName={supplierName}
             supplierEmail={existingOrderData?.supplierEmail || ''}
-            pdfBlob={pdfBlob}
             onBack={() => setStep('summary')}
             onNext={() => {
               // Nach dem E-Mail-Versand zur Wareneingangsseite wechseln
