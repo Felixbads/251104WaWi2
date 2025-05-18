@@ -17,6 +17,8 @@ import { orderKeys, warehouseKeys } from "@/lib/queryKeys";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
+// Wir haben die PDF-Funktionalität komplett entfernt
+
 
 // UI Komponenten
 import { Button } from "@/components/ui/button";
@@ -66,8 +68,8 @@ import {
   Loader2,
   Clock,
   XCircle,
-  Download,
   QrCode,
+  Download,
   Mail,
   ShoppingBag,
   AlertTriangle,
