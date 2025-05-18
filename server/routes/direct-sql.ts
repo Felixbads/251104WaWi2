@@ -102,45 +102,49 @@ router.get('/email-templates-direct', async (req, res) => {
       )
     `);
     
+    // Standardvorlage erstellen (wird zurückgegeben, wenn keine Vorlage in der Datenbank existiert)
+    const defaultTemplate = {
+      id: 1,
+      name: 'Standard-Bestellvorlage',
+      subject: 'Neue Bestellung: {{orderNumber}}',
+      body: `<h2>Sehr geehrte Damen und Herren,</h2>
+             <p>hiermit senden wir Ihnen folgende Bestellung:</p>
+             <p><strong>Bestellnummer:</strong> {{orderNumber}}</p>
+             <p><strong>Lieferdatum:</strong> {{deliveryDate}}</p>
+             <p><strong>Lieferadresse:</strong> {{warehouse}}</p>
+             <h3>Bestellpositionen:</h3>
+             <table border="1" cellpadding="5" cellspacing="0">
+               <tr>
+                 <th>Produkt</th>
+                 <th>Menge</th>
+                 <th>Einheit</th>
+                 <th>Einzelpreis</th>
+                 <th>Gesamtpreis</th>
+               </tr>
+               {{#each orderItems}}
+               <tr>
+                 <td>{{this.productName}}</td>
+                 <td>{{this.quantity}}</td>
+                 <td>{{this.unit}}</td>
+                 <td>{{this.price}} €</td>
+                 <td>{{this.totalPrice}} €</td>
+               </tr>
+               {{/each}}
+             </table>
+             <p><strong>Gesamtbetrag:</strong> {{totalAmount}} €</p>
+             <p><strong>Notizen:</strong> {{notes}}</p>
+             <p>Mit freundlichen Grüßen<br/>Ihr Smart Vending Team</p>`,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      is_default: true
+    };
+    
+    // Wenn die Tabelle nicht existiert oder leer ist, die Standardvorlage zurückgeben
     if (!checkTable.rows[0].exists) {
-      // Erstelle eine Standardvorlage, wenn die Tabelle nicht existiert
+      console.log('E-Mail-Vorlagen-Tabelle existiert nicht, gebe Standardvorlage zurück');
       return res.json({
         success: true,
-        data: [{
-          id: 1,
-          name: 'Standard-Bestellvorlage',
-          subject: 'Neue Bestellung: {{orderNumber}}',
-          body: `<h2>Sehr geehrte Damen und Herren,</h2>
-                 <p>hiermit senden wir Ihnen folgende Bestellung:</p>
-                 <p><strong>Bestellnummer:</strong> {{orderNumber}}</p>
-                 <p><strong>Lieferdatum:</strong> {{deliveryDate}}</p>
-                 <p><strong>Lieferadresse:</strong> {{warehouse}}</p>
-                 <h3>Bestellpositionen:</h3>
-                 <table border="1" cellpadding="5" cellspacing="0">
-                   <tr>
-                     <th>Produkt</th>
-                     <th>Menge</th>
-                     <th>Einheit</th>
-                     <th>Einzelpreis</th>
-                     <th>Gesamtpreis</th>
-                   </tr>
-                   {{#each orderItems}}
-                   <tr>
-                     <td>{{this.productName}}</td>
-                     <td>{{this.quantity}}</td>
-                     <td>{{this.unit}}</td>
-                     <td>{{this.price}} €</td>
-                     <td>{{this.totalPrice}} €</td>
-                   </tr>
-                   {{/each}}
-                 </table>
-                 <p><strong>Gesamtbetrag:</strong> {{totalAmount}} €</p>
-                 <p><strong>Notizen:</strong> {{notes}}</p>
-                 <p>Mit freundlichen Grüßen<br/>Ihr Smart Vending Team</p>`,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          is_default: true
-        }],
+        data: [defaultTemplate],
         message: '1 Standard-Vorlage erstellt, da keine E-Mail-Vorlagen in der Datenbank gefunden wurden'
       });
     }
