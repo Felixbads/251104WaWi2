@@ -60,7 +60,7 @@ const OrderEmailDialog: React.FC<OrderEmailDialogProps> = ({
   const [supplierEmail, setSupplierEmail] = useState<string>(initialSupplierEmail);
   const [emailSubject, setEmailSubject] = useState<string>("");
   const [templateType, setTemplateType] = useState<string>("standard");
-  const [activeTab, setActiveTab] = useState<"edit" | "preview">("edit");
+
 
   // E-Mail-Vorlage laden
   const { data: templateData, isLoading: templateLoading } = useQuery({
