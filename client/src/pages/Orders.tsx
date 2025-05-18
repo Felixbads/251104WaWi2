@@ -812,26 +812,24 @@ export default function Orders() {
         onResetFilter={resetFilter} 
       />
       
-      {/* Bestellungs-Tabelle */}
+      {/* Vereinfachte Bestellungs-Tabelle */}
       <Card className="overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-[180px]">Bestellnummer</TableHead>
               <TableHead>Lieferant</TableHead>
-              <TableHead>Standort</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Datum</TableHead>
               <TableHead>Liefertermin</TableHead>
-              <TableHead className="text-right">Betrag</TableHead>
-              <TableHead>Positionen</TableHead>
-              <TableHead className="w-[60px]">Aktion</TableHead>
+              <TableHead>Priorität</TableHead>
+              {/* Überflüssige Spalten entfernt */}
             </TableRow>
           </TableHeader>
           <TableBody>
             {ordersLoading ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8">
+                <TableCell colSpan={6} className="text-center py-8">
                   <div className="flex items-center justify-center">
                     <Loader2 className="h-6 w-6 animate-spin mr-2" />
                     <span>Bestellungen werden geladen...</span>
@@ -839,42 +837,44 @@ export default function Orders() {
                 </TableCell>
               </TableRow>
             ) : orders && orders.length > 0 ? (
-              orders.map((order) => (
-                <TableRow key={order.id}>
-                  <TableCell className="font-medium">
-                    <Button 
-                      variant="link" 
-                      className="pl-0"
-                      onClick={() => openOrderDetail(order.id)}
-                    >
+              orders.map((order) => {
+                // Navigation basierend auf dem Status der Bestellung
+                const handleRowClick = () => {
+                  if (order.status === 'draft') {
+                    // Bei Entwurf direkt zur Bestellübersicht
+                    setLocation(`/bestellungen/${order.id}`);
+                  } else if (order.status === 'sent' || order.status === 'partially_received') {
+                    // Bei "gesendet" direkt zum Wareneingang
+                    setLocation(`/bestellungen/${order.id}/wareneingang`);
+                  } else {
+                    // Für alle anderen Zustände zur normalen Detailseite
+                    setLocation(`/bestellungen/${order.id}`);
+                  }
+                };
+                
+                return (
+                  <TableRow 
+                    key={order.id} 
+                    onClick={handleRowClick}
+                    className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  >
+                    <TableCell className="font-medium">
                       {order.orderNumber}
-                    </Button>
-                  </TableCell>
+                    </TableCell>
                   <TableCell>{order.supplierName}</TableCell>
-                  <TableCell>{order.warehouseName || order.locationName}</TableCell>
                   <TableCell>
                     <OrderStatusBadge status={order.status} />
                   </TableCell>
                   <TableCell>{formatDate(order.orderDate)}</TableCell>
                   <TableCell>{formatDate(order.expectedDeliveryDate)}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(order.totalAmount)}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className="font-normal">
-                      {order.itemCount} Position{order.itemCount !== 1 ? 'en' : ''}
+                    <Badge 
+                      variant={order.priority === 'high' || order.priority === 'urgent' ? 'destructive' : 'outline'} 
+                      className={order.priority === 'normal' ? 'bg-blue-100 text-blue-800 border-blue-300' : ''}
+                    >
+                      {priorityMap[order.priority as keyof typeof priorityMap]?.label || order.priority}
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => openOrderDetail(order.id)}>
-                          <Mail className="h-4 w-4 mr-2" />
-                          Details anzeigen
-                        </DropdownMenuItem>
                         {(order.status === "ordered" || order.status === "partial") && (
                           <DropdownMenuItem onClick={() => {
                             setSelectedOrderForReceipt(order);
