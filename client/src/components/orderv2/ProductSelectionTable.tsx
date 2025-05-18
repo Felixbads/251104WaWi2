@@ -39,7 +39,10 @@ interface ProductSelectionTableProps {
   sourceOrderId?: number | null;
   mode: OrderMode;
   selectedProducts: any[];
-  onProductsChange: (products: any[]) => void;
+  setSelectedProducts?: (products: any[]) => void;
+  onProductsChange?: (products: any[]) => void;
+  onNext?: () => void;
+  onBack?: () => void;
 }
 
 const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
@@ -48,7 +51,10 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
   sourceOrderId,
   mode,
   selectedProducts,
-  onProductsChange
+  setSelectedProducts,
+  onProductsChange,
+  onNext,
+  onBack
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -177,10 +183,15 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
     if (mode === 'copy' && sourceOrderProducts && Array.isArray(sourceOrderProducts) && sourceOrderProducts.length > 0) {
       // Only update if we don't already have selected products
       if (selectedProducts.length === 0) {
-        onProductsChange(sourceOrderProducts);
+        if (onProductsChange) {
+          onProductsChange(sourceOrderProducts);
+        }
+        if (setSelectedProducts) {
+          setSelectedProducts(sourceOrderProducts);
+        }
       }
     }
-  }, [mode, sourceOrderProducts, selectedProducts.length, onProductsChange]);
+  }, [mode, sourceOrderProducts, selectedProducts.length, onProductsChange, setSelectedProducts]);
   
   // Load forecast quantities when in forecast mode
   useEffect(() => {
@@ -195,10 +206,15 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
           };
         }).filter((product: any) => product.orderQuantity > 0);
         
-        onProductsChange(forecastProducts);
+        if (onProductsChange) {
+          onProductsChange(forecastProducts);
+        }
+        if (setSelectedProducts) {
+          setSelectedProducts(forecastProducts);
+        }
       }
     }
-  }, [mode, forecastData, products, selectedProducts.length, onProductsChange]);
+  }, [mode, forecastData, products, selectedProducts.length, onProductsChange, setSelectedProducts]);
   
   // Handle quantity change
   const handleQuantityChange = (productId: number, quantity: number) => {
