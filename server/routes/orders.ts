@@ -416,6 +416,16 @@ router.post('/orders', async (req: Request, res: Response) => {
         .where(eq(orderItems.orderId, newOrder.id));
       
       // Status 200 anstelle von 201 zurückgeben, um Kompatibilitätsprobleme mit dem Frontend zu vermeiden
+      // Setze explizit den Content-Type header, um sicherzustellen, dass die Antwort als JSON interpretiert wird
+      res.setHeader('Content-Type', 'application/json');
+      
+      // Detailliertere Logging für Debugging-Zwecke
+      console.log('Sende Bestellungsdaten zurück:', {
+        id: newOrder.id,
+        orderNumber: newOrder.orderNumber,
+        itemCount: orderItemsResult.length
+      });
+      
       res.status(200).json({
         ...newOrder,
         items: orderItemsResult

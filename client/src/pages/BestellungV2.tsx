@@ -97,17 +97,28 @@ const BestellungV2: React.FC = () => {
       return apiRequest('/api/orders', orderData, 'post');
     },
     onSuccess: (data) => {
+      // Debugging zur Analyse der empfangenen Daten
+      console.log("Bestellungs-Antwort vom Server:", data);
+      
+      // Fallback für fehlende Daten
+      const orderNumberDisplay = data?.orderNumber || 'Wird geladen...';
+      
       toast({
         title: 'Bestellung erfolgreich erstellt',
-        description: `Bestellungsnummer: ${data.orderNumber}`,
+        description: `Bestellungsnummer: ${orderNumberDisplay}`,
       });
-      setOrderId(data.id);
-      setOrderNumber(data.orderNumber);
-      setExistingOrderData(data);
+      
+      // Daten nur setzen, wenn sie existieren
+      if (data && data.id) {
+        setOrderId(data.id);
+        setOrderNumber(data.orderNumber || '');
+        setExistingOrderData(data);
+      } else {
+        console.warn("Unvollständige Daten vom Server erhalten:", data);
+      }
       
       // Sicherstellen, dass selectedProducts zur Bestellung hinzugefügt wurden
-      
-      console.log("Bestellung erstellt. ID:", data.id, "Nummer:", data.orderNumber);
+      console.log("Bestellung erstellt. ID:", data?.id, "Nummer:", data?.orderNumber);
       console.log("Selected Products für Bestellung:", selectedProducts);
       
       // Aktualisiere das Order-Objekt mit den selectedProducts

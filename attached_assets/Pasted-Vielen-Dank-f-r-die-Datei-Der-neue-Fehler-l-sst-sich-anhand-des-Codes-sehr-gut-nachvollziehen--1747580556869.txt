@@ -1,0 +1,120 @@
+Vielen Dank für die Datei. Der neue Fehler lässt sich anhand des Codes sehr gut nachvollziehen.
+
+⸻
+
+❗ Fehlerbeschreibung
+
+„Bestellung erfolgreich erstellt – Bestellungsnummer: undefined“
+Und: Keine Anzeige in der Tabelle.
+
+📌 Ursachenanalyse
+
+In deinem Code steht:
+
+onSuccess: (data) => {
+  toast({
+    title: 'Bestellung erfolgreich erstellt',
+    description: `Bestellungsnummer: ${data.orderNumber}`,
+  });
+  setOrderId(data.id);
+  setOrderNumber(data.orderNumber);
+  setExistingOrderData(data);
+  ...
+}
+
+Das Problem: data.orderNumber ist undefined
+➡️ Das bedeutet, dass der Server im Erfolgs-Response kein Feld orderNumber liefert – möglicherweise auch kein id.
+
+⸻
+
+🔍 1. Was genau liefert dein Backend zurück?
+
+Du erwartest vermutlich ein Response-Objekt der Form:
+
+{
+  "id": 123,
+  "orderNumber": "ORD-00123",
+  ...
+}
+
+Aber anscheinend ist es eher:
+
+{
+  "message": "Bestellung erfolgreich",
+  "data": {
+    "id": 123,
+    "orderNumber": "ORD-00123",
+    ...
+  }
+}
+
+Oder vielleicht sogar nur:
+
+{
+  "message": "Bestellung erfolgreich"
+}
+
+Du siehst den Fehler also, weil data.orderNumber in deinem Frontend direkt aus dem Wurzelobjekt gezogen wird – aber dort existiert es nicht.
+
+⸻
+
+✅ Lösung
+
+➤ Möglichkeit 1: Backend liefert data als verschachteltes Objekt
+
+Dann musst du deinen Erfolgshandler so ändern:
+
+onSuccess: (response) => {
+  const data = response.data;
+
+  toast({
+    title: 'Bestellung erfolgreich erstellt',
+    description: `Bestellungsnummer: ${data.orderNumber ?? 'Unbekannt'}`,
+  });
+
+  setOrderId(data.id);
+  setOrderNumber(data.orderNumber);
+  setExistingOrderData(data);
+}
+
+➤ Möglichkeit 2: Backend liefert gar keine Daten zurück
+
+Dann kannst du nur mit einem generischen Hinweis arbeiten, z. B.:
+
+toast({
+  title: 'Bestellung erfolgreich erstellt',
+  description: 'Die Bestellung wurde erfolgreich gespeichert.',
+});
+
+
+⸻
+
+🧪 2. Test: Konsolenausgabe prüfen
+
+Du hast diesen Code:
+
+console.log("Bestellung erstellt. ID:", data.id, "Nummer:", data.orderNumber);
+
+→ Schau dir im Browser-Dev-Tool die Konsole an, was da genau steht.
+Wenn data z. B. { message: "...", data: { ... } } ist, musst du auf data.data.orderNumber zugreifen.
+
+⸻
+
+📋 3. Warum die Tabelle leer ist
+
+Wenn data.id ebenfalls undefined ist, wird auch setOrderId(undefined) ausgeführt, und die Liste kann die Bestellung nicht anzeigen.
+
+➡️ Das hängt ebenfalls davon ab, ob der Server wirklich ein id-Feld zurückgibt – und ob deine Query danach aktualisiert wird.
+
+⸻
+
+✅ Fazit
+
+Problem	Ursache	Lösungsvorschlag
+orderNumber ist undefined	Server liefert Struktur anders als erwartet	Konsole prüfen und ggf. response.data...
+Bestellung erscheint nicht	id fehlt oder wird nicht neu geladen	Query-Cache (invalidateQueries) prüfen
+
+
+⸻
+
+Wenn du magst, kannst du mir gerne den Server-Response zeigen (aus der Browser-Netzwerkanalyse) – dann passe ich dir den Code zielgenau an. ￼
