@@ -152,27 +152,25 @@ const BestellungV3: React.FC = () => {
   const [createdOrderId, setCreatedOrderId] = useState<number | null>(null);
   const [orderNumber, setOrderNumber] = useState<string>('');
 
-  // Bestellungen direkt aus der Datenbank lesen
+  // Bestellungen direkt aus der Datenbank lesen über den SQL-Endpunkt
   const { 
     data: ordersResponse, 
     isLoading: ordersLoading, 
     isError: ordersError,
     error: ordersErrorData
   } = useQuery({
-    queryKey: ['orders-direct-db'],
+    queryKey: ['/api/sql-orders'],
     queryFn: async () => {
       try {
-        console.log("Lade Bestellungen direkt aus der Datenbank...");
+        console.log("Lade Bestellungen direkt aus der SQL-Datenbank...");
         
-        // Direkter Datenbankzugriff über einen SQL-Endpunkt
-        const response = await fetch('/api/execute-sql', {
-          method: 'POST',
+        // Direkter SQL-Endpunkt für Bestellungen
+        const response = await fetch('/api/sql-orders', {
+          method: 'GET',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': localStorage.getItem('authToken') ? `Bearer ${localStorage.getItem('authToken')}` : ''
           },
-          body: JSON.stringify({
-            query: 'SELECT * FROM orders ORDER BY created_at DESC'
-          })
         });
         
         if (!response.ok) {
@@ -180,9 +178,9 @@ const BestellungV3: React.FC = () => {
         }
         
         const data = await response.json();
-        console.log("Bestellungsdaten geladen:", data);
+        console.log("Bestellungsdaten aus SQL geladen:", data);
         
-        return data.rows || data;
+        return data;
       } catch (error) {
         console.error("Fehler beim Laden der Bestellungen:", error);
         throw error;
