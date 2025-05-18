@@ -614,11 +614,19 @@ const BestellungV2: React.FC = () => {
             <div className="mb-4">
               <Button 
                 variant="outline" 
-                onClick={() => setStep('overview')}
+                onClick={() => {
+                  // Wenn es eine neue Bestellung ist, gehen wir zurück zur Zusammenfassung
+                  if (createOrderMutation.isPending || createOrderMutation.isSuccess) {
+                    setStep('summary');
+                  } else {
+                    // Ansonsten zurück zur Übersicht
+                    setStep('overview');
+                  }
+                }}
                 size="sm"
               >
                 <ChevronRight className="mr-2 h-4 w-4 rotate-180" />
-                Zurück zur Übersicht
+                Zurück
               </Button>
             </div>
             

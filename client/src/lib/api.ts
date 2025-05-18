@@ -11,11 +11,14 @@ export interface PurchaseCondition {
   productSku?: string;
   unitPrice: number;
   minQuantity?: number;
+  packageSize?: number | string;  // Gebindegröße, z.B. 6, 12, 24 oder "6x0,5L"
   validFrom?: Date | string;
   validTo?: Date | string;
   notes?: string;
   createdAt?: Date | string;
   updatedAt?: Date | string;
+  isPreferred?: boolean;
+  leadTime?: number;
 }
 
 // Interface für Maschinenbestand (MachineStock)
