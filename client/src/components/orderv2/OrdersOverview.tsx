@@ -192,8 +192,8 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
     queryFn: async () => {
       const params = new URLSearchParams();
       if (statusFilter) params.append('status', statusFilter);
-      params.append('sortBy', sortBy.field);
-      params.append('sortDirection', sortBy.direction);
+      params.append('sortField', sortBy.field);
+      params.append('sortOrder', sortBy.direction);
       if (debouncedSearchTerm) params.append('search', debouncedSearchTerm);
       
       return apiRequest(`/api/orders?${params.toString()}`, undefined, 'get');
