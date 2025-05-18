@@ -419,12 +419,12 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
           <div className="flex gap-2">
             <Badge variant="outline" className="flex items-center gap-1 py-2">
               <Package2 className="w-3 h-3" />
-              <span>{selectedProducts.length} Produkte</span>
+              <span>{Array.isArray(selectedProducts) ? selectedProducts.length : 0} Produkte</span>
             </Badge>
             
             <Badge variant="outline" className="flex items-center gap-1 py-2">
               <Tag className="w-3 h-3" />
-              <span>Gesamtmenge: {selectedProducts.reduce((sum, p) => sum + p.orderQuantity, 0)}</span>
+              <span>Gesamtmenge: {Array.isArray(selectedProducts) ? selectedProducts.reduce((sum, p) => sum + (p?.orderQuantity || 0), 0) : 0}</span>
             </Badge>
           </div>
         </div>
