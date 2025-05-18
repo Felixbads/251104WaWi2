@@ -44,6 +44,8 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
   const [isSending, setIsSending] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState('standard');
   const [isLoading, setIsLoading] = useState(false);
+  const [orderItems, setOrderItems] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   // Lade E-Mail-Vorlage bei Komponenteninitialisierung oder Wechsel des Templates
   useEffect(() => {
@@ -51,6 +53,8 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
     
     const loadTemplate = async () => {
       setIsLoading(true);
+      setError(null);
+      
       try {
         // Zuerst versuchen, die Vorlage über den direkten SQL-Endpunkt zu laden
         const directResponse = await fetch('/api/email-templates-direct');
@@ -68,30 +72,25 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
               return false;
             }) || templateData.data[0]; // Fallback zur ersten Vorlage
             
-            // Vorlage anwenden
-            setEmailText(template.body || template.content || '');
-            setEmailSubject(template.subject || `Bestellung ${orderNumber || ''} vom ${new Date().toLocaleDateString('de-DE')}`);
+            // Formatiere die Vorlage mit den verfügbaren Daten
+            // Vorlage mit Handlebars-ähnlichen Platzhaltern
+            setEmailSubject(template.subject
+              .replace('{{orderNumber}}', orderNumber || '')
+              .replace('{{date}}', new Date().toLocaleDateString('de-DE'))
+              .replace('{{supplier}}', supplierName || '')
+            );
             
-            setIsLoading(false);
-            return;
-          }
-        }
-        
-        // Fallback zur alten API
-        const response = await apiRequest(`/api/orders/${orderId}/email-template?type=${selectedTemplate}`);
-        
-        if (response && response.content) {
-          setEmailText(response.content);
-          
-          // Wenn Betreff in der API-Antwort vorhanden ist, diesen setzen
-          if (response.subject) {
-            setEmailSubject(response.subject);
+            // Text speichern zum späteren Ersetzen
+            setEmailText(template.body);
+          } else {
+            throw new Error('Keine E-Mail-Vorlagen gefunden');
           }
         } else {
           throw new Error('Ungültige Antwort vom Server');
         }
       } catch (error) {
         console.error('Fehler beim Laden der E-Mail-Vorlage:', error);
+        setError('E-Mail-Vorlage konnte nicht geladen werden');
         
         // Immer eine Standard-Vorlage anzeigen
         const supplierText = supplierName ? ` von ${supplierName}` : '';
@@ -102,7 +101,7 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
 
 hiermit bestellen wir folgende Artikel${supplierText}${orderText}:
 
-{'{{orderItems}}'}
+{{orderItems}}
 
 Bitte bestätigen Sie den Eingang dieser Bestellung.
 
@@ -116,8 +115,56 @@ Ihr Proviantomat Team`);
     };
     
     loadTemplate();
-  }, [orderId, selectedTemplate, orderNumber, supplierName, toast]);
+  }, [orderId, selectedTemplate, orderNumber, supplierName]);
   
+  // Bestellpositionen über den direkten SQL-Endpunkt laden
+  useEffect(() => {
+    if (!orderId) return;
+    
+    const loadOrderItems = async () => {
+      try {
+        console.log(`Lade Bestellpositionen für Bestellung ${orderId} über direkten SQL-Endpunkt`);
+        
+        const authToken = localStorage.getItem('auth_token') || localStorage.getItem('authToken');
+        const response = await fetch(`/api/order-items-direct/${orderId}`, {
+          headers: {
+            ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Fehler beim Laden der Bestellpositionen: ${response.status} ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        console.log('Bestellpositionen geladen:', result);
+        
+        if (result && result.success && Array.isArray(result.data)) {
+          // Daten transformieren in das Format, das die E-Mail benötigt
+          const formattedItems = result.data.map(item => ({
+            id: item.id,
+            productId: item.product_id,
+            productName: item.product_name || 'Unbekanntes Produkt',
+            quantity: item.quantity || 0,
+            price: item.price || 0,
+            unit: item.unit || 'Stück',
+            totalPrice: (item.quantity || 0) * (item.price || 0)
+          }));
+          
+          setOrderItems(formattedItems);
+        } else {
+          throw new Error('Unerwartetes Format der Bestellpositionen');
+        }
+      } catch (error) {
+        console.error('Fehler beim Laden der Bestellpositionen:', error);
+        setError('Bestellpositionen konnten nicht geladen werden');
+        setOrderItems([]);
+      }
+    };
+    
+    loadOrderItems();
+  }, [orderId]);
+
   // Handler für Template-Auswahl
   const handleTemplateChange = (value: string) => {
     setSelectedTemplate(value);
@@ -148,34 +195,35 @@ Ihr Proviantomat Team`);
     try {
       // API-Anfrage zum Senden der E-Mail
       const response = await apiRequest(`/api/orders/${orderId}/send-email`, {
-        to: emailAddress,
+        email: emailAddress,
         subject: emailSubject,
-        content: emailText,
-      }, 'post');
+        body: prepareEmailContent(),
+        additionalNotes: '',
+      });
       
       if (response && response.success) {
         toast({
           title: 'E-Mail gesendet',
-          description: 'Die Bestellung wurde erfolgreich per E-Mail versendet.',
+          description: `Die Bestellung wurde erfolgreich an ${emailAddress} gesendet.`,
         });
         
-        // Callback aufrufen, falls vorhanden
+        // Callback aufrufen
         if (onSendEmail) {
-          onSendEmail(emailAddress, emailText);
+          onSendEmail(emailAddress, '');
         }
         
-        // Zum nächsten Schritt gehen, falls vorhanden
+        // Zum nächsten Schritt weitergehen
         if (onNext) {
-          setTimeout(() => onNext(), 1500);
+          onNext();
         }
       } else {
-        throw new Error(response?.message || 'Unbekannter Fehler beim E-Mail-Versand');
+        throw new Error(response?.message || 'Unbekannter Fehler');
       }
     } catch (error) {
       console.error('Fehler beim Senden der E-Mail:', error);
       toast({
         title: 'Fehler beim Senden',
-        description: `Die E-Mail konnte nicht gesendet werden: ${(error as Error).message}`,
+        description: `Die E-Mail konnte nicht gesendet werden: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
         variant: 'destructive',
       });
     } finally {
@@ -183,18 +231,46 @@ Ihr Proviantomat Team`);
     }
   };
   
+  // Helper-Funktion zur Vorbereitung des E-Mail-Inhalts
+  const prepareEmailContent = () => {
+    if (!orderItems || orderItems.length === 0) {
+      return emailText.replace('{{orderItems}}', 'Keine Bestellpositionen vorhanden');
+    }
+    
+    // Artikel-HTML für die E-Mail erstellen
+    let orderItemsHtml = '<ul>';
+    orderItems.forEach(item => {
+      orderItemsHtml += `<li>${item.quantity} ${item.unit} ${item.productName} (${item.price.toFixed(2)} € je ${item.unit})</li>`;
+    });
+    orderItemsHtml += '</ul>';
+    
+    // Total berechnen
+    const total = orderItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+    
+    // Ersatz des Platzhalters im E-Mail-Text
+    return emailText
+      .replace('{{orderItems}}', orderItemsHtml)
+      .replace('{{totalAmount}}', total.toFixed(2));
+  };
+  
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Bestellung per E-Mail versenden</h2>
-      </div>
+    <div className="space-y-4">
+      {error && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Fehler</AlertTitle>
+          <AlertDescription>
+            {error}
+          </AlertDescription>
+        </Alert>
+      )}
       
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
             <CardTitle>E-Mail-Einstellungen</CardTitle>
             <CardDescription>
-              Die Bestellung wird per E-Mail an den Lieferanten gesendet
+              Details für den E-Mail-Versand
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -250,41 +326,86 @@ Ihr Proviantomat Team`);
                 className="h-[200px] font-mono"
               />
             )}
-            <p className="mt-2 text-sm text-muted-foreground">
-              Der Platzhalter {'{{orderItems}}'} wird durch die Artikeltabelle ersetzt
-            </p>
           </CardContent>
-          <CardFooter className="flex justify-between">
-            {onBack && (
-              <Button variant="outline" onClick={onBack}>
-                <ChevronLeft className="mr-2 h-4 w-4" /> Zurück
-              </Button>
-            )}
-            <div className="space-x-2">
-              <Button 
-                onClick={handleSendEmail} 
-                disabled={isSending || !emailAddress || isLoading}
-              >
-                {isSending ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Wird gesendet...
-                  </>
-                ) : (
-                  <>
-                    <Send className="mr-2 h-4 w-4" />
-                    E-Mail senden
-                  </>
-                )}
-              </Button>
-              {onNext && (
-                <Button variant="outline" onClick={onNext} disabled={isSending}>
-                  Überspringen <ChevronRight className="ml-2 h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          </CardFooter>
         </Card>
+      </div>
+      
+      {/* Bestellpositionen-Preview */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Bestellpositionen</CardTitle>
+          <CardDescription>
+            Diese Positionen werden in der E-Mail enthalten sein
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {orderItems.length === 0 ? (
+            <div className="text-center p-4">
+              <AlertTriangle className="h-8 w-8 text-yellow-500 mx-auto mb-2" />
+              <p>Keine Bestellpositionen vorhanden</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[500px] border-collapse">
+                <thead>
+                  <tr className="border-b">
+                    <th className="py-2 text-left">Produkt</th>
+                    <th className="py-2 text-right">Menge</th>
+                    <th className="py-2 text-right">Einheit</th>
+                    <th className="py-2 text-right">Einzelpreis</th>
+                    <th className="py-2 text-right">Gesamt</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orderItems.map((item, index) => (
+                    <tr key={index} className="border-b">
+                      <td className="py-2">{item.productName}</td>
+                      <td className="py-2 text-right">{item.quantity}</td>
+                      <td className="py-2 text-right">{item.unit}</td>
+                      <td className="py-2 text-right">{item.price?.toFixed(2)} €</td>
+                      <td className="py-2 text-right">{(item.quantity * item.price)?.toFixed(2)} €</td>
+                    </tr>
+                  ))}
+                  <tr className="font-bold">
+                    <td colSpan={4} className="py-2 text-right">Gesamtbetrag:</td>
+                    <td className="py-2 text-right">
+                      {orderItems.reduce((sum, item) => sum + (item.quantity * item.price), 0).toFixed(2)} €
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      
+      <div className="flex justify-between pt-4">
+        <Button
+          variant="outline"
+          onClick={onBack}
+          className="flex items-center"
+        >
+          <ChevronLeft className="h-4 w-4 mr-1" />
+          Zurück
+        </Button>
+        
+        <Button
+          onClick={handleSendEmail}
+          disabled={isSending || isLoading}
+          className="flex items-center"
+        >
+          {isSending ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Wird gesendet...
+            </>
+          ) : (
+            <>
+              <Send className="h-4 w-4 mr-2" />
+              E-Mail senden
+            </>
+          )}
+        </Button>
       </div>
     </div>
   );
