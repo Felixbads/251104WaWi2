@@ -235,16 +235,9 @@ router.get('/orders', async (req: Request, res: Response) => {
       return order;
     });
     
-    // Sende die Ergebnisse zurück
-    res.json({
-      data: sanitizedData,
-      meta: {
-        totalCount,
-        totalPages,
-        currentPage: page,
-        pageSize: limit
-      }
-    });
+    // Sende die Ergebnisse direkt zurück ohne Wrapper-Objekt für bessere Kompatibilität mit Frontend
+    console.log("Sende Bestellungen-Daten zurück:", sanitizedData.length);
+    res.json(sanitizedData);
   } catch (error) {
     console.error('Fehler beim Abrufen der Bestellungen:', error);
     res.status(500).json({ error: 'Fehler beim Abrufen der Bestellungen' });
