@@ -599,143 +599,24 @@ export default function OrderDetail() {
     }
   };
   
-  // PDF generieren
-  const generatePdf = async () => {
+  // E-Mail an Lieferanten senden
+  const sendOrderEmail = () => {
     if (!order) {
       toast({
-        title: "Fehler beim Generieren des PDFs",
+        title: "Fehler beim Öffnen des E-Mail-Formulars",
         description: "Die Bestelldaten sind nicht verfügbar",
         variant: "destructive"
       });
       return;
     }
     
-    try {
-      // Status setzen
-      toast({
-        title: "PDF wird generiert",
-        description: "Bitte warten Sie einen Moment...",
-      });
-      
-      // Manuell ein temporäres HTML-Element für die PDF-Generierung erstellen
-      const tempDiv = document.createElement('div');
-      tempDiv.style.width = '800px';
-      tempDiv.style.padding = '20px';
-      tempDiv.style.position = 'absolute';
-      tempDiv.style.left = '-9999px';
-      
-      // QR-Code generieren für das PDF
-      const portalUrl = `${window.location.origin}/lieferantenportal/${order.supplierId}/bestellung/${order.id}`;
-      const qrDataUrl = await QRCode.toDataURL(portalUrl, {
-        width: 150,
-        margin: 1,
-      });
-      
-      // HTML-Inhalt für die Bestellung generieren
-      tempDiv.innerHTML = `
-        <div style="font-family: Arial, sans-serif; max-width: 800px;">
-          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 30px;">
-            <div>
-              <h1 style="margin: 0; font-size: 24px;">Bestellung ${order.orderNumber || `#${order.id}`}</h1>
-              <p style="margin: 5px 0; font-size: 14px;">Datum: ${new Date(order.createdAt || new Date()).toLocaleDateString('de-DE')}</p>
-            </div>
-          </div>
-          
-          <div style="display: flex; justify-content: space-between; margin-bottom: 30px; font-size: 14px;">
-            <div style="width: 48%;">
-              <h2 style="margin: 0 0 10px 0; font-size: 16px;">Lieferant</h2>
-              <p style="margin: 0; font-weight: bold;">${order.supplierName}</p>
-              ${order.supplier?.address ? `<p style="margin: 5px 0;">${order.supplier.address}</p>` : ''}
-              ${order.supplier?.phone ? `<p style="margin: 5px 0;">Tel: ${order.supplier.phone}</p>` : ''}
-              ${order.supplier?.email ? `<p style="margin: 5px 0;">E-Mail: ${order.supplier.email}</p>` : ''}
-            </div>
-            <div style="width: 48%;">
-              <h2 style="margin: 0 0 10px 0; font-size: 16px;">Lieferadresse</h2>
-              <p style="margin: 0; font-weight: bold;">${order.warehouseName || "Nationalpark Zentrum"}</p>
-              <p style="margin: 5px 0;">Bad Schandau</p>
-            </div>
-          </div>
-          
-          <div style="margin-bottom: 30px;">
-            <h2 style="margin: 0 0 10px 0; font-size: 16px;">Bestellpositionen</h2>
-            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-              <tr style="background-color: #f3f4f6;">
-                <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Produkt</th>
-                <th style="text-align: right; padding: 8px; border-bottom: 1px solid #ddd;">Menge</th>
-                <th style="text-align: right; padding: 8px; border-bottom: 1px solid #ddd;">Einzelpreis</th>
-                <th style="text-align: right; padding: 8px; border-bottom: 1px solid #ddd;">Gesamt</th>
-              </tr>
-              ${(order.orderItems || []).map((item: any) => `
-                <tr>
-                  <td style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">${item.productName || item.name}</td>
-                  <td style="text-align: right; padding: 8px; border-bottom: 1px solid #ddd;">${item.quantity} ${item.unit || "Stk."}</td>
-                  <td style="text-align: right; padding: 8px; border-bottom: 1px solid #ddd;">${item.unitPrice ? (item.unitPrice).toFixed(2) : "0.00"} €</td>
-                  <td style="text-align: right; padding: 8px; border-bottom: 1px solid #ddd;">${item.totalPrice ? (item.totalPrice).toFixed(2) : (item.unitPrice * item.quantity).toFixed(2)} €</td>
-                </tr>
-              `).join('')}
-              <tr style="font-weight: bold;">
-                <td colspan="3" style="text-align: right; padding: 8px; font-size: 14px;">Gesamtsumme:</td>
-                <td style="text-align: right; padding: 8px; font-size: 14px;">${order.totalAmount ? order.totalAmount.toFixed(2) : (order.orderItems || []).reduce((sum: number, item: any) => sum + (item.totalPrice || (item.unitPrice * item.quantity)), 0).toFixed(2)} €</td>
-              </tr>
-            </table>
-          </div>
-          
-          <div style="margin-top: 30px;">
-            <h3 style="margin: 0; font-size: 16px;">Zusätzliche Informationen:</h3>
-            <p style="margin: 5px 0; font-size: 14px;">Lieferdatum: ${order.expectedDeliveryDate ? new Date(order.expectedDeliveryDate).toLocaleDateString('de-DE') : 'Nicht festgelegt'}</p>
-            <p style="margin: 5px 0; font-size: 14px;">Priorität: ${order.priority || 'Normal'}</p>
-            ${order.notes ? `<p style="margin: 5px 0; font-size: 14px;">Anmerkungen: ${order.notes}</p>` : ''}
-          </div>
-        </div>
-      `;
-      
-      // Element temporär zum DOM hinzufügen
-      document.body.appendChild(tempDiv);
-      
-      // HTML in Canvas umwandeln
-      const canvas = await html2canvas(tempDiv, {
-        scale: 1.5,
-        useCORS: true,
-        logging: false,
-        allowTaint: true,
-      });
-      
-      // Temporäres Element wieder entfernen
-      document.body.removeChild(tempDiv);
-      
-      // PDF erstellen
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      
-      // Berechnungen für die Bildanpassung
-      const imgWidth = 190;
-      const imgHeight = canvas.height * imgWidth / canvas.width;
-      
-      // Bild zum PDF hinzufügen
-      const imgData = canvas.toDataURL('image/png');
-      pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
-      
-      // QR-Code zum PDF hinzufügen, wenn wir einen haben
-      pdf.addImage(qrDataUrl, 'PNG', 155, 10, 35, 35);
-      
-      // PDF als Blob speichern
-      const blob = pdf.output('blob');
-      setPdfBlob(blob);
-      
-      // PDF-Vorschau anzeigen
-      setShowPdfDialog(true);
-      
-      // Status aktualisieren
-      toast({
-        title: "PDF erfolgreich generiert",
-        description: "Sie können das PDF jetzt herunterladen oder per E-Mail versenden."
-      });
-    } catch (error) {
-      toast({
-        title: "Fehler beim Generieren des PDFs",
-        description: `Es ist ein Fehler aufgetreten: ${(error as Error).message}`,
-        variant: "destructive"
-      });
-    }
+    // E-Mail-Dialog öffnen
+    setShowEmailDialog(true);
+    
+    toast({
+      title: "E-Mail-Formular geöffnet",
+      description: "Bitte geben Sie die E-Mail-Details ein und senden Sie die Bestellung ab.",
+    });
   };
   
   // PDF herunterladen
@@ -762,7 +643,7 @@ export default function OrderDetail() {
     
     // Generiert das PDF, falls es noch nicht existiert
     if (!pdfBlob) {
-      await generatePdf();
+      sendOrderEmail();
     }
     
     // Öffnet den E-Mail-Dialog mit PDF-Vorschau
