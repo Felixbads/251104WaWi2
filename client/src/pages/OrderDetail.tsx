@@ -1245,56 +1245,7 @@ export default function OrderDetail() {
       </Dialog>
       
       {/* PDF Dialog */}
-      <Dialog open={showPdfDialog} onOpenChange={setShowPdfDialog}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Bestellformular (PDF)</DialogTitle>
-            <DialogDescription>
-              Bestellformular für {order?.supplierName} wurde erfolgreich erstellt.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="flex justify-center py-4 border rounded-md">
-            {pdfBlob ? (
-              <iframe 
-                src={URL.createObjectURL(pdfBlob)} 
-                className="w-full h-[450px]" 
-                title="PDF Vorschau"
-              />
-            ) : (
-              <div className="flex items-center justify-center h-[450px]">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            )}
-          </div>
-          
-          <DialogFooter className="flex flex-wrap gap-2">
-            <Button 
-              variant="outline" 
-              onClick={handleDownloadPdf}
-              disabled={!pdfBlob}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Herunterladen
-            </Button>
-            <Button 
-              onClick={handleSendEmail}
-              disabled={!pdfBlob}
-            >
-              <Send className="h-4 w-4 mr-2" />
-              Per E-Mail versenden
-            </Button>
-            <Button 
-              variant="secondary"
-              onClick={() => setShowPdfDialog(false)}
-            >
-              Schließen
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      
-      {/* E-Mail Dialog mit PDF-Vorschau */}
+      {/* E-Mail Dialog */}
       {order && (
         <OrderEmailDialog
           open={showEmailDialog}
@@ -1303,7 +1254,6 @@ export default function OrderDetail() {
           orderNumber={order.orderNumber || ""}
           supplierName={order.supplierName || ""}
           supplierEmail={order.supplier?.email || ""}
-          pdfBlob={pdfBlob || undefined}
         />
       )}
 
