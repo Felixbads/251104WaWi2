@@ -302,16 +302,14 @@ export default function OrderDetail() {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showStatusChangeDialog, setShowStatusChangeDialog] = useState(false);
   const [showQrDialog, setShowQrDialog] = useState(false);
-  const [showPdfDialog, setShowPdfDialog] = useState(false);
+  // PDF-Dialog-State wurde entfernt
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   
-  // Refs für PDF-Generierung
-  const pdfContentRef = useRef<HTMLDivElement>(null);
+  // Refs für QR Code
   const qrCodeRef = useRef<HTMLDivElement>(null);
   
-  // PDF und QR Code States
+  // QR Code State
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
-  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   
   // Form States
   const [sendNote, setSendNote] = useState("");
@@ -619,35 +617,34 @@ export default function OrderDetail() {
     });
   };
   
-  // PDF herunterladen
-  const handleDownloadPdf = () => {
-    if (!pdfBlob) return;
-    
-    const url = URL.createObjectURL(pdfBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Bestellung_${order?.orderNumber || 'download'}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  // Funktion zum PDF-Download wurde entfernt
   
   /**
    * Öffnet den E-Mail-Dialog zum Versenden der Bestellung
    * Die E-Mail-Vorlagen werden von der OrderEmailDialog-Komponente geladen
-   * Stellt sicher, dass das PDF vorher generiert wurde, damit es in der Vorschau angezeigt werden kann
    */
   const handleSendEmail = async () => {
-    // Schließt das PDF-Dialog, falls es offen war
-    setShowPdfDialog(false);
-    
-    // Generiert das PDF, falls es noch nicht existiert
-    if (!pdfBlob) {
-      sendOrderEmail();
-    }
-    
-    // Öffnet den E-Mail-Dialog mit PDF-Vorschau
+    // Öffnet den E-Mail-Dialog direkt
     setShowEmailDialog(true);
+  };
+  
+  /**
+   * Sendet die Bestellung per E-Mail an den Lieferanten
+   */
+  const sendOrderEmail = async () => {
+    if (!order || !supplier) return;
+    
+    try {
+      // E-Mail-Dialog öffnen
+      setShowEmailDialog(true);
+    } catch (error) {
+      console.error("Fehler beim Vorbereiten der E-Mail:", error);
+      toast({
+        title: "Fehler",
+        description: "Die E-Mail konnte nicht vorbereitet werden.",
+        variant: "destructive",
+      });
+    }
   };
   
   // Ladeansicht
@@ -714,9 +711,9 @@ export default function OrderDetail() {
         </div>
         
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={generatePdf} className="gap-2">
-            <FileText className="h-4 w-4" />
-            <span className="hidden sm:inline">PDF</span>
+          <Button variant="outline" size="sm" onClick={sendOrderEmail} className="gap-2">
+            <Mail className="h-4 w-4" />
+            <span className="hidden sm:inline">E-Mail</span>
           </Button>
           <Button variant="outline" size="sm" onClick={() => setShowQrDialog(true)} className="gap-2">
             <QrCode className="h-4 w-4" />
