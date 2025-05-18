@@ -848,7 +848,6 @@ export default function OrderDetail() {
                 {/* Dokumenten-Aktionen */}
                 <OrderDetailActions 
                   order={order}
-                  pdfContentRef={pdfContentRef}
                 />
               </CardContent>
             </Card>
