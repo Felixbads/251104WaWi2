@@ -255,6 +255,29 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
       else if (apiResponse?.orders && Array.isArray(apiResponse.orders)) {
         data = apiResponse.orders;
         console.log("API-Antwort.orders ist ein Array mit", data.length, "Elementen");
+      } 
+      // 4. Suche nach Arrays in den Antwortdaten
+      else if (typeof apiResponse === 'object') {
+        // Finde alle Array-Eigenschaften im Objekt und nimm die größte
+        const arrayProps = Object.entries(apiResponse)
+          .filter(([key, value]) => Array.isArray(value) && value.length > 0)
+          .sort(([, a], [, b]) => (b as any[]).length - (a as any[]).length);
+        
+        if (arrayProps.length > 0) {
+          const [key, value] = arrayProps[0];
+          data = value as any[];
+          console.log(`Gefundenes Array in API-Antwort unter "${key}" mit ${data.length} Elementen`);
+        }
+        // Fallback: Wenn es sich um eine einzelne Bestellung handelt
+        else if (apiResponse.id && apiResponse.orderNumber) {
+          data = [apiResponse];
+          console.log("Einzelne Bestellung in API-Antwort gefunden");
+        }
+        else {
+          console.log("Keine Arrays oder Bestellungsdaten in API-Antwort gefunden:", apiResponse);
+          // Cache für Bestellungen invalidieren und neu laden
+          queryClient.invalidateQueries({queryKey: orderKeys.lists()});
+        }
       } else {
         console.log("API-Antwort konnte nicht verarbeitet werden:", apiResponse);
       }

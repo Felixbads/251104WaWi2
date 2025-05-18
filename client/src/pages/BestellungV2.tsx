@@ -155,8 +155,12 @@ const BestellungV2: React.FC = () => {
       // Debugging zur Analyse der empfangenen Daten
       console.log("Bestellungs-Antwort vom Server:", data);
       
-      // Daten setzen, wenn sie existieren
+      // Immer die Bestellungsliste invalidieren, unabhängig vom Ergebnis
+      queryClient.invalidateQueries({queryKey: orderKeys.lists()});
+      
+      // Verbesserte Verarbeitung der unterschiedlichen Antwortformate
       if (data && data.id) {
+        // Standard-Format mit direkter ID
         setOrderId(data.id);
         setOrderNumber(data.orderNumber || '');
         setExistingOrderData(data);
@@ -164,20 +168,49 @@ const BestellungV2: React.FC = () => {
         // Toast mit der tatsächlichen Bestellnummer anzeigen
         toast({
           title: 'Bestellung erfolgreich erstellt',
-          description: `Bestellungsnummer: ${data.orderNumber}`,
+          description: `Bestellungsnummer: ${data.orderNumber || 'erstellt'}`,
         });
-      } else {
-        console.warn("Unvollständige Daten vom Server erhalten:", data);
+        
+        // Zum E-Mail-Versand-Schritt wechseln
+        setStep('sendOrder');
+      } else if (data && data.order && data.order.id) {
+        // Geschachteltes Format mit order-Objekt
+        setOrderId(data.order.id);
+        setOrderNumber(data.order.orderNumber || '');
+        setExistingOrderData(data.order);
+        
+        // Toast mit der tatsächlichen Bestellnummer anzeigen
+        toast({
+          title: 'Bestellung erfolgreich erstellt',
+          description: `Bestellungsnummer: ${data.order.orderNumber || 'erstellt'}`,
+        });
+        
+        // Zum E-Mail-Versand-Schritt wechseln
+        setStep('sendOrder');  
+      } else if (data && data.success) {
+        console.warn("Erfolgsmeldung, aber unvollständige Daten vom Server erhalten:", data);
         
         // Fallback-Toast mit einer allgemeinen Erfolgsmeldung
         toast({
           title: 'Bestellung erfolgreich erstellt',
-          description: 'Die Bestellung wurde gespeichert.',
+          description: data.message || 'Die Bestellung wurde gespeichert.',
         });
+        
+        // Zur Übersicht zurückkehren
+        setStep('overview');
+      } else {
+        console.warn("Unvollständige oder unbekannte Daten vom Server erhalten:", data);
+        
+        // Fallback-Toast mit einer allgemeinen Erfolgsmeldung
+        toast({
+          title: 'Bestellung möglicherweise erstellt',
+          description: 'Die Bestellung wurde möglicherweise gespeichert. Bitte prüfen Sie die Übersicht.',
+          variant: 'default'
+        });
+        
+        // Zur Übersicht zurückkehren
+        setStep('overview');
       }
-      
-      // Invalidiere Abfragen, damit die Liste aktualisiert wird
-      queryClient.invalidateQueries({queryKey: orderKeys.lists()});
       
       // Sicherstellen, dass selectedProducts zur Bestellung hinzugefügt wurden
       console.log("Bestellung erstellt. ID:", data?.id, "Nummer:", data?.orderNumber);
