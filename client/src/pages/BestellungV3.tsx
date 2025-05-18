@@ -219,13 +219,32 @@ const BestellungV3: React.FC = () => {
     enabled: step === 'overview' || step === 'warehouse',
   });
 
-  // Lieferanten über Standard-API abrufen
+  // Lieferanten direkt aus der Datenbank über SQL-Endpunkt abrufen
   const { 
     data: suppliersResponse, 
     isLoading: suppliersLoading 
   } = useQuery({
-    queryKey: ['/api/suppliers'],
+    queryKey: ['/api/sql-suppliers'],
     enabled: step === 'supplier',
+    queryFn: async () => {
+      console.log("Lade Lieferanten direkt aus der SQL-Datenbank...");
+      
+      const response = await fetch('/api/sql-suppliers', {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': localStorage.getItem('authToken') ? `Bearer ${localStorage.getItem('authToken')}` : ''
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Fehler beim Abrufen der Lieferanten');
+      }
+      
+      const data = await response.json();
+      console.log("Lieferantendaten aus SQL geladen:", data);
+      
+      return data;
+    }
   });
   
   // Extrahiere Lieferanten aus der Antwort
