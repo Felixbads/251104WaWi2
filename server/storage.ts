@@ -642,7 +642,28 @@ export class DatabaseStorage implements IStorage {
   
   // Order operations
   async getOrders(): Promise<Order[]> {
-    return await db.select().from(orders).orderBy(desc(orders.orderDate));
+    try {
+      const result = await db.select().from(orders).orderBy(desc(orders.orderDate));
+      
+      // Sicherstellen, dass Datumswerte korrekt formatiert sind
+      return result.map(order => {
+        return {
+          ...order,
+          orderDate: order.orderDate ? new Date(order.orderDate).toISOString().split('T')[0] : null,
+          expectedDeliveryDate: order.expectedDeliveryDate ? 
+            new Date(order.expectedDeliveryDate).toISOString().split('T')[0] : null,
+          deliveryDate: order.deliveryDate ? 
+            new Date(order.deliveryDate).toISOString().split('T')[0] : null,
+          createdAt: order.createdAt ? 
+            new Date(order.createdAt).toISOString().split('T')[0] : null,
+          updatedAt: order.updatedAt ? 
+            new Date(order.updatedAt).toISOString().split('T')[0] : null
+        };
+      });
+    } catch (error) {
+      console.error('Fehler beim Abrufen der Bestellungen:', error);
+      return [];
+    }
   }
 
   async getOrder(id: number): Promise<Order | undefined> {
