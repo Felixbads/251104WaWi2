@@ -276,7 +276,7 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
         else {
           console.log("Keine Arrays oder Bestellungsdaten in API-Antwort gefunden:", apiResponse);
           // Cache für Bestellungen invalidieren und neu laden
-          queryClient.invalidateQueries({queryKey: orderKeys.lists()});
+          queryClient.invalidateQueries({queryKey: orderKeys.list()});
         }
       } else {
         console.log("API-Antwort konnte nicht verarbeitet werden:", apiResponse);
