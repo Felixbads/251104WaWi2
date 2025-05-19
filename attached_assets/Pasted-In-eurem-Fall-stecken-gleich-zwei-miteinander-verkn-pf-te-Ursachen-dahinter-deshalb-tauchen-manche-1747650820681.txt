@@ -1,0 +1,66 @@
+In eurem Fall stecken gleich zwei miteinander verknüpf­te Ursachen dahinter – deshalb tauchen manche Bestellungen gar nicht erst in der Übersicht auf, und Name-Felder bleiben leer:
+
+⸻
+
+1. Neue Bestellungen werden nicht angezeigt: Status-Filter
+	•	Was ihr gemacht habt: Eure createOrderMutation legt jede neue Bestellung mit
+
+status: 'draft'
+
+an.
+
+	•	Was die List-API macht: Der Endpoint /api/orders (bzw. euer ORM-Query) filtert standardmäßig offenbar
+
+WHERE status = 'open'
+
+– alle draft-Orders werden also nicht zurückgeliefert und tauchen in der UI-Tabelle nicht auf.
+
+Fix-Option A: Ändert im Frontend die Default-Status-Angabe auf "open", wenn die Order sofort in der Übersicht sichtbar sein soll.
+Fix-Option B: Erweitert euren List-Query so, dass er auch draft-Orders mit ausgibt (z.B. ohne WHERE status = 'open' oder mit status IN ('draft','open')).
+
+⸻
+
+2. SupplierName & LocationName fehlen: kein Daten-Join und keine Spalten
+	•	Datenbank-Schema: In der Tabelle orders existieren nur supplierId und locationId – keine Spalten supplierName oder locationName.
+	•	Backend-Response: Euer API-Handler macht typischerweise
+
+SELECT id, orderNumber, supplierId, locationId, orderDate, totalAmount … 
+FROM orders
+
+und liefert diese rohen Spalten an das Frontend. Da weder Name-Felder in orders stehen noch per JOIN ergänzt werden, kommt im JSON keine supplierName oder locationName an.
+
+Fix-Option A (relational):
+Ändert euren List-Query auf
+
+SELECT 
+  o.id, o.orderNumber, 
+  s.name   AS supplierName, 
+  l.name   AS locationName, 
+  o.orderDate, …
+FROM orders o
+JOIN suppliers s ON s.id = o.supplierId
+JOIN locations l ON l.id = o.locationId
+WHERE …;
+
+oder macht in eurem ORM (include: { supplier: true, location: true }) einen Relation-Include.
+
+Fix-Option B (denormalisiert):
+Fügt in orders zwei neue Spalten supplierName TEXT und locationName TEXT hinzu (Migration), und befüllt sie beim Anlegen der Order aus den gelieferten Strings. Dann liefert der einfache SELECT * FROM orders sofort die Namen mit.
+
+⸻
+
+3. Konkrete To-Dos
+	1.	List-Endpoint prüfen
+	•	Öffnet euren Handler (z.B. pages/api/orders/index.ts) und seht nach, welche WHERE-Bedingungen angewendet werden.
+	•	Entfernt/erweitert den Status-Filter, wenn ihr draft-Orders mit anzeigen wollt.
+	2.	Namen in Response holen
+	•	Entweder per SQL-JOIN / ORM-Include
+	•	Oder per Migration neue Spalten anlegen und in eurem createOrder-Code mitbefüllen.
+	3.	Frontend-UI anpassen
+	•	Stellt sicher, dass die Komponenten für SupplierName und LocationName an den neuen Feldern hängen (response.supplierName bzw. response.supplier.name).
+	•	Baut ggf. einen Fallback ein („–“), solange die Daten im Backend noch nicht geliefert werden.
+	4.	End-to-End testen
+	•	Legt eine neue Bestellung an (status: 'open') und prüft im Network-Tab, dass sie im /api/orders-Response auftaucht.
+	•	Kontrolliert, dass supplierName und locationName im JSON liegen und in der Tabelle dargestellt werden.
+
+Wenn ihr diese beiden Stellen (Status-Filter im List-Query und das Fehlen der Namens-Spalten/Relation-Joins) korrigiert, sollten alle Bestellungen sichtbar sein und SupplierName/LocationName korrekt in eurer Übersicht erscheinen.

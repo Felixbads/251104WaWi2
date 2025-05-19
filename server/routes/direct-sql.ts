@@ -51,24 +51,24 @@ router.get('/orders-direct', async (req, res) => {
     console.log('Lade Bestellungen direkt aus der Datenbank...');
     
     // Optimierte Abfrage mit JOIN auf suppliers und warehouses, um Namen zu garantieren
+    // KEIN Status-Filter, damit ALLE Bestellungen angezeigt werden (auch 'draft')
     const result = await pool.query(`
       SELECT o.*,
-             s.name AS supplier_name, 
-             w.name AS location_name 
+             COALESCE(o.supplier_name, s.name) AS supplier_name, 
+             COALESCE(o.location_name, w.name) AS location_name 
       FROM orders o
       LEFT JOIN suppliers s ON o.supplier_id = s.id
       LEFT JOIN warehouses w ON o.location_id = w.id
       ORDER BY o.created_at DESC
     `);
     
-    // Sicherstellen, dass die Namen aktualisiert werden
+    // Sicherstellen, dass die Namen korrekt sind und fehlende aktualisieren
     const orders = result.rows.map(order => {
-      // Namen nur überschreiben, wenn sie leer sind aber aus den Beziehungstabellen existieren
       if (!order.supplier_name && order.supplier_id) {
-        console.log(`Aktualisiere fehlenden Lieferantennamen für Bestellung ${order.id}`);
+        console.log(`Warnung: Lieferantenname für Bestellung ${order.id} fehlt!`);
       }
       if (!order.location_name && order.location_id) {
-        console.log(`Aktualisiere fehlenden Lagerortsnamen für Bestellung ${order.id}`);
+        console.log(`Warnung: Lagerortsname für Bestellung ${order.id} fehlt!`);
       }
       
       return order;
@@ -225,7 +225,7 @@ router.post('/orders-create-direct', async (req, res) => {
       orderItems, 
       expectedDeliveryDate, 
       notes,
-      status = 'draft'
+      status = 'open'  // Status auf 'open' statt 'draft' setzen
     } = req.body;
     
     if (!warehouseId || !supplierId) {
@@ -256,6 +256,20 @@ router.post('/orders-create-direct', async (req, res) => {
       const randomStr = Math.floor(1000 + Math.random() * 9000);
       const orderNumber = `ORD-${dateStr}-${randomStr}`;
       
+      // Namen für Lieferant und Lager aus der Datenbank holen
+      const supplierResult = await client.query(`
+        SELECT name FROM suppliers WHERE id = $1
+      `, [supplierId]);
+      
+      const warehouseResult = await client.query(`
+        SELECT name FROM warehouses WHERE id = $1
+      `, [warehouseId]);
+      
+      const supplierName = supplierResult.rows.length > 0 ? supplierResult.rows[0].name : null;
+      const locationName = warehouseResult.rows.length > 0 ? warehouseResult.rows[0].name : null;
+      
+      console.log(`Namen gefunden: Lieferant "${supplierName}", Lager "${locationName}"`);
+      
       // Bestellung in die Datenbank einfügen
       // Verwende die korrekten Spaltennamen aus der Datenbankstruktur
       const orderResult = await client.query(`
@@ -265,9 +279,11 @@ router.post('/orders-create-direct', async (req, res) => {
           order_number, 
           status, 
           order_date, 
-          expected_delivery_date, 
+          expected_delivery_date,
+          supplier_name,
+          location_name, 
           notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
       `, [
         warehouseId,  // Das Warehouse-ID wird in location_id gespeichert
@@ -275,7 +291,9 @@ router.post('/orders-create-direct', async (req, res) => {
         orderNumber, 
         status, 
         new Date(), 
-        expectedDeliveryDate ? new Date(expectedDeliveryDate) : null, 
+        expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
+        supplierName,
+        locationName, 
         notes || ''
       ]);
       
