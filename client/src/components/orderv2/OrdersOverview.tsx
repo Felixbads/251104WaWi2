@@ -215,6 +215,25 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
     changeStatusMutation.mutate(params);
   };
   
+  // Funktion, die basierend auf dem Status die korrekte Aktion bestimmt
+  const getActionByOrderStatus = (status: string): 'edit' | 'sent' | 'goods-receipt' | 'details' => {
+    switch (status) {
+      case 'draft':
+        // Entwurf: editierbar (bearbeiten)
+        return 'edit';
+      case 'sent':
+        // Versendet: Details & E-Mail-Overview
+        return 'sent';
+      case 'received':
+      case 'partial_received':
+        // Wareneingang: zum Protokollieren neuer Wareneingänge
+        return 'goods-receipt';
+      default:
+        // Fallback für alle anderen Statūs
+        return 'details';
+    }
+  };
+  
   // Verbesserte Abfrage für Bestellungen mit Filtern und debounce für die Suche
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
   
@@ -589,35 +608,89 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
                                 className="cursor-pointer"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  onSelectOrder(order.id);
+                                  // Statusbasiertes Routing entsprechend der Anforderungen
+                                  if (onOrderAction) {
+                                    // Neue smarte Routing-Funktion
+                                    const action = getActionByOrderStatus(order.status);
+                                    onOrderAction({
+                                      orderId: order.id,
+                                      status: order.status,
+                                      action
+                                    });
+                                  } else {
+                                    // Fallback zur alten Funktion
+                                    onSelectOrder(order.id);
+                                  }
                                 }}
                               >
                                 <ExternalLink className="mr-2 h-4 w-4" />
                                 <span>Details anzeigen</span>
                               </DropdownMenuItem>
                               
+                              {/* Status-abhängige Aktionen im Dropdown-Menü */}
                               {order.status === 'draft' && (
-                                <DropdownMenuItem 
+                                <DropdownMenuItem
                                   className="cursor-pointer"
-                                  onClick={(e) => handleMarkAsSent(order.id, e)}
+                                  onClick={(e) => handleChangeStatus(order.id, 'sent', e)}
                                 >
                                   <Send className="mr-2 h-4 w-4" />
-                                  <span>Als gesendet markieren</span>
+                                  <span>Als „Versendet" markieren</span>
                                 </DropdownMenuItem>
                               )}
                               
-                              {order.status === 'sent' && onStartWarehouseReceiptProcess && (
-                                <DropdownMenuItem 
-                                  className="cursor-pointer"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onStartWarehouseReceiptProcess(order.id);
-                                  }}
-                                >
-                                  <Package className="mr-2 h-4 w-4" />
-                                  <span>Wareneingang erfassen</span>
-                                </DropdownMenuItem>
+                              {order.status === 'sent' && (
+                                <>
+                                  <DropdownMenuItem
+                                    className="cursor-pointer"
+                                    onClick={(e) => handleChangeStatus(order.id, 'draft', e)}
+                                  >
+                                    <Clock className="mr-2 h-4 w-4" />
+                                    <span>Zurück auf „Entwurf" setzen</span>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="cursor-pointer"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (onOrderAction) {
+                                        onOrderAction({
+                                          orderId: order.id,
+                                          status: order.status,
+                                          action: 'goods-receipt'
+                                        });
+                                      } else if (onStartWarehouseReceiptProcess) {
+                                        onStartWarehouseReceiptProcess(order.id);
+                                      }
+                                    }}
+                                  >
+                                    <Package className="mr-2 h-4 w-4" />
+                                    <span>Wareneingang starten</span>
+                                  </DropdownMenuItem>
+                                </>
                               )}
+                              
+                              {/* Bei Wareneingang kann man wieder zurück zu Versendet oder komplett abschließen */}
+                              {(order.status === 'received' || order.status === 'partial_received') && (
+                                <>
+                                  <DropdownMenuItem
+                                    className="cursor-pointer"
+                                    onClick={(e) => handleChangeStatus(order.id, 'sent', e)}
+                                  >
+                                    <Send className="mr-2 h-4 w-4" />
+                                    <span>Zurück auf „Versendet" setzen</span>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="cursor-pointer"
+                                    onClick={(e) => handleChangeStatus(order.id, 'completed', e)}
+                                  >
+                                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                                    <span>Als „Abgeschlossen" markieren</span>
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              
+                              {/* Alter MarkAsSent Menüeintrag entfernt, jetzt durch handleChangeStatus in neuer Implementierung ersetzt */}
+                              
+                              {/* Alter Wareneingang-Menüeintrag entfernt, jetzt durch neue Status-basierte Funktionen ersetzt */}
                               
                               {/* E-Mail-Versand Option, nur für bestimmte Status */}
                               {['draft', 'sent'].includes(order.status) && (
