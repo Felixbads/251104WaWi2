@@ -197,7 +197,197 @@ router.get('/email-templates-direct', async (req, res) => {
   }
 });
 
-// Direkter Endpunkt für Bestellpositionen
+// Direkter Endpunkt zum Speichern von Bestellungen
+router.post('/orders-create-direct', async (req, res) => {
+  try {
+    const { 
+      warehouseId, 
+      supplierId, 
+      orderItems, 
+      expectedDeliveryDate, 
+      notes,
+      status = 'draft'
+    } = req.body;
+    
+    if (!warehouseId || !supplierId) {
+      return res.status(400).json({ 
+        error: 'Fehlende Pflichtfelder', 
+        message: 'Lager und Lieferant sind erforderlich'
+      });
+    }
+    
+    if (!orderItems || !Array.isArray(orderItems) || orderItems.length === 0) {
+      return res.status(400).json({ 
+        error: 'Keine Bestellpositionen', 
+        message: 'Die Bestellung enthält keine Positionen'
+      });
+    }
+    
+    console.log('Erstelle Bestellung direkt über SQL:', { warehouseId, supplierId, itemCount: orderItems.length });
+    
+    // Transaktion starten
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+      
+      // Order-Nummer generieren (Datum + Zufallszahl)
+      const today = new Date();
+      const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+      const randomStr = Math.floor(1000 + Math.random() * 9000);
+      const orderNumber = `ORD-${dateStr}-${randomStr}`;
+      
+      // Bestellung in die Datenbank einfügen
+      const orderResult = await client.query(`
+        INSERT INTO orders (
+          warehouse_id, 
+          supplier_id, 
+          order_number, 
+          status, 
+          order_date, 
+          expected_delivery_date, 
+          notes
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING *
+      `, [
+        warehouseId, 
+        supplierId, 
+        orderNumber, 
+        status, 
+        new Date(), 
+        expectedDeliveryDate ? new Date(expectedDeliveryDate) : null, 
+        notes || ''
+      ]);
+      
+      const newOrder = orderResult.rows[0];
+      
+      // Bestellpositionen einfügen
+      for (const item of orderItems) {
+        await client.query(`
+          INSERT INTO order_items (
+            order_id, 
+            product_id, 
+            quantity, 
+            price, 
+            unit
+          ) VALUES ($1, $2, $3, $4, $5)
+        `, [
+          newOrder.id, 
+          item.productId, 
+          item.quantity, 
+          item.price || 0, 
+          item.unit || 'Stück'
+        ]);
+      }
+      
+      // Transaktion abschließen
+      await client.query('COMMIT');
+      
+      console.log(`Bestellung ${orderNumber} (ID: ${newOrder.id}) erfolgreich erstellt mit ${orderItems.length} Positionen`);
+      
+      return res.json({
+        success: true,
+        data: newOrder,
+        message: `Bestellung ${orderNumber} erfolgreich erstellt`
+      });
+      
+    } catch (error) {
+      // Bei Fehlern Transaktion zurückrollen
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      // Client freigeben
+      client.release();
+    }
+    
+  } catch (error) {
+    console.error('Fehler beim Erstellen der Bestellung:', error);
+    return res.status(500).json({ 
+      error: 'Fehler beim Erstellen der Bestellung', 
+      message: error instanceof Error ? error.message : 'Unbekannter Fehler',
+      success: false
+    });
+  }
+});
+
+// Direkter Endpunkt zum Speichern von Bestellpositionen separat
+router.post('/order-items-direct/:orderId', async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { items } = req.body;
+    
+    if (!orderId || isNaN(Number(orderId))) {
+      return res.status(400).json({ 
+        error: 'Ungültige Bestellungs-ID', 
+        message: 'Bitte geben Sie eine gültige Bestellungs-ID an'
+      });
+    }
+    
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ 
+        error: 'Keine Bestellpositionen', 
+        message: 'Keine Bestellpositionen angegeben'
+      });
+    }
+    
+    console.log(`Speichere ${items.length} Bestellpositionen für Bestellung ${orderId}`);
+    
+    // Transaktion starten
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+      
+      // Vorhandene Positionen löschen
+      await client.query(`DELETE FROM order_items WHERE order_id = $1`, [orderId]);
+      
+      // Neue Positionen einfügen
+      for (const item of items) {
+        await client.query(`
+          INSERT INTO order_items (
+            order_id, 
+            product_id, 
+            quantity, 
+            price, 
+            unit
+          ) VALUES ($1, $2, $3, $4, $5)
+        `, [
+          orderId, 
+          item.productId, 
+          item.quantity, 
+          item.price || 0, 
+          item.unit || 'Stück'
+        ]);
+      }
+      
+      // Transaktion abschließen
+      await client.query('COMMIT');
+      
+      return res.json({
+        success: true,
+        message: `${items.length} Bestellpositionen erfolgreich gespeichert`
+      });
+      
+    } catch (error) {
+      // Bei Fehlern Transaktion zurückrollen
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      // Client freigeben
+      client.release();
+    }
+    
+  } catch (error) {
+    console.error(`Fehler beim Speichern der Bestellpositionen für Bestellung ${req.params.orderId}:`, error);
+    return res.status(500).json({ 
+      error: 'Fehler beim Speichern der Bestellpositionen', 
+      message: error instanceof Error ? error.message : 'Unbekannter Fehler',
+      success: false
+    });
+  }
+});
+
+// Direkter Endpunkt für Bestellpositionen zum Laden
 router.get('/order-items-direct/:orderId', async (req, res) => {
   try {
     const { orderId } = req.params;
