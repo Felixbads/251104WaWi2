@@ -370,6 +370,23 @@ router.post('/orders', async (req: Request, res: Response) => {
     const userEmail = req.user?.email || null;
     const userRole = req.user?.role || null;
     
+    // Lieferantendaten und Lagerortdaten abrufen
+    const supplierDetails = await db
+      .select()
+      .from(suppliers)
+      .where(eq(suppliers.id, supplierId))
+      .limit(1);
+
+    const warehouseDetails = await db
+      .select()
+      .from(warehouses)
+      .where(eq(warehouses.id, warehouseId))
+      .limit(1);
+
+    // Namen extrahieren oder Default-Werte nutzen
+    const supplierName = supplierDetails.length > 0 ? supplierDetails[0].name : "Unbekannter Lieferant";
+    const locationName = warehouseDetails.length > 0 ? warehouseDetails[0].name : "Unbekannter Lagerort";
+
     // Bestellung erstellen
     try {
       const insertedOrder = await db
@@ -377,9 +394,9 @@ router.post('/orders', async (req: Request, res: Response) => {
         .values({
           orderNumber,
           supplierId,
-          supplierName: supplier.name,
-          locationId: warehouse.locationId,
-          locationName: warehouse.locationName,
+          supplierName: supplierName,
+          locationId: warehouseId,
+          locationName: locationName,
           status: 'draft', // Entwurf
           orderDate: new Date(),
                 // Verwende das zuvor validierte und konvertierte Datum
