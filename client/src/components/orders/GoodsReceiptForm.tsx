@@ -81,20 +81,63 @@ const goodsReceiptSchema = z.object({
 type GoodsReceiptFormValues = z.infer<typeof goodsReceiptSchema>;
 
 interface GoodsReceiptFormProps {
-  order: any; // Bestellungsdaten
-  onComplete: (data: any) => void;
-  onCancel: () => void;
+  orderId?: number; // Bestellungs-ID (optional)
+  order?: any; // Bestellungsdaten (optional)
+  onSubmit: (data: any) => void;
+  onBack: () => void;
+  isSubmitting?: boolean;
 }
 
-export function GoodsReceiptForm({ order, onComplete, onCancel }: GoodsReceiptFormProps) {
+export function GoodsReceiptForm({ orderId, order, onSubmit: submitHandler, onBack, isSubmitting = false }: GoodsReceiptFormProps) {
   const { toast } = useToast();
+  const [orderItems, setOrderItems] = useState<any[]>([]);
+  
+  // Laden der Bestellpositionen, falls diese nicht übergeben wurden
+  useEffect(() => {
+    if (orderId && (!order || !order.items || order.items.length === 0)) {
+      // Direkten SQL-Endpunkt verwenden für höhere Zuverlässigkeit
+      fetch(`/api/order-items-direct/${orderId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        console.log("Bestellpositionen geladen:", data);
+        if (Array.isArray(data)) {
+          setOrderItems(data);
+        } else if (data && Array.isArray(data.data)) {
+          setOrderItems(data.data);
+        } else {
+          console.error("Unerwartetes Datenformat:", data);
+          toast({
+            title: "Fehler beim Laden",
+            description: "Bestellpositionen konnten nicht geladen werden.",
+            variant: "destructive"
+          });
+        }
+      })
+      .catch(error => {
+        console.error("Fehler beim Laden der Bestellpositionen:", error);
+        toast({
+          title: "Fehler beim Laden",
+          description: "Bestellpositionen konnten nicht geladen werden: " + error.message,
+          variant: "destructive"
+        });
+      });
+    } else if (order?.items || order?.orderItems) {
+      setOrderItems(order.items || order.orderItems || []);
+    }
+  }, [orderId, order, toast]);
+  
   // Standardwerte für das Formular
   const defaultValues: GoodsReceiptFormValues = {
     deliveryNoteNumber: '',
     receiptDate: new Date(),
     notes: '',
     isComplete: false,
-    items: order.orderItems.map((item: any) => ({
+    items: (orderItems.length > 0 ? orderItems : (order?.items || order?.orderItems || [])).map((item: any) => ({
       orderItemId: item.id,
       productId: item.productId,
       productName: item.productName,
