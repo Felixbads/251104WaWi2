@@ -190,7 +190,7 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
     }
   });
   
-  // Funktion zum Markieren einer Bestellung als versendet
+  // Funktion zum Markieren einer Bestellung als versendet (wurde ersetzt durch handleChangeStatus)
   const handleMarkAsSent = (orderId: number, e: React.MouseEvent) => {
     e.stopPropagation();
     markAsSentMutation.mutate({
@@ -198,22 +198,27 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
       sentDate: new Date()
     });
   };
-  
-  // Funktion zum Ändern des Status einer Bestellung
+
+  // Allgemeine Funktion zum Ändern des Status einer Bestellung
   const handleChangeStatus = (orderId: number, newStatus: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const params: {id: number, status: string, sentDate?: Date} = {
-      id: orderId,
-      status: newStatus
-    };
     
-    // Wenn der neue Status "sent" ist, auch das Versanddatum setzen
+    // Spezialfall: Bei "sent" muss ein Versanddatum gesetzt werden
     if (newStatus === 'sent') {
-      params.sentDate = new Date();
+      markAsSentMutation.mutate({
+        id: orderId,
+        sentDate: new Date()
+      });
+    } else {
+      // Für alle anderen Status-Änderungen
+      changeStatusMutation.mutate({
+        id: orderId, 
+        status: newStatus
+      });
     }
-    
-    changeStatusMutation.mutate(params);
   };
+  
+  // Dieser Code wurde mit der obigen Implementierung zusammengeführt
   
   // Funktion, die basierend auf dem Status die korrekte Aktion bestimmt
   const getActionByOrderStatus = (status: string): 'edit' | 'sent' | 'goods-receipt' | 'details' => {
