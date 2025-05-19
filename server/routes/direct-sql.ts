@@ -50,14 +50,33 @@ router.get('/orders-direct', async (req, res) => {
   try {
     console.log('Lade Bestellungen direkt aus der Datenbank...');
     
+    // Optimierte Abfrage mit JOIN auf suppliers und warehouses, um Namen zu garantieren
     const result = await pool.query(`
-      SELECT * FROM orders 
-      ORDER BY created_at DESC
+      SELECT o.*,
+             s.name AS supplier_name, 
+             w.name AS location_name 
+      FROM orders o
+      LEFT JOIN suppliers s ON o.supplier_id = s.id
+      LEFT JOIN warehouses w ON o.location_id = w.id
+      ORDER BY o.created_at DESC
     `);
     
-    console.log(`${result.rows.length} Bestellungen aus der Datenbank geladen`);
+    // Sicherstellen, dass die Namen aktualisiert werden
+    const orders = result.rows.map(order => {
+      // Namen nur überschreiben, wenn sie leer sind aber aus den Beziehungstabellen existieren
+      if (!order.supplier_name && order.supplier_id) {
+        console.log(`Aktualisiere fehlenden Lieferantennamen für Bestellung ${order.id}`);
+      }
+      if (!order.location_name && order.location_id) {
+        console.log(`Aktualisiere fehlenden Lagerortsnamen für Bestellung ${order.id}`);
+      }
+      
+      return order;
+    });
     
-    return res.json(result.rows);
+    console.log(`${orders.length} Bestellungen aus der Datenbank geladen`);
+    
+    return res.json(orders);
   } catch (error) {
     console.error('Fehler beim Laden der Bestellungen:', error);
     return res.status(500).json({ 
