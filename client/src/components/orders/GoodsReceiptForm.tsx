@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { format, addDays } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { useToast } from '@/hooks/use-toast';
 
 // UI-Komponenten
 import {
@@ -86,6 +87,7 @@ interface GoodsReceiptFormProps {
 }
 
 export function GoodsReceiptForm({ order, onComplete, onCancel }: GoodsReceiptFormProps) {
+  const { toast } = useToast();
   // Standardwerte für das Formular
   const defaultValues: GoodsReceiptFormValues = {
     deliveryNoteNumber: '',
@@ -140,6 +142,30 @@ export function GoodsReceiptForm({ order, onComplete, onCancel }: GoodsReceiptFo
         type: 'manual',
         message: 'Mindestens ein Artikel muss eine Eingangsmenge größer als 0 haben' 
       });
+      return;
+    }
+
+    // Prüfen, ob es abgelaufene Produkte gibt (gemäß Audit-Anforderung)
+    const expiredItems = data.items.filter(item => 
+      item.receivedQuantity > 0 && 
+      item.expiryDate && 
+      new Date(item.expiryDate) < new Date()
+    );
+
+    if (expiredItems.length > 0) {
+      // Fehler anzeigen für abgelaufene Produkte
+      form.setError('root', {
+        type: 'manual',
+        message: 'Abgelaufene Produkte können nicht ins Lager aufgenommen werden. Bitte korrigieren Sie die MHD-Daten oder reduzieren Sie die Menge auf 0.'
+      });
+      
+      // Zusätzlich eine Warnung anzeigen
+      toast({
+        title: "Fehler: Abgelaufene Produkte",
+        description: `${expiredItems.length} Artikel haben ein MHD in der Vergangenheit und können nicht ins Lager aufgenommen werden.`,
+        variant: "destructive"
+      });
+      
       return;
     }
 
@@ -359,11 +385,16 @@ export function GoodsReceiptForm({ order, onComplete, onCancel }: GoodsReceiptFo
                             <PopoverTrigger asChild>
                               <FormControl>
                                 <Button
-                                  variant="outline"
+                                  variant={field.value && new Date(field.value) < new Date() ? "destructive" : "outline"}
                                   className="w-full pl-3 text-left font-normal"
                                 >
                                   {field.value ? (
-                                    format(field.value, 'PPP', { locale: de })
+                                    <>
+                                      {new Date(field.value) < new Date() && (
+                                        <AlertTriangle className="mr-2 h-4 w-4" />
+                                      )}
+                                      {format(field.value, 'PPP', { locale: de })}
+                                    </>
                                   ) : (
                                     <span className="text-muted-foreground">MHD wählen</span>
                                   )}
@@ -375,12 +406,28 @@ export function GoodsReceiptForm({ order, onComplete, onCancel }: GoodsReceiptFo
                               <Calendar
                                 mode="single"
                                 selected={field.value}
-                                onSelect={field.onChange}
-                                disabled={(date) => date < new Date()}
+                                onSelect={(date) => {
+                                  field.onChange(date);
+                                  
+                                  // Warnung bei Ablaufdatum in der Vergangenheit gemäß Audit-Anforderung
+                                  if (date && date < new Date()) {
+                                    toast({
+                                      title: "Achtung: Abgelaufenes Produkt",
+                                      description: "Das MHD liegt in der Vergangenheit. Abgelaufene Produkte dürfen nicht ins Lager aufgenommen werden.",
+                                      variant: "destructive"
+                                    });
+                                  }
+                                }}
                                 initialFocus
                               />
                             </PopoverContent>
                           </Popover>
+                          {field.value && new Date(field.value) < new Date() && (
+                            <div className="mt-2 text-destructive text-sm flex items-center">
+                              <AlertTriangle className="h-4 w-4 mr-1" />
+                              Produkt ist abgelaufen! Nicht für Wareneingang geeignet.
+                            </div>
+                          )}
                           <FormMessage />
                         </FormItem>
                       )}
