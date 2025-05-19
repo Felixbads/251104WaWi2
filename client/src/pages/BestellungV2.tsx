@@ -108,7 +108,8 @@ const BestellungV2: React.FC = () => {
           productId: Number(product.id),
           quantity: Number(product.quantity),
           price: Number(product.price || 0),
-          unit: product.unit || 'Stück'
+          unit: product.unit || 'Stück',
+          productName: product.name || 'Unbekanntes Produkt'
         })) : []
       };
       

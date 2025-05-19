@@ -100,7 +100,7 @@ app.post('/api/create-order-v3', async (req, res) => {
           newOrder.id, 
           item.productId, 
           item.quantity, 
-          item.price || 0, 
+          item.price || 0, // price wird als unit_price in der Datenbank gespeichert
           item.unit || 'Stück',
           item.productName || 'Unbekanntes Produkt'
         ]);
