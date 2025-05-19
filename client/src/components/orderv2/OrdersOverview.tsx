@@ -118,8 +118,18 @@ const ORDER_STATUS: {
   }
 };
 
+// Diese Schnittstelle definiert, wie die Statusbasierte Weiterleitung für Bestellungen erfolgt
+interface OrderRoutingOptions {
+  orderId: number;
+  status: string;
+  action: 'edit' | 'sent' | 'goods-receipt' | 'details';
+}
+
 interface OrdersOverviewProps {
+  // Allgemeine Funktionen für Bestellungen
   onSelectOrder: (orderId: number) => void;
+  // Neue Routing-Funktion für statusabhängige Navigation
+  onOrderAction?: (options: OrderRoutingOptions) => void;
   onStartWarehouseReceiptProcess?: (orderId: number) => void;
   onCreateNew?: () => void; // Prop für den "Neue Bestellung"-Button
   ordersData?: any[]; // Bestellungsdaten direkt von der Elternkomponente
@@ -128,6 +138,7 @@ interface OrdersOverviewProps {
 
 const OrdersOverview: React.FC<OrdersOverviewProps> = ({ 
   onSelectOrder, 
+  onOrderAction,
   onStartWarehouseReceiptProcess,
   onCreateNew,
   ordersData,
@@ -145,12 +156,12 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
     direction: 'desc' 
   });
   
-  // Mutation zum Ändern des Bestellstatus auf "versendet"
-  const markAsSentMutation = useMutation({
-    mutationFn: async ({ id, sentDate }: { id: number, sentDate: Date }) => {
+  // Mutation zum Ändern des Bestellstatus
+  const changeStatusMutation = useMutation({
+    mutationFn: async ({ id, status, sentDate }: { id: number, status: string, sentDate?: Date }) => {
       return apiRequest(`/api/orders/${id}/status`, {
-        status: 'sent',
-        sentDate: sentDate.toISOString()
+        status,
+        ...(sentDate && { sentDate: sentDate.toISOString() })
       }, 'patch');
     },
     onSuccess: () => {
@@ -160,7 +171,7 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
       
       toast({
         title: 'Status aktualisiert',
-        description: 'Die Bestellung wurde als versendet markiert.',
+        description: 'Der Bestellstatus wurde erfolgreich aktualisiert.',
       });
     },
     onError: (error: any) => {
@@ -172,6 +183,13 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
     }
   });
   
+  // Spezifische Mutation zum Markieren als "Versendet"
+  const markAsSentMutation = useMutation({
+    mutationFn: async ({ id, sentDate }: { id: number, sentDate: Date }) => {
+      return changeStatusMutation.mutateAsync({ id, status: 'sent', sentDate });
+    }
+  });
+  
   // Funktion zum Markieren einer Bestellung als versendet
   const handleMarkAsSent = (orderId: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -179,6 +197,22 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
       id: orderId,
       sentDate: new Date()
     });
+  };
+  
+  // Funktion zum Ändern des Status einer Bestellung
+  const handleChangeStatus = (orderId: number, newStatus: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const params: {id: number, status: string, sentDate?: Date} = {
+      id: orderId,
+      status: newStatus
+    };
+    
+    // Wenn der neue Status "sent" ist, auch das Versanddatum setzen
+    if (newStatus === 'sent') {
+      params.sentDate = new Date();
+    }
+    
+    changeStatusMutation.mutate(params);
   };
   
   // Verbesserte Abfrage für Bestellungen mit Filtern und debounce für die Suche
@@ -492,7 +526,21 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
                       <TableRow 
                         key={order.id} 
                         className="cursor-pointer hover:bg-muted/50"
-                        onClick={() => onSelectOrder(order.id)}
+                        onClick={() => {
+                          // Statusbasiertes Routing entsprechend der Anforderungen
+                          if (onOrderAction) {
+                            // Neue smarte Routing-Funktion
+                            const action = getActionByOrderStatus(order.status);
+                            onOrderAction({
+                              orderId: order.id,
+                              status: order.status,
+                              action
+                            });
+                          } else {
+                            // Fallback zur alten Funktion
+                            onSelectOrder(order.id);
+                          }
+                        }}
                       >
                         <TableCell className="font-medium">
                           {order.order_number || 'Unbekannt'}
