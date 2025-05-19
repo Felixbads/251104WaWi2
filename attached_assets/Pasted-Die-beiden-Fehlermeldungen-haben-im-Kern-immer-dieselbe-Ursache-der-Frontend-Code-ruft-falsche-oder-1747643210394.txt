@@ -1,0 +1,79 @@
+Die beiden Fehlermeldungen haben im Kern immer dieselbe Ursache: der Frontend-Code ruft falsche oder fehlerhaft implementierte API-Endpoints auf und übergibt nicht das, was der Server wirklich erwartet.
+
+⸻
+
+1. Fehler beim Erstellen der Bestellung („500 Internal Server Error“)
+
+Ursache A: Falscher Endpoint oder fehlende Implementierung
+Im Code wird der Request an
+
+fetch('/api/create-order-v3', { … })
+
+gesendet. Wenn dieser Route-Handler auf dem Server gar nicht existiert oder intern eine Ausnahme wirft, bekommst du zwangsläufig ein 500 zurück.
+
+Ursache B: Unvollständiges Payload
+Der sogenannte directOrderData, der an den Server gesendet wird, enthält nur
+
+{
+  warehouseId,
+  supplierId,
+  expectedDeliveryDate,
+  notes,
+  status: 'draft',
+  orderItems: [ … ]
+}
+
+Aber im Backend erwarten die meisten Bestell-Tabellen z.B. auch ein orderDate oder eine priority-Spalte als NOT NULL, oder weitere Felder (z.B. supplierName, warehouseName, etc.). Fehlende Pflichtfelder führen zu einem SQL-Constraint-Fehler und damit zu einem 500er.
+
+Ursache C: Autorisierung
+Der Code hängt das Token optional an:
+
+...(storedToken ? { Authorization: `Bearer ${storedToken}` } : {})
+
+Fehlt das Token (oder ist abgelaufen), produziert der Server möglicherweise ebenfalls einen Fehler, statt korrekt mit 401/403 zu antworten.
+
+⸻
+
+2. Fehler beim Laden der Bestellpositionen („Die Bestellpositionen konnten nicht geladen werden.“)
+
+Der Code für das Nachladen der Positionen sieht so aus:
+
+const response = await apiRequest(`/api/orders/${orderId}/items`);
+
+und prüft danach auf
+
+response                // Array?
+response.data           // Array?
+response.items          // Array?
+response.data.items     // Array?
+
+– findet er nichts, wird nach drei Versuchen der Toast mit genau dieser Meldung gezeigt.
+
+Ursache A: Falscher oder nicht implementierter Endpoint
+Wenn /api/orders/123/items auf dem Server gar nicht existiert (oder zurzeit anders heißt z.B. /api/order-items/123), kommt ein 404 oder 500, und es wird nie ein Array zurückgegeben.
+
+Ursache B: Response-Shape passt nicht
+Vielleicht liefert der Server:
+
+{ "success": true, "data": { "positions": [ … ] } }
+
+– der Frontend-Code sucht aber nur nach data.items oder data selbst als Array. Gibt es kein items-Feld, bleibt die Liste leer und der Fehler-Toast erscheint.
+
+Ursache C: Auth- oder Netzwerkfehler
+Auch hier kann ein fehlendes Token, CORS-Problem oder ein Netzwerkausfall dazu führen, dass apiRequest eine Exception wirft und damit immer wieder in den Retry-Loop läuft.
+
+⸻
+
+Zusammenfassung
+	1.	Überprüfe deine Server-Routen
+	•	Existiert /api/create-order-v3 wirklich?
+	•	Existiert /api/orders/:id/items und liefert es ein Array oder wenigstens ein Feld, das dein Code erwartet?
+	2.	Vergleiche Payload vs. Datenbank-Schema
+	•	Fehlen Pflichtfelder (orderDate, priority etc.) im JSON?
+	•	Stimmen Feldnamen (orderItems vs. items vs. products) überein?
+	3.	Schau ins Backend-Log
+	•	Bei einem 500er wirft der Server meistens eine Exception – der Stacktrace verrät dir genau, welches Feld oder welche Route das Problem ist.
+	4.	Passe Frontend-Checks an
+	•	Erweitere die Bedingungen in loadOrderItems, um andere Antwort-Formate abzudecken, oder konfiguriere den API-Handler so, dass er genau das liefert, was das Frontend erwartet.
+
+Wenn du diese Punkte nachgehst, findest du schnell heraus, wo es hakt, und kannst die Endpoints oder das Mapping entsprechend korrigieren.

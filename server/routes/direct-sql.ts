@@ -408,13 +408,13 @@ router.get('/order-items-direct/:orderId', async (req, res) => {
     
     console.log(`Lade Bestellpositionen für Bestellung ${orderId} direkt aus der Datenbank...`);
     
-    // SQL-Abfrage für Bestellpositionen mit Produktdetails
+    // SQL-Abfrage für Bestellpositionen ohne JOIN auf products
+    // Wir nutzen direkt die Daten aus der order_items Tabelle
     const result = await pool.query(`
-      SELECT oi.*, p.name as product_name, p.unit
-      FROM order_items oi
-      LEFT JOIN products p ON oi.product_id = p.id
-      WHERE oi.order_id = $1
-      ORDER BY oi.id ASC
+      SELECT *
+      FROM order_items
+      WHERE order_id = $1
+      ORDER BY id ASC
     `, [orderId]);
     
     return res.json({

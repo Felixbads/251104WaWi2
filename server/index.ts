@@ -70,8 +70,14 @@ app.post('/api/create-order-v3', async (req, res) => {
           status, 
           order_date, 
           expected_delivery_date, 
-          notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+          notes,
+          priority,
+          created_by_id,
+          created_by_name,
+          currency,
+          total_amount,
+          payment_status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING *
       `, [
         warehouseId, 
@@ -80,7 +86,13 @@ app.post('/api/create-order-v3', async (req, res) => {
         status, 
         new Date(), 
         expectedDeliveryDate ? new Date(expectedDeliveryDate) : null, 
-        notes || ''
+        notes || '',
+        'normal', // priority
+        1,        // created_by_id (Admin)
+        'System', // created_by_name
+        'EUR',    // currency
+        0,        // total_amount
+        'pending' // payment_status
       ]);
       
       const newOrder = orderResult.rows[0];
