@@ -498,9 +498,13 @@ const BestellungV2: React.FC = () => {
     try {
       console.log("E-Mail-Vorbereitung für Bestellung:", orderData?.orderNumber || "Unbekannt");
       
+      // Status setzen, dass die E-Mail-Vorbereitung aktiv ist
+      setEmailPrepInProgress(true);
+      
       // Sicherstellen, dass Bestelldaten vollständig sind
       if (!orderData || typeof orderData !== 'object') {
         console.error('Keine gültigen Bestelldaten für E-Mail:', orderData);
+        setEmailPrepInProgress(false);
         toast({
           title: 'Fehler bei der E-Mail-Vorbereitung',
           description: 'Die Bestelldaten sind unvollständig oder fehlerhaft.',
@@ -546,6 +550,14 @@ const BestellungV2: React.FC = () => {
         }));
       }
       
+      // E-Mail-Dialog anzeigen, aber nur, wenn dies explizit angefordert wurde
+      if (step === 'sendOrder') {
+        setShowEmailDialog(true);
+      }
+      
+      // E-Mail-Vorbereitung ist abgeschlossen
+      setEmailPrepInProgress(false);
+      
       // Info-Toast anzeigen
       toast({
         title: 'E-Mail wird vorbereitet',
@@ -554,6 +566,9 @@ const BestellungV2: React.FC = () => {
       
     } catch (error) {
       console.error('Fehler bei der E-Mail-Vorbereitung:', error);
+      // Fehlerfall: E-Mail-Vorbereitung zurücksetzen
+      setEmailPrepInProgress(false);
+      
       toast({
         title: 'Fehler bei der E-Mail-Vorbereitung',
         description: 'Die E-Mail konnte nicht vorbereitet werden. Details in der Konsole.',
