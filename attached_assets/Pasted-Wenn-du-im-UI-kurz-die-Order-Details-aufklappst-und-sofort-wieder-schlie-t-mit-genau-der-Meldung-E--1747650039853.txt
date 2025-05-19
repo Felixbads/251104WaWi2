@@ -1,0 +1,61 @@
+Wenn du im UI kurz die Order-Details aufklappst und sofort wieder schließt mit genau der Meldung
+
+E-Mail wird vorbereitet
+Die Bestelldaten wurden geladen. Sie können jetzt die E-Mail senden.
+
+dann läuft dein Modal-Open/Close-Logic mit der E-Mail-Vorbereitung durcheinander. Genauer gesagt:
+	1.	Ein und derselbe “isOpen”-State wird für zwei Dinge benutzt
+	•	Du benutzt einen useDisclosure (oder ein einfaches const [isOpen, setIsOpen] = useState) sowohl für das Öffnen der Detail-Modal als auch für den E-Mail-Modal bzw. die E-Mail-Vorbereitung.
+	•	Sobald deine E-Mail-Vorbereitung im Hintergrund fertig ist, triggerst du ein onClose() (oder setIsOpen(false)), um das “E-Mail-Modal” zu schließen (oder den URL-Query-Param zu entfernen). Weil beide Modals aber dieselbe State-Variable teilen, wird damit auch dein Order-Detail-Modal wieder gekillt.
+	2.	Der Effekt, der “E-Mail wird vorbereitet” triggert, feuert ein onClose()
+Vermutlich hast du so etwas in deinem Code:
+
+useEffect(() => {
+  if (emailDataLoaded) {
+    toast({ title: 'E-Mail wird vorbereitet' });
+    toast({ title: 'Die Bestelldaten wurden geladen. Sie können jetzt die E-Mail senden.' });
+    onClose();    // ← schließt dein Modal, weil du denkst, hier das E-Mail-Fenster zu schließen
+  }
+}, [emailDataLoaded]);
+
+Das onClose() löscht aber auch direkt das Order-Detail-Modal.
+
+⸻
+
+Wie du das behebst
+	1.	Zwei getrennte Modals / States verwenden
+	•	Ein useDisclosure/isOpenOrder nur für die Order-Details.
+	•	Ein eigenes useDisclosure/isOpenEmail nur für die E-Mail-Vorbereitung und das Versenden.
+	2.	Effekte sauber trennen
+	•	Der Effekt auf emailDataLoaded darf nur das E-Mail-Modal schließen oder die URL-Query für die E-Mail entfernen – aber nicht dein Order-Detail-Modal.
+	•	Beispiel:
+
+// Order-Detail-Modal
+const orderModal = useDisclosure();
+
+// Email-Modal
+const emailModal = useDisclosure();
+
+useEffect(() => {
+  if (emailDataLoaded) {
+    toast({ title: 'E-Mail wird vorbereitet' });
+    toast({ title: 'Die Bestelldaten wurden geladen. Sie können jetzt die E-Mail senden.' });
+    emailModal.onOpen();   // öffne nun das E-Mail-Fenster
+    orderModal.onClose();   // optional: schließen des Order-Modals, wenn du willst
+  }
+}, [emailDataLoaded]);
+
+
+	3.	URL-Query-Param sauber handhaben
+Falls du das Öffnen der Order-Details über ?orderId=123 in der URL steuerst, darfst du
+
+router.replace({ query: { /* nur orderId entfernen, nicht beide Modals */ } }, undefined, { shallow: true });
+
+nicht in dem gleichen Effekt ausführen, der die E-Mail-Daten lädt. Sonst wird der Query-Param entfernt und das Modal schließt sich.
+
+⸻
+
+Zusammenfassung
+
+Aktuell schließt deine E-Mail-Vorbereitungs-Logik das Order-Detail-Modal, weil beide dieselbe isOpen-Variable nutzen bzw. weil du im falschen Effekt onClose() aufrufst.
+Trenne die Zustände für Order-Details und E-Mail-Modal, rufe onClose nur im passenden Kontext auf, und öffne das E-Mail-Modal mit einem eigenen onOpen(). Dann bleibt dein Order-Detail-Fenster auf und das System wartet korrekt auf den “Senden”-Button der E-Mail.

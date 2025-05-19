@@ -90,6 +90,8 @@ const BestellungV2: React.FC = () => {
   const [orderNumber, setOrderNumber] = useState<string>('');
   const [existingOrderData, setExistingOrderData] = useState<any>(null);
   const [showEmailDialog, setShowEmailDialog] = useState<boolean>(false);
+  const [emailPrepInProgress, setEmailPrepInProgress] = useState<boolean>(false);
+  const [orderDetailsOpen, setOrderDetailsOpen] = useState<boolean>(false);
   
   // Create order mutation
   const createOrderMutation = useMutation({
@@ -451,9 +453,12 @@ const BestellungV2: React.FC = () => {
   const handleSelectOrder = (orderId: number) => {
     console.log("Bestellung ausgewählt:", orderId);
     
-    // Set orderId and navigate to email page
+    // Set orderId and open order details
     setOrderId(orderId);
-    setStep('sendOrder');
+    setOrderDetailsOpen(true);
+    
+    // NICHT automatisch zur E-Mail-Seite wechseln!
+    // Die E-Mail-Vorbereitung wird nur gestartet, wenn der Benutzer explizit auf "E-Mail senden" klickt
   };
   
   // Email sending function
