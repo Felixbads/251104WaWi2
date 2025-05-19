@@ -458,30 +458,71 @@ const BestellungV2: React.FC = () => {
   };
   
   // Status-abhängige Navigation für Bestellungen
-  const handleSelectOrder = (selectedOrder: any) => {
-    console.log("Bestellung ausgewählt:", selectedOrder.id, "Status:", selectedOrder.status);
+  const handleSelectOrder = (orderId: number) => {
+    console.log("Bestellung ausgewählt mit ID:", orderId);
     
     // Set orderId für Verwendung in anderen Komponenten
-    setOrderId(selectedOrder.id);
+    setOrderId(orderId);
     
-    // Status-abhängige Navigation implementieren
-    if (selectedOrder.status === 'draft') {
-      console.log("Draft-Bestellung - öffne nur Details (später E-Mail senden möglich)");
-      // Bestelldetails öffnen
-      setOrderDetailsOpen(true);
-      setExistingOrderData(selectedOrder);
-    } 
-    else if (selectedOrder.status === 'sent') {
-      console.log("Gesendete Bestellung - bereite Wareneingang vor");
-      // Direkt zum Wareneingang
-      setStep('warehouseReceiptOfExistingOrder');
-      setExistingOrderData(selectedOrder);
-    } 
-    else {
-      console.log("Andere Bestellung - zeige Details");
-      // Für alle anderen Status einfach die Details anzeigen
-      setOrderDetailsOpen(true);
-      setExistingOrderData(selectedOrder);
+    // Finde die Bestellung in der Liste
+    const selectedOrder = ordersList?.find(order => order.id === orderId);
+    
+    if (selectedOrder) {
+      console.log("Gefundene Bestellung:", selectedOrder.id, "Status:", selectedOrder.status);
+      
+      // Status-abhängige Navigation implementieren
+      if (selectedOrder.status === 'draft') {
+        console.log("Draft-Bestellung - öffne nur Details (später E-Mail senden möglich)");
+        // Bestelldetails öffnen
+        setOrderDetailsOpen(true);
+        setExistingOrderData(selectedOrder);
+      } 
+      else if (selectedOrder.status === 'sent') {
+        console.log("Gesendete Bestellung - bereite Wareneingang vor");
+        // Direkt zum Wareneingang
+        setStep('warehouseReceiptOfExistingOrder');
+        setExistingOrderData(selectedOrder);
+      } 
+      else {
+        console.log("Andere Bestellung - zeige Details");
+        // Für alle anderen Status einfach die Details anzeigen
+        setOrderDetailsOpen(true);
+        setExistingOrderData(selectedOrder);
+      }
+    } else {
+      console.log("Bestellung wurde nicht in der Liste gefunden, lade von API");
+      
+      // Bestellung direkt von der API laden, wenn sie nicht in der Liste ist
+      apiRequest(`/api/orders-direct/${orderId}`)
+        .then(orderData => {
+          console.log("Bestellungsdaten von API geladen:", orderData);
+          
+          if (orderData) {
+            setExistingOrderData(orderData);
+            
+            // Status-abhängige Navigation
+            if (orderData.status === 'sent') {
+              setStep('warehouseReceiptOfExistingOrder');
+            } else {
+              setOrderDetailsOpen(true);
+            }
+          } else {
+            console.error("Keine Bestellungsdaten gefunden für ID:", orderId);
+            toast({
+              title: 'Fehler',
+              description: 'Die ausgewählte Bestellung konnte nicht gefunden werden',
+              variant: 'destructive'
+            });
+          }
+        })
+        .catch(error => {
+          console.error("Fehler beim Laden der Bestellung:", error);
+          toast({
+            title: 'Fehler',
+            description: 'Die Bestelldaten konnten nicht geladen werden',
+            variant: 'destructive'
+          });
+        });
     }
   };
   

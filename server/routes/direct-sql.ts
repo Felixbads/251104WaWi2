@@ -86,6 +86,67 @@ router.get('/orders-direct', async (req, res) => {
   }
 });
 
+// Direkter Endpunkt für einzelne Bestellung mit ID
+router.get('/orders-direct/:id', async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    
+    if (!orderId || isNaN(Number(orderId))) {
+      return res.status(400).json({
+        error: 'Ungültige Bestellungs-ID',
+        message: 'Die angegebene Bestellungs-ID ist ungültig',
+        success: false
+      });
+    }
+    
+    console.log(`Lade Bestellung mit ID ${orderId} direkt aus der Datenbank...`);
+    
+    // Bestellung mit COALESCE für Namen abfragen
+    const orderResult = await pool.query(`
+      SELECT o.*,
+             COALESCE(o.supplier_name, s.name) AS supplier_name, 
+             COALESCE(o.location_name, w.name) AS location_name 
+      FROM orders o
+      LEFT JOIN suppliers s ON o.supplier_id = s.id
+      LEFT JOIN warehouses w ON o.location_id = w.id
+      WHERE o.id = $1
+    `, [orderId]);
+    
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({
+        error: 'Bestellung nicht gefunden',
+        message: `Keine Bestellung mit ID ${orderId} gefunden`,
+        success: false
+      });
+    }
+    
+    // Bestellungspositionen abfragen
+    const itemsResult = await pool.query(`
+      SELECT 
+        oi.*,
+        p.name AS product_name
+      FROM order_items oi
+      LEFT JOIN products p ON oi.product_id = p.id
+      WHERE oi.order_id = $1
+    `, [orderId]);
+    
+    // Vollständige Bestellungsdaten mit Positionen zurückgeben
+    const orderData = {
+      ...orderResult.rows[0],
+      items: itemsResult.rows
+    };
+    
+    return res.json(orderData);
+  } catch (error) {
+    console.error(`Fehler beim Laden der Bestellung:`, error);
+    return res.status(500).json({ 
+      error: 'Datenbankfehler', 
+      message: error instanceof Error ? error.message : 'Unbekannter Fehler',
+      success: false
+    });
+  }
+});
+
 // Direkter Endpunkt für Lieferanten
 router.get('/suppliers-direct', async (req, res) => {
   try {
