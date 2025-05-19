@@ -97,18 +97,10 @@ const BestellungV2: React.FC = () => {
       console.log("Sende Bestellung an direkten SQL-Endpunkt");
       
       // Transformiere die Daten für den direkten SQL-Endpunkt
-      // Formatiere Lieferdatum im Format YYYY-MM-DD für den Server
-      const formattedDate = orderData.expectedDeliveryDate
-        ? new Date(orderData.expectedDeliveryDate).toISOString().split('T')[0]  // YYYY-MM-DD Format
-        : null;
-        
-      console.log("Formatiertes Lieferdatum:", formattedDate);
-        
       const directOrderData = {
         warehouseId: orderData.warehouseId,
         supplierId: orderData.supplierId,
-        // Nur hinzufügen, wenn es ein valides Datum im richtigen Format gibt
-        ...(formattedDate && { expectedDeliveryDate: formattedDate }),
+        expectedDeliveryDate: orderData.expectedDeliveryDate,
         notes: orderData.notes || '',
         status: 'draft',
         // Transformiere die ausgewählten Produkte ins richtige Format
@@ -116,7 +108,7 @@ const BestellungV2: React.FC = () => {
           productId: Number(product.id),
           quantity: Number(product.quantity),
           price: Number(product.price || 0),
-          unit: product.unit || 'Stk',  // ASCII-Fallback ohne Sonderzeichen
+          unit: product.unit || 'Stück',
           productName: product.name || 'Unbekanntes Produkt'
         })) : []
       };

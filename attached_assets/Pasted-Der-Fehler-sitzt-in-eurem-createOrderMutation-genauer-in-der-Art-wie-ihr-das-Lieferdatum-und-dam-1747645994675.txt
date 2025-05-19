@@ -1,0 +1,64 @@
+Der Fehler sitzt in eurem createOrderMutation – genauer in der Art, wie ihr das Lieferdatum (und damit euren Payload) an den Server schickt.
+
+Was schief läuft
+
+Im Code-Block hier:
+
+const directOrderData = {
+  warehouseId: orderData.warehouseId,
+  supplierId: orderData.supplierId,
+  expectedDeliveryDate: orderData.expectedDeliveryDate,  // ← ungeprüft!
+  notes: orderData.notes || '',
+  status: 'draft',
+  orderItems: [ … ]
+};
+
+übergebt ihr orderData.expectedDeliveryDate direkt. Wenn das eine Date-Instanz ist, wandelt JSON.stringify sie in eine ISO-Zeichenkette um, etwa
+
+"2025-05-19T00:00:00.000Z"
+
+Euer Backend-Validator (Zod, Joi, Prisma oder was ihr nutzt) erwartet aber per Regex genau das Format
+
+YYYY-MM-DD
+
+und pfeift daraufhin mit
+
+The string did not match the expected pattern
+
+– denn "2025-05-19T00:00:00.000Z" matcht nicht gegen ^\d{4}-\d{2}-\d{2}$.
+
+⸻
+
+So löst ihr es
+	1.	Datum vor dem Senden formatieren
+Verwendet in eurem createOrderMutation exakt dasselbe Formatting-Snippet, das ihr ja schon in eurem zweiten Code-Block hattet (lines ~884–890):
+
+import { format } from 'date-fns';
+// …
+const formattedDate = orderData.expectedDeliveryDate
+  ? format(orderData.expectedDeliveryDate, 'yyyy-MM-dd')
+  : null;
+
+const directOrderData = {
+  warehouseId: orderData.warehouseId,
+  supplierId: orderData.supplierId,
+  // nur aufnehmen, wenn’s wirklich ein valides Datum im richtigen Muster ist
+  ...(formattedDate && { expectedDeliveryDate: formattedDate }),
+  notes: orderData.notes || '',
+  status: 'draft',
+  orderItems: [ /* … */ ]
+};
+
+
+	2.	Nur einen Payload-Typ verwenden
+Ihr habt aktuell zwei Varianten:
+	•	directOrderData mit unformatiertem Datum
+	•	directSqlPayload mit bereits formatiertem Datum
+Wählt eine davon und entfernt die andere komplett, damit ihr nicht aus Versehen den falschen Payload an /api/create-order-v3 schickt.
+	3.	Unit/Strings prüfen
+Falls ihr in orderItems.unit Sonderzeichen (z.B. ü in "Stück") nutzt, stellt sicher, dass euer Server-Pattern das erlaubt oder verwendet statt "Stück" lieber einen ASCII-Fallback wie "Stk.".
+
+⸻
+
+Fazit:
+Das Pattern-Mismatch kommt ganz klar daher, dass ihr ein ISO-Timestamp-Format übergebt, euer Validator aber nur YYYY-MM-DD akzeptiert. Sobald ihr das Datum vor dem fetch mit format(date, 'yyyy-MM-dd') übergebt (oder das Feld komplett weglasst, wenn kein Datum gesetzt ist), sollte die Fehlermeldung “The string did not match the expected pattern” endgültig verschwinden.
