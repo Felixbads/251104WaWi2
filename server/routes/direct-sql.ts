@@ -238,9 +238,10 @@ router.post('/orders-create-direct', async (req, res) => {
       const orderNumber = `ORD-${dateStr}-${randomStr}`;
       
       // Bestellung in die Datenbank einfügen
+      // Verwende die korrekten Spaltennamen aus der Datenbankstruktur
       const orderResult = await client.query(`
         INSERT INTO orders (
-          warehouse_id, 
+          location_id, 
           supplier_id, 
           order_number, 
           status, 
@@ -250,7 +251,7 @@ router.post('/orders-create-direct', async (req, res) => {
         ) VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *
       `, [
-        warehouseId, 
+        warehouseId,  // Das Warehouse-ID wird in location_id gespeichert
         supplierId, 
         orderNumber, 
         status, 
@@ -262,21 +263,24 @@ router.post('/orders-create-direct', async (req, res) => {
       const newOrder = orderResult.rows[0];
       
       // Bestellpositionen einfügen
+      // Verwende die korrekten Spaltennamen aus der Datenbankstruktur
       for (const item of orderItems) {
         await client.query(`
           INSERT INTO order_items (
             order_id, 
             product_id, 
             quantity, 
-            price, 
-            unit
-          ) VALUES ($1, $2, $3, $4, $5)
+            unit_price, 
+            unit,
+            product_name
+          ) VALUES ($1, $2, $3, $4, $5, $6)
         `, [
           newOrder.id, 
           item.productId, 
           item.quantity, 
           item.price || 0, 
-          item.unit || 'Stück'
+          item.unit || 'Stück',
+          item.productName || 'Unbekanntes Produkt'
         ]);
       }
       
@@ -342,21 +346,24 @@ router.post('/order-items-direct/:orderId', async (req, res) => {
       await client.query(`DELETE FROM order_items WHERE order_id = $1`, [orderId]);
       
       // Neue Positionen einfügen
+      // Verwende die korrekten Spaltennamen aus der Datenbankstruktur
       for (const item of items) {
         await client.query(`
           INSERT INTO order_items (
             order_id, 
             product_id, 
             quantity, 
-            price, 
-            unit
-          ) VALUES ($1, $2, $3, $4, $5)
+            unit_price, 
+            unit,
+            product_name
+          ) VALUES ($1, $2, $3, $4, $5, $6)
         `, [
           orderId, 
           item.productId, 
           item.quantity, 
           item.price || 0, 
-          item.unit || 'Stück'
+          item.unit || 'Stück',
+          item.productName || 'Unbekanntes Produkt'
         ]);
       }
       

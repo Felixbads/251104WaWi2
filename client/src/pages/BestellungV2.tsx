@@ -212,7 +212,8 @@ const BestellungV2: React.FC = () => {
             productId: Number(product.id),
             quantity: Number(product.orderQuantity || 1),
             price: Number(product.price || 0),
-            unit: product.unit || 'Stück'
+            unit: product.unit || 'Stück',
+            productName: product.name || product.productName || 'Unbekanntes Produkt'
           }));
           
           // Sende Bestellpositionen an den direkten SQL-Endpunkt
