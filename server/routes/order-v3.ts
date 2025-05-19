@@ -40,14 +40,48 @@ router.post('/create-order-v3', async (req, res) => {
     try {
       await client.query('BEGIN');
       
-      // Order-Nummer generieren (Datum + Zufallszahl)
+      // Berechne den Gesamtbetrag basierend auf den Bestellpositionen
+      let totalAmount = 0;
+      if (Array.isArray(orderItems)) {
+        for (const item of orderItems) {
+          const itemPrice = Number(item.price) || 0;
+          const itemQuantity = Number(item.quantity) || 0;
+          totalAmount += itemPrice * itemQuantity;
+        }
+      }
+      
+      // Bestellnummer im Format ORD-YYYYMMDD-XXXX generieren
       const today = new Date();
-      const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const dateStr = `${year}${month}${day}`;
       const randomStr = Math.floor(1000 + Math.random() * 9000);
       const orderNumber = `ORD-${dateStr}-${randomStr}`;
       
-      // Bestellung in die Datenbank einfügen
-      // Verwende die korrekten Spaltennamen aus der Datenbankstruktur
+      // Formatieren des Datums korrekt für PostgreSQL
+      const orderDate = new Date();
+      let deliveryDate = null;
+      if (expectedDeliveryDate) {
+        // Wenn das Datum nur als YYYY-MM-DD String kommt, korrigieren wir das Format
+        if (typeof expectedDeliveryDate === 'string') {
+          // ISO-Datum erstellen mit Uhrzeit auf 12 Uhr mittags
+          deliveryDate = new Date(`${expectedDeliveryDate}T12:00:00`);
+        } else {
+          deliveryDate = new Date(expectedDeliveryDate);
+        }
+      }
+      
+      console.log('Order mit diesen Daten erstellen:', {
+        location_id: warehouseId,
+        supplier_id: supplierId,
+        order_number: orderNumber,
+        status,
+        order_date: orderDate,
+        expected_delivery_date: deliveryDate,
+        total_amount: totalAmount
+      });
+      
       const orderResult = await client.query(`
         INSERT INTO orders (
           location_id, 
@@ -62,23 +96,27 @@ router.post('/create-order-v3', async (req, res) => {
           created_by_name,
           currency,
           total_amount,
-          payment_status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          payment_status,
+          created_at,
+          updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING *
       `, [
         warehouseId,  // Das Warehouse-ID wird in location_id gespeichert
         supplierId, 
         orderNumber, 
         status, 
-        new Date(), 
-        expectedDeliveryDate ? new Date(expectedDeliveryDate) : null, 
+        orderDate, 
+        deliveryDate, 
         notes || '',
-        priority,
+        priority || 'normal',
         1,  // Admin User ID
         'System',
         'EUR',
-        0,  // total_amount
-        'pending' // payment_status
+        totalAmount,  // total_amount berechnet
+        'pending', // payment_status
+        new Date(),  // created_at
+        new Date()   // updated_at
       ]);
       
       const newOrder = orderResult.rows[0];
@@ -86,6 +124,22 @@ router.post('/create-order-v3', async (req, res) => {
       // Bestellpositionen einfügen
       // Verwende die korrekten Spaltennamen aus der Datenbankstruktur
       for (const item of orderItems) {
+        const productId = item.productId || null;
+        const quantity = Number(item.quantity) || 1;
+        const unitPrice = Number(item.price) || 0;
+        const productName = item.productName || 'Unbekanntes Produkt';
+        const unit = item.unit || 'Stück';
+        const totalPrice = unitPrice * quantity;
+        
+        console.log('Füge Bestellposition hinzu:', {
+          order_id: newOrder.id,
+          product_id: productId,
+          product_name: productName,
+          quantity,
+          unit_price: unitPrice,
+          total_price: totalPrice
+        });
+        
         await client.query(`
           INSERT INTO order_items (
             order_id, 
@@ -93,15 +147,21 @@ router.post('/create-order-v3', async (req, res) => {
             quantity, 
             unit_price, 
             unit,
-            product_name
-          ) VALUES ($1, $2, $3, $4, $5, $6)
+            product_name,
+            total_price,
+            created_at,
+            updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         `, [
           newOrder.id, 
-          item.productId, 
-          item.quantity, 
-          item.price || 0, 
-          item.unit || 'Stück',
-          item.productName || 'Unbekanntes Produkt'
+          productId, 
+          quantity, 
+          unitPrice, 
+          unit,
+          productName,
+          totalPrice,  // Berechnung des Gesamtpreises
+          new Date(),  // created_at
+          new Date()   // updated_at
         ]);
       }
       

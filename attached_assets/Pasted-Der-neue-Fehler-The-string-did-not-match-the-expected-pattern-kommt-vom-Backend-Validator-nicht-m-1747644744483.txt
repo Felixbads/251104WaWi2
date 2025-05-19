@@ -1,0 +1,43 @@
+Der neue Fehler „The string did not match the expected pattern“ kommt vom Backend-Validator, nicht mehr von einem fehlenden Feld. Er bedeutet, dass einer eurer übergebenen Strings (Datum, Order-Nummer, SKU etc.) nicht dem Regex bzw. Format entspricht, das auf dem Server definiert ist.
+
+⸻
+
+1. Wo hakt’s bei der Erstellung?
+	1.	Welches Feld validiert nicht?
+	•	Schaut im Server-Log oder in eurem Zod/JOI/Prisma-Validator nach, welches Feld die Pattern-Violation wirft.
+	•	Häufige Kandidaten:
+	•	order_number (z.B. erwartet ORD-\d{8}-\d{4})
+	•	expectedDeliveryDate (z.B. ISO-Date YYYY-MM-DD)
+	•	supplier_sku oder notes, wenn hier Sonderzeichen nicht erlaubt sind
+	2.	Payload loggen
+	•	Gebt vor dem fetch einen console.log(JSON.stringify(directOrderData, null, 2)) aus und vergleicht das mit der Schema-Definition auf dem Server.
+	•	Achtet darauf, dass kein Feld leer oder null ist, wenn im Validator string().nonempty() steht.
+	3.	Server-Schema prüfen
+	•	Ja, bitte lad uns die Spalten-Definitionsliste eurer orders-Tabelle hoch (KS SHOW COLUMNS FROM orders; bzw. eure Prisma-Modelldeclaration).
+	•	Insbesondere:
+	•	Welche Spalten sind NOT NULL?
+	•	Gibt es Default-Patterns (CHECK (order_number ~ '…'))?
+	•	Welche Felder werden per Trigger automatisch gefüllt?
+
+⸻
+
+2. Bestellpositionen-Endpoint
+
+Du hast zwar nicht nochmal explizit vom zweiten Fehler berichtet, aber stell sicher, dass dein Items-Loader wirklich das Array unter dem richtigen Key zieht:
+
+// Beispiel: Server liefert { data: { positions: […] } }
+const items = response.data.items 
+            ?? response.data.positions 
+            ?? response.data;
+if (!Array.isArray(items)) { /* throw */ }
+
+Und teste im Network-Tab, unter welchem Key die Items tatsächlich ankommen.
+
+⸻
+
+Was wir jetzt brauchen
+	1.	Server-Validator-Schema (Zod/JOI/Prisma-Modell oder Backend-Code-Snippet), damit wir sehen, welche Pattern-Regeln gelten.
+	2.	SQL-Schema der Tabelle orders (SHOW COLUMNS bzw. Prisma-Model).
+	3.	Falls möglich den vollständigen Request-Body und die Raw-Response (inkl. Stacktrace oder Validation-Error-Objekt).
+
+Mit diesen Infos können wir genau sagen, welches Feld neu angepasst werden muss, damit der Pattern-Check beim Anlegen nicht mehr fehlschlägt. Lass die Details hier zukommen!
