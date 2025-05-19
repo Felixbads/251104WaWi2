@@ -600,8 +600,15 @@ const BestellungV2: React.FC = () => {
           try {
             console.log(`Versuche Bestellpositionen zu laden (Versuch ${retryCount + 1}/${maxRetries + 1})`);
             
-            // API-Aufruf um alle Bestellpositionen zu laden
-            const response = await apiRequest(`/api/orders/${orderId}/items`);
+            // API-Aufruf um alle Bestellpositionen zu laden über direkten SQL-Endpunkt
+            // Statt Drizzle-Endpunkt nutzen wir den optimierten SQL-Endpunkt
+            const response = await fetch(`/api/order-items-direct/${orderId}`, {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': localStorage.getItem('authToken') ? `Bearer ${localStorage.getItem('authToken')}` : ''
+              }
+            }).then(res => res.json());
             
             // Prüfen ob Items zurückgegeben wurden
             let items = [];

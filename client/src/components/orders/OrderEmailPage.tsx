@@ -195,10 +195,10 @@ Ihr Proviantomat Team`);
     try {
       // API-Anfrage zum Senden der E-Mail
       const response = await apiRequest(`/api/orders/${orderId}/send-email`, {
-        email: emailAddress,
+        to: emailAddress,
         subject: emailSubject,
-        body: prepareEmailContent(),
-        additionalNotes: '',
+        content: prepareEmailContent(),
+        templateType: selectedTemplate,
       });
       
       if (response && response.success) {
