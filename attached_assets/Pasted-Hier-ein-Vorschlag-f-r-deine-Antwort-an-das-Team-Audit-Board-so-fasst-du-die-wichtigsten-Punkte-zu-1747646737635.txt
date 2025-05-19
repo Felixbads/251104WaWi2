@@ -1,0 +1,70 @@
+Hier ein Vorschlag für deine Antwort an das Team/Audit-Board – so fasst du die wichtigsten Punkte zusammen, ordnest die nächsten Schritte und sorgst dafür, dass wirklich nichts mehr unter den Tisch fällt:
+
+⸻
+
+Betreff: Nächste Schritte zur Behebung der Bestell- und Wareneingangs-Fehler
+
+Hallo zusammen,
+
+vielen Dank für eure ausführliche Audit-Analyse! Um die verbleibenden Probleme dauerhaft zu lösen, schlage ich folgendes Vorgehen vor:
+
+⸻
+
+1. Frontend: Datums-Formatierung & Payload-Cleaning
+	•	expectedDeliveryDate muss in YYYY-MM-DD statt ISO-Timestamp geliefert werden.
+→ Wir integrieren in createOrderMutation das bereits vorhandene Snippet mit format(date, 'yyyy-MM-dd') und entfernen alle Stellen, die noch rohe Date-Objekte übergeben.
+	•	Einheitlicher Payload: Wir entscheiden uns ausschließlich für ein DTO (directOrderData) und lassen das alte directSqlPayload weg.
+
+ToDo
+	1.	Datum mit date-fns vor dem fetch oder apiRequest formatieren
+	2.	orderItems.unit auf ASCII („stk“ statt „Stück“) umstellen, falls das Schema nur einfache Zeichen erlaubt
+	3.	Payload in console.log überprüfen und gegen das DB-Schema abgleichen
+
+⸻
+
+2. Backend: Schema-Constraints & Transaktionen
+	•	CHECK-Constraint für orderNumber in der DB nachziehen (z.B. ORD-\d{8}-\d{4}), statt nur im Zod-Schema.
+	•	NOT NULL für supplierId und locationId setzen, wenn diese immer benötigt werden.
+	•	Transaktion um Order + OrderItems bündeln – rollback bei Teilfehlern sicherstellen.
+
+ToDo
+	1.	DB-Schema anpassen (Migration)
+	2.	Endpoints prüfen, dass sie beide Inserts in einer Transaktion ausführen
+	3.	Automatische Validierung in der DB stärken (CHECK, NOT NULL)
+
+⸻
+
+3. Goods Receipt: Mengen- und MHD-Validierung
+	•	Verifiziert, dass receivedQuantity ≤ orderedQuantity geprüft wird.
+	•	Erzeugt bei jedem Wareneingang einen productBatch mit initialQuantity, expiryDate und batchNumber.
+	•	Fügt eine Regel hinzu, die abgelaufene MHD-Werte (expiryDate < today) abweist.
+
+ToDo
+	1.	Backend-Logik anpassen, um Expiry-Checks einzubauen
+	2.	End-to-End-Testfall: Teillieferung + abweichende MHD (Fail/Success)
+	3.	Prüfung der Unique-Constraint (batchNumber, productId, warehouseId) im Batch-Generator
+
+⸻
+
+4. Testcases & Verifikation
+	•	Unit-Tests für Zod- und DB-Validierung (Datum, Mengen, Strings).
+	•	Integrationstest:
+	•	Min-Payload für Order­anlage → prüft Defaults
+	•	komplette Bestellung mit mehreren Items → prüft Transaktion
+	•	Wareneingang mit MHD → Anlage von Batches + Stock­Update
+
+ToDo
+	1.	Test­suite um neue Cases erweitern
+	2.	Continuous Integration: Merge-Checks deaktivieren, wenn ein Audit-Test fehlschlägt
+
+⸻
+
+Wenn wir diese Schritte priorisieren und umsetzen, sollten
+	1.	„500 Internal Server Error“
+	2.	„The string did not match the expected pattern“
+sowie sämtliche Lade­fehler bei den OrderItems endgültig beseitigt sein.
+
+Gebt mir bitte kurz Feedback, ob ihr mit dieser Roadmap einverstanden seid, dann starten wir direkt die Tickets in Jira.
+
+Viele Grüße
+Felix

@@ -99,7 +99,7 @@ const BestellungV2: React.FC = () => {
       // Transformiere die Daten für den direkten SQL-Endpunkt
       // Formatiere Lieferdatum im Format YYYY-MM-DD für den Server
       const formattedDate = orderData.expectedDeliveryDate
-        ? new Date(orderData.expectedDeliveryDate).toISOString().split('T')[0]  // YYYY-MM-DD Format
+        ? format(new Date(orderData.expectedDeliveryDate), 'yyyy-MM-dd')  // YYYY-MM-DD Format mit date-fns
         : null;
         
       console.log("Formatiertes Lieferdatum:", formattedDate);
@@ -116,7 +116,7 @@ const BestellungV2: React.FC = () => {
           productId: Number(product.id),
           quantity: Number(product.quantity),
           price: Number(product.price || 0),
-          unit: product.unit || 'Stk',  // ASCII-Fallback ohne Sonderzeichen
+          unit: 'stk',  // Immer ASCII ohne Sonderzeichen verwenden
           productName: product.name || 'Unbekanntes Produkt'
         })) : []
       };

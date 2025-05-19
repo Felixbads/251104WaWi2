@@ -1,0 +1,71 @@
+Die Audit-Antwort an sich behebt den Fehler noch nicht – sie war nur ein Fahrplan, nicht der Fix selbst. Damit wir wirklich vorankommen, müssen wir jetzt die empfohlenen Änderungen Schritt für Schritt umsetzen und dann erneut testen. Mein Vorschlag:
+
+⸻
+
+1. Datum formatieren und DTO vereinheitlichen
+	•	Bau in deine createOrderMutation direkt vor dem Senden:
+
+import { format } from 'date-fns';
+
+const formattedDate = orderData.expectedDeliveryDate
+  ? format(orderData.expectedDeliveryDate, 'yyyy-MM-dd')
+  : undefined;
+
+const payload = {
+  warehouseId: orderData.warehouseId,
+  supplierId: orderData.supplierId,
+  ...(formattedDate && { expectedDeliveryDate: formattedDate }),
+  notes: orderData.notes || '',
+  status: 'draft',
+  orderItems: orderData.items.map(item => ({
+    productId: item.productId,
+    quantity: item.quantity,
+    unit: 'stk',          // ASCII statt „Stück“
+    unitPrice: item.unitPrice,
+    totalPrice: item.totalPrice,
+    // … restlichen Felder
+  })),
+};
+
+
+	•	Entferne das alte directSqlPayload, so dass nur noch dieses eine DTO an den Server geht.
+
+Teste danach: Welche Fehlermeldung kommt jetzt beim POST auf /api/create-order-v3?
+
+⸻
+
+2. Payload gegen DB-Schema abgleichen
+	1.	Logg mit console.log(JSON.stringify(payload, null, 2)) genau, was bei dir ankommt.
+	2.	Vergleiche die gezeigte JSON-Struktur gegen deine SHOW COLUMNS FROM orders; und order_items.
+	3.	Markiere sofort, welche NOT NULL-Felder fehlen oder falsch formatiert sind.
+
+Teste danach: Lässt sich der Datensatz nun sauber anlegen – oder kommt wieder ein Constraint-Error? Wenn ja, welche Spalte?
+
+⸻
+
+3. Items-Endpoint prüfen
+
+Selbst wenn das Erstellen klappt, müssen wir sicherstellen, dass dein Loader das Array unter dem richtigen Key abholt. Setze in deinem Item-Fetcher:
+
+const data = response.data;
+const items = Array.isArray(data.items)
+  ? data.items
+  : Array.isArray(data.positions)
+    ? data.positions
+    : Array.isArray(data)
+      ? data
+      : [];
+
+if (!items.length) throw new Error('Keine Items gefunden');
+
+Teste danach im Network-Tab: Unter welchem Feld liefert dein API-Call wirklich die Items?
+
+⸻
+
+Zusammenfassung
+	1.	Implementieren: Datum + ASCII-Einheit + einheitliches DTO
+	2.	Loggen: Payload vs. DB-Schema
+	3.	Testen: Erzeugung & Laden der Items
+	4.	Feedback: Welche konkreten Fehlermeldungen bleiben übrig?
+
+Erst wenn wir diesen Loop aus Änderung → Test → Log → Anpassung durchlaufen, sehen wir, ob der ursprüngliche 500-Error und das Pattern-Mismatch endgültig verschwinden. Fang am besten mit Punkt 1 an und gib Bescheid, was der Server danach sagt!
