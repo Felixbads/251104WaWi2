@@ -94,18 +94,38 @@ const BestellungV2: React.FC = () => {
   // Create order mutation
   const createOrderMutation = useMutation({
     mutationFn: async (orderData: any) => {
-      console.log("Sende Bestellung an API mit direkt manueller Methode");
-      // Nutze fetch direkt um Fehlerbehandlung zu verbessern
+      console.log("Sende Bestellung an direkten SQL-Endpunkt");
+      
+      // Transformiere die Daten für den direkten SQL-Endpunkt
+      const directOrderData = {
+        warehouseId: orderData.warehouseId,
+        supplierId: orderData.supplierId,
+        expectedDeliveryDate: orderData.expectedDeliveryDate,
+        notes: orderData.notes || '',
+        status: 'draft',
+        // Transformiere die ausgewählten Produkte ins richtige Format
+        orderItems: Array.isArray(orderData.products) ? orderData.products.map((product: any) => ({
+          productId: Number(product.id),
+          quantity: Number(product.quantity),
+          price: Number(product.price || 0),
+          unit: product.unit || 'Stück'
+        })) : []
+      };
+      
+      // Nutze den Token für die Authentifizierung
       const storedToken = localStorage.getItem('auth_token');
       
       try {
-        const response = await fetch('/api/orders', {
+        console.log("Sende Bestellung an direkten SQL-Endpunkt:", directOrderData);
+        
+        // Verwende den direkten SQL-Endpunkt
+        const response = await fetch('/api/orders-create-direct', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             ...(storedToken ? { 'Authorization': `Bearer ${storedToken}` } : {})
           },
-          body: JSON.stringify(orderData)
+          body: JSON.stringify(directOrderData)
         });
         
         // Prüfen ob die Antwort erfolgreich war
@@ -113,63 +133,57 @@ const BestellungV2: React.FC = () => {
           throw new Error(`API-Fehler: ${response.status} ${response.statusText}`);
         }
         
-        // Verbesserte JSON-Parsing mit Fehlerbehandlung für HTML-Antworten
-        try {
-          // Zuerst Text holen, um prüfen zu können, ob es sich um HTML handelt
-          const text = await response.text();
-          
-          // Prüfe, ob die Antwort HTML enthält
-          if (text.includes('<!DOCTYPE html>') || text.includes('<html')) {
-            console.warn("Server hat HTML statt JSON zurückgegeben");
-            // Dennoch als Erfolg werten und Session invalidieren
-            queryClient.invalidateQueries({queryKey: orderKeys.lists()});
-            return {
-              id: null,
-              orderNumber: "Unbekannt",
-              success: true,
-              message: "Bestellung erstellt, aber Server hat HTML zurückgegeben"
-            };
-          }
-          
-          // Versuche JSON zu parsen
-          const data = JSON.parse(text);
-          return data;
-        } catch (jsonError) {
-          console.warn("Fehler beim JSON-Parsen:", jsonError);
-          // Wenn kein gültiges JSON zurückgegeben wird, ein Ersatzobjekt erstellen
-          // und trotzdem die Bestellungsübersicht aktualisieren
-          queryClient.invalidateQueries({queryKey: orderKeys.lists()});
-          return {
-            id: null,
-            orderNumber: "Unbekannt",
-            success: true,
-            message: "Bestellung erstellt, aber Response konnte nicht geparst werden"
-          };
+        // JSON-Antwort verarbeiten
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.message || 'Fehler beim Erstellen der Bestellung');
         }
+        
+        console.log("Bestellung erfolgreich über direkten SQL-Endpunkt erstellt:", data);
+        return data;
       } catch (error) {
-        console.error("Fehler bei Bestellung:", error);
+        console.error("Fehler bei Bestellung über direkten SQL-Endpunkt:", error);
         throw error;
       }
     },
     onSuccess: (data) => {
       // Debugging zur Analyse der empfangenen Daten
-      console.log("Bestellungs-Antwort vom Server:", data);
+      console.log("Bestellungs-Antwort vom direkten SQL-Endpunkt:", data);
       
       // Immer die Bestellungsliste invalidieren, unabhängig vom Ergebnis
       queryClient.invalidateQueries({queryKey: orderKeys.lists()});
       
-      // Verbesserte Verarbeitung der unterschiedlichen Antwortformate
-      if (data && data.id) {
-        // Standard-Format mit direkter ID
-        setOrderId(data.id);
-        setOrderNumber(data.orderNumber || '');
-        setExistingOrderData(data);
+      // Verarbeitung der Antwort vom direkten SQL-Endpunkt
+      if (data && data.success && data.data) {
+        // Extrahiere die eigentlichen Bestelldaten
+        const orderData = data.data;
+        
+        // Setze Order-ID und Nummer
+        setOrderId(orderData.id);
+        setOrderNumber(orderData.order_number || '');
+        
+        // Formatiere Daten für die Anwendung
+        const formattedOrderData = {
+          id: orderData.id,
+          orderNumber: orderData.order_number,
+          warehouseId: orderData.warehouse_id,
+          supplierId: orderData.supplier_id,
+          status: orderData.status,
+          orderDate: orderData.order_date,
+          expectedDeliveryDate: orderData.expected_delivery_date,
+          notes: orderData.notes || '',
+          warehouseName: warehouseName,
+          supplierName: supplierName
+        };
+        
+        setExistingOrderData(formattedOrderData);
         
         // Bestellungsdaten anreichern mit ausgewählten Produkten
         if (selectedProducts && selectedProducts.length > 0) {
           console.log("Füge ausgewählte Produkte zu Bestellungsdaten hinzu:", selectedProducts.length);
           const enrichedOrderData = {
-            ...data,
+            ...formattedOrderData,
             items: selectedProducts.map(product => ({
               productId: product.id,
               productName: product.name || product.productName,
@@ -184,25 +198,39 @@ const BestellungV2: React.FC = () => {
         // Toast mit der tatsächlichen Bestellnummer anzeigen
         toast({
           title: 'Bestellung erfolgreich erstellt',
-          description: `Bestellungsnummer: ${data.orderNumber || 'erstellt'}`,
+          description: `Bestellungsnummer: ${orderData.order_number || 'erstellt'}`,
         });
         
         // Zum E-Mail-Versand-Schritt wechseln
         setStep('sendOrder');
         
-        // Zusätzliche API-Anfrage um sicherzustellen, dass die Bestellungsdaten vollständig sind
-        if (data.id) {
-          console.log("Lade vollständige Bestellungsdaten für ID:", data.id);
-          apiRequest(`/api/orders/${data.id}`)
-            .then(orderData => {
-              if (orderData && orderData.id) {
-                console.log("Vollständige Bestellungsdaten geladen:", orderData);
-                setExistingOrderData(orderData);
-              }
-            })
-            .catch(err => {
-              console.warn("Fehler beim Laden der vollständigen Bestellungsdaten:", err);
-            });
+        // Bestellpositionen direkt über SQL-Endpunkt speichern
+        if (selectedProducts && selectedProducts.length > 0 && orderData.id) {
+          console.log("Speichere Bestellpositionen direkt über SQL-Endpunkt:", selectedProducts.length);
+          
+          const orderItems = selectedProducts.map(product => ({
+            productId: Number(product.id),
+            quantity: Number(product.orderQuantity || 1),
+            price: Number(product.price || 0),
+            unit: product.unit || 'Stück'
+          }));
+          
+          // Sende Bestellpositionen an den direkten SQL-Endpunkt
+          fetch(`/api/order-items-direct/${orderData.id}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': localStorage.getItem('auth_token') ? `Bearer ${localStorage.getItem('auth_token')}` : ''
+            },
+            body: JSON.stringify({ items: orderItems })
+          })
+          .then(response => response.json())
+          .then(result => {
+            console.log("Bestellpositionen erfolgreich gespeichert:", result);
+          })
+          .catch(error => {
+            console.error("Fehler beim Speichern der Bestellpositionen:", error);
+          });
         }
       } else if (data && data.order && data.order.id) {
         // Geschachteltes Format mit order-Objekt
