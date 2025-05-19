@@ -10,7 +10,8 @@ import {
   warehouses,
   inventoryMovements,
   users,
-  inventoryItems
+  inventoryItems,
+  productBatches
 } from '../../shared/schema';
 // Direkte sendEmail Funktion anstelle des Imports
 function sendEmail(to: string, from: string, subject: string, html: string) {
@@ -1123,6 +1124,31 @@ router.post('/orders/:id/receipt', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Keine Artikel für den Wareneingang angegeben' });
     }
     
+    // Validiere, dass keine abgelaufenen MHD-Werte vorhanden sind
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Auf Tagesbasis vergleichen
+    
+    const expiredItems = items.filter(item => {
+      if (item.expiryDate) {
+        const expiryDate = new Date(item.expiryDate);
+        expiryDate.setHours(0, 0, 0, 0);
+        return expiryDate < today;
+      }
+      return false;
+    });
+    
+    if (expiredItems.length > 0) {
+      return res.status(400).json({
+        error: 'Abgelaufene MHD-Werte nicht zulässig',
+        message: 'Es wurden Artikel mit bereits abgelaufenen Mindesthaltbarkeitsdaten angegeben. Prüfen Sie die angegebenen MHD-Werte.',
+        items: expiredItems.map(item => ({
+          productId: item.productId,
+          productName: item.productName,
+          expiryDate: item.expiryDate
+        }))
+      });
+    }
+    
     // Bestellung abrufen
     const orderResult = await db
       .select()
@@ -1251,6 +1277,63 @@ router.post('/orders/:id/receipt', async (req: Request, res: Response) => {
                   createdAt: new Date(),
                   updatedAt: new Date()
                 });
+            }
+            
+            // Wenn ein MHD (expiryDate) angegeben ist, erstellen wir eine Charge (Batch)
+            if (item.expiryDate) {
+              try {
+                // Generiere Chargennummer, falls keine angegeben wurde
+                const batchNumber = item.batchNumber || `${order.orderNumber}-${new Date().toISOString().slice(0, 10)}`;
+                
+                // Prüfen, ob die Charge bereits existiert
+                const existingBatch = await db
+                  .select()
+                  .from(productBatches)
+                  .where(
+                    and(
+                      eq(productBatches.warehouseId, warehouseId),
+                      eq(productBatches.productId, item.productId),
+                      eq(productBatches.batchNumber, batchNumber)
+                    )
+                  )
+                  .limit(1);
+                
+                const quantityToAdd = item.quantityDelivered || item.receivedQuantity || 0;
+                
+                if (existingBatch && existingBatch.length > 0) {
+                  // Bestandserhöhung bei existierender Charge
+                  const currentBatchQuantity = existingBatch[0].currentQuantity || 0;
+                  
+                  await db
+                    .update(productBatches)
+                    .set({
+                      currentQuantity: currentBatchQuantity + quantityToAdd,
+                      updatedAt: new Date()
+                    })
+                    .where(eq(productBatches.id, existingBatch[0].id));
+                } else {
+                  // Neue Charge erstellen
+                  await db
+                    .insert(productBatches)
+                    .values({
+                      productId: item.productId,
+                      warehouseId: warehouseId,
+                      batchNumber: batchNumber,
+                      initialQuantity: quantityToAdd,
+                      currentQuantity: quantityToAdd,
+                      expiryDate: new Date(item.expiryDate),
+                      receivedDate: new Date(receiptDate),
+                      status: 'active',
+                      locationInWarehouse: item.locationInWarehouse || null,
+                      notes: item.notes || null,
+                      createdAt: new Date(),
+                      updatedAt: new Date()
+                    });
+                }
+              } catch (batchError) {
+                console.error(`Fehler beim Erstellen/Aktualisieren der Charge für Produkt ${item.productId}:`, batchError);
+                // Fehler protokollieren, aber weitermachen
+              }
             }
             
             // Wenn gewünscht, Lagerbewegungen protokollieren
