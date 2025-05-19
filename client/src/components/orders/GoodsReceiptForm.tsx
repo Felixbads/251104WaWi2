@@ -212,7 +212,7 @@ export function GoodsReceiptForm({ orderId, order, onSubmit: submitHandler, onBa
       return;
     }
 
-    onComplete(data);
+    submitHandler(data);
   }
 
   // Vollständigkeitsprüfung
@@ -616,7 +616,7 @@ export function GoodsReceiptForm({ orderId, order, onSubmit: submitHandler, onBa
 
         {/* Aktionsbuttons */}
         <div className="flex justify-end gap-2 mt-8">
-          <Button variant="outline" type="button" onClick={onCancel}>
+          <Button variant="outline" type="button" onClick={onBack}>
             <X className="mr-2 h-4 w-4" /> Abbrechen
           </Button>
           <Button type="submit">
