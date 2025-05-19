@@ -1,0 +1,82 @@
+## Auditaufgabe: End-to-End Überprüfung der Bestell- und Wareneingangsprozesse
+
+### 1) Allgemeine Zielsetzung
+- Vollständige Dokumentation und Prüfung aller beteiligten Datenbank-Strukturen (Orders vs. Order_Items).
+- Sicherstellen, dass beim Anlegen einer Bestellung alle erforderlichen Felder validiert und korrekt persistiert werden.
+- Nachverfolgung, wie beim Wareneingang die ursprünglich bestellten Mengen und Produkte gegen die tatsächlich gelieferten Werte abgeglichen werden und wie dabei MHD/Batchdaten in das Lager-System übernommen werden.
+
+### 2) Datenbank-Schemas
+**A) Tabelle `orders`**  
+- Liste aller Spalten inkl. Datentyp, NULL-Constraint, Default-Werte, Unique/Check-Constraints und Foreign Keys.  
+  - z. B. `id (serial PK)`, `order_number (text CHECK ~ '^ORD-\d{8}-\d{4}$')`, `supplier_id (int FK suppliers.id)`, `location_id (int FK warehouses.id)`, `order_date (date NOT NULL DEFAULT current_date)`, `expected_delivery_date (date)`, `status (text NOT NULL DEFAULT 'draft')`, u.v.m.  
+- Indizes: Primary Key, Unique (z. B. Unique(order_number)), evtl. Indizes auf supplier_id, location_id.  
+- Trigger/Rules/Migrations: Werden order_number, created_at, updated_at automatisch befüllt?
+
+**B) Tabelle `order_items`**  
+- Spalten: `id`, `order_id (FK orders.id)`, `product_id (FK products.id)`, `sku`, `supplier_sku`, `quantity (integer NOT NULL)`, `unit (text)`, `unit_price (numeric)`, `total_price (numeric)`, `vat_rate`, `position_number`, `status`, `notes`, `target_machine_id`, `created_at`, `updated_at` etc.  
+- Constraints: NOT NULL, Foreign Keys, evt. Check (quantity > 0), Unique(position_number pro order_id)?  
+- Indizes auf order_id, product_id.
+
+### 3) API-/Backend-Logik beim Erstellen einer neuen Bestellung
+- **Endpoint(s)** prüfen:  
+  - `POST /api/create-order-v3` oder `POST /api/orders` – existieren sie beide, oder nur einer?  
+  - Pfad-Mapping zu Next.js `pages/api/...` bzw. Express-Router.  
+- **Payload-Shape**:  
+  - Vollständige Liste aller in der Tabelle `orders` erforderlichen Felder (incl. `order_date`, `order_number`, `supplier_name`, `location_name` etc.).  
+  - Liste aller in `order_items` benötigten Felder (Product-IDs, Mengen, Preise, Staffelpreise, Rabatt-Felder etc.).  
+- **Validierung**:  
+  - Welche Patterns (Regex) und Längenlimits gelten?  
+  - Zod/Joi/Prisma-Schemas: Feld-Definitionen, `string().nonempty()`, `.regex()`, `.min()/.max()`, `.date()`.  
+- **Transaktion**:  
+  - Werden `orders` und `order_items` in einer DB-Transaktion geschrieben? Rollback-Verhalten bei Teilfehlern?  
+- **Error-Handling**:  
+  - Welche HTTP-Statuscodes wirft der Server im Fehlerfall? Gibt es spezifizierte Error-DTOs mit Feld-Angaben?
+
+### 4) Prozess „Wareneingang“ (Goods Receipt)
+- **Schritt A: Liefereingang erfassen**  
+  - Welcher Endpoint/Service wird aufgerufen (z. B. `POST /api/goods-receipt`)?  
+  - Payload: `order_id`, `received_items: [{ order_item_id, received_quantity, actual_delivery_date, batch_number?, expiry_date? }]`.  
+- **Schritt B: Gegenprüfen**  
+  - Business-Logik:  
+    1. Vergleich `received_quantity` vs. `order_items.quantity`.  
+    2. Bei Abweichung: Fehler­fall, Teillieferung, Backorder-Flag?  
+  - Validierung im Backend: Check Constraints oder Code-Logik.  
+- **Schritt C: Batch/MHD Anlage**  
+  - Nach erfolgreicher Prüfung werden die gelieferten Einheiten mit Batch-Nummer und MHD (`expiry_date`) in Lagerstabellen geschrieben, z. B. `product_batches` oder `stock_entries`.  
+  - Feldmapping:  
+    - `order_item_id` → `batch.order_item_ref`  
+    - `received_quantity` → `batch.quantity`  
+    - `expiry_date` → `batch.expiry_date` (NOT NULL?)  
+    - `warehouse_id` (aus order.location_id) → `batch.warehouse_id`  
+    - `created_by`, `received_date`  
+- **Schritt D: Lagerbestand aktualisieren**  
+  - Sollen bestehende Lagerbestände aufgeteilt werden?  
+  - Update von `stock_levels` oder Inventurtabellen.  
+  - Umgang mit Traceability/History (z. B. Audit-Log, `stock_movements`).
+
+### 5) Konkrete Prüfaufträge
+1. **Schema-Audit:** Führt `DESCRIBE orders;` und `DESCRIBE order_items;` aus, dokumentiert alle Constraints, Defaults, Indizes.  
+2. **API-Contract Review:** Stellt alle JSON-Schemas/TypeScript-Interfaces bereit, die für `createOrderMutation`, `directSqlPayload` und Goods-Receipt genutzt werden. Vergleicht sie automatisch mit der DB-Struktur.  
+3. **End-to-End Testfälle definieren:**  
+   - Auftrag mit Minimum-Payload (nur Pflichtfelder)  
+   - Auftrag mit Sonderzeichen in `notes`, langem String in `supplier_name`  
+   - Teillieferung und Vollerfassung im Wareneingang  
+   - Fehlermuster: Datum fehlerhaft formatiert, Quantität null, SKU ungültig  
+4. **Transaktions- & Rollback-Test:** Simuliert Laufzeitfehler in der Order_Items-Einfügung und überprüft, ob `orders` zurückgerollt werden.  
+5. **Batch/MHD-Workflow-Check:**  
+   - Löst eine Wareneingangs-APi-Aufruf wirklich immer eine Batch-Erzeugung aus?  
+   - Werden MHD-Daten (Datum vs. String-Pattern) korrekt validiert und gespeichert?  
+   - Wie verhält sich das System, wenn das MHD in der Vergangenheit liegt?
+
+### 6) Ergebnisdokumentation
+- Für jeden Prüfpunkt:  
+  - **Status**: OK, Warning, Error  
+  - **Details**: z. B. „In Tabelle orders fehlt Default für payment_status → kann zu NOT NULL-Fehlern führen“  
+  - **Empfehlungen**: konkreter Fix-Vorschlag im Code oder DB-Schema  
+
+---  
+**Ziel:** Vollständiges, lückenloses Verständnis darüber gewinnen,  
+- wie und wo Daten geschrieben werden,  
+- welche Validierungen greifen,  
+- welche Seiteneffekte (Batch, Lagerbestands-Updates) existieren  
+– damit keine versteckten Pattern-Fehler mehr möglich sind und der gesamte Flow robust abgesichert ist.
