@@ -181,7 +181,7 @@ export default function Sidebar() {
               icon={<ShoppingCart className="h-5 w-5 mr-3" />}
               isActive={isActive("/bestellung-v2")}
             >
-              Bestellungen 2.0
+              Bestellungen
             </NavItem>
             {/* Lager-Einträge werden dynamisch geladen */}
             <WarehouseSidebar />

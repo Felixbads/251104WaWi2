@@ -69,7 +69,7 @@ import Reporting from "@/pages/Reporting";
 import Orders from "@/pages/Orders";
 import NewOrder from "@/pages/NewOrder";
 import BestellungV2 from "@/pages/BestellungV2"; // Neue Bestellung 2.0 Seite
-import BestellungV3 from "@/pages/BestellungV3"; // Neue Bestellung 3.0 Seite
+// BestellungV3 wurde entfernt
 import OrderDetail from "@/pages/OrderDetail";
 import OrderReceipt from "@/pages/OrderReceipt";
 import SupplierPortal from "@/pages/SupplierPortal";
@@ -208,11 +208,7 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
 
-        <Route path="/bestellungen/neu-v3" component={props => (
-          <ApprovedUserRoute>
-            <BestellungV3 {...props} />
-          </ApprovedUserRoute>
-        )} />
+        {/* BestellungV3 Route wurde entfernt */}
 
         <Route path="/bestellungen/:id" component={props => (
           <ApprovedUserRoute>
