@@ -1,0 +1,68 @@
+iel: Benutzerführung im Bestellprozess
+
+Wenn ich als Nutzer in der Übersicht eine Bestellung anklicke, möchte ich automatisch in den zur Bestellung passenden Bearbeitungsprozess geführt werden – abhängig vom aktuellen Status der Bestellung.
+
+⸻
+
+🔁 Dynamisches Verhalten beim Klick auf eine Bestellzeile
+
+🟥 Status: „Entwurf“ (draft)
+	•	Die Bestellung wurde begonnen, aber noch nicht versendet.
+	•	Beim Klick auf diese Zeile möchte ich:
+	•	in das ursprüngliche Bestellformular zurückkehren,
+	•	um Positionen hinzuzufügen, zu bearbeiten oder zu löschen,
+	•	sowie ggf. die Bestellung abzuspeichern oder zu versenden.
+
+👉 Ziel-Route: /bestellungen/[id]/edit
+
+⸻
+
+🟧 Status: „Versendet“ (sent)
+	•	Die Bestellung wurde vollständig ausgefüllt und an den Lieferanten übermittelt.
+	•	Beim Klick auf diese Zeile möchte ich:
+	•	eine Übersicht über die versendete Bestellung sehen,
+	•	einschließlich:
+	•	aller Bestellpositionen (mit Menge und Preis),
+	•	dem Versandzeitpunkt,
+	•	der versendeten E-Mail oder Bestell-PDF, falls vorhanden,
+	•	außerdem soll es hier einen Button geben, um direkt in den Wareneingang zu wechseln.
+
+👉 Ziel-Route: /bestellungen/[id]/sent
+
+⸻
+
+🟩 Status: „Wareneingang offen“ (sent, aber Lieferung hat begonnen)
+	•	Die Bestellung wurde versendet und es wird Ware erwartet.
+	•	Wenn ich auf diese Zeile klicke oder aus der sent-Ansicht den nächsten Schritt wähle, möchte ich:
+	•	eine Maske für den Wareneingang öffnen,
+	•	um gelieferte Mengen, MHD und Chargen je Position einzutragen,
+	•	ggf. den Wareneingang teilweise oder vollständig bestätigen.
+
+👉 Ziel-Route: /bestellungen/[id]/wareneingang
+
+⸻
+
+⚙️ Kontextmenü (Drei-Punkte-Menü) je Zeile in der Übersicht
+
+Im Dropdown-Menü (z. B. mit ⋯ Icon) pro Bestellung wünsche ich mir:
+
+Wenn status = draft
+	•	✅ Als „Versendet“ markieren
+→ Setzt den Status manuell auf sent
+→ Bestellzeitpunkt wird gesetzt, E-Mail ggf. nachträglich generiert
+→ Bestellung erscheint danach im Modus „versendet“
+
+Wenn status = sent
+	•	🔁 Zurück auf „Entwurf“ setzen
+→ Ermöglicht eine nachträgliche Bearbeitung
+→ Positionen können wieder verändert werden
+
+👉 Diese Änderungen sollen sich direkt auf die Datenbank auswirken und die Anzeige in der Übersicht aktualisieren, ohne dass ein Reload nötig ist.
+
+⸻
+
+🧠 Wichtig für die technische Umsetzung
+	•	Es muss eine einheitliche Logik beim Klick auf die Zeile geben, die abhängig vom Status automatisch auf die richtige Route oder Ansicht führt.
+	•	Es darf keine separate „leere“ Detail-Ansicht mehr geöffnet werden.
+	•	Die Übergänge zwischen den Prozessschritten sollen ohne Umwege und mit klarer UI-Führung ablaufen.
+	•	Optional: Status-Farben oder Labels in der Übersicht, damit man direkt sieht, in welchem Schritt sich eine Bestellung befindet.

@@ -1,0 +1,112 @@
+Hier die genaue Beschreibung, wie das Click‐ und Status‐Handling in eurer Bestell‐Übersicht ablaufen sollte – inklusive der drei Prozessschritte „Entwurf“, „Versendet“ und „Wareneingang“ sowie der Status‐Änderung im Kontextmenü:
+
+⸻
+
+1. Übersichtstabelle mit Zeilen-Click
+
+In eurer <BestellungenTable> oder wo auch immer die Liste gerendert wird, ersetzt ihr den starren onRowClick durch eine Logik, die den Flow-Status auswertet:
+
+function handleRowClick(order: Order) {
+  switch (order.status) {
+    case 'draft':
+      // 1. Entwurfs-Modus: nochmal editierbar, Positionen hinzufügen
+      router.push(`/bestellungen/${order.id}/edit`);
+      break;
+
+    case 'sent':
+      // 2. Versendet: Details & E-Mail-Overview
+      router.push(`/bestellungen/${order.id}/sent`);
+      break;
+
+    case 'received':
+    case 'partial_received':
+      // 3. Wareneingang: zum Protokollieren neuer Wareneingänge
+      router.push(`/bestellungen/${order.id}/goods‐receipt`);
+      break;
+
+    default:
+      // Fallback: reine Detail-Ansicht
+      router.push(`/bestellungen/${order.id}/details`);
+  }
+}
+
+Und in deinem JSX:
+
+<Tr key={order.id} onClick={() => handleRowClick(order)}>
+  {/* … Zellen … */}
+</Tr>
+
+
+⸻
+
+2. Routen und Pages
+
+Legt unter pages/bestellungen/[id]/ oder euer Routing-Framework entsprechend diese Sub-Routen an:
+	1.	edit.tsx
+	•	Komponente: OrderEditForm
+	•	Funktion: zeigt aktuelle Positionen, erlaubt Hinzufügen, Entfernen, Speichern.
+	•	Verwendet dieselben Form-Initialdaten wie beim Anlegen, aber im Patch-Modus.
+	2.	sent.tsx
+	•	Komponente: OrderSentOverview
+	•	Funktion: zeigt alle bestellten Positionen, Versand-Datum, versendete E-Mail (Text, Anhang).
+	•	Enthält Button „Wareneingang“ → router.push(/bestellungen/${id}/goods‐receipt)
+	3.	goods‐receipt.tsx
+	•	Komponente: GoodsReceiptForm
+	•	Funktion: protokolliert für jede orderItem die receivedQuantity, batchNumber, expiryDate.
+	•	Nach Abschluss: Status auf received (oder partial_received) setzen und ggf. in Übersicht zurück.
+	4.	Optional: details.tsx
+	•	Falls ihr eine reine View ohne Aktionen braucht.
+
+⸻
+
+3. Kontextmenü („Drei Punkte“) – Status ändern
+
+Jede Zeile bekommt rechts ein Dropdown-Menü:
+
+<Menu>
+  <MenuButton as={IconButton} icon={<DotsIcon />} />
+  <MenuList>
+    {order.status === 'draft' && (
+      <MenuItem onClick={() => mutateChangeStatus(order.id, 'sent')}>
+        Als „Versendet“ markieren
+      </MenuItem>
+    )}
+    {order.status === 'sent' && (
+      <MenuItem onClick={() => mutateChangeStatus(order.id, 'draft')}>
+        Zurück auf „Entwurf“ setzen
+      </MenuItem>
+    )}
+    {/* Optional: weitere Status-Übergänge */}
+  </MenuList>
+</Menu>
+
+Die Mutation mutateChangeStatus („PATCH /api/orders/:id/status“)
+	•	ändert nur das Status-Feld
+	•	invalidiert danach den Query-Cache für ['orders'] und ['order', id],
+	•	sodass Tabelle und Detail‐Page sofort den neuen Status zeigen.
+
+⸻
+
+4. End-to-End-Flow-Beispiel
+	1.	Neuer Entwurf (status = 'draft')
+	•	Liste: Eintrag sichtbar
+	•	Klick auf Zeile → /bestellungen/123/edit → Formular zum Bearbeiten
+	2.	Versand
+	•	Im Edit-Form nach Klick auf „Versenden“ Mutation aufrufen → status = 'sent'
+	•	Zurück in Liste: Zeile hat jetzt Status „sent“
+	•	Klick → /bestellungen/123/sent → E-Mail-Overview & Button „Wareneingang“
+	3.	Wareneingang
+	•	Klick auf „Wareneingang“ oder Direktroute → /bestellungen/123/goods‐receipt
+	•	Formular zum Eintragen von Mengen, Batch, MHD
+	•	Abschluss setzt status = 'received' (oder partial_received)
+
+⸻
+
+ToDos für die Umsetzung
+	•	Routen/Pages anlegen (edit.tsx, sent.tsx, goods‐receipt.tsx, ggf. details.tsx).
+	•	handleRowClick in eure Tabelle integrieren.
+	•	Status-Mutation im Drei-Punkte-Menü implementieren.
+	•	Query-Invalidierung nach Status-Änderung sicherstellen.
+	•	E2E-Test-Szenarien für jeden Flow-Step abdecken.
+
+So landet der User beim Klick in genau dem Teil des Prozesses, der zum aktuellen Bestell-Status gehört – und kann immer nahtlos zum nächsten Schritt weitergehen.
