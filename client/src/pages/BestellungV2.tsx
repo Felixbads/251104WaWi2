@@ -213,35 +213,9 @@ const BestellungV2: React.FC = () => {
         // Zum E-Mail-Versand-Schritt wechseln
         setStep('sendOrder');
         
-        // Bestellpositionen direkt über SQL-Endpunkt speichern
-        if (selectedProducts && selectedProducts.length > 0 && orderData.id) {
-          console.log("Speichere Bestellpositionen direkt über SQL-Endpunkt:", selectedProducts.length);
-          
-          const orderItems = selectedProducts.map(product => ({
-            productId: Number(product.id),
-            quantity: Number(product.orderQuantity || 1),
-            price: Number(product.price || 0),
-            unit: product.unit || 'Stück',
-            productName: product.name || product.productName || 'Unbekanntes Produkt'
-          }));
-          
-          // Sende Bestellpositionen an den direkten SQL-Endpunkt
-          fetch(`/api/order-items-direct/${orderData.id}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': localStorage.getItem('auth_token') ? `Bearer ${localStorage.getItem('auth_token')}` : ''
-            },
-            body: JSON.stringify({ items: orderItems })
-          })
-          .then(response => response.json())
-          .then(result => {
-            console.log("Bestellpositionen erfolgreich gespeichert:", result);
-          })
-          .catch(error => {
-            console.error("Fehler beim Speichern der Bestellpositionen:", error);
-          });
-        }
+        // Entferne separaten Aufruf für Bestellpositionen, da sie jetzt direkt
+        // in der Bestellung mitgegeben werden und nicht mehr separat gespeichert werden müssen
+        console.log("Bestellpositionen sind bereits in der Bestellung enthalten und müssen nicht separat gespeichert werden.");
       } else if (data && data.order && data.order.id) {
         // Geschachteltes Format mit order-Objekt
         setOrderId(data.order.id);
