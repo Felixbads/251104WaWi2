@@ -1,0 +1,113 @@
+Vielen Dank für das Bild und die Erläuterung. Ich fasse dein aktuelles Problem strukturiert zusammen, benenne die Ursachen, und formuliere dann, was genau zu tun ist, um dein gewünschtes Verhalten umzusetzen.
+
+⸻
+
+🔎 Aktuelle Probleme
+
+🟥 1. Neue Bestellungen werden nicht in der Liste angezeigt
+	•	Du legst Bestellungen erfolgreich an, aber sie erscheinen nicht in der Übersicht.
+	•	Mögliche Ursache:
+	•	Status ist „draft“, aber der Tabellen-Query filtert auf „sent“ oder „open“.
+	•	Die Query (TanStack/React Query oder Backend SQL) enthält evtl.:
+
+WHERE status IN ('sent', 'open')
+
+→ draft-Status wird ignoriert!
+
+⸻
+
+🟥 2. Klick auf eine Bestellung öffnet generischen Modal mit unvollständigen Daten
+	•	Die aktuelle Komponente lädt zwar die order, aber zeigt:
+	•	Lieferant = Nicht angegeben
+	•	Lager = Nicht angegeben
+	•	Positionen = Keine angezeigt
+	•	Ursachen:
+	•	Entweder lädt orderId nicht alle Daten (kein JOIN auf supplier, location, keine Items).
+	•	Oder der orderId wird nur die ID übergeben, aber der fetch für Details läuft asynchron und wird beim Öffnen nicht vollständig geladen.
+
+⸻
+
+🟥 3. Kein Einstieg in den echten Bestellprozess möglich (Formular + E-Mail-Versand)
+	•	Statt in die ursprüngliche Eingabemaske mit “Produkte auswählen”, “Zusammenfassung”, “Versenden” etc. zu gelangen, öffnet sich nur dieses Mini-Modal.
+	•	Die Anwendung erkennt offenbar nicht, dass der Status draft ist und lädt daher nicht die Bearbeitungsmaske.
+
+⸻
+
+🟥 4. Bei „Produkt auswählen“ fehlt ein „Zurück“-Button
+	•	Du kannst dich nicht zurück in Schritt 1 (z. B. Lieferant + Lager wählen) bewegen.
+	•	Ursache: wahrscheinlich fehlt in der Stepper-Logik der Button für step > 1.
+
+⸻
+
+✅ Was du möchtest (Zielszenario – nochmal konkret)
+
+Wenn ich eine Bestellung anlege oder auf eine Bestellung klicke, möchte ich automatisch:
+	1.	Bei Status draft:
+	•	in den originalen Bestellprozess zurückgeführt werden,
+	•	Produkte hinzufügen, Lager ändern, Bestellung versenden
+	•	also die Komponente mit dem Stepper (Lieferant > Produkte > Vorschau > Senden)
+	2.	Bei Status sent:
+	•	Übersicht aller bestellten Positionen
+	•	Zugriff auf die versendete Mail / PDF
+	•	Button: „Wareneingang erfassen“
+
+⸻
+
+🔧 Was jetzt konkret zu tun ist
+
+✅ 1. Bestellungen in der Liste anzeigen
+	•	➕ In der fetchOrders-Funktion (oder SQL-Query/API):
+	•	Stelle sicher, dass alle Status-Typen enthalten sind, insbesondere draft.
+	•	Beispiel:
+
+const orders = await db.order.findMany({
+  where: { status: { in: ['draft', 'sent', 'open'] } }
+});
+
+
+
+✅ 2. Beim Klick: Routing in den Prozesspfad
+	•	Ersetze das Öffnen des generischen Modals durch einen Redirect basierend auf dem Status:
+
+if (order.status === 'draft') {
+  router.push(`/bestellungen/neu-v2?id=${order.id}`);
+} else if (order.status === 'sent') {
+  router.push(`/bestellungen/${order.id}/sent`);
+}
+
+
+	•	In neu-v2, lade die Bestellung anhand id, befülle den Stepper mit defaultValues, und springe z. B. direkt zu step 2.
+
+✅ 3. Zurück-Button bei Produktauswahl
+	•	In deinem Bestellformular (BestellungV2):
+	•	In Stepper-Komponente prüfen:
+
+{step > 0 && (
+  <Button onClick={() => setStep(step - 1)}>Zurück</Button>
+)}
+
+
+	•	Optional: Zurück deaktivieren, wenn Step = 0 oder Bestellung sent ist.
+
+✅ 4. E-Mail-Versandmaske zugänglich machen
+	•	Wenn status === 'draft', soll:
+	•	der letzte Schritt im Stepper aktiv sein: Vorschau & Versenden
+	•	alternativ: ein eigener Tab „Bestellung versenden“
+
+⸻
+
+📋 Empfehlung für einen Developer-Task / Jira-Ticket
+
+Titel: Routing & Bearbeitbarkeit von Bestellungen je nach Status
+
+Beschreibung:
+
+	•	Neue Bestellungen mit Status draft sollen beim Klick in das Bestellformular (/bestellungen/neu-v2) führen, nicht ins generische Modal.
+	•	Die Stepper-Komponente in neu-v2 muss bei bestehender ID (?id=xyz) die Bestellung laden und vollständig editierbar machen.
+	•	Wenn status === sent, soll der Klick auf eine Bestellung zu /bestellungen/[id]/sent führen.
+	•	Die Übersichtstabelle muss auch draft-Bestellungen anzeigen.
+	•	Im Formular soll ein „Zurück“-Button eingebaut sein, um auch frühere Schritte erneut zu sehen/bearbeiten zu können.
+
+⸻
+
+Wenn du möchtest, baue ich dir diesen Redirect und Stepper-Codeabschnitt direkt um oder simuliere das fertige UX-Flussdiagramm. Sag einfach Bescheid.
