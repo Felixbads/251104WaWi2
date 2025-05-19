@@ -1,0 +1,70 @@
+Aktuell habt ihr eure Zeilen-Click-Logik so aufgesetzt, dass sie immer auf dieselbe Route führt (die “schlechte Übersichtsseite” mit allen Labels „Nicht angegeben“), egal welcher Status anliegt. Deswegen landet ihr nie im E-Mail-Formular oder im Wareneingang.
+
+Was gerade passiert
+	•	Ihr nutzt vermutlich für jede Tabellenzeile einen einfachen
+
+<Tr onClick={() => router.push(`/bestellungen/${order.id}`)}>
+  …  
+</Tr>
+
+
+	•	Die Route /bestellungen/[id] ist aber gerade so definiert, dass sie nur eine generische Übersicht rendert und weder in das E-Mail- noch in das Wareneingangs-Formular reinwechselt.
+
+Wie es stattdessen aussehen muss
+	1.	Status-abhängige Navigation
+Entscheidet beim Klick, wohin der User soll:
+
+function goToOrder(order) {
+  if (order.status === 'draft') {
+    // Entwurf → E-Mail-Versand
+    router.push(`/bestellungen/${order.id}/email`);
+  } else if (order.status === 'sent') {
+    // Gesendet → Wareneingang
+    router.push(`/bestellungen/${order.id}/wareneingang`);
+  } else {
+    // Alle anderen → Detail-View
+    router.push(`/bestellungen/${order.id}/details`);
+  }
+}
+
+Und in eurer Tabelle:
+
+<Tr key={order.id} onClick={() => goToOrder(order)}>
+  …
+</Tr>
+
+
+	2.	Routen/Pages anlegen
+Legt in pages/bestellungen/ (oder eurem Routing-Framework entsprechend) drei Dateien an:
+	•	[id]/email.tsx → rendert euer E-Mail-Formular
+	•	[id]/wareneingang.tsx → rendert das Wareneingangs-Formular
+	•	[id]/details.tsx → reine Detail-Ansicht (wenn ihr die braucht)
+	3.	Modals statt Full-Page?
+Wenn ihr eigentlich mit Modals arbeitet und keinen echten Seitenwechsel wollt, könnt ihr stattdessen:
+
+function onRowClick(order) {
+  if (order.status === 'draft') {
+    emailModal.onOpen(order.id);
+  } else if (order.status === 'sent') {
+    goodsReceiptModal.onOpen(order.id);
+  } else {
+    detailsModal.onOpen(order.id);
+  }
+}
+
+und in euren Komponenten jeweils das passende Modal rendern.
+
+	4.	Daten vorladen
+In jedem Formular-Page/Modal fetcht ihr dann per useQuery(['order', id]) die Bestelldaten und nutzt sie für E-Mail-Versand oder Wareneingang.
+
+⸻
+
+Zusammenfassung
+	•	Problem: Alle Klicks routen auf dieselbe generische Page.
+	•	Lösung: Klick-Handler um Status-Check erweitern und auf spezialisierte Routen/Modals verweisen.
+	•	Next Steps:
+	1.	Routen für /email und /wareneingang anlegen.
+	2.	goToOrder(order) implementieren (bzw. Modal-Öffnung).
+	3.	Testen: Entwurf → E-Mail, Gesendet → Wareneingang, Sonstige → Detail.
+
+So bekommt ihr direkt das richtige Formular statt der leeren Übersichtsseite.

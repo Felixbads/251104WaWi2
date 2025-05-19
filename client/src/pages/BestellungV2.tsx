@@ -457,16 +457,32 @@ const BestellungV2: React.FC = () => {
     setStep('warehouseReceiptOfExistingOrder');
   };
   
-  // Function to handle selecting an order from the overview
-  const handleSelectOrder = (orderId: number) => {
-    console.log("Bestellung ausgewählt:", orderId);
+  // Status-abhängige Navigation für Bestellungen
+  const handleSelectOrder = (selectedOrder: any) => {
+    console.log("Bestellung ausgewählt:", selectedOrder.id, "Status:", selectedOrder.status);
     
-    // Set orderId and open order details
-    setOrderId(orderId);
-    setOrderDetailsOpen(true);
+    // Set orderId für Verwendung in anderen Komponenten
+    setOrderId(selectedOrder.id);
     
-    // NICHT automatisch zur E-Mail-Seite wechseln!
-    // Die E-Mail-Vorbereitung wird nur gestartet, wenn der Benutzer explizit auf "E-Mail senden" klickt
+    // Status-abhängige Navigation implementieren
+    if (selectedOrder.status === 'draft') {
+      console.log("Draft-Bestellung - öffne nur Details (später E-Mail senden möglich)");
+      // Bestelldetails öffnen
+      setOrderDetailsOpen(true);
+      setExistingOrderData(selectedOrder);
+    } 
+    else if (selectedOrder.status === 'sent') {
+      console.log("Gesendete Bestellung - bereite Wareneingang vor");
+      // Direkt zum Wareneingang
+      setStep('warehouseReceiptOfExistingOrder');
+      setExistingOrderData(selectedOrder);
+    } 
+    else {
+      console.log("Andere Bestellung - zeige Details");
+      // Für alle anderen Status einfach die Details anzeigen
+      setOrderDetailsOpen(true);
+      setExistingOrderData(selectedOrder);
+    }
   };
   
   // Email sending function
