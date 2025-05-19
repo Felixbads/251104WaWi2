@@ -472,9 +472,9 @@ const BestellungV2: React.FC = () => {
       
       // Status-abhängige Navigation implementieren
       if (selectedOrder.status === 'draft') {
-        console.log("Draft-Bestellung - öffne nur Details (später E-Mail senden möglich)");
-        // Bestelldetails öffnen
-        setOrderDetailsOpen(true);
+        console.log("Draft-Bestellung - direkt zur E-Mail-Versandansicht");
+        // Bei Entwürfen direkt zur E-Mail-Versandansicht wechseln
+        setStep('sendOrder');
         setExistingOrderData(selectedOrder);
       } 
       else if (selectedOrder.status === 'sent') {
