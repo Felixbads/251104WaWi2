@@ -44,6 +44,14 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 
 // Import custom components
@@ -1192,6 +1200,7 @@ const BestellungV2: React.FC = () => {
       
       {renderContent()}
       
+      {/* Dialog für E-Mail-Versand */}
       {showEmailDialog && (
         <OrderEmailDialog
           orderId={orderId}
@@ -1201,6 +1210,118 @@ const BestellungV2: React.FC = () => {
           onOpenChange={setShowEmailDialog}
           onSendEmail={handleSendEmail}
         />
+      )}
+      
+      {/* Dialog für Bestelldetails */}
+      {orderDetailsOpen && orderId && existingOrderData && (
+        <Dialog open={orderDetailsOpen} onOpenChange={setOrderDetailsOpen}>
+          <DialogContent className="sm:max-w-[800px]">
+            <DialogHeader>
+              <DialogTitle>Bestellung {orderNumber || `#${orderId}`}</DialogTitle>
+              <DialogDescription>
+                Details zur ausgewählten Bestellung
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h3 className="text-sm font-medium">Lieferant</h3>
+                  <p>{existingOrderData.supplierName || 'Nicht angegeben'}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium">Lager</h3>
+                  <p>{existingOrderData.warehouseName || 'Nicht angegeben'}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium">Status</h3>
+                  <p>
+                    <Badge variant={existingOrderData.status === 'delivered' ? 'success' : 
+                              (existingOrderData.status === 'draft' ? 'outline' : 'default')}>
+                      {existingOrderData.status === 'draft' ? 'Entwurf' : 
+                       existingOrderData.status === 'ordered' ? 'Bestellt' : 
+                       existingOrderData.status === 'delivered' ? 'Geliefert' : 
+                       existingOrderData.status}
+                    </Badge>
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium">Bestelldatum</h3>
+                  <p>{existingOrderData.orderDate ? new Date(existingOrderData.orderDate).toLocaleDateString('de-DE') : 'Nicht angegeben'}</p>
+                </div>
+              </div>
+              
+              <Separator className="my-2" />
+              
+              <div>
+                <h3 className="text-sm font-medium mb-2">Bestellpositionen</h3>
+                {Array.isArray(existingOrderData.items) && existingOrderData.items.length > 0 ? (
+                  <div className="border rounded-md">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="bg-muted/50">
+                          <th className="p-2 text-left">Produkt</th>
+                          <th className="p-2 text-right">Menge</th>
+                          <th className="p-2 text-right">Preis</th>
+                          <th className="p-2 text-right">Gesamt</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {existingOrderData.items.map((item: any, index: number) => (
+                          <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-muted/20'}>
+                            <td className="p-2">{item.productName}</td>
+                            <td className="p-2 text-right">{item.quantity} {item.unit || 'Stk'}</td>
+                            <td className="p-2 text-right">{(item.unitPrice || item.price)?.toFixed(2) || '0.00'} €</td>
+                            <td className="p-2 text-right">{((item.unitPrice || item.price || 0) * item.quantity).toFixed(2)} €</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-muted-foreground">
+                    Keine Bestellpositionen vorhanden
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <DialogFooter className="gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setOrderDetailsOpen(false)}
+              >
+                Schließen
+              </Button>
+              
+              {existingOrderData.status === 'draft' && (
+                <Button 
+                  onClick={() => {
+                    setOrderDetailsOpen(false);
+                    setStep('sendOrder');
+                    // E-Mail-Vorbereitung starten
+                    prepareOrderEmail(existingOrderData);
+                  }}
+                >
+                  <Mail className="mr-2 h-4 w-4" />
+                  E-Mail senden
+                </Button>
+              )}
+              
+              {!existingOrderData.receivedAt && (
+                <Button 
+                  onClick={() => {
+                    setOrderDetailsOpen(false);
+                    handleReceiveOrder(orderId);
+                  }}
+                >
+                  <Package className="mr-2 h-4 w-4" />
+                  Wareneingang
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
