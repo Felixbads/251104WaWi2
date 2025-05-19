@@ -1,0 +1,92 @@
+Ich habe mir deinen Frontend-Code angeschaut und dabei die folgenden Punkte gefunden, an denen es immer noch hakt:
+
+⸻
+
+1. Endpoint „/api/create-order-v3” existiert wahrscheinlich nicht
+
+Du schickst die neue Bestellung mit
+
+const response = await fetch('/api/create-order-v3', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    ...(storedToken ? { Authorization: `Bearer ${storedToken}` } : {})
+  },
+  body: JSON.stringify(directOrderData)
+});
+
+– stelle sicher, dass du im Verzeichnis pages/api/ deiner Next.js-App auch wirklich eine Datei create-order-v3.ts oder einen passenden Catch-All-Handler hast. Falls deine API-Route anders heißt (z.B. pages/api/orders/index.ts oder pages/api/orders/create.ts), wird immer ein 500 Internal Server Error geworfen, weil keine passende Route gefunden bzw. intern ein Fehler geworfen wird.
+
+✔ ToDo:
+	•	Prüfe im Backend, ob pages/api/create-order-v3.ts existiert und exportiert wird.
+	•	Falls die Route anders heißt, passe den fetch-Pfad im Frontend an (z.B. fetch('/api/orders', { … })).
+
+⸻
+
+2. Mismatch zwischen Payload und Backend-Schema
+
+Dein directOrderData enthält nur
+
+{
+  warehouseId,
+  supplierId,
+  expectedDeliveryDate,
+  notes,
+  status: 'draft',
+  orderItems: [ … ]
+}
+
+Viele Backends erwarten aber zusätzliche Pflichtfelder, z.B.
+	•	orderDate (default = heutiges Datum),
+	•	priority (wenn das DB-Feld NOT NULL ist),
+	•	oder weitere Meta-Felder wie createdBy.
+
+Fehlt so ein Pflichtfeld, wirft dein ORM/SQL-Layer sofort einen Constraint-Fehler und du bekommst ein 500 zurück.
+
+✔ ToDo:
+	•	Vergleiche dein JSON (directOrderData) gegen das tatsächliche Datenbankschema (z.B. in Prisma-/TypeORM-Modellen oder in deinen SQL-Migrations).
+	•	Füge alle NOT NULL-Spalten in directOrderData hinzu oder gib Default-Werte im Backend.
+
+⸻
+
+3. Inkonsequenter Einsatz von fetch und apiRequest
+	•	Für alle anderen Requests benutzt du apiRequest(...), das vermutlich automatisch Basis-URL, Token und Error-Handling übernimmt.
+	•	Bei der Order-Erstellung wechselst du aber zu fetch. Dadurch kann es sein, dass deine „globale“ Interceptor-Logik (z.B. Refresh-Token, Base-URL, automatisches JSON-Parsing) umgangen wird und Header oder URL-Präfix fehlen.
+
+✔ ToDo:
+	•	Vereinheitliche alle Aufrufe auf apiRequest('/api/orders', directOrderData, 'post').
+	•	Entferne das manuelle fetch, so werden alle Calls identisch behandelt und das Caching mit TanStack Query greift überall gleich.
+
+⸻
+
+4. Falsches Response-Shape beim Laden der Bestellpositionen
+
+Für das Nachladen nutzt du
+
+const response = await apiRequest(`/api/orders/${orderId}/items`);
+if (!Array.isArray(response.data) && !Array.isArray(response.data.items)) {
+  throw new Error(...);
+}
+
+Wenn dein Backend aber etwa { success: true, data: { positions: […] } } oder { items: […], meta: { … } } zurückgibt, findet der Check nie ein Array und bricht mit deinem „Die Bestellpositionen konnten nicht geladen werden.”-Toast ab.
+
+✔ ToDo:
+	•	Öffne im Browser-DevTools Network-Tab den tatsächlichen JSON-Body von /api/orders/123/items.
+	•	Passe deinen Frontend-Check an den echten Schlüssel an (z.B. response.data.positions statt response.data.items).
+
+⸻
+
+5. Logs und HTTP-Statuscodes genau anschauen
+	•	Führe die Next.js-App mit npm run dev bzw. next dev und schau dir die Server-Konsole an, dort steht in der Regel der genaue Stacktrace zum 500er.
+	•	Im Browser-DevTools Network siehst du auch, ob es ein CORS-Problem ist, ob die URL falsch ist (404 statt 500) oder ob ein Body fehlt.
+
+⸻
+
+Nächste Schritte
+	1.	Routen prüfen: Stimmen die Pfade zwischen Frontend-Fetch und pages/api-Dateien überein?
+	2.	Schema prüfen: Entsprechen deine JSON-Payloads den erwarteten DTOs im Backend?
+	3.	Einheitliches API-Client: Benutze durchgehend apiRequest für alle Aufrufe.
+	4.	Response-Shape anpassen: Nutze exakt die Feldnamen (items, positions, data) wie vom Server geliefert.
+	5.	Logs analysieren: Nutze die Server-Logs und DevTools-Network-Tab für präzise Fehlermeldungen.
+
+Wenn du diese Punkte abarbeitest, sollte das 500er-Problem beim Anlegen und der Ladefehler bei den Positionen endgültig verschwinden. Lass mich wissen, welche Fehlermeldung dann noch übrig bleibt!
