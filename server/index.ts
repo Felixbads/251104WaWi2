@@ -76,6 +76,9 @@ app.use((req, res, next) => {
   // Direkten SQL-Zugriff für Bestellungen und andere DB-Abfragen bereitstellen
   app.use('/api', directSqlRouter);
   
+  // Order V3 Router für die neue Bestellungsversion
+  app.use('/api', orderV3Router);
+  
   // SQL-Direktzugriff-Endpunkte für Datenbankabfragen
   app.get('/api/sql-orders', async (req, res) => {
     try {

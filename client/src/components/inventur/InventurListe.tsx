@@ -86,11 +86,14 @@ export default function InventurListe() {
     refetchOnMount: true,
   });
 
-  // Lade verfügbare Lager
-  const { data: warehouses = [], isLoading: isLoadingWarehouses } = useQuery<Warehouse[]>({
-    queryKey: ['/api/warehouses'],
+  // Lade verfügbare Lager (direkt über SQL-Endpunkt)
+  const { data: warehousesResponse, isLoading: isLoadingWarehouses } = useQuery({
+    queryKey: ['/api/warehouses-direct'],
     staleTime: 5 * 60 * 1000, // 5 Minuten Cache
   });
+  
+  // Extrahiere die Lager aus der Antwort oder verwende leeres Array
+  const warehouses: Warehouse[] = (warehousesResponse?.data || []);
 
   // Filtere Inventuren nach ausgewähltem Lager
   const filteredInventuren = inventurDaten.filter((inventur) => {
