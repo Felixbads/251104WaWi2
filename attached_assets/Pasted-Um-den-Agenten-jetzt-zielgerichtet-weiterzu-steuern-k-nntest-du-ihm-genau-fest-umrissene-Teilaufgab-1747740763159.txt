@@ -1,0 +1,33 @@
+Um den Agenten jetzt zielgerichtet weiterzu­steuern, könntest du ihm genau fest umrissene Teilaufgaben geben. Mein Vorschlag:
+	1.	Zuerst den E-Mail-Versand prüfen
+	•	Prompt an den Agenten:
+„Lege eine Testbestellung in Status ‘draft’ mit allen nötigen Feldern (supplier_name, supplier_email, location_id) an. Führe dann die Funktion sendOrder isoliert aus und protokolliere
+	1.	den Request-Payload an den SMTP-Server,
+	2.	die Response des Servers
+	3.	alle Fehlermeldungen im Frontend-Console-Log.“
+	•	Ziel:
+	•	Sicherstellen, dass die nötigen Felder auch tatsächlich übergeben werden.
+	•	Nachvollziehen, ob und warum das SMTP-Request fehlschlägt (z. B. Authentifizierungsfehler, Timeout, falsche Template-Daten).
+	2.	Anschließend das Öffnen von Bestellungen debuggen
+	•	Prompt an den Agenten:
+„Rufe den API-Endpoint /orders/{orderId} direkt (z. B. via Postman oder curl) auf und gib mir
+	1.	die vollständige HTTP-Antwort (Statuscode + Body),
+	2.	die exakte Fehlermeldung, die beim Versuch, die Bestellung im Frontend zu laden, im Browser-Console-Log erscheint.
+Vergleiche außerdem die geladene JSON-Antwort mit den Feldern, die das React-Interface (existingOrderData) erwartet.“
+	•	Ziel:
+	•	Herausfinden, ob Backend und Frontend dieselben Feldnamen nutzen (z. B. warehouseId vs. location_id).
+	•	Den genauen Zeitpunkt und Ort (Komponente, Zeilennummer) isolieren, an dem das Öffnen scheitert.
+	3.	Datenmodell-Konsistenz prüfen
+	•	Prompt an den Agenten:
+„Stelle eine SQL-Abfrage zusammen, die für eine gegebene order_id aus beiden Tabellen (orders, order_items) alle Spalten ausgibt. Vergleiche das Ergebnis mit dem, was im Frontend angezeigt wird. Notiere, welche Felder fehlen oder falsch gemappt sind.“
+	•	Ziel:
+	•	Absolutes Mapping zwischen DB-Spalten und Frontend-Props herstellen.
+	•	Lücken für MHD/Batches aufdecken.
+
+⸻
+
+Wie du dem Agenten konkret schreibst:
+
+„Agent, bitte führe Schritt 1 aus (Test-E-Mail-Versand) und liefere mir innerhalb von 1–2 Konsolen-Logs: Request-Payload, SMTP-Response, Browser-Errors. Danach diskutieren wir das Ergebnis und fahren mit Schritt 2 fort.“
+
+Auf diese Weise erhältst du klar strukturierte Outputs pro Teilproblem und kannst nach jedem Schritt entscheiden, ob du tiefer in den E-Mail-Versand, das Frontend-Laden oder das Datenmodell einsteigst.
