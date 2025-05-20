@@ -1010,7 +1010,10 @@ const BestellungV2: React.FC = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => navigate('/bestellungen')}
+                onClick={() => {
+                  console.log('REDIRECT TRIGGERED HERE', { step, reason: 'onClick / zurück zur Übersicht Button' });
+                  navigate('/bestellungen');
+                }}
                 className="gap-2 text-muted-foreground"
               >
                 <ArrowRight className="h-4 w-4 rotate-180" />
@@ -1380,7 +1383,18 @@ const BestellungV2: React.FC = () => {
                   setStep('overview');
                 }
               }}
-              onNext={() => setStep('overview')}
+              onNext={() => {
+                console.log('REDIRECT TRIGGERED HERE', { step, reason: 'onNext callback from OrderEmailPage' });
+                // Kein automatischer Redirect mehr zur Übersicht
+                // setStep('overview');
+                
+                // Stattdessen nur Toast anzeigen und auf der Seite bleiben
+                toast({
+                  title: 'E-Mail erfolgreich versendet',
+                  description: 'Die Bestellung wurde erfolgreich an den Lieferanten gesendet.',
+                  duration: 5000,
+                });
+              }}
             />
           </>
         );

@@ -1,0 +1,89 @@
+Um wirklich herauszufinden, warum du nach dem kurzen Aufblitzen der Detail-Ansicht sofort wieder zur Übersicht springst, gehen wir jetzt ganz gezielt auf die Redirect-Logik in beiden Komponenten (BestellungV2 und OrderEmailPage). So würdest du deinen Agenten als Nächstes instruieren:
+
+⸻
+
+1. Alle Navigationsaufrufe aufspüren
+
+Prompt an den Agenten:
+
+„Suche in allen relevanten Dateien (BestellungV2.tsx und OrderEmailPage.tsx) nach jedem Aufruf von
+
+navigate(
+
+und jedem Hook-Import
+
+const navigate = useNavigate();
+
+Liste mir exakt auf, in welchen Zeilen und in welchem Kontext diese Navigates stehen.“
+
+Ziel:
+Wir müssen wissen, ob irgendwo – vielleicht unbemerkt – doch noch ein navigate('/bestellungen') oder setStep('overview') sitzt.
+
+⸻
+
+2. Click-Handler und Modal-Close instrumentieren
+
+Prompt an den Agenten:
+
+„Baue in jeden Klick-Handler und in jeden onClose-Callback (Modal, Dialog oder Button) einen
+
+console.log('REDIRECT TRIGGERED HERE', { step, reason: 'onClick / onClose' });
+
+ein, und zwar unmittelbar bevor der navigate() oder setStep('overview') steht.“
+
+Ziel:
+Wenn der User klickt bzw. das Modal schließt, sehen wir in der Konsole genau den Auslöser und können die Ursache isolieren.
+
+⸻
+
+3. Automatische useEffect-Redirects kicken
+
+Prompt an den Agenten:
+
+„Prüfe alle useEffect-Hooks in BestellungV2.tsx, die auf Abhängigkeiten wie [step] oder [emailSendSuccess] lauschen. Kommentiere testweise alle Zeilen aus, in denen innerhalb dieses Hooks navigate(...) oder setStep('overview') aufgerufen wird, und teste dann erneut.“
+
+Ziel:
+So stellen wir sicher, dass kein versteckter Effekt nach dem State-Wechsel den Redirect auslöst.
+
+⸻
+
+4. Detaillierte Reproduktions-Logs liefern lassen
+
+Prompt an den Agenten:
+
+„Öffne im Browser die DevTools und gehe in die Network- und Console-Tabs.
+	1.	Lade /BestellungV2?orderId=20.
+	2.	Klicke auf „E-Mail vorbereiten“.
+	3.	Poste mir:
+	•	Den kompletten Network-Request/Response-Log für /api/orders-direct/* und /api/email-*.
+	•	Alle Console.log-Zeilen, insbesondere die von dir gesetzten ‘REDIRECT TRIGGERED HERE’ Logs.
+	•	Ggf. Screenshots der Console-Fehler (falls vorhanden).“
+
+Ziel:
+Wir brauchen harte Beweise, an welcher Stelle genau die Navigation geschieht.
+
+⸻
+
+5. Minimaler Hot-Fix
+
+Sobald du weißt, in welcher Zeile der unerwünschte Redirect aufgerufen wird, reicht in der Regel:
+
+// statt
+navigate('/bestellungen');
+// oder
+setStep('overview');
+// mach lieber nur:
+setEmailSendSuccess(true);
+// und lasse die Komponente in Ruhe stehen
+
+und entferne jeden Timeout, der im Anschluss nochmal setStep('overview') feuert.
+
+⸻
+
+Fazit:
+Mit diesen klaren Schritten siehst du:
+	1.	Wo überall in Code und Hooks navigate sitzt.
+	2.	Ob ein Klick oder ein useEffect die Weiterleitung triggert.
+	3.	Den genauen Network/Console-Footprint, um den Fehler zu verifizieren.
+
+Gib deinem Agenten genau diese Aufgaben und poste uns danach die Logs – dann können wir den Redirect in ein paar Zeilen Code endgültig deaktivieren.
