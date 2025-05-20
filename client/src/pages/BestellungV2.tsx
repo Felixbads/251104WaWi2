@@ -68,7 +68,7 @@ import OrdersOverview from '@/components/orderv2/OrdersOverview';
 import { Badge } from '@/components/ui/badge';
 
 // Define the order steps
-type OrderStep = 'overview' | 'warehouse' | 'mode' | 'supplier' | 'products' | 'additionalInfo' | 'summary' | 'sendOrder' | 'goodsReceipt' | 'warehouseReceiptOfExistingOrder';
+type OrderStep = 'overview' | 'warehouse' | 'mode' | 'supplier' | 'products' | 'additionalInfo' | 'summary' | 'viewOrder' | 'sendOrder' | 'goodsReceipt' | 'warehouseReceiptOfExistingOrder';
 
 const BestellungV2: React.FC = () => {
   const { toast } = useToast();
@@ -570,9 +570,9 @@ const BestellungV2: React.FC = () => {
       
       // Status-abhängige Navigation implementieren
       if (selectedOrder.status === 'draft') {
-        console.log("Draft-Bestellung - direkt zur E-Mail-Versandansicht");
-        // Bei Entwürfen direkt zur E-Mail-Versandansicht wechseln
-        setStep('sendOrder');
+        console.log("Draft-Bestellung - zur Ansicht wechseln");
+        // Bei Entwürfen zur Ansicht wechseln statt direkt E-Mail vorzubereiten
+        setStep('viewOrder');
         setExistingOrderData(selectedOrder);
       } 
       else if (selectedOrder.status === 'sent') {
@@ -1203,6 +1203,123 @@ const BestellungV2: React.FC = () => {
             isSubmitting={createOrderMutation.isPending}
           />
         );
+      case 'viewOrder':
+        if (!existingOrderData) {
+          return (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Fehler beim Laden</AlertTitle>
+              <AlertDescription>
+                Die Bestelldaten konnten nicht geladen werden.
+              </AlertDescription>
+            </Alert>
+          );
+        }
+        
+        return (
+          <>
+            <div className="flex justify-between items-center mb-4">
+              <Button 
+                variant="outline" 
+                onClick={() => setStep('overview')}
+                size="sm"
+              >
+                <ChevronRight className="mr-2 h-4 w-4 rotate-180" />
+                Zurück zur Übersicht
+              </Button>
+              
+              <Button 
+                onClick={() => {
+                  // E-Mail-Vorbereitung explizit starten
+                  prepareOrderEmail(existingOrderData);
+                  setStep('sendOrder');
+                }}
+              >
+                <Mail className="mr-2 h-4 w-4" />
+                E-Mail vorbereiten
+              </Button>
+            </div>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>Bestellung #{existingOrderData.order_number || existingOrderData.id}</CardTitle>
+                <CardDescription>
+                  Erstellt am {new Date(existingOrderData.created_at).toLocaleDateString()}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  <div>
+                    <h3 className="text-sm font-medium">Lieferant</h3>
+                    <p>{existingOrderData.supplierName || existingOrderData.supplier_name || 'Nicht angegeben'}</p>
+                    {existingOrderData.supplierEmail && (
+                      <p className="text-sm text-muted-foreground">{existingOrderData.supplierEmail}</p>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium">Lieferort</h3>
+                    <p>{existingOrderData.warehouseName || existingOrderData.location_name || 'Nicht angegeben'}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium">Status</h3>
+                    <Badge variant={existingOrderData.status === 'draft' ? 'outline' : 'default'}>
+                      {existingOrderData.status === 'draft' ? 'Entwurf' : 
+                       existingOrderData.status === 'sent' ? 'Gesendet' : existingOrderData.status}
+                    </Badge>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium">Erwartetes Lieferdatum</h3>
+                    <p>{existingOrderData.expected_delivery_date ? 
+                        new Date(existingOrderData.expected_delivery_date).toLocaleDateString() : 
+                        'Nicht angegeben'}</p>
+                  </div>
+                </div>
+                
+                <h3 className="text-sm font-medium mb-2">Bestellte Artikel</h3>
+                {existingOrderData.items && existingOrderData.items.length > 0 ? (
+                  <div className="border rounded-md">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Produkt</TableHead>
+                          <TableHead className="text-right">Menge</TableHead>
+                          <TableHead className="text-right">Preis</TableHead>
+                          <TableHead className="text-right">Gesamt</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {existingOrderData.items.map((item: any) => (
+                          <TableRow key={item.id || item.product_id}>
+                            <TableCell>{item.product_name || item.productName}</TableCell>
+                            <TableCell className="text-right">{item.quantity} {item.unit || 'Stk.'}</TableCell>
+                            <TableCell className="text-right">{(item.unit_price || item.unitPrice || 0).toFixed(2)} €</TableCell>
+                            <TableCell className="text-right">{(item.total_price || (item.quantity * (item.unit_price || item.unitPrice || 0)) || 0).toFixed(2)} €</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                      <TableFooter>
+                        <TableRow>
+                          <TableCell colSpan={3}>Gesamtbetrag</TableCell>
+                          <TableCell className="text-right">{(existingOrderData.total_amount || 0).toFixed(2)} €</TableCell>
+                        </TableRow>
+                      </TableFooter>
+                    </Table>
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground">Keine Artikel in dieser Bestellung.</p>
+                )}
+                
+                {existingOrderData.notes && (
+                  <div className="mt-6">
+                    <h3 className="text-sm font-medium mb-2">Notizen</h3>
+                    <p className="text-sm">{existingOrderData.notes}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        );
+        
       case 'sendOrder':
         return (
           <>
@@ -1210,11 +1327,15 @@ const BestellungV2: React.FC = () => {
               <Button 
                 variant="outline" 
                 onClick={() => {
+                  // Wenn es eine bestehende Bestellung ist, gehen wir zurück zur Bestellungsansicht
+                  if (existingOrderData) {
+                    setStep('viewOrder');
+                  } 
                   // Wenn es eine neue Bestellung ist, gehen wir zurück zur Zusammenfassung
-                  if (createOrderMutation.isPending || createOrderMutation.isSuccess) {
+                  else if (createOrderMutation.isPending || createOrderMutation.isSuccess) {
                     setStep('summary');
                   } else {
-                    // Ansonsten zurück zur Übersicht
+                    // Fallback: zurück zur Übersicht
                     setStep('overview');
                   }
                 }}
@@ -1228,18 +1349,19 @@ const BestellungV2: React.FC = () => {
             <OrderEmailPage
               orderId={orderId}
               supplierEmail={existingOrderData?.supplierEmail || ''}
-              orderNumber={orderNumber}
-              supplierName={supplierName}
+              orderNumber={orderNumber || existingOrderData?.order_number}
+              supplierName={supplierName || existingOrderData?.supplierName || existingOrderData?.supplier_name}
               onSendEmail={handleSendEmail}
               onBack={() => {
-                if (orderMode === 'new') {
+                if (existingOrderData) {
+                  setStep('viewOrder');
+                } else if (orderMode === 'new') {
                   setStep('summary');
                 } else {
                   setStep('overview');
                 }
               }}
               onNext={() => setStep('overview')}
-            />
           </>
         );
       case 'goodsReceipt':

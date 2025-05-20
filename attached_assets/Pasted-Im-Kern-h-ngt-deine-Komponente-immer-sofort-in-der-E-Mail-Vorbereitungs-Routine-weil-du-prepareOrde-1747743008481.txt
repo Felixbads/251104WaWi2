@@ -1,0 +1,58 @@
+Im Kern hängt deine Komponente immer sofort in der E-Mail-Vorbereitungs-Routine, weil du prepareOrderEmail(...) direkt nach dem Laden der Bestellung aufrufst – egal ob der User das will oder nicht. Um das zu entkoppeln und das „Öffnen“ wirklich als reinen Lese-Step zu behandeln, würde ich deinem Agenten jetzt folgendes als nächsten Auftrag geben:
+
+⸻
+
+1. E-Mail-Vorbereitung nur im richtigen Step ausführen
+
+Prompt an den Agenten:
+„Entferne alle direkten Aufrufe von prepareOrderEmail(...) aus den useEffect-Hooks, die beim Laden der Bestellung feuern. Sorge stattdessen dafür, dass prepareOrderEmail nur dann aufgerufen wird, wenn der User in der UI explizit den Button „E-Mail vorbereiten“ klickt (also wenn step === 'sendOrder').“
+
+Warum?
+	•	Aktuell wird beim Laden jeder Bestellung sofort die E-Mail-Logik getriggert und der Toast „E-Mail wird vorbereitet…“ angezeigt, obwohl du eigentlich nur die Daten anzeigen willst.
+	•	Durch die Entkoppelung schaltest du das Laden (View-Mode) von der E-Mail-Vorbereitung (Send-Mode) sauber.
+
+⸻
+
+2. Neuen „View-Step“ einführen
+
+Prompt an den Agenten:
+„Ergänze einen neuen State-Step 'viewOrder' und setze ihn direkt nach dem erfolgreichen Laden einer bestehenden Bestellung (Status draft) – anstatt weiter im 'sendOrder'-Step zu bleiben. Passe alle setStep(...)-Aufrufe entsprechend an.“
+
+Konkret
+	•	Nach
+
+setExistingOrderData(orderData);
+
+folgt
+
+setStep('viewOrder');
+
+
+	•	Passe alle Stellen an, die im Anschluss auf step === 'sendOrder' prüfen, sodass sie nur noch dann true sind, wenn der User in der UI wirklich in den E-Mail-Modus wechseln will.
+
+⸻
+
+3. Load-Button oder UI-Trigger anlegen
+
+Prompt an den Agenten:
+„Füge in der OrderEmailPage (bzw. am Ende der Detail-Ansicht) einen Button „E-Mail vorbereiten“ ein, der
+	1.	setStep('sendOrder') macht
+	2.	prepareOrderEmail(existingOrderData) triggert“
+
+Warum?
+	•	So gibt der User selbst den Kick-off zum E-Mail-Versand und sieht nicht beim reinen Öffnen schon den E-Mail-Toast.
+
+⸻
+
+4. Testen und Verifizieren
+
+Sobald diese Änderungen implementiert sind, führe bitte diese Tests durch und liefere mir:
+	1.	Network-Log beim Öffnen einer Bestellung (ohne Klick auf „E-Mail vorbereiten“) – es dürfen keine /api/orders-direct…-Requests für E-Mail Templates o.Ä. ausgelöst werden.
+	2.	Console-Log des step-Werts direkt nach dem Laden – er muss viewOrder lauten.
+	3.	Screenshot der Detail-Ansicht – es darf kein E-Mail-Dialog oder Toast automatisch kommen.
+
+Erst wenn diese Basics sauber laufen, gehen wir an den nächsten Part (E-Mail-Dialog, SMTP-Test, Batch-MHD usw.).
+
+⸻
+
+Damit hast du einen klaren, in sich schlüssigen Plan, den du dem Agenten geben kannst – Schritt für Schritt statt auf einmal. So siehst du direkt, wo’s klemmt, und vermeidest, dass UI-State und E-Mail-Logik sich gegenseitig ins Gehege kommen.
