@@ -1,0 +1,67 @@
+Da die Änderung in BestellungV2.tsx jetzt sauber ist und der Redirect dort nicht mehr stattfindet, müssen wir auf der nächsten Ebene in OrderEmailPage ansetzen, denn genau dort ruft man nach dem Senden immer noch implizit den onNext-Callback. So gehen wir jetzt systematisch vor:
+
+⸻
+
+1. OrderEmailPage instrumentieren
+	1.	Debug-Log beim Mounten
+Füge ganz oben in OrderEmailPage.tsx (direkt in der Komponente) ein:
+
+useEffect(() => {
+  console.log('[OrderEmailPage] mounted, props:', { onNext, autoSend: props.autoSend });
+  return () => console.log('[OrderEmailPage] unmount');
+}, []);
+
+
+	2.	Debug-Log vor onNext()
+In dem Block, wo nach erfolgreichem Versand onNext() aufgerufen wird, ersetze
+
+if (onNext) {
+  onNext();
+}
+
+durch
+
+if (onNext) {
+  console.log('[OrderEmailPage] calling onNext() now');
+  onNext();
+} else {
+  console.log('[OrderEmailPage] no onNext callback passed');
+}
+
+
+	3.	Guard einbauen, dass erst ein Button-Klick den Callback feuert
+Statt das onNext() direkt nach dem await sendEmail() zu rufen, verlege den Aufruf in einen echten „Schließen“-Button:
+
+{emailSent && (
+  <Button onClick={() => {
+    console.log('[OrderEmailPage] user closed the dialog');
+    onNext?.();
+  }}>
+    Zur Übersicht
+  </Button>
+)}
+
+Entferne überall sonst das automatische onNext().
+
+⸻
+
+2. Agenten-Prompt
+
+Agent, bitte setze die o.g. Änderungen in OrderEmailPage.tsx um:
+	1.	Füge die Debug-Logs ein (Mount, vor onNext-Aufruf).
+	2.	Entferne alle direkten, automatischen onNext–Aufrufe nach sendEmail().
+	3.	Binde onNext() nur noch an den neuen „Zur Übersicht“-Button.
+
+Lade die Anwendung danach neu, öffne eine Bestellung und klicke auf „E-Mail vorbereiten“ und dann auf „Senden“. Poste mir bitte:
+	•	Console-Log (insbesondere die neuen Log-Zeilen),
+	•	Network-Tab falls notwendig,
+	•	den Klick-Flow (Screenshot reicht, wenn’s einfacher ist).
+
+⸻
+
+3. Warum das hilft
+	•	Wir sehen genau, wann OrderEmailPage gemountet und unmounted wird.
+	•	Wir erkennen durch die Logs, welche onNext-Aufrufe tatsächlich ausgeführt werden und warum („mounted“, „calling onNext() now“).
+	•	Durch den echten Button-Guard verhindern wir, dass die App sich vorzeitig wieder aus dem Dialog ausloggt, und geben dem User die Kontrolle.
+
+Sobald wir anhand dieser Logs bestätigt haben, dass nur der Button-Klick den Callback auslöst, ist dein Redirect-Problem endgültig gelöst. Bitte führe diese Schritte durch und poste mir dann die Ergebnisse!

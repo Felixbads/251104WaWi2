@@ -37,11 +37,18 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
 }) => {
   const { toast } = useToast();
   
+  // Debugging: Mounten/Unmounten der Komponente loggen
+  useEffect(() => {
+    console.log('[OrderEmailPage] mounted, props:', { onNext, autoSend: (onNext !== undefined) });
+    return () => console.log('[OrderEmailPage] unmount');
+  }, []);
+  
   // State-Variablen
   const [emailAddress, setEmailAddress] = useState(supplierEmail || '');
   const [emailSubject, setEmailSubject] = useState(`Bestellung ${orderNumber || ''} vom ${new Date().toLocaleDateString('de-DE')}`);
   const [emailText, setEmailText] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState('standard');
   const [isLoading, setIsLoading] = useState(false);
   const [orderItems, setOrderItems] = useState<any[]>([]);
@@ -212,9 +219,15 @@ Ihr Proviantomat Team`);
           onSendEmail(emailAddress, '');
         }
         
-        // Zum nächsten Schritt weitergehen
+        // E-Mail wurde gesendet - Status setzen
+        setEmailSent(true);
+        
+        // KEIN automatischer nächster Schritt mehr!
+        // Der Benutzer muss explizit auf den "Zur Übersicht"-Button klicken
         if (onNext) {
-          onNext();
+          console.log('[OrderEmailPage] onNext callback vorhanden, aber wird nicht automatisch aufgerufen');
+        } else {
+          console.log('[OrderEmailPage] no onNext callback passed');
         }
       } else {
         throw new Error(response?.message || 'Unbekannter Fehler');
@@ -389,23 +402,38 @@ Ihr Proviantomat Team`);
           Zurück
         </Button>
         
-        <Button
-          onClick={handleSendEmail}
-          disabled={isSending || isLoading}
-          className="flex items-center"
-        >
-          {isSending ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Wird gesendet...
-            </>
-          ) : (
-            <>
-              <Send className="h-4 w-4 mr-2" />
-              E-Mail senden
-            </>
-          )}
-        </Button>
+        {emailSent ? (
+          <Button
+            onClick={() => {
+              console.log('[OrderEmailPage] user closed the dialog');
+              if (onNext) {
+                onNext?.();
+              }
+            }}
+            className="flex items-center"
+          >
+            <ChevronRight className="h-4 w-4 mr-2" />
+            Zur Übersicht
+          </Button>
+        ) : (
+          <Button
+            onClick={handleSendEmail}
+            disabled={isSending || isLoading}
+            className="flex items-center"
+          >
+            {isSending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Wird gesendet...
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4 mr-2" />
+                E-Mail senden
+              </>
+            )}
+          </Button>
+        )}
       </div>
     </div>
   );
