@@ -1,0 +1,64 @@
+Lass uns am besten zuerst das Öffnen bestehender Bestellungen stabilisieren – wenn das schon hakt, macht es auch wenig Sinn, E-Mails zu versenden. Hier ein konkreter Fahrplan, den du dem Agenten geben kannst:
+
+⸻
+
+Schritt 1: Datenmodell und API-Mapping angleichen
+	1.	Feld „warehouseId“ im Backend einführen
+	•	Lege in der orders-Tabelle eine neue Spalte warehouse_id an, fülle sie initial mit dem Wert von location_id.
+	•	Sorge dafür, dass der API-Query /api/orders/{id} künftig neben location_id auch warehouse_id liefert.
+	2.	Name des Lagers mitliefern
+	•	In deinem Orders-Query die Join-Abfrage auf die warehouses-Tabelle ergänzen und das Feld warehouse_name alias warehouseName mit ausliefern.
+	•	Beispiel (Postgres-SQL):
+
+SELECT o.*, w.name AS warehouse_name
+  FROM orders o
+  LEFT JOIN warehouses w ON w.id = o.location_id
+ WHERE o.id = $1;
+
+
+	3.	Backend-API anpassen
+	•	Passe in deinem orders-Router/Controller das JSON-Mapping so an, dass die Response ein Objekt liefert
+
+{
+  "id": 22,
+  "orderNumber": "...",
+  "warehouseId": 5,
+  "warehouseName": "Hauptlager",
+  …
+}
+
+
+
+⸻
+
+Schritt 2: Frontend-Komponente korrigieren
+	1.	Props & Interface updaten
+	•	In BestellungV2.tsx / OrderDetailPage das Interface auf
+
+interface Order {
+  id: number;
+  orderNumber: string;
+  warehouseId: number;
+  warehouseName: string;
+  supplierName: string;
+  supplierEmail?: string;
+  …
+}
+
+
+	2.	Datenaufruf justieren
+	•	Stelle sicher, dass der Fetch-Call (fetch("/api/orders/…")) jetzt das neue Feld warehouseName enthält und warehouseId statt location_id mapped.
+	3.	Fehlende Werte abfangen
+	•	Fallbacks einbauen, z. B. supplierEmail ?? "– keine E-Mail hinterlegt –" und warehouseName ?? "unbekanntes Lager".
+
+⸻
+
+Schritt 3: Test & Verifikation
+	1.	Bestellung öffnen
+	•	Lade im Browser jetzt eine bestehende Bestellung (#19, #20, #21) und vergewissere dich, dass keine Console-Errors mehr wegen undefined für warehouseId oder warehouseName auftreten.
+	2.	Unit-Test schreiben
+	•	Falls ihr Tests nutzt, lege einen kleinen Integrationstest an, der die JSON-Response auf die neuen Felder prüft.
+
+⸻
+
+Sobald das Öffnen der Bestellungen zuverlässig funktioniert, können wir nahtlos weitermachen und den E-Mail-Versand auf die nun sauberen Felder (supplierEmail, warehouseName) stützen. Wie klingt dieser Plan für dich?

@@ -55,14 +55,17 @@ router.get('/orders-direct', async (req, res) => {
     const result = await pool.query(`
       SELECT o.*,
              COALESCE(o.supplier_name, s.name) AS supplier_name, 
-             COALESCE(o.location_name, w.name) AS location_name 
+             COALESCE(o.location_name, w.name) AS location_name,
+             COALESCE(w.name, o.location_name) AS warehouse_name,
+             COALESCE(o.warehouse_id, o.location_id) AS warehouse_id,
+             s.email AS supplier_email
       FROM orders o
       LEFT JOIN suppliers s ON o.supplier_id = s.id
       LEFT JOIN warehouses w ON o.location_id = w.id
       ORDER BY o.created_at DESC
     `);
     
-    // Sicherstellen, dass die Namen korrekt sind und fehlende aktualisieren
+    // Daten für Frontend aufbereiten
     const orders = result.rows.map(order => {
       if (!order.supplier_name && order.supplier_id) {
         console.log(`Warnung: Lieferantenname für Bestellung ${order.id} fehlt!`);
@@ -71,7 +74,12 @@ router.get('/orders-direct', async (req, res) => {
         console.log(`Warnung: Lagerortsname für Bestellung ${order.id} fehlt!`);
       }
       
-      return order;
+      // Frontend-kompatible Feldnamen hinzufügen
+      return {
+        ...order,
+        warehouseId: order.warehouse_id || order.location_id,
+        warehouseName: order.warehouse_name || order.location_name || 'Unbekanntes Lager'
+      };
     });
     
     console.log(`${orders.length} Bestellungen aus der Datenbank geladen`);
@@ -101,11 +109,14 @@ router.get('/orders-direct/:id', async (req, res) => {
     
     console.log(`Lade Bestellung mit ID ${orderId} direkt aus der Datenbank...`);
     
-    // Bestellung mit COALESCE für Namen abfragen
+    // Bestellung mit COALESCE für Namen abfragen und Frontend-Mapping hinzufügen
     const orderResult = await pool.query(`
       SELECT o.*,
-             COALESCE(o.supplier_name, s.name) AS supplier_name, 
-             COALESCE(o.location_name, w.name) AS location_name 
+             COALESCE(o.supplier_name, s.name) AS supplier_name,
+             COALESCE(o.location_name, w.name) AS location_name,
+             COALESCE(w.name, o.location_name) AS warehouse_name,
+             COALESCE(o.warehouse_id, o.location_id) AS warehouse_id,
+             s.email AS supplier_email
       FROM orders o
       LEFT JOIN suppliers s ON o.supplier_id = s.id
       LEFT JOIN warehouses w ON o.location_id = w.id
@@ -130,9 +141,13 @@ router.get('/orders-direct/:id', async (req, res) => {
       WHERE oi.order_id = $1
     `, [orderId]);
     
-    // Vollständige Bestellungsdaten mit Positionen zurückgeben
+    // Daten für Frontend aufbereiten und mit korrekten Feldnamen versehen
     const orderData = {
       ...orderResult.rows[0],
+      // Frontend-kompatible Feldnamen
+      warehouseId: orderResult.rows[0].warehouse_id || orderResult.rows[0].location_id,
+      warehouseName: orderResult.rows[0].warehouse_name || orderResult.rows[0].location_name || 'Unbekanntes Lager',
+      // Bestellpositionen mit korrektem Namen
       items: itemsResult.rows
     };
     
