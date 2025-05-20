@@ -63,7 +63,30 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
       setError(null);
       
       try {
-        // Verwende den korrekten GET-Request für die E-Mail-Vorlage
+        // Sofort die Standard-E-Mail-Vorlage setzen, um sicherzustellen, dass wir
+        // immer eine Vorlage haben, auch wenn das Laden später fehlschlägt
+        const supplierText = supplierName ? ` von ${supplierName}` : '';
+        const orderText = orderNumber ? ` (Bestellnummer: ${orderNumber})` : '';
+        
+        // Standard-E-Mail als Fallback vorbereiten (wird verwendet, falls API-Anfrage fehlschlägt)
+        const defaultEmailText = `Sehr geehrte Damen und Herren,
+
+hiermit bestellen wir folgende Artikel${supplierText}${orderText}:
+
+{{orderItems}}
+
+Bitte bestätigen Sie den Eingang dieser Bestellung.
+
+Mit freundlichen Grüßen
+Ihr Proviantomat Team`;
+        
+        const defaultSubject = `Bestellung ${orderNumber || ''} vom ${new Date().toLocaleDateString('de-DE')}`;
+        
+        // Setze Standardwerte, falls die API fehlschlägt
+        setEmailText(defaultEmailText);
+        setEmailSubject(defaultSubject);
+        
+        // Jetzt versuchen, die Vorlage vom Server zu laden
         const authToken = localStorage.getItem('auth_token') || localStorage.getItem('authToken');
         const directResponse = await fetch(`/api/orders/${orderId}/email-template?type=${selectedTemplate}`, {
           method: 'GET', // Explizit GET-Methode angeben
@@ -80,8 +103,6 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
             // Verwende die Vorlage direkt vom Server
             setEmailSubject(templateData.subject);
             setEmailText(templateData.content);
-          } else {
-            throw new Error('Keine gültige E-Mail-Vorlage gefunden');
           }
         } else {
           // Versuche alternativ, die Vorlage über den direkten SQL-Endpunkt zu laden
@@ -103,20 +124,14 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
               }) || fallbackData.data[0]; // Fallback zur ersten Vorlage
               
               // Formatiere die Vorlage mit den verfügbaren Daten
-              // Vorlage mit Handlebars-ähnlichen Platzhaltern
               setEmailSubject(template.subject
                 .replace('{{orderNumber}}', orderNumber || '')
                 .replace('{{date}}', new Date().toLocaleDateString('de-DE'))
                 .replace('{{supplier}}', supplierName || '')
               );
               
-              // Text speichern zum späteren Ersetzen
               setEmailText(template.body);
-            } else {
-              throw new Error('Keine E-Mail-Vorlagen gefunden');
             }
-          } else {
-            throw new Error('Ungültige Antwort vom Server');
           }
         }
       } catch (error) {
@@ -130,25 +145,7 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
           variant: 'default'
         });
         
-        // Immer eine Standard-Vorlage anzeigen als Fallback
-        const supplierText = supplierName ? ` von ${supplierName}` : '';
-        const orderText = orderNumber ? ` (Bestellnummer: ${orderNumber})` : '';
-        
-        // Fallback: Einfache Standard-E-Mail
-        setEmailText(`Sehr geehrte Damen und Herren,
-
-hiermit bestellen wir folgende Artikel${supplierText}${orderText}:
-
-{{orderItems}}
-
-Bitte bestätigen Sie den Eingang dieser Bestellung.
-
-Mit freundlichen Grüßen
-Ihr Proviantomat Team`);
-        
-        setEmailSubject(`Bestellung ${orderNumber || ''} vom ${new Date().toLocaleDateString('de-DE')}`);
-        
-        // WICHTIG: KEIN onNext() im catch-Block verwenden, um unbeabsichtigte Weiterleitung zu vermeiden
+        // WICHTIG: KEIN onNext() im catch-Block! Die Standard-Vorlage wurde bereits am Anfang gesetzt
       } finally {
         setIsLoading(false);
       }
