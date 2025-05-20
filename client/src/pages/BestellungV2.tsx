@@ -101,6 +101,104 @@ const BestellungV2: React.FC = () => {
   const [emailPrepInProgress, setEmailPrepInProgress] = useState<boolean>(false);
   const [orderDetailsOpen, setOrderDetailsOpen] = useState<boolean>(false);
   
+  // Rekursive Funktion zum Laden von Bestellpositionen mit Retry-Logik
+  const loadOrderItems = async (orderIdToLoad: number, retryCount = 0, maxRetries = 3) => {
+    try {
+      console.log(`Versuche Bestellpositionen zu laden für Bestellung ${orderIdToLoad} (Versuch ${retryCount + 1}/${maxRetries + 1})`);
+      
+      // API-Aufruf um alle Bestellpositionen zu laden über direkten SQL-Endpunkt
+      const response = await fetch(`/api/order-items-direct/${orderIdToLoad}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }).then(res => {
+        if (!res.ok) {
+          throw new Error(`Fehler beim Laden der Bestellpositionen: ${res.status} ${res.statusText}`);
+        }
+        return res.json();
+      });
+      
+      console.log("Antwort vom direkten SQL-Endpunkt für Bestellpositionen:", response);
+      
+      // Prüfen ob Items zurückgegeben wurden
+      let items = [];
+      if (response && Array.isArray(response)) {
+        items = response;
+      } else if (response && response.data && Array.isArray(response.data)) {
+        items = response.data;
+      } else if (response && response.items && Array.isArray(response.items)) {
+        items = response.items;
+      } else if (response && response.data && response.data.items && Array.isArray(response.data.items)) {
+        items = response.data.items;
+      }
+      
+      if (Array.isArray(items) && items.length > 0) {
+        console.log(`${items.length} Bestellpositionen erfolgreich geladen`);
+        
+        // Aktualisiere Bestelldaten mit geladenen Items
+        const updatedOrderData = {
+          ...existingOrderData,
+          items: items
+        };
+        
+        // Aktualisiere State
+        setExistingOrderData(updatedOrderData);
+        
+        // Setze die Produkte für die Anzeige in der Komponente
+        setSelectedProducts(items.map((item: any) => ({
+          id: item.product_id,
+          productId: item.product_id,
+          name: item.product_name || item.productName,
+          orderQuantity: item.quantity,
+          price: item.unit_price || item.unitPrice || 0,
+          unit: item.unit || 'Stk.'
+        })));
+        
+        // Erfolg melden
+        return true;
+      } else {
+        console.warn("Keine Bestellpositionen gefunden oder leeres Array zurückgegeben.");
+        
+        // Bei maximal Versuchen und immer noch keine Items - Warnung anzeigen aber nicht als Fehler werten
+        if (retryCount >= maxRetries) {
+          toast({
+            title: "Hinweis",
+            description: "Es konnten keine Bestellpositionen geladen werden. Die Bestellung ist möglicherweise leer.",
+            variant: "default"
+          });
+          return false;
+        }
+        
+        // Noch nicht maximale Versuche erreicht - warten und erneut versuchen
+        const waitTime = Math.min(1000 * Math.pow(2, retryCount), 10000); // Exponentielles Backoff bis max 10 Sekunden
+        console.log(`Warte ${waitTime}ms vor erneutem Versuch...`);
+        
+        setTimeout(() => loadOrderItems(orderIdToLoad, retryCount + 1, maxRetries), waitTime);
+        return false;
+      }
+    } catch (error) {
+      console.error("Fehler beim Laden der Bestellpositionen:", error);
+      
+      // Bei maximal Versuchen - Fehlermeldung anzeigen
+      if (retryCount >= maxRetries) {
+        toast({
+          title: "Fehler beim Laden der Bestellpositionen",
+          description: `${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
+          variant: "destructive"
+        });
+        return false;
+      }
+      
+      // Noch nicht maximale Versuche erreicht - warten und erneut versuchen
+      const waitTime = Math.min(1000 * Math.pow(2, retryCount), 10000); // Exponentielles Backoff bis max 10 Sekunden
+      console.log(`Warte ${waitTime}ms vor erneutem Versuch...`);
+      
+      setTimeout(() => loadOrderItems(orderIdToLoad, retryCount + 1, maxRetries), waitTime);
+      return false;
+    }
+  };
+  
   // Create order mutation
   const createOrderMutation = useMutation({
     mutationFn: async (orderData: any) => {
@@ -681,10 +779,11 @@ const BestellungV2: React.FC = () => {
           
           // Hole die Bestellpositionen (falls noch nicht vorhanden)
           if (!data.items || data.items.length === 0) {
-            loadOrderItems(orderId);
+            // Lade Bestellpositionen über die direkte API, mit richtigem Typ für orderId
+            loadOrderItems(Number(orderId));
           } else {
             // Verwende die bereits geladenen Bestellpositionen
-            setSelectedProducts(data.items.map(item => ({
+            setSelectedProducts(data.items.map((item: any) => ({
               id: item.product_id,
               productId: item.product_id,
               name: item.product_name || item.productName,
@@ -740,20 +839,31 @@ const BestellungV2: React.FC = () => {
       if (!hasItems) {
         console.log("Bestellung hat keine Items, lade sie über API...");
         
-        // Rekursive Funktion zum Laden mit Retry-Logik
-        const loadOrderItems = async (retryCount = 0, maxRetries = 3) => {
+        // Verwende die globale loadOrderItems-Funktion
+        if (orderId) {
+          loadOrderItems(Number(orderId));
+          return;
+        }
+        
+        // Falls die folgende Funktion erreicht wird, ist etwas schiefgelaufen
+        const loadLocalOrderItems = async (orderIdToLoad = orderId, retryCount = 0, maxRetries = 3) => {
           try {
-            console.log(`Versuche Bestellpositionen zu laden (Versuch ${retryCount + 1}/${maxRetries + 1})`);
+            console.log(`Versuche Bestellpositionen zu laden für Bestellung ${orderIdToLoad} (Versuch ${retryCount + 1}/${maxRetries + 1})`);
             
             // API-Aufruf um alle Bestellpositionen zu laden über direkten SQL-Endpunkt
-            // Statt Drizzle-Endpunkt nutzen wir den optimierten SQL-Endpunkt
-            const response = await fetch(`/api/order-items-direct/${orderId}`, {
+            const response = await fetch(`/api/order-items-direct/${orderIdToLoad}`, {
               method: 'GET',
               headers: {
-                'Content-Type': 'application/json',
-                'Authorization': localStorage.getItem('authToken') ? `Bearer ${localStorage.getItem('authToken')}` : ''
+                'Content-Type': 'application/json'
               }
-            }).then(res => res.json());
+            }).then(res => {
+              if (!res.ok) {
+                throw new Error(`Fehler beim Laden der Bestellpositionen: ${res.status} ${res.statusText}`);
+              }
+              return res.json();
+            });
+            
+            console.log("Antwort vom direkten SQL-Endpunkt für Bestellpositionen:", response);
             
             // Prüfen ob Items zurückgegeben wurden
             let items = [];
