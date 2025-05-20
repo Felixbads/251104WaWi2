@@ -974,8 +974,8 @@ const BestellungV2: React.FC = () => {
         loadOrderItems();
       } else {
         console.log("Bestellung hat bereits Items:", hasItems);
-        // E-Mail vorbereiten, da Items bereits vorhanden sind
-        prepareOrderEmail(existingOrderData);
+        // E-Mail vorbereiten, da Items bereits vorhanden sind - aber ohne Toast in der useEffect Hook
+        prepareOrderEmail(existingOrderData, false);
       }
     }
   }, [step, existingOrderData, orderId, queryClient, selectedProducts, toast]);
@@ -1267,8 +1267,8 @@ const BestellungV2: React.FC = () => {
                   // Debug-Info ausgeben
                   console.log('E-Mail-Button geklickt, aktueller Step:', step);
                   
-                  // E-Mail-Vorbereitung explizit starten
-                  prepareOrderEmail(existingOrderData);
+                  // E-Mail-Vorbereitung explizit starten - MIT Toast, da explizite Benutzeraktion
+                  prepareOrderEmail(existingOrderData, true);
                   console.log('STEP WECHSEL: alteStep=', step, '→ neueStep=', 'sendOrder');
                   setStep('sendOrder');
                 }}
@@ -1692,8 +1692,8 @@ const BestellungV2: React.FC = () => {
                   onClick={() => {
                     setOrderDetailsOpen(false);
                     setStep('sendOrder');
-                    // E-Mail-Vorbereitung starten
-                    prepareOrderEmail(existingOrderData);
+                    // E-Mail-Vorbereitung starten - MIT Toast da explizite Benutzeraktion
+                    prepareOrderEmail(existingOrderData, true);
                   }}
                 >
                   <Mail className="mr-2 h-4 w-4" />
