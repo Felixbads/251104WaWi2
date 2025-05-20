@@ -63,11 +63,36 @@ const OrderEmailDialog: React.FC<OrderEmailDialogProps> = ({
 
 
   // E-Mail-Vorlage laden
-  const { data: templateData, isLoading: templateLoading } = useQuery({
+  const { data: templateData, isLoading: templateLoading, error: templateError } = useQuery({
     queryKey: ["/api/orders", orderId, "email-template", templateType],
     queryFn: () => 
       apiRequest(`/api/orders/${orderId}/email-template?type=${templateType}`),
     enabled: open,
+    retry: 1,
+    onError: (error) => {
+      console.error('Fehler beim Laden der E-Mail-Vorlage:', error);
+      toast({
+        title: 'Hinweis',
+        description: 'Die E-Mail-Vorlage konnte nicht geladen werden. Eine Standard-Vorlage wird verwendet.',
+        variant: 'default'
+      });
+      
+      // Automatisch eine Fallback-Vorlage erstellen, wenn das Laden fehlschlägt
+      const fallbackSubject = `Bestellung ${orderNumber} vom ${new Date().toLocaleDateString('de-DE')}`;
+      const fallbackContent = `Sehr geehrte Damen und Herren,
+
+hiermit bestellen wir folgende Artikel von ${supplierName} (Bestellnummer: ${orderNumber}):
+
+{{orderItems}}
+
+Bitte bestätigen Sie den Eingang dieser Bestellung.
+
+Mit freundlichen Grüßen
+Ihr Proviantomat Team`;
+      
+      setEmailSubject(fallbackSubject);
+      setEmailContent(fallbackContent);
+    }
   });
 
   // Aktualisiert die E-Mail-Vorlage, wenn sich der Vorlagentyp ändert

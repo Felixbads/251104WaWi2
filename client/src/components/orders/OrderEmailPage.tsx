@@ -176,7 +176,16 @@ Ihr Proviantomat Team`);
         
         if (result && result.success && Array.isArray(result.data)) {
           // Daten transformieren in das Format, das die E-Mail benötigt
-          const formattedItems = result.data.map(item => ({
+          interface OrderItem {
+            id: number;
+            product_id: string | number;
+            product_name: string;
+            quantity: number;
+            price: number;
+            unit: string;
+          }
+          
+          const formattedItems = result.data.map((item: OrderItem) => ({
             id: item.id,
             productId: item.product_id,
             productName: item.product_name || 'Unbekanntes Produkt',
