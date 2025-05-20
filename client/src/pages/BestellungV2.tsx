@@ -674,9 +674,9 @@ const BestellungV2: React.FC = () => {
   };
   
   // Funktion zur E-Mail-Vorbereitung mit robusten Fehlerprüfungen
-  const prepareOrderEmail = (orderData: any) => {
+  const prepareOrderEmail = (orderData: any, showToast = false) => {
     try {
-      console.log("E-Mail-Vorbereitung für Bestellung:", orderData?.orderNumber || "Unbekannt");
+      console.log("E-Mail-Vorbereitung für Bestellung:", orderData?.orderNumber || "Unbekannt", "showToast:", showToast);
       
       // Status setzen, dass die E-Mail-Vorbereitung aktiv ist
       setEmailPrepInProgress(true);
@@ -685,11 +685,13 @@ const BestellungV2: React.FC = () => {
       if (!orderData || typeof orderData !== 'object') {
         console.error('Keine gültigen Bestelldaten für E-Mail:', orderData);
         setEmailPrepInProgress(false);
-        toast({
-          title: 'Fehler bei der E-Mail-Vorbereitung',
-          description: 'Die Bestelldaten sind unvollständig oder fehlerhaft.',
-          variant: 'destructive'
-        });
+        if (showToast) {
+          toast({
+            title: 'Fehler bei der E-Mail-Vorbereitung',
+            description: 'Die Bestelldaten sind unvollständig oder fehlerhaft.',
+            variant: 'destructive'
+          });
+        }
         return;
       }
       
@@ -738,22 +740,26 @@ const BestellungV2: React.FC = () => {
       // E-Mail-Vorbereitung ist abgeschlossen
       setEmailPrepInProgress(false);
       
-      // Info-Toast anzeigen
-      toast({
-        title: 'E-Mail wird vorbereitet',
-        description: 'Die Bestelldaten wurden geladen. Sie können jetzt die E-Mail senden.',
-      });
+      // Info-Toast NUR anzeigen, wenn explizit angefordert (typischerweise bei Button-Klick)
+      if (showToast) {
+        toast({
+          title: 'E-Mail wird vorbereitet',
+          description: 'Die Bestelldaten wurden geladen. Sie können jetzt die E-Mail senden.',
+        });
+      }
       
     } catch (error) {
       console.error('Fehler bei der E-Mail-Vorbereitung:', error);
       // Fehlerfall: E-Mail-Vorbereitung zurücksetzen
       setEmailPrepInProgress(false);
       
-      toast({
-        title: 'Fehler bei der E-Mail-Vorbereitung',
-        description: 'Die E-Mail konnte nicht vorbereitet werden. Details in der Konsole.',
-        variant: 'destructive',
-      });
+      if (showToast) {
+        toast({
+          title: 'Fehler bei der E-Mail-Vorbereitung',
+          description: 'Die E-Mail konnte nicht vorbereitet werden. Details in der Konsole.',
+          variant: 'destructive',
+        });
+      }
     }
   };
   
