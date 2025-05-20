@@ -655,8 +655,10 @@ const BestellungV2: React.FC = () => {
         description: 'Die Bestellung wurde erfolgreich per E-Mail versendet.',
       });
       
-      // Nach erfolgreichem Versand zurück zur Übersicht
-      setTimeout(() => setStep('overview'), 1500);
+      // Nach erfolgreichem Versand zur E-Mail-Erfolgsmeldung oder Übersicht
+      // Hier keine automatische Weiterleitung mehr, wir bleiben auf der aktuellen Seite
+      // und zeigen einen Erfolgsstatus an
+      setEmailSendSuccess(true);
     } catch (error) {
       console.error('Fehler beim Senden der E-Mail:', error);
       toast({
@@ -1245,8 +1247,12 @@ const BestellungV2: React.FC = () => {
               
               <Button 
                 onClick={() => {
+                  // Debug-Info ausgeben
+                  console.log('E-Mail-Button geklickt, aktueller Step:', step);
+                  
                   // E-Mail-Vorbereitung explizit starten
                   prepareOrderEmail(existingOrderData);
+                  console.log('STEP WECHSEL: alteStep=', step, '→ neueStep=', 'sendOrder');
                   setStep('sendOrder');
                 }}
               >

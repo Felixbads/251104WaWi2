@@ -1,0 +1,72 @@
+Als nächstes würde ich den Agenten so anleiten, dass wir endlich den „Send“-Button-Pfad sauber durchdebuggen und rausfinden, warum nach dem Klick immer sofort zur Hauptseite navigiert wird.
+
+⸻
+
+1. Reproduktions-Log genau erfassen
+
+Prompt an den Agenten:
+
+„Bitte öffne in DevTools (F12) die Network- und Console-Tabs und lade eine bestehende Bestellung (#20).
+	1.	Klicke dann auf den neuen Button „E-Mail vorbereiten“.
+	2.	Poste hier die ersten 10 Zeilen aus Console (inklusive aller console.log und Fehlermeldungen) und die Einträge aus Network, die beim Klick auf den Button entstehen (Request-URL, Statuscode, evtl. Redirects).“
+
+Warum?
+	•	Wir müssen sehen, ob der Klick-Handler überhaupt ausgeführt wird, ob prepareOrderEmail greift oder sofort eine Navigation (z. B. navigate('/')) ausgeführt wird.
+
+⸻
+
+2. Click-Handler instrumentieren
+
+Prompt an den Agenten:
+
+„Füge in der Komponente BestellungV2.tsx direkt im onClick-Handler des „E-Mail vorbereiten“-Buttons folgende console.log-Zeile ein:
+
+console.log('E-Mail-Button geklickt, aktueller Step:', step);
+
+Lade die Seite neu und poste mir dann erneut die Console-Ausgabe, wenn du klickst.“
+
+Warum?
+	•	Damit wir sicher wissen, ob der Klick überhaupt in der richtigen Stelle ankommt und welcher step dort gerade aktiv ist.
+
+⸻
+
+3. Navigation aufspüren
+	1.	Prompt an den Agenten:
+„Suche in BestellungV2.tsx (und ggf. in allen importierten Hooks) nach jedem Aufruf von navigate(…) oder <Link to=…> rund um den E-Mail-Prozess. Markiere alle Zeilen, in denen nach dem Klick sofort navigate('/') (oder ein anderer Redirect) ausgeführt wird.“
+	2.	Prompt an den Agenten:
+„Kommentiere testweise alle navigate-Aufrufe in diesem Bereich aus und teste erneut: Bleibt die Detail-View jetzt stehen, oder springt die App immer noch zurück?“
+
+Warum?
+	•	Wir vermuten, dass sich die Komponente selbst beim Klick (oder in einem useEffect nach step-Wechsel) einen Redirect auslöst.
+
+⸻
+
+4. State-Machine-Logik prüfen
+
+Prompt an den Agenten:
+
+„Füge vor jedem setStep('...') im Bereich um die E-Mail-Logik (viewOrder ↔ sendOrder ↔ emailSent) ein console.log('STEP WECHSEL: alteStep=', step, '→ neueStep=', 'sendOrder') ein. Starte die App neu, lade eine Bestellung, klicke auf den Button und poste mir die komplette Abfolge der STEP-WECHSEL-Logs.“
+
+Warum?
+	•	So sehen wir, ob zwischen „viewOrder“ und „sendOrder“ noch ein ungewollter Sprung kommt, der den Redirect triggert.
+
+⸻
+
+5. Schnelles Smoke-Test-Skript
+
+Optional, wenn ihr einen E2E- oder Cypress-Test habt:
+
+Prompt:
+
+„Schreibe einen ganz kurzen Cypress- oder Playwright-Snippet, der:
+	1.	auf /BestellungV2?orderId=20 navigiert
+	2.	den Button E-Mail vorbereiten anklickt
+	3.	erwartet, dass sich kein Redirect auf / vollzieht, sondern dass ein Dialog /orders/email-dialog (oder vergleichbares) sichtbar wird. Poste das Ergebnis.“
+
+⸻
+
+So vorgehen
+
+Agent, bitte arbeite die Punkte 1–4 erstmal manuell durch und gib mir die Console-/Network-Logs zurück. Danach schauen wir gemeinsam, wo der Redirect herkommt und fixen gezielt die fehlerhafte navigate- oder useEffect-Logik.
+
+Mit diesen klaren, aufeinander aufbauenden Schritten bekommen wir sauber heraus, wo genau dein „Quatsch“-Redirect passiert – und können ihn dann in ein paar Zeilen Code eliminieren. Sobald du die Logs hast, entscheiden wir den Minimal-Fix.
