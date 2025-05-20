@@ -62,11 +62,25 @@ const OrderEmailDialog: React.FC<OrderEmailDialogProps> = ({
   const [templateType, setTemplateType] = useState<string>("standard");
 
 
-  // E-Mail-Vorlage laden
+  // E-Mail-Vorlage laden - Mit GET-Request!
   const { data: templateData, isLoading: templateLoading, error: templateError } = useQuery({
     queryKey: ["/api/orders", orderId, "email-template", templateType],
-    queryFn: () => 
-      apiRequest(`/api/orders/${orderId}/email-template?type=${templateType}`),
+    queryFn: async () => {
+      // Verwende direkten fetch mit GET statt apiRequest, da apiRequest standardmäßig POST verwendet
+      const authToken = localStorage.getItem('auth_token') || localStorage.getItem('authToken');
+      const response = await fetch(`/api/orders/${orderId}/email-template?type=${templateType}`, {
+        method: 'GET',
+        headers: {
+          ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Fehler beim Laden der E-Mail-Vorlage: ${response.status} ${response.statusText}`);
+      }
+      
+      return await response.json();
+    },
     enabled: open,
     retry: 1,
     onError: (error) => {
