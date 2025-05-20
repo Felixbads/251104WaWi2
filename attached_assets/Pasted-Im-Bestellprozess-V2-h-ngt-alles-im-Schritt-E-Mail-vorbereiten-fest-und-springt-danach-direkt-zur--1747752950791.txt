@@ -1,0 +1,66 @@
+Im Bestellprozess V2 hängt alles im Schritt „E-Mail vorbereiten“ fest und springt danach direkt zurück zur Übersicht, weil Frontend und Backend in drei kritischen Punkten nicht zusammenpassen:
+
+⸻
+
+1. Falscher Endpunkt / HTTP-Methode für E-Mail-Templates
+	•	Frontend (OrderEmailPage.tsx) führt beim Öffnen des E-Mail-Dialogs einen POST-Request an
+
+POST /api/orders/22/email-template?type=standard
+
+aus.
+
+	•	Backend hingegen implementiert für diese Route nur einen GET-Handler – ein POST auf diese URL liefert daher eine HTML-Fehlerseite (404 oder Method Not Allowed).
+	•	Wenn das Frontend anschließend versucht, die Antwort mit response.json() zu parsen, wirft JSON.parse aufgrund des HTML-Contents eine Exception.
+
+⸻
+
+2. Unbehandelte Fehler-Logik triggert sofortiges „Weiter“
+	•	In OrderEmailPage.tsx um den Template-Ladevorgang herum steht typischerweise etwas wie:
+
+try {
+  const template = await api.postEmailTemplate(...);
+  setEmailTemplate(template);
+} catch (err) {
+  console.error("Fehler beim Laden der E-Mail-Vorlage:", err);
+  onNext();  // springt zurück
+}
+
+
+	•	Fehlender Guard: Jeder Fehler – ob Netzwerk, 404 oder JSON-Parsing – landet im catch und ruft ungefiltert onNext() auf.
+	•	In deiner BestellungV2.tsx ist onNext so konfiguriert, dass es sofort zu setStep('overview') bzw. navigate('/bestellungen') führt.
+
+⸻
+
+3. Automatisches Redirect im Fehlerfall
+	•	Weil der Template-Load scheitert, wird in jedem Durchlauf der catch-Block aktiv.
+	•	onNext() wird also immer unmittelbar nach Auftreten eines Fehlers (z. B. falsche Methode) ausgeführt – das schickt den Nutzer direkt zurück in die Übersicht.
+	•	Der User sieht nie die „E-Mail senden“-Maske und niemals ein SMTP-Versand-Fenster, weil der Dialog schon im ersten Ladeversuch geschlossen wird.
+
+⸻
+
+Zusammengefasst: Warum bleibt man stecken?
+	1.	Template-Laden schlägt fehl
+→ falscher HTTP-Verb / Endpunkt
+	2.	Fehler führt sofort zu onNext()
+→ kein Zustands-Update für „E-Mail versandt“ oder UI-Wechsel in den Versand-Dialog
+	3.	Nutzer wird zurückgeleitet
+→ endlose Schleife, man kommt nie weiter als „E-Mail vorbereiten“
+
+⸻
+
+Wie geht es weiter?
+
+Um den Prozess wirklich über „E-Mail vorbereiten“ hinauszubringen, müssen wir:
+	1.	Frontend korrigieren
+	•	Den Request auf GET /api/orders/:id/email-template?type=standard umstellen
+	•	Oder im Backend einen POST-Handler anlegen, der JSON zurückliefert
+	2.	Fehler-Handling entschärfen
+	•	Im catch-Block nicht sofort onNext() aufrufen, sondern dem Nutzer eine Fehlermeldung anzeigen und im Dialog bleiben
+	3.	State-Machine anpassen
+	•	Nach erfolgreichem Template-Load in einen neuen Step emailReady wechseln
+	•	Erst auf Klick von „E-Mail senden“ onNext() (oder Redirect) ausführen
+
+Wenn du möchtest, kann ich dir Schritt für Schritt zeigen, wie du sowohl die API-Route als auch den Frontend-Call anpasst, damit
+	•	die Vorlage sauber als JSON ankommt,
+	•	die Fehlersituation dem Nutzer als Toast/Alert gezeigt wird (statt Redirect),
+	•	und erst nach echtem Klick auf „E-Mail senden“ der Flow zur Übersicht zurückkehrt.
