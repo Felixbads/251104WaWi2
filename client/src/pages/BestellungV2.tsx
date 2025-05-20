@@ -766,8 +766,10 @@ const BestellungV2: React.FC = () => {
       // Bestellung über den direkten SQL-Endpunkt laden
       console.log(`Lade bestehende Bestellung mit ID ${orderId} über direkten SQL-Endpunkt...`);
       
-      // Setze den Schritt auf "Laden" während wir warten
-      setStep('overview');
+      // Wir ändern nicht automatisch den Schritt beim Laden einer Bestellung
+      // Der Schritt sollte explizit durch Benutzerinteraktion gesetzt werden
+      // Die alte Zeile hat das Problem verursacht: setStep('overview');
+      console.log('Bestellung wird geladen, aktueller Schritt bleibt:', step);
       
       // Bestellung aus der Datenbank laden
       fetch(`/api/orders-direct/${orderId}`)
@@ -810,8 +812,10 @@ const BestellungV2: React.FC = () => {
             })));
           }
           
-          // Setze den Schritt auf Wareneingang für bestehende Bestellung
-          setStep('warehouseReceiptOfExistingOrder');
+          // Setze den Schritt auf "viewOrder" für bestehende Bestellung
+          // Zeigt die Bestelldetails an, ohne automatisch zum Wareneingang zu gehen
+          setStep('viewOrder');
+          console.log('Bestellung geladen, Schritt auf viewOrder gesetzt');
         })
         .catch(error => {
           console.error("Fehler beim Laden der Bestellung:", error);
