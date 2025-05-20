@@ -63,43 +63,71 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
       setError(null);
       
       try {
-        // Zuerst versuchen, die Vorlage über den direkten SQL-Endpunkt zu laden
-        const directResponse = await fetch('/api/email-templates-direct');
+        // Verwende den korrekten GET-Request für die E-Mail-Vorlage
+        const authToken = localStorage.getItem('auth_token') || localStorage.getItem('authToken');
+        const directResponse = await fetch(`/api/orders/${orderId}/email-template?type=${selectedTemplate}`, {
+          headers: {
+            ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+          }
+        });
         
         if (directResponse.ok) {
           const templateData = await directResponse.json();
-          console.log("Direkte E-Mail-Vorlagen geladen:", templateData);
+          console.log("E-Mail-Vorlage geladen:", templateData);
           
-          if (templateData && templateData.success && Array.isArray(templateData.data) && templateData.data.length > 0) {
-            // Wählen Sie die passende Vorlage basierend auf dem Template-Typ
-            const template = templateData.data.find((tpl: any) => {
-              if (selectedTemplate === 'urgent' && tpl.name.toLowerCase().includes('dringend')) return true;
-              if (selectedTemplate === 'reorder' && tpl.name.toLowerCase().includes('nachbestellung')) return true;
-              if (selectedTemplate === 'standard' && tpl.is_default) return true;
-              return false;
-            }) || templateData.data[0]; // Fallback zur ersten Vorlage
-            
-            // Formatiere die Vorlage mit den verfügbaren Daten
-            // Vorlage mit Handlebars-ähnlichen Platzhaltern
-            setEmailSubject(template.subject
-              .replace('{{orderNumber}}', orderNumber || '')
-              .replace('{{date}}', new Date().toLocaleDateString('de-DE'))
-              .replace('{{supplier}}', supplierName || '')
-            );
-            
-            // Text speichern zum späteren Ersetzen
-            setEmailText(template.body);
+          if (templateData && templateData.subject && templateData.content) {
+            // Verwende die Vorlage direkt vom Server
+            setEmailSubject(templateData.subject);
+            setEmailText(templateData.content);
           } else {
-            throw new Error('Keine E-Mail-Vorlagen gefunden');
+            throw new Error('Keine gültige E-Mail-Vorlage gefunden');
           }
         } else {
-          throw new Error('Ungültige Antwort vom Server');
+          // Versuche alternativ, die Vorlage über den direkten SQL-Endpunkt zu laden
+          const fallbackResponse = await fetch('/api/email-templates-direct');
+          
+          if (fallbackResponse.ok) {
+            const fallbackData = await fallbackResponse.json();
+            console.log("Fallback: E-Mail-Vorlagen geladen:", fallbackData);
+            
+            if (fallbackData && fallbackData.success && Array.isArray(fallbackData.data) && fallbackData.data.length > 0) {
+              // Wähle die passende Vorlage basierend auf dem Template-Typ
+              const template = fallbackData.data.find((tpl: any) => {
+                if (selectedTemplate === 'urgent' && tpl.name.toLowerCase().includes('dringend')) return true;
+                if (selectedTemplate === 'reorder' && tpl.name.toLowerCase().includes('nachbestellung')) return true;
+                if (selectedTemplate === 'standard' && tpl.is_default) return true;
+                return false;
+              }) || fallbackData.data[0]; // Fallback zur ersten Vorlage
+              
+              // Formatiere die Vorlage mit den verfügbaren Daten
+              // Vorlage mit Handlebars-ähnlichen Platzhaltern
+              setEmailSubject(template.subject
+                .replace('{{orderNumber}}', orderNumber || '')
+                .replace('{{date}}', new Date().toLocaleDateString('de-DE'))
+                .replace('{{supplier}}', supplierName || '')
+              );
+              
+              // Text speichern zum späteren Ersetzen
+              setEmailText(template.body);
+            } else {
+              throw new Error('Keine E-Mail-Vorlagen gefunden');
+            }
+          } else {
+            throw new Error('Ungültige Antwort vom Server');
+          }
         }
       } catch (error) {
         console.error('Fehler beim Laden der E-Mail-Vorlage:', error);
         setError('E-Mail-Vorlage konnte nicht geladen werden');
         
-        // Immer eine Standard-Vorlage anzeigen
+        // Toast-Nachricht anzeigen, aber OHNE Weiterleitung zu veranlassen
+        toast({
+          title: 'Hinweis',
+          description: 'Die E-Mail-Vorlage konnte nicht automatisch geladen werden. Eine Standard-Vorlage wird verwendet.',
+          variant: 'default'
+        });
+        
+        // Immer eine Standard-Vorlage anzeigen als Fallback
         const supplierText = supplierName ? ` von ${supplierName}` : '';
         const orderText = orderNumber ? ` (Bestellnummer: ${orderNumber})` : '';
         
@@ -222,10 +250,12 @@ Ihr Proviantomat Team`);
         // E-Mail wurde gesendet - Status setzen
         setEmailSent(true);
         
-        // KEIN automatischer nächster Schritt mehr!
-        // Der Benutzer muss explizit auf den "Zur Übersicht"-Button klicken
+        // Nach erfolgreichem Versand der E-Mail gehen wir zum nächsten Schritt
+        // ABER NUR wenn dieser Button explizit geklickt wurde
         if (onNext) {
-          console.log('[OrderEmailPage] onNext callback vorhanden, aber wird nicht automatisch aufgerufen');
+          console.log('[OrderEmailPage] E-Mail erfolgreich gesendet, Navigation zum nächsten Schritt wird ausgeführt');
+          // Rufe die onNext-Funktion auf, um zur Übersicht zurückzukehren
+          onNext();
         } else {
           console.log('[OrderEmailPage] no onNext callback passed');
         }
