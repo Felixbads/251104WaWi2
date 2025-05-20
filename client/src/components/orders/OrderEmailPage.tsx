@@ -66,6 +66,7 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
         // Verwende den korrekten GET-Request für die E-Mail-Vorlage
         const authToken = localStorage.getItem('auth_token') || localStorage.getItem('authToken');
         const directResponse = await fetch(`/api/orders/${orderId}/email-template?type=${selectedTemplate}`, {
+          method: 'GET', // Explizit GET-Methode angeben
           headers: {
             ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
           }
@@ -84,7 +85,9 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
           }
         } else {
           // Versuche alternativ, die Vorlage über den direkten SQL-Endpunkt zu laden
-          const fallbackResponse = await fetch('/api/email-templates-direct');
+          const fallbackResponse = await fetch('/api/email-templates-direct', {
+            method: 'GET' // Auch hier explizit GET verwenden
+          });
           
           if (fallbackResponse.ok) {
             const fallbackData = await fallbackResponse.json();
@@ -144,6 +147,8 @@ Mit freundlichen Grüßen
 Ihr Proviantomat Team`);
         
         setEmailSubject(`Bestellung ${orderNumber || ''} vom ${new Date().toLocaleDateString('de-DE')}`);
+        
+        // WICHTIG: KEIN onNext() im catch-Block verwenden, um unbeabsichtigte Weiterleitung zu vermeiden
       } finally {
         setIsLoading(false);
       }
