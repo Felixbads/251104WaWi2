@@ -836,8 +836,8 @@ const BestellungV2: React.FC = () => {
   // useEffect für das Laden von Bestellpositionen
   useEffect(() => {
     // Nur ausführen wenn wir im richtigen Schritt sind UND existingOrderData vorhanden ist
-    if ((step === 'sendOrder' || step === 'warehouseReceiptOfExistingOrder') && existingOrderData && orderId) {
-      console.log("Prüfe Bestellungsdetails für E-Mail-Versand:", existingOrderData);
+    if ((step === 'sendOrder' || step === 'viewOrder' || step === 'warehouseReceiptOfExistingOrder') && existingOrderData && orderId) {
+      console.log("Prüfe Bestellungsdetails:", existingOrderData);
       
       // Prüfen, ob bereits Bestellpositionen in irgendeinem bekannten Format vorhanden sind
       const hasItems = !!(
@@ -905,8 +905,10 @@ const BestellungV2: React.FC = () => {
               // Cache invalidieren
               queryClient.invalidateQueries({queryKey: orderKeys.detail(orderId)});
               
-              // E-Mail-Vorbereitung
-              prepareOrderEmail(updatedOrderData);
+              // E-Mail-Vorbereitung nur wenn wir im E-Mail-Versand-Schritt sind
+              if (step === 'sendOrder') {
+                prepareOrderEmail(updatedOrderData);
+              }
               
               return; // Erfolgreicher Fall, Funktion beenden
             } else if (retryCount < maxRetries) {
@@ -925,8 +927,10 @@ const BestellungV2: React.FC = () => {
                 };
                 setExistingOrderData(fallbackOrderData);
                 
-                // E-Mail-Vorbereitung
-                prepareOrderEmail(fallbackOrderData);
+                // E-Mail-Vorbereitung nur wenn wir im E-Mail-Versand-Schritt sind
+                if (step === 'sendOrder') {
+                  prepareOrderEmail(fallbackOrderData);
+                }
               } else {
                 throw new Error("Keine Bestellpositionen gefunden");
               }
