@@ -1,0 +1,110 @@
+Wenn du nach dem Klick auf „E-Mail vorbereiten“ sofort wieder auf die Übersicht zurückgeworfen wirst und dabei die Meldung
+
+Hinweis
+Die E-Mail-Vorlage konnte nicht automatisch geladen werden.
+Eine Standard-Vorlage wird verwendet.
+
+erscheint, dann passiert genau Folgendes in deinem V2-Flow:
+
+⸻
+
+1. Falsche API-Methode / Endpoint-Mismatch
+	•	Frontend ruft in OrderEmailPage per POST:
+
+await fetch(`/api/orders/${orderId}/email-template?type=standard`, { method: 'POST' });
+
+
+	•	Backend kennt für diese Route nur einen GET-Handler. Der POST schlägt fehl, liefert eine HTML-Fehlerseite (404/405) statt JSON.
+	•	Folge: Dein response.json() wirft im catch eine Exception.
+
+⸻
+
+2. Fehler-Catch springt sofort weiter
+
+Im Codeblock, der das Template lädt, steht typischerweise so etwas:
+
+try {
+  const tmpl = await api.postEmailTemplate(...);  // schlägt fehl
+  setEmailTemplate(tmpl);
+} catch (err) {
+  console.error("Fehler beim Laden der E-Mail-Vorlage:", err);
+  toast.warn("Hinweis\nDie E-Mail-Vorlage konnte nicht automatisch geladen werden. Eine Standard-Vorlage wird verwendet.");
+  onNext();    // ← hier wird sofort weitergeschaltet!
+}
+
+Weil jeder Template-Ladefehler in den catch geht und dort onNext() aufgerufen wird, wirst du immer im Fehlerfall direkt aus dem Dialog katapultiert. Der Hinweis-Toast ist also nicht die Ursache des Redirects – es ist der darauffolgende onNext()-Aufruf.
+
+⸻
+
+3. State-Machine reagiert auf onNext
+
+In deiner BestellungV2.tsx ist onNext = () => setStep('overview') oder navigate('/bestellungen'). Sobald onNext() eintritt, setzt die übergeordnete Komponente den Step zurück auf „Übersicht“, egal ob der Nutzer noch im E-Mail-Dialog ist oder nicht.
+
+⸻
+
+Konsequenz
+	1.	Template-Laden schlägt fehl
+	2.	catch zeigt den Hinweis-Toast
+	3.	catch ruft onNext() → Nutzer landet auf der Bestell-Übersicht
+	4.	Der Hinweis erscheint erst danach, so wirkt es, als ob der Toast den Abbruch auslöst, obwohl nur er abgespielt wird, kurz bevor die Übersicht gerendert wird.
+
+⸻
+
+So behebst du es
+
+A) Frontend: Template-Request auf GET umstellen
+
+In OrderEmailPage.tsx
+
+- const resp = await fetch(`/api/orders/${orderId}/email-template?type=standard`, { method: 'POST' });
++ const resp = await fetch(`/api/orders/${orderId}/email-template?type=standard`);
+
+– oder eine neue api.getEmailTemplate(orderId, 'standard')-Funktion verwenden.
+
+B) Fehler-Catch ohne onNext
+
+Statt im catch sofort weiterzuschalten:
+
+  } catch (err) {
+    console.error("Fehler beim Laden der E-Mail-Vorlage:", err);
+    toast.warn("Hinweis\nDie E-Mail-Vorlage konnte nicht automatisch geladen werden. Eine Standard-Vorlage wird verwendet.");
+-   onNext();
++   // onNext();  ← entfernen!
+    // stattdessen:
+    setEmailTemplate(defaultTemplate);
+    return;  // abbrechen, aber in der Dialog-Seite bleiben
+  }
+
+C) Weiterleitung nur im Send-Button auslösen
+
+Im Button-Handler:
+
+<Button onClick={async () => {
+  try {
+    await api.sendOrderEmail(...);
+    toast.success("E-Mail erfolgreich gesendet.");
+    onNext?.();   // NUR HIER!
+  } catch (err) {
+    toast.error("Fehler beim Senden der E-Mail.");
+  }
+}}>
+  E-Mail senden
+</Button>
+
+– Alle anderen onNext()-Aufrufe (z. B. in Hooks oder anderen catch-Blöcken) entfernst du komplett.
+
+⸻
+
+Warum hilft das?
+	•	GET statt POST sorgt dafür, dass das Template ohne Fehler zurückkommt und du nie in den catch für die Vorlage landest.
+	•	Entfall von onNext im Catch verhindert jeglichen Redirect, solange kein echter Sendeversuch stattgefunden hat.
+	•	onNext nur im Send-Handler gibt dem Nutzer volle Kontrolle und stellt sicher, dass UX-Schritte sauber getrennt sind:
+	•		1.	Vorbereiten (Template laden, Daten anzeigen)
+	•		2.	Senden (E-Mail verschicken, dann Übersicht/Nächster Schritt).
+
+Führe diese drei Änderungen durch, starte die App neu und teste:
+	1.	Bestellung öffnen → kein sofortiger Redirect, kein Toast
+	2.	Klick auf „E-Mail vorbereiten“ → Template lädt, Dialog bleibt offen
+	3.	Klick auf „E-Mail senden“ → Toast „gesendet“ + dann Redirect
+
+Damit ist der Abbruch-Loop endgültig eliminiert.
