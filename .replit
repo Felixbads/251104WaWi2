@@ -12,10 +12,9 @@ run = ["npm", "run", "start"]
 
 [[ports]]
 localPort = 5000
-externalPort = 80
 
 [workflows]
-runButton = "Start Application"
+runButton = "Start Server"
 
 [[workflows.workflow]]
 name = "Project"
@@ -62,3 +61,16 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "node restart-server.js"
+
+[[workflows.workflow]]
+name = "Start Server"
+author = 38066542
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm install"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm run dev"
