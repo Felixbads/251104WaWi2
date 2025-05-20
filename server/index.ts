@@ -152,35 +152,66 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5000;
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, async () => {
-    log(`serving on port ${port}`);
-    
-    // Starte die automatische Synchronisierung
-    log('Initialisiere automatisches Synchronisierungssystem...');
-    startAutomaticSync();
-    
-    // Führen wir einen initialen Lagerabgleich beim Start durch
-    try {
-      log('Starte initialen Lagerabgleich beim Serverstart (NUR Produkte aus zugewiesenen Automaten)...');
-      reconcileWarehouseProducts(undefined, false, true).then(result => {
-        log(`Initialer Lagerabgleich abgeschlossen: 
-        - ${result.productsAdded} neue Produkte aus Automaten zu ${result.warehousesChecked} Lagern hinzugefügt
-        - Keine zusätzlichen Produkte aus dem Gesamtportfolio hinzugefügt, um Duplikate zu vermeiden`);
-      }).catch(error => {
-        log(`Fehler beim initialen Lagerabgleich: ${error.message}`);
-      });
-    } catch (error) {
-      log(`Fehler beim Starten des initialen Lagerabgleichs: ${error.message}`);
+  // Try different ports to avoid conflicts
+  // We'll attempt to use ports in this order: 5000, 5001, 5002, 5003, 5004, 5005
+  const attemptListen = (ports: number[], index = 0) => {
+    if (index >= ports.length) {
+      log(`Failed to bind to any port after trying all options`);
+      process.exit(1);
+      return;
     }
     
-    log('Automatischer täglicher Lagerabgleich ist aktiviert und erfolgt alle 24 Stunden.');
-  });
+    const port = ports[index];
+    log(`Attempting to listen on port ${port}...`);
+    
+    try {
+      const s = server.listen({
+        port,
+        host: "0.0.0.0",
+      });
+      
+      s.on('error', (err: any) => {
+        if (err.code === 'EADDRINUSE') {
+          log(`Port ${port} is already in use, trying next port...`);
+          s.close();
+          attemptListen(ports, index + 1);
+        } else {
+          log(`Server error: ${err.message}`);
+          process.exit(1);
+        }
+      });
+      
+      s.on('listening', async () => {
+        log(`Server successfully started on port ${port}`);
+        
+        // Starte die automatische Synchronisierung
+        log('Initialisiere automatisches Synchronisierungssystem...');
+        startAutomaticSync();
+        
+        // Führen wir einen initialen Lagerabgleich beim Start durch
+        try {
+          log('Starte initialen Lagerabgleich beim Serverstart (NUR Produkte aus zugewiesenen Automaten)...');
+          reconcileWarehouseProducts(undefined, false, true)
+            .then((result) => {
+              log(`Initialer Lagerabgleich abgeschlossen: 
+              - ${result.productsAdded} neue Produkte aus Automaten zu ${result.warehousesChecked} Lagern hinzugefügt
+              - Keine zusätzlichen Produkte aus dem Gesamtportfolio hinzugefügt`);
+            })
+            .catch((err) => {
+              log(`Fehler beim initialen Lagerabgleich: ${err instanceof Error ? err.message : String(err)}`);
+            });
+        } catch (err) {
+          log(`Fehler beim Starten des initialen Lagerabgleichs: ${err instanceof Error ? err.message : String(err)}`);
+        }
+        
+        log('Automatischer täglicher Lagerabgleich ist aktiviert und erfolgt alle 24 Stunden.');
+      });
+    } catch (err) {
+      log(`Fatal error starting server: ${err instanceof Error ? err.message : String(err)}`);
+      attemptListen(ports, index + 1);
+    }
+  };
+  
+  // Start with these port options
+  attemptListen([5000, 5001, 5002, 5003, 5004, 5005]);
 })();
