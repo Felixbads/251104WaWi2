@@ -162,6 +162,67 @@ router.get('/orders-direct/:id', async (req, res) => {
   }
 });
 
+// Direkter Endpunkt für Bestellpositionen einer bestimmten Bestellung
+router.get('/order-items-direct/:orderId', async (req, res) => {
+  try {
+    const orderId = req.params.orderId;
+    
+    if (!orderId || isNaN(Number(orderId))) {
+      return res.status(400).json({
+        error: 'Ungültige Bestellungs-ID',
+        message: 'Die angegebene Bestellungs-ID ist ungültig',
+        success: false
+      });
+    }
+    
+    console.log(`Lade Bestellpositionen für Bestellung ${orderId} direkt aus der Datenbank...`);
+    
+    // Bestellungspositionen mit Produktnamen abfragen
+    const itemsResult = await pool.query(`
+      SELECT 
+        oi.*,
+        p.name AS product_name
+      FROM order_items oi
+      LEFT JOIN products p ON oi.product_id = p.id
+      WHERE oi.order_id = $1
+    `, [orderId]);
+    
+    // Bestellpositionen für Frontend aufbereiten
+    const orderItems = itemsResult.rows.map(item => {
+      // Frontend-kompatible Feldnamen
+      return {
+        ...item,
+        productName: item.product_name, // Produktname im Frontend Format
+        orderId: item.order_id,
+        productId: item.product_id,
+        quantityDelivered: item.quantity_delivered || 0,
+        unitPrice: item.unit_price,
+        totalPrice: item.total_price,
+        vatRate: item.vat_rate,
+        vatAmount: item.vat_amount,
+        discountAmount: item.discount_amount || 0,
+        targetMachineId: item.target_machine_id,
+        targetMachineName: item.target_machine_name,
+        createdAt: item.created_at,
+        updatedAt: item.updated_at
+      };
+    });
+    
+    return res.json({
+      success: true,
+      data: orderItems,
+      message: `${orderItems.length} Bestellpositionen für Bestellung ${orderId} geladen`
+    });
+  } catch (error) {
+    console.error(`Fehler beim Laden der Bestellpositionen:`, error);
+    return res.status(500).json({ 
+      error: 'Datenbankfehler', 
+      message: error instanceof Error ? error.message : 'Unbekannter Fehler',
+      success: false
+    });
+  }
+});
+
 // Direkter Endpunkt für Lieferanten
 router.get('/suppliers-direct', async (req, res) => {
   try {

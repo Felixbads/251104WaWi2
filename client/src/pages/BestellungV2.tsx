@@ -642,12 +642,72 @@ const BestellungV2: React.FC = () => {
     }
   };
   
-  // Überprüfe Parameter beim ersten Laden
+  // Überprüfe Parameter beim ersten Laden und lade Bestellung wenn eine ID vorhanden ist
   useEffect(() => {
     if (params && params.orderId) {
       const orderId = parseInt(params.orderId);
       setOrderId(orderId);
-      setStep('warehouseReceiptOfExistingOrder');
+      
+      // Bestellung über den direkten SQL-Endpunkt laden
+      console.log(`Lade bestehende Bestellung mit ID ${orderId} über direkten SQL-Endpunkt...`);
+      
+      // Setze den Schritt auf "Laden" während wir warten
+      setStep('overview');
+      
+      // Bestellung aus der Datenbank laden
+      fetch(`/api/orders-direct/${orderId}`)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Bestellung konnte nicht geladen werden: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          console.log("Bestellung erfolgreich geladen:", data);
+          
+          // Aktualisiere Bestelldaten
+          setExistingOrderData(data);
+          
+          // Aktualisiere auch einzelne Felder für die Verwendung in verschiedenen Komponenten
+          setOrderNumber(data.order_number || '');
+          setSupplierName(data.supplier_name || '');
+          setSupplierId(data.supplier_id);
+          
+          // Verwende warehouse_id mit Fallback auf location_id
+          setWarehouseId(data.warehouseId || data.warehouse_id || data.location_id);
+          
+          // Verwende warehouseName mit Fallback auf warehouse_name oder location_name
+          setWarehouseName(data.warehouseName || data.warehouse_name || data.location_name || 'Unbekanntes Lager');
+          
+          // Hole die Bestellpositionen (falls noch nicht vorhanden)
+          if (!data.items || data.items.length === 0) {
+            loadOrderItems(orderId);
+          } else {
+            // Verwende die bereits geladenen Bestellpositionen
+            setSelectedProducts(data.items.map(item => ({
+              id: item.product_id,
+              productId: item.product_id,
+              name: item.product_name || item.productName,
+              orderQuantity: item.quantity,
+              price: item.unit_price || item.unitPrice || 0,
+              unit: item.unit || 'Stk.'
+            })));
+          }
+          
+          // Setze den Schritt auf Wareneingang für bestehende Bestellung
+          setStep('warehouseReceiptOfExistingOrder');
+        })
+        .catch(error => {
+          console.error("Fehler beim Laden der Bestellung:", error);
+          toast({
+            title: "Fehler beim Laden der Bestellung",
+            description: `Die Bestellung mit ID ${orderId} konnte nicht geladen werden: ${error.message}`,
+            variant: "destructive"
+          });
+          
+          // Zur Übersicht zurückkehren bei Fehler
+          setStep('overview');
+        });
     }
   }, [params]);
   
