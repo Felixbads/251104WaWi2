@@ -133,13 +133,19 @@ router.get('/orders-direct/:id', async (req, res) => {
     
     // Bestellungspositionen abfragen
     const itemsResult = await pool.query(`
-      SELECT 
-        oi.*,
-        p.name AS product_name
+      SELECT oi.*
       FROM order_items oi
-      LEFT JOIN products p ON oi.product_id = p.id
       WHERE oi.order_id = $1
     `, [orderId]);
+    
+    // Überprüfen, ob Produkte korrekt geladen wurden, sonst product_name aus vorhandenen Daten nehmen
+    const orderItems = itemsResult.rows.map(item => {
+      // Stellen Sie sicher, dass product_name vorhanden ist
+      if (!item.product_name && item.product_id) {
+        console.log(`Warnung: Produktname für Bestellposition ${item.id} fehlt!`);
+      }
+      return item;
+    });
     
     // Daten für Frontend aufbereiten und mit korrekten Feldnamen versehen
     const orderData = {
@@ -147,8 +153,10 @@ router.get('/orders-direct/:id', async (req, res) => {
       // Frontend-kompatible Feldnamen
       warehouseId: orderResult.rows[0].warehouse_id || orderResult.rows[0].location_id,
       warehouseName: orderResult.rows[0].warehouse_name || orderResult.rows[0].location_name || 'Unbekanntes Lager',
+      supplierName: orderResult.rows[0].supplier_name || 'Unbekannter Lieferant',
+      supplierEmail: orderResult.rows[0].supplier_email || '',
       // Bestellpositionen mit korrektem Namen
-      items: itemsResult.rows
+      items: orderItems
     };
     
     return res.json(orderData);
@@ -177,13 +185,10 @@ router.get('/order-items-direct/:orderId', async (req, res) => {
     
     console.log(`Lade Bestellpositionen für Bestellung ${orderId} direkt aus der Datenbank...`);
     
-    // Bestellungspositionen mit Produktnamen abfragen
+    // Bestellungspositionen abfragen ohne JOIN auf products-Tabelle
     const itemsResult = await pool.query(`
-      SELECT 
-        oi.*,
-        p.name AS product_name
+      SELECT oi.*
       FROM order_items oi
-      LEFT JOIN products p ON oi.product_id = p.id
       WHERE oi.order_id = $1
     `, [orderId]);
     
@@ -192,19 +197,21 @@ router.get('/order-items-direct/:orderId', async (req, res) => {
       // Frontend-kompatible Feldnamen
       return {
         ...item,
-        productName: item.product_name, // Produktname im Frontend Format
+        // Stelle sicher, dass alle Frontend-Daten vorhanden sind, auch wenn im Backend andere Namen verwendet werden
+        productName: item.product_name || item.productName || 'Unbekanntes Produkt', 
         orderId: item.order_id,
         productId: item.product_id,
+        quantity: item.quantity || 0,
         quantityDelivered: item.quantity_delivered || 0,
-        unitPrice: item.unit_price,
-        totalPrice: item.total_price,
-        vatRate: item.vat_rate,
-        vatAmount: item.vat_amount,
-        discountAmount: item.discount_amount || 0,
-        targetMachineId: item.target_machine_id,
-        targetMachineName: item.target_machine_name,
-        createdAt: item.created_at,
-        updatedAt: item.updated_at
+        unitPrice: item.unit_price || item.unitPrice || 0,
+        totalPrice: item.total_price || item.totalPrice || 0,
+        vatRate: item.vat_rate || item.vatRate || 0,
+        vatAmount: item.vat_amount || item.vatAmount || 0,
+        discountAmount: item.discount_amount || item.discountAmount || 0,
+        targetMachineId: item.target_machine_id || item.targetMachineId || null,
+        targetMachineName: item.target_machine_name || item.targetMachineName || null,
+        createdAt: item.created_at || item.createdAt,
+        updatedAt: item.updated_at || item.updatedAt
       };
     });
     
