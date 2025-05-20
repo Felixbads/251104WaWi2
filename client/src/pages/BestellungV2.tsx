@@ -110,6 +110,7 @@ const BestellungV2: React.FC = () => {
   const [existingOrderData, setExistingOrderData] = useState<any>(null);
   const [showEmailDialog, setShowEmailDialog] = useState<boolean>(false);
   const [emailPrepInProgress, setEmailPrepInProgress] = useState<boolean>(false);
+  const [emailSendSuccess, setEmailSendSuccess] = useState<boolean>(false);
   const [orderDetailsOpen, setOrderDetailsOpen] = useState<boolean>(false);
   
   // Rekursive Funktion zum Laden von Bestellpositionen mit Retry-Logik
@@ -655,10 +656,13 @@ const BestellungV2: React.FC = () => {
         description: 'Die Bestellung wurde erfolgreich per E-Mail versendet.',
       });
       
-      // Nach erfolgreichem Versand zur E-Mail-Erfolgsmeldung oder Übersicht
-      // Hier keine automatische Weiterleitung mehr, wir bleiben auf der aktuellen Seite
-      // und zeigen einen Erfolgsstatus an
-      setEmailSendSuccess(true);
+      // Nach erfolgreichem Versand zur Erfolgsmeldung
+      // aber keine automatische Weiterleitung mehr
+      toast({
+        title: 'E-Mail erfolgreich versendet',
+        description: 'Sie können jetzt zurück zur Bestellübersicht gehen oder eine weitere E-Mail senden.',
+        duration: 5000,
+      });
     } catch (error) {
       console.error('Fehler beim Senden der E-Mail:', error);
       toast({
