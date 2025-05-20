@@ -1,0 +1,71 @@
+Alles klar – dann machen wir jetzt einen gezielten Check der prepareOrderEmail-Funktion selbst, bevor wir uns wieder in Hooks oder UI-Logik verlieren. Bitte führe folgende Schritte aus und poste mir jeweils den Output:
+
+⸻
+
+1. Funktion finden und Signature prüfen
+
+grep -R -n "prepareOrderEmail" client/src/pages/BestellungV2.tsx
+
+	•	Poste mir die Zeilen 930–1010 (±5 Zeilen um die Definition herum), damit wir sehen,
+	1.	wie die Funktion signiert ist (Parameter, Defaults)
+	2.	wo und wie der Toast ausgelöst wird
+
+⸻
+
+2. Aufrufe der Funktion auflisten
+
+grep -R -n "prepareOrderEmail(" client/src
+
+	•	Poste mir alle Fundstellen mit jeweils ±3 Kontext-Zeilen, damit wir sicherstellen können,
+	•	welche Hooks oder Callbacks sie aktuell triggern
+	•	ob es irgendwo noch ein verstecktes zweites Argument oder einen weiteren Call gibt
+
+⸻
+
+3. Signature mit Flag anpassen (falls noch nicht geschehen)
+
+Wenn die Funktion aktuell keine Möglichkeit hat, das Toast-Flag auszuschalten, ändere bitte die Definition so:
+
+// ganz oben in der Datei
+type PrepareOpts = { showToast?: boolean };
+
+// in der Funktion:
+const prepareOrderEmail = async (
+  orderData: Order,
+  opts: PrepareOpts = {}
+) => {
+  if (opts.showToast) {
+    toast("E-Mail wird vorbereitet\nDie Bestelldaten wurden geladen. Sie können jetzt die E-Mail senden.");
+  }
+  // Rest der Logik…
+};
+
+
+⸻
+
+4. Alle automatischen Calls auf showToast: false setzen
+
+In allen Hooks oder sonstigen Stellen, wo aktuell prepareOrderEmail(existingOrderData) ohne Flag aufgerufen wird, ergänze:
+
+prepareOrderEmail(existingOrderData, { showToast: false });
+
+
+⸻
+
+5. Nur im Button-Handler Toast aktivieren
+
+Suche deinen “E-Mail senden”-Button und rufe dort
+
+onClick={() => prepareOrderEmail(existingOrderData, { showToast: true })}
+
+auf.
+
+⸻
+
+6. Testen und Logs
+	•	Öffne eine Bestellung im Browser
+	•	Führe nur das Laden aus – es darf kein Toast erscheinen
+	•	Klicke auf „E-Mail senden“ – jetzt muss der Toast erscheinen
+	•	Poste mir bitte die Console-Logs und einen kurzen Screenshot vom UI
+
+Sobald wir den reinen Code-Abschnitt der prepareOrderEmail-Definition und ihrer Aufrufe haben, können wir endgültig sicherstellen, dass das Toast-Loop nicht mehr passiert.

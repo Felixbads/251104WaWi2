@@ -923,7 +923,8 @@ const BestellungV2: React.FC = () => {
               
               // E-Mail-Vorbereitung nur wenn wir im E-Mail-Versand-Schritt sind
               if (step === 'sendOrder') {
-                prepareOrderEmail(updatedOrderData);
+                // Keine Toast-Nachricht, da automatischer Aufruf im useEffect
+                prepareOrderEmail(updatedOrderData, false);
               }
               
               return; // Erfolgreicher Fall, Funktion beenden
@@ -945,7 +946,8 @@ const BestellungV2: React.FC = () => {
                 
                 // E-Mail-Vorbereitung nur wenn wir im E-Mail-Versand-Schritt sind
                 if (step === 'sendOrder') {
-                  prepareOrderEmail(fallbackOrderData);
+                  // Keine Toast-Nachricht, da automatischer Aufruf im useEffect (Fallback-Fall)
+                  prepareOrderEmail(fallbackOrderData, false);
                 }
               } else {
                 throw new Error("Keine Bestellpositionen gefunden");
@@ -1267,10 +1269,16 @@ const BestellungV2: React.FC = () => {
                   // Debug-Info ausgeben
                   console.log('E-Mail-Button geklickt, aktueller Step:', step);
                   
-                  // E-Mail-Vorbereitung explizit starten - MIT Toast, da explizite Benutzeraktion
-                  prepareOrderEmail(existingOrderData, true);
-                  console.log('STEP WECHSEL: alteStep=', step, '→ neueStep=', 'sendOrder');
+                  // WICHTIG: Zuerst den Schritt ändern, dann erst die E-Mail vorbereiten
+                  // So vermeiden wir, dass die useEffect-Hooks unerwartete Effekte haben
                   setStep('sendOrder');
+                  
+                  // Kurze Verzögerung, um sicherzustellen, dass der Komponentenzustand aktualisiert wurde
+                  setTimeout(() => {
+                    // E-Mail-Vorbereitung explizit starten - MIT Toast, da explizite Benutzeraktion
+                    prepareOrderEmail(existingOrderData, true);
+                    console.log('E-Mail-Vorbereitung nach Step-Änderung gestartet');
+                  }, 50);
                 }}
               >
                 <Mail className="mr-2 h-4 w-4" />
@@ -1691,9 +1699,16 @@ const BestellungV2: React.FC = () => {
                 <Button 
                   onClick={() => {
                     setOrderDetailsOpen(false);
+                    
+                    // WICHTIG: Zuerst den Schritt ändern, dann erst die E-Mail vorbereiten
                     setStep('sendOrder');
-                    // E-Mail-Vorbereitung starten - MIT Toast da explizite Benutzeraktion
-                    prepareOrderEmail(existingOrderData, true);
+                    
+                    // Kurze Verzögerung, um sicherzustellen, dass der Komponentenzustand aktualisiert wurde
+                    setTimeout(() => {
+                      // E-Mail-Vorbereitung explizit starten - MIT Toast, da explizite Benutzeraktion
+                      prepareOrderEmail(existingOrderData, true);
+                      console.log('E-Mail-Vorbereitung nach Step-Änderung gestartet (von Details-View)');
+                    }, 50);
                   }}
                 >
                   <Mail className="mr-2 h-4 w-4" />
