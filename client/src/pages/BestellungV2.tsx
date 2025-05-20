@@ -25,7 +25,8 @@ import {
   AlertTriangle,
   ListFilter,
   ClipboardList,
-  Package
+  Package,
+  AlertCircle
 } from 'lucide-react';
 import { useLocation, useParams } from 'wouter';
 import { Steps } from "@/components/ui/steps";
@@ -52,6 +53,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 
 // Import custom components
@@ -1277,33 +1288,27 @@ const BestellungV2: React.FC = () => {
                 
                 <h3 className="text-sm font-medium mb-2">Bestellte Artikel</h3>
                 {existingOrderData.items && existingOrderData.items.length > 0 ? (
-                  <div className="border rounded-md">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Produkt</TableHead>
-                          <TableHead className="text-right">Menge</TableHead>
-                          <TableHead className="text-right">Preis</TableHead>
-                          <TableHead className="text-right">Gesamt</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {existingOrderData.items.map((item: any) => (
-                          <TableRow key={item.id || item.product_id}>
-                            <TableCell>{item.product_name || item.productName}</TableCell>
-                            <TableCell className="text-right">{item.quantity} {item.unit || 'Stk.'}</TableCell>
-                            <TableCell className="text-right">{(item.unit_price || item.unitPrice || 0).toFixed(2)} €</TableCell>
-                            <TableCell className="text-right">{(item.total_price || (item.quantity * (item.unit_price || item.unitPrice || 0)) || 0).toFixed(2)} €</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                      <TableFooter>
-                        <TableRow>
-                          <TableCell colSpan={3}>Gesamtbetrag</TableCell>
-                          <TableCell className="text-right">{(existingOrderData.total_amount || 0).toFixed(2)} €</TableCell>
-                        </TableRow>
-                      </TableFooter>
-                    </Table>
+                  <div className="border rounded-md p-4">
+                    <div className="grid grid-cols-4 gap-2 font-medium mb-2">
+                      <div>Produkt</div>
+                      <div className="text-right">Menge</div>
+                      <div className="text-right">Preis</div>
+                      <div className="text-right">Gesamt</div>
+                    </div>
+                    <Separator className="my-2" />
+                    {existingOrderData.items.map((item: any) => (
+                      <div key={item.id || item.product_id} className="grid grid-cols-4 gap-2 py-2">
+                        <div>{item.product_name || item.productName}</div>
+                        <div className="text-right">{item.quantity} {item.unit || 'Stk.'}</div>
+                        <div className="text-right">{(item.unit_price || item.unitPrice || 0).toFixed(2)} €</div>
+                        <div className="text-right">{(item.total_price || (item.quantity * (item.unit_price || item.unitPrice || 0)) || 0).toFixed(2)} €</div>
+                      </div>
+                    ))}
+                    <Separator className="my-2" />
+                    <div className="grid grid-cols-4 gap-2 py-2 font-medium">
+                      <div className="col-span-3">Gesamtbetrag</div>
+                      <div className="text-right">{(existingOrderData.total_amount || 0).toFixed(2)} €</div>
+                    </div>
                   </div>
                 ) : (
                   <p className="text-muted-foreground">Keine Artikel in dieser Bestellung.</p>
@@ -1362,6 +1367,7 @@ const BestellungV2: React.FC = () => {
                 }
               }}
               onNext={() => setStep('overview')}
+            />
           </>
         );
       case 'goodsReceipt':
