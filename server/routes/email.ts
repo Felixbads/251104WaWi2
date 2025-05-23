@@ -192,7 +192,7 @@ Elbsandstein Proviant & Quartier GmbH`,
   }
 });
 
-// API zum Abrufen einer E-Mail-Vorlage für eine Bestellung
+// API zum Abrufen einer vollständigen E-Mail-Vorlage für eine Bestellung
 router.get('/orders/:id/email-template', async (req, res) => {
   try {
     const orderId = parseInt(req.params.id);
@@ -203,6 +203,9 @@ router.get('/orders/:id/email-template', async (req, res) => {
     if (!order) {
       return res.status(404).json({ error: 'Bestellung nicht gefunden' });
     }
+
+    // Bestellpositionen abrufen
+    const orderItems = await storage.getOrderItems(orderId);
     
     // Passende Vorlage finden
     let template;
@@ -214,17 +217,57 @@ router.get('/orders/:id/email-template', async (req, res) => {
       template = templates[0]; // Standard
     }
     
-    // Platzhalter ersetzen
-    let subject = template.subject.replace('{{orderNumber}}', order.orderNumber);
-    let content = template.content.replace('{{orderNumber}}', order.orderNumber);
+    // Vollständige Bestelldetails für E-Mail zusammenstellen
+    const orderDate = new Date(order.createdAt).toLocaleDateString('de-DE');
+    const deliveryDate = order.expectedDeliveryDate ? 
+      new Date(order.expectedDeliveryDate).toLocaleDateString('de-DE') : 
+      'Noch nicht festgelegt';
     
-    if (order.supplierName) {
-      content = content.replace('{{supplierName}}', order.supplierName);
-    }
+    // Bestellpositionen formatieren
+    let itemsList = '';
+    let totalAmount = 0;
+    
+    orderItems.forEach(item => {
+      const itemTotal = item.quantity * item.unitPrice;
+      totalAmount += itemTotal;
+      itemsList += `<li>${item.quantity} ${item.unit} ${item.productName} (${item.unitPrice.toFixed(2)} € je ${item.unit})</li>`;
+    });
+    
+    // Vollständige E-Mail mit allen Bestelldaten erstellen
+    let subject = template.subject.replace('{{orderNumber}}', order.orderNumber);
+    
+    let content = `Sehr geehrte Damen und Herren,
+
+hiermit bestellen wir folgende Artikel:
+
+<ul>${itemsList}</ul>
+
+<strong>Bestelldetails:</strong>
+• Bestellnummer: ${order.orderNumber}
+• Bestelldatum: ${orderDate}
+• Gewünschter Liefertermin: ${deliveryDate}
+• Gesamtwert: ${totalAmount.toFixed(2)} €
+• Priorität: ${order.priority || 'Normal'}
+
+${order.notes ? `<strong>Zusätzliche Hinweise:</strong>\n${order.notes}\n\n` : ''}
+
+Bitte bestätigen Sie den Eingang dieser Bestellung.
+
+Mit freundlichen Grüßen
+Ihr Proviantomat Team`;
     
     res.json({
       subject,
-      content
+      content,
+      availableTemplates: templates.map(t => ({ id: t.id, name: t.name })),
+      orderDetails: {
+        orderNumber: order.orderNumber,
+        orderDate,
+        deliveryDate,
+        totalAmount: totalAmount.toFixed(2),
+        itemsCount: orderItems.length,
+        supplierName: order.supplierName
+      }
     });
   } catch (error: any) {
     console.error('Fehler beim Laden der E-Mail-Vorlage:', error);
