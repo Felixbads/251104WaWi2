@@ -270,9 +270,20 @@ Ihr Proviantomat Team`);
       }
     } catch (error) {
       console.error('Fehler beim Senden der E-Mail:', error);
+      
+      // Verbesserte Fehlerbehandlung für bessere Diagnose
+      let errorMessage = 'Unbekannter Fehler';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        // Falls es ein JSON-Parse-Fehler ist, zeige eine klarere Nachricht
+        if (error.message.includes('Unexpected token') || error.message.includes('JSON')) {
+          errorMessage = 'Server-Antwort konnte nicht verarbeitet werden. Möglicherweise ist das E-Mail-System nicht korrekt konfiguriert.';
+        }
+      }
+      
       toast({
         title: 'Fehler beim Senden',
-        description: `Die E-Mail konnte nicht gesendet werden: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
+        description: `Die E-Mail konnte nicht gesendet werden: ${errorMessage}`,
         variant: 'destructive',
       });
     } finally {
