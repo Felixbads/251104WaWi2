@@ -76,7 +76,7 @@ router.get('/mail-templates/:id', (req, res) => {
 });
 
 // API zum Senden einer E-Mail mit Bestellung
-router.post('/orders/:id/email', async (req, res) => {
+router.post('/orders/:id/send-email', async (req, res) => {
   try {
     const orderId = parseInt(req.params.id);
     const { supplierEmail, subject, content, additionalNotes } = req.body;
