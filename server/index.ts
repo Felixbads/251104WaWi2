@@ -64,8 +64,7 @@ app.use((req, res, next) => {
   app.use(inventoryApiRouter);
   app.use('/api', inventoryRouter);
   
-  // Einfache E-Mail-Route ohne PDF-Anhang
-  app.use('/api', simpleEmailRouter); // Vereinfachte E-Mail-Funktion ohne PDF
+  // E-Mail-Route für Bestellungen (entfernt simpleEmailRouter um Konflikte zu vermeiden)
   
   // E-Mail-Vorlagen-Route hinzufügen
   app.use('/api/mail-templates', mailTemplatesRouter);
