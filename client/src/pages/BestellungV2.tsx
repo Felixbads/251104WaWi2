@@ -740,13 +740,8 @@ const BestellungV2: React.FC = () => {
       // E-Mail-Vorbereitung ist abgeschlossen
       setEmailPrepInProgress(false);
       
-      // Info-Toast NUR anzeigen, wenn explizit angefordert (typischerweise bei Button-Klick)
-      if (showToast) {
-        toast({
-          title: 'E-Mail wird vorbereitet',
-          description: 'Die Bestelldaten wurden geladen. Sie können jetzt die E-Mail senden.',
-        });
-      }
+      // Fix: Keine Toast-Nachricht mehr bei E-Mail-Vorbereitung
+      // Das Toast verursacht die unerwünschten Redirects
       
     } catch (error) {
       console.error('Fehler bei der E-Mail-Vorbereitung:', error);
