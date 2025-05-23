@@ -120,12 +120,8 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
       } catch (error) {
         console.error('Fehler beim Laden der E-Mail-Vorlage:', error);
         
-        // Fix 2: Entschärfter Fehler-Catch - KEIN onNext() mehr!
-        toast({
-          title: 'Hinweis',
-          description: 'Die E-Mail-Vorlage konnte nicht automatisch geladen werden. Eine Standard-Vorlage wird verwendet.',
-          variant: 'default'
-        });
+        // Fix 2: Keine störenden Toast-Nachrichten mehr bei Template-Fehlern
+        console.log('E-Mail-Vorlage konnte nicht geladen werden, verwende Standard-Template');
         
         // Standard-Template setzen aber Dialog OFFEN lassen
         const supplierText = supplierName ? ` von ${supplierName}` : '';
