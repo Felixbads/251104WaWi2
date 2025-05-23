@@ -79,10 +79,11 @@ router.get('/mail-templates/:id', (req, res) => {
 router.post('/orders/:id/send-email', async (req, res) => {
   try {
     const orderId = parseInt(req.params.id);
-    const { supplierEmail, subject, content, additionalNotes } = req.body;
+    const { to, supplierEmail, subject, content, additionalNotes } = req.body;
+    const emailAddress = to || supplierEmail; // Frontend sendet 'to', Backend erwartet 'supplierEmail'
     
     // Validiere die Anfrage
-    if (!supplierEmail || !supplierEmail.includes('@')) {
+    if (!emailAddress || !emailAddress.includes('@')) {
       return res.status(400).json({ error: 'Ungültige E-Mail-Adresse' });
     }
     
@@ -132,9 +133,9 @@ router.post('/orders/:id/send-email', async (req, res) => {
     }
     
     // E-Mail mit Bestelldetails im Text senden
-    console.log(`Sende E-Mail an ${supplierEmail}...`);
+    console.log(`Sende E-Mail an ${emailAddress}...`);
     const emailSent = await sendEmail({
-      to: supplierEmail,
+      to: emailAddress,
       subject: subject || `Bestellung ${order.orderNumber} von Elbsandstein Proviant & Quartier GmbH`,
       text: content || `Sehr geehrte Damen und Herren,
 
