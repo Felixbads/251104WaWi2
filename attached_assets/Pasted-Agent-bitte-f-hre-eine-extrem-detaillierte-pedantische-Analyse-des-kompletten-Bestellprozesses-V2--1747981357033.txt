@@ -1,0 +1,93 @@
+Agent, bitte führe eine extrem detaillierte, pedantische Analyse des kompletten Bestellprozesses V2 durch und dokumentiere zugleich konkrete Lösungsschritte – ohne jeglichen Fokus auf PDF/Bestellzettel (diesen Part haben wir überall entfernt). Konzentriere dich ausschließlich auf das „E-Mail vorbereiten“-Problem, bei dem nach Klick auf „E-Mail vorbereiten“ die Meldung
+
+E-Mail wird vorbereitet
+Die Bestelldaten wurden geladen. Sie können jetzt die E-Mail senden.
+
+erscheint und die Applikation sofort zurück zur Bestell-Übersicht springt.
+
+⸻
+
+1. Vollständige Prozess-Beschreibung
+	•	Erstelle eine Schritt-für-Schritt-Auflistung des Ablaufs
+	1.	Anlegen/Laden einer Bestellung (Status draft)
+	2.	Klick auf „E-Mail vorbereiten“
+	3.	Laden der E-Mail-Vorlage
+	4.	Anzeige des E-Mail-Dialogs
+	5.	Klick auf „E-Mail senden“
+	6.	Wareneingangsschritt mit MHD-Buchung
+	•	Markiere in jedem Schritt, welche Komponenten/Functions (useEffect, prepareOrderEmail, OrderEmailPage, API-Calls, Hooks) involviert sind.
+
+2. Probleme beim „E-Mail vorbereiten“
+	•	Fehlerquelle (API-Call)
+	•	Falsche HTTP-Methode oder falscher Endpoint beim Laden der Vorlage
+	•	Response enthält HTML statt JSON → JSON.parse-Error
+	•	Fehler-Handling im Frontend
+	•	Jeder Fehler im catch rund ums Template-Laden ruft ungefiltert onNext() auf
+	•	onNext() ist in BestellungV2.tsx auf setStep('overview') bzw. navigate('/bestellungen') gemappt
+	•	State-Machine/Redirect
+	•	Ungewollte Navigation bei Fehlern (Dialog wird sofort geschlossen)
+	•	Keine saubere Trennung zwischen „viewOrder“, „sendOrder“ und „emailSent“
+
+3. Tabellarische Übersicht der Probleme
+
+Datei (Pfad)	Zeile(n)	Symptom	Ursache
+OrderEmailPage.tsx	~50–80	POST /email-template schlägt fehl	Falscher HTTP-Verb (POST statt GET)
+OrderEmailPage.tsx	~90	JSON-Parse-Error	HTML-Antwort statt JSON
+OrderEmailPage.tsx (catch-Block)	~95	Direktes onNext() im catch	Fehler-Redirect ohne Nutzer-Interaktion
+BestellungV2.tsx	~1386	onNext={() => setStep('overview')}	Ungebremster Redirect nach E-Mail-Schritt
+BestellungV2.tsx (useEffect)	~927,950,980	Automatischer Aufruf prepareOrderEmail(...) ohne Flag	Toast-Loop und unerwünschte State-Abbrüche
+
+4. Schritt-für-Schritt-Patch-Plan
+	1.	Endpoint & Methode korrigieren
+
+- await fetch(`/api/orders/${orderId}/email-template?type=standard`, { method: 'POST' });
++ await fetch(`/api/orders/${orderId}/email-template?type=standard`);
+
+
+	2.	Fehler-Catch entschärfen
+
+} catch (err) {
+  console.error("Fehler beim Laden der E-Mail-Vorlage:", err);
+
+
+
+	•	onNext();
+
+	•	toast.warn(“Hinweis: Vorlage konnte nicht geladen werden, benutze Standard-Template.”);
+	•	setEmailTemplate(defaultTemplate);
+	•	return; // Dialog bleibt geöffnet
+}
+
+3. **prepareOrderEmail nur im Button-Handler**  
+```tsx
+<Button onClick={() => {
+  setStep('sendOrder');
+  prepareOrderEmail(existingOrderData, { showToast: true });
+}}>
+  E-Mail vorbereiten
+</Button>
+
+➔ Entferne alle anderen Aufrufe von prepareOrderEmail(...) aus useEffect-Hooks oder automatischen Flows.
+	4.	Redirect nur nach echtem Send-Click
+
+<Button onClick={async () => {
+  await api.sendOrderEmail(...);
+  toast.success("E-Mail erfolgreich gesendet.");
+  onNext?.();  // Erst hier wirklich weiter
+}}>
+  E-Mail senden
+</Button>
+
+
+
+5. Test- und Verifikationsplan
+	•	Bestellung öffnen → kein Toast, kein Redirect
+	•	Klick „E-Mail vorbereiten“ →
+	•	Network: GET /api/orders/XX/email-template?type=standard → 200+JSON
+	•	Console: eigener console.log('Template geladen')
+	•	Klick „E-Mail senden“ →
+	•	Network: POST /api/orders/XX/email → 200
+	•	Console: console.log('E-Mail erfolgreich gesendet')
+	•	Redirect auf Übersicht erst nach diesem Klick
+
+Bitte setze diese Analyse und Patches um und melde anschließend, ob der Step „E-Mail vorbereiten“ erstmals korrekt durchläuft!

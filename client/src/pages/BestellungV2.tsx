@@ -1401,7 +1401,18 @@ const BestellungV2: React.FC = () => {
                   setStep('overview');
                 }
               }}
-              // Kein onNext-Callback mehr übergeben, damit keine unerwünschte Weiterleitung passiert
+              onNext={() => {
+                console.log('REDIRECT TRIGGERED HERE', { step, reason: 'onNext callback from OrderEmailPage' });
+                // Kein automatischer Redirect mehr zur Übersicht
+                // setStep('overview');
+                
+                // Stattdessen nur Toast anzeigen und auf der Seite bleiben
+                toast({
+                  title: 'E-Mail erfolgreich versendet',
+                  description: 'Die Bestellung wurde erfolgreich an den Lieferanten gesendet.',
+                  duration: 5000,
+                });
+              }}
             />
           </>
         );
