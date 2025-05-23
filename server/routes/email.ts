@@ -77,6 +77,8 @@ router.get('/mail-templates/:id', (req, res) => {
 
 // API zum Senden einer E-Mail mit Bestellung
 router.post('/orders/:id/send-email', async (req, res) => {
+  console.log(`[EMAIL ROUTE] POST /orders/${req.params.id}/send-email aufgerufen`);
+  console.log(`[EMAIL ROUTE] Request body:`, req.body);
   try {
     const orderId = parseInt(req.params.id);
     const { to, supplierEmail, subject, content, additionalNotes } = req.body;
