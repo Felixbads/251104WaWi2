@@ -921,11 +921,8 @@ const BestellungV2: React.FC = () => {
               // Cache invalidieren
               queryClient.invalidateQueries({queryKey: orderKeys.detail(orderId)});
               
-              // E-Mail-Vorbereitung nur wenn wir im E-Mail-Versand-Schritt sind
-              if (step === 'sendOrder') {
-                // Keine Toast-Nachricht, da automatischer Aufruf im useEffect
-                prepareOrderEmail(updatedOrderData, false);
-              }
+              // Fix 3: prepareOrderEmail NICHT automatisch im useEffect aufrufen
+              // Die E-Mail-Vorbereitung erfolgt nur noch beim Button-Click
               
               return; // Erfolgreicher Fall, Funktion beenden
             } else if (retryCount < maxRetries) {
@@ -944,11 +941,8 @@ const BestellungV2: React.FC = () => {
                 };
                 setExistingOrderData(fallbackOrderData);
                 
-                // E-Mail-Vorbereitung nur wenn wir im E-Mail-Versand-Schritt sind
-                if (step === 'sendOrder') {
-                  // Keine Toast-Nachricht, da automatischer Aufruf im useEffect (Fallback-Fall)
-                  prepareOrderEmail(fallbackOrderData, false);
-                }
+                // Fix 3: prepareOrderEmail NICHT automatisch im useEffect aufrufen
+                // Die E-Mail-Vorbereitung erfolgt nur noch beim Button-Click
               } else {
                 throw new Error("Keine Bestellpositionen gefunden");
               }
@@ -976,8 +970,8 @@ const BestellungV2: React.FC = () => {
         loadOrderItems();
       } else {
         console.log("Bestellung hat bereits Items:", hasItems);
-        // E-Mail vorbereiten, da Items bereits vorhanden sind - aber ohne Toast in der useEffect Hook
-        prepareOrderEmail(existingOrderData, false);
+        // Fix 3: prepareOrderEmail NICHT automatisch im useEffect aufrufen
+        // Die E-Mail-Vorbereitung erfolgt nur noch beim Button-Click
       }
     }
   }, [step, existingOrderData, orderId, queryClient, selectedProducts, toast]);
@@ -1266,19 +1260,10 @@ const BestellungV2: React.FC = () => {
               
               <Button 
                 onClick={() => {
-                  // Debug-Info ausgeben
-                  console.log('E-Mail-Button geklickt, aktueller Step:', step);
-                  
-                  // WICHTIG: Zuerst den Schritt ändern, dann erst die E-Mail vorbereiten
-                  // So vermeiden wir, dass die useEffect-Hooks unerwartete Effekte haben
+                  // Fix 3: prepareOrderEmail nur im Button-Handler
+                  console.log('E-Mail-Button geklickt - starte E-Mail-Vorbereitung');
                   setStep('sendOrder');
-                  
-                  // Kurze Verzögerung, um sicherzustellen, dass der Komponentenzustand aktualisiert wurde
-                  setTimeout(() => {
-                    // E-Mail-Vorbereitung explizit starten - MIT Toast, da explizite Benutzeraktion
-                    prepareOrderEmail(existingOrderData, true);
-                    console.log('E-Mail-Vorbereitung nach Step-Änderung gestartet');
-                  }, 50);
+                  prepareOrderEmail(existingOrderData, true);
                 }}
               >
                 <Mail className="mr-2 h-4 w-4" />
@@ -1402,16 +1387,9 @@ const BestellungV2: React.FC = () => {
                 }
               }}
               onNext={() => {
-                console.log('REDIRECT TRIGGERED HERE', { step, reason: 'onNext callback from OrderEmailPage' });
-                // Kein automatischer Redirect mehr zur Übersicht
-                // setStep('overview');
-                
-                // Stattdessen nur Toast anzeigen und auf der Seite bleiben
-                toast({
-                  title: 'E-Mail erfolgreich versendet',
-                  description: 'Die Bestellung wurde erfolgreich an den Lieferanten gesendet.',
-                  duration: 5000,
-                });
+                console.log('E-Mail erfolgreich gesendet, navigiere zurück zur Übersicht');
+                // Fix 4: Redirect nur nach echtem Send-Click
+                setStep('overview');
               }}
             />
           </>

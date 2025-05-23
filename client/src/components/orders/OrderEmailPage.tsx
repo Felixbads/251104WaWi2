@@ -63,9 +63,10 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
       setError(null);
       
       try {
-        // Verwende den korrekten GET-Request für die E-Mail-Vorlage
+        // Fix 1: Korrekter GET-Request ohne method: 'POST'
         const authToken = localStorage.getItem('auth_token') || localStorage.getItem('authToken');
         const directResponse = await fetch(`/api/orders/${orderId}/email-template?type=${selectedTemplate}`, {
+          method: 'GET',
           headers: {
             ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
           }
@@ -118,20 +119,18 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
         }
       } catch (error) {
         console.error('Fehler beim Laden der E-Mail-Vorlage:', error);
-        setError('E-Mail-Vorlage konnte nicht geladen werden');
         
-        // Toast-Nachricht anzeigen, aber OHNE Weiterleitung zu veranlassen
+        // Fix 2: Entschärfter Fehler-Catch - KEIN onNext() mehr!
         toast({
           title: 'Hinweis',
           description: 'Die E-Mail-Vorlage konnte nicht automatisch geladen werden. Eine Standard-Vorlage wird verwendet.',
           variant: 'default'
         });
         
-        // Immer eine Standard-Vorlage anzeigen als Fallback
+        // Standard-Template setzen aber Dialog OFFEN lassen
         const supplierText = supplierName ? ` von ${supplierName}` : '';
         const orderText = orderNumber ? ` (Bestellnummer: ${orderNumber})` : '';
         
-        // Fallback: Einfache Standard-E-Mail
         setEmailText(`Sehr geehrte Damen und Herren,
 
 hiermit bestellen wir folgende Artikel${supplierText}${orderText}:
@@ -144,6 +143,8 @@ Mit freundlichen Grüßen
 Ihr Proviantomat Team`);
         
         setEmailSubject(`Bestellung ${orderNumber || ''} vom ${new Date().toLocaleDateString('de-DE')}`);
+        setError(null); // Error zurücksetzen, da wir Fallback verwenden
+        return; // Dialog bleibt geöffnet
       } finally {
         setIsLoading(false);
       }
