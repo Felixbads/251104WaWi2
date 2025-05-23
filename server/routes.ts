@@ -3086,6 +3086,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Registriere Vendon historischer Import Routen
   app.use(`${API_PREFIX}/vendon/historical-import`, vendonHistoricalImportRouter);
+  
+  // Registriere E-Mail-Routen (CRITICAL FIX: Das war bisher nicht registriert!)
+  app.use(`${API_PREFIX}`, emailRouter);
 
   return httpServer;
 }
