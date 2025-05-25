@@ -1,0 +1,7 @@
+To: Felix@proviantomat.de
+From: m06d0d91
+Subject: [KOPIE] LIVE TEST - E-Mail Versand
+
+KOPIE der Bestellung, die an einkauf@proviantomat.de gesendet wurde:
+
+Live-Test des E-Mail-Systems

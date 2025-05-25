@@ -1,0 +1,7 @@
+To: Felix@proviantomat.de
+From: einkauf@proviantomat.de
+Subject: [KOPIE] NEUSTART TEST - SMTP
+
+KOPIE der Bestellung, die an einkauf@proviantomat.de gesendet wurde:
+
+Test nach Neustart des Servers
