@@ -136,10 +136,7 @@ router.post('/orders/:id/send-email', async (req, res) => {
     
     // E-Mail mit Bestelldetails im Text senden
     console.log(`Sende E-Mail an ${emailAddress}...`);
-    const emailSent = await sendEmail({
-      to: emailAddress,
-      subject: subject || `Bestellung ${order.orderNumber} von Elbsandstein Proviant & Quartier GmbH`,
-      text: content || `Sehr geehrte Damen und Herren,
+    const emailContent = content || `Sehr geehrte Damen und Herren,
 
 hiermit senden wir Ihnen unsere Bestellung mit der Nummer ${order.orderNumber}.
 
@@ -147,9 +144,27 @@ ${supplierText}${deliveryText}
 ${additionalNotes ? `Anmerkungen: ${additionalNotes}\n\n` : ''}
 ${itemsText}
 Mit freundlichen Grüßen
-Elbsandstein Proviant & Quartier GmbH`,
+Elbsandstein Proviant & Quartier GmbH`;
+
+    const emailSent = await sendEmail({
+      to: emailAddress,
+      subject: subject || `Bestellung ${order.orderNumber} von Elbsandstein Proviant & Quartier GmbH`,
+      text: emailContent,
       // Keine Anhänge mehr
     });
+
+    // Zusätzlich Kopie an Notification-Email senden (falls konfiguriert)
+    const notificationEmail = process.env.NOTIFICATION_EMAIL;
+    if (notificationEmail && notificationEmail !== emailAddress) {
+      console.log(`Sende Kopie an ${notificationEmail}...`);
+      await sendEmail({
+        to: notificationEmail,
+        subject: `[KOPIE] ${subject || `Bestellung ${order.orderNumber} von Elbsandstein Proviant & Quartier GmbH`}`,
+        text: `KOPIE der Bestellung, die an ${emailAddress} gesendet wurde:
+
+${emailContent}`,
+      });
+    }
     
     console.log(`E-Mail-Versand Status: ${emailSent ? 'Erfolgreich' : 'Fehlgeschlagen'}`);
     
