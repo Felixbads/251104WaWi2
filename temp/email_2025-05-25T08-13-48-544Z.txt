@@ -1,0 +1,7 @@
+To: Felix@proviantomat.de
+From: m06d0d91
+Subject: [KOPIE] TEST - SMTP Funktionstest
+
+KOPIE der Bestellung, die an einkauf@proviantomat.de gesendet wurde:
+
+Test mit den neuen SMTP-Einstellungen von w019449b.kasserver.com

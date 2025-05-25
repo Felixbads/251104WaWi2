@@ -1,0 +1,5 @@
+To: einkauf@proviantomat.de
+From: m06d0d91
+Subject: TEST - SMTP Funktionstest
+
+Test mit den neuen SMTP-Einstellungen von w019449b.kasserver.com
