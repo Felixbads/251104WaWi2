@@ -407,9 +407,10 @@ const BestellungV2: React.FC = () => {
         
         // Cache unbedingt invalidieren, damit neue Bestellungen angezeigt werden
         queryClient.invalidateQueries({queryKey: orderKeys.lists()});
+        queryClient.invalidateQueries({queryKey: ['/api/orders-direct']});
         
-        // Zur Übersicht zurückkehren
-        setStep('overview');
+        // NICHT zur Übersicht zurückkehren - das war das Problem!
+        // setStep('overview'); // ENTFERNT
       }
       
       // Sicherstellen, dass selectedProducts zur Bestellung hinzugefügt wurden
@@ -431,15 +432,12 @@ const BestellungV2: React.FC = () => {
       // Setze auf State für spätere Verwendung
       setExistingOrderData(orderWithProducts);
       
-      // Direkt zum nächsten Schritt (E-Mail-Versand) wechseln
-      setStep("sendOrder");
+      // Cache invalidieren für sofortige Anzeige
+      queryClient.invalidateQueries({queryKey: orderKeys.lists()});
+      queryClient.invalidateQueries({queryKey: ['/api/orders-direct']});
       
-      // Kurze Verzögerung vor der Weiterleitung
-      setTimeout(() => {
-        
-        // Dann zur E-Mail-Versandseite wechseln
-        setStep('sendOrder');
-      }, 1000);
+      // Direkt zur neuen Bestellung wechseln (E-Mail-Versand)
+      setStep("sendOrder");
     },
     onError: (error: any) => {
       toast({
