@@ -16,15 +16,16 @@ if (smtpConfigured) {
     smtpTransporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: parseInt(process.env.SMTP_PORT || '587'),
-      secure: process.env.SMTP_SECURE === 'true',
+      secure: false, // STARTTLS für Port 587
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASSWORD,
       },
-      // Richtige TLS-Konfiguration für KAS-Server
+      // Optimiert für KAS-Server
+      requireTLS: true,
       tls: {
         rejectUnauthorized: false,
-        minVersion: 'TLSv1.2'
+        servername: process.env.SMTP_HOST
       }
     });
     console.log('SMTP-Transporter erfolgreich initialisiert');
