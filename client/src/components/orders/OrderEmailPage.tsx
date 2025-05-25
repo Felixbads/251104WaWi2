@@ -236,13 +236,16 @@ Ihr Proviantomat Team`);
     setIsSending(true);
     
     try {
-      // API-Anfrage zum Senden der E-Mail
+      console.log(`[OrderEmailPage] Sende E-Mail für Bestellung ${orderId} an ${emailAddress}`);
+      // API-Anfrage zum Senden der E-Mail - verwende POST Methode explizit
       const response = await apiRequest(`/api/orders/${orderId}/send-email`, {
         to: emailAddress,
+        supplierEmail: emailAddress, // Backend erwartet auch supplierEmail
         subject: emailSubject,
         content: prepareEmailContent(),
         templateType: selectedTemplate,
-      });
+        additionalNotes: ''
+      }, 'post');
       
       if (response && response.success) {
         toast({
@@ -258,15 +261,9 @@ Ihr Proviantomat Team`);
         // E-Mail wurde gesendet - Status setzen
         setEmailSent(true);
         
-        // Nach erfolgreichem Versand der E-Mail gehen wir zum nächsten Schritt
-        // ABER NUR wenn dieser Button explizit geklickt wurde
-        if (onNext) {
-          console.log('[OrderEmailPage] E-Mail erfolgreich gesendet, Navigation zum nächsten Schritt wird ausgeführt');
-          // Rufe die onNext-Funktion auf, um zur Übersicht zurückzukehren
-          onNext();
-        } else {
-          console.log('[OrderEmailPage] no onNext callback passed');
-        }
+        // Nach erfolgreichem Versand der E-Mail NICHT automatisch weiterleiten
+        // Benutzer bleibt auf der E-Mail-Seite und kann manuell zurück navigieren
+        console.log('[OrderEmailPage] E-Mail erfolgreich gesendet, Benutzer bleibt auf der E-Mail-Seite');
       } else {
         throw new Error(response?.message || 'Unbekannter Fehler');
       }
