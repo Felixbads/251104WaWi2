@@ -275,16 +275,9 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
         }
         
         const result = await response.json();
-        console.log("API-Antwort:", result);
+        console.log("Bestellungen API erfolgreich:", result.length, "Bestellungen");
         
-        if (Array.isArray(result)) {
-          return result;
-        } else if (result && result.data && Array.isArray(result.data)) {
-          return result.data;
-        } else {
-          console.warn("Unerwartetes Antwortformat:", result);
-          return [];
-        }
+        return Array.isArray(result) ? result : [];
       } catch (error) {
         console.error("Fehler beim Laden der Bestellungen:", error);
         return [];
