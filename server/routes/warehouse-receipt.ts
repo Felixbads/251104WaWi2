@@ -50,14 +50,10 @@ router.post('/orders/:orderId/warehouse-receipt', async (req, res) => {
       });
     }
 
-    // Transaktion starten
-    await rawDb.query('BEGIN');
-    
     try {
-      await client.query('BEGIN');
 
       // Wareneingang-Datensatz erstellen
-      const receiptResult = await client.query(`
+      const receiptResult = await rawDb.query(`
         INSERT INTO warehouse_receipts (
           order_id,
           warehouse_id,
@@ -81,7 +77,7 @@ router.post('/orders/:orderId/warehouse-receipt', async (req, res) => {
         }
 
         // Wareneingang-Position erstellen
-        await client.query(`
+        await rawDb.query(`
           INSERT INTO warehouse_receipt_items (
             receipt_id,
             product_id,
@@ -95,7 +91,7 @@ router.post('/orders/:orderId/warehouse-receipt', async (req, res) => {
         // Lagerbestand aktualisieren (nur wenn Menge > 0)
         if (receivedQuantity > 0) {
           // Prüfen, ob bereits ein Lagerbestand für dieses Produkt existiert
-          const inventoryResult = await client.query(`
+          const inventoryResult = await rawDb.query(`
             SELECT * FROM inventory_items 
             WHERE warehouse_id = $1 AND product_id = $2
           `, [warehouseId, productId]);
