@@ -4,7 +4,7 @@ import nodemailer from 'nodemailer';
 import Mail from 'nodemailer/lib/mailer';
 
 // SMTP-Konfiguration - standardmäßig aktiviert, wenn SMTP-Einstellungen vorhanden sind
-const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD);
 console.log(`SMTP-Konfiguration: ${smtpConfigured ? 'Verfügbar' : 'Nicht verfügbar'}`);
 
 // Einrichtung für Nodemailer (SMTP)
@@ -19,11 +19,12 @@ if (smtpConfigured) {
       secure: process.env.SMTP_SECURE === 'true',
       auth: {
         user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
+        pass: process.env.SMTP_PASSWORD,
       },
-      // Zertifikatsfehler ignorieren (nur für Entwicklung, nicht für Produktion)
+      // Richtige TLS-Konfiguration für KAS-Server
       tls: {
-        rejectUnauthorized: false
+        rejectUnauthorized: false,
+        minVersion: 'TLSv1.2'
       }
     });
     console.log('SMTP-Transporter erfolgreich initialisiert');
@@ -109,10 +110,12 @@ export async function sendEmail(params: EmailParams): Promise<boolean> {
     // Speichere Anhänge
     if (params.attachments && params.attachments.length > 0) {
       params.attachments.forEach((attachment, index) => {
-        fs.writeFileSync(
-          path.join(tempDir, `attachment_${timestamp}_${index}_${attachment.filename}`),
-          attachment.content
-        );
+        if (attachment.content) {
+          fs.writeFileSync(
+            path.join(tempDir, `attachment_${timestamp}_${index}_${attachment.filename}`),
+            attachment.content
+          );
+        }
       });
     }
     
