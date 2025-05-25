@@ -4,7 +4,7 @@ import nodemailer from 'nodemailer';
 import Mail from 'nodemailer/lib/mailer';
 
 // SMTP-Konfiguration - standardmäßig aktiviert, wenn SMTP-Einstellungen vorhanden sind
-const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD);
+const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 console.log(`SMTP-Konfiguration: ${smtpConfigured ? 'Verfügbar' : 'Nicht verfügbar'}`);
 
 // Einrichtung für Nodemailer (SMTP)
@@ -19,7 +19,7 @@ if (smtpConfigured) {
       secure: process.env.SMTP_SECURE === 'true',
       auth: {
         user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASSWORD,
+        pass: process.env.SMTP_PASS,
       },
       // Zertifikatsfehler ignorieren (nur für Entwicklung, nicht für Produktion)
       tls: {
@@ -58,7 +58,7 @@ interface EmailParams {
  */
 export async function sendEmail(params: EmailParams): Promise<boolean> {
   // Die Absenderadresse muss mit dem SMTP-Nutzer übereinstimmen
-  const from = params.from || process.env.SMTP_USER || 'info@elbsandstein-proviant.de';
+  const from = params.from || process.env.SMTP_FROM || process.env.SMTP_USER || 'info@elbsandstein-proviant.de';
 
   try {
     // Wenn SMTP konfiguriert ist, versuche E-Mail zu senden
