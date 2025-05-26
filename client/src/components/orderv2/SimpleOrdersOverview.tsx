@@ -35,16 +35,23 @@ const SimpleOrdersOverview: React.FC<SimpleOrdersOverviewProps> = ({
       setIsLoading(true);
       setError(null);
       
-      console.log("Lade Bestellungen...");
+      console.log("🚀 Lade Bestellungen mit Timeout...");
       
       const authToken = localStorage.getItem('auth_token') || localStorage.getItem('authToken');
+      
+      // 10 Sekunden Timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
       
       const response = await fetch('/api/orders-direct', {
         headers: {
           'Content-Type': 'application/json',
           ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
-        }
+        },
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);

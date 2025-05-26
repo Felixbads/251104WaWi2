@@ -45,29 +45,37 @@ router.post('/execute-sql', async (req, res) => {
   }
 });
 
-// Direkter Endpunkt für Bestellungen
+// ULTRA-SCHNELLER Endpunkt nur für Bestellungsübersicht
 router.get('/orders-direct', async (req, res) => {
   try {
-    console.log('Lade Bestellungen direkt aus der Datenbank...');
+    console.log('🚀 SCHNELLE Bestellungsübersicht wird geladen...');
     
-    // Ultra-schnelle Abfrage - nur die letzten 50 Bestellungen
+    // SOFORTIGE Antwort mit minimalen Daten
     const result = await pool.query(`
-      SELECT id, order_number, status, created_at, supplier_id, location_id, 
-             total_amount, expected_delivery_date, supplier_name, location_name
+      SELECT 
+        id, 
+        order_number, 
+        status, 
+        created_at::text as created_at,
+        supplier_name, 
+        location_name,
+        total_amount,
+        expected_delivery_date::text as expected_delivery_date
       FROM orders 
-      ORDER BY created_at DESC 
-      LIMIT 50
+      ORDER BY id DESC 
+      LIMIT 20
     `);
     
-    // Einfache Datenaufbereitung ohne zusätzliche Verarbeitung
     const orders = result.rows;
     
-    console.log(`${orders.length} Bestellungen aus der Datenbank geladen`);
-    console.log("Erste Bestellung als Beispiel:", orders[0] ? JSON.stringify(orders[0], null, 2) : "Keine Bestellungen vorhanden");
+    console.log(`✅ ${orders.length} Bestellungen SOFORT geladen`);
     
-    return res.json(orders);
+    // Sofortige Antwort ohne weitere Verarbeitung
+    res.setHeader('Content-Type', 'application/json');
+    return res.status(200).json(orders);
+    
   } catch (error) {
-    console.error('Fehler beim Laden der Bestellungen:', error);
+    console.error('❌ Fehler beim schnellen Laden:', error);
     return res.status(500).json({ 
       error: 'Datenbankfehler', 
       message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
