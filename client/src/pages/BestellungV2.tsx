@@ -627,24 +627,29 @@ const BestellungV2: React.FC = () => {
   const handleSelectOrder = (orderId: number) => {
     console.log("Bestellung ausgewählt mit ID:", orderId);
     
-    // Finde die Bestellung in der Liste
-    const selectedOrder = ordersList?.find(order => order.id === orderId);
+    // Verwende die ordersList direkt, da sie bereits geladen ist
+    console.log("Aktuelle ordersList:", ordersList);
+    const selectedOrder = ordersList?.find((order: any) => order.id === orderId);
     
     if (selectedOrder) {
       console.log("Gefundene Bestellung:", selectedOrder.id, "Status:", selectedOrder.status);
       
+      // Setze die Bestellungsdaten für die Navigation
+      setOrderId(orderId);
+      setExistingOrderData(selectedOrder);
+      
       // DIREKTE NAVIGATION basierend auf Status
       if (selectedOrder.status === 'draft') {
         // Draft-Bestellungen direkt zum Versenden
-        window.location.href = `/bestellung-v2?step=sendOrder&orderId=${orderId}`;
+        setStep('sendOrder');
       } 
       else if (selectedOrder.status === 'sent') {
         // Versendete Bestellungen direkt zum Wareneingang
-        window.location.href = `/bestellung-v2?step=goodsReceipt&orderId=${orderId}`;
+        setStep('goodsReceipt');
       }
       else {
         // Alle anderen Status zur Übersicht
-        window.location.href = `/bestellung-v2?step=viewOrder&orderId=${orderId}`;
+        setStep('viewOrder');
       }
     } else {
       console.log("Bestellung nicht in der Liste gefunden");
