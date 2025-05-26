@@ -43,7 +43,7 @@ const SimpleOrdersOverview: React.FC<SimpleOrdersOverviewProps> = ({
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
       
-      const response = await fetch('/api/orders-quick', {
+      const response = await fetch('/api/bestellungen-liste', {
         headers: {
           'Content-Type': 'application/json',
           ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})

@@ -60,55 +60,38 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Die neuen Inventory-Routen hinzufügen
-  app.use(inventoryApiRouter);
-  app.use('/api', inventoryRouter);
-  
-  // E-Mail-Route für Bestellungen (entfernt simpleEmailRouter um Konflikte zu vermeiden)
-  
-  // E-Mail-Vorlagen-Route hinzufügen
-  app.use('/api/mail-templates', mailTemplatesRouter);
-  
-  // Direkten Datenbank-Zugriff für Bestellung V3 bereitstellen
-  app.use('/api', dbDirectRouter);
-  
-  // Direkten SQL-Zugriff für Bestellungen und andere DB-Abfragen bereitstellen
-  app.use('/api', directSqlRouter);
-  
-  // Order V3 Router für die neue Bestellungsversion
-  app.use('/api', orderV3Router);
-  
-  // BLITZSCHNELLE Route für Bestellungsübersicht
-  app.get('/api/orders-quick', async (req, res) => {
-    try {
-      console.log('⚡ DIREKTE BESTELLUNGSABFRAGE');
-      
-      const result = await pool.query(`
-        SELECT 
-          id, 
-          order_number, 
-          status, 
-          created_at,
-          supplier_name, 
-          location_name,
-          total_amount,
-          expected_delivery_date
-        FROM orders 
-        ORDER BY id DESC 
-        LIMIT 15
-      `);
-      
-      console.log(`⚡ ${result.rows.length} Bestellungen direkt geladen`);
-      res.setHeader('Content-Type', 'application/json');
-      return res.json(result.rows);
-      
-    } catch (error) {
-      console.error('❌ Direkter Fehler:', error);
-      return res.status(500).json({ 
-        error: 'Fehler', 
+  // EINDEUTIGE BESTELLUNGSROUTE - KANN NICHT ÜBERSCHRIEBEN WERDEN
+  app.get('/api/bestellungen-liste', (req, res) => {
+    console.log('🎯 EINDEUTIGE BESTELLUNGSROUTE AUFGERUFEN');
+    
+    // Sofortige Headers setzen
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    
+    pool.query(`
+      SELECT 
+        id, 
+        order_number, 
+        status, 
+        created_at,
+        supplier_name, 
+        location_name,
+        total_amount,
+        expected_delivery_date
+      FROM orders 
+      ORDER BY id DESC 
+      LIMIT 15
+    `).then(result => {
+      console.log(`🎯 ERFOLG: ${result.rows.length} Bestellungen geladen`);
+      res.status(200).json(result.rows);
+    }).catch(error => {
+      console.error('❌ DB-Fehler:', error);
+      res.status(500).json({ 
+        error: 'Datenbankfehler', 
         message: error instanceof Error ? error.message : 'Unbekannt' 
       });
-    }
+    });
   });
 
   // SQL-Direktzugriff-Endpunkte für Datenbankabfragen
