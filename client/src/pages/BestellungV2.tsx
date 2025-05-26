@@ -230,13 +230,9 @@ const BestellungV2: React.FC = () => {
       } else {
         console.warn("Keine Bestellpositionen gefunden oder leeres Array zurückgegeben.");
         
-        // Bei maximal Versuchen und immer noch keine Items - Warnung anzeigen aber nicht als Fehler werten
+        // Bei maximal Versuchen und immer noch keine Items - KEINE Toast-Nachricht mehr
         if (retryCount >= maxRetries) {
-          toast({
-            title: "Hinweis",
-            description: "Es konnten keine Bestellpositionen geladen werden. Die Bestellung ist möglicherweise leer.",
-            variant: "default"
-          });
+          console.log("Keine Bestellpositionen gefunden - das ist normal für neue Bestellungen");
           return false;
         }
         
@@ -250,13 +246,9 @@ const BestellungV2: React.FC = () => {
     } catch (error) {
       console.error("Fehler beim Laden der Bestellpositionen:", error);
       
-      // Bei maximal Versuchen - Fehlermeldung anzeigen
+      // Bei maximal Versuchen - KEINE störende Toast-Nachricht mehr
       if (retryCount >= maxRetries) {
-        toast({
-          title: "Fehler beim Laden der Bestellpositionen",
-          description: `${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
-          variant: "destructive"
-        });
+        console.log("Fehler beim Laden der Bestellpositionen (wird stillschweigend ignoriert):", error);
         return false;
       }
       
