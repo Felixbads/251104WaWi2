@@ -76,6 +76,7 @@ import AdditionalInfoForm from '@/components/orderv2/AdditionalInfoForm';
 import OrderSummary from '@/components/orderv2/OrderSummary';
 import GoodsReceiptForm from '@/components/orderv2/GoodsReceiptForm';
 import OrdersOverview from '@/components/orderv2/OrdersOverview';
+import SimpleOrdersOverview from '@/components/orderv2/SimpleOrdersOverview';
 import { Badge } from '@/components/ui/badge';
 
 // Define the order steps
@@ -974,11 +975,8 @@ const BestellungV2: React.FC = () => {
     switch (step) {
       case 'overview':
         return (
-          <OrdersOverview 
+          <SimpleOrdersOverview 
             onSelectOrder={handleSelectOrder}
-            onStartWarehouseReceiptProcess={handleReceiveOrder}
-            ordersData={ordersList}
-            isLoading={isLoadingOrdersList}
             onCreateNew={() => {
               // Setze alle Werte zurück
               setWarehouseId(null);
