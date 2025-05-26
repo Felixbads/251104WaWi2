@@ -623,12 +623,9 @@ const BestellungV2: React.FC = () => {
     setStep('warehouseReceiptOfExistingOrder');
   };
   
-  // Status-abhängige Navigation für Bestellungen
+  // Status-abhängige Navigation für Bestellungen - DIREKTE NAVIGATION OHNE POP-UP
   const handleSelectOrder = (orderId: number) => {
     console.log("Bestellung ausgewählt mit ID:", orderId);
-    
-    // Set orderId für Verwendung in anderen Komponenten
-    setOrderId(orderId);
     
     // Finde die Bestellung in der Liste
     const selectedOrder = ordersList?.find(order => order.id === orderId);
@@ -636,45 +633,57 @@ const BestellungV2: React.FC = () => {
     if (selectedOrder) {
       console.log("Gefundene Bestellung:", selectedOrder.id, "Status:", selectedOrder.status);
       
-      // Status-abhängige Navigation implementieren
+      // DIREKTE NAVIGATION basierend auf Status
       if (selectedOrder.status === 'draft') {
-        console.log("Draft-Bestellung - zur Ansicht wechseln");
-        // Bei Entwürfen zur Ansicht wechseln statt direkt E-Mail vorzubereiten
-        setStep('viewOrder');
-        setExistingOrderData(selectedOrder);
+        // Draft-Bestellungen direkt zum Versenden
+        window.location.href = `/bestellung-v2?step=sendOrder&orderId=${orderId}`;
       } 
       else if (selectedOrder.status === 'sent') {
-        console.log("Gesendete Bestellung - bereite Wareneingang vor");
-        // Direkt zum Wareneingang
-        setStep('warehouseReceiptOfExistingOrder');
-        setExistingOrderData(selectedOrder);
-      } 
+        // Versendete Bestellungen direkt zum Wareneingang
+        window.location.href = `/bestellung-v2?step=goodsReceipt&orderId=${orderId}`;
+      }
       else {
-        console.log("Andere Bestellung - zeige Details");
-        // Für alle anderen Status einfach die Details anzeigen
-        setOrderDetailsOpen(true);
-        setExistingOrderData(selectedOrder);
+        // Alle anderen Status zur Übersicht
+        window.location.href = `/bestellung-v2?step=viewOrder&orderId=${orderId}`;
       }
     } else {
-      console.log("Bestellung wurde nicht in der Liste gefunden, lade von API");
-      
-      // Bestellung direkt von der API laden, wenn sie nicht in der Liste ist
-      apiRequest(`/api/orders-direct/${orderId}`)
-        .then(orderData => {
-          console.log("Bestellungsdaten von API geladen:", orderData);
-          
-          if (orderData) {
-            setExistingOrderData(orderData);
-            
-            // Status-abhängige Navigation
-            if (orderData.status === 'sent') {
-              setStep('warehouseReceiptOfExistingOrder');
-            } else {
-              setOrderDetailsOpen(true);
-            }
-          } else {
-            console.error("Keine Bestellungsdaten gefunden für ID:", orderId);
-            toast({
+      console.log("Bestellung nicht in der Liste gefunden");
+    }
+  };
+  
+  // Event handler für das Markieren einer Bestellung als versendet
+  const handleMarkOrderAsSent = async () => {
+    if (!orderId) {
+      toast({
+        variant: "destructive",
+        title: "Fehler",
+        description: "Keine Bestellung ausgewählt"
+      });
+      return;
+    }
+    
+    try {
+      await markOrderAsSentMutation.mutateAsync(orderId);
+      toast({
+        title: "Erfolg",
+        description: "Bestellung wurde als versendet markiert"
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Fehler",
+        description: "Bestellung konnte nicht als versendet markiert werden"
+      });
+    }
+  };
+  
+  // Event handler für den E-Mail-Versand
+  const handleSendEmail = async () => {
+    setEmailPrepInProgress(true);
+    
+    try {
+      setEmailPrepInProgress(false);
+      toast({
               title: 'Fehler',
               description: 'Die ausgewählte Bestellung konnte nicht gefunden werden',
               variant: 'destructive'
