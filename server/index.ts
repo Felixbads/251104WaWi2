@@ -69,8 +69,8 @@ app.get('/orders-data', (req, res) => {
       o.order_number, 
       o.status, 
       o.created_at,
-      COALESCE(s.name, o.supplier_name, 'Kein Lieferant') as supplier_name,
-      COALESCE(w.name, o.location_name, 'Kein Lager') as location_name,
+      COALESCE(s.name, 'Kein Lieferant') as supplier_name,
+      COALESCE(w.name, 'Kein Lager') as location_name,
       o.total_amount,
       o.expected_delivery_date
     FROM orders o

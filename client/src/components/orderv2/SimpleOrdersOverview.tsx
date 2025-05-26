@@ -216,7 +216,20 @@ const SimpleOrdersOverview: React.FC<SimpleOrdersOverviewProps> = ({
             <Card 
               key={order.id} 
               className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => onSelectOrder ? onSelectOrder(order.id) : window.location.href = `/bestellung/${order.id}`}
+              onClick={() => {
+                if (onSelectOrder) {
+                  onSelectOrder(order.id);
+                } else {
+                  // Basierend auf Status zur richtigen Ansicht navigieren
+                  if (order.status === 'draft') {
+                    window.location.href = `/bestellung-v2?step=sendOrder&orderId=${order.id}`;
+                  } else if (order.status === 'sent') {
+                    window.location.href = `/bestellung-v2?step=goodsReceipt&orderId=${order.id}`;
+                  } else {
+                    window.location.href = `/bestellung-v2?step=overview&orderId=${order.id}`;
+                  }
+                }
+              }}
             >
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">
