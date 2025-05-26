@@ -51,14 +51,23 @@ const SimpleOrdersOverview: React.FC<SimpleOrdersOverviewProps> = ({
       }
 
       const data = await response.json();
-      console.log("Rohe API-Antwort:", data);
+      console.log("=== DEBUGGING API RESPONSE ===");
+      console.log("Response status:", response.status);
+      console.log("Response headers:", Object.fromEntries(response.headers.entries()));
+      console.log("Raw data type:", typeof data);
+      console.log("Raw data:", data);
+      console.log("Is array:", Array.isArray(data));
+      console.log("Data length:", data?.length);
       
       if (Array.isArray(data)) {
-        console.log("Setze", data.length, "Bestellungen");
+        console.log("✅ Setze", data.length, "Bestellungen");
+        console.log("Erste Bestellung:", data[0]);
         setOrders(data);
+        console.log("✅ Orders state aktualisiert");
       } else {
-        console.error("API-Antwort ist kein Array:", typeof data);
-        setError("API-Antwort hat falsches Format");
+        console.error("❌ API-Antwort ist kein Array:", typeof data);
+        console.error("❌ Vollständige Antwort:", data);
+        setError("API-Antwort hat falsches Format: " + typeof data);
       }
     } catch (err) {
       console.error("Fehler beim Laden der Bestellungen:", err);
