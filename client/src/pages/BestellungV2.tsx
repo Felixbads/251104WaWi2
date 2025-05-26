@@ -624,35 +624,42 @@ const BestellungV2: React.FC = () => {
   };
   
   // Status-abhängige Navigation für Bestellungen - DIREKTE NAVIGATION OHNE POP-UP
-  const handleSelectOrder = (orderId: number) => {
+  const handleSelectOrder = async (orderId: number) => {
     console.log("Bestellung ausgewählt mit ID:", orderId);
     
-    // Verwende die ordersList direkt, da sie bereits geladen ist
-    console.log("Aktuelle ordersList:", ordersList);
-    const selectedOrder = ordersList?.find((order: any) => order.id === orderId);
-    
-    if (selectedOrder) {
-      console.log("Gefundene Bestellung:", selectedOrder.id, "Status:", selectedOrder.status);
+    try {
+      // Lade die Bestellungsdaten direkt aus der API
+      const response = await fetch('/orders-data');
+      const ordersData = await response.json();
+      console.log("Geladene Bestellungen:", ordersData);
       
-      // Setze die Bestellungsdaten für die Navigation
-      setOrderId(orderId);
-      setExistingOrderData(selectedOrder);
+      const selectedOrder = ordersData.find((order: any) => order.id === orderId);
       
-      // DIREKTE NAVIGATION basierend auf Status
-      if (selectedOrder.status === 'draft') {
-        // Draft-Bestellungen direkt zum Versenden
-        setStep('sendOrder');
-      } 
-      else if (selectedOrder.status === 'sent') {
-        // Versendete Bestellungen direkt zum Wareneingang
-        setStep('goodsReceipt');
+      if (selectedOrder) {
+        console.log("Gefundene Bestellung:", selectedOrder.id, "Status:", selectedOrder.status);
+        
+        // Setze die Bestellungsdaten für die Navigation
+        setOrderId(orderId);
+        setExistingOrderData(selectedOrder);
+        
+        // DIREKTE NAVIGATION basierend auf Status
+        if (selectedOrder.status === 'draft') {
+          // Draft-Bestellungen direkt zum Versenden
+          setStep('sendOrder');
+        } 
+        else if (selectedOrder.status === 'sent') {
+          // Versendete Bestellungen direkt zum Wareneingang
+          setStep('goodsReceipt');
+        }
+        else {
+          // Alle anderen Status zur Übersicht
+          setStep('viewOrder');
+        }
+      } else {
+        console.log("Bestellung nicht gefunden - ID:", orderId);
       }
-      else {
-        // Alle anderen Status zur Übersicht
-        setStep('viewOrder');
-      }
-    } else {
-      console.log("Bestellung nicht in der Liste gefunden");
+    } catch (error) {
+      console.error("Fehler beim Laden der Bestellung:", error);
     }
   };
   
