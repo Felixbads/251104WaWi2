@@ -70,8 +70,16 @@ const SimpleOrdersOverview: React.FC<SimpleOrdersOverviewProps> = ({
         setError("API-Antwort hat falsches Format: " + typeof data);
       }
     } catch (err) {
-      console.error("Fehler beim Laden der Bestellungen:", err);
-      setError(err instanceof Error ? err.message : 'Unbekannter Fehler');
+      console.error("❌ VOLLSTÄNDIGER FEHLER:", err);
+      console.error("❌ Fehler-Typ:", typeof err);
+      console.error("❌ Fehler-Message:", err instanceof Error ? err.message : String(err));
+      console.error("❌ Fehler-Stack:", err instanceof Error ? err.stack : 'Kein Stack verfügbar');
+      
+      const errorMessage = err instanceof Error ? err.message : 
+                          (typeof err === 'string' ? err : 
+                          (typeof err === 'object' && err !== null ? JSON.stringify(err) : 'Unbekannter Fehler'));
+      
+      setError(`Fehler: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }

@@ -1,0 +1,61 @@
+Ja, das kann durchaus an der API liegen. Geh am besten so vor, um den Fehler einzukreisen:
+	1.	Endpoint-Pfad und Methodentyp prüfen
+	•	Verwendest du Next.js Pages-Router oder App-Router?
+	•	Pages: Deine Route müsste in pages/api/orders-direct.ts liegen und eine Default-Export-Funktion für GET haben.
+	•	App: Dann in app/api/orders-direct/route.ts mit
+
+export async function GET(request: Request) { … }
+
+
+	•	Achte darauf, dass der Pfad exakt mit dem übereinstimmt, den du im Frontend anfragst (/api/orders-direct vs. /api/orders/direct o.ä.).
+
+	2.	Backend-Logs einbauen
+In deinem API-Handler (z.B. pages/api/orders-direct.ts bzw. route.ts) solltest du ganz oben einmal
+
+console.log('🟢 orders-direct-Endpoint aufgerufen');
+
+und nach dem Datenabruf z.B.
+
+console.log('🟢 geladene Bestellungen:', orders);
+
+ausgeben. Dann im Terminal (bei npm run dev) schauen, ob die Logs kommen.
+
+	3.	API direkt im Browser/Postman testen
+Rufe http://localhost:3000/api/orders-direct im Browser oder per Postman/Insomnia auf.
+	•	Kommt ein JSON mit einem Array?
+	•	Kommt ein 404 (Route nicht gefunden), 500 (Server-Error) oder 401/403 (Auth-Problem)?
+Genau diesen Status musst du dann im Frontend behandeln.
+	4.	Fetch-Aufruf und Fehlerbehandlung optimieren
+In deinem Hook:
+
+const { data, error, isLoading } = useQuery({
+  queryKey: ['orders'],
+  queryFn: async () => {
+    const res = await fetch('/api/orders-direct');
+    console.log('Status:', res.status);
+    if (!res.ok) {
+      const text = await res.text();
+      console.error('API-Fehler:', text);
+      throw new Error(`API-Fehler ${res.status}`);
+    }
+    return res.json();
+  }
+});
+
+So siehst du im Browser-Console-Tab, ob und warum der Request fehlschlägt.
+
+	5.	CORS / Auth prüfen
+Falls du ein Token oder Session-Cookie benutzt, kontrolliere, ob im Request-Header das Token mitgeschickt wird und die API-Route das akzeptiert.
+Bei CORS-Problemen siehst du in der Konsole entsprechende Fehlermeldungen („No ‘Access-Control-Allow-Origin’ header“).
+	6.	Schema der zurückgegebenen Daten
+Dein Frontend erwartet wahrscheinlich ein Array von Objekten mit bestimmten Feldern. Falls die API z.B. { orders: [...] } liefert, musst du im Hook return json.orders statt einfach json machen.
+
+⸻
+
+Zusammenfassung:
+	1.	Prüfe, ob der API-Pfad und die HTTP-Methode wirklich mit deinem Frontend-Fetch übereinstimmen.
+	2.	Füge console.log im API-Handler und im Fetch-Hook ein, um Requests und Antworten zu sehen.
+	3.	Teste den Endpoint direkt im Browser/Postman auf Status und Payload.
+	4.	Achte auf CORS, Auth und das Daten-Shape.
+
+Wenn du den Code deiner API-Route kurz postest (z.B. route.ts / orders-direct.ts), können wir genauer schauen.
