@@ -524,7 +524,7 @@ const BestellungV2: React.FC = () => {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': localStorage.getItem('authToken') ? `Bearer ${localStorage.getItem('authToken')}` : ''
+            'Authorization': localStorage.getItem('auth_token') ? `Bearer ${localStorage.getItem('auth_token')}` : ''
           }
         });
         
