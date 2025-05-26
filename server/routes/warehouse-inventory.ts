@@ -52,7 +52,7 @@ router.get('/', async (req: Request, res: Response) => {
               i.min_quantity as "minQuantity",
               i.status,
               i.notes,
-              i.location as "locationInWarehouse",
+              i.location_in_warehouse as "locationInWarehouse",
               COALESCE(i.updated_at, i.created_at) as "lastUpdated",
               p.product_name as "productName",
               w.name as "warehouseName"
@@ -384,12 +384,12 @@ router.get('/', async (req: Request, res: Response) => {
               p.sku,
               p.price
             FROM
-              vendon_positions vp
+              machine_stocks ms
             JOIN
-              products p ON vp.product_id = p.id
+              products p ON ms.product_id = p.id
             WHERE
-              vp.machine_id IN (SELECT machine_id FROM machines_in_warehouse)
-              AND vp.is_active = true
+              ms.machine_id IN (SELECT machine_id FROM machines_in_warehouse)
+              AND ms.current_quantity > 0
           )
           SELECT * FROM products_in_machines
           ORDER BY product_name;
