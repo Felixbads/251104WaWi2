@@ -684,25 +684,21 @@ const BestellungV2: React.FC = () => {
     try {
       setEmailPrepInProgress(false);
       toast({
-              title: 'Fehler',
-              description: 'Die ausgewählte Bestellung konnte nicht gefunden werden',
-              variant: 'destructive'
-            });
-          }
-        })
-        .catch(error => {
-          console.error("Fehler beim Laden der Bestellung:", error);
-          toast({
-            title: 'Fehler',
-            description: 'Die Bestelldaten konnten nicht geladen werden',
-            variant: 'destructive'
-          });
-        });
+        title: "E-Mail vorbereitet",
+        description: "E-Mail wurde erfolgreich vorbereitet"
+      });
+    } catch (error) {
+      setEmailPrepInProgress(false);
+      toast({
+        variant: "destructive",
+        title: "Fehler",
+        description: "E-Mail konnte nicht vorbereitet werden"
+      });
     }
   };
   
   // Email sending function
-  const handleSendEmail = async (supplierEmail: string, additionalNotes: string) => {
+  const handleEmailSend = async (supplierEmail: string, additionalNotes: string) => {
     if (!orderId) {
       toast({
         title: 'Fehler',
