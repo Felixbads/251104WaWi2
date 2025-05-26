@@ -50,10 +50,13 @@ router.get('/orders-direct', async (req, res) => {
   try {
     console.log('Lade Bestellungen direkt aus der Datenbank...');
     
-    // Einfache und schnelle Abfrage - alle Bestellungen ohne JOINs
+    // Ultra-schnelle Abfrage - nur die letzten 50 Bestellungen
     const result = await pool.query(`
-      SELECT * FROM orders 
-      ORDER BY created_at DESC
+      SELECT id, order_number, status, created_at, supplier_id, location_id, 
+             total_amount, expected_delivery_date, supplier_name, location_name
+      FROM orders 
+      ORDER BY created_at DESC 
+      LIMIT 50
     `);
     
     // Einfache Datenaufbereitung ohne zusätzliche Verarbeitung

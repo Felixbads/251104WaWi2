@@ -267,7 +267,8 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
         const response = await fetch('/api/orders-direct', {
           headers: {
             ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
-          }
+          },
+          timeout: 180000 // 3 Minuten Timeout
         });
         
         if (!response.ok) {
