@@ -68,7 +68,6 @@ router.get('/warehouses', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT * FROM warehouses 
-      WHERE is_active = true
       ORDER BY name
     `);
     
@@ -93,7 +92,7 @@ router.get('/suppliers', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT * FROM suppliers 
-      WHERE is_active = true
+      WHERE status = 'active' OR status IS NULL
       ORDER BY name
     `);
     

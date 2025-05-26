@@ -42,13 +42,13 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({
   
   // Fetch suppliers directly from database
   const { data: suppliersResponse, isLoading, error, refetch } = useQuery({
-    queryKey: ['/api/suppliers-direct'],
+    queryKey: ['/api/db-direct/suppliers'],
     queryFn: async () => {
       try {
         console.log("SupplierSelector: Lade Lieferanten direkt aus der Datenbank...");
         
         // Direkten SQL-Endpunkt nutzen
-        const response = await fetch('/api/suppliers-direct', {
+        const response = await fetch('/api/db-direct/suppliers', {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -66,17 +66,7 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({
         return data;
       } catch (error) {
         console.error("SupplierSelector: Fehler beim Laden der Lieferanten:", error);
-        // Fallback: Ein paar Standard-Lieferanten für den Notfall
-        return {
-          success: true,
-          data: [
-            { id: 1, name: "Dr. Quendt GmbH & Co. KG", contactPerson: "Vertrieb", email: "info@dr-quendt.de", phone: "+49 351 00000" },
-            { id: 2, name: "Milchhof Fiedler Wehlen", contactPerson: "Herr Fiedler", email: "info@milchhof-fiedler.de", phone: "+49 35024 00000" },
-            { id: 3, name: "Landfleischerei Struppen", contactPerson: "", email: "info@landfleischerei-struppen.de", phone: "+49 35020 00000" },
-            { id: 4, name: "Menschel Mineralbrunnen Hainewalde", contactPerson: "", email: "info@menschel-hainewalde.de", phone: "+49 3586 00000" }
-          ],
-          message: "4 Fallback-Lieferanten geladen"
-        };
+        throw error;
       }
     }
   });
@@ -85,14 +75,22 @@ const SupplierSelector: React.FC<SupplierSelectorProps> = ({
   const suppliers = React.useMemo(() => {
     if (!suppliersResponse) return [];
     
+    // Handle direct array response
     if (Array.isArray(suppliersResponse)) {
       return suppliersResponse;
     }
     
+    // Handle response with rows property (from db-direct endpoint)
+    if (suppliersResponse.rows && Array.isArray(suppliersResponse.rows)) {
+      return suppliersResponse.rows;
+    }
+    
+    // Handle response with data property
     if (suppliersResponse.data && Array.isArray(suppliersResponse.data)) {
       return suppliersResponse.data;
     }
     
+    // Handle response with success and data properties
     if (suppliersResponse.success && suppliersResponse.data && Array.isArray(suppliersResponse.data)) {
       return suppliersResponse.data;
     }
