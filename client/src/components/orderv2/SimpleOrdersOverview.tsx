@@ -57,24 +57,44 @@ const SimpleOrdersOverview: React.FC<SimpleOrdersOverviewProps> = ({
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const data = await response.json();
-      console.log("=== DEBUGGING API RESPONSE ===");
-      console.log("Response status:", response.status);
-      console.log("Response headers:", Object.fromEntries(response.headers.entries()));
-      console.log("Raw data type:", typeof data);
-      console.log("Raw data:", data);
+      const responseText = await response.text();
+      console.log("=== RAW RESPONSE ===");
+      console.log("Status:", response.status);
+      console.log("Raw response text:", responseText.substring(0, 200) + "...");
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+        console.log("✅ JSON parsed successfully");
+      } catch (parseError) {
+        console.error("❌ JSON Parse Error:", parseError);
+        console.error("❌ Response was not valid JSON:", responseText.substring(0, 500));
+        throw new Error("Server antwortete mit ungültigem JSON");
+      }
+      
+      console.log("Parsed data type:", typeof data);
       console.log("Is array:", Array.isArray(data));
-      console.log("Data length:", data?.length);
+      console.log("Data:", data);
       
       if (Array.isArray(data)) {
-        console.log("✅ Setze", data.length, "Bestellungen");
-        console.log("Erste Bestellung:", data[0]);
-        setOrders(data);
-        console.log("✅ Orders state aktualisiert");
+        console.log("✅ Setting", data.length, "orders");
+        // Sichere Datenverarbeitung ohne Validierung
+        const safeOrders = data.map((order: any) => ({
+          id: order.id || 0,
+          order_number: order.order_number || `Bestellung #${order.id}`,
+          status: order.status || 'unknown',
+          created_at: order.created_at || new Date().toISOString(),
+          supplier_name: order.supplier_name || 'Unbekannt',
+          location_name: order.location_name || 'Unbekannt',
+          total_amount: order.total_amount || 0,
+          expected_delivery_date: order.expected_delivery_date || null
+        }));
+        
+        setOrders(safeOrders);
+        console.log("✅ Orders successfully set:", safeOrders.length);
       } else {
-        console.error("❌ API-Antwort ist kein Array:", typeof data);
-        console.error("❌ Vollständige Antwort:", data);
-        setError("API-Antwort hat falsches Format: " + typeof data);
+        console.error("❌ Response is not an array:", typeof data);
+        setError("Server-Antwort ist kein Array: " + typeof data);
       }
     } catch (err) {
       console.error("❌ VOLLSTÄNDIGER FEHLER:", err);
