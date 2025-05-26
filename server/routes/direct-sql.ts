@@ -45,6 +45,39 @@ router.post('/execute-sql', async (req, res) => {
   }
 });
 
+// BLITZSCHNELLER Endpunkt für Bestellungsübersicht
+router.get('/orders-quick', async (req, res) => {
+  try {
+    console.log('⚡ BLITZSCHNELLE Bestellungsübersicht...');
+    
+    const result = await pool.query(`
+      SELECT 
+        id, 
+        order_number, 
+        status, 
+        created_at,
+        supplier_name, 
+        location_name,
+        total_amount,
+        expected_delivery_date
+      FROM orders 
+      ORDER BY id DESC 
+      LIMIT 15
+    `);
+    
+    console.log(`⚡ ${result.rows.length} Bestellungen in Millisekunden geladen`);
+    
+    return res.json(result.rows);
+    
+  } catch (error) {
+    console.error('❌ Schnellfehler:', error);
+    return res.status(500).json({ 
+      error: 'Fehler', 
+      message: error instanceof Error ? error.message : 'Unbekannt' 
+    });
+  }
+});
+
 // ULTRA-SCHNELLER Endpunkt nur für Bestellungsübersicht
 router.get('/orders-direct', async (req, res) => {
   try {
