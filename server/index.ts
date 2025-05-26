@@ -59,40 +59,42 @@ app.use((req, res, next) => {
   next();
 });
 
-(async () => {
-  // EINDEUTIGE BESTELLUNGSROUTE - KANN NICHT ÜBERSCHRIEBEN WERDEN
-  app.get('/api/bestellungen-liste', (req, res) => {
-    console.log('🎯 EINDEUTIGE BESTELLUNGSROUTE AUFGERUFEN');
-    
-    // Sofortige Headers setzen
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    
-    pool.query(`
-      SELECT 
-        id, 
-        order_number, 
-        status, 
-        created_at,
-        supplier_name, 
-        location_name,
-        total_amount,
-        expected_delivery_date
-      FROM orders 
-      ORDER BY id DESC 
-      LIMIT 15
-    `).then(result => {
-      console.log(`🎯 ERFOLG: ${result.rows.length} Bestellungen geladen`);
-      res.status(200).json(result.rows);
-    }).catch(error => {
-      console.error('❌ DB-Fehler:', error);
-      res.status(500).json({ 
-        error: 'Datenbankfehler', 
-        message: error instanceof Error ? error.message : 'Unbekannt' 
-      });
+// UMGEHUNG: Völlig separater Pfad außerhalb von /api
+app.get('/orders-data', (req, res) => {
+  console.log('🎯 SEPARATE BESTELLUNGSROUTE AUFGERUFEN');
+  
+  pool.query(`
+    SELECT 
+      id, 
+      order_number, 
+      status, 
+      created_at,
+      supplier_name, 
+      location_name,
+      total_amount,
+      expected_delivery_date
+    FROM orders 
+    ORDER BY id DESC 
+    LIMIT 15
+  `).then(result => {
+    console.log(`🎯 ${result.rows.length} Bestellungen über separate Route`);
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'no-cache'
     });
+    res.end(JSON.stringify(result.rows));
+  }).catch(error => {
+    console.error('❌ DB-Fehler separate Route:', error);
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      error: 'Datenbankfehler', 
+      message: error instanceof Error ? error.message : 'Unbekannt' 
+    }));
   });
+});
+
+(async () => {
 
   // SQL-Direktzugriff-Endpunkte für Datenbankabfragen
   app.get('/api/sql-orders', async (req, res) => {
