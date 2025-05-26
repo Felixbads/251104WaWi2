@@ -50,39 +50,17 @@ router.get('/orders-direct', async (req, res) => {
   try {
     console.log('Lade Bestellungen direkt aus der Datenbank...');
     
-    // Optimierte Abfrage mit JOIN auf suppliers und warehouses, um Namen zu garantieren
-    // KEIN Status-Filter, damit ALLE Bestellungen angezeigt werden (auch 'draft')
+    // Einfache und schnelle Abfrage - alle Bestellungen ohne JOINs
     const result = await pool.query(`
-      SELECT o.*,
-             COALESCE(o.supplier_name, s.name) AS supplier_name, 
-             COALESCE(o.location_name, w.name) AS location_name,
-             COALESCE(w.name, o.location_name) AS warehouse_name,
-             COALESCE(o.warehouse_id, o.location_id) AS warehouse_id,
-             s.email AS supplier_email
-      FROM orders o
-      LEFT JOIN suppliers s ON o.supplier_id = s.id
-      LEFT JOIN warehouses w ON o.location_id = w.id
-      ORDER BY o.created_at DESC
+      SELECT * FROM orders 
+      ORDER BY created_at DESC
     `);
     
-    // Daten für Frontend aufbereiten
-    const orders = result.rows.map(order => {
-      if (!order.supplier_name && order.supplier_id) {
-        console.log(`Warnung: Lieferantenname für Bestellung ${order.id} fehlt!`);
-      }
-      if (!order.location_name && order.location_id) {
-        console.log(`Warnung: Lagerortsname für Bestellung ${order.id} fehlt!`);
-      }
-      
-      // Frontend-kompatible Feldnamen hinzufügen
-      return {
-        ...order,
-        warehouseId: order.warehouse_id || order.location_id,
-        warehouseName: order.warehouse_name || order.location_name || 'Unbekanntes Lager'
-      };
-    });
+    // Einfache Datenaufbereitung ohne zusätzliche Verarbeitung
+    const orders = result.rows;
     
     console.log(`${orders.length} Bestellungen aus der Datenbank geladen`);
+    console.log("Erste Bestellung als Beispiel:", orders[0] ? JSON.stringify(orders[0], null, 2) : "Keine Bestellungen vorhanden");
     
     return res.json(orders);
   } catch (error) {
