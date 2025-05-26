@@ -216,7 +216,7 @@ const SimpleOrdersOverview: React.FC<SimpleOrdersOverviewProps> = ({
             <Card 
               key={order.id} 
               className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => onSelectOrder(order.id)}
+              onClick={() => onSelectOrder ? onSelectOrder(order.id) : window.location.href = `/bestellung/${order.id}`}
             >
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">

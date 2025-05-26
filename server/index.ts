@@ -65,16 +65,18 @@ app.get('/orders-data', (req, res) => {
   
   pool.query(`
     SELECT 
-      id, 
-      order_number, 
-      status, 
-      created_at,
-      supplier_name, 
-      location_name,
-      total_amount,
-      expected_delivery_date
-    FROM orders 
-    ORDER BY id DESC 
+      o.id, 
+      o.order_number, 
+      o.status, 
+      o.created_at,
+      COALESCE(s.name, o.supplier_name, 'Kein Lieferant') as supplier_name,
+      COALESCE(w.name, o.location_name, 'Kein Lager') as location_name,
+      o.total_amount,
+      o.expected_delivery_date
+    FROM orders o
+    LEFT JOIN suppliers s ON o.supplier_id = s.id
+    LEFT JOIN warehouses w ON o.warehouse_id = w.id
+    ORDER BY o.id DESC 
     LIMIT 15
   `).then(result => {
     console.log(`🎯 ${result.rows.length} Bestellungen über separate Route`);
