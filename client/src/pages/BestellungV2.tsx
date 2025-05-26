@@ -90,6 +90,23 @@ const BestellungV2: React.FC = () => {
   
   // State for the order process
   const [step, setStep] = useState<OrderStep>('overview'); // Starte mit der Übersicht
+  
+  // URL-Parameter verarbeiten beim Laden der Komponente
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const stepParam = urlParams.get('step') as OrderStep;
+    const orderIdParam = urlParams.get('orderId');
+    
+    if (stepParam && orderIdParam) {
+      setStep(stepParam);
+      setOrderId(parseInt(orderIdParam));
+      
+      // Wenn wir eine bestehende Bestellung laden, Daten abrufen
+      if (stepParam === 'sendOrder' || stepParam === 'goodsReceipt') {
+        loadExistingOrderData(parseInt(orderIdParam));
+      }
+    }
+  }, []);
   const [warehouseId, setWarehouseId] = useState<number | null>(null);
   const [warehouseName, setWarehouseName] = useState<string>('');
   const [orderMode, setOrderMode] = useState<OrderMode>('new');
@@ -113,6 +130,46 @@ const BestellungV2: React.FC = () => {
   const [emailPrepInProgress, setEmailPrepInProgress] = useState<boolean>(false);
   const [emailSendSuccess, setEmailSendSuccess] = useState<boolean>(false);
   const [orderDetailsOpen, setOrderDetailsOpen] = useState<boolean>(false);
+  
+  // Funktion zum Laden von bestehenden Bestellungsdaten
+  const loadExistingOrderData = async (orderIdToLoad: number) => {
+    try {
+      console.log(`Lade bestehende Bestellungsdaten für Bestellung ${orderIdToLoad}`);
+      
+      const response = await fetch(`/api/orders-direct/${orderIdToLoad}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Fehler beim Laden der Bestellung: ${response.status}`);
+      }
+      
+      const orderData = await response.json();
+      console.log("Bestellungsdaten geladen:", orderData);
+      
+      if (orderData) {
+        setOrderNumber(orderData.order_number || '');
+        setExistingOrderData(orderData);
+        setWarehouseId(orderData.warehouse_id);
+        setSupplierId(orderData.supplier_id);
+        setSupplierName(orderData.supplier_name || 'Unbekannt');
+        setWarehouseName(orderData.location_name || 'Unbekannt');
+        
+        // Lade auch die Bestellpositionen
+        await loadOrderItems(orderIdToLoad);
+      }
+    } catch (error) {
+      console.error("Fehler beim Laden der Bestellungsdaten:", error);
+      toast({
+        variant: "destructive",
+        title: "Fehler",
+        description: "Bestellungsdaten konnten nicht geladen werden."
+      });
+    }
+  };
   
   // Rekursive Funktion zum Laden von Bestellpositionen mit Retry-Logik
   const loadOrderItems = async (orderIdToLoad: number, retryCount = 0, maxRetries = 3) => {
