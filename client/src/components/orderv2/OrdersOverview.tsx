@@ -275,14 +275,20 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
         }
         
         const result = await response.json();
-        console.log("API-Antwort:", result);
+        console.log("API-Antwort erhalten:", result);
+        console.log("Type of result:", typeof result);
+        console.log("Is Array:", Array.isArray(result));
+        console.log("Length:", result?.length);
         
         if (Array.isArray(result)) {
+          console.log("Verwende result direkt als Array mit", result.length, "Einträgen");
           return result;
         } else if (result && result.data && Array.isArray(result.data)) {
+          console.log("Verwende result.data als Array mit", result.data.length, "Einträgen");
           return result.data;
         } else {
           console.warn("Unerwartetes Antwortformat:", result);
+          console.warn("Gebe leeres Array zurück");
           return [];
         }
       } catch (error) {
