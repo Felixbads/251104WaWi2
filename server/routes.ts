@@ -3090,13 +3090,5 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Registriere E-Mail-Routen (CRITICAL FIX: Das war bisher nicht registriert!)
   app.use(`${API_PREFIX}`, emailRouter);
 
-  // Registriere direkte SQL-Routen für Bestellungen (CRITICAL FIX!)
-  const directSqlRouter = await import('./routes/direct-sql');
-  app.use(`${API_PREFIX}`, directSqlRouter.default);
-
-  // Registriere Wareneingang-Routen (CRITICAL FIX!)
-  const warehouseReceiptRouter = await import('./routes/warehouse-receipt');
-  app.use(`${API_PREFIX}`, warehouseReceiptRouter.default);
-
   return httpServer;
 }

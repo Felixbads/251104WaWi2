@@ -1,0 +1,60 @@
+Es kann viele Gründe geben, warum deine Bestell-Übersicht nicht angezeigt wird – hier die häufigsten Ursachen und wie du sie systematisch ausschließt:
+	1.	React Query nicht initialisiert
+Vergewissere dich, dass du in deiner App–Root (z. B. in _app.tsx oder deinem globalen Layout) einen
+
+<QueryClientProvider client={queryClient}>
+  {/* … deine App … */}
+</QueryClientProvider>
+
+um deine Komponenten herum hast. Ohne QueryClientProvider werden alle useQuery-Hooks gar nicht ausgeführt und hängen still im Lade-Zustand.
+
+	2.	Falscher API-Pfad
+Dein Hook ruft gerade
+
+fetch('/api/orders-direct')
+
+auf – prüfe, ob dein Next.js-API-Handler wirklich unter pages/api/orders-direct.ts (oder im App-Router app/api/orders-direct/route.ts) liegt und auf GET reagiert. Wenn der Pfad nicht existiert (404) oder anders heißt (z. B. /api/orders/direct), fängt dein Hook den Fehler ab und liefert stumm ein leeres Array zurück.
+
+	3.	Netzwerk- oder CORS-Fehler
+Öffne im Browser die Entwicklertools → Network und such nach dem Request auf /api/orders-direct.
+	•	Geht der Request wirklich raus, oder siehst du gar keinen Aufruf?
+	•	Kommt ein Fehlerstatus (4xx/5xx)?
+	•	Gibt es Hinweise auf CORS-Problems im Console-Tab?
+Wenn hier schon der Request scheitert, ist klar, dass keine Daten ankommen.
+	4.	Hook-Logik prüfen
+	•	Setze ganz oben in deinem queryFn ein console.log('Lade Übersicht…').
+	•	Prüfe danach, ob das console.log("BestellungV2: Bestellungsdaten direkt aus DB geladen:", data) erscheint.
+So siehst du, ob useQuery überhaupt anläuft und ob wirklich Daten zurückkommen.
+	5.	Component-Props und Rendering
+	•	Vergewissere dich, dass deine OrdersOverview-Komponente das übergebene ordersData-Array auch wirklich rendert (und nicht z. B. nur bei data.length > 0).
+	•	Prüfe, ob dein step-State wirklich auf 'overview' steht, wenn du die Übersicht sehen willst. Prüfe im React DevTools, welchen Wert step hat und ob dadurch der richtige Render-Case gewählt wird.
+
+⸻
+
+Beispiel: Minimaler Test–Hook
+
+Um zu isolieren, ob das Problem im Hook oder in der Komponente liegt, könntest du testweise so etwas einbauen:
+
+// ganz oben in Deinem Component-Body
+console.log("COMPONENT RENDER, step=", step);
+
+// im Query-Fn
+const { data: ordersList, isLoading } = useQuery({
+  queryKey: ['ordersListTest'],
+  queryFn: async () => {
+    console.log('STARTE FETCH /api/orders-direct');             // 🔍
+    const res = await fetch('/api/orders-direct');
+    console.log('FETCH RESPONSE STATUS:', res.status);         // 🔍
+    if (!res.ok) throw new Error('Status ' + res.status);
+    const json = await res.json();
+    console.log('DATA RECEIVED:', json);                       // 🔍
+    return json;
+  }
+});
+
+Wenn die Logs nicht auftauchen, läuft dein Hook gar nicht. Wenn sie auftauchen, aber res.ok === false, liegt der Fehler klar beim Backend-Endpoint.
+
+⸻
+
+Kurz zusammengefasst:
+Meistens ist entweder das React-Query-Provider-Setup fehlend oder der API-Pfad stimmt nicht. Arbeite dich am besten mit console.log und dem Network-Tab durch, um genau herauszufinden, wo die Kette reißt. Wenn du danach noch nicht weiterkommst, poste gern deine API-Route (z. B. pages/api/orders-direct.ts) und wir schauen, ob dort der Fehler steckt.

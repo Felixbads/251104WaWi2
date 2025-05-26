@@ -275,9 +275,16 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
         }
         
         const result = await response.json();
-        console.log("Bestellungen API erfolgreich:", result.length, "Bestellungen");
+        console.log("API-Antwort:", result);
         
-        return Array.isArray(result) ? result : [];
+        if (Array.isArray(result)) {
+          return result;
+        } else if (result && result.data && Array.isArray(result.data)) {
+          return result.data;
+        } else {
+          console.warn("Unerwartetes Antwortformat:", result);
+          return [];
+        }
       } catch (error) {
         console.error("Fehler beim Laden der Bestellungen:", error);
         return [];
@@ -289,13 +296,8 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
   
   // Filtern und Sortieren der Bestellungen
   const filteredOrders = React.useMemo(() => {
-    console.log("Filtering orders, apiResponse:", apiResponse);
-    if (!apiResponse || !Array.isArray(apiResponse)) {
-      console.log("No valid apiResponse, returning empty array");
-      return [];
-    }
+    if (!apiResponse) return [];
     
-    console.log("Processing", apiResponse.length, "orders");
     let filtered = [...apiResponse];
     
     // Nach Status filtern
