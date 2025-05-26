@@ -78,6 +78,39 @@ app.use((req, res, next) => {
   // Order V3 Router für die neue Bestellungsversion
   app.use('/api', orderV3Router);
   
+  // BLITZSCHNELLE Route für Bestellungsübersicht
+  app.get('/api/orders-quick', async (req, res) => {
+    try {
+      console.log('⚡ DIREKTE BESTELLUNGSABFRAGE');
+      
+      const result = await pool.query(`
+        SELECT 
+          id, 
+          order_number, 
+          status, 
+          created_at,
+          supplier_name, 
+          location_name,
+          total_amount,
+          expected_delivery_date
+        FROM orders 
+        ORDER BY id DESC 
+        LIMIT 15
+      `);
+      
+      console.log(`⚡ ${result.rows.length} Bestellungen direkt geladen`);
+      res.setHeader('Content-Type', 'application/json');
+      return res.json(result.rows);
+      
+    } catch (error) {
+      console.error('❌ Direkter Fehler:', error);
+      return res.status(500).json({ 
+        error: 'Fehler', 
+        message: error instanceof Error ? error.message : 'Unbekannt' 
+      });
+    }
+  });
+
   // SQL-Direktzugriff-Endpunkte für Datenbankabfragen
   app.get('/api/sql-orders', async (req, res) => {
     try {
