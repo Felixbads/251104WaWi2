@@ -25,10 +25,13 @@ router.post('/create-order-v3', async (req, res) => {
       });
     }
     
+    console.log('Empfangene Bestelldaten:', JSON.stringify(req.body, null, 2));
+    
     if (!orderItems || !Array.isArray(orderItems) || orderItems.length === 0) {
       return res.status(400).json({ 
-        error: 'Keine Bestellpositionen', 
-        message: 'Die Bestellung enthält keine Positionen'
+        error: 'Mindestens ein Artikel muss bestellt werden', 
+        message: 'Die Bestellung enthält keine gültigen Positionen',
+        receivedItems: orderItems
       });
     }
     
