@@ -177,7 +177,7 @@ export default function BestellungenV4() {
     return (
       <div className="space-y-4">
         <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">Bestellungen V4</h2>
+          <h2 className="text-2xl font-bold">🎯 BESTELLUNGEN V4 - NEUE VERSION</h2>
           <Button onClick={() => setCurrentStep('create')} className="flex items-center gap-2">
             <Plus size={16} />
             Neue Bestellung
