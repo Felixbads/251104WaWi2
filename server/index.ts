@@ -357,9 +357,9 @@ app.get('/orders-data', (req, res) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Starte die automatische Synchronisierung
-    log('Initialisiere automatisches Synchronisierungssystem...');
-    startAutomaticSync();
+    // Automatische Synchronisierung vorübergehend deaktiviert wegen Feiertags-Synchronisierungs-Problemen
+    // log('Initialisiere automatisches Synchronisierungssystem...');
+    // startAutomaticSync();
     
     // Führen wir einen initialen Lagerabgleich beim Start durch
     try {
