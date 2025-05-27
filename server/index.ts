@@ -14,6 +14,7 @@ import simpleEmailRouter from './routes/simple-email';
 import dbDirectRouter from './routes/db-direct';
 import directSqlRouter from './routes/direct-sql';
 import orderV3Router from './routes/order-v3';
+import ordersV4Router from './routes/orders-v4';
 import { pool } from './db';
 
 const app = express();

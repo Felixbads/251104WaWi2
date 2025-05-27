@@ -2722,6 +2722,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Registriere Bestellungs-Routen
   app.use(`${API_PREFIX}/orders`, ordersRouter);
   
+  // Neue Bestellungen V4
+  const ordersV4Router = await import('./routes/orders-v4');
+  app.use(`${API_PREFIX}/orders-v4`, ordersV4Router.default);
+  
   // Registriere Inventar-Endpunkte (sowohl unter /api/inventory als auch unter /api/debug für Abwärtskompatibilität)
   app.use(`${API_PREFIX}/inventory`, warehouseInventoryRouter); // Nutze den neuen warehouseInventoryRouter für /api/inventory
   app.use(`${API_PREFIX}/debug`, inventoryRouter);
