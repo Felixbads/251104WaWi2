@@ -153,6 +153,59 @@ app.get('/orders-data', (req, res) => {
   
   const server = await registerRoutes(app);
 
+  // Fehlende API-Routen für den Bestellprozess hinzufügen
+  
+  // Direkte Lieferanten-API für Bestellprozess
+  app.get('/api/db-direct/suppliers', async (req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT * FROM suppliers 
+        WHERE status = 'active' OR status IS NULL
+        ORDER BY name
+      `);
+      
+      console.log(`${result.rows.length} Lieferanten direkt aus der Datenbank geladen`);
+      
+      return res.json({
+        rows: result.rows,
+        success: true
+      });
+    } catch (error) {
+      console.error('Fehler beim Laden der Lieferanten:', error);
+      return res.status(500).json({ 
+        error: 'Datenbankfehler', 
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler',
+        success: false
+      });
+    }
+  });
+
+  // Direkte Bestellpositionen-API
+  app.get('/api/order-items-direct/:orderId', async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.orderId);
+      if (isNaN(orderId)) {
+        return res.status(400).json({ error: 'Ungültige Bestell-ID' });
+      }
+
+      const result = await pool.query(`
+        SELECT oi.*, p.product_name, p.sku, p.category
+        FROM order_items oi
+        LEFT JOIN products p ON oi.product_id = p.id
+        WHERE oi.order_id = $1
+        ORDER BY oi.id
+      `, [orderId]);
+      
+      return res.json(result.rows);
+    } catch (error) {
+      console.error('Fehler beim Laden der Bestellpositionen:', error);
+      return res.status(500).json({ 
+        error: 'Datenbankfehler', 
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler'
+      });
+    }
+  });
+
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
