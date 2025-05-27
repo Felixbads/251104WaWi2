@@ -206,6 +206,105 @@ app.get('/orders-data', (req, res) => {
     }
   });
 
+  // Direkte Bestellerstellungs-API (Workaround für HTML-Response-Problem)
+  app.post('/api/orders-direct', async (req, res) => {
+    try {
+      console.log("Direkte Bestellerstellung mit Daten:", JSON.stringify(req.body).substring(0, 200));
+      
+      res.setHeader('Content-Type', 'application/json');
+      
+      const {
+        warehouseId,
+        supplierId,
+        expectedDeliveryDate,
+        priority = 'normal',
+        notes = '',
+        items
+      } = req.body;
+      
+      // Validierung
+      if (!warehouseId || !supplierId) {
+        return res.status(400).json({ error: 'Lager und Lieferant müssen angegeben werden' });
+      }
+      
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: 'Mindestens ein Artikel muss bestellt werden' });
+      }
+
+      // Bestellnummer generieren
+      const today = new Date();
+      const dateString = `${today.getFullYear()}${(today.getMonth() + 1).toString().padStart(2, '0')}${today.getDate().toString().padStart(2, '0')}`;
+      
+      const latestOrderQuery = await pool.query(`
+        SELECT order_number FROM orders 
+        WHERE order_number LIKE 'ORD-${dateString}-%'
+        ORDER BY order_number DESC 
+        LIMIT 1
+      `);
+      
+      let sequenceNumber = 1;
+      if (latestOrderQuery.rows.length > 0) {
+        const latestOrderNumber = latestOrderQuery.rows[0].order_number;
+        const match = latestOrderNumber.match(/ORD-\d{8}-(\d+)/);
+        if (match) {
+          sequenceNumber = parseInt(match[1]) + 1;
+        }
+      }
+      
+      const orderNumber = `ORD-${dateString}-${sequenceNumber.toString().padStart(3, '0')}`;
+      
+      // Bestellung erstellen
+      const orderResult = await pool.query(`
+        INSERT INTO orders (
+          order_number, warehouse_id, supplier_id, status, 
+          expected_delivery_date, priority, notes, created_at, updated_at
+        ) VALUES ($1, $2, $3, 'draft', $4, $5, $6, NOW(), NOW())
+        RETURNING *
+      `, [orderNumber, warehouseId, supplierId, expectedDeliveryDate, priority, notes]);
+      
+      const order = orderResult.rows[0];
+      
+      // Bestellpositionen erstellen
+      for (const item of items) {
+        // Produktname abrufen
+        const productResult = await pool.query(`
+          SELECT product_name FROM products WHERE id = $1
+        `, [item.productId]);
+        
+        const productName = productResult.rows.length > 0 
+          ? productResult.rows[0].product_name 
+          : `Produkt ${item.productId}`;
+        
+        await pool.query(`
+          INSERT INTO order_items (
+            order_id, product_id, product_name, quantity, unit_price, total_price, 
+            quantity_delivered, status, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, 0, 'pending', NOW(), NOW())
+        `, [
+          order.id,
+          item.productId,
+          productName,
+          item.quantity,
+          item.price || 0,
+          (item.quantity || 0) * (item.price || 0)
+        ]);
+      }
+      
+      return res.json({
+        success: true,
+        order: order,
+        message: 'Bestellung erfolgreich erstellt'
+      });
+      
+    } catch (error) {
+      console.error('Fehler bei direkter Bestellerstellung:', error);
+      return res.status(500).json({ 
+        error: 'Datenbankfehler', 
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler'
+      });
+    }
+  });
+
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
