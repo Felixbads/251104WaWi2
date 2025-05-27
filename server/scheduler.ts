@@ -31,7 +31,7 @@ const syncConfig = {
   },
   slow: {
     interval: 24 * 60 * 60 * 1000, // 24 Stunden
-    syncTypes: ['holidays', 'weather_historical_batch', 'warehouse_reconciliation'] // Täglicher Lagerabgleich hinzugefügt
+    syncTypes: ['weather_historical_batch', 'warehouse_reconciliation'] // Feiertags-Sync vorübergehend deaktiviert
   },
   historical: {
     interval: 6 * 60 * 60 * 1000, // 6 Stunden (erhöht von 2 Stunden)

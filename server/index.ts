@@ -1,7 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { startAutomaticSync } from "./scheduler";
+// import { startAutomaticSync } from "./scheduler"; // Vorübergehend deaktiviert
 import { reconcileWarehouseProducts } from "./services/warehouseReconciliation";
 // Import für Warehouse Storage entfernt, wird derzeit nicht benötigt für den Start
 import fileUpload from "express-fileupload";

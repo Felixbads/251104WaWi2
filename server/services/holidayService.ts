@@ -334,30 +334,44 @@ class HolidayService {
             const holidayType = holiday.type || 'public';
             const holidayName = holiday.name || 'Unbekannter Feiertag';
             
-            await db.insert(holidays).values({
-              date: formattedDate, // Als String im Format YYYY-MM-DD
-              name: holidayName,
-              description: holiday.description || '',
-              type: holidayType,
-              is_official: holiday.is_official || true,
-              country: holiday.country || 'DE',
-              state: holiday.state || states[0] || 'SN',
-              region: holiday.region || '',
-              year: holidayYear,
-              month: holidayMonth,
-              day: holidayDay,
-              weekday: holiday.weekday || parsedDate.getDay(),
-              weekday_name: holiday.weekday_name || this.getWeekdayNamePublic(parsedDate.getDay()),
+            // Prüfe erst, ob der Feiertag bereits existiert
+            const existingHoliday = await db.select().from(holidays).where(
+              and(
+                eq(holidays.date, formattedDate),
+                eq(holidays.country, holiday.country || 'DE'),
+                eq(holidays.state, holiday.state || states[0] || 'SN')
+              )
+            ).limit(1);
+            
+            if (existingHoliday.length === 0) {
+              await db.insert(holidays).values({
+                date: formattedDate, // Als String im Format YYYY-MM-DD
+                name: holidayName,
+                description: holiday.description || '',
+                type: holidayType,
+                is_official: holiday.is_official || true,
+                country: holiday.country || 'DE',
+                state: holiday.state || states[0] || 'SN',
+                region: holiday.region || '',
+                year: holidayYear,
+                month: holidayMonth,
+                day: holidayDay,
+                weekday: holiday.weekday || parsedDate.getDay(),
+                weekday_name: holiday.weekday_name || this.getWeekdayNamePublic(parsedDate.getDay()),
               week: holiday.week,
               metadata: holiday.metadata || null
             });
             
             addedEntries++;
+          } else {
+            // Feiertag existiert bereits - das ist normal
+            console.log(`Feiertag bereits vorhanden: ${formattedDate}`);
           }
         } catch (error) {
-          console.error('Fehler beim Speichern eines Feiertags:', error);
-          // Fahre mit dem nächsten Feiertag fort
-          continue;
+          // Nur echte Fehler loggen, nicht Duplikate
+          if (error instanceof Error && !error.message.includes('duplicate key value')) {
+            console.error('Fehler beim Speichern eines Feiertags:', error);
+          }
         }
       }
       
