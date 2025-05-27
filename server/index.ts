@@ -266,25 +266,36 @@ app.get('/orders-data', (req, res) => {
       
       // Bestellpositionen erstellen
       for (const item of items) {
-        // Produktname abrufen
+        // Produktname und weitere Details abrufen
         const productResult = await pool.query(`
-          SELECT product_name FROM products WHERE id = $1
+          SELECT product_name, sku, unit 
+          FROM products 
+          WHERE id = $1
         `, [item.productId]);
         
-        const productName = productResult.rows.length > 0 
+        console.log(`Produktabfrage für ID ${item.productId}:`, productResult.rows);
+        
+        const productName = productResult.rows.length > 0 && productResult.rows[0].product_name
           ? productResult.rows[0].product_name 
-          : `Produkt ${item.productId}`;
+          : `Unbekanntes Produkt ${item.productId}`;
+        
+        const unit = productResult.rows.length > 0 && productResult.rows[0].unit
+          ? productResult.rows[0].unit
+          : 'Stk';
+        
+        console.log(`Erstelle Bestellposition: Produkt-ID ${item.productId}, Name: "${productName}", Einheit: "${unit}"`);
         
         await pool.query(`
           INSERT INTO order_items (
-            order_id, product_id, product_name, quantity, unit_price, total_price, 
+            order_id, product_id, product_name, quantity, unit, unit_price, total_price, 
             quantity_delivered, status, created_at, updated_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, 0, 'pending', NOW(), NOW())
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'pending', NOW(), NOW())
         `, [
           order.id,
           item.productId,
           productName,
           item.quantity,
+          unit,
           item.price || 0,
           (item.quantity || 0) * (item.price || 0)
         ]);

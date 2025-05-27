@@ -297,8 +297,8 @@ const BestellungV2: React.FC = () => {
       try {
         console.log("Sende Bestellung an direkten SQL-Endpunkt:", directOrderData);
         
-        // Verwende den neuen direkten SQL-Endpunkt
-        const response = await fetch('/api/create-order-v3', {
+        // Verwende die funktionierende direkte API-Route
+        const response = await fetch('/api/orders-direct', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
