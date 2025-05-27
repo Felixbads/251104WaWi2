@@ -26,12 +26,19 @@ router.post('/create-order-v3', async (req, res) => {
     }
     
     console.log('Empfangene Bestelldaten:', JSON.stringify(req.body, null, 2));
+    console.log('OrderItems Type:', typeof orderItems, 'Is Array:', Array.isArray(orderItems), 'Length:', orderItems?.length);
     
-    if (!orderItems || !Array.isArray(orderItems) || orderItems.length === 0) {
+    // Prüfe auch, ob orderItems eventuell unter einem anderen Schlüssel übertragen wird
+    const actualOrderItems = orderItems || req.body.items || req.body.products || [];
+    console.log('Actual OrderItems:', actualOrderItems);
+    
+    if (!actualOrderItems || !Array.isArray(actualOrderItems) || actualOrderItems.length === 0) {
       return res.status(400).json({ 
         error: 'Mindestens ein Artikel muss bestellt werden', 
         message: 'Die Bestellung enthält keine gültigen Positionen',
-        receivedItems: orderItems
+        receivedItems: orderItems,
+        actualItems: actualOrderItems,
+        bodyKeys: Object.keys(req.body)
       });
     }
     
