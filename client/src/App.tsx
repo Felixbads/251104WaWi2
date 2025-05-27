@@ -195,13 +195,12 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
 
-        <Route path="/bestellungen">
-          <Redirect to="/bestellungen-v4" />
-        </Route>
-
-        <Route path="/bestellungen/neu">
-          <Redirect to="/bestellungen/neu-v2" />
-        </Route>
+        {/* Spezifische Routen MÜSSEN vor dynamischen Routen stehen */}
+        <Route path="/bestellungen-v4" component={props => (
+          <ApprovedUserRoute>
+            <BestellungenV4 {...props} />
+          </ApprovedUserRoute>
+        )} />
 
         <Route path="/bestellungen/neu-v2" component={props => (
           <ApprovedUserRoute>
@@ -209,11 +208,13 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
 
-        <Route path="/bestellungen-v4" component={props => (
-          <ApprovedUserRoute>
-            <BestellungenV4 {...props} />
-          </ApprovedUserRoute>
-        )} />
+        <Route path="/bestellungen/neu">
+          <Redirect to="/bestellungen/neu-v2" />
+        </Route>
+
+        <Route path="/bestellungen">
+          <Redirect to="/bestellungen-v4" />
+        </Route>
 
         {/* BestellungV3 Route wurde entfernt */}
 
