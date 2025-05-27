@@ -490,11 +490,15 @@ const BestellungV2: React.FC = () => {
       setStep("sendOrder");
     },
     onError: (error: any) => {
+      console.error('Bestellfehler:', error);
+      // Keine automatische Weiterleitung zur Startseite
+      // Stattdessen nur eine Fehlermeldung anzeigen
       toast({
-        title: 'Fehler beim Erstellen der Bestellung',
-        description: error.message || 'Ein unbekannter Fehler ist aufgetreten',
+        title: 'Bestellung konnte nicht erstellt werden',
+        description: 'Bitte versuchen Sie es erneut oder wenden Sie sich an den Support.',
         variant: 'destructive',
       });
+      // Den Schritt nicht zurücksetzen - Nutzer bleibt im aktuellen Schritt
     }
   });
   

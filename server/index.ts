@@ -264,26 +264,38 @@ app.get('/orders-data', (req, res) => {
       
       const order = orderResult.rows[0];
       
-      // Bestellpositionen erstellen
+      // Bestellpositionen erstellen  
       for (const item of items) {
-        // Produktname und weitere Details abrufen
-        const productResult = await pool.query(`
-          SELECT product_name, sku, unit 
-          FROM products 
-          WHERE id = $1
-        `, [item.productId]);
+        // Sicherheitsprüfung für productId
+        if (!item.productId || isNaN(Number(item.productId))) {
+          console.error(`Ungültige Produkt-ID: ${item.productId}`);
+          continue;
+        }
         
-        console.log(`Produktabfrage für ID ${item.productId}:`, productResult.rows);
+        // Produktname direkt mit sicherem Fallback
+        let productName = `Produkt-ID ${item.productId}`;
+        let unit = 'Stk';
         
-        const productName = productResult.rows.length > 0 && productResult.rows[0].product_name
-          ? productResult.rows[0].product_name 
-          : `Unbekanntes Produkt ${item.productId}`;
+        try {
+          const productResult = await pool.query(`
+            SELECT product_name, unit 
+            FROM products 
+            WHERE id = $1
+          `, [Number(item.productId)]);
+          
+          if (productResult.rows.length > 0) {
+            if (productResult.rows[0].product_name) {
+              productName = productResult.rows[0].product_name;
+            }
+            if (productResult.rows[0].unit) {
+              unit = productResult.rows[0].unit;
+            }
+          }
+        } catch (productError) {
+          console.warn(`Produktabfrage fehlgeschlagen für ID ${item.productId}:`, productError);
+        }
         
-        const unit = productResult.rows.length > 0 && productResult.rows[0].unit
-          ? productResult.rows[0].unit
-          : 'Stk';
-        
-        console.log(`Erstelle Bestellposition: Produkt-ID ${item.productId}, Name: "${productName}", Einheit: "${unit}"`);
+        console.log(`Erstelle Bestellposition: ID ${item.productId}, Name: "${productName}"`);
         
         await pool.query(`
           INSERT INTO order_items (
@@ -292,12 +304,12 @@ app.get('/orders-data', (req, res) => {
           ) VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'pending', NOW(), NOW())
         `, [
           order.id,
-          item.productId,
-          productName,
-          item.quantity,
+          Number(item.productId),
+          productName,  // Garantiert nicht null
+          Number(item.quantity) || 1,
           unit,
-          item.price || 0,
-          (item.quantity || 0) * (item.price || 0)
+          Number(item.price) || 0,
+          (Number(item.quantity) || 1) * (Number(item.price) || 0)
         ]);
       }
       
