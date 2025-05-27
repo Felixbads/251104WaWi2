@@ -334,9 +334,9 @@ const BestellungV2: React.FC = () => {
       queryClient.invalidateQueries({queryKey: orderKeys.lists()});
       
       // Verarbeitung der Antwort vom direkten SQL-Endpunkt
-      if (data && data.success && data.data) {
+      if (data && data.success && data.order) {
         // Extrahiere die eigentlichen Bestelldaten
-        const orderData = data.data;
+        const orderData = data.order;
         
         // Setze Order-ID und Nummer
         setOrderId(orderData.id);
