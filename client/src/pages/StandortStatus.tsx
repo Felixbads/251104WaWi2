@@ -243,6 +243,15 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
                   {formatDaysAgo(machine.lastRefill.daysAgo)}
                 </p>
                 <p className="text-xs text-muted-foreground">
+                  {new Date(machine.lastRefill.datetime).toLocaleString('de-DE', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </p>
+                <p className="text-xs text-muted-foreground">
                   von {machine.lastRefill.operator}
                 </p>
               </div>
