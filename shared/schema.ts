@@ -429,25 +429,83 @@ export const insertRefillDetailSchema = createInsertSchema(refillDetails).omit({
 export type InsertRefillDetail = z.infer<typeof insertRefillDetailSchema>;
 export type RefillDetail = typeof refillDetails.$inferSelect;
 
-// Events table based on vendon_events
+// Events table based on vendon_events - erweitert für vollständige API-Abdeckung
 export const events = pgTable("events", {
   id: serial("id").primaryKey(),
-  vendonId: text("vendon_id").notNull(),
-  eventType: text("event_type"),
-  eventName: text("event_name"),
-  description: text("description"),
+  
+  // Basis-Identifikatoren
+  vendonId: text("vendon_id").notNull(), // Event ID aus der Vendon API
+  
+  // Event-Informationen
+  eventType: text("event_type"), // Typ des Events
+  eventName: text("event_name"), // Name des Events
+  baseCode: text("base_code"), // Basis-Code des Events
+  originalCode: text("original_code"), // Original-Code des Events
+  description: text("description"), // Beschreibung des Events
+  name: text("name"), // Event-Name (zusätzlich zu eventName)
+  
+  // Maschinen-Bezug
   machineId: integer("machine_id").references(() => machines.id),
   machineName: text("machine_name"),
-  datetime: timestamp("datetime").notNull(),
-  status: text("status"),
-  resolvedAt: timestamp("resolved_at"),
-  severity: text("severity"),
-  extraData: text("extra_data"),
+  vendonMachineId: text("vendon_machine_id"), // Original Vendon Machine ID
+  
+  // Zeitstempel
+  eventDatetime: timestamp("event_datetime"), // Zeitpunkt des Events
+  receivedAt: timestamp("received_at"), // Wann wurde das Event empfangen
+  resolvedAt: timestamp("resolved_at"), // Wann wurde das Event gelöst
+  datetime: timestamp("datetime").notNull(), // Haupt-Zeitstempel (für Kompatibilität)
+  
+  // Status und Zustand
+  state: text("state"), // Event-Status (resolved, info, active, unknown)
+  status: text("status"), // Allgemeiner Status
+  active: text("active"), // Ist das Event aktiv (Y/N)
+  ignored: boolean("ignored").default(false), // Ist das Event ignoriert
+  
+  // Dauer und Metriken
+  duration: integer("duration"), // Dauer des Events in Sekunden
+  
+  // Kategorisierung
+  severity: text("severity"), // Schweregrad des Events
+  priority: text("priority"), // Priorität des Events
+  category: text("category"), // Kategorie des Events
+  
+  // Tags und Kennzeichnungen
+  eventTags: text("event_tags"), // Event-Tags als JSON-Array
+  machineTags: text("machine_tags"), // Maschinen-Tags als JSON-Array
+  
+  // Standort-Informationen
   locationId: integer("location_id").references(() => locations.id),
   locationName: text("location_name"),
+  locationType: text("location_type"),
+  
+  // Client/Account-Informationen
+  clientId: integer("client_id"),
+  clientName: text("client_name"),
+  warehouseId: integer("warehouse_id"),
+  warehouseName: text("warehouse_name"),
+  
+  // Technische Details
+  telemetryUnitId: integer("telemetry_unit_id"),
+  sensorData: text("sensor_data"), // Sensor-Daten als JSON
+  
+  // Zusatzdaten und Metadaten
+  extraData: text("extra_data"), // Zusätzliche Daten aus der API
+  rawApiData: text("raw_api_data"), // Vollständige API-Antwort als JSON
+  
+  // Verarbeitungs-Tracking
+  syncedAt: timestamp("synced_at").defaultNow(),
+  lastSync: timestamp("last_sync"),
+  processedAt: timestamp("processed_at"),
+  processingStatus: text("processing_status").default("pending"),
+  processingError: text("processing_error"),
+  
+  // Datensatz-Tracking
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => {
   return {
-    vendonIdx: unique().on(table.vendonId, table.machineId, table.datetime),
+    vendonIdx: unique().on(table.vendonId), // Eindeutiger Index auf Vendon Event ID
+    machineEventIdx: unique().on(table.vendonMachineId, table.eventDatetime), // Index für Maschine + Zeit
   };
 });
 

@@ -33,6 +33,7 @@ import { criticalInventoryRouter } from './routes/critical-inventory';
 import productSyncRouter from './routes/product-sync';
 import vendonImportStatsRouter from './routes/vendonImportStats';
 import vendonHistoricalImportRouter from './routes/vendonHistoricalImport';
+import eventsRouter from './routes/events';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
