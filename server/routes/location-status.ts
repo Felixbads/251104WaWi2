@@ -78,7 +78,8 @@ router.get('/', async (req: Request, res: Response) => {
             LOWER(${transactions.productName}) LIKE '%wein%' OR 
             LOWER(${transactions.productName}) LIKE '%pils%' OR
             LOWER(${transactions.productName}) LIKE '%radler%' OR
-            LOWER(${transactions.productName}) LIKE '%weizen%'
+            LOWER(${transactions.productName}) LIKE '%weizen%' OR
+            LOWER(${transactions.productName}) LIKE '%alkohol%'
           )`
         )
       )

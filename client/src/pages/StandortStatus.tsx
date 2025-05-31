@@ -70,11 +70,13 @@ export default function StandortStatus() {
   const [searchTerm, setSearchTerm] = useState("");
   
   const { data: machineStatus, isLoading, error, refetch } = useQuery({
-    queryKey: ['/api/location-status'],
+    queryKey: ['/api/location-status', new Date().toISOString().split('T')[0]], // Täglich neuer Cache-Key
     queryFn: getMachineStatusData,
     refetchInterval: 30 * 1000, // Alle 30 Sekunden aktualisieren für aktuelle Daten
     staleTime: 0, // Daten sofort als veraltet markieren
     gcTime: 0, // Keine Zwischenspeicherung (React Query v5)
+    refetchOnMount: 'always', // Immer neu laden beim Mount
+    refetchOnWindowFocus: true, // Neu laden bei Fokus
   });
 
   // Gefilterte Maschinen basierend auf Suchbegriff
