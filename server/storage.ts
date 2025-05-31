@@ -2775,11 +2775,12 @@ export class DatabaseStorage implements IStorage {
         ) e ON true
         LEFT JOIN (
           SELECT 
-            machine_id,
-            SUM(amount) as revenue
-          FROM transactions 
-          WHERE DATE(datetime) = CURRENT_DATE
-          GROUP BY machine_id
+            t.machine_id,
+            SUM(CASE WHEN t.amount > 0 THEN t.amount ELSE COALESCE(p.price, 0) END) as revenue
+          FROM transactions t
+          LEFT JOIN products p ON t.product_name = p.product_name
+          WHERE DATE(t.datetime) = CURRENT_DATE
+          GROUP BY t.machine_id
         ) today_revenue ON m.id = today_revenue.machine_id
         ORDER BY m.location_name, m.machine_name
         LIMIT 20
@@ -2790,13 +2791,17 @@ export class DatabaseStorage implements IStorage {
       
       console.log(`Found ${machines.length} machines for status overview`);
       
-      // Get recent transactions for each machine
+      // Get recent transactions for each machine with correct pricing
       const recentTransactionsPromises = machines.map(async (machine) => {
         const recentQuery = `
-          SELECT datetime, product_name, amount
-          FROM transactions 
-          WHERE machine_id = $1 
-          ORDER BY datetime DESC 
+          SELECT 
+            t.datetime, 
+            t.product_name, 
+            COALESCE(t.amount, p.price, 0) as amount
+          FROM transactions t
+          LEFT JOIN products p ON t.product_name = p.product_name
+          WHERE t.machine_id = $1 
+          ORDER BY t.datetime DESC 
           LIMIT 5
         `;
         const recentResult = await rawDb.query(recentQuery, [machine.id]);
