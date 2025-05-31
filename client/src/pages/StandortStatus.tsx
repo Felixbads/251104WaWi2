@@ -38,6 +38,11 @@ interface MachineStatusData {
     paymentMethod: string;
     daysAgo: number;
   } | null;
+  lastAlcoholSale?: {
+    datetime: string;
+    productName: string;
+    daysAgo: number;
+  } | null;
   lastDoorOpen?: {
     datetime: string;
     daysAgo: number;
@@ -69,7 +74,7 @@ export default function StandortStatus() {
     queryFn: getMachineStatusData,
     refetchInterval: 30 * 1000, // Alle 30 Sekunden aktualisieren für aktuelle Daten
     staleTime: 0, // Daten sofort als veraltet markieren
-    cacheTime: 0, // Keine Zwischenspeicherung
+    gcTime: 0, // Keine Zwischenspeicherung (React Query v5)
   });
 
   // Gefilterte Maschinen basierend auf Suchbegriff
@@ -285,6 +290,35 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
               </div>
             ) : (
               <p className="text-muted-foreground">Keine Daten</p>
+            )}
+          </div>
+        </div>
+
+        {/* Letzter Alkoholverkauf */}
+        <div className="flex items-center space-x-2 text-sm">
+          <Wine className="h-4 w-4 text-purple-500" />
+          <div className="flex-1">
+            <p className="font-medium">Letzter Alkoholverkauf</p>
+            {machine.lastAlcoholSale ? (
+              <div>
+                <p className="text-muted-foreground">
+                  {formatDaysAgo(machine.lastAlcoholSale.daysAgo)}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {machine.lastAlcoholSale.productName}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(machine.lastAlcoholSale.datetime).toLocaleString('de-DE', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </p>
+              </div>
+            ) : (
+              <p className="text-muted-foreground">Keine Alkoholverkäufe</p>
             )}
           </div>
         </div>

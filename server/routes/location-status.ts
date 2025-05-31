@@ -141,6 +141,11 @@ router.get('/', async (req: Request, res: Response) => {
           paymentMethod: lastCashlessSale[0].paymentMethod,
           daysAgo: daysSinceLastCashless
         } : null,
+        lastAlcoholSale: lastAlcoholSale[0] ? {
+          datetime: lastAlcoholSale[0].datetime.toISOString(),
+          productName: lastAlcoholSale[0].productName,
+          daysAgo: daysSinceLastAlcohol
+        } : null,
         lastDoorOpen: null, // TODO: Event-Daten implementieren
         todayRevenue: parseFloat(todayRevenue[0]?.total?.toString() || '0'),
         recentTransactions: recentTransactions.map(t => ({
