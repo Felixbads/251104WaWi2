@@ -2776,9 +2776,8 @@ export class DatabaseStorage implements IStorage {
         LEFT JOIN (
           SELECT 
             t.machine_id,
-            SUM(CASE WHEN t.amount > 0 THEN t.amount ELSE COALESCE(p.price, 0) END) as revenue
+            SUM(COALESCE(t.price, 0)) as revenue
           FROM transactions t
-          LEFT JOIN products p ON t.product_name = p.product_name
           WHERE DATE(t.datetime) = CURRENT_DATE
           GROUP BY t.machine_id
         ) today_revenue ON m.id = today_revenue.machine_id
@@ -2797,9 +2796,8 @@ export class DatabaseStorage implements IStorage {
           SELECT 
             t.datetime, 
             t.product_name, 
-            COALESCE(t.amount, p.price, 0) as amount
+            COALESCE(t.price, 0) as amount
           FROM transactions t
-          LEFT JOIN products p ON t.product_name = p.product_name
           WHERE t.machine_id = $1 
           ORDER BY t.datetime DESC 
           LIMIT 5
