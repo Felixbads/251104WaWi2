@@ -25,10 +25,16 @@ interface MachineStatusData {
   location: string | null;
   lastRefill?: {
     datetime: string;
+    operator: string;
     daysAgo: number;
   } | null;
   lastSale?: {
     datetime: string;
+    daysAgo: number;
+  } | null;
+  lastCashlessSale?: {
+    datetime: string;
+    paymentMethod: string;
     daysAgo: number;
   } | null;
   status: 'ok' | 'warning' | 'error';
@@ -224,9 +230,14 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
           <div className="flex-1">
             <p className="font-medium">Letzte Füllung</p>
             {machine.lastRefill ? (
-              <p className="text-muted-foreground">
-                {formatDaysAgo(machine.lastRefill.daysAgo)}
-              </p>
+              <div>
+                <p className="text-muted-foreground">
+                  {formatDaysAgo(machine.lastRefill.daysAgo)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  von {machine.lastRefill.operator}
+                </p>
+              </div>
             ) : (
               <p className="text-red-500">Keine Daten</p>
             )}
@@ -247,6 +258,22 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
             )}
           </div>
         </div>
+
+        {/* Letzter Cashless-Verkauf */}
+        {machine.lastCashlessSale && (
+          <div className="flex items-center space-x-2 text-sm">
+            <CreditCard className="h-4 w-4 text-blue-500" />
+            <div className="flex-1">
+              <p className="font-medium">Cashless-Verkauf</p>
+              <p className="text-muted-foreground">
+                {formatDaysAgo(machine.lastCashlessSale.daysAgo)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {machine.lastCashlessSale.paymentMethod}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Warnungen */}
         {machine.warnings.length > 0 && (

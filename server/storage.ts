@@ -2729,17 +2729,20 @@ export class DatabaseStorage implements IStorage {
     try {
       console.log("Fetching location status data...");
       
-      // Use a single efficient query to get all the data at once
+      // Enhanced query to get detailed information including operators and cashless sales
       const statusQuery = `
         SELECT 
           m.id,
           m.machine_name,
           m.location_name,
           r.datetime as last_refill_date,
-          t.datetime as last_sale_date
+          r.operator as last_refill_operator,
+          t.datetime as last_sale_date,
+          tc.datetime as last_cashless_date,
+          tc.payment_method as last_cashless_method
         FROM machines m
         LEFT JOIN LATERAL (
-          SELECT datetime 
+          SELECT datetime, operator 
           FROM refills 
           WHERE machine_id = m.id 
           ORDER BY datetime DESC 
@@ -2752,6 +2755,14 @@ export class DatabaseStorage implements IStorage {
           ORDER BY datetime DESC 
           LIMIT 1
         ) t ON true
+        LEFT JOIN LATERAL (
+          SELECT datetime, payment_method 
+          FROM transactions 
+          WHERE machine_id = m.id 
+          AND payment_method != 'cash'
+          ORDER BY datetime DESC 
+          LIMIT 1
+        ) tc ON true
         ORDER BY m.location_name, m.machine_name
         LIMIT 20
       `;
@@ -2766,6 +2777,7 @@ export class DatabaseStorage implements IStorage {
         const now = new Date();
         let refillDaysAgo = null;
         let saleDaysAgo = null;
+        let cashlessDaysAgo = null;
         
         if (machine.last_refill_date) {
           const refillDate = new Date(machine.last_refill_date);
@@ -2775,6 +2787,11 @@ export class DatabaseStorage implements IStorage {
         if (machine.last_sale_date) {
           const saleDate = new Date(machine.last_sale_date);
           saleDaysAgo = Math.floor((now.getTime() - saleDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+        
+        if (machine.last_cashless_date) {
+          const cashlessDate = new Date(machine.last_cashless_date);
+          cashlessDaysAgo = Math.floor((now.getTime() - cashlessDate.getTime()) / (1000 * 60 * 60 * 24));
         }
         
         // Determine status based on refill timing
@@ -2800,11 +2817,17 @@ export class DatabaseStorage implements IStorage {
           location: machine.location_name,
           lastRefill: machine.last_refill_date ? {
             datetime: machine.last_refill_date,
+            operator: machine.last_refill_operator || 'Unbekannt',
             daysAgo: refillDaysAgo
           } : null,
           lastSale: machine.last_sale_date ? {
             datetime: machine.last_sale_date,
             daysAgo: saleDaysAgo
+          } : null,
+          lastCashlessSale: machine.last_cashless_date ? {
+            datetime: machine.last_cashless_date,
+            paymentMethod: machine.last_cashless_method || 'card',
+            daysAgo: cashlessDaysAgo
           } : null,
           status,
           warnings
