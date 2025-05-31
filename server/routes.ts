@@ -35,6 +35,7 @@ import productSyncRouter from './routes/product-sync';
 import vendonImportStatsRouter from './routes/vendonImportStats';
 import vendonHistoricalImportRouter from './routes/vendonHistoricalImport';
 import eventsRouter from './routes/events';
+import locationStatusRouter from './routes/location-status';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -2880,6 +2881,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/refills`, refillsRoutes);
   app.use(`${API_PREFIX}/database-viewer`, databaseViewerRoutes);
   app.use(`${API_PREFIX}/admin`, adminRouter);
+  app.use(`${API_PREFIX}/location-status`, locationStatusRouter);
   
   // Erste Version der Warehouse-Stats-API entfernt, um Duplikate zu vermeiden.
   // Die unten definierte Version (Zeile 2483) wird stattdessen verwendet.

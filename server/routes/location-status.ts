@@ -13,9 +13,8 @@ router.get('/', async (req: Request, res: Response) => {
     // Alle Automaten abrufen
     const allMachines = await db.select({
       id: machines.id,
-      name: machines.name,
-      location: machines.location,
-      warehouseId: machines.warehouseId
+      machineName: machines.machineName,
+      locationId: machines.locationId
     }).from(machines);
     
     const machineStatusData = [];
@@ -103,8 +102,8 @@ router.get('/', async (req: Request, res: Response) => {
       
       machineStatusData.push({
         id: machine.id,
-        machineName: machine.name,
-        location: machine.location,
+        machineName: machine.machineName,
+        location: `Location ID: ${machine.locationId}`,
         lastRefill: null, // TODO: Füllungsdaten implementieren
         lastSale: lastSale[0] ? {
           datetime: lastSale[0].datetime.toISOString(),
