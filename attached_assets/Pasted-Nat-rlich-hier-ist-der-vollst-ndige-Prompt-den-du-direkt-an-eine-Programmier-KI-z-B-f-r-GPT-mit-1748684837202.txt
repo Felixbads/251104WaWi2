@@ -1,0 +1,55 @@
+Natürlich, hier ist der vollständige Prompt, den du direkt an eine Programmier-KI (z. B. für GPT mit Codefokus) geben kannst:
+
+⸻
+
+Prompt:
+
+Ich möchte alle Transaktionsdaten aus dem Vendon-System in eine eigene Datenbank übertragen – inklusive historischer Daten seit Sommer 2022. Bitte entwickle dafür eine robuste und fehlertolerante Lösung mit folgenden Anforderungen:
+
+⸻
+
+Ziel:
+
+Vollständige Synchronisierung aller Transaktionen seit Sommer 2022 über die Vendon-API in eine Datenbank. Am Ende sollen über 150.000 Transaktionen vollständig und ohne Duplikate gespeichert sein.
+
+⸻
+
+Vorgaben & Anforderungen:
+	1.	API-Nutzung:
+	•	Analysiere die Vendon-API-Dokumentation für den Abruf von Transaktionen.
+	•	Es können pro Request maximal 100 Transaktionen geladen werden.
+	•	Historische Daten müssen durch schrittweise Anpassung des Zeitstempels oder einer anderen Markierung (z. B. Offset, nextPageToken, transaction_id) geladen werden.
+	2.	Paginierung & Loop:
+	•	Implementiere eine Schleife, die alle Daten ab Sommer 2022 in 100er-Batches abruft.
+	•	Der Abruf soll so lange laufen, bis keine weiteren Daten mehr verfügbar sind.
+	•	Achte auf Timeouts und Fehler – der Abruf soll beim letzten gültigen Stand wieder aufgenommen werden können.
+	3.	Datenbankspeicherung:
+	•	Speichere die Transaktionen in einer relationalen Datenbank (z. B. PostgreSQL oder MySQL).
+	•	Vermeide Duplikate durch einen eindeutigen Schlüssel wie transaction_id oder durch Vorabprüfung.
+	•	Falls nötig, erstelle ein geeignetes Datenbankschema.
+	4.	Duplikatvermeidung:
+	•	Stelle sicher, dass keine Transaktion doppelt gespeichert wird – auch bei mehrfachen Durchläufen.
+	•	Optional: Führe ein Protokoll, wann welche Daten zuletzt geladen wurden.
+	5.	Langfristige Nutzung:
+	•	Die Lösung soll später regelmäßig laufen können (z. B. täglich), um neue Transaktionen zu laden.
+	•	Auch dabei müssen Duplikate verhindert werden.
+
+⸻
+
+Zusatz:
+
+Wenn möglich, erstelle zusätzlich:
+	•	Ein einfaches Logging oder Monitoring zur Kontrolle des Fortschritts.
+	•	Einen Mechanismus, um bei Bedarf einen Teilbereich neu zu laden (z. B. bestimmte Tage).
+
+⸻
+
+Bitte gib mir den vollständigen Code, inklusive:
+	•	API-Anbindung
+	•	Logik für historisches Paging
+	•	Duplikatschutz
+	•	Datenbankanbindung und -schema
+
+⸻
+
+Wenn du willst, passe ich den Prompt auch für ein bestimmtes Framework (z. B. Django, Node.js) oder eine Sprache (z. B. Python) an.
