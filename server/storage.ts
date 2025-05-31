@@ -2729,7 +2729,7 @@ export class DatabaseStorage implements IStorage {
     try {
       console.log("Fetching location status data...");
       
-      // Enhanced query to get detailed information including operators and cashless sales
+      // Enhanced query to get detailed information including door openings, revenue, and recent transactions
       const statusQuery = `
         SELECT 
           m.id,
@@ -2739,7 +2739,9 @@ export class DatabaseStorage implements IStorage {
           r.operator as last_refill_operator,
           t.datetime as last_sale_date,
           tc.datetime as last_cashless_date,
-          tc.payment_method as last_cashless_method
+          tc.payment_method as last_cashless_method,
+          e.datetime as last_door_open_date,
+          COALESCE(today_revenue.revenue, 0) as today_revenue
         FROM machines m
         LEFT JOIN LATERAL (
           SELECT datetime, operator 
@@ -2763,6 +2765,22 @@ export class DatabaseStorage implements IStorage {
           ORDER BY datetime DESC 
           LIMIT 1
         ) tc ON true
+        LEFT JOIN LATERAL (
+          SELECT datetime 
+          FROM events 
+          WHERE machine_id = m.id 
+          AND event_name = 'Automatentüre offen'
+          ORDER BY datetime DESC 
+          LIMIT 1
+        ) e ON true
+        LEFT JOIN (
+          SELECT 
+            machine_id,
+            SUM(amount) as revenue
+          FROM transactions 
+          WHERE DATE(datetime) = CURRENT_DATE
+          GROUP BY machine_id
+        ) today_revenue ON m.id = today_revenue.machine_id
         ORDER BY m.location_name, m.machine_name
         LIMIT 20
       `;
@@ -2772,12 +2790,32 @@ export class DatabaseStorage implements IStorage {
       
       console.log(`Found ${machines.length} machines for status overview`);
       
+      // Get recent transactions for each machine
+      const recentTransactionsPromises = machines.map(async (machine) => {
+        const recentQuery = `
+          SELECT datetime, product_name, amount
+          FROM transactions 
+          WHERE machine_id = $1 
+          ORDER BY datetime DESC 
+          LIMIT 5
+        `;
+        const recentResult = await rawDb.query(recentQuery, [machine.id]);
+        return { machineId: machine.id, transactions: recentResult.rows };
+      });
+      
+      const recentTransactionsResults = await Promise.all(recentTransactionsPromises);
+      const recentTransactionsMap = {};
+      recentTransactionsResults.forEach(result => {
+        recentTransactionsMap[result.machineId] = result.transactions;
+      });
+
       const locationStatusData = machines.map(machine => {
         // Calculate days ago
         const now = new Date();
         let refillDaysAgo = null;
         let saleDaysAgo = null;
         let cashlessDaysAgo = null;
+        let doorOpenDaysAgo = null;
         
         if (machine.last_refill_date) {
           const refillDate = new Date(machine.last_refill_date);
@@ -2792,6 +2830,11 @@ export class DatabaseStorage implements IStorage {
         if (machine.last_cashless_date) {
           const cashlessDate = new Date(machine.last_cashless_date);
           cashlessDaysAgo = Math.floor((now.getTime() - cashlessDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+        
+        if (machine.last_door_open_date) {
+          const doorOpenDate = new Date(machine.last_door_open_date);
+          doorOpenDaysAgo = Math.floor((now.getTime() - doorOpenDate.getTime()) / (1000 * 60 * 60 * 24));
         }
         
         // Determine status based on refill timing
@@ -2811,6 +2854,13 @@ export class DatabaseStorage implements IStorage {
           status = 'warning';
         }
         
+        // Get recent transactions for this machine
+        const recentTransactions = (recentTransactionsMap[machine.id] || []).map(tx => ({
+          datetime: tx.datetime,
+          productName: tx.product_name || 'Unbekanntes Produkt',
+          amount: parseFloat(tx.amount) || 0
+        }));
+        
         return {
           id: machine.id,
           machineName: machine.machine_name,
@@ -2829,6 +2879,12 @@ export class DatabaseStorage implements IStorage {
             paymentMethod: machine.last_cashless_method || 'card',
             daysAgo: cashlessDaysAgo
           } : null,
+          lastDoorOpen: machine.last_door_open_date ? {
+            datetime: machine.last_door_open_date,
+            daysAgo: doorOpenDaysAgo
+          } : null,
+          todayRevenue: parseFloat(machine.today_revenue) || 0,
+          recentTransactions: recentTransactions,
           status,
           warnings
         };

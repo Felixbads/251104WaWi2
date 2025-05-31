@@ -11,7 +11,8 @@ import {
   CheckCircle,
   Clock3,
   Search,
-  RefreshCw
+  RefreshCw,
+  Euro
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +38,16 @@ interface MachineStatusData {
     paymentMethod: string;
     daysAgo: number;
   } | null;
+  lastDoorOpen?: {
+    datetime: string;
+    daysAgo: number;
+  } | null;
+  todayRevenue: number;
+  recentTransactions: Array<{
+    datetime: string;
+    productName: string;
+    amount: number;
+  }>;
   status: 'ok' | 'warning' | 'error';
   warnings: string[];
 }
@@ -99,9 +110,15 @@ export default function StandortStatus() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
           <h2 className="text-xl font-semibold mb-2">Fehler beim Laden der Daten</h2>
-          <Button onClick={() => refetch()}>Erneut versuchen</Button>
+          <p className="text-muted-foreground mb-4">
+            Die Standort-Status-Daten konnten nicht geladen werden.
+          </p>
+          <Button onClick={() => refetch()} variant="outline">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Erneut versuchen
+          </Button>
         </div>
       </div>
     );
@@ -109,26 +126,17 @@ export default function StandortStatus() {
 
   return (
     <div className="space-y-6">
-      {/* Header mit Übersicht */}
+      {/* Header */}
       <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Standort-Status</h1>
-          <p className="text-muted-foreground mt-1">
-            Übersicht aller {machineStatus?.length || 0} Automaten
-          </p>
-        </div>
-        <Button 
-          variant="outline" 
-          onClick={() => refetch()}
-          disabled={isLoading}
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+        <h1 className="text-3xl font-bold">Standort-Status</h1>
+        <Button onClick={() => refetch()} variant="outline" size="sm">
+          <RefreshCw className="h-4 w-4 mr-2" />
           Aktualisieren
         </Button>
       </div>
 
       {/* Status-Übersicht */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
@@ -239,47 +247,132 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
                 </p>
               </div>
             ) : (
-              <p className="text-red-500">Keine Daten</p>
+              <p className="text-muted-foreground">Keine Daten</p>
             )}
           </div>
         </div>
 
-        {/* Letzter Verkauf */}
+        {/* Letzte Türöffnung */}
         <div className="flex items-center space-x-2 text-sm">
-          <ShoppingCart className="h-4 w-4 text-green-500" />
+          <DoorOpen className="h-4 w-4 text-orange-500" />
           <div className="flex-1">
-            <p className="font-medium">Letzter Verkauf</p>
-            {machine.lastSale ? (
-              <p className="text-muted-foreground">
-                {formatDaysAgo(machine.lastSale.daysAgo)}
-              </p>
+            <p className="font-medium">Letzte Türöffnung</p>
+            {machine.lastDoorOpen ? (
+              <div>
+                <p className="text-muted-foreground">
+                  {formatDaysAgo(machine.lastDoorOpen.daysAgo)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(machine.lastDoorOpen.datetime).toLocaleString('de-DE', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </p>
+              </div>
             ) : (
               <p className="text-muted-foreground">Keine Daten</p>
             )}
           </div>
         </div>
 
-        {/* Letzter Cashless-Verkauf */}
-        {machine.lastCashlessSale && (
-          <div className="flex items-center space-x-2 text-sm">
-            <CreditCard className="h-4 w-4 text-blue-500" />
-            <div className="flex-1">
-              <p className="font-medium">Cashless-Verkauf</p>
-              <p className="text-muted-foreground">
-                {formatDaysAgo(machine.lastCashlessSale.daysAgo)}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {machine.lastCashlessSale.paymentMethod}
-              </p>
+        {/* Heutiger Umsatz */}
+        <div className="flex items-center space-x-2 text-sm">
+          <Euro className="h-4 w-4 text-green-500" />
+          <div className="flex-1">
+            <p className="font-medium">Heutiger Umsatz</p>
+            <p className="text-lg font-bold text-green-600">
+              {machine.todayRevenue.toFixed(2)} €
+            </p>
+          </div>
+        </div>
+
+        {/* Letzte Transaktionen */}
+        <div className="flex items-center space-x-2 text-sm">
+          <ShoppingCart className="h-4 w-4 text-indigo-500" />
+          <div className="flex-1">
+            <p className="font-medium">Letzte Verkäufe</p>
+            <div className="space-y-1 mt-1 max-h-20 overflow-y-auto">
+              {machine.recentTransactions.slice(0, 3).map((transaction, index) => (
+                <div key={index} className="text-xs border-b pb-1 last:border-b-0">
+                  <div className="flex justify-between items-start">
+                    <span className="truncate flex-1 mr-2 font-medium">
+                      {transaction.productName}
+                    </span>
+                    <span className="font-bold text-green-600">
+                      {transaction.amount.toFixed(2)} €
+                    </span>
+                  </div>
+                  <p className="text-muted-foreground">
+                    {new Date(transaction.datetime).toLocaleDateString('de-DE', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric'
+                    })} - {new Date(transaction.datetime).toLocaleTimeString('de-DE', { 
+                      hour: '2-digit', 
+                      minute: '2-digit' 
+                    })}
+                  </p>
+                </div>
+              ))}
+              {machine.recentTransactions.length === 0 && (
+                <p className="text-muted-foreground text-xs">Keine aktuellen Verkäufe</p>
+              )}
             </div>
           </div>
-        )}
+        </div>
+
+        {/* Bargeldloser Verkauf */}
+        <div className="flex items-center space-x-2 text-sm">
+          <CreditCard className="h-4 w-4 text-purple-500" />
+          <div className="flex-1">
+            <p className="font-medium">Letzter bargeldloser Verkauf</p>
+            {machine.lastCashlessSale ? (
+              <div>
+                <p className="text-muted-foreground">
+                  {formatDaysAgo(machine.lastCashlessSale.daysAgo)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {machine.lastCashlessSale.paymentMethod}
+                </p>
+              </div>
+            ) : (
+              <p className="text-muted-foreground">Keine Daten</p>
+            )}
+          </div>
+        </div>
+
+        {/* Letzter Verkauf */}
+        <div className="flex items-center space-x-2 text-sm">
+          <Calendar className="h-4 w-4 text-slate-500" />
+          <div className="flex-1">
+            <p className="font-medium">Letzter Verkauf</p>
+            {machine.lastSale ? (
+              <div>
+                <p className="text-muted-foreground">
+                  {formatDaysAgo(machine.lastSale.daysAgo)}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(machine.lastSale.datetime).toLocaleDateString('de-DE', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                  })}
+                </p>
+              </div>
+            ) : (
+              <p className="text-muted-foreground">Keine Daten</p>
+            )}
+          </div>
+        </div>
 
         {/* Warnungen */}
         {machine.warnings.length > 0 && (
-          <div className="pt-2 border-t">
+          <div className="space-y-1">
             {machine.warnings.map((warning, index) => (
-              <Badge key={index} variant="secondary" className="text-xs mb-1 mr-1">
+              <Badge key={index} variant="secondary" className="text-xs">
                 {warning}
               </Badge>
             ))}
