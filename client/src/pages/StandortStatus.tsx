@@ -22,43 +22,22 @@ import { Skeleton } from "@/components/ui/skeleton";
 interface MachineStatusData {
   id: number;
   machineName: string;
-  location: string;
+  location: string | null;
   lastRefill?: {
     datetime: string;
-    operator: string;
     daysAgo: number;
-  };
-  lastDoorOpen?: {
-    datetime: string;
-    daysAgo: number;
-  };
+  } | null;
   lastSale?: {
     datetime: string;
     daysAgo: number;
-  };
-  lastAlcoholSale?: {
-    datetime: string;
-    daysAgo: number;
-  };
-  lastCashlessSale?: {
-    datetime: string;
-    daysAgo: number;
-  };
-  expiringProducts: {
-    count: number;
-    products: Array<{
-      name: string;
-      expiryDate: string;
-      daysUntilExpiry: number;
-    }>;
-  };
+  } | null;
   status: 'ok' | 'warning' | 'error';
   warnings: string[];
 }
 
 // API-Funktionen
 async function getMachineStatusData(): Promise<MachineStatusData[]> {
-  const response = await fetch('/api/machines/status-overview');
+  const response = await fetch('/api/location-status');
   if (!response.ok) {
     throw new Error('Failed to fetch machine status data');
   }
@@ -69,7 +48,7 @@ export default function StandortStatus() {
   const [searchTerm, setSearchTerm] = useState("");
   
   const { data: machineStatus, isLoading, error, refetch } = useQuery({
-    queryKey: ['/api/machines/status-overview'],
+    queryKey: ['/api/location-status'],
     queryFn: getMachineStatusData,
     refetchInterval: 5 * 60 * 1000, // Alle 5 Minuten aktualisieren
   });
@@ -80,7 +59,7 @@ export default function StandortStatus() {
     
     return machineStatus.filter(machine => 
       machine.machineName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      machine.location.toLowerCase().includes(searchTerm.toLowerCase())
+      (machine.location && machine.location.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   }, [machineStatus, searchTerm]);
 
@@ -234,7 +213,7 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
           {getStatusIcon(machine.status)}
         </div>
         <p className="text-sm text-muted-foreground truncate">
-          {machine.location}
+          {machine.location || 'Kein Standort'}
         </p>
       </CardHeader>
       
@@ -246,25 +225,10 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
             <p className="font-medium">Letzte Füllung</p>
             {machine.lastRefill ? (
               <p className="text-muted-foreground">
-                {formatDaysAgo(machine.lastRefill.daysAgo)} von {machine.lastRefill.operator}
+                {formatDaysAgo(machine.lastRefill.daysAgo)}
               </p>
             ) : (
               <p className="text-red-500">Keine Daten</p>
-            )}
-          </div>
-        </div>
-
-        {/* Letztes Türöffnen */}
-        <div className="flex items-center space-x-2 text-sm">
-          <DoorOpen className="h-4 w-4 text-purple-500" />
-          <div className="flex-1">
-            <p className="font-medium">Tür geöffnet</p>
-            {machine.lastDoorOpen ? (
-              <p className="text-muted-foreground">
-                {formatDaysAgo(machine.lastDoorOpen.daysAgo)}
-              </p>
-            ) : (
-              <p className="text-muted-foreground">Keine Daten</p>
             )}
           </div>
         </div>
@@ -283,45 +247,6 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
             )}
           </div>
         </div>
-
-        {/* Letzter Alkoholverkauf */}
-        {machine.lastAlcoholSale && (
-          <div className="flex items-center space-x-2 text-sm">
-            <Wine className="h-4 w-4 text-red-500" />
-            <div className="flex-1">
-              <p className="font-medium">Alkohol-Verkauf</p>
-              <p className="text-muted-foreground">
-                {formatDaysAgo(machine.lastAlcoholSale.daysAgo)}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Letzter Cashless-Verkauf */}
-        {machine.lastCashlessSale && (
-          <div className="flex items-center space-x-2 text-sm">
-            <CreditCard className="h-4 w-4 text-blue-500" />
-            <div className="flex-1">
-              <p className="font-medium">Cashless-Verkauf</p>
-              <p className="text-muted-foreground">
-                {formatDaysAgo(machine.lastCashlessSale.daysAgo)}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Ablaufende Produkte */}
-        {machine.expiringProducts.count > 0 && (
-          <div className="flex items-center space-x-2 text-sm">
-            <Calendar className="h-4 w-4 text-orange-500" />
-            <div className="flex-1">
-              <p className="font-medium">Ablaufende Produkte</p>
-              <p className="text-orange-600">
-                {machine.expiringProducts.count} Produkt(e)
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* Warnungen */}
         {machine.warnings.length > 0 && (
