@@ -2729,112 +2729,87 @@ export class DatabaseStorage implements IStorage {
     try {
       console.log("Fetching location status data...");
       
-      // Get all machines with basic info - simplified query
-      const machinesQuery = `
+      // Use a single efficient query to get all the data at once
+      const statusQuery = `
         SELECT 
           m.id,
-          m.machine_name as "machineName",
-          m.location_name as location
+          m.machine_name,
+          m.location_name,
+          r.datetime as last_refill_date,
+          t.datetime as last_sale_date
         FROM machines m
+        LEFT JOIN LATERAL (
+          SELECT datetime 
+          FROM refills 
+          WHERE machine_id = m.id 
+          ORDER BY datetime DESC 
+          LIMIT 1
+        ) r ON true
+        LEFT JOIN LATERAL (
+          SELECT datetime 
+          FROM transactions 
+          WHERE machine_id = m.id 
+          ORDER BY datetime DESC 
+          LIMIT 1
+        ) t ON true
         ORDER BY m.location_name, m.machine_name
         LIMIT 20
       `;
       
-      const machinesResult = await rawDb.query(machinesQuery);
-      const machines = machinesResult.rows;
+      const result = await rawDb.query(statusQuery);
+      const machines = result.rows;
       
       console.log(`Found ${machines.length} machines for status overview`);
       
-      const locationStatusData = [];
-      
-      for (const machine of machines) {
-        try {
-          // Get last refill - simplified
-          const lastRefillQuery = `
-            SELECT r.datetime
-            FROM refills r
-            WHERE r.machine_id = $1
-            ORDER BY r.datetime DESC
-            LIMIT 1
-          `;
-          const lastRefillResult = await rawDb.query(lastRefillQuery, [machine.id]);
-          const lastRefill = lastRefillResult.rows[0];
-          
-          // Get last sale - simplified
-          const lastSaleQuery = `
-            SELECT t.datetime
-            FROM transactions t
-            WHERE t.machine_id = $1
-            ORDER BY t.datetime DESC
-            LIMIT 1
-          `;
-          const lastSaleResult = await rawDb.query(lastSaleQuery, [machine.id]);
-          const lastSale = lastSaleResult.rows[0];
-          
-          // Calculate days ago
-          const now = new Date();
-          let refillDaysAgo = null;
-          let saleDaysAgo = null;
-          
-          if (lastRefill) {
-            const refillDate = new Date(lastRefill.datetime);
-            refillDaysAgo = Math.floor((now.getTime() - refillDate.getTime()) / (1000 * 60 * 60 * 24));
-          }
-          
-          if (lastSale) {
-            const saleDate = new Date(lastSale.datetime);
-            saleDaysAgo = Math.floor((now.getTime() - saleDate.getTime()) / (1000 * 60 * 60 * 24));
-          }
-          
-          // Determine status based on refill timing
-          let status = 'ok';
-          const warnings = [];
-          
-          if (refillDaysAgo !== null) {
-            if (refillDaysAgo > 7) {
-              warnings.push('Keine Auffüllung seit über 7 Tagen');
-              status = 'error';
-            } else if (refillDaysAgo > 3) {
-              warnings.push('Keine Auffüllung seit über 3 Tagen');
-              status = 'warning';
-            }
-          } else {
-            warnings.push('Keine Auffüllung gefunden');
+      const locationStatusData = machines.map(machine => {
+        // Calculate days ago
+        const now = new Date();
+        let refillDaysAgo = null;
+        let saleDaysAgo = null;
+        
+        if (machine.last_refill_date) {
+          const refillDate = new Date(machine.last_refill_date);
+          refillDaysAgo = Math.floor((now.getTime() - refillDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+        
+        if (machine.last_sale_date) {
+          const saleDate = new Date(machine.last_sale_date);
+          saleDaysAgo = Math.floor((now.getTime() - saleDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+        
+        // Determine status based on refill timing
+        let status = 'ok';
+        const warnings = [];
+        
+        if (refillDaysAgo !== null) {
+          if (refillDaysAgo > 7) {
+            warnings.push('Keine Auffüllung seit über 7 Tagen');
+            status = 'error';
+          } else if (refillDaysAgo > 3) {
+            warnings.push('Keine Auffüllung seit über 3 Tagen');
             status = 'warning';
           }
-          
-          const machineStatusData = {
-            id: machine.id,
-            machineName: machine.machineName,
-            location: machine.location,
-            lastRefill: lastRefill ? {
-              datetime: lastRefill.datetime,
-              daysAgo: refillDaysAgo
-            } : null,
-            lastSale: lastSale ? {
-              datetime: lastSale.datetime,
-              daysAgo: saleDaysAgo
-            } : null,
-            status,
-            warnings
-          };
-          
-          locationStatusData.push(machineStatusData);
-          
-        } catch (machineError) {
-          console.error(`Error processing machine ${machine.id}:`, machineError);
-          // Add machine with error status
-          locationStatusData.push({
-            id: machine.id,
-            machineName: machine.machineName,
-            location: machine.location,
-            lastRefill: null,
-            lastSale: null,
-            status: 'error',
-            warnings: ['Fehler beim Laden der Daten']
-          });
+        } else {
+          warnings.push('Keine Auffüllung gefunden');
+          status = 'warning';
         }
-      }
+        
+        return {
+          id: machine.id,
+          machineName: machine.machine_name,
+          location: machine.location_name,
+          lastRefill: machine.last_refill_date ? {
+            datetime: machine.last_refill_date,
+            daysAgo: refillDaysAgo
+          } : null,
+          lastSale: machine.last_sale_date ? {
+            datetime: machine.last_sale_date,
+            daysAgo: saleDaysAgo
+          } : null,
+          status,
+          warnings
+        };
+      });
       
       console.log(`Location status data prepared for ${locationStatusData.length} machines`);
       return locationStatusData;
