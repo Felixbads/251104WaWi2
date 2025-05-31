@@ -14,7 +14,7 @@
  *   node import_vendon_events.js --force-update
  */
 
-const { importVendonEvents } = require('./server/services/vendonEventsSync.ts');
+import { importVendonEvents } from './server/services/vendonEventsSync.js';
 
 // Kommandozeilenargumente parsen
 function parseArguments() {
