@@ -2723,6 +2723,195 @@ export class DatabaseStorage implements IStorage {
     const [newLocation] = await db.insert(locations).values(location).returning();
     return newLocation;
   }
+
+  // Get location status data for location status overview page
+  async getLocationStatusData(): Promise<any[]> {
+    try {
+      console.log("Fetching location status data...");
+      
+      // Get all machines with their locations
+      const machinesQuery = `
+        SELECT 
+          m.id,
+          m.machine_name as "machineName",
+          COALESCE(l.location_name, m.location) as location,
+          l.id as location_id
+        FROM machines m
+        LEFT JOIN locations l ON m.location = l.location_name
+        WHERE m.is_active = true
+        ORDER BY location, m.machine_name
+      `;
+      
+      const machinesResult = await rawDb.query(machinesQuery);
+      const machines = machinesResult.rows;
+      
+      console.log(`Found ${machines.length} active machines`);
+      
+      const locationStatusData = [];
+      
+      for (const machine of machines) {
+        try {
+          // Get last refill
+          const lastRefillQuery = `
+            SELECT r.datetime, r.operator, 
+                   EXTRACT(DAY FROM NOW() - r.datetime) as days_ago
+            FROM refills r
+            WHERE r.machine_id = $1
+            ORDER BY r.datetime DESC
+            LIMIT 1
+          `;
+          const lastRefillResult = await rawDb.query(lastRefillQuery, [machine.id]);
+          const lastRefill = lastRefillResult.rows[0];
+          
+          // Get last door open event
+          const lastDoorOpenQuery = `
+            SELECT e.datetime,
+                   EXTRACT(DAY FROM NOW() - e.datetime) as days_ago
+            FROM events e
+            WHERE e.machine_id = $1 
+              AND e.event_type = 'door_open'
+            ORDER BY e.datetime DESC
+            LIMIT 1
+          `;
+          const lastDoorOpenResult = await rawDb.query(lastDoorOpenQuery, [machine.id]);
+          const lastDoorOpen = lastDoorOpenResult.rows[0];
+          
+          // Get last sale
+          const lastSaleQuery = `
+            SELECT t.datetime,
+                   EXTRACT(DAY FROM NOW() - t.datetime) as days_ago
+            FROM transactions t
+            WHERE t.machine_id = $1
+            ORDER BY t.datetime DESC
+            LIMIT 1
+          `;
+          const lastSaleResult = await rawDb.query(lastSaleQuery, [machine.id]);
+          const lastSale = lastSaleResult.rows[0];
+          
+          // Get last alcohol sale
+          const lastAlcoholSaleQuery = `
+            SELECT t.datetime,
+                   EXTRACT(DAY FROM NOW() - t.datetime) as days_ago
+            FROM transactions t
+            WHERE t.machine_id = $1 
+              AND t.product_category = 'alcohol'
+            ORDER BY t.datetime DESC
+            LIMIT 1
+          `;
+          const lastAlcoholSaleResult = await rawDb.query(lastAlcoholSaleQuery, [machine.id]);
+          const lastAlcoholSale = lastAlcoholSaleResult.rows[0];
+          
+          // Get last cashless sale
+          const lastCashlessSaleQuery = `
+            SELECT t.datetime,
+                   EXTRACT(DAY FROM NOW() - t.datetime) as days_ago
+            FROM transactions t
+            WHERE t.machine_id = $1 
+              AND t.payment_method = 'cashless'
+            ORDER BY t.datetime DESC
+            LIMIT 1
+          `;
+          const lastCashlessSaleResult = await rawDb.query(lastCashlessSaleQuery, [machine.id]);
+          const lastCashlessSale = lastCashlessSaleResult.rows[0];
+          
+          // Get expiring products (within 2 days)
+          const expiringProductsQuery = `
+            SELECT p.product_name as name, 
+                   ib.expiry_date as "expiryDate",
+                   EXTRACT(DAY FROM ib.expiry_date - NOW()) as "daysUntilExpiry"
+            FROM inventory_batches ib
+            JOIN products p ON ib.product_id = p.id
+            JOIN machine_warehouse_assignments mwa ON ib.warehouse_id = mwa.warehouse_id
+            WHERE mwa.machine_id = $1
+              AND ib.expiry_date IS NOT NULL
+              AND ib.expiry_date <= NOW() + INTERVAL '2 days'
+              AND ib.quantity > 0
+            ORDER BY ib.expiry_date ASC
+            LIMIT 10
+          `;
+          const expiringProductsResult = await rawDb.query(expiringProductsQuery, [machine.id]);
+          const expiringProducts = expiringProductsResult.rows;
+          
+          // Determine status and warnings
+          const warnings = [];
+          let status = 'ok';
+          
+          // Check for warnings
+          if (lastRefill && parseInt(lastRefill.days_ago) > 7) {
+            warnings.push('Keine Auffüllung seit über 7 Tagen');
+            status = 'error';
+          } else if (lastRefill && parseInt(lastRefill.days_ago) > 3) {
+            warnings.push('Keine Auffüllung seit über 3 Tagen');
+            if (status === 'ok') status = 'warning';
+          }
+          
+          if (expiringProducts.length > 0) {
+            warnings.push(`${expiringProducts.length} Produkte laufen in 2 Tagen ab`);
+            if (status === 'ok') status = 'warning';
+          }
+          
+          const machineStatusData = {
+            id: machine.id,
+            machineName: machine.machineName,
+            location: machine.location,
+            lastRefill: lastRefill ? {
+              datetime: lastRefill.datetime,
+              operator: lastRefill.operator,
+              daysAgo: parseInt(lastRefill.days_ago)
+            } : null,
+            lastDoorOpen: lastDoorOpen ? {
+              datetime: lastDoorOpen.datetime,
+              daysAgo: parseInt(lastDoorOpen.days_ago)
+            } : null,
+            lastSale: lastSale ? {
+              datetime: lastSale.datetime,
+              daysAgo: parseInt(lastSale.days_ago)
+            } : null,
+            lastAlcoholSale: lastAlcoholSale ? {
+              datetime: lastAlcoholSale.datetime,
+              daysAgo: parseInt(lastAlcoholSale.days_ago)
+            } : null,
+            lastCashlessSale: lastCashlessSale ? {
+              datetime: lastCashlessSale.datetime,
+              daysAgo: parseInt(lastCashlessSale.days_ago)
+            } : null,
+            expiringProducts: {
+              count: expiringProducts.length,
+              products: expiringProducts
+            },
+            status,
+            warnings
+          };
+          
+          locationStatusData.push(machineStatusData);
+          
+        } catch (machineError) {
+          console.error(`Error processing machine ${machine.id}:`, machineError);
+          // Add machine with error status
+          locationStatusData.push({
+            id: machine.id,
+            machineName: machine.machineName,
+            location: machine.location,
+            lastRefill: null,
+            lastDoorOpen: null,
+            lastSale: null,
+            lastAlcoholSale: null,
+            lastCashlessSale: null,
+            expiringProducts: { count: 0, products: [] },
+            status: 'error',
+            warnings: ['Fehler beim Laden der Daten']
+          });
+        }
+      }
+      
+      console.log(`Location status data prepared for ${locationStatusData.length} machines`);
+      return locationStatusData;
+      
+    } catch (error) {
+      console.error("Error fetching location status data:", error);
+      throw error;
+    }
+  }
   
   // Supplier operations
   async getSuppliers(options?: {

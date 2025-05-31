@@ -1992,6 +1992,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get location status data for location status page
+  app.get(`${API_PREFIX}/location-status`, async (req: Request, res: Response) => {
+    try {
+      const locationStatusData = await storage.getLocationStatusData();
+      res.json(locationStatusData);
+    } catch (error) {
+      console.error("Error fetching location status data:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch location status data", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
   // Get machine by ID
   app.get(`${API_PREFIX}/machines/:id`, async (req: Request, res: Response) => {
     try {
