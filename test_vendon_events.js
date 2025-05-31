@@ -34,7 +34,7 @@ async function testVendonEventsAPI() {
     const response = await axios.get(url, {
       params,
       headers: {
-        'Authorization': `Bearer ${API_KEY}`,
+        'Authorization': `Token ${API_KEY}`,
         'Accept': 'application/json'
       },
       timeout: 30000
