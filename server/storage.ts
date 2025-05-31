@@ -4815,6 +4815,224 @@ export class DatabaseStorage implements IStorage {
     
     return movements;
   }
+
+  // Machine Status Overview für Dashboard
+  async getMachineStatusOverview(): Promise<any[]> {
+    try {
+      console.log('Lade Maschinen-Status-Übersicht...');
+      
+      // Basis-Maschinendaten abrufen
+      const machines = await db.select().from(machinesTable);
+      
+      const machineStatusData = [];
+      
+      for (const machine of machines) {
+        try {
+          const now = new Date();
+          const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+          const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          const twoDaysFromNow = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
+          
+          // Letzte Füllung
+          const lastRefillResult = await db.select({
+            datetime: refills.datetime,
+            operator: refills.operator
+          })
+          .from(refills)
+          .where(eq(refills.machineId, machine.id))
+          .orderBy(desc(refills.datetime))
+          .limit(1);
+          
+          let lastRefill = null;
+          if (lastRefillResult.length > 0) {
+            const refillDate = new Date(lastRefillResult[0].datetime);
+            const daysAgo = Math.floor((now.getTime() - refillDate.getTime()) / (1000 * 60 * 60 * 24));
+            lastRefill = {
+              datetime: lastRefillResult[0].datetime.toISOString(),
+              operator: lastRefillResult[0].operator || 'Unbekannt',
+              daysAgo
+            };
+          }
+          
+          // Letztes Türöffnen aus Events
+          const lastDoorOpenResult = await db.select({
+            datetime: events.datetime
+          })
+          .from(events)
+          .where(
+            and(
+              eq(events.machineId, machine.id),
+              like(events.description, '%Tür%')
+            )
+          )
+          .orderBy(desc(events.datetime))
+          .limit(1);
+          
+          let lastDoorOpen = null;
+          if (lastDoorOpenResult.length > 0) {
+            const doorDate = new Date(lastDoorOpenResult[0].datetime);
+            const daysAgo = Math.floor((now.getTime() - doorDate.getTime()) / (1000 * 60 * 60 * 24));
+            lastDoorOpen = {
+              datetime: lastDoorOpenResult[0].datetime.toISOString(),
+              daysAgo
+            };
+          }
+          
+          // Letzter Verkauf
+          const lastSaleResult = await db.select({
+            datetime: transactions.datetime
+          })
+          .from(transactions)
+          .where(eq(transactions.machineId, machine.id))
+          .orderBy(desc(transactions.datetime))
+          .limit(1);
+          
+          let lastSale = null;
+          if (lastSaleResult.length > 0) {
+            const saleDate = new Date(lastSaleResult[0].datetime);
+            const daysAgo = Math.floor((now.getTime() - saleDate.getTime()) / (1000 * 60 * 60 * 24));
+            lastSale = {
+              datetime: lastSaleResult[0].datetime.toISOString(),
+              daysAgo
+            };
+          }
+          
+          // Letzter Alkoholverkauf (Annahme: Produkte mit "Bier", "Wein", "Sekt" im Namen)
+          const lastAlcoholSaleResult = await db.select({
+            datetime: transactions.datetime
+          })
+          .from(transactions)
+          .where(
+            and(
+              eq(transactions.machineId, machine.id),
+              or(
+                like(transactions.productName, '%Bier%'),
+                like(transactions.productName, '%Wein%'),
+                like(transactions.productName, '%Sekt%'),
+                like(transactions.productName, '%Alkohol%')
+              )
+            )
+          )
+          .orderBy(desc(transactions.datetime))
+          .limit(1);
+          
+          let lastAlcoholSale = null;
+          if (lastAlcoholSaleResult.length > 0) {
+            const alcoholDate = new Date(lastAlcoholSaleResult[0].datetime);
+            const daysAgo = Math.floor((now.getTime() - alcoholDate.getTime()) / (1000 * 60 * 60 * 24));
+            lastAlcoholSale = {
+              datetime: lastAlcoholSaleResult[0].datetime.toISOString(),
+              daysAgo
+            };
+          }
+          
+          // Letzter Cashless-Verkauf (Annahme: paymentMethod !== 'cash')
+          const lastCashlessSaleResult = await db.select({
+            datetime: transactions.datetime
+          })
+          .from(transactions)
+          .where(
+            and(
+              eq(transactions.machineId, machine.id),
+              ne(transactions.paymentMethod, 'cash')
+            )
+          )
+          .orderBy(desc(transactions.datetime))
+          .limit(1);
+          
+          let lastCashlessSale = null;
+          if (lastCashlessSaleResult.length > 0) {
+            const cashlessDate = new Date(lastCashlessSaleResult[0].datetime);
+            const daysAgo = Math.floor((now.getTime() - cashlessDate.getTime()) / (1000 * 60 * 60 * 24));
+            lastCashlessSale = {
+              datetime: lastCashlessSaleResult[0].datetime.toISOString(),
+              daysAgo
+            };
+          }
+          
+          // Ablaufende Produkte (vereinfacht - aus Inventory Batches)
+          const expiringProductsResult = await db.select({
+            productName: products.productName,
+            expiryDate: inventoryBatches.expiryDate
+          })
+          .from(inventoryBatches)
+          .leftJoin(products, eq(inventoryBatches.productId, products.id))
+          .where(
+            and(
+              lte(inventoryBatches.expiryDate, twoDaysFromNow),
+              gte(inventoryBatches.expiryDate, now)
+            )
+          )
+          .limit(10);
+          
+          const expiringProducts = {
+            count: expiringProductsResult.length,
+            products: expiringProductsResult.map(result => ({
+              name: result.productName || 'Unbekannt',
+              expiryDate: result.expiryDate?.toISOString() || '',
+              daysUntilExpiry: result.expiryDate ? 
+                Math.floor((result.expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : 0
+            }))
+          };
+          
+          // Status bestimmen
+          const warnings = [];
+          let status = 'ok';
+          
+          // Prüfe letzte Füllung
+          if (!lastRefill) {
+            warnings.push('Keine Füllungsdaten');
+            status = 'error';
+          } else if (lastRefill.daysAgo > 7) {
+            warnings.push('Längere Zeit nicht gefüllt');
+            status = 'error';
+          } else if (lastRefill.daysAgo > 3) {
+            warnings.push('Füllung überfällig');
+            if (status !== 'error') status = 'warning';
+          }
+          
+          // Prüfe ablaufende Produkte
+          if (expiringProducts.count > 0) {
+            warnings.push(`${expiringProducts.count} Produkte laufen bald ab`);
+            if (status !== 'error') status = 'warning';
+          }
+          
+          machineStatusData.push({
+            id: machine.id,
+            machineName: machine.machineName || `Automat ${machine.id}`,
+            location: machine.location || 'Unbekannt',
+            lastRefill,
+            lastDoorOpen,
+            lastSale,
+            lastAlcoholSale,
+            lastCashlessSale,
+            expiringProducts,
+            status,
+            warnings
+          });
+          
+        } catch (machineError) {
+          console.error(`Fehler beim Verarbeiten von Maschine ${machine.id}:`, machineError);
+          // Minimale Daten für fehlerhafte Maschinen
+          machineStatusData.push({
+            id: machine.id,
+            machineName: machine.machineName || `Automat ${machine.id}`,
+            location: machine.location || 'Unbekannt',
+            status: 'error',
+            warnings: ['Fehler beim Laden der Daten'],
+            expiringProducts: { count: 0, products: [] }
+          });
+        }
+      }
+      
+      console.log(`Maschinen-Status-Übersicht für ${machineStatusData.length} Maschinen geladen`);
+      return machineStatusData;
+      
+    } catch (error) {
+      console.error('Fehler beim Laden der Maschinen-Status-Übersicht:', error);
+      throw error;
+    }
+  }
 }
 
 // Stock / Lagerbestand Implementierung
