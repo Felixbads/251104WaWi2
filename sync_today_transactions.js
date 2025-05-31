@@ -22,8 +22,8 @@ async function syncTodayTransactions() {
     
     console.log(`📅 Zeitraum: ${new Date(startOfDay * 1000).toISOString()} bis ${new Date(endOfDay * 1000).toISOString()}`);
     
-    // Vendon API Call für Transaktionen
-    const url = `${BASE_URL}/transaction/`;
+    // Vendon API Call für Transaktionen (korrekter Endpunkt)
+    const url = `${BASE_URL}/stats/vends`;
     const params = {
       from_timestamp: startOfDay,
       to_timestamp: endOfDay,
