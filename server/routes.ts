@@ -2703,6 +2703,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Registriere Vendon-API-Routen
   app.use(`${API_PREFIX}/vendon`, vendonRoutes);
   app.use(`${API_PREFIX}/vendon/historical-import`, vendonHistoricalImportRouter);
+  app.use(`${API_PREFIX}/events`, eventsRouter);
   app.use(`${API_PREFIX}/product-disposals`, productDisposalsRoutes);
   app.use(`${API_PREFIX}/inventory-transfers`, inventoryTransfersRoutes);
   app.use(`${API_PREFIX}/removed-products`, removedProductsRoutes);
