@@ -2734,11 +2734,10 @@ export class DatabaseStorage implements IStorage {
         SELECT 
           m.id,
           m.machine_name as "machineName",
-          COALESCE(l.location_name, m.location) as location,
+          COALESCE(l.name, m.location_name) as location,
           l.id as location_id
         FROM machines m
-        LEFT JOIN locations l ON m.location = l.location_name
-        WHERE m.is_active = true
+        LEFT JOIN locations l ON m.location_name = l.name
         ORDER BY location, m.machine_name
       `;
       
