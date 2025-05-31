@@ -1978,6 +1978,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get machine status overview for dashboard
+  app.get(`${API_PREFIX}/machines/status-overview`, async (req: Request, res: Response) => {
+    try {
+      const machineStatusData = await storage.getMachineStatusOverview();
+      res.json(machineStatusData);
+    } catch (error) {
+      console.error("Error fetching machine status overview:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch machine status overview", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
   // Get machine by ID
   app.get(`${API_PREFIX}/machines/:id`, async (req: Request, res: Response) => {
     try {

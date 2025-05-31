@@ -1,0 +1,339 @@
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { 
+  Clock, 
+  DoorOpen, 
+  ShoppingCart, 
+  Wine, 
+  CreditCard, 
+  Calendar,
+  AlertTriangle,
+  CheckCircle,
+  Clock3,
+  Search,
+  RefreshCw
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+
+interface MachineStatusData {
+  id: number;
+  machineName: string;
+  location: string;
+  lastRefill?: {
+    datetime: string;
+    operator: string;
+    daysAgo: number;
+  };
+  lastDoorOpen?: {
+    datetime: string;
+    daysAgo: number;
+  };
+  lastSale?: {
+    datetime: string;
+    daysAgo: number;
+  };
+  lastAlcoholSale?: {
+    datetime: string;
+    daysAgo: number;
+  };
+  lastCashlessSale?: {
+    datetime: string;
+    daysAgo: number;
+  };
+  expiringProducts: {
+    count: number;
+    products: Array<{
+      name: string;
+      expiryDate: string;
+      daysUntilExpiry: number;
+    }>;
+  };
+  status: 'ok' | 'warning' | 'error';
+  warnings: string[];
+}
+
+// API-Funktionen
+async function getMachineStatusData(): Promise<MachineStatusData[]> {
+  const response = await fetch('/api/machines/status-overview');
+  if (!response.ok) {
+    throw new Error('Failed to fetch machine status data');
+  }
+  return response.json();
+}
+
+export default function StandortStatus() {
+  const [searchTerm, setSearchTerm] = useState("");
+  
+  const { data: machineStatus, isLoading, error, refetch } = useQuery({
+    queryKey: ['/api/machines/status-overview'],
+    queryFn: getMachineStatusData,
+    refetchInterval: 5 * 60 * 1000, // Alle 5 Minuten aktualisieren
+  });
+
+  // Gefilterte Maschinen basierend auf Suchbegriff
+  const filteredMachines = useMemo(() => {
+    if (!machineStatus) return [];
+    
+    return machineStatus.filter(machine => 
+      machine.machineName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      machine.location.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [machineStatus, searchTerm]);
+
+  // Status-Verteilung für Übersicht
+  const statusCounts = useMemo(() => {
+    if (!machineStatus) return { ok: 0, warning: 0, error: 0 };
+    
+    return machineStatus.reduce((acc, machine) => {
+      acc[machine.status]++;
+      return acc;
+    }, { ok: 0, warning: 0, error: 0 });
+  }, [machineStatus]);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold">Standort-Status</h1>
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-64" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Fehler beim Laden der Daten</h2>
+          <Button onClick={() => refetch()}>Erneut versuchen</Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header mit Übersicht */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">Standort-Status</h1>
+          <p className="text-muted-foreground mt-1">
+            Übersicht aller {machineStatus?.length || 0} Automaten
+          </p>
+        </div>
+        <Button 
+          variant="outline" 
+          onClick={() => refetch()}
+          disabled={isLoading}
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+          Aktualisieren
+        </Button>
+      </div>
+
+      {/* Status-Übersicht */}
+      <div className="grid grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <CheckCircle className="h-5 w-5 text-green-500" />
+              <div>
+                <p className="text-2xl font-bold text-green-600">{statusCounts.ok}</p>
+                <p className="text-sm text-muted-foreground">OK</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              <div>
+                <p className="text-2xl font-bold text-yellow-600">{statusCounts.warning}</p>
+                <p className="text-sm text-muted-foreground">Warnung</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              <div>
+                <p className="text-2xl font-bold text-red-600">{statusCounts.error}</p>
+                <p className="text-sm text-muted-foreground">Fehler</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Suche */}
+      <div className="flex items-center space-x-2">
+        <Search className="h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Automat oder Standort suchen..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="max-w-sm"
+        />
+      </div>
+
+      {/* Automaten-Kacheln */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {filteredMachines?.map((machine) => (
+          <MachineStatusCard key={machine.id} machine={machine} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'ok':
+        return <CheckCircle className="h-5 w-5 text-green-500" />;
+      case 'warning':
+        return <AlertTriangle className="h-5 w-5 text-yellow-500" />;
+      case 'error':
+        return <AlertTriangle className="h-5 w-5 text-red-500" />;
+      default:
+        return <Clock3 className="h-5 w-5 text-gray-500" />;
+    }
+  };
+
+  const formatDaysAgo = (daysAgo: number) => {
+    if (daysAgo === 0) return "Heute";
+    if (daysAgo === 1) return "Gestern";
+    return `vor ${daysAgo} Tagen`;
+  };
+
+  return (
+    <Card className={`border-l-4 ${
+      machine.status === 'ok' ? 'border-l-green-500' :
+      machine.status === 'warning' ? 'border-l-yellow-500' :
+      'border-l-red-500'
+    }`}>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg font-semibold truncate">
+            {machine.machineName}
+          </CardTitle>
+          {getStatusIcon(machine.status)}
+        </div>
+        <p className="text-sm text-muted-foreground truncate">
+          {machine.location}
+        </p>
+      </CardHeader>
+      
+      <CardContent className="space-y-3">
+        {/* Letzte Füllung */}
+        <div className="flex items-center space-x-2 text-sm">
+          <Clock className="h-4 w-4 text-blue-500" />
+          <div className="flex-1">
+            <p className="font-medium">Letzte Füllung</p>
+            {machine.lastRefill ? (
+              <p className="text-muted-foreground">
+                {formatDaysAgo(machine.lastRefill.daysAgo)} von {machine.lastRefill.operator}
+              </p>
+            ) : (
+              <p className="text-red-500">Keine Daten</p>
+            )}
+          </div>
+        </div>
+
+        {/* Letztes Türöffnen */}
+        <div className="flex items-center space-x-2 text-sm">
+          <DoorOpen className="h-4 w-4 text-purple-500" />
+          <div className="flex-1">
+            <p className="font-medium">Tür geöffnet</p>
+            {machine.lastDoorOpen ? (
+              <p className="text-muted-foreground">
+                {formatDaysAgo(machine.lastDoorOpen.daysAgo)}
+              </p>
+            ) : (
+              <p className="text-muted-foreground">Keine Daten</p>
+            )}
+          </div>
+        </div>
+
+        {/* Letzter Verkauf */}
+        <div className="flex items-center space-x-2 text-sm">
+          <ShoppingCart className="h-4 w-4 text-green-500" />
+          <div className="flex-1">
+            <p className="font-medium">Letzter Verkauf</p>
+            {machine.lastSale ? (
+              <p className="text-muted-foreground">
+                {formatDaysAgo(machine.lastSale.daysAgo)}
+              </p>
+            ) : (
+              <p className="text-muted-foreground">Keine Daten</p>
+            )}
+          </div>
+        </div>
+
+        {/* Letzter Alkoholverkauf */}
+        {machine.lastAlcoholSale && (
+          <div className="flex items-center space-x-2 text-sm">
+            <Wine className="h-4 w-4 text-red-500" />
+            <div className="flex-1">
+              <p className="font-medium">Alkohol-Verkauf</p>
+              <p className="text-muted-foreground">
+                {formatDaysAgo(machine.lastAlcoholSale.daysAgo)}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Letzter Cashless-Verkauf */}
+        {machine.lastCashlessSale && (
+          <div className="flex items-center space-x-2 text-sm">
+            <CreditCard className="h-4 w-4 text-blue-500" />
+            <div className="flex-1">
+              <p className="font-medium">Cashless-Verkauf</p>
+              <p className="text-muted-foreground">
+                {formatDaysAgo(machine.lastCashlessSale.daysAgo)}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Ablaufende Produkte */}
+        {machine.expiringProducts.count > 0 && (
+          <div className="flex items-center space-x-2 text-sm">
+            <Calendar className="h-4 w-4 text-orange-500" />
+            <div className="flex-1">
+              <p className="font-medium">Ablaufende Produkte</p>
+              <p className="text-orange-600">
+                {machine.expiringProducts.count} Produkt(e)
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Warnungen */}
+        {machine.warnings.length > 0 && (
+          <div className="pt-2 border-t">
+            {machine.warnings.map((warning, index) => (
+              <Badge key={index} variant="secondary" className="text-xs mb-1 mr-1">
+                {warning}
+              </Badge>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
