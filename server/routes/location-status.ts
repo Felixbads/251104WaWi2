@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
-import { machines, transactions } from '@shared/schema';
-import { sql, eq, desc, and, gte, lte } from 'drizzle-orm';
+import { machines, transactions, products } from '@shared/schema';
+import { sql, eq, desc, and, gte, lte, ne } from 'drizzle-orm';
 
 const router = Router();
 
@@ -57,7 +57,29 @@ router.get('/', async (req: Request, res: Response) => {
       .where(
         and(
           eq(transactions.machineId, machine.id),
-          eq(transactions.paymentMethod, 'CASHLESS')
+          ne(transactions.paymentMethod, 'CASH')
+        )
+      )
+      .orderBy(desc(transactions.datetime))
+      .limit(1);
+      
+      // Letzter Alkoholverkauf (basierend auf Produktnamen-Schlüsselwörtern)
+      const lastAlcoholSale = await db.select({
+        datetime: transactions.datetime,
+        productName: transactions.productName
+      })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.machineId, machine.id),
+          sql`(
+            LOWER(${transactions.productName}) LIKE '%bier%' OR 
+            LOWER(${transactions.productName}) LIKE '%sekt%' OR 
+            LOWER(${transactions.productName}) LIKE '%wein%' OR 
+            LOWER(${transactions.productName}) LIKE '%pils%' OR
+            LOWER(${transactions.productName}) LIKE '%radler%' OR
+            LOWER(${transactions.productName}) LIKE '%weizen%'
+          )`
         )
       )
       .orderBy(desc(transactions.datetime))
@@ -84,6 +106,11 @@ router.get('/', async (req: Request, res: Response) => {
       const lastCashlessSaleDate = lastCashlessSale[0]?.datetime;
       const daysSinceLastCashless = lastCashlessSaleDate
         ? Math.floor((now.getTime() - new Date(lastCashlessSaleDate).getTime()) / (1000 * 60 * 60 * 24))
+        : null;
+        
+      const lastAlcoholSaleDate = lastAlcoholSale[0]?.datetime;
+      const daysSinceLastAlcohol = lastAlcoholSaleDate
+        ? Math.floor((now.getTime() - new Date(lastAlcoholSaleDate).getTime()) / (1000 * 60 * 60 * 24))
         : null;
       
       // Status bewerten
