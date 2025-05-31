@@ -2729,31 +2729,29 @@ export class DatabaseStorage implements IStorage {
     try {
       console.log("Fetching location status data...");
       
-      // Get all machines with their locations
+      // Get all machines with basic info - simplified query
       const machinesQuery = `
         SELECT 
           m.id,
           m.machine_name as "machineName",
-          COALESCE(l.name, m.location_name) as location,
-          l.id as location_id
+          m.location_name as location
         FROM machines m
-        LEFT JOIN locations l ON m.location_name = l.name
-        ORDER BY location, m.machine_name
+        ORDER BY m.location_name, m.machine_name
+        LIMIT 20
       `;
       
       const machinesResult = await rawDb.query(machinesQuery);
       const machines = machinesResult.rows;
       
-      console.log(`Found ${machines.length} active machines`);
+      console.log(`Found ${machines.length} machines for status overview`);
       
       const locationStatusData = [];
       
       for (const machine of machines) {
         try {
-          // Get last refill
+          // Get last refill - simplified
           const lastRefillQuery = `
-            SELECT r.datetime, r.operator, 
-                   EXTRACT(DAY FROM NOW() - r.datetime) as days_ago
+            SELECT r.datetime
             FROM refills r
             WHERE r.machine_id = $1
             ORDER BY r.datetime DESC
@@ -2762,23 +2760,9 @@ export class DatabaseStorage implements IStorage {
           const lastRefillResult = await rawDb.query(lastRefillQuery, [machine.id]);
           const lastRefill = lastRefillResult.rows[0];
           
-          // Get last door open event
-          const lastDoorOpenQuery = `
-            SELECT e.datetime,
-                   EXTRACT(DAY FROM NOW() - e.datetime) as days_ago
-            FROM events e
-            WHERE e.machine_id = $1 
-              AND e.event_type = 'door_open'
-            ORDER BY e.datetime DESC
-            LIMIT 1
-          `;
-          const lastDoorOpenResult = await rawDb.query(lastDoorOpenQuery, [machine.id]);
-          const lastDoorOpen = lastDoorOpenResult.rows[0];
-          
-          // Get last sale
+          // Get last sale - simplified
           const lastSaleQuery = `
-            SELECT t.datetime,
-                   EXTRACT(DAY FROM NOW() - t.datetime) as days_ago
+            SELECT t.datetime
             FROM transactions t
             WHERE t.machine_id = $1
             ORDER BY t.datetime DESC
@@ -2787,66 +2771,36 @@ export class DatabaseStorage implements IStorage {
           const lastSaleResult = await rawDb.query(lastSaleQuery, [machine.id]);
           const lastSale = lastSaleResult.rows[0];
           
-          // Get last alcohol sale
-          const lastAlcoholSaleQuery = `
-            SELECT t.datetime,
-                   EXTRACT(DAY FROM NOW() - t.datetime) as days_ago
-            FROM transactions t
-            WHERE t.machine_id = $1 
-              AND t.product_category = 'alcohol'
-            ORDER BY t.datetime DESC
-            LIMIT 1
-          `;
-          const lastAlcoholSaleResult = await rawDb.query(lastAlcoholSaleQuery, [machine.id]);
-          const lastAlcoholSale = lastAlcoholSaleResult.rows[0];
+          // Calculate days ago
+          const now = new Date();
+          let refillDaysAgo = null;
+          let saleDaysAgo = null;
           
-          // Get last cashless sale
-          const lastCashlessSaleQuery = `
-            SELECT t.datetime,
-                   EXTRACT(DAY FROM NOW() - t.datetime) as days_ago
-            FROM transactions t
-            WHERE t.machine_id = $1 
-              AND t.payment_method = 'cashless'
-            ORDER BY t.datetime DESC
-            LIMIT 1
-          `;
-          const lastCashlessSaleResult = await rawDb.query(lastCashlessSaleQuery, [machine.id]);
-          const lastCashlessSale = lastCashlessSaleResult.rows[0];
-          
-          // Get expiring products (within 2 days)
-          const expiringProductsQuery = `
-            SELECT p.product_name as name, 
-                   ib.expiry_date as "expiryDate",
-                   EXTRACT(DAY FROM ib.expiry_date - NOW()) as "daysUntilExpiry"
-            FROM inventory_batches ib
-            JOIN products p ON ib.product_id = p.id
-            JOIN machine_warehouse_assignments mwa ON ib.warehouse_id = mwa.warehouse_id
-            WHERE mwa.machine_id = $1
-              AND ib.expiry_date IS NOT NULL
-              AND ib.expiry_date <= NOW() + INTERVAL '2 days'
-              AND ib.quantity > 0
-            ORDER BY ib.expiry_date ASC
-            LIMIT 10
-          `;
-          const expiringProductsResult = await rawDb.query(expiringProductsQuery, [machine.id]);
-          const expiringProducts = expiringProductsResult.rows;
-          
-          // Determine status and warnings
-          const warnings = [];
-          let status = 'ok';
-          
-          // Check for warnings
-          if (lastRefill && parseInt(lastRefill.days_ago) > 7) {
-            warnings.push('Keine Auffüllung seit über 7 Tagen');
-            status = 'error';
-          } else if (lastRefill && parseInt(lastRefill.days_ago) > 3) {
-            warnings.push('Keine Auffüllung seit über 3 Tagen');
-            if (status === 'ok') status = 'warning';
+          if (lastRefill) {
+            const refillDate = new Date(lastRefill.datetime);
+            refillDaysAgo = Math.floor((now.getTime() - refillDate.getTime()) / (1000 * 60 * 60 * 24));
           }
           
-          if (expiringProducts.length > 0) {
-            warnings.push(`${expiringProducts.length} Produkte laufen in 2 Tagen ab`);
-            if (status === 'ok') status = 'warning';
+          if (lastSale) {
+            const saleDate = new Date(lastSale.datetime);
+            saleDaysAgo = Math.floor((now.getTime() - saleDate.getTime()) / (1000 * 60 * 60 * 24));
+          }
+          
+          // Determine status based on refill timing
+          let status = 'ok';
+          const warnings = [];
+          
+          if (refillDaysAgo !== null) {
+            if (refillDaysAgo > 7) {
+              warnings.push('Keine Auffüllung seit über 7 Tagen');
+              status = 'error';
+            } else if (refillDaysAgo > 3) {
+              warnings.push('Keine Auffüllung seit über 3 Tagen');
+              status = 'warning';
+            }
+          } else {
+            warnings.push('Keine Auffüllung gefunden');
+            status = 'warning';
           }
           
           const machineStatusData = {
@@ -2855,29 +2809,12 @@ export class DatabaseStorage implements IStorage {
             location: machine.location,
             lastRefill: lastRefill ? {
               datetime: lastRefill.datetime,
-              operator: lastRefill.operator,
-              daysAgo: parseInt(lastRefill.days_ago)
-            } : null,
-            lastDoorOpen: lastDoorOpen ? {
-              datetime: lastDoorOpen.datetime,
-              daysAgo: parseInt(lastDoorOpen.days_ago)
+              daysAgo: refillDaysAgo
             } : null,
             lastSale: lastSale ? {
               datetime: lastSale.datetime,
-              daysAgo: parseInt(lastSale.days_ago)
+              daysAgo: saleDaysAgo
             } : null,
-            lastAlcoholSale: lastAlcoholSale ? {
-              datetime: lastAlcoholSale.datetime,
-              daysAgo: parseInt(lastAlcoholSale.days_ago)
-            } : null,
-            lastCashlessSale: lastCashlessSale ? {
-              datetime: lastCashlessSale.datetime,
-              daysAgo: parseInt(lastCashlessSale.days_ago)
-            } : null,
-            expiringProducts: {
-              count: expiringProducts.length,
-              products: expiringProducts
-            },
             status,
             warnings
           };
@@ -2892,11 +2829,7 @@ export class DatabaseStorage implements IStorage {
             machineName: machine.machineName,
             location: machine.location,
             lastRefill: null,
-            lastDoorOpen: null,
             lastSale: null,
-            lastAlcoholSale: null,
-            lastCashlessSale: null,
-            expiringProducts: { count: 0, products: [] },
             status: 'error',
             warnings: ['Fehler beim Laden der Daten']
           });
