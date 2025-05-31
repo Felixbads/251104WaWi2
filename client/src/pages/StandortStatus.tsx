@@ -67,7 +67,9 @@ export default function StandortStatus() {
   const { data: machineStatus, isLoading, error, refetch } = useQuery({
     queryKey: ['/api/location-status'],
     queryFn: getMachineStatusData,
-    refetchInterval: 5 * 60 * 1000, // Alle 5 Minuten aktualisieren
+    refetchInterval: 30 * 1000, // Alle 30 Sekunden aktualisieren für aktuelle Daten
+    staleTime: 0, // Daten sofort als veraltet markieren
+    cacheTime: 0, // Keine Zwischenspeicherung
   });
 
   // Gefilterte Maschinen basierend auf Suchbegriff
