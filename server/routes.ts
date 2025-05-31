@@ -1,5 +1,5 @@
 import type { Express, Request as ExpressRequest, Response, NextFunction } from "express";
-import { User, insertPurchaseConditionSchema, insertInventoryCountItemSchema } from '../shared/schema';
+import { User, insertPurchaseConditionSchema, insertInventoryCountItemSchema, machines, transactions } from '../shared/schema';
 
 // Erweitern der Request-Schnittstelle zur Unterstützung des user-Objekts
 interface Request extends ExpressRequest {
@@ -8,6 +8,7 @@ interface Request extends ExpressRequest {
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { db, rawDb, rawSql } from "./db";
+import { sql, eq, desc, and, gte, lte } from "drizzle-orm";
 import { vendonSync } from "./services/vendonSync";
 import { syncWeatherForecast } from './services/openWeatherService';
 import { holidayService } from './services/holidayService';
@@ -2720,6 +2721,140 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error fetching user profile:", error);
       res.status(500).json({ 
         error: "Failed to fetch user profile", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
+  // Location Status API für das Dashboard
+  app.get(`${API_PREFIX}/location-status`, authenticate, async (req: Request, res: Response) => {
+    try {
+      console.log('Location-Status-Daten werden abgerufen...');
+      
+      // Alle Automaten mit ihren Lagern abrufen
+      const machines = await db.select({
+        id: machines.id,
+        name: machines.name,
+        location: machines.location,
+        warehouseId: machines.warehouseId
+      }).from(machines);
+      
+      const machineStatusData = [];
+      
+      for (const machine of machines) {
+        // Heutiger Umsatz
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayEnd = new Date();
+        todayEnd.setHours(23, 59, 59, 999);
+        
+        const todayRevenue = await db.select({
+          total: sql`SUM(${transactions.price})`
+        })
+        .from(transactions)
+        .where(
+          and(
+            eq(transactions.machineId, machine.id),
+            gte(transactions.datetime, todayStart),
+            lte(transactions.datetime, todayEnd)
+          )
+        );
+        
+        // Letzter Verkauf
+        const lastSale = await db.select({
+          datetime: transactions.datetime,
+          productName: transactions.productName
+        })
+        .from(transactions)
+        .where(eq(transactions.machineId, machine.id))
+        .orderBy(desc(transactions.datetime))
+        .limit(1);
+        
+        // Letzte bargeldlose Zahlung
+        const lastCashlessSale = await db.select({
+          datetime: transactions.datetime,
+          paymentMethod: transactions.paymentMethod
+        })
+        .from(transactions)
+        .where(
+          and(
+            eq(transactions.machineId, machine.id),
+            eq(transactions.paymentMethod, 'CASHLESS')
+          )
+        )
+        .orderBy(desc(transactions.datetime))
+        .limit(1);
+        
+        // Letzte 3 Transaktionen
+        const recentTransactions = await db.select({
+          datetime: transactions.datetime,
+          productName: transactions.productName,
+          price: transactions.price
+        })
+        .from(transactions)
+        .where(eq(transactions.machineId, machine.id))
+        .orderBy(desc(transactions.datetime))
+        .limit(3);
+        
+        // Tage seit letztem Verkauf berechnen
+        const now = new Date();
+        const lastSaleDate = lastSale[0]?.datetime;
+        const daysSinceLastSale = lastSaleDate 
+          ? Math.floor((now.getTime() - new Date(lastSaleDate).getTime()) / (1000 * 60 * 60 * 24))
+          : null;
+        
+        const lastCashlessSaleDate = lastCashlessSale[0]?.datetime;
+        const daysSinceLastCashless = lastCashlessSaleDate
+          ? Math.floor((now.getTime() - new Date(lastCashlessSaleDate).getTime()) / (1000 * 60 * 60 * 24))
+          : null;
+        
+        // Status bewerten
+        let status = 'ok';
+        const warnings = [];
+        
+        if (daysSinceLastSale > 2) {
+          status = 'warning';
+          warnings.push('Keine Verkäufe seit über 2 Tagen');
+        }
+        
+        if (daysSinceLastSale > 5) {
+          status = 'error';
+          warnings.push('Keine Verkäufe seit über 5 Tagen');
+        }
+        
+        machineStatusData.push({
+          id: machine.id,
+          machineName: machine.name,
+          location: machine.location,
+          lastRefill: null, // TODO: Füllungsdaten implementieren
+          lastSale: lastSale[0] ? {
+            datetime: lastSale[0].datetime,
+            daysAgo: daysSinceLastSale
+          } : null,
+          lastCashlessSale: lastCashlessSale[0] ? {
+            datetime: lastCashlessSale[0].datetime,
+            paymentMethod: lastCashlessSale[0].paymentMethod,
+            daysAgo: daysSinceLastCashless
+          } : null,
+          lastDoorOpen: null, // TODO: Event-Daten implementieren
+          todayRevenue: parseFloat(todayRevenue[0]?.total || '0'),
+          recentTransactions: recentTransactions.map(t => ({
+            datetime: t.datetime,
+            productName: t.productName,
+            amount: parseFloat(t.price?.toString() || '0')
+          })),
+          status,
+          warnings
+        });
+      }
+      
+      console.log(`Location-Status für ${machineStatusData.length} Automaten abgerufen`);
+      res.json(machineStatusData);
+      
+    } catch (error) {
+      console.error('Fehler beim Abrufen der Location-Status-Daten:', error);
+      res.status(500).json({ 
+        error: 'Fehler beim Abrufen der Location-Status-Daten',
         details: error instanceof Error ? error.message : String(error) 
       });
     }
