@@ -461,8 +461,90 @@ router.get('/warehouse/:id/info', async (req, res) => {
   }
 });
 
+// Lade Lagerstatistiken für eine spezifische Warehouse-ID
+router.get('/warehouse/:id/stats', async (req, res) => {
+  try {
+    const warehouseId = parseInt(req.params.id);
+    
+    if (isNaN(warehouseId)) {
+      return res.status(400).json({ error: 'Ungültige Lager-ID' });
+    }
+
+    // Prüfe, ob das Lager existiert
+    const warehouse = await db.query.warehouses.findFirst({
+      where: eq(schema.warehouses.id, warehouseId)
+    });
+
+    if (!warehouse) {
+      return res.status(404).json({ error: 'Lager nicht gefunden' });
+    }
+
+    // Berechne Lagerstatistiken
+    const statsQuery = await db.select({
+      totalProducts: count(schema.inventoryItems.id),
+      totalQuantity: sql<number>`COALESCE(SUM(${schema.inventoryItems.quantity}), 0)`,
+      lowStockItems: sql<number>`COUNT(CASE WHEN ${schema.inventoryItems.quantity} <= ${schema.inventoryItems.reorderPoint} THEN 1 END)`,
+      outOfStockItems: sql<number>`COUNT(CASE WHEN ${schema.inventoryItems.quantity} = 0 THEN 1 END)`
+    })
+    .from(schema.inventoryItems)
+    .where(eq(schema.inventoryItems.warehouseId, warehouseId));
+
+    const stats = statsQuery[0] || {
+      totalProducts: 0,
+      totalQuantity: 0,
+      lowStockItems: 0,
+      outOfStockItems: 0
+    };
+
+    // Erfolgreiche Antwort
+    return res.status(200).json({
+      warehouseId,
+      warehouseName: warehouse.name,
+      ...stats
+    });
+  } catch (error) {
+    console.error('Fehler beim Laden der Lagerstatistiken:', error);
+    return res.status(500).json({ error: 'Serverfehler beim Laden der Lagerstatistiken' });
+  }
+});
+
 // Lade Lagerbestand für eine spezifische Warehouse-ID
 router.get('/warehouse/:id/inventory', async (req, res) => {
+  try {
+    const warehouseId = parseInt(req.params.id);
+    
+    if (isNaN(warehouseId)) {
+      return res.status(400).json({ error: 'Ungültige Lager-ID' });
+    }
+
+    // Prüfe, ob das Lager existiert
+    const warehouse = await db.query.warehouses.findFirst({
+      where: eq(schema.warehouses.id, warehouseId)
+    });
+
+    if (!warehouse) {
+      return res.status(404).json({ error: 'Lager nicht gefunden' });
+    }
+
+    // Lade Lagerbestand mit Produktdetails
+    const inventoryItems = await db.query.inventoryItems.findMany({
+      where: eq(schema.inventoryItems.warehouseId, warehouseId),
+      with: {
+        product: true
+      },
+      orderBy: [asc(schema.inventoryItems.productId)]
+    });
+
+    // Erfolgreiche Antwort
+    return res.status(200).json(inventoryItems);
+  } catch (error) {
+    console.error('Fehler beim Laden des Lagerbestands:', error);
+    return res.status(500).json({ error: 'Serverfehler beim Laden des Lagerbestands' });
+  }
+});
+
+// Lade Lagerbestand für eine spezifische Warehouse-ID (alternativer Endpunkt)
+router.get('/warehouse/:id', async (req, res) => {
   try {
     const warehouseId = parseInt(req.params.id);
     
