@@ -1,0 +1,43 @@
+Prompt zur Analyse und Korrektur:
+
+Bitte analysiere und behebe das folgende Problem im System:
+
+⸻
+
+Problemstellung:
+	•	Die Transaktionsdaten von Vendon werden korrekt über die API geladen, was sich daran zeigt, dass sie auf der Seite /transactions im Frontend angezeigt werden.
+	•	Diese Transaktionen werden jedoch nicht mehr in der Datenbanktabelle transactions gespeichert, obwohl dies früher funktioniert hat.
+	•	Es besteht der Verdacht, dass die Einrichtung des Event-Syncs mit der Vendon API (Abruf von /events) eine unbeabsichtigte Nebenwirkung erzeugt hat und den Speicherprozess der Transaktionen beeinflusst oder blockiert.
+
+⸻
+
+Ziel:
+	•	Behebe die Ursache, warum Transaktionsdaten nicht mehr in der Datenbank gespeichert werden.
+	•	Wichtig: Die bestehende Darstellung der Daten im Frontend /transactions darf nicht verändert oder beeinträchtigt werden.
+
+⸻
+
+Prüfaufgaben:
+	1.	Überprüfung der Transaktionsverarbeitung:
+	•	Wird die Funktion/Logik zum Speichern von Transaktionen nach dem API-Abruf überhaupt noch ausgeführt?
+	•	Gibt es Fehler oder Abbrüche im Prozess der Speicherung?
+	•	Werden Daten möglicherweise nur im Speicher (z. B. temporäres Caching) verarbeitet, aber nicht persistiert?
+	2.	Zusammenhang mit Event-Sync:
+	•	Welche Änderungen wurden im Zuge des Event-Syncs vorgenommen?
+	•	Nutzen der Event-Sync-Logik oder -Funktionen gemeinsame Datenstrukturen oder Prozesse mit dem Transaktionsimport?
+	•	Gibt es Überschneidungen oder Kollisionen bei Datenbankverbindungen, Locks, Tabellennamen oder Models?
+	3.	Fehlermeldungen / Logs:
+	•	Gibt es Hinweise im Logfile (z. B. Exceptions beim Speichern, Datenbankfehler, Konflikte)?
+	•	Falls Logs unterdrückt oder nicht geschrieben werden: Logging für alle Schreiboperationen vorübergehend aktivieren.
+	4.	Integrationstest:
+	•	Manuell eine neue Transaktion von der API abrufen und versuchen, diese in transactions zu speichern.
+	•	Funktioniert der Prozess standalone oder tritt auch dann ein Fehler auf?
+
+⸻
+
+Anforderungen an die Korrektur:
+	•	Stelle sicher, dass neue Transaktionen wieder korrekt in die Tabelle transactions gespeichert werden.
+	•	Behalte die bestehende Darstellung im Frontend /transactions unverändert.
+	•	Dokumentiere, welche Ursache das Problem hatte und welche Anpassungen vorgenommen wurden, damit der Fehler in Zukunft vermieden wird.
+
+⸻
