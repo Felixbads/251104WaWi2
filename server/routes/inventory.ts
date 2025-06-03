@@ -435,4 +435,65 @@ router.post('/inventory-counts/:id/start', async (req, res) => {
   }
 });
 
+// Lade Lager-Informationen für eine spezifische Warehouse-ID
+router.get('/warehouse/:id/info', async (req, res) => {
+  try {
+    const warehouseId = parseInt(req.params.id);
+    
+    if (isNaN(warehouseId)) {
+      return res.status(400).json({ error: 'Ungültige Lager-ID' });
+    }
+
+    // Lade Lager-Informationen
+    const warehouse = await db.query.warehouses.findFirst({
+      where: eq(schema.warehouses.id, warehouseId)
+    });
+
+    if (!warehouse) {
+      return res.status(404).json({ error: 'Das angeforderte Lager konnte nicht gefunden werden.' });
+    }
+
+    // Erfolgreiche Antwort
+    return res.status(200).json(warehouse);
+  } catch (error) {
+    console.error('Fehler beim Laden der Lager-Informationen:', error);
+    return res.status(500).json({ error: 'Serverfehler beim Laden der Lager-Informationen' });
+  }
+});
+
+// Lade Lagerbestand für eine spezifische Warehouse-ID
+router.get('/warehouse/:id/inventory', async (req, res) => {
+  try {
+    const warehouseId = parseInt(req.params.id);
+    
+    if (isNaN(warehouseId)) {
+      return res.status(400).json({ error: 'Ungültige Lager-ID' });
+    }
+
+    // Prüfe, ob das Lager existiert
+    const warehouse = await db.query.warehouses.findFirst({
+      where: eq(schema.warehouses.id, warehouseId)
+    });
+
+    if (!warehouse) {
+      return res.status(404).json({ error: 'Lager nicht gefunden' });
+    }
+
+    // Lade Lagerbestand mit Produktdetails
+    const inventoryItems = await db.query.inventoryItems.findMany({
+      where: eq(schema.inventoryItems.warehouseId, warehouseId),
+      with: {
+        product: true
+      },
+      orderBy: [asc(schema.inventoryItems.productId)]
+    });
+
+    // Erfolgreiche Antwort
+    return res.status(200).json(inventoryItems);
+  } catch (error) {
+    console.error('Fehler beim Laden des Lagerbestands:', error);
+    return res.status(500).json({ error: 'Serverfehler beim Laden des Lagerbestands' });
+  }
+});
+
 export default router;
