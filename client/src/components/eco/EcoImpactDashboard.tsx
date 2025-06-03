@@ -187,7 +187,7 @@ export function EcoImpactDashboard() {
         </div>
       )}
 
-      <Tabs defaultValue="products" className="w-full">
+      <Tabs value="products" onValueChange={() => {}} defaultValue="products" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="products">Produktvergleich</TabsTrigger>
           <TabsTrigger value="impact">Umweltauswirkung</TabsTrigger>

@@ -19,6 +19,7 @@ import {
   ClipboardCheck,
   Database,
   TrendingUp,
+  Leaf,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib";
@@ -127,6 +128,13 @@ export default function Sidebar() {
               isActive={isActive("/transactions")}
             >
               Transaktionen
+            </NavItem>
+            <NavItem 
+              href="/nachhaltigkeit" 
+              icon={<Leaf className="h-5 w-5 mr-3" />}
+              isActive={isActive("/nachhaltigkeit")}
+            >
+              Nachhaltigkeits-Tracker
             </NavItem>
           </nav>
         </div>

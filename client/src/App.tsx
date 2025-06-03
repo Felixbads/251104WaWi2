@@ -137,6 +137,14 @@ function AuthenticatedRouter() {
           )}
         </Route>
 
+        <Route path="/nachhaltigkeit">
+          {() => (
+            <ApprovedUserRoute>
+              <SustainableVending />
+            </ApprovedUserRoute>
+          )}
+        </Route>
+
         <Route path="/machines" component={props => (
           <ApprovedUserRoute>
             <Machines {...props} />
