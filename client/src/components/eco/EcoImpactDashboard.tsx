@@ -58,8 +58,8 @@ export function EcoImpactDashboard() {
 
   // Fetch products with eco data
   const { data: products = [], isLoading } = useQuery({
-    queryKey: ['/api/products/eco'],
-    queryFn: () => fetch('/api/products/eco').then(res => res.json()) as Promise<Product[]>
+    queryKey: ['/api/eco/products'],
+    queryFn: () => fetch('/api/eco/products').then(res => res.json()) as Promise<Product[]>
   });
 
   // Fetch eco statistics

@@ -604,8 +604,8 @@ app.get('/orders-data', (req, res) => {
     // Der "throw err" wurde entfernt, da es dazu führen würde, dass der Server abstürzt
   });
 
-  // Eco-Impact Tracker API endpoints
-  app.get('/api/products/eco', async (req, res) => {
+  // Eco-Impact Tracker API endpoints (moved to avoid route conflicts)
+  app.get('/api/eco/products', async (req, res) => {
     try {
       console.log('API: Lade Produkte mit Nachhaltigkeitsdaten...');
       
