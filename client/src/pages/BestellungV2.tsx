@@ -647,7 +647,26 @@ const BestellungV2: React.FC = () => {
         
         // Setze die Bestellungsdaten für die Navigation
         setOrderId(orderId);
-        setExistingOrderData(selectedOrder);
+        
+        // Lade die vollständigen Bestelldaten inklusive Items
+        const orderDetailResponse = await fetch(`/api/orders-direct/${orderId}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (orderDetailResponse.ok) {
+          const orderDetailData = await orderDetailResponse.json();
+          console.log("Vollständige Bestelldaten geladen:", orderDetailData);
+          setExistingOrderData(orderDetailData);
+        } else {
+          // Fallback auf die ursprünglichen Daten
+          setExistingOrderData(selectedOrder);
+        }
+        
+        // Lade auch die Bestellpositionen separat für maximale Kompatibilität
+        await loadOrderItems(orderId);
         
         // DIREKTE NAVIGATION basierend auf Status
         if (selectedOrder.status === 'draft') {
@@ -1467,9 +1486,21 @@ const BestellungV2: React.FC = () => {
           </>
         );
       case 'goodsReceipt':
+        // Stelle sicher, dass das Order-Objekt die Items enthält
+        const orderWithItems = {
+          ...(order || existingOrderData),
+          items: selectedProducts || (order && order.items) || (existingOrderData && existingOrderData.items) || [],
+          orderItems: selectedProducts || (order && order.orderItems) || (existingOrderData && existingOrderData.orderItems) || []
+        };
+        
+        console.log("GoodsReceiptForm order data:", orderWithItems);
+        console.log("Order items:", orderWithItems.items);
+        console.log("Order orderItems:", orderWithItems.orderItems);
+        console.log("Selected products:", selectedProducts);
+        
         return (
           <GoodsReceiptForm
-            order={order || existingOrderData}
+            order={orderWithItems}
             onSubmit={(receiptData) => {
               // Prüfen, ob alle Positionen geprüft wurden
               const allItemsChecked = receiptData.every(item => 
@@ -1490,7 +1521,6 @@ const BestellungV2: React.FC = () => {
                 receiptData
               });
             }}
-            onBack={() => setStep('sendOrder')}
             isSubmitting={goodsReceiptMutation.isPending}
           />
         );
