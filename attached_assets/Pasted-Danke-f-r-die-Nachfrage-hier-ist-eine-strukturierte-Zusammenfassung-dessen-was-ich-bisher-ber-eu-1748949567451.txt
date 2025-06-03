@@ -1,0 +1,47 @@
+Danke für die Nachfrage – hier ist eine strukturierte Zusammenfassung dessen, was ich bisher über euer implementiertes Lagerkonzept in der App weiß – basierend auf deinem bisherigen Input:
+
+⸻
+
+📦 Bekannter Stand des implementierten Lagerkonzepts (App-basiert)
+
+1. Lagerführung über die App
+	•	Die Lagerverwaltung findet nicht physisch, sondern logisch/digital innerhalb der App statt.
+	•	Produkte haben in der App einen zugewiesenen Lagerort oder Lagerstatus, der in der Datenbank (vermutlich per stock, inventory, product_storage oder ähnlicher Tabelle) verwaltet wird.
+	•	Es gibt Probleme mit der Bestandsanzeige bzw. Vorbelegung: Neue Produkte erscheinen nicht automatisch mit „Bestand 0“ im System.
+
+2. Produkt-zu-Lager-Zuordnung
+	•	Aktuell scheint es keinen automatischen Mechanismus zu geben, der bei Produktanlage direkt einen Lagerdatensatz mit Menge 0 erzeugt.
+	•	Das führt dazu, dass neue Produkte nicht im Lager (der App) sichtbar sind, bis ein erster Bestand gebucht wurde oder eine manuelle Zuordnung erfolgt ist.
+
+3. Batches und MHD
+	•	Es wurde erwähnt, dass beim Wareneingang MHDs eingegeben und daraus Batches erzeugt werden, die dann dem richtigen Lagerort zugeordnet werden sollen.
+	•	Die Logik der Batch-Verwaltung ist zumindest vorgesehen oder bereits teilweise integriert.
+
+4. Inventur
+	•	Die App unterstützt eine Inventurfunktion, die auf Beständen basiert.
+	•	Produkte, die nicht mit Menge 0 vorbelegt sind, tauchen in der Inventur nicht auf – was ein klares Problem darstellt.
+
+5. Fehlermeldungen
+	•	Es treten regelmäßig Fehler auf wie:
+	•	„Bestellung konnte nicht erstellt werden“
+	•	„Keine Bestellpositionen geladen“
+	•	oder fehlerhafte Darstellung von Beständen/Formatierungen in der Bestellübersicht.
+
+⸻
+
+🧩 Vermutete technische Struktur (implizit aus deinen Beschreibungen)
+	•	Produkte werden in einer separaten Produkttabelle geführt (z. B. products).
+	•	Bestände sind wahrscheinlich in einer separaten Tabelle (z. B. stock_items, inventory_records) verknüpft über Produkt-ID und Standort.
+	•	Es fehlt ein Trigger oder Hintergrundprozess, der bei Produktanlage automatisch für jeden Lagerort eine Zeile mit Bestand 0 generiert.
+
+⸻
+
+❗️Fehlendes oder Offenes
+	•	Ob mehrere Lagerorte oder nur ein globaler Bestand geführt werden.
+	•	Ob Reservierungen für Bestellungen den physischen Bestand mindern (also Echtzeit-Verfügbarkeit berechnet wird).
+	•	Wie genau der Wareneingang technisch mit der Bestandslogik verknüpft ist.
+	•	Ob es dynamische Lagerplatzlogik gibt oder nur ein „virtuelles“ Lager pro Produkt.
+
+⸻
+
+Wenn du mir z. B. Screenshots aus der App, Tabellenstrukturen oder einen Logik-Flow gibst (auch skizziert), kann ich das Bild noch weiter präzisieren und technische Handlungsempfehlungen geben. Alternativ kann ich auch helfen, eine neue Lagerlogik zu entwerfen, die zu eurer Systemarchitektur passt.
