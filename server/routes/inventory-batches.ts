@@ -1,172 +1,110 @@
-import express, { Request, Response } from 'express';
-import { db } from '../db';
-import { productBatches, products } from '@shared/schema';
-import { eq, and, desc, asc } from 'drizzle-orm';
+import express from 'express';
+import { pool } from '../db.js';
 
 const router = express.Router();
 
-// GET /api/inventory-batches/product/:productId/warehouse/:warehouseId
-// Hole alle Batches für ein Produkt in einem bestimmten Lager
-router.get('/product/:productId/warehouse/:warehouseId', async (req: Request, res: Response) => {
+// POST /api/inventory/batches - Create batch from goods receipt
+router.post('/batches', async (req, res) => {
   try {
-    const productId = parseInt(req.params.productId);
-    const warehouseId = parseInt(req.params.warehouseId);
+    const { orderId, items } = req.body;
     
-    if (isNaN(productId) || isNaN(warehouseId)) {
-      return res.status(400).json({ 
-        error: 'Ungültige Produkt- oder Lager-ID' 
+    if (!orderId || !items || !Array.isArray(items)) {
+      return res.status(400).json({
+        error: 'Ungültige Anfrage',
+        message: 'Bestellungs-ID und Items sind erforderlich'
       });
     }
-    
-    console.log(`Lade Batches für Produkt ${productId} in Lager ${warehouseId}`);
-    
-    // Lade alle Batches für dieses Produkt und Lager
-    const batches = await db
-      .select()
-      .from(productBatches)
-      .where(
-        and(
-          eq(productBatches.productId, productId),
-          eq(productBatches.warehouseId, warehouseId)
-        )
-      )
-      .orderBy(
-        desc(productBatches.status), // Aktive Batches zuerst
-        desc(productBatches.expiryDate) // Batches mit späterem Ablaufdatum zuerst
-      );
-    
-    console.log(`${batches.length} Batches gefunden`);
-    
-    // Formatiere die Batches für die Antwort
-    const formattedBatches = batches.map(batch => ({
-      id: batch.id,
-      batchNumber: batch.batchNumber,
-      productId: batch.productId,
-      warehouseId: batch.warehouseId,
-      initialQuantity: batch.initialQuantity,
-      currentQuantity: batch.currentQuantity,
-      expiryDate: batch.expiryDate,
-      status: batch.status,
-      locationInWarehouse: batch.locationInWarehouse,
-      notes: batch.notes
-    }));
-    
-    res.json(formattedBatches);
+
+    const createdBatches = [];
+
+    for (const item of items) {
+      if (item.id && item.deliveredQuantity !== undefined) {
+        // Produktinformationen abrufen
+        const orderItemResult = await pool.query(`
+          SELECT oi.product_id, oi.quantity_delivered, o.warehouse_id, o.supplier_id, o.actual_delivery_date
+          FROM order_items oi
+          JOIN orders o ON oi.order_id = o.id
+          WHERE oi.id = $1 AND o.id = $2
+        `, [item.id, orderId]);
+
+        if (orderItemResult.rows.length > 0) {
+          const { product_id, quantity_delivered, warehouse_id, supplier_id, actual_delivery_date } = orderItemResult.rows[0];
+          
+          // Batch-Nummer generieren
+          const batchNumber = `BAT-${orderId}-${item.id}-${Date.now()}`;
+          
+          // Product Batch erstellen
+          const batchResult = await pool.query(`
+            INSERT INTO product_batches (
+              product_id, warehouse_id, batch_number, 
+              initial_quantity, current_quantity, 
+              received_date, expiry_date, order_id, supplier_id,
+              status, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+            RETURNING *
+          `, [
+            product_id, warehouse_id, batchNumber,
+            quantity_delivered, quantity_delivered,
+            actual_delivery_date || new Date(),
+            item.expiryDate || null,
+            orderId, supplier_id,
+            'active'
+          ]);
+
+          createdBatches.push(batchResult.rows[0]);
+          console.log(`✅ Batch ${batchNumber} erstellt für Produkt ${product_id}, Menge: ${quantity_delivered}, MHD: ${item.expiryDate || 'nicht angegeben'}`);
+        }
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: `${createdBatches.length} Chargen erfolgreich erstellt`,
+      batches: createdBatches
+    });
+
   } catch (error) {
-    console.error("Fehler beim Laden der Batches:", error);
-    res.status(500).json({ 
-      error: "Fehler beim Laden der Batches", 
-      details: error instanceof Error ? error.message : String(error) 
+    console.error('Fehler beim Erstellen der Chargen:', error);
+    return res.status(500).json({
+      error: 'Datenbankfehler',
+      message: error.message
     });
   }
 });
 
-// POST /api/inventory-batches
-// Erstelle einen neuen Batch für ein Produkt
-router.post('/', async (req: Request, res: Response) => {
+// GET /api/inventory/batches/:orderId - Get batches for order
+router.get('/batches/:orderId', async (req, res) => {
   try {
-    const batchData = req.body;
+    const orderId = parseInt(req.params.orderId);
     
-    if (!batchData.productId || !batchData.warehouseId || !batchData.batchNumber) {
-      return res.status(400).json({ 
-        error: 'Produkt-ID, Lager-ID und Chargennummer sind erforderlich' 
-      });
-    }
-    
-    console.log(`Erstelle neue Charge für Produkt ${batchData.productId} in Lager ${batchData.warehouseId}`);
-    
-    // Überprüfe, ob das Produkt existiert
-    const [product] = await db
-      .select()
-      .from(products)
-      .where(eq(products.id, batchData.productId))
-      .limit(1);
-    
-    if (!product) {
-      return res.status(404).json({ 
-        error: 'Produkt nicht gefunden' 
-      });
-    }
-    
-    // Erstelle den neuen Batch
-    const [newBatch] = await db
-      .insert(productBatches)
-      .values({
-        productId: batchData.productId,
-        warehouseId: batchData.warehouseId,
-        batchNumber: batchData.batchNumber,
-        initialQuantity: batchData.initialQuantity || 0,
-        currentQuantity: batchData.currentQuantity || batchData.initialQuantity || 0,
-        expiryDate: batchData.expiryDate || null,
-        status: batchData.status || 'active',
-        locationInWarehouse: batchData.locationInWarehouse || null,
-        notes: batchData.notes || null
-      })
-      .returning();
-    
-    console.log(`Neue Charge erstellt: ID ${newBatch.id}`);
-    
-    res.status(201).json(newBatch);
-  } catch (error) {
-    console.error("Fehler beim Erstellen der Charge:", error);
-    res.status(500).json({ 
-      error: "Fehler beim Erstellen der Charge", 
-      details: error instanceof Error ? error.message : String(error) 
-    });
-  }
-});
+    const result = await pool.query(`
+      SELECT 
+        pb.id,
+        pb.product_id,
+        p.product_name,
+        pb.batch_number,
+        pb.initial_quantity,
+        pb.current_quantity,
+        pb.received_date,
+        pb.expiry_date,
+        pb.status,
+        pb.created_at,
+        w.name as warehouse_name,
+        s.name as supplier_name
+      FROM product_batches pb
+      JOIN products p ON pb.product_id = p.id
+      LEFT JOIN warehouses w ON pb.warehouse_id = w.id
+      LEFT JOIN suppliers s ON pb.supplier_id = s.id
+      WHERE pb.order_id = $1
+      ORDER BY pb.created_at DESC
+    `, [orderId]);
 
-// PUT /api/inventory-batches/:id
-// Aktualisiere einen bestehenden Batch
-router.put('/:id', async (req: Request, res: Response) => {
-  try {
-    const batchId = parseInt(req.params.id);
-    const batchData = req.body;
-    
-    if (isNaN(batchId)) {
-      return res.status(400).json({ 
-        error: 'Ungültige Batch-ID' 
-      });
-    }
-    
-    console.log(`Aktualisiere Charge ${batchId}`);
-    
-    // Überprüfe, ob der Batch existiert
-    const [existingBatch] = await db
-      .select()
-      .from(productBatches)
-      .where(eq(productBatches.id, batchId))
-      .limit(1);
-    
-    if (!existingBatch) {
-      return res.status(404).json({ 
-        error: 'Charge nicht gefunden' 
-      });
-    }
-    
-    // Aktualisiere den Batch
-    const [updatedBatch] = await db
-      .update(productBatches)
-      .set({
-        batchNumber: batchData.batchNumber || existingBatch.batchNumber,
-        initialQuantity: batchData.initialQuantity !== undefined ? batchData.initialQuantity : existingBatch.initialQuantity,
-        currentQuantity: batchData.currentQuantity !== undefined ? batchData.currentQuantity : existingBatch.currentQuantity,
-        expiryDate: batchData.expiryDate !== undefined ? batchData.expiryDate : existingBatch.expiryDate,
-        status: batchData.status || existingBatch.status,
-        locationInWarehouse: batchData.locationInWarehouse !== undefined ? batchData.locationInWarehouse : existingBatch.locationInWarehouse,
-        notes: batchData.notes !== undefined ? batchData.notes : existingBatch.notes
-      })
-      .where(eq(productBatches.id, batchId))
-      .returning();
-    
-    console.log(`Charge ${batchId} aktualisiert`);
-    
-    res.json(updatedBatch);
+    return res.json(result.rows);
   } catch (error) {
-    console.error("Fehler beim Aktualisieren der Charge:", error);
-    res.status(500).json({ 
-      error: "Fehler beim Aktualisieren der Charge", 
-      details: error instanceof Error ? error.message : String(error) 
+    console.error('Fehler beim Abrufen der Chargen:', error);
+    return res.status(500).json({
+      error: 'Datenbankfehler',
+      message: error.message
     });
   }
 });
