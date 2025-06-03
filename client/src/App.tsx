@@ -96,6 +96,7 @@ import WarehouseInventoryPage from "@/pages/warehouse/WarehouseInventoryPage";
 import WarehouseOverviewPage from "@/pages/warehouse/WarehouseOverviewPage";
 import WarehouseMovement from "@/pages/WarehouseMovement";
 import LagerbestandPage from "@/pages/LagerbestandPage";
+import SustainableVending from "@/pages/SustainableVending";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -423,6 +424,13 @@ function AuthenticatedRouter() {
         <Route path="/email-einstellungen" component={props => (
           <ApprovedUserRoute>
             <MailSettings {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        {/* Nachhaltigkeits-Tracker */}
+        <Route path="/nachhaltigkeit" component={props => (
+          <ApprovedUserRoute>
+            <SustainableVending {...props} />
           </ApprovedUserRoute>
         )} />
 

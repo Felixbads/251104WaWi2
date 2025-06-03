@@ -604,6 +604,172 @@ app.get('/orders-data', (req, res) => {
     // Der "throw err" wurde entfernt, da es dazu führen würde, dass der Server abstürzt
   });
 
+  // Eco-Impact Tracker API endpoints
+  app.get('/api/products/eco', async (req, res) => {
+    try {
+      console.log('API: Lade Produkte mit Nachhaltigkeitsdaten...');
+      
+      const result = await pool.query(`
+        SELECT 
+          id,
+          product_name as "productName",
+          price,
+          category,
+          carbon_footprint as "carbonFootprint",
+          water_usage as "waterUsage",
+          packaging_type as "packagingType",
+          packaging_recyclable as "packagingRecyclable",
+          transport_distance as "transportDistance",
+          is_organic as "isOrganic",
+          is_local as "isLocal",
+          is_vegan as "isVegan",
+          is_vegetarian as "isVegetarian",
+          sustainability_score as "sustainabilityScore",
+          certifications
+        FROM products 
+        WHERE price IS NOT NULL
+        ORDER BY sustainability_score DESC NULLS LAST
+      `);
+      
+      console.log(`${result.rows.length} Produkte mit Nachhaltigkeitsdaten geladen`);
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Fehler beim Laden der Nachhaltigkeitsdaten:', error);
+      res.status(500).json({ 
+        error: 'Datenbankfehler', 
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler'
+      });
+    }
+  });
+
+  app.get('/api/eco/statistics', async (req, res) => {
+    try {
+      console.log('API: Berechne Nachhaltigkeitsstatistiken...');
+      
+      const statsResult = await pool.query(`
+        SELECT 
+          COUNT(*) as total_products,
+          COUNT(CASE WHEN sustainability_score >= 70 THEN 1 END) as sustainable_products,
+          AVG(carbon_footprint) as avg_carbon_footprint,
+          AVG(water_usage) as avg_water_usage,
+          AVG(sustainability_score) as avg_sustainability_score
+        FROM products 
+        WHERE price IS NOT NULL
+      `);
+      
+      const categoryResult = await pool.query(`
+        SELECT 
+          category,
+          AVG(sustainability_score) as avg_score,
+          COUNT(*) as product_count
+        FROM products 
+        WHERE category IS NOT NULL 
+          AND sustainability_score IS NOT NULL
+          AND price IS NOT NULL
+        GROUP BY category
+        ORDER BY avg_score DESC
+        LIMIT 5
+      `);
+      
+      const stats = {
+        totalProducts: parseInt(statsResult.rows[0].total_products),
+        sustainableProducts: parseInt(statsResult.rows[0].sustainable_products),
+        avgCarbonFootprint: parseFloat(statsResult.rows[0].avg_carbon_footprint || 0),
+        avgWaterUsage: parseFloat(statsResult.rows[0].avg_water_usage || 0),
+        avgSustainabilityScore: parseFloat(statsResult.rows[0].avg_sustainability_score || 0),
+        topCategories: categoryResult.rows.map(row => ({
+          category: row.category,
+          score: parseFloat(row.avg_score),
+          count: parseInt(row.product_count)
+        }))
+      };
+      
+      console.log('Nachhaltigkeitsstatistiken berechnet:', stats);
+      res.json(stats);
+    } catch (error) {
+      console.error('Fehler beim Berechnen der Nachhaltigkeitsstatistiken:', error);
+      res.status(500).json({ 
+        error: 'Datenbankfehler', 
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler'
+      });
+    }
+  });
+
+  app.post('/api/eco/track-choice', async (req, res) => {
+    try {
+      const { userId, productId, machineId, alternativeProducts, choiceReason } = req.body;
+      
+      console.log('API: Verfolge nachhaltige Produktwahl...', { userId, productId, machineId });
+      
+      // Get product eco data for impact calculation
+      const productResult = await pool.query(`
+        SELECT carbon_footprint, water_usage, sustainability_score
+        FROM products 
+        WHERE id = $1
+      `, [productId]);
+      
+      if (productResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Produkt nicht gefunden' });
+      }
+      
+      const product = productResult.rows[0];
+      
+      // Calculate average impact of alternatives for comparison
+      let co2Saved = 0;
+      let waterSaved = 0;
+      
+      if (alternativeProducts && alternativeProducts.length > 0) {
+        const avgResult = await pool.query(`
+          SELECT 
+            AVG(carbon_footprint) as avg_carbon,
+            AVG(water_usage) as avg_water
+          FROM products 
+          WHERE id = ANY($1)
+        `, [alternativeProducts]);
+        
+        if (avgResult.rows.length > 0) {
+          const avgCarbon = parseFloat(avgResult.rows[0].avg_carbon || 0);
+          const avgWater = parseFloat(avgResult.rows[0].avg_water || 0);
+          
+          co2Saved = Math.max(0, avgCarbon - (product.carbon_footprint || 0));
+          waterSaved = Math.max(0, avgWater - (product.water_usage || 0));
+        }
+      }
+      
+      // Calculate sustainability bonus points
+      const sustainabilityBonus = (product.sustainability_score || 0) >= 70 ? 10 : 0;
+      
+      // Insert eco choice tracking record
+      const insertResult = await pool.query(`
+        INSERT INTO user_eco_choices (
+          user_id, product_id, machine_id, co2_saved, water_saved, 
+          alternative_products, choice_reason, sustainability_bonus
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING *
+      `, [
+        userId, productId, machineId, co2Saved, waterSaved,
+        JSON.stringify(alternativeProducts || []), choiceReason, sustainabilityBonus
+      ]);
+      
+      console.log('Nachhaltige Produktwahl erfolgreich verfolgt');
+      res.json({
+        success: true,
+        choice: insertResult.rows[0],
+        impact: {
+          co2Saved,
+          waterSaved,
+          sustainabilityBonus
+        }
+      });
+    } catch (error) {
+      console.error('Fehler beim Verfolgen der nachhaltigen Produktwahl:', error);
+      res.status(500).json({ 
+        error: 'Datenbankfehler', 
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler'
+      });
+    }
+  });
+
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
