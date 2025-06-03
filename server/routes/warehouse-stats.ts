@@ -57,21 +57,50 @@ router.get('/:id/stats', async (req, res) => {
       return res.status(404).json({ error: 'Lager nicht gefunden' });
     }
 
+    // Get actual machine count for this warehouse
+    const machineCountResult = await db
+      .select({
+        count: count(schema.machineWarehouseAssignments.id)
+      })
+      .from(schema.machineWarehouseAssignments)
+      .where(eq(schema.machineWarehouseAssignments.warehouseId, warehouseId));
+
+    // Get inventory statistics
+    const inventoryStats = await db
+      .select({
+        totalProducts: count(schema.inventoryItems.id),
+        totalQuantity: sql<number>`COALESCE(SUM(${schema.inventoryItems.quantity}), 0)`,
+        lowStockItems: sql<number>`COUNT(CASE WHEN ${schema.inventoryItems.quantity} <= ${schema.inventoryItems.reorderPoint} THEN 1 END)`,
+        outOfStockItems: sql<number>`COUNT(CASE WHEN ${schema.inventoryItems.quantity} = 0 THEN 1 END)`,
+        inventoryValue: sql<number>`COALESCE(SUM(${schema.inventoryItems.quantity} * ${schema.inventoryItems.unitCost}), 0)`
+      })
+      .from(schema.inventoryItems)
+      .where(eq(schema.inventoryItems.warehouseId, warehouseId));
+
+    const actualMachineCount = machineCountResult[0]?.count || 0;
+    const stats = inventoryStats[0] || {
+      totalProducts: 0,
+      totalQuantity: 0,
+      lowStockItems: 0,
+      outOfStockItems: 0,
+      inventoryValue: 0
+    };
+
     // Return response structure that matches frontend expectations
     const warehouseResponse = {
       warehouseId,
       warehouseName: warehouse.name,
       isActive: warehouse.isActive || true,
       status: warehouse.status || 'active',
-      productCount: 132,
-      criticalItemCount: 128,
-      machineCount: 0,
-      inventoryValue: 807.50,
-      totalProducts: 132,
-      totalQuantity: 323,
-      lowStockItems: 128,
-      outOfStockItems: 128,
-      activeItems: 132
+      productCount: stats.totalProducts,
+      criticalItemCount: stats.lowStockItems,
+      machineCount: actualMachineCount,
+      inventoryValue: Number(stats.inventoryValue) || 0,
+      totalProducts: stats.totalProducts,
+      totalQuantity: stats.totalQuantity,
+      lowStockItems: stats.lowStockItems,
+      outOfStockItems: stats.outOfStockItems,
+      activeItems: stats.totalProducts - stats.outOfStockItems
     };
 
     return res.status(200).json(warehouseResponse);
