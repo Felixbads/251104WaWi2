@@ -408,6 +408,131 @@ app.get('/orders-data', (req, res) => {
     }
   });
 
+  // POST endpoint für Bestellungsdetails (Frontend-Kompatibilität)
+  app.post('/api/orders/:id', async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.id);
+      
+      if (isNaN(orderId)) {
+        return res.status(400).json({
+          error: 'Ungültige Bestellungs-ID',
+          message: 'Die angegebene Bestellungs-ID ist ungültig'
+        });
+      }
+      
+      console.log(`POST /api/orders/${orderId} - Lade Bestelldetails...`);
+      
+      // Bestellung mit JOIN für Lieferanten- und Lagerdaten
+      const orderResult = await pool.query(`
+        SELECT 
+          o.*,
+          s.name as supplier_name,
+          s.email as supplier_email,
+          w.name as warehouse_name,
+          w.location as warehouse_location
+        FROM orders o
+        LEFT JOIN suppliers s ON o.supplier_id = s.id
+        LEFT JOIN warehouses w ON o.warehouse_id = w.id
+        WHERE o.id = $1
+      `, [orderId]);
+      
+      if (orderResult.rows.length === 0) {
+        return res.status(404).json({
+          error: 'Bestellung nicht gefunden',
+          message: `Keine Bestellung mit ID ${orderId} gefunden`
+        });
+      }
+      
+      // Bestellpositionen laden
+      const itemsResult = await pool.query(`
+        SELECT oi.*, p.product_name, p.sku, p.category
+        FROM order_items oi
+        LEFT JOIN products p ON oi.product_id = p.id
+        WHERE oi.order_id = $1
+        ORDER BY oi.id
+      `, [orderId]);
+      
+      const orderData = {
+        ...orderResult.rows[0],
+        items: itemsResult.rows,
+        warehouseId: orderResult.rows[0].warehouse_id,
+        warehouseName: orderResult.rows[0].warehouse_name || 'Unbekanntes Lager',
+        supplierName: orderResult.rows[0].supplier_name || 'Unbekannter Lieferant',
+        supplierEmail: orderResult.rows[0].supplier_email || ''
+      };
+      
+      return res.json(orderData);
+    } catch (error) {
+      console.error('Fehler beim Laden der Bestellung via POST:', error);
+      return res.status(500).json({ 
+        error: 'Datenbankfehler', 
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler'
+      });
+    }
+  });
+
+  // Wareneingang buchen (Frontend-Kompatibilität)
+  app.post('/api/orders/:id/receipt', async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.id);
+      const { deliveryDate, notes, items } = req.body;
+      
+      if (isNaN(orderId)) {
+        return res.status(400).json({
+          error: 'Ungültige Bestellungs-ID',
+          message: 'Die angegebene Bestellungs-ID ist ungültig'
+        });
+      }
+      
+      console.log(`POST /api/orders/${orderId}/receipt - Buche Wareneingang...`);
+      
+      // Bestellung als geliefert markieren
+      const updateResult = await pool.query(`
+        UPDATE orders 
+        SET status = 'delivered', 
+            delivery_date = $1,
+            notes = COALESCE(notes, '') || CASE WHEN notes IS NOT NULL AND notes != '' THEN '\n' ELSE '' END || $2,
+            updated_at = NOW()
+        WHERE id = $3
+        RETURNING *
+      `, [deliveryDate || new Date(), notes || 'Wareneingang gebucht', orderId]);
+      
+      if (updateResult.rows.length === 0) {
+        return res.status(404).json({
+          error: 'Bestellung nicht gefunden',
+          message: `Keine Bestellung mit ID ${orderId} gefunden`
+        });
+      }
+      
+      // Bestellpositionen als geliefert markieren, falls Items übermittelt wurden
+      if (items && Array.isArray(items)) {
+        for (const item of items) {
+          if (item.id && item.deliveredQuantity !== undefined) {
+            await pool.query(`
+              UPDATE order_items 
+              SET quantity_delivered = $1,
+                  status = CASE WHEN $1 >= quantity THEN 'delivered' ELSE 'partial' END,
+                  updated_at = NOW()
+              WHERE id = $2 AND order_id = $3
+            `, [item.deliveredQuantity, item.id, orderId]);
+          }
+        }
+      }
+      
+      return res.json({
+        success: true,
+        message: 'Wareneingang erfolgreich gebucht',
+        order: updateResult.rows[0]
+      });
+    } catch (error) {
+      console.error('Fehler beim Buchen des Wareneingangs via POST:', error);
+      return res.status(500).json({ 
+        error: 'Datenbankfehler', 
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler'
+      });
+    }
+  });
+
   // Wareneingang buchen - Bestellung als geliefert markieren
   app.post('/api/orders-direct/:id/receive', async (req, res) => {
     try {
