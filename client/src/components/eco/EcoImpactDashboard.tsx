@@ -69,7 +69,7 @@ export function EcoImpactDashboard() {
   });
 
   // Filter and sort products
-  const filteredProducts = products
+  const filteredProducts = (products || [])
     .filter(product => {
       const matchesSearch = product.productName.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = filterCategory === 'all' || product.category === filterCategory;
@@ -226,7 +226,7 @@ export function EcoImpactDashboard() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Alle Kategorien</SelectItem>
-                      {categories.map(category => (
+                      {(categories || []).map(category => (
                         <SelectItem key={category} value={category}>
                           {category}
                         </SelectItem>
