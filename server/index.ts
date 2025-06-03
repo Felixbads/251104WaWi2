@@ -232,8 +232,16 @@ app.get('/orders-data', (req, res) => {
         return res.status(400).json({ error: 'Lager und Lieferant müssen angegeben werden' });
       }
       
-      if (!items || !Array.isArray(items) || items.length === 0) {
-        return res.status(400).json({ error: 'Mindestens ein Artikel muss bestellt werden' });
+      if (!actualItems || !Array.isArray(actualItems) || actualItems.length === 0) {
+        return res.status(400).json({ 
+          error: 'Mindestens ein Artikel muss bestellt werden',
+          debug: {
+            items: !!items,
+            orderItems: !!orderItems,
+            actualItemsLength: actualItems.length,
+            bodyKeys: Object.keys(req.body)
+          }
+        });
       }
 
       // Bestellnummer generieren
@@ -270,7 +278,7 @@ app.get('/orders-data', (req, res) => {
       const order = orderResult.rows[0];
       
       // Bestellpositionen erstellen  
-      for (const item of items) {
+      for (const item of actualItems) {
         // Sicherheitsprüfung für productId
         if (!item.productId || isNaN(Number(item.productId))) {
           console.error(`Ungültige Produkt-ID: ${item.productId}`);
