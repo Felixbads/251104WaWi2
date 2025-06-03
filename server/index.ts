@@ -490,7 +490,7 @@ app.get('/orders-data', (req, res) => {
       const updateResult = await pool.query(`
         UPDATE orders 
         SET status = 'delivered', 
-            delivery_date = $1,
+            actual_delivery_date = $1,
             notes = COALESCE(notes, '') || CASE WHEN notes IS NOT NULL AND notes != '' THEN '\n' ELSE '' END || $2,
             updated_at = NOW()
         WHERE id = $3
@@ -552,7 +552,7 @@ app.get('/orders-data', (req, res) => {
       const updateResult = await pool.query(`
         UPDATE orders 
         SET status = 'delivered', 
-            delivery_date = $1,
+            actual_delivery_date = $1,
             notes = COALESCE(notes, '') || CASE WHEN notes IS NOT NULL AND notes != '' THEN '\n' ELSE '' END || $2,
             updated_at = NOW()
         WHERE id = $3
