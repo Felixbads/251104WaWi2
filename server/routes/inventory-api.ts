@@ -83,9 +83,9 @@ router.get('/api/inventory/warehouse/:id/info', asyncHandler(async (req: any, re
 
 /**
  * API-Route für die Gesamtstatistik über alle Lager im alten Format (für vorhandene Komponenten)
- * GET /api/inventory/warehouses/stats
+ * GET /warehouses/stats
  */
-router.get('/api/inventory/warehouses/stats', asyncHandler(async (req: any, res: any) => {
+router.get('/warehouses/stats', asyncHandler(async (req: any, res: any) => {
   // Debug-Ausgabe für unsere Diagnose
   console.log("Executing warehouse stats query...");
   
@@ -160,9 +160,9 @@ router.get('/api/inventory/warehouses/stats', asyncHandler(async (req: any, res:
 
 /**
  * API-Route für die Gesamtstatistik im Lagerhaltung-Format
- * GET /api/inventory/stats
+ * GET /stats
  */
-router.get('/api/inventory/stats', asyncHandler(async (req: any, res: any) => {
+router.get('/stats', asyncHandler(async (req: any, res: any) => {
   // Debug-Ausgabe für unsere Diagnose
   console.log("Executing inventory stats query for Lagerhaltung page...");
   

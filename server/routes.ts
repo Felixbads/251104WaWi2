@@ -2903,6 +2903,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/warehouse-movements`, warehouseMovementsRouter);
   app.use(`${API_PREFIX}/warehouses`, warehousesRouter); // Neue Route für /api/warehouses
   
+  // Registriere Inventar-API Router für Warehouse-Statistiken
+  const inventoryApiRouter = await import('./routes/inventory-api');
+  app.use(`${API_PREFIX}/inventory-api`, inventoryApiRouter.default);
+  
   // Import and register warehouse stats router - moved to avoid route conflicts
   const warehouseStatsRouter = await import('./routes/warehouse-stats');
   app.use(`${API_PREFIX}/warehouse-stats`, warehouseStatsRouter.default);
