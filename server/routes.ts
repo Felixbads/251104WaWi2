@@ -1980,7 +1980,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get unassigned machines only (for efficient warehouse assignment)
+  // Get unassigned machines only (for efficient warehouse assignment, excluding test data)
   app.get(`${API_PREFIX}/machines/unassigned`, async (req: Request, res: Response) => {
     try {
       const unassignedMachines = await db.execute(sql`
@@ -1988,9 +1988,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         FROM machines m
         LEFT JOIN machine_warehouse_assignments mwa ON m.id = mwa.machine_id
         WHERE mwa.machine_id IS NULL
+        AND m.vendon_id IS NOT NULL
+        AND m.vendon_id <> '1001'
         ORDER BY m.machine_name
       `);
       
+      console.log(`${unassignedMachines.rows.length} unzugeordnete echte Vendon-Automaten gefunden`);
       res.json(unassignedMachines.rows);
     } catch (error) {
       console.error("Error fetching unassigned machines:", error);
