@@ -23,6 +23,54 @@ function sendEmail(to: string, from: string, subject: string, html: string) {
 
 const router = Router();
 
+// Dashboard endpoint für offene Bestellungen
+router.get('/dashboard/open', async (req: Request, res: Response) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 5;
+    
+    const openOrdersQuery = await db
+      .select({
+        id: orders.id,
+        orderNumber: orders.orderNumber,
+        status: orders.status,
+        createdAt: orders.createdAt,
+        expectedDeliveryDate: orders.expectedDeliveryDate,
+        supplierName: suppliers.name,
+        warehouseName: warehouses.name,
+        totalAmount: orders.totalAmount
+      })
+      .from(orders)
+      .leftJoin(suppliers, eq(orders.supplierId, suppliers.id))
+      .leftJoin(warehouses, eq(orders.warehouseId, warehouses.id))
+      .where(or(
+        eq(orders.status, 'open'),
+        eq(orders.status, 'sent'),
+        eq(orders.status, 'pending')
+      ))
+      .orderBy(asc(orders.expectedDeliveryDate), desc(orders.createdAt))
+      .limit(limit);
+
+    const formattedOrders = openOrdersQuery.map(order => ({
+      id: order.id,
+      orderNumber: order.orderNumber,
+      status: order.status,
+      createdAt: order.createdAt,
+      expectedDeliveryDate: order.expectedDeliveryDate,
+      supplierName: order.supplierName || 'Unbekannter Lieferant',
+      warehouseName: order.warehouseName || 'Unbekanntes Lager',
+      totalAmount: order.totalAmount || 0
+    }));
+
+    return res.json(formattedOrders);
+  } catch (error) {
+    console.error('Fehler beim Abrufen der offenen Bestellungen für Dashboard:', error);
+    return res.status(500).json({ 
+      error: 'Fehler beim Abrufen der offenen Bestellungen',
+      message: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    });
+  }
+});
+
 // Hilfsfunktion zum Erstellen einer E-Mail-Vorlage für Bestellungen
 function createOrderEmailTemplate(order: any, supplier: any, templateType: string = 'standard') {
   const now = new Date().toLocaleDateString('de-DE');

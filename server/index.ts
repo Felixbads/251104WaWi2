@@ -202,7 +202,7 @@ app.get('/orders-data', (req, res) => {
           s.name as supplier_name,
           s.email as supplier_email,
           w.name as warehouse_name,
-          w.location as warehouse_location
+          w.address as warehouse_location
         FROM orders o
         LEFT JOIN suppliers s ON o.supplier_id = s.id
         LEFT JOIN warehouses w ON o.warehouse_id = w.id
@@ -429,7 +429,7 @@ app.get('/orders-data', (req, res) => {
           s.name as supplier_name,
           s.email as supplier_email,
           w.name as warehouse_name,
-          w.location as warehouse_location
+          w.address as warehouse_location
         FROM orders o
         LEFT JOIN suppliers s ON o.supplier_id = s.id
         LEFT JOIN warehouses w ON o.warehouse_id = w.id
