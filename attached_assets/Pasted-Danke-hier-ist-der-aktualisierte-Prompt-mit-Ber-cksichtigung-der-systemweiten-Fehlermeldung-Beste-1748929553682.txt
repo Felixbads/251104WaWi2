@@ -1,0 +1,74 @@
+Danke – hier ist der aktualisierte Prompt mit Berücksichtigung der systemweiten Fehlermeldung „Bestellung konnte nicht erstellt werden. Bitte versuchen Sie es erneut oder wenden Sie sich an den Support.“.
+
+⸻
+
+🔍 Finaler Prompt zur vollständigen Analyse & Fehlerbehebung im Bestellprozess V2
+
+⸻
+
+Bitte analysiere und behebe umfassend die Schwachstellen und Fehler im Bestellprozess V2, insbesondere im Hinblick auf folgende Probleme:
+
+⸻
+
+❗ Fehlermeldung (kritisch):
+	•	Es erscheint regelmäßig die Meldung:
+„Bestellung konnte nicht erstellt werden. Bitte versuchen Sie es erneut oder wenden Sie sich an den Support.“
+	•	Bitte identifiziere:
+	•	Den auslösenden Codeabschnitt (Backend, API, DB).
+	•	Mögliche Ursachen wie:
+	•	fehlende Pflichtfelder (z. B. Lieferant, Produkte, Standort),
+	•	fehlerhafte Validierung,
+	•	fehlschlagender Schreibvorgang (Insert/Transaction),
+	•	Exceptions, die nicht korrekt geloggt oder unterdrückt werden.
+	•	Stelle sicher, dass detaillierte Logs für Fehlerfälle generiert werden.
+
+⸻
+
+🧩 Bestellgenerierung (Datenflussanalyse):
+	•	Prüfe den Prozess, wie aus Lieferanten- und Produktdaten Bestellungen generiert werden:
+	•	Welche Bedingungen müssen erfüllt sein?
+	•	Welche Tabellen oder Objekte sind beteiligt (supplier, product_supplier, order, order_items)?
+	•	Welche Trigger/Auslöser stoßen die Bestellung an?
+
+⸻
+
+💾 Speicherung der Bestellung:
+	•	In welcher Datenbankstruktur wird die Bestellung abgelegt?
+	•	Wird der Datensatz ggf. unvollständig oder fehlerhaft erzeugt?
+	•	Gibt es Transaktionsabbrüche, fehlende order_items, ungültige Relationen?
+
+⸻
+
+📄 Anzeige & Bestellpositionen:
+	•	Warum werden aktuell keine order_items geladen oder angezeigt?
+	•	Wurde die API-Response geändert oder bricht die Serialisierung ab?
+	•	Wird versehentlich eine leere Liste zurückgegeben oder fehlerhaft gefiltert?
+
+⸻
+
+📧 Fehlerhafte E-Mail-Formatierung:
+	•	Werden Mail-Templates korrekt geladen (HTML / Text)?
+	•	Ist das E-Mail-Template vollständig und gültig?
+	•	Werden Platzhalter wie {{ order.items }}, {{ supplier.address }} korrekt ersetzt?
+
+⸻
+
+📦 Wareneingang mit MHD & Lagerzuordnung:
+	•	Wie wird beim Wareneingang ein Batch erzeugt?
+	•	Ist sichergestellt, dass MHD korrekt eingegeben, validiert und gespeichert wird?
+	•	Wie wird die Zuordnung zu Lagerorten durchgeführt (z. B. automatisiert nach Bestellstandort)?
+	•	Gibt es beim Batch-Save oder beim Einlagern Fehler?
+
+⸻
+
+✅ Ziel:
+	•	Der Bestellprozess V2 muss:
+	•	wieder fehlerfrei Bestellungen erzeugen und speichern können,
+	•	alle zugehörigen Bestellpositionen korrekt anzeigen,
+	•	versendete E-Mails sauber formatiert darstellen,
+	•	beim Wareneingang automatisch Batch + Lagerzuordnung ermöglichen,
+	•	und bei Fehlern klare technische Logs erzeugen, anstatt nur allgemeine Support-Meldungen.
+
+⸻
+
+Wenn du willst, kann ich diesen Prompt noch in technische Unterpunkte für Dev-Tickets oder ein QA-Testkonzept umwandeln.
