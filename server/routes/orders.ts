@@ -1033,6 +1033,56 @@ router.post('/orders/:id/send-email', async (req: Request, res: Response) => {
   }
 });
 
+// Bestellstatus ändern (neuer Endpunkt)
+router.patch('/orders/:id/status', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const orderId = parseInt(id);
+    const { status, sentDate } = req.body;
+    
+    if (isNaN(orderId)) {
+      return res.status(400).json({ error: "Ungültige Bestellungs-ID" });
+    }
+    
+    if (!status) {
+      return res.status(400).json({ error: "Status ist erforderlich" });
+    }
+    
+    // Gültige Status-Werte
+    const validStatuses = ['draft', 'sent', 'partial', 'completed', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: "Ungültiger Status" });
+    }
+    
+    // Bestellung aktualisieren
+    const updateData: any = { status };
+    
+    // Wenn Status auf "sent" gesetzt wird und sentDate angegeben ist
+    if (status === 'sent' && sentDate) {
+      updateData.sentDate = new Date(sentDate);
+    }
+    
+    const updatedOrder = await db
+      .update(orders)
+      .set(updateData)
+      .where(eq(orders.id, orderId))
+      .returning();
+    
+    if (updatedOrder.length === 0) {
+      return res.status(404).json({ error: "Bestellung nicht gefunden" });
+    }
+    
+    res.json({
+      success: true,
+      message: `Bestellstatus erfolgreich auf "${status}" geändert`,
+      order: updatedOrder[0]
+    });
+  } catch (error) {
+    console.error('Fehler beim Ändern des Bestellstatus:', error);
+    res.status(500).json({ error: 'Fehler beim Ändern des Bestellstatus' });
+  }
+});
+
 // Bestellung als gesendet markieren
 router.post('/orders/:id/mark-sent', async (req: Request, res: Response) => {
   try {
