@@ -1,7 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-// import { startAutomaticSync } from "./scheduler"; // Vorübergehend deaktiviert
+import { startAutomaticSync } from "./scheduler";
 import { reconcileWarehouseProducts } from "./services/warehouseReconciliation";
 // Import für Warehouse Storage entfernt, wird derzeit nicht benötigt für den Start
 import fileUpload from "express-fileupload";
@@ -358,9 +358,9 @@ app.get('/orders-data', (req, res) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Automatische Synchronisierung vorübergehend deaktiviert wegen Feiertags-Synchronisierungs-Problemen
-    // log('Initialisiere automatisches Synchronisierungssystem...');
-    // startAutomaticSync();
+    // Automatische Synchronisierung wieder aktiviert
+    log('Initialisiere automatisches Synchronisierungssystem...');
+    startAutomaticSync();
     
     // Führen wir einen initialen Lagerabgleich beim Start durch
     try {
