@@ -70,6 +70,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
+import MachineAssignmentDialog from "./MachineAssignmentDialog";
 
 interface MachinesTabProps {
   warehouseId: number;
