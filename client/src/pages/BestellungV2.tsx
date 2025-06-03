@@ -137,7 +137,7 @@ const BestellungV2: React.FC = () => {
       console.log(`Lade bestehende Bestellungsdaten für Bestellung ${orderIdToLoad}`);
       
       const response = await fetch(`/api/orders-direct/${orderIdToLoad}`, {
-        method: 'POST',
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json'
         }
