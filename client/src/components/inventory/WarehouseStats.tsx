@@ -23,7 +23,7 @@ interface WarehouseStats {
 
 const WarehouseStats: React.FC<WarehouseStatsProps> = ({ warehouseId }) => {
   const { data: stats, isLoading, error } = useQuery<WarehouseStats>({
-    queryKey: [`/api/inventory/warehouse/${warehouseId}/stats`],
+    queryKey: [`/api/warehouse-stats/${warehouseId}/stats`],
     refetchInterval: 60000, // Aktualisiere alle 60 Sekunden
   });
 
