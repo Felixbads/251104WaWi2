@@ -31,14 +31,19 @@ export default function MachineAssignmentDialog({
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedMachines, setSelectedMachines] = useState<number[]>([]);
 
-  // Abrufen der nicht zugeordneten Automaten (nur diese!)
+  // Abrufen der nicht zugeordneten Automaten (nur echte Vendon-Automaten!)
   const { data: unassignedMachines = [], isLoading, isError } = useQuery({
     queryKey: ['/api/machines/unassigned'],
     retry: 1,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
+    staleTime: 0, // Keine Zwischenspeicherung
   });
 
-  // Type für die API-Antwort
+  // Type für die API-Antwort - nur echte Vendon-Automaten
   const machines = (unassignedMachines as any[]) || [];
+  
+  console.log('🔍 Unassigned machines loaded:', machines.length, machines);
 
   // Mutation für die Zuordnung von Automaten
   const assignMachinesMutation = useMutation({
