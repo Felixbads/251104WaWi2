@@ -41,7 +41,7 @@ export default function WarehouseOverviewPage() {
 
   // Inventar-Statistiken laden - Korrektes Endpoint für warehouse stats verwenden
   const { data: inventoryStats = [], isLoading: isLoadingStats } = useQuery({
-    queryKey: ['/api/inventory/warehouses/stats'],
+    queryKey: ['/api/inventory-api/warehouses/stats'],
     staleTime: 1000 * 60 * 5, // 5 Minuten Cache
   });
 
