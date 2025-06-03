@@ -244,6 +244,19 @@ export const products = pgTable("products", {
   refillUnitSize: integer("refill_unit_size"),
   minRefill: integer("min_refill"),
   critical: boolean("critical"),
+  // Eco-Impact Tracking Fields
+  carbonFootprint: real("carbon_footprint"), // CO2 equivalent in kg per unit
+  waterUsage: real("water_usage"), // Water usage in liters per unit
+  packagingType: text("packaging_type"), // glass, plastic, aluminum, biodegradable, etc.
+  packagingRecyclable: boolean("packaging_recyclable"),
+  transportDistance: real("transport_distance"), // Distance in km from producer
+  isOrganic: boolean("is_organic"),
+  isLocal: boolean("is_local"), // Within 50km radius
+  isVegan: boolean("is_vegan"),
+  isVegetarian: boolean("is_vegetarian"),
+  sustainabilityScore: real("sustainability_score"), // 0-100 calculated score
+  certifications: text("certifications"), // JSON array: ["bio", "fairtrade", "regional"]
+  
   // Keep the full JSON for reference and backward compatibility
   additionalData: text("additional_data"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -258,6 +271,90 @@ export const insertProductSchema = createInsertSchema(products).omit({
 
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type Product = typeof products.$inferSelect;
+
+// Eco Impact Tracking table - for detailed environmental impact data
+export const ecoImpacts = pgTable("eco_impacts", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").references(() => products.id).notNull(),
+  
+  // Carbon footprint breakdown
+  productionCo2: real("production_co2"), // kg CO2 from production
+  transportCo2: real("transport_co2"), // kg CO2 from transport
+  packagingCo2: real("packaging_co2"), // kg CO2 from packaging
+  totalCo2: real("total_co2"), // Total carbon footprint
+  
+  // Water usage breakdown
+  productionWater: real("production_water"), // liters for production
+  packagingWater: real("packaging_water"), // liters for packaging
+  totalWater: real("total_water"), // Total water usage
+  
+  // Packaging details
+  packagingWeight: real("packaging_weight"), // grams
+  packagingMaterial: text("packaging_material"), // detailed material description
+  recycleInstructions: text("recycle_instructions"),
+  
+  // Supply chain
+  producerName: text("producer_name"),
+  producerLocation: text("producer_location"),
+  originCountry: text("origin_country"),
+  distributionCo2: real("distribution_co2"),
+  
+  // Certifications and standards
+  certificationDetails: text("certification_details"), // JSON with certification info
+  sustainabilityRating: text("sustainability_rating"), // A, B, C, D rating
+  
+  // Lifecycle data
+  shelfLifeImpact: real("shelf_life_impact"), // Environmental cost of waste
+  endOfLifeOptions: text("end_of_life_options"), // recycling, composting options
+  
+  // Metadata
+  dataSource: text("data_source"), // where data came from
+  lastVerified: timestamp("last_verified"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertEcoImpactSchema = createInsertSchema(ecoImpacts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertEcoImpact = z.infer<typeof insertEcoImpactSchema>;
+export type EcoImpact = typeof ecoImpacts.$inferSelect;
+
+// User Eco Choices tracking table - for tracking user sustainable choices
+export const userEcoChoices = pgTable("user_eco_choices", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+  
+  // Choice tracking
+  transactionId: integer("transaction_id").references(() => transactions.id),
+  productId: integer("product_id").references(() => products.id),
+  machineId: integer("machine_id").references(() => machines.id),
+  
+  // Impact metrics for this choice
+  co2Saved: real("co2_saved"), // compared to average alternative
+  waterSaved: real("water_saved"), // compared to average alternative
+  wasteReduced: real("waste_reduced"), // packaging waste reduced
+  
+  // Choice context
+  alternativeProducts: text("alternative_products"), // JSON array of alternatives shown
+  choiceReason: text("choice_reason"), // eco, price, taste, etc.
+  sustainabilityBonus: real("sustainability_bonus"), // points/discount earned
+  
+  // Metadata
+  choiceDate: timestamp("choice_date").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertUserEcoChoiceSchema = createInsertSchema(userEcoChoices).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertUserEcoChoice = z.infer<typeof insertUserEcoChoiceSchema>;
+export type UserEcoChoice = typeof userEcoChoices.$inferSelect;
 
 // Transactions table - neu strukturiert basierend auf der Vendon API
 export const transactions = pgTable("transactions", {
