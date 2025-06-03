@@ -37,6 +37,9 @@ export default function MachineAssignmentDialog({
     retry: 1,
   });
 
+  // Type für die API-Antwort
+  const machines = (unassignedMachines as any[]) || [];
+
   // Mutation für die Zuordnung von Automaten
   const assignMachinesMutation = useMutation({
     mutationFn: async (machineIds: number[]) => {
@@ -69,7 +72,7 @@ export default function MachineAssignmentDialog({
   });
 
   // Filtere Automaten basierend auf dem Suchbegriff
-  const filteredMachines = unassignedMachines.filter((machine: any) => {
+  const filteredMachines = machines.filter((machine: any) => {
     const searchLower = searchTerm.toLowerCase();
     return (
       machine.machine_name?.toLowerCase().includes(searchLower) ||
@@ -151,7 +154,7 @@ export default function MachineAssignmentDialog({
 
       {/* Anzahl verfügbarer Automaten */}
       <div className="text-sm text-muted-foreground">
-        {filteredMachines.length} verfügbare Automat(en) {searchTerm && `(gefiltert von ${unassignedMachines.length})`}
+        {filteredMachines.length} verfügbare Automat(en) {searchTerm && `(gefiltert von ${machines.length})`}
       </div>
 
       {filteredMachines.length === 0 ? (
