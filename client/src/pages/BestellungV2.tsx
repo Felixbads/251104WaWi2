@@ -546,8 +546,27 @@ const BestellungV2: React.FC = () => {
   // Goods Receipt mutation
   const goodsReceiptMutation = useMutation({
     mutationFn: (goodsReceiptData: any) => {
-      const { orderId, ...receiptData } = goodsReceiptData;
-      return apiRequest(`/api/orders/${orderId}/receipt`, receiptData, 'post');
+      const { orderId, receiptData } = goodsReceiptData;
+      
+      console.log("Goods receipt mutation input:", goodsReceiptData);
+      console.log("Receipt data:", receiptData);
+      
+      // Transform the data to match the API expectations
+      const transformedData = {
+        deliveryDate: new Date().toISOString(),
+        notes: 'Wareneingang über Frontend gebucht',
+        items: receiptData.map((item: any) => ({
+          id: item.id || item.productId,
+          deliveredQuantity: item.receivedQuantity || 0,
+          productId: item.productId,
+          expiryDate: item.expiryDate || null,
+          batchNumber: item.batchNumber || null
+        }))
+      };
+      
+      console.log("Transformed data for API:", transformedData);
+      
+      return apiRequest(`/api/orders/${orderId}/receipt`, transformedData, 'post');
     },
     onSuccess: (data, variables) => {
       toast({
