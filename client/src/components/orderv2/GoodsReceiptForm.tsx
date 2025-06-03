@@ -191,7 +191,12 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
           <div className="space-y-1">
             <div className="text-muted-foreground">Bestelldatum:</div>
             <div className="font-medium">
-              {format(new Date(order.orderDate), 'PPP', { locale: de })}
+              {order.orderDate && !isNaN(new Date(order.orderDate).getTime()) 
+                ? format(new Date(order.orderDate), 'PPP', { locale: de })
+                : order.created_at && !isNaN(new Date(order.created_at).getTime())
+                ? format(new Date(order.created_at), 'PPP', { locale: de })
+                : 'Datum nicht verfügbar'
+              }
             </div>
           </div>
           <div className="space-y-1">
