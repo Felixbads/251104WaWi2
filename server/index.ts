@@ -534,6 +534,119 @@ app.get('/orders-data', (req, res) => {
     }
   });
 
+  // Wareneingang buchen mit vollständiger Chargen-Verfolgung
+  app.post('/api/orders/:id/goods-receipt-batches', async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.id);
+      const { deliveryDate, notes, items } = req.body;
+      
+      if (isNaN(orderId)) {
+        return res.status(400).json({
+          error: 'Ungültige Bestellungs-ID',
+          message: 'Die angegebene Bestellungs-ID ist ungültig'
+        });
+      }
+      
+      console.log(`Buche Wareneingang mit Chargen-Verfolgung für Bestellung ${orderId}`);
+      
+      // Bestellung als geliefert markieren
+      const updateResult = await pool.query(`
+        UPDATE orders 
+        SET status = 'delivered', 
+            actual_delivery_date = $1,
+            notes = $2,
+            updated_at = NOW()
+        WHERE id = $3 
+        RETURNING *
+      `, [deliveryDate || new Date(), notes || 'Wareneingang mit Chargen-Verfolgung gebucht', orderId]);
+      
+      if (updateResult.rows.length === 0) {
+        return res.status(404).json({
+          error: 'Bestellung nicht gefunden',
+          message: `Keine Bestellung mit ID ${orderId} gefunden`
+        });
+      }
+      
+      const createdBatches = [];
+      
+      // Bestellpositionen verarbeiten und Chargen erstellen
+      if (items && Array.isArray(items)) {
+        for (const item of items) {
+          if (item.id && item.deliveredQuantity !== undefined) {
+            // Bestellposition aktualisieren
+            await pool.query(`
+              UPDATE order_items 
+              SET quantity_delivered = $1,
+                  status = CASE WHEN $1 >= quantity THEN 'delivered' ELSE 'partial' END,
+                  updated_at = NOW()
+              WHERE id = $2 AND order_id = $3
+            `, [item.deliveredQuantity, item.id, orderId]);
+
+            // Produktinformationen für Batch-Erstellung abrufen
+            const orderItemResult = await pool.query(`
+              SELECT oi.product_id, oi.quantity_delivered, o.warehouse_id, o.supplier_id, p.product_name
+              FROM order_items oi
+              JOIN orders o ON oi.order_id = o.id
+              JOIN products p ON oi.product_id = p.id
+              WHERE oi.id = $1
+            `, [item.id]);
+
+            if (orderItemResult.rows.length > 0) {
+              const { product_id, quantity_delivered, warehouse_id, supplier_id, product_name } = orderItemResult.rows[0];
+              
+              // Batch-Nummer generieren
+              const batchNumber = `BAT-${orderId}-${item.id}-${Date.now()}`;
+              
+              // Product Batch erstellen mit MHD-Tracking
+              const batchResult = await pool.query(`
+                INSERT INTO product_batches (
+                  product_id, warehouse_id, batch_number, 
+                  initial_quantity, current_quantity, 
+                  received_date, expiry_date, order_id, supplier_id,
+                  status, created_at, updated_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+                RETURNING *
+              `, [
+                product_id, warehouse_id, batchNumber,
+                quantity_delivered, quantity_delivered,
+                deliveryDate || new Date(),
+                item.expiryDate || null,
+                orderId, supplier_id,
+                'active'
+              ]);
+
+              const createdBatch = batchResult.rows[0];
+              createdBatches.push({
+                batchId: createdBatch.id,
+                batchNumber: createdBatch.batch_number,
+                productId: product_id,
+                productName: product_name,
+                quantity: quantity_delivered,
+                expiryDate: item.expiryDate,
+                warehouseId: warehouse_id
+              });
+
+              console.log(`✅ Batch ${batchNumber} erstellt für Produkt ${product_name}, Menge: ${quantity_delivered}, MHD: ${item.expiryDate || 'nicht angegeben'}`);
+            }
+          }
+        }
+      }
+      
+      return res.json({
+        success: true,
+        message: `Wareneingang erfolgreich gebucht - ${createdBatches.length} Chargen erstellt`,
+        order: updateResult.rows[0],
+        batchesCreated: createdBatches
+      });
+    } catch (error) {
+      console.error('Fehler beim Wareneingang mit Chargen-Verfolgung:', error);
+      return res.status(500).json({
+        error: 'Serverfehler',
+        message: 'Beim Buchen des Wareneingangs ist ein Fehler aufgetreten'
+      });
+    }
+  });
+
   // Wareneingang buchen - Bestellung als geliefert markieren
   app.post('/api/orders-direct/:id/receive', async (req, res) => {
     try {
