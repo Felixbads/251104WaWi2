@@ -220,8 +220,12 @@ app.get('/orders-data', (req, res) => {
         expectedDeliveryDate,
         priority = 'normal',
         notes = '',
-        items
+        items,
+        orderItems
       } = req.body;
+      
+      // Support both 'items' and 'orderItems' field names
+      const actualItems = items || orderItems || [];
       
       // Validierung
       if (!warehouseId || !supplierId) {

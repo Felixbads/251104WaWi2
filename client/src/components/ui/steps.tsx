@@ -103,7 +103,7 @@ export const Steps: React.FC<StepsProps> = ({
       <div className="flex w-full items-center justify-center">
         <div className="flex w-full flex-row items-center">
           {steps.map((step, index) => (
-            <React.Fragment key={index}>
+            <div key={index} className="contents">
               <div className="flex-1">
                 <Step
                   title={step.title}
@@ -124,7 +124,7 @@ export const Steps: React.FC<StepsProps> = ({
                   )}
                 />
               )}
-            </React.Fragment>
+            </div>
           ))}
         </div>
       </div>
