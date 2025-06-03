@@ -16,9 +16,12 @@ async function syncTodayTransactions() {
     console.log('🚀 Starte Synchronisation der heutigen Transaktionen...');
     
     // Zeitraum für heute definieren
-    const today = new Date('2025-05-31');
-    const startOfDay = Math.floor(today.getTime() / 1000);
-    const endOfDay = Math.floor((today.getTime() + 24 * 60 * 60 * 1000) / 1000);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const startOfDay = Math.floor(yesterday.getTime() / 1000);
+    const endOfDay = Math.floor(today.getTime() / 1000);
     
     console.log(`📅 Zeitraum: ${new Date(startOfDay * 1000).toISOString()} bis ${new Date(endOfDay * 1000).toISOString()}`);
     
@@ -104,14 +107,14 @@ async function saveTransactionToDatabase(vendonTransaction) {
     `;
     
     const values = [
-      vendonTransaction.id || null,
+      vendonTransaction.transaction_id?.toString() || null,
       machineId,
       vendonTransaction.machine_name || null,
-      vendonTransaction.transaction_datetime ? new Date(vendonTransaction.transaction_datetime) : null,
-      vendonTransaction.transaction_datetime ? new Date(vendonTransaction.transaction_datetime) : null,
-      vendonTransaction.received_at ? new Date(vendonTransaction.received_at) : null,
-      vendonTransaction.product_id || null,
-      vendonTransaction.product_name || null,
+      vendonTransaction.datetime ? new Date(vendonTransaction.datetime * 1000) : null,
+      vendonTransaction.transaction_dt ? new Date(vendonTransaction.transaction_dt * 1000) : null,
+      vendonTransaction.registered_dt ? new Date(vendonTransaction.registered_dt * 1000) : null,
+      vendonTransaction.stock_id?.toString() || null,
+      vendonTransaction.name || vendonTransaction.product_name || null,
       vendonTransaction.selection || null,
       vendonTransaction.stock_id || null,
       vendonTransaction.article || null,
@@ -125,7 +128,7 @@ async function saveTransactionToDatabase(vendonTransaction) {
       vendonTransaction.discount_amount || 0,
       vendonTransaction.payment_method || null,
       vendonTransaction.payment_type || null,
-      vendonTransaction.source || 'vendon_api',
+      'vendon_api',
       vendonTransaction.transaction_data ? JSON.stringify(vendonTransaction.transaction_data) : null,
       vendonTransaction.note || null,
       vendonTransaction.metadata ? JSON.stringify(vendonTransaction.metadata) : null,
@@ -142,10 +145,10 @@ async function saveTransactionToDatabase(vendonTransaction) {
     ];
     
     await pool.query(insertQuery, values);
-    console.log(`💾 Transaktion ${vendonTransaction.id} gespeichert`);
+    console.log(`💾 Transaktion ${vendonTransaction.transaction_id} gespeichert`);
     
   } catch (error) {
-    console.error(`❌ Fehler beim Speichern der Transaktion ${vendonTransaction.id}:`, error.message);
+    console.error(`❌ Fehler beim Speichern der Transaktion ${vendonTransaction.transaction_id}:`, error.message);
   }
 }
 
