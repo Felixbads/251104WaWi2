@@ -286,27 +286,21 @@ export default function MachinesTab({ warehouseId }: MachinesTabProps) {
                   <Plus className="mr-2 h-4 w-4" /> Automat zuweisen
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[525px]">
+              <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
                   <DialogTitle>Automaten zuweisen</DialogTitle>
                   <DialogDescription>
-                    Weisen Sie diesem Lager einen oder mehrere Automaten zu.
+                    Weisen Sie diesem Lager einen oder mehrere nicht zugeordnete Automaten zu.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="py-4">
-                  <p className="text-muted-foreground mb-4">
-                    Diese Funktion ist noch nicht implementiert. Sie würde eine Liste verfügbarer Automaten anzeigen, 
-                    die diesem Lager zugewiesen werden können.
-                  </p>
-                </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsAssignDialogOpen(false)}>
-                    Abbrechen
-                  </Button>
-                  <Button disabled>
-                    Zuweisen
-                  </Button>
-                </DialogFooter>
+                <MachineAssignmentDialog 
+                  warehouseId={warehouseId} 
+                  onClose={() => setIsAssignDialogOpen(false)}
+                  onSuccess={() => {
+                    setIsAssignDialogOpen(false);
+                    queryClient.invalidateQueries({ queryKey: ['/api/warehouse3/warehouses', warehouseId, 'machines'] });
+                  }}
+                />
               </DialogContent>
             </Dialog>
           </div>

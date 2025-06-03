@@ -1980,6 +1980,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get unassigned machines only (for efficient warehouse assignment)
+  app.get(`${API_PREFIX}/machines/unassigned`, async (req: Request, res: Response) => {
+    try {
+      const unassignedMachines = await db.execute(sql`
+        SELECT m.* 
+        FROM machines m
+        LEFT JOIN machine_warehouse_assignments mwa ON m.id = mwa.machine_id
+        WHERE mwa.machine_id IS NULL
+        ORDER BY m.machine_name
+      `);
+      
+      res.json(unassignedMachines.rows);
+    } catch (error) {
+      console.error("Error fetching unassigned machines:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch unassigned machines", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
   // Get machine status overview for dashboard
   app.get(`${API_PREFIX}/machines/status-overview`, async (req: Request, res: Response) => {
     try {
