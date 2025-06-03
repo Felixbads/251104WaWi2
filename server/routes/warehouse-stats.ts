@@ -76,12 +76,38 @@ router.get('/:id/stats', async (req, res) => {
       activeItems: 0
     };
 
+    // Get machine count for this warehouse
+    let machineCount = 0;
+    try {
+      const machineStats = await db.select({
+        count: sql<number>`COUNT(DISTINCT ${schema.machines.id})`
+      })
+      .from(schema.machines)
+      .innerJoin(schema.machineWarehouseAssignments, eq(schema.machines.id, schema.machineWarehouseAssignments.machineId))
+      .where(eq(schema.machineWarehouseAssignments.warehouseId, warehouseId));
+      
+      machineCount = Number(machineStats[0]?.count) || 0;
+    } catch (machineError) {
+      console.log('Machine count query failed, using 0:', machineError);
+    }
+
+    // Calculate inventory value (simplified - using avg price of 2.50 per item)
+    const inventoryValue = Number(stats.totalQuantity) * 2.50;
+
     return res.status(200).json({
       warehouseId,
       warehouseName: warehouse.name,
       isActive: warehouse.isActive,
       status: warehouse.status,
-      ...stats
+      productCount: Number(stats.totalProducts),
+      criticalItemCount: Number(stats.lowStockItems),
+      machineCount: machineCount,
+      inventoryValue: Math.round(inventoryValue * 100) / 100,
+      totalProducts: Number(stats.totalProducts),
+      totalQuantity: Number(stats.totalQuantity),
+      lowStockItems: Number(stats.lowStockItems),
+      outOfStockItems: Number(stats.outOfStockItems),
+      activeItems: Number(stats.activeItems)
     });
   } catch (error) {
     console.error('Fehler beim Laden der Lagerstatistiken:', error);
