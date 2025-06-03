@@ -36,9 +36,9 @@ const asyncHandler = (fn: Function) => (req: any, res: any, next: express.NextFu
 
 /**
  * API-Route für Basisinformationen eines Lagers
- * GET /api/inventory/warehouse/:id/info
+ * GET /warehouse/:id/info
  */
-router.get('/api/inventory/warehouse/:id/info', asyncHandler(async (req: any, res: any) => {
+router.get('/warehouse/:id/info', asyncHandler(async (req: any, res: any) => {
   const warehouseId = parseInt(req.params.id);
   if (isNaN(warehouseId)) {
     return res.status(400).json({ message: 'Ungültige Lager-ID' });
@@ -269,9 +269,9 @@ router.get('/stats', asyncHandler(async (req: any, res: any) => {
 
 /**
  * API-Route für Warnungen und Benachrichtigungen im Lagerhaltung-Format
- * GET /api/inventory/alerts
+ * GET /alerts
  */
-router.get('/api/inventory/alerts', asyncHandler(async (req: any, res: any) => {
+router.get('/alerts', asyncHandler(async (req: any, res: any) => {
   // Debug-Ausgabe für unsere Diagnose
   console.log("Executing inventory alerts query for Lagerhaltung page...");
   
@@ -419,9 +419,9 @@ router.get('/api/inventory/alerts', asyncHandler(async (req: any, res: any) => {
 
 /**
  * API-Route für Lagerstatistik
- * GET /api/inventory/warehouse/:id/stats
+ * GET /warehouse/:id/stats
  */
-router.get('/api/inventory/warehouse/:id/stats', asyncHandler(async (req: any, res: any) => {
+router.get('/warehouse/:id/stats', asyncHandler(async (req: any, res: any) => {
   const warehouseId = parseInt(req.params.id);
   if (isNaN(warehouseId)) {
     return res.status(400).json({ message: 'Ungültige Lager-ID' });
@@ -447,9 +447,9 @@ router.get('/api/inventory/warehouse/:id/stats', asyncHandler(async (req: any, r
 
 /**
  * API-Route für Lagerbestand
- * GET /api/inventory/warehouse/:id
+ * GET /warehouse/:id
  */
-router.get('/api/inventory/warehouse/:id', asyncHandler(async (req: any, res: any) => {
+router.get('/warehouse/:id', asyncHandler(async (req: any, res: any) => {
   const warehouseId = parseInt(req.params.id);
   if (isNaN(warehouseId)) {
     return res.status(400).json({ message: 'Ungültige Lager-ID' });
@@ -482,9 +482,9 @@ router.get('/api/inventory/warehouse/:id', asyncHandler(async (req: any, res: an
 
 /**
  * API-Route für Bestandsbewegungen eines Lagers
- * GET /api/inventory/warehouse/:id/movements
+ * GET /warehouse/:id/movements
  */
-router.get('/api/inventory/warehouse/:id/movements', asyncHandler(async (req: any, res: any) => {
+router.get('/warehouse/:id/movements', asyncHandler(async (req: any, res: any) => {
   const warehouseId = parseInt(req.params.id);
   if (isNaN(warehouseId)) {
     return res.status(400).json({ message: 'Ungültige Lager-ID' });
@@ -520,9 +520,9 @@ router.get('/api/inventory/warehouse/:id/movements', asyncHandler(async (req: an
 
 /**
  * API-Route zum Synchronisieren des Lagerbestands mit einem Automaten
- * POST /api/inventory/sync-machine/:id
+ * POST /sync-machine/:id
  */
-router.post('/api/inventory/sync-machine/:id', asyncHandler(async (req: any, res: any) => {
+router.post('/sync-machine/:id', asyncHandler(async (req: any, res: any) => {
   const machineId = parseInt(req.params.id);
   if (isNaN(machineId)) {
     logError('SyncAPI', `Ungültige Automaten-ID angegeben: ${req.params.id}`, new Error('Invalid machine ID'));
