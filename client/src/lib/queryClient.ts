@@ -100,7 +100,8 @@ async function handleResponse(res: Response) {
   
   try {
     // Prüfen ob es sich um eine POST-Anfrage zu /orders handelt (spezielle Behandlung)
-    const isOrderPostRequest = res.url.includes('/api/orders') && res.url.split('/').length === 4;
+    // Aber nur für echte POST-Requests, nicht für GET-Requests zu einzelnen Bestellungen
+    const isOrderPostRequest = res.url.includes('/api/orders') && res.url.split('/').length === 4 && res.url.includes('POST');
     
     // Versuche, die Antwort als Text zu erhalten
     const text = await res.text();
