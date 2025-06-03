@@ -196,7 +196,7 @@ router.post('/inventory-count-items/:id/batches', async (req, res) => {
     const batchData = batches.map(batch => ({
       inventoryCountItemId: itemId,
       batchNumber: batch.batchNumber,
-      expiryDate: batch.expiryDate ? new Date(batch.expiryDate) : null,
+      expiryDate: batch.expiryDate ? batch.expiryDate : null,
       quantity: batch.quantity,
     }));
 

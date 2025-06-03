@@ -2895,7 +2895,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Registriere Inventar-Endpunkte (sowohl unter /api/inventory als auch unter /api/debug für Abwärtskompatibilität)
   app.use(`${API_PREFIX}/inventory`, warehouseInventoryRouter); // Nutze den neuen warehouseInventoryRouter für /api/inventory
-  app.use(`${API_PREFIX}/debug`, inventoryRouter);
+  app.use(`${API_PREFIX}/inventory`, inventoryRouter);
   app.use(`${API_PREFIX}/machine-warehouse-assignments`, machineWarehouseAssignmentsRouter);
   app.use(`${API_PREFIX}/warehouse-machine-assignments`, warehouseMachineAssignmentsRouter);
   app.use(`${API_PREFIX}/product-batches`, productBatchesRouter);
