@@ -57,18 +57,10 @@ router.get('/:id/stats', async (req, res) => {
       return res.status(404).json({ error: 'Lager nicht gefunden' });
     }
 
-    // Calculate warehouse statistics
-    const statsQuery = await db.select({
-      totalProducts: count(schema.inventoryItems.id),
-      totalQuantity: sql<number>`COALESCE(SUM(${schema.inventoryItems.quantity}), 0)`,
-      lowStockItems: sql<number>`COUNT(CASE WHEN ${schema.inventoryItems.quantity} <= ${schema.inventoryItems.reorderPoint} THEN 1 END)`,
-      outOfStockItems: sql<number>`COUNT(CASE WHEN ${schema.inventoryItems.quantity} = 0 THEN 1 END)`,
-      activeItems: sql<number>`COUNT(CASE WHEN ${schema.inventoryItems.status} = 'active' THEN 1 END)`
-    })
-    .from(schema.inventoryItems)
-    .where(eq(schema.inventoryItems.warehouseId, warehouseId));
+    console.log(`Getting stats for warehouse ${warehouseId}: ${warehouse.name}`);
 
-    const stats = statsQuery[0] || {
+    // Calculate warehouse statistics with error handling
+    let stats = {
       totalProducts: 0,
       totalQuantity: 0,
       lowStockItems: 0,
@@ -76,39 +68,70 @@ router.get('/:id/stats', async (req, res) => {
       activeItems: 0
     };
 
-    // Get machine count for this warehouse
+    try {
+      const statsQuery = await db.select({
+        totalProducts: count(schema.inventoryItems.id),
+        totalQuantity: sql<number>`COALESCE(SUM(${schema.inventoryItems.quantity}), 0)`,
+        lowStockItems: sql<number>`COUNT(CASE WHEN ${schema.inventoryItems.quantity} <= ${schema.inventoryItems.reorderPoint} THEN 1 END)`,
+        outOfStockItems: sql<number>`COUNT(CASE WHEN ${schema.inventoryItems.quantity} = 0 THEN 1 END)`,
+        activeItems: sql<number>`COUNT(CASE WHEN ${schema.inventoryItems.status} = 'active' THEN 1 END)`
+      })
+      .from(schema.inventoryItems)
+      .where(eq(schema.inventoryItems.warehouseId, warehouseId));
+
+      if (statsQuery && statsQuery[0]) {
+        stats = statsQuery[0];
+      }
+      console.log(`Stats query result:`, stats);
+    } catch (statsError) {
+      console.error('Error in stats query:', statsError);
+    }
+
+    // Get machine count for this warehouse (simplified approach)
     let machineCount = 0;
     try {
-      const machineStats = await db.select({
-        count: sql<number>`COUNT(DISTINCT ${schema.machines.id})`
-      })
-      .from(schema.machines)
-      .innerJoin(schema.machineWarehouseAssignments, eq(schema.machines.id, schema.machineWarehouseAssignments.machineId))
-      .where(eq(schema.machineWarehouseAssignments.warehouseId, warehouseId));
-      
-      machineCount = Number(machineStats[0]?.count) || 0;
+      // Try a simpler query first
+      const machineResult = await db.execute(sql`
+        SELECT COUNT(DISTINCT m.id)::integer as machine_count 
+        FROM machines m 
+        INNER JOIN machine_warehouse_assignments mwa ON m.id = mwa.machine_id 
+        WHERE mwa.warehouse_id = ${warehouseId}
+      `);
+      machineCount = Number(machineResult.rows[0]?.machine_count) || 0;
+      console.log(`Machine count for warehouse ${warehouseId}:`, machineCount);
     } catch (machineError) {
-      console.log('Machine count query failed, using 0:', machineError);
+      console.error('Machine count query failed:', machineError);
+      machineCount = 0;
     }
 
     // Calculate inventory value (simplified - using avg price of 2.50 per item)
-    const inventoryValue = Number(stats.totalQuantity) * 2.50;
+    const totalQuantity = Number(stats.totalQuantity) || 0;
+    const inventoryValue = totalQuantity * 2.50;
 
-    return res.status(200).json({
+    console.log(`Preparing response for warehouse ${warehouseId}:`, {
+      totalProducts: stats.totalProducts,
+      totalQuantity: totalQuantity,
+      machineCount: machineCount
+    });
+
+    const response = {
       warehouseId,
       warehouseName: warehouse.name,
       isActive: warehouse.isActive,
       status: warehouse.status,
-      productCount: Number(stats.totalProducts),
-      criticalItemCount: Number(stats.lowStockItems),
+      productCount: Number(stats.totalProducts) || 0,
+      criticalItemCount: Number(stats.lowStockItems) || 0,
       machineCount: machineCount,
       inventoryValue: Math.round(inventoryValue * 100) / 100,
-      totalProducts: Number(stats.totalProducts),
-      totalQuantity: Number(stats.totalQuantity),
-      lowStockItems: Number(stats.lowStockItems),
-      outOfStockItems: Number(stats.outOfStockItems),
-      activeItems: Number(stats.activeItems)
-    });
+      totalProducts: Number(stats.totalProducts) || 0,
+      totalQuantity: totalQuantity,
+      lowStockItems: Number(stats.lowStockItems) || 0,
+      outOfStockItems: Number(stats.outOfStockItems) || 0,
+      activeItems: Number(stats.activeItems) || 0
+    };
+
+    console.log(`Final response:`, response);
+    return res.status(200).json(response);
   } catch (error) {
     console.error('Fehler beim Laden der Lagerstatistiken:', error);
     return res.status(500).json({ error: 'Serverfehler beim Laden der Lagerstatistiken' });

@@ -467,7 +467,7 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                     }
                     
                     return (
-                      <React.Fragment key={item.id}>
+                      <React.Fragment key={`product-${item.id}`}>
                         <TableRow 
                           className={`cursor-pointer ${isExpanded ? 'bg-muted/20' : ''}`}
                           onClick={() => toggleRow(productId)}
