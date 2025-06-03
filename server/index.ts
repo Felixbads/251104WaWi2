@@ -197,7 +197,11 @@ app.get('/orders-data', (req, res) => {
         ORDER BY oi.id
       `, [orderId]);
       
-      return res.json(result.rows);
+      return res.json({
+        success: true,
+        data: result.rows,
+        count: result.rows.length
+      });
     } catch (error) {
       console.error('Fehler beim Laden der Bestellpositionen:', error);
       return res.status(500).json({ 
