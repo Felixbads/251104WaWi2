@@ -2098,6 +2098,10 @@ export const inventoryCountItemRelations = relations(inventoryCountItems, ({ one
     fields: [inventoryCountItems.productId],
     references: [products.id],
   }),
+  batch: one(productBatches, {
+    fields: [inventoryCountItems.batchId],
+    references: [productBatches.id],
+  }),
   batches: many(inventoryCountBatches),
 }));
 

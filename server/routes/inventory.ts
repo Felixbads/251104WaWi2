@@ -118,11 +118,12 @@ router.get('/inventory-counts/:id/items', async (req, res) => {
   try {
     const inventoryCountId = parseInt(req.params.id);
     
-    // Lade alle Inventurpositionen für diese Inventur
+    // Lade alle Inventurpositionen für diese Inventur mit Batch-Informationen
     const items = await db.query.inventoryCountItems.findMany({
       where: eq(schema.inventoryCountItems.inventoryCountId, inventoryCountId),
       with: {
-        product: true
+        product: true,
+        batch: true // Batch-Informationen mit einbeziehen
       }
     });
 
