@@ -1989,7 +1989,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         LEFT JOIN machine_warehouse_assignments mwa ON m.id = mwa.machine_id
         WHERE mwa.machine_id IS NULL
         AND m.vendon_id IS NOT NULL
-        AND m.vendon_id <> '1001'
+        AND m.vendon_id NOT LIKE '1001'
+        AND m.machine_name NOT LIKE 'Automat A%'
         ORDER BY m.machine_name
       `);
       
