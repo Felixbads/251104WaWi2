@@ -1,0 +1,59 @@
+Hier ist ein detaillierter Prompt zur Analyse des Wareneingangsprozesses in der V2-Umgebung, inklusive Fehlersuche bei der Bestellverarbeitung:
+
+⸻
+
+Prompt zur Analyse: Wareneingangsprozess in V2 + Fehler bei Bestellverarbeitung
+
+Bitte führe eine umfassende technische Analyse des Wareneingangsprozesses im System V2 durch. Dabei soll insbesondere untersucht werden:
+
+⸻
+
+1. Allgemeiner Ablauf
+	•	Wie läuft der Wareneingang technisch ab?
+	•	Welche Events oder Trigger starten den Wareneingangsprozess?
+	•	Welche Daten (z. B. Bestellpositionen, Lieferanteninformationen, Artikelstammdaten) werden verarbeitet?
+	•	In welcher Reihenfolge werden Daten geprüft, verarbeitet und gespeichert?
+
+⸻
+
+2. Bestellungen werden nicht korrekt geladen
+	•	Welche Ursachen kommen infrage, dass Bestellungen nicht richtig geladen oder angezeigt werden?
+	•	Prüfung auf fehlerhafte oder unvollständige API-Antworten
+	•	Fehlende Verknüpfung zwischen Bestellung und Produkt/Lieferant
+	•	Konflikte mit Event-Handling (z. B. Vendon Sync)
+	•	Fehlerhafte Datenbankeinträge oder fehlende Transaktionsverarbeitung
+	•	Gibt es Fehlermeldungen oder Logs, die Hinweise auf den Ursprung des Problems geben?
+	•	Wurde kürzlich ein Update oder eine Änderung am Code, der API-Schnittstelle oder dem Event-System vorgenommen?
+
+⸻
+
+3. Datenbank-Speicherung
+	•	Wird geprüft, ob und wie die Transaktionen bzw. Bestellungen in die Datenbank geschrieben werden?
+	•	Welche Tabelle(n) sind betroffen (transactions, orders, order_items, etc.)?
+	•	Gibt es Transaktionsabbrüche, Rollbacks oder Validierungsfehler beim Insert?
+
+⸻
+
+4. Event-Kollisionen / Synchronisierungsprobleme
+	•	Könnte die neu eingeführte Event-Synchronisierung (z. B. durch Vendon oder andere Dienste) bestehende Prozesse überschreiben, blockieren oder zu Race Conditions führen?
+	•	Gibt es doppelte oder konkurrierende Trigger für dieselben Daten?
+	•	Werden Events möglicherweise in der falschen Reihenfolge verarbeitet?
+
+⸻
+
+5. Darstellung im Frontend
+	•	Warum werden die geladenen Bestellungen im Frontend nicht korrekt dargestellt?
+	•	HTML-Template-/Formatierungsfehler?
+	•	Fehlerhafte Datenbindung / fehlende Datenstruktur im JSON-Response?
+	•	JS-Fehler beim Rendering?
+
+⸻
+
+Ziel der Analyse:
+	•	Eine vollständige Übersicht über den Datenfluss beim Wareneingang
+	•	Konkrete Ursachen für nicht geladene oder falsch angezeigte Bestellungen
+	•	Handlungsempfehlungen zur Behebung und Stabilisierung des Prozesses
+
+⸻
+
+Wenn du willst, formuliere ich daraus auch gleich eine Ticketbeschreibung für ein Entwickler-Team oder QA-Team.
