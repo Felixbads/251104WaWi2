@@ -1,7 +1,7 @@
 import express from 'express';
 import { db } from '../db';
 import * as schema from '../../shared/schema';
-import { eq, and, isNull, count, asc, desc, sql } from 'drizzle-orm';
+import { eq, and, isNull, count, asc, desc, sql, gt } from 'drizzle-orm';
 import { z } from 'zod';
 
 // Tabellen-Referenzen für bessere Lesbarkeit
@@ -62,18 +62,60 @@ router.post('/inventory-counts', async (req, res) => {
       }
     });
     
-    // Erstelle für jeden Lagerbestand einen Inventurpositionseintrag
+    // Lade alle aktiven Chargen für das Lager
+    const activeBatches = await db.query.productBatches.findMany({
+      where: and(
+        eq(schema.productBatches.warehouseId, warehouseId),
+        gt(schema.productBatches.currentQuantity, 0)
+      ),
+      orderBy: [asc(schema.productBatches.expiryDate)]
+    });
+    
+    // Erstelle Map für schnellen Zugriff auf Chargen nach Produkt-ID
+    const batchesByProduct = new Map<number, typeof activeBatches>();
+    activeBatches.forEach(batch => {
+      if (!batchesByProduct.has(batch.productId)) {
+        batchesByProduct.set(batch.productId, []);
+      }
+      batchesByProduct.get(batch.productId)!.push(batch);
+    });
+    
+    // Erstelle Inventurpositionen - für Produkte mit Chargen erstelle separate Einträge pro Charge
+    const countItems: any[] = [];
+    
     if (inventoryItemsList.length > 0) {
-      const countItems = inventoryItemsList.map(item => ({
-        inventoryCountId,
-        productId: item.productId,
-        expectedQuantity: item.quantity || 0, // In der Datenbank könnte es currentQuantity oder quantity heißen
-        countedQuantity: null, // Wird erst bei der Zählung erfasst
-        notes: '',
-      }));
+      for (const item of inventoryItemsList) {
+        const productBatches = batchesByProduct.get(item.productId);
+        
+        if (productBatches && productBatches.length > 0) {
+          // Erstelle einen Eintrag pro Charge
+          for (const batch of productBatches) {
+            countItems.push({
+              inventoryCountId,
+              productId: item.productId,
+              expectedQuantity: batch.currentQuantity || 0,
+              countedQuantity: null,
+              notes: '',
+              batchId: batch.id
+            });
+          }
+        } else {
+          // Kein Batch vorhanden - erstelle normalen Eintrag
+          countItems.push({
+            inventoryCountId,
+            productId: item.productId,
+            expectedQuantity: item.quantity || 0,
+            countedQuantity: null,
+            notes: '',
+            batchId: null
+          });
+        }
+      }
 
       // Füge alle Inventurpositionen in die Datenbank ein
-      await db.insert(inventoryCountItems).values(countItems);
+      if (countItems.length > 0) {
+        await db.insert(inventoryCountItems).values(countItems);
+      }
     }
 
     // Erfolgreiche Antwort
