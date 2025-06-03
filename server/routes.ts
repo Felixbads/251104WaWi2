@@ -2903,9 +2903,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/warehouse-movements`, warehouseMovementsRouter);
   app.use(`${API_PREFIX}/warehouses`, warehousesRouter); // Neue Route für /api/warehouses
   
-  // Import and register warehouse stats router
+  // Import and register warehouse stats router - moved to avoid route conflicts
   const warehouseStatsRouter = await import('./routes/warehouse-stats');
-  app.use(`${API_PREFIX}/inventory/warehouse`, warehouseStatsRouter.default);
+  app.use(`${API_PREFIX}/warehouse-stats`, warehouseStatsRouter.default);
   
   // Direkte Route für die Batch-Verknüpfung hinzufügen - mit ausführlicher Debug-Ausgabe
   app.patch(`${API_PREFIX}/inventory-counts/items/:itemId/batch`, async (req: Request, res: Response) => {
