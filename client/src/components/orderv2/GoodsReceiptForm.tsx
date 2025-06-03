@@ -91,8 +91,10 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
   const [receivedItems, setReceivedItems] = useState<OrderItem[]>(
     orderItems.map(item => ({
       ...item,
+      // Wichtig: orderItemId für die API-Übertragung (aus der Datenbank-ID)
+      orderItemId: item.id || item.orderItemId,
       // Stellen sicher, dass der Name vorhanden ist (entweder name oder productName)
-      name: item.name || item.productName || 'Artikel ohne Namen',
+      name: item.name || item.product_name || item.productName || 'Artikel ohne Namen',
       // Stellen sicher, dass die orderedQuantity korrekt ist (kann orderQuantity, orderedQuantity oder quantity sein)
       orderedQuantity: item.orderQuantity || item.orderedQuantity || item.quantity || 0,
       receivedQuantity: item.orderQuantity || item.orderedQuantity || item.quantity || 0,

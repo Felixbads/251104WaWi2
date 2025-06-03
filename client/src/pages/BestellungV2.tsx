@@ -556,7 +556,7 @@ const BestellungV2: React.FC = () => {
         deliveryDate: new Date().toISOString(),
         notes: 'Wareneingang über Frontend gebucht',
         items: receiptData.map((item: any) => ({
-          id: item.id || item.productId,
+          id: item.orderItemId || item.id,  // Use orderItemId first, then fallback to id
           deliveredQuantity: item.receivedQuantity || 0,
           productId: item.productId,
           expiryDate: item.expiryDate || null,
