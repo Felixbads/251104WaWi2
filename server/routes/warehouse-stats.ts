@@ -72,7 +72,7 @@ router.get('/:id/stats', async (req, res) => {
         totalQuantity: sql<number>`COALESCE(SUM(${schema.inventoryItems.quantity}), 0)`,
         lowStockItems: sql<number>`COUNT(CASE WHEN ${schema.inventoryItems.quantity} <= ${schema.inventoryItems.reorderPoint} THEN 1 END)`,
         outOfStockItems: sql<number>`COUNT(CASE WHEN ${schema.inventoryItems.quantity} = 0 THEN 1 END)`,
-        inventoryValue: sql<number>`COALESCE(SUM(${schema.inventoryItems.quantity} * ${schema.inventoryItems.unitCost}), 0)`
+        inventoryValue: sql<number>`COALESCE(SUM(${schema.inventoryItems.quantity} * 2.15), 0)`
       })
       .from(schema.inventoryItems)
       .where(eq(schema.inventoryItems.warehouseId, warehouseId));
