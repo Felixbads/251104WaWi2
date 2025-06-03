@@ -1367,21 +1367,38 @@ export class DatabaseStorage implements IStorage {
 
   // Transaction operations
   async getTransactions(limit: number = 100): Promise<Transaction[]> {
-    return await db.select().from(transactions).orderBy(desc(transactions.datetime)).limit(limit);
+    // Use raw SQL to handle the data type mismatch between TEXT and INTEGER
+    const result = await this.executeRawQuery(`
+      SELECT 
+        t.*,
+        m.machine_name as machine_name,
+        p.name as product_name
+      FROM transactions t
+      LEFT JOIN machines m ON t.machine_id = m.id
+      LEFT JOIN products p ON t.product_id::integer = p.id
+      ORDER BY t.datetime DESC
+      LIMIT $1
+    `, [limit]);
+    
+    return result.rows;
   }
 
   async getTransactionsByDateRange(startDate: Date, endDate: Date, limit: number = 100): Promise<Transaction[]> {
-    return await db
-      .select()
-      .from(transactions)
-      .where(
-        and(
-          gte(transactions.datetime, startDate),
-          lte(transactions.datetime, endDate)
-        )
-      )
-      .orderBy(desc(transactions.datetime))
-      .limit(limit);
+    // Use raw SQL to handle the data type mismatch between TEXT and INTEGER
+    const result = await this.executeRawQuery(`
+      SELECT 
+        t.*,
+        m.machine_name as machine_name,
+        p.name as product_name
+      FROM transactions t
+      LEFT JOIN machines m ON t.machine_id = m.id
+      LEFT JOIN products p ON t.product_id::integer = p.id
+      WHERE t.datetime >= $1 AND t.datetime <= $2
+      ORDER BY t.datetime DESC
+      LIMIT $3
+    `, [startDate, endDate, limit]);
+    
+    return result.rows;
   }
 
   async getTransactionsByMachine(machineId: number, limit: number = 100): Promise<Transaction[]> {
