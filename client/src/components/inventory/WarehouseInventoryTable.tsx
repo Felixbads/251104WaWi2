@@ -499,8 +499,8 @@ const WarehouseInventoryTable: React.FC<WarehouseInventoryTableProps> = ({ wareh
                               <span className="w-4 h-4 inline-block"></span>
                             )}
                           </TableCell>
-                          <TableCell className="font-medium">{item.productName || item.product_name || '-'}</TableCell>
-                          <TableCell>{item.category || '-'}</TableCell>
+                          <TableCell className="font-medium">{item.product?.productName || item.productName || item.product_name || '-'}</TableCell>
+                          <TableCell>{item.product?.category || item.category || '-'}</TableCell>
                           <TableCell className="text-right">
                             {item.batchCount || item.batch_count || productBatches.length || 0}
                           </TableCell>

@@ -587,8 +587,25 @@ router.get('/warehouse/:id', async (req, res) => {
       orderBy: [asc(schema.inventoryItems.productId)]
     });
 
+    // Formatiere die Antwort mit korrekten Produktnamen
+    const formattedInventory = inventoryItems.map(item => ({
+      id: item.id,
+      warehouseId: item.warehouseId,
+      productId: item.productId,
+      quantity: item.quantity,
+      minQuantity: item.minQuantity,
+      reorderPoint: item.reorderPoint,
+      location: item.location,
+      lastUpdated: item.lastUpdated,
+      productName: item.product?.productName || 'Unbekanntes Produkt',
+      sku: item.product?.sku || '',
+      price: item.product?.price || 0,
+      category: item.product?.category || '',
+      unit: item.product?.unit || 'Stk.'
+    }));
+
     // Erfolgreiche Antwort
-    return res.status(200).json(inventoryItems);
+    return res.status(200).json(formattedInventory);
   } catch (error) {
     console.error('Fehler beim Laden des Lagerbestands:', error);
     return res.status(500).json({ error: 'Serverfehler beim Laden des Lagerbestands' });
