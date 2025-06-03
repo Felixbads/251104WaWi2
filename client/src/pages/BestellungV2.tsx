@@ -420,7 +420,13 @@ const BestellungV2: React.FC = () => {
         // Zusätzliche API-Anfrage um sicherzustellen, dass die Bestellungsdaten vollständig sind
         if (data.order.id) {
           console.log("Lade vollständige Bestellungsdaten für ID:", data.order.id);
-          apiRequest(`/api/orders/${data.order.id}`)
+          fetch(`/api/orders-direct/${data.order.id}`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          })
+            .then(res => res.json())
             .then(orderData => {
               if (orderData && orderData.id) {
                 console.log("Vollständige Bestellungsdaten geladen:", orderData);
@@ -1463,11 +1469,11 @@ const BestellungV2: React.FC = () => {
       case 'goodsReceipt':
         return (
           <GoodsReceiptForm
-            orderId={orderId!}
+            order={order || existingOrderData}
             onSubmit={(receiptData) => {
               // Prüfen, ob alle Positionen geprüft wurden
-              const allItemsChecked = receiptData.items.every(item => 
-                item.quantityDelivered !== null && item.quantityDelivered !== undefined
+              const allItemsChecked = receiptData.every(item => 
+                item.receivedQuantity !== null && item.receivedQuantity !== undefined
               );
               
               if (!allItemsChecked) {
@@ -1480,8 +1486,8 @@ const BestellungV2: React.FC = () => {
               }
               
               goodsReceiptMutation.mutate({
-                orderId,
-                ...receiptData
+                orderId: orderId!,
+                receiptData
               });
             }}
             onBack={() => setStep('sendOrder')}
@@ -1533,11 +1539,11 @@ const BestellungV2: React.FC = () => {
             </div>
             
             <GoodsReceiptForm
-              orderId={orderId!}
+              order={order || existingOrderData}
               onSubmit={(receiptData) => {
                 // Prüfen, ob alle Positionen geprüft wurden
-                const allItemsChecked = receiptData.items.every(item => 
-                  item.quantityDelivered !== null && item.quantityDelivered !== undefined
+                const allItemsChecked = receiptData.every(item => 
+                  item.receivedQuantity !== null && item.receivedQuantity !== undefined
                 );
                 
                 if (!allItemsChecked) {
@@ -1550,11 +1556,10 @@ const BestellungV2: React.FC = () => {
                 }
                 
                 goodsReceiptMutation.mutate({
-                  orderId,
-                  ...receiptData
+                  orderId: orderId!,
+                  receiptData
                 });
               }}
-              onBack={() => setStep('overview')}
               isSubmitting={goodsReceiptMutation.isPending}
             />
           </>
