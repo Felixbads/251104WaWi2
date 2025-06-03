@@ -602,7 +602,12 @@ const BestellungV2: React.FC = () => {
     queryKey: orderId ? orderKeys.detail(orderId) : ['no-order'],
     queryFn: () => {
       if (!orderId) return null;
-      return apiRequest(`/api/orders/${orderId}`);
+      return fetch(`/api/orders-direct/${orderId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }).then(res => res.json());
     },
     enabled: !!orderId,  // Only fetch if orderId is set
   });
