@@ -64,7 +64,7 @@ export default function UserManagement() {
     mutationFn: async (userData: CreateUserData) => {
       return await apiRequest("/api/admin/users", {
         method: "POST",
-        body: JSON.stringify(userData),
+        body: userData,
       });
     },
     onSuccess: () => {
@@ -90,7 +90,7 @@ export default function UserManagement() {
     mutationFn: async ({ userId, role }: { userId: number; role: string }) => {
       return await apiRequest(`/api/admin/users/${userId}/role`, {
         method: "POST",
-        body: JSON.stringify({ role }),
+        body: { role },
       });
     },
     onSuccess: () => {
