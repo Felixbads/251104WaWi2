@@ -64,10 +64,13 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
     
     const loadOrderAndSupplierData = async () => {
       try {
-        // First try to get supplier email from props if available
+        // Set supplier email from props immediately if available
         if (supplierEmail && supplierEmail !== 'lieferant@example.com') {
           console.log('Lieferanten-E-Mail aus Props:', supplierEmail);
           setEmailAddress(supplierEmail);
+        } else {
+          // Try loading from order data if props don't have it
+          console.log('Keine Lieferanten-E-Mail in Props, lade aus Bestelldaten');
         }
         
         // Load order data to get supplier information
@@ -82,11 +85,13 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
           const orderData = await orderResponse.json();
           console.log('Bestelldaten geladen:', orderData);
           
-          // Set supplier email and ID
+          // Set supplier email and ID - prioritize props over order data
           const supplierEmailFromOrder = orderData.supplier_email || orderData.supplierEmail;
-          if (supplierEmailFromOrder && supplierEmailFromOrder !== 'lieferant@example.com') {
+          if (!emailAddress && supplierEmailFromOrder && supplierEmailFromOrder !== 'lieferant@example.com') {
             console.log('Lieferanten-E-Mail aus Bestellung gefunden:', supplierEmailFromOrder);
             setEmailAddress(supplierEmailFromOrder);
+          } else if (emailAddress) {
+            console.log('Behalte bereits gesetzte E-Mail-Adresse:', emailAddress);
           }
           
           const supplierIdFromOrder = orderData.supplier_id || orderData.supplierId;
@@ -102,20 +107,34 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
               });
               
               if (templatesResponse.ok) {
-                const templates = await templatesResponse.json();
-                console.log('E-Mail-Vorlagen geladen:', templates);
+                const templatesRaw = await templatesResponse.json();
+                console.log('E-Mail-Vorlagen (Roh) geladen:', templatesRaw);
+                
+                // Transform database templates to match expected format
+                const templates = templatesRaw.map((template: any) => ({
+                  id: template.id,
+                  name: template.template_name,
+                  subject: template.subject_template,
+                  body: template.content_template,
+                  isDefault: template.is_default,
+                  templateType: template.template_type
+                }));
+                
+                console.log('E-Mail-Vorlagen (transformiert):', templates);
                 setAvailableTemplates(templates);
                 
                 // Select default template if available
                 const defaultTemplate = templates.find((t: any) => t.isDefault && t.templateType === 'standard');
                 if (defaultTemplate) {
+                  console.log('Standard-Vorlage für Lieferant gefunden:', defaultTemplate.name);
                   setSelectedTemplate(defaultTemplate);
                 } else if (templates.length > 0) {
+                  console.log('Erste verfügbare Vorlage verwenden:', templates[0].name);
                   setSelectedTemplate(templates[0]);
                 }
               } else {
                 console.log('Keine lieferantenspezifischen Vorlagen gefunden, verwende Standard-Vorlage');
-                // Create a standard template as fallback
+                // Create a standard template using the user's uploaded template
                 const standardTemplate = {
                   id: 'standard',
                   name: 'Standard-Vorlage',
@@ -126,11 +145,15 @@ hiermit bestellen wir folgende Artikel:
 
 {productTable}
 
+Liefertermin: {deliveryDate}
 Bestellnummer: {orderNumber}
-Bestelldatum: ${new Date().toLocaleDateString('de-DE')}
-Gewünschter Liefertermin: {deliveryDate}
 
-Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns mit, wann wir mit der Lieferung rechnen können.
+Lieferanschrift:
+Elbsandstein Proviant & Quartier GmbH
+Bahnhofstraße 10
+01796 Pirna
+
+Bei Rückfragen stehen wir Ihnen gerne zur Verfügung.
 
 Mit freundlichen Grüßen
 Elbsandstein Proviant & Quartier GmbH
@@ -143,7 +166,7 @@ USt-IdNr.: DE353967134`,
               }
             } catch (error) {
               console.error('Fehler beim Laden der E-Mail-Vorlagen:', error);
-              // Create a standard template as fallback
+              // Create a standard template using the user's uploaded template
               const standardTemplate = {
                 id: 'standard',
                 name: 'Standard-Vorlage',
@@ -154,11 +177,15 @@ hiermit bestellen wir folgende Artikel:
 
 {productTable}
 
+Liefertermin: {deliveryDate}
 Bestellnummer: {orderNumber}
-Bestelldatum: ${new Date().toLocaleDateString('de-DE')}
-Gewünschter Liefertermin: {deliveryDate}
 
-Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns mit, wann wir mit der Lieferung rechnen können.
+Lieferanschrift:
+Elbsandstein Proviant & Quartier GmbH
+Bahnhofstraße 10
+01796 Pirna
+
+Bei Rückfragen stehen wir Ihnen gerne zur Verfügung.
 
 Mit freundlichen Grüßen
 Elbsandstein Proviant & Quartier GmbH
