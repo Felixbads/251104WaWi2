@@ -26,6 +26,9 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
     subject: '',
     htmlContent: '',
   });
+  
+  const [availableTemplates, setAvailableTemplates] = useState([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
 
   // Load supplier template and default values when dialog opens
   useEffect(() => {
@@ -37,6 +40,26 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
   const loadEmailTemplate = async () => {
     try {
       setIsLoading(true);
+
+      // Load supplier email templates
+      if (order.supplier_id) {
+        try {
+          const templatesResponse = await fetch(`/api/supplier-email-templates/${order.supplier_id}`);
+          if (templatesResponse.ok) {
+            const templates = await templatesResponse.json();
+            setAvailableTemplates(templates);
+            
+            // Find default template
+            const defaultTemplate = templates.find((t: any) => t.isDefault && t.templateType === 'standard');
+            if (defaultTemplate) {
+              setSelectedTemplate(defaultTemplate);
+              setUseTemplate(true);
+            }
+          }
+        } catch (error) {
+          console.error('Fehler beim Laden der E-Mail-Vorlagen:', error);
+        }
+      }
 
       // Generate default subject
       const subjectResponse = await fetch('/api/email/generate-subject', {

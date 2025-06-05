@@ -39,6 +39,7 @@ import {
   unassignProductFromSupplier
 } from "@/lib/api";
 import PurchaseConditionForm from "@/components/forms/PurchaseConditionForm";
+import SupplierEmailTemplates from "@/components/suppliers/SupplierEmailTemplates";
 
 interface Supplier {
   id: number;
@@ -819,6 +820,10 @@ export default function SupplierDetail() {
           <TabsTrigger value="stats" className="gap-1.5">
             <BarChart className="h-4 w-4" />
             <span>Statistiken</span>
+          </TabsTrigger>
+          <TabsTrigger value="emailTemplates" className="gap-1.5">
+            <Mail className="h-4 w-4" />
+            <span>E-Mail-Vorlagen</span>
           </TabsTrigger>
         </TabsList>
         
