@@ -97,6 +97,7 @@ import WarehouseOverviewPage from "@/pages/warehouse/WarehouseOverviewPage";
 import WarehouseMovement from "@/pages/WarehouseMovement";
 import LagerbestandPage from "@/pages/LagerbestandPage";
 import SustainableVending from "@/pages/SustainableVending";
+import DatabaseManager from "@/pages/DatabaseManager";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
