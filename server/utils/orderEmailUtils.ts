@@ -172,11 +172,17 @@ export async function sendOrderEmail(
   orderId: number
 ): Promise<boolean> {
   try {
+    console.log(`[sendOrderEmail] Sende E-Mail an: ${to}`);
+    console.log(`[sendOrderEmail] Von: ${from}`);
+    console.log(`[sendOrderEmail] Betreff: ${subject}`);
+    
     // Bestellpositionen holen
     const items = await db
       .select()
       .from(orderItems)
       .where(eq(orderItems.orderId, orderId));
+    
+    console.log(`[sendOrderEmail] ${items.length} Bestellpositionen gefunden`);
     
     // Erstelle HTML-Tabelle für Bestellpositionen
     const itemsTable = createOrderItemsTable(items);
@@ -186,6 +192,7 @@ export async function sendOrderEmail(
     
     // Entscheide, ob SendGrid oder Nodemailer verwendet werden soll
     if (process.env.SENDGRID_API_KEY) {
+      console.log('[sendOrderEmail] Verwende SendGrid');
       // SendGrid für E-Mail-Versand verwenden
       const msg = {
         to,
@@ -196,6 +203,11 @@ export async function sendOrderEmail(
       
       await sgMail.send(msg);
     } else {
+      console.log('[sendOrderEmail] Verwende Nodemailer');
+      console.log(`[sendOrderEmail] SMTP Host: ${process.env.SMTP_HOST}`);
+      console.log(`[sendOrderEmail] SMTP User: ${process.env.SMTP_USER}`);
+      console.log(`[sendOrderEmail] SMTP Pass length: ${process.env.SMTP_PASS ? process.env.SMTP_PASS.length : 'Not set'}`);
+      
       // Nodemailer als Fallback verwenden
       const transporter = createTransport({
         host: process.env.SMTP_HOST || 'smtp.example.com',
@@ -205,20 +217,34 @@ export async function sendOrderEmail(
           user: process.env.SMTP_USER || '',
           pass: process.env.SMTP_PASS || '',
         },
+        requireTLS: true,
+        tls: {
+          rejectUnauthorized: false,
+          servername: process.env.SMTP_HOST
+        }
       });
       
-      await transporter.sendMail({
+      console.log('[sendOrderEmail] Teste SMTP-Verbindung...');
+      await transporter.verify();
+      console.log('[sendOrderEmail] SMTP-Verbindung erfolgreich');
+      
+      const result = await transporter.sendMail({
         from,
         to,
         subject,
         html: fullHtml,
       });
+      
+      console.log(`[sendOrderEmail] E-Mail gesendet, Message ID: ${result.messageId}`);
     }
     
     console.log(`E-Mail erfolgreich gesendet an: ${to}`);
     return true;
-  } catch (error) {
-    console.error('Fehler beim Senden der E-Mail:', error);
+  } catch (error: any) {
+    console.error('[sendOrderEmail] Fehler beim Senden der E-Mail:', error);
+    console.error('[sendOrderEmail] Error message:', error.message);
+    console.error('[sendOrderEmail] Error code:', error.code);
+    console.error('[sendOrderEmail] Error command:', error.command);
     return false;
   }
 }
