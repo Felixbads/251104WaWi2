@@ -1005,17 +1005,28 @@ router.post('/orders/:id/send-email', async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Eine gültige E-Mail-Adresse des Empfängers muss angegeben werden" });
     }
     
-    // Neue optimierte E-Mail-Funktion verwenden
-    const { createAndSendOrderEmail } = await import('../utils/orderEmailUtils');
+    console.log(`[DEBUG] Attempting to send email to ${to} for order ${orderId}`);
     
-    // E-Mail senden mit der neuen Utility-Funktion
-    const result = await createAndSendOrderEmail(
-      orderId,
-      to,
-      subject,
-      content,
-      templateType
-    );
+    let result;
+    try {
+      // Neue optimierte E-Mail-Funktion verwenden
+      const orderEmailUtils = await import('../utils/orderEmailUtils');
+      console.log('[DEBUG] orderEmailUtils imported successfully');
+      
+      // E-Mail senden mit der neuen Utility-Funktion
+      result = await orderEmailUtils.createAndSendOrderEmail(
+        orderId,
+        to,
+        subject,
+        content,
+        templateType
+      );
+      
+      console.log(`[DEBUG] Email sending result: ${result}`);
+    } catch (importError) {
+      console.error('[DEBUG] Error importing orderEmailUtils:', importError);
+      throw importError;
+    }
     
     if (result) {
       // Bestellung abrufen, um den aktuellen Status zu überprüfen
