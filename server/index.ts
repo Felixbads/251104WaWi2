@@ -221,8 +221,8 @@ app.get('/orders-data', (req, res) => {
       const result = await pool.query(`
         SELECT 
           oi.*,
-          p.name as product_name,
-          p.unit as product_unit,
+          p.product_name,
+          p.units as product_unit,
           COALESCE(oi.unit_price, 0) as unit_price,
           COALESCE(oi.total_price, oi.quantity * COALESCE(oi.unit_price, 0)) as total_price
         FROM order_items oi
