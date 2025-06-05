@@ -64,12 +64,11 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
     
     const loadOrderAndSupplierData = async () => {
       try {
-        // Set supplier email from props immediately if available
+        // CRITICAL FIX: Set supplier email from props immediately and persist it
         if (supplierEmail && supplierEmail !== 'lieferant@example.com') {
           console.log('Lieferanten-E-Mail aus Props:', supplierEmail);
           setEmailAddress(supplierEmail);
         } else {
-          // Try loading from order data if props don't have it
           console.log('Keine Lieferanten-E-Mail in Props, lade aus Bestelldaten');
         }
         
@@ -85,13 +84,15 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
           const orderData = await orderResponse.json();
           console.log('Bestelldaten geladen:', orderData);
           
-          // Set supplier email and ID - prioritize props over order data
+          // CRITICAL FIX: Only set email from order if not already set from props
           const supplierEmailFromOrder = orderData.supplier_email || orderData.supplierEmail;
-          if (!emailAddress && supplierEmailFromOrder && supplierEmailFromOrder !== 'lieferant@example.com') {
-            console.log('Lieferanten-E-Mail aus Bestellung gefunden:', supplierEmailFromOrder);
-            setEmailAddress(supplierEmailFromOrder);
-          } else if (emailAddress) {
-            console.log('Behalte bereits gesetzte E-Mail-Adresse:', emailAddress);
+          if (supplierEmailFromOrder && supplierEmailFromOrder !== 'lieferant@example.com') {
+            if (!emailAddress) {
+              console.log('Setze Lieferanten-E-Mail aus Bestellung:', supplierEmailFromOrder);
+              setEmailAddress(supplierEmailFromOrder);
+            } else {
+              console.log('E-Mail bereits gesetzt, nicht überschreiben:', emailAddress);
+            }
           }
           
           const supplierIdFromOrder = orderData.supplier_id || orderData.supplierId;

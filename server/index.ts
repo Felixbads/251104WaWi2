@@ -18,6 +18,7 @@ import ordersV4Router from './routes/orders-v4';
 import inventoryBatchesRouter from './routes/inventory-batches.js';
 import emailRouter from './routes/email';
 import supplierEmailTemplatesRouter from './routes/supplier-email-templates';
+import emailTemplateFixRouter from './routes/email-template-fix';
 import { pool } from './db';
 
 const app = express();
