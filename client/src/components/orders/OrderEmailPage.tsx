@@ -381,8 +381,11 @@ Ihr Proviantomat Team`);
             product_id: string | number;
             product_name: string;
             quantity: number;
-            price: number;
+            unit_price: number;
+            price?: number;
             unit: string;
+            vat_rate: number;
+            total_price: number;
           }
           
           const formattedItems = result.data.map((item: OrderItem) => ({
@@ -390,9 +393,11 @@ Ihr Proviantomat Team`);
             productId: item.product_id,
             productName: item.product_name || 'Unbekanntes Produkt',
             quantity: item.quantity || 0,
-            price: item.price || 0,
+            unit_price: item.unit_price || item.price || 0,
+            price: item.unit_price || item.price || 0,
             unit: item.unit || 'Stück',
-            totalPrice: (item.quantity || 0) * (item.price || 0)
+            vat_rate: item.vat_rate || 19,
+            totalPrice: item.total_price || (item.quantity || 0) * (item.unit_price || item.price || 0)
           }));
           
           setOrderItems(formattedItems);
@@ -567,7 +572,7 @@ Ihr Proviantomat Team`);
     return emailText
       .replace(/\{productTable\}/g, productTableHtml)
       .replace(/\{\{orderItems\}\}/g, productTableHtml)
-      .replace(/\{\{totalAmount\}\}/g, total.toFixed(2))
+      .replace(/\{\{totalAmount\}\}/g, totalGross.toFixed(2))
       .replace(/\{orderNumber\}/g, orderNumber || '')
       .replace(/\{deliveryDate\}/g, new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toLocaleDateString('de-DE'));
   };
