@@ -413,19 +413,20 @@ Elbsandstein Proviant & Quartier GmbH`;
     }
   });
   
-  // Fixed email routes for orders (ABSOLUTE HIGHEST PRIORITY)
+  const server = await registerRoutes(app);
+
+  // Email routes mounted AFTER registerRoutes to override any conflicts
+  const directEmailRouter = (await import('./routes/direct-email-send')).default;
+  app.use('/api/direct-email', directEmailRouter);
+  
   const ordersEmailFixRouter = (await import('./routes/orders-email-fix')).default;
   app.use('/api/orders', ordersEmailFixRouter);
   
-  // Enhanced email service with better error handling
   app.use('/api/enhanced-email', enhancedEmailRouter);
   
-  // E-Mail-Vorlagen für Lieferanten registrieren
   app.use('/api/supplier-email-templates', supplierEmailTemplatesRouter);
   
-app.use('/api', emailTemplateFixRouter);
-  
-  const server = await registerRoutes(app);
+  app.use('/api', emailTemplateFixRouter);
 
   // Fehlende API-Routen für den Bestellprozess hinzufügen
   

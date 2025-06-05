@@ -5,7 +5,9 @@ const router = Router();
 
 // Direct email sending route with complete isolation from other routers
 router.post('/send', async (req: Request, res: Response) => {
-  console.log('[DirectEmail] Isolated email send started');
+  console.log('[DirectEmail] Isolated email send started - ROUTE HIT!');
+  console.log('[DirectEmail] Request URL:', req.originalUrl);
+  console.log('[DirectEmail] Request method:', req.method);
   console.log('[DirectEmail] Request body:', JSON.stringify(req.body, null, 2));
   
   try {
