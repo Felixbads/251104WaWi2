@@ -68,7 +68,7 @@ router.get('/users', authenticate, requireAdmin, async (req: AuthRequest, res: R
 });
 
 // Einzelnen Benutzer abrufen
-router.get('/users/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.get('/users/:id', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const userId = parseInt(req.params.id);
     
@@ -93,7 +93,7 @@ router.get('/users/:id', requireAdmin, async (req: AuthRequest, res: Response) =
 });
 
 // Benutzer freigeben
-router.post('/users/:id/approve', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/users/:id/approve', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const userId = parseInt(req.params.id);
     
@@ -134,7 +134,7 @@ router.post('/users/:id/approve', requireAdmin, async (req: AuthRequest, res: Re
 });
 
 // Benutzerfreigabe zurücksetzen
-router.post('/users/:id/reset-approval', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/users/:id/reset-approval', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const userId = parseInt(req.params.id);
     
@@ -178,7 +178,7 @@ router.post('/users/:id/reset-approval', requireAdmin, async (req: AuthRequest, 
 });
 
 // Benutzerrolle ändern
-router.post('/users/:id/role', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.post('/users/:id/role', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const userId = parseInt(req.params.id);
     const { role } = req.body;
@@ -217,7 +217,7 @@ router.post('/users/:id/role', requireAdmin, async (req: AuthRequest, res: Respo
 });
 
 // Benutzer löschen
-router.delete('/users/:id', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.delete('/users/:id', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const userId = parseInt(req.params.id);
     
