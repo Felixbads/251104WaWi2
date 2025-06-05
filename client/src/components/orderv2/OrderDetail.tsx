@@ -15,6 +15,26 @@ interface OrderItem {
   unit: string;
   unit_price: number;
   total_price: number;
+  package_size?: number;
+  package_quantity?: number;
+  package_info?: string;
+  vat_rate?: number;
+  vat_amount?: number;
+  net_amount?: number;
+  gross_amount?: number;
+}
+
+interface VatGroup {
+  vatRate: number;
+  items: OrderItem[];
+  netTotal: number;
+  vatTotal: number;
+}
+
+interface OrderTotals {
+  net: number;
+  vat: number;
+  gross: number;
 }
 
 interface Order {
@@ -25,9 +45,13 @@ interface Order {
   supplier_name: string;
   supplier_email: string;
   warehouse_name: string;
+  warehouseName?: string;
   total_amount: number;
   expected_delivery_date?: string;
   notes?: string;
+  items: OrderItem[];
+  itemsByVat?: VatGroup[];
+  totals?: OrderTotals;
 }
 
 interface EmailTemplate {
@@ -64,30 +88,20 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
       setIsLoading(true);
       setError(null);
 
-      // Load order details
-      const orderResponse = await fetch(`${window.location.origin}/orders-data`);
+      // Load enhanced order details with packaging and VAT data
+      const orderResponse = await fetch(`/api/orders-direct/${orderId}`);
       if (!orderResponse.ok) {
-        throw new Error(`Failed to load orders: ${orderResponse.statusText}`);
+        throw new Error(`Failed to load order: ${orderResponse.statusText}`);
       }
 
-      const orders = await orderResponse.json();
-      const foundOrder = orders.find((o: any) => o.id === orderId);
+      const orderData = await orderResponse.json();
+      console.log('Loaded enhanced order data:', orderData);
       
-      if (!foundOrder) {
-        throw new Error('Bestellung nicht gefunden');
-      }
-
       setOrder({
-        id: foundOrder.id,
-        order_number: foundOrder.order_number || foundOrder.orderNumber || `#${foundOrder.id}`,
-        status: foundOrder.status || 'unknown',
-        created_at: foundOrder.created_at || foundOrder.createdAt,
-        supplier_name: foundOrder.supplier_name || foundOrder.supplierName || 'Unbekannter Lieferant',
-        supplier_email: foundOrder.supplier_email || foundOrder.supplierEmail || '',
-        warehouse_name: foundOrder.warehouse_name || foundOrder.warehouseName || 'Unbekanntes Lager',
-        total_amount: parseFloat(foundOrder.total_amount || foundOrder.totalAmount || 0),
-        expected_delivery_date: foundOrder.expected_delivery_date || foundOrder.expectedDeliveryDate,
-        notes: foundOrder.notes
+        ...orderData,
+        items: orderData.items || [],
+        warehouse_name: orderData.warehouseName || orderData.warehouse_name || 'Unbekanntes Lager',
+        supplier_name: orderData.supplierName || orderData.supplier_name || 'Unbekannter Lieferant'
       });
 
     } catch (error) {

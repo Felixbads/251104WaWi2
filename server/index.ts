@@ -489,8 +489,8 @@ Elbsandstein Proviant & Quartier GmbH`;
           COALESCE(oi.vat_rate, p.vat, 19) as vat_rate,
           -- Berechne Gebinde-basierte Mengen
           CASE 
-            WHEN p.package_size IS NOT NULL AND p.package_size > 0 
-            THEN CEIL(COALESCE(oi.quantity, 1)::float / p.package_size) * p.package_size
+            WHEN p.package_size IS NOT NULL AND p.package_size::integer > 0 
+            THEN CEIL(COALESCE(oi.quantity, 1)::float / p.package_size::integer) * p.package_size::integer
             ELSE COALESCE(oi.quantity, 1)
           END as package_quantity,
           -- Berechne MwSt-Beträge
