@@ -157,6 +157,60 @@ app.get('/orders-data', (req, res) => {
       });
     }
   });
+
+  // Orders-Data Endpunkt für die Bestellungsübersicht mit vollständigen Daten
+  app.get('/orders-data', async (req, res) => {
+    try {
+      console.log('GET /orders-data - Lade alle Bestellungen mit vollständigen Daten...');
+      
+      const result = await pool.query(`
+        SELECT 
+          o.*,
+          s.name as supplier_name,
+          s.email as supplier_email,
+          s.phone as supplier_phone,
+          s.address as supplier_address,
+          w.name as warehouse_name,
+          w.address as warehouse_address,
+          COALESCE(
+            (SELECT SUM(oi.total_price) FROM order_items oi WHERE oi.order_id = o.id),
+            0
+          ) as calculated_total_amount
+        FROM orders o
+        LEFT JOIN suppliers s ON o.supplier_id = s.id
+        LEFT JOIN warehouses w ON o.warehouse_id = w.id
+        ORDER BY o.created_at DESC
+      `);
+      
+      // Format data for frontend consumption with proper field mapping
+      const formattedData = result.rows.map(order => ({
+        ...order,
+        // Ensure both camelCase and snake_case fields are available for compatibility
+        supplierName: order.supplier_name || 'Unbekannter Lieferant',
+        supplier_name: order.supplier_name || 'Unbekannter Lieferant',
+        supplierEmail: order.supplier_email || '',
+        supplier_email: order.supplier_email || '',
+        warehouseName: order.warehouse_name || 'Unbekanntes Lager',
+        warehouse_name: order.warehouse_name || 'Unbekanntes Lager',
+        totalAmount: order.calculated_total_amount || order.total_amount || 0,
+        total_amount: order.calculated_total_amount || order.total_amount || 0,
+        // Format dates for display
+        orderDate: order.order_date || order.created_at,
+        order_date: order.order_date || order.created_at,
+        expectedDeliveryDate: order.expected_delivery_date,
+        expected_delivery_date: order.expected_delivery_date
+      }));
+      
+      console.log(`${formattedData.length} Bestellungen mit vollständigen Daten geladen`);
+      return res.json(formattedData);
+    } catch (error) {
+      console.error('Fehler beim Laden der Bestellungsdaten:', error);
+      return res.status(500).json({ 
+        error: 'Datenbankfehler', 
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+      });
+    }
+  });
   
   const server = await registerRoutes(app);
 
@@ -222,9 +276,16 @@ app.get('/orders-data', (req, res) => {
         });
       }
       
-      // Bestellpositionen laden
+      // Bestellpositionen laden mit korrekten Preisdaten
       const itemsResult = await pool.query(`
-        SELECT oi.*, p.product_name, p.sku, p.category
+        SELECT 
+          oi.*,
+          p.product_name, 
+          p.sku, 
+          p.category,
+          COALESCE(oi.unit_price, 0) as unit_price,
+          COALESCE(oi.total_price, 0) as total_price,
+          COALESCE(oi.quantity, 1) as quantity
         FROM order_items oi
         LEFT JOIN products p ON oi.product_id = p.id
         WHERE oi.order_id = $1

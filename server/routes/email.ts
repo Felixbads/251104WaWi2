@@ -241,14 +241,22 @@ router.get('/orders/:id/email-template', async (req, res) => {
       new Date(order.expectedDeliveryDate).toLocaleDateString('de-DE') : 
       'Noch nicht festgelegt';
     
-    // Bestellpositionen formatieren
+    // Bestellpositionen formatieren mit korrekten Preisdaten
     let itemsList = '';
     let totalAmount = 0;
     
     orderItems.forEach(item => {
-      const itemTotal = item.quantity * item.unitPrice;
+      // Sichere Preisberechnung mit Fallbacks
+      const unitPrice = parseFloat(item.unitPrice || item.unit_price || 0);
+      const quantity = parseInt(item.quantity || 1);
+      const itemTotal = quantity * unitPrice;
       totalAmount += itemTotal;
-      itemsList += `<li>${item.quantity} ${item.unit} ${item.productName} (${item.unitPrice.toFixed(2)} € je ${item.unit})</li>`;
+      
+      // Produktname mit Fallback
+      const productName = item.productName || item.product_name || `Produkt-ID ${item.productId || item.product_id}`;
+      const unit = item.unit || 'Stk';
+      
+      itemsList += `<li>${quantity} ${unit} ${productName} (${unitPrice.toFixed(2)} € je ${unit})</li>`;
     });
     
     // Vollständige E-Mail mit allen Bestelldaten erstellen
