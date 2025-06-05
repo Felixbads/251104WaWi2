@@ -238,7 +238,11 @@ Steuernummer: 202/108/12994`,
             Verwalten Sie E-Mail-Vorlagen für Bestellungen an {supplierName}
           </p>
         </div>
-        <Button onClick={() => setIsCreating(true)} className="flex items-center gap-2">
+        <Button onClick={() => {
+          setFormData(defaultFormData);
+          setEditingTemplate(null);
+          setIsCreating(true);
+        }} className="flex items-center gap-2">
           <Plus className="h-4 w-4" />
           Neue Vorlage
         </Button>
