@@ -13,6 +13,7 @@ import {
   inventoryItems,
   productBatches
 } from '../../shared/schema';
+import { createAndSendOrderEmail } from '../utils/orderEmailUtils';
 // Direkte sendEmail Funktion anstelle des Imports
 function sendEmail(to: string, from: string, subject: string, html: string) {
   // Einfache E-Mail-Sende-Funktion
@@ -1009,12 +1010,10 @@ router.post('/orders/:id/send-email', async (req: Request, res: Response) => {
     
     let result;
     try {
-      // Neue optimierte E-Mail-Funktion verwenden
-      const orderEmailUtils = await import('../utils/orderEmailUtils');
-      console.log('[DEBUG] orderEmailUtils imported successfully');
+      console.log('[DEBUG] Using direct email function call');
       
-      // E-Mail senden mit der neuen Utility-Funktion
-      result = await orderEmailUtils.createAndSendOrderEmail(
+      // E-Mail senden mit der importierten Utility-Funktion
+      result = await createAndSendOrderEmail(
         orderId,
         to,
         subject,
@@ -1023,9 +1022,11 @@ router.post('/orders/:id/send-email', async (req: Request, res: Response) => {
       );
       
       console.log(`[DEBUG] Email sending result: ${result}`);
-    } catch (importError) {
-      console.error('[DEBUG] Error importing orderEmailUtils:', importError);
-      throw importError;
+    } catch (emailError) {
+      console.error('[DEBUG] Error sending email:', emailError);
+      console.error('[DEBUG] Error message:', emailError.message);
+      console.error('[DEBUG] Error stack:', emailError.stack);
+      throw emailError;
     }
     
     if (result) {
