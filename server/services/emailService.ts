@@ -4,7 +4,8 @@ import nodemailer from 'nodemailer';
 import Mail from 'nodemailer/lib/mailer';
 
 // SMTP-Konfiguration - standardmäßig aktiviert, wenn SMTP-Einstellungen vorhanden sind
-const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD);
+const smtpPassword = process.env.SMTP_PASSWORD || process.env.SMTP_PASS;
+const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && smtpPassword);
 console.log(`SMTP-Konfiguration: ${smtpConfigured ? 'Verfügbar' : 'Nicht verfügbar'}`);
 
 // Einrichtung für Nodemailer (SMTP)
@@ -19,7 +20,7 @@ if (smtpConfigured) {
       secure: false, // STARTTLS für Port 587
       auth: {
         user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASSWORD,
+        pass: smtpPassword,
       },
       // Optimiert für KAS-Server
       requireTLS: true,
