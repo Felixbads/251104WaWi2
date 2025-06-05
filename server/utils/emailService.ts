@@ -1,0 +1,139 @@
+import { MailService } from '@sendgrid/mail';
+
+if (!process.env.SENDGRID_API_KEY) {
+  console.warn("SENDGRID_API_KEY environment variable not set. Email functionality will be disabled.");
+}
+
+const mailService = new MailService();
+if (process.env.SENDGRID_API_KEY) {
+  mailService.setApiKey(process.env.SENDGRID_API_KEY);
+}
+
+interface EmailParams {
+  to: string;
+  cc?: string;
+  bcc?: string;
+  from: string;
+  subject: string;
+  text?: string;
+  html?: string;
+}
+
+export async function sendEmail(params: EmailParams): Promise<boolean> {
+  if (!process.env.SENDGRID_API_KEY) {
+    console.error('SendGrid API key not configured');
+    return false;
+  }
+
+  try {
+    const emailData: any = {
+      to: params.to,
+      from: params.from,
+      subject: params.subject,
+    };
+
+    if (params.cc) {
+      emailData.cc = params.cc.split(',').map(email => email.trim()).filter(email => email);
+    }
+
+    if (params.bcc) {
+      emailData.bcc = params.bcc.split(',').map(email => email.trim()).filter(email => email);
+    }
+
+    if (params.text) {
+      emailData.text = params.text;
+    }
+
+    if (params.html) {
+      emailData.html = params.html;
+    }
+
+    await mailService.send(emailData);
+    return true;
+  } catch (error) {
+    console.error('SendGrid email error:', error);
+    return false;
+  }
+}
+
+export function formatOrderDate(date: Date): string {
+  return date.toLocaleDateString('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+}
+
+export function generateDefaultEmailTemplate(orderData: any): string {
+  const { order, orderItems, warehouse, supplier } = orderData;
+  
+  return `
+    <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .header { background-color: #f4f4f4; padding: 20px; text-align: center; }
+          .content { padding: 20px; }
+          .order-details { background-color: #f9f9f9; padding: 15px; margin: 15px 0; }
+          .item-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+          .item-table th, .item-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+          .item-table th { background-color: #f2f2f2; }
+          .footer { background-color: #f4f4f4; padding: 15px; margin-top: 20px; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h2>Neue Bestellung</h2>
+        </div>
+        
+        <div class="content">
+          <div class="order-details">
+            <h3>Bestelldetails</h3>
+            <p><strong>Bestellnummer:</strong> ${order.orderNumber || order.id}</p>
+            <p><strong>Bestelldatum:</strong> ${formatOrderDate(new Date(order.orderDate))}</p>
+            <p><strong>Gewünschter Liefertermin:</strong> ${order.expectedDeliveryDate ? formatOrderDate(new Date(order.expectedDeliveryDate)) : 'Nicht angegeben'}</p>
+            <p><strong>Lieferort:</strong> ${warehouse?.name || 'Nicht angegeben'}</p>
+            ${order.comments ? `<p><strong>Kommentare:</strong> ${order.comments}</p>` : ''}
+          </div>
+
+          <h3>Bestellte Artikel</h3>
+          <table class="item-table">
+            <thead>
+              <tr>
+                <th>Artikel</th>
+                <th>Menge</th>
+                <th>Gebindegröße</th>
+                <th>Einzelpreis</th>
+                <th>Gesamtpreis</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${orderItems.map((item: any) => `
+                <tr>
+                  <td>${item.productName || 'Unbekanntes Produkt'}</td>
+                  <td>${item.quantity}</td>
+                  <td>${item.packageSize || '-'}</td>
+                  <td>${item.unitPrice?.toFixed(2) || '0.00'} €</td>
+                  <td>${item.totalPrice?.toFixed(2) || '0.00'} €</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="order-details">
+            <p><strong>Gesamtsumme:</strong> ${order.totalAmount?.toFixed(2) || '0.00'} €</p>
+          </div>
+        </div>
+
+        <div class="footer">
+          <p>Diese Bestellung wurde automatisch über das Bestellsystem erstellt.</p>
+          <p>Bei Fragen wenden Sie sich bitte an: einkauf@proviantomat.de</p>
+        </div>
+      </body>
+    </html>
+  `;
+}
+
+export function generateDefaultSubject(orderDate: Date): string {
+  return `Bestellung vom ${formatOrderDate(orderDate)}`;
+}

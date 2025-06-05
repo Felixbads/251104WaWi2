@@ -1,303 +1,200 @@
-import express from 'express';
-import { storage } from '../storage';
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
-import fs from 'fs';
-import path from 'path';
-import { sendEmail } from '../services/emailService';
+import { Router, Request, Response } from 'express';
 import { z } from 'zod';
+import { db } from '../db';
+import { orders, orderItems, suppliers, warehouses, products } from '../../shared/schema';
+import { eq } from 'drizzle-orm';
+import { sendEmail, generateDefaultEmailTemplate, generateDefaultSubject, formatOrderDate } from '../utils/emailService';
 
-const router = express.Router();
+const router = Router();
 
-// Für die Entwicklung: keine Authentifizierung erforderlich
-
-// E-Mail-Templates API
-const templates = [
-  {
-    id: 1,
-    name: 'Standard Bestellung',
-    subject: 'Neue Bestellung {{orderNumber}} von Elbsandstein Proviant & Quartier GmbH',
-    content: `Sehr geehrte Damen und Herren,
-
-hiermit senden wir Ihnen unsere Bestellung mit der Nummer {{orderNumber}}.
-
-Details entnehmen Sie bitte dem angehängten PDF-Dokument.
-
-Mit freundlichen Grüßen
-Elbsandstein Proviant & Quartier GmbH`
-  },
-  {
-    id: 2,
-    name: 'Dringende Bestellung',
-    subject: 'DRINGEND: Bestellung {{orderNumber}} von Elbsandstein Proviant & Quartier GmbH',
-    content: `Sehr geehrte Damen und Herren,
-
-hiermit senden wir Ihnen unsere DRINGENDE Bestellung mit der Nummer {{orderNumber}}.
-
-Bitte beachten Sie, dass wir die Ware bis zum angegeben Liefertermin benötigen.
-Details entnehmen Sie bitte dem angehängten PDF-Dokument.
-
-Mit freundlichen Grüßen
-Elbsandstein Proviant & Quartier GmbH`
-  },
-  {
-    id: 3,
-    name: 'Nachbestellung',
-    subject: 'Nachbestellung {{orderNumber}} von Elbsandstein Proviant & Quartier GmbH',
-    content: `Sehr geehrte Damen und Herren,
-
-hiermit senden wir Ihnen unsere Nachbestellung mit der Nummer {{orderNumber}}.
-
-Diese Bestellung ergänzt unsere vorherige Bestellung. Details entnehmen Sie bitte dem angehängten PDF-Dokument.
-
-Mit freundlichen Grüßen
-Elbsandstein Proviant & Quartier GmbH`
-  }
-];
-
-// API zum Abrufen aller E-Mail-Templates
-router.get('/mail-templates', (req, res) => {
-  // Sende eine Liste aller verfügbaren Templates
-  res.json(templates.map(template => ({
-    id: template.id,
-    name: template.name
-  })));
+// Email sending schema
+const sendOrderEmailSchema = z.object({
+  orderId: z.number(),
+  to: z.string().email("Ungültige E-Mail-Adresse"),
+  cc: z.string().optional(),
+  bcc: z.string().optional(),
+  subject: z.string().min(1, "Betreff ist erforderlich"),
+  htmlContent: z.string().optional(),
+  useTemplate: z.boolean().default(true),
 });
 
-// API zum Abrufen eines spezifischen E-Mail-Templates
-router.get('/mail-templates/:id', (req, res) => {
-  const templateId = parseInt(req.params.id);
-  const template = templates.find(t => t.id === templateId);
-  
-  if (!template) {
-    return res.status(404).json({ error: 'Template nicht gefunden' });
-  }
-  
-  res.json(template);
-});
-
-// API zum Senden einer E-Mail mit Bestellung
-router.post('/orders/:id/send-email', async (req, res) => {
-  console.log(`[EMAIL ROUTE] POST /orders/${req.params.id}/send-email aufgerufen`);
-  console.log(`[EMAIL ROUTE] Request body:`, req.body);
+// Send order email endpoint
+router.post('/send-order-email', async (req: Request, res: Response) => {
   try {
-    const orderId = parseInt(req.params.id);
-    const { to, supplierEmail, subject, content, additionalNotes } = req.body;
-    const emailAddress = to || supplierEmail; // Frontend sendet 'to', Backend erwartet 'supplierEmail'
+    const emailData = sendOrderEmailSchema.parse(req.body);
     
-    // Validiere die Anfrage
-    if (!emailAddress || !emailAddress.includes('@')) {
-      return res.status(400).json({ error: 'Ungültige E-Mail-Adresse' });
-    }
+    // Get order details with related data
+    const [order] = await db.select().from(orders).where(eq(orders.id, emailData.orderId));
     
-    // Bestellung aus der Datenbank abrufen
-    const order = await storage.getOrder(orderId);
     if (!order) {
       return res.status(404).json({ error: 'Bestellung nicht gefunden' });
     }
-    
-    // Bestellpositionen abrufen
-    const orderItems = await storage.getOrderItems(orderId);
-    console.log(`${orderItems.length} Bestellpositionen gefunden für Bestellung ${order.orderNumber}`);
-    
-    // Formatiere die Bestellpositionen als Text
-    let itemsText = '';
-    if (orderItems.length > 0) {
-      itemsText = '\nBestellpositionen:\n';
-      itemsText += '----------------------------------------------------\n';
-      itemsText += 'Pos | Produktname | Menge | Einzelpreis | Gesamtpreis\n';
-      itemsText += '----------------------------------------------------\n';
-      
-      orderItems.forEach((item, index) => {
-        const unitPrice = item.unitPrice ? `${item.unitPrice.toFixed(2)} €` : 'k.A.';
-        const totalPrice = item.totalPrice ? `${item.totalPrice.toFixed(2)} €` : 'k.A.';
-        itemsText += `${index + 1} | ${item.productName} | ${item.quantity} ${item.unit || 'stk'} | ${unitPrice} | ${totalPrice}\n`;
-      });
-      
-      // Gesamtsumme
-      const totalAmount = orderItems.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
-      itemsText += '----------------------------------------------------\n';
-      itemsText += `Gesamtbetrag: ${totalAmount.toFixed(2)} €\n\n`;
-    } else {
-      itemsText = '\nKeine Bestellpositionen vorhanden.\n\n';
-    }
-    
-    // Lieferantendaten anzeigen, falls vorhanden
-    let supplierText = '';
-    if (order.supplierName) {
-      supplierText = `\nLieferant: ${order.supplierName}\n`;
-    }
-    
-    // Lieferdatum anzeigen, falls vorhanden
-    let deliveryText = '';
-    if (order.expectedDeliveryDate) {
-      const deliveryDate = new Date(order.expectedDeliveryDate);
-      deliveryText = `\nGewünschtes Lieferdatum: ${deliveryDate.toLocaleDateString('de-DE')}\n`;
-    }
-    
-    // E-Mail mit Bestelldetails im Text senden
-    console.log(`Sende E-Mail an ${emailAddress}...`);
-    const emailContent = content || `Sehr geehrte Damen und Herren,
 
-hiermit senden wir Ihnen unsere Bestellung mit der Nummer ${order.orderNumber}.
+    // Get order items with product details
+    const items = await db
+      .select({
+        id: orderItems.id,
+        productId: orderItems.productId,
+        quantity: orderItems.quantity,
+        unitPrice: orderItems.unitPrice,
+        totalPrice: orderItems.totalPrice,
+        vatRate: orderItems.vatRate,
+        productName: products.productName,
+        packageSize: products.packageSize,
+      })
+      .from(orderItems)
+      .leftJoin(products, eq(orderItems.productId, products.id))
+      .where(eq(orderItems.orderId, emailData.orderId));
 
-${supplierText}${deliveryText}
-${additionalNotes ? `Anmerkungen: ${additionalNotes}\n\n` : ''}
-${itemsText}
-Mit freundlichen Grüßen
-Elbsandstein Proviant & Quartier GmbH`;
-
-    const emailSent = await sendEmail({
-      to: emailAddress,
-      subject: subject || `Bestellung ${order.orderNumber} von Elbsandstein Proviant & Quartier GmbH`,
-      text: emailContent,
-      // Keine Anhänge mehr
-    });
-
-    // Zusätzlich Kopie an Notification-Email senden (falls konfiguriert)
-    const notificationEmail = process.env.NOTIFICATION_EMAIL;
-    if (notificationEmail && notificationEmail !== emailAddress) {
-      console.log(`Sende Kopie an ${notificationEmail}...`);
-      await sendEmail({
-        to: notificationEmail,
-        subject: `[KOPIE] ${subject || `Bestellung ${order.orderNumber} von Elbsandstein Proviant & Quartier GmbH`}`,
-        text: `KOPIE der Bestellung, die an ${emailAddress} gesendet wurde:
-
-${emailContent}`,
-      });
+    // Get supplier details
+    let supplier = null;
+    if (order.supplierId) {
+      [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, order.supplierId));
     }
-    
-    console.log(`E-Mail-Versand Status: ${emailSent ? 'Erfolgreich' : 'Fehlgeschlagen'}`);
-    
-    // Wenn kein SMTP-Server konfiguriert ist, zeige Hinweis an
-    if (!process.env.SMTP_HOST) {
-      console.log('HINWEIS: SMTP nicht konfiguriert - E-Mail wurde nur simuliert');
+
+    // Get warehouse details
+    let warehouse = null;
+    if (order.warehouseId) {
+      [warehouse] = await db.select().from(warehouses).where(eq(warehouses.id, order.warehouseId));
     }
+
+    // Generate email content
+    let htmlContent = emailData.htmlContent;
     
-    // Bestellung als "gesendet" markieren
-    try {
-      if (storage.markOrderAsSent) {
-        const updatedOrder = await storage.markOrderAsSent(orderId);
-        console.log(`Bestellung ${orderId} auf "sent" gesetzt:`, updatedOrder?.status);
-        
-        if (!updatedOrder) {
-          console.error(`Fehler: Bestellung mit ID ${orderId} nicht gefunden`);
-        } else if (updatedOrder.status !== 'sent') {
-          console.error(`Status wurde nicht korrekt aktualisiert, bleibt: ${updatedOrder.status}`);
-        }
+    if (emailData.useTemplate && !htmlContent) {
+      // Use supplier template if available, otherwise default template
+      if (supplier?.emailTemplate) {
+        htmlContent = supplier.emailTemplate
+          .replace(/\{orderNumber\}/g, order.orderNumber || order.id.toString())
+          .replace(/\{orderDate\}/g, formatOrderDate(new Date(order.orderDate)))
+          .replace(/\{expectedDeliveryDate\}/g, order.expectedDeliveryDate ? formatOrderDate(new Date(order.expectedDeliveryDate)) : 'Nicht angegeben')
+          .replace(/\{warehouseName\}/g, warehouse?.name || 'Nicht angegeben')
+          .replace(/\{comments\}/g, order.comments || '')
+          .replace(/\{totalAmount\}/g, order.totalAmount?.toFixed(2) || '0.00');
       } else {
-        console.warn('Methode markOrderAsSent nicht verfügbar');
+        htmlContent = generateDefaultEmailTemplate({
+          order,
+          orderItems: items,
+          warehouse,
+          supplier
+        });
       }
-    } catch (error) {
-      console.error(`Fehler beim Aktualisieren des Bestellstatus:`, error);
-      // Trotzdem fortfahren, da die E-Mail ja versendet wurde
+    }
+
+    // Default from email
+    const fromEmail = 'einkauf@proviantomat.de';
+    
+    // Default CC emails
+    let ccEmails = 'andreas@proviantomat.de,einkauf@proviantomat.de';
+    if (emailData.cc) {
+      ccEmails = emailData.cc;
+    }
+
+    // Send email
+    const emailSent = await sendEmail({
+      to: emailData.to,
+      cc: ccEmails,
+      bcc: emailData.bcc,
+      from: fromEmail,
+      subject: emailData.subject,
+      html: htmlContent,
+    });
+
+    if (emailSent) {
+      // Update order status to indicate email was sent
+      await db
+        .update(orders)
+        .set({ 
+          status: 'sent',
+          updatedAt: new Date()
+        })
+        .where(eq(orders.id, emailData.orderId));
+
+      res.json({ 
+        success: true, 
+        message: 'E-Mail erfolgreich gesendet'
+      });
+    } else {
+      res.status(500).json({ 
+        error: 'Fehler beim Senden der E-Mail'
+      });
+    }
+
+  } catch (error) {
+    console.error('Email sending error:', error);
+    
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ 
+        error: 'Ungültige E-Mail-Daten', 
+        details: error.errors 
+      });
     }
     
-    // SMTP-Konfiguration prüfen und entsprechende Nachricht zurückgeben
-    const smtpConfigured = process.env.SMTP_HOST && process.env.SMTP_USER;
-    const message = smtpConfigured 
-      ? 'E-Mail erfolgreich versendet' 
-      : 'E-Mail-Versand simuliert (kein SMTP-Server konfiguriert)';
-    
-    res.json({ 
-      success: true, 
-      message: message,
-      orderStatus: 'sent',
-      emailSimulated: !smtpConfigured
+    res.status(500).json({ 
+      error: 'Interner Serverfehler beim Senden der E-Mail',
+      details: error instanceof Error ? error.message : String(error)
     });
-  } catch (error: any) {
-    console.error('Fehler beim Senden der E-Mail:', error);
-    res.status(500).json({ error: `Fehler beim Senden der E-Mail: ${error.message}` });
   }
 });
 
-// API zum Abrufen einer vollständigen E-Mail-Vorlage für eine Bestellung
-router.get('/orders/:id/email-template', async (req, res) => {
+// Get email template for supplier
+router.get('/supplier-template/:supplierId', async (req: Request, res: Response) => {
   try {
-    const orderId = parseInt(req.params.id);
-    const templateType = req.query.type || 'standard';
+    const supplierId = parseInt(req.params.supplierId);
     
-    // Bestellung aus der Datenbank abrufen
-    const order = await storage.getOrder(orderId);
+    if (isNaN(supplierId)) {
+      return res.status(400).json({ error: 'Ungültige Lieferanten-ID' });
+    }
+
+    const [supplier] = await db.select().from(suppliers).where(eq(suppliers.id, supplierId));
+    
+    if (!supplier) {
+      return res.status(404).json({ error: 'Lieferant nicht gefunden' });
+    }
+
+    res.json({
+      emailTemplate: supplier.emailTemplate || '',
+      emailSubjectTemplate: supplier.emailSubjectTemplate || '',
+      orderEmailRecipient: supplier.orderEmailRecipient || supplier.email || '',
+      orderEmailCc: supplier.orderEmailCc || 'andreas@proviantomat.de,einkauf@proviantomat.de',
+      orderEmailBcc: supplier.orderEmailBcc || '',
+      emailSignature: supplier.emailSignature || '',
+    });
+
+  } catch (error) {
+    console.error('Error fetching supplier template:', error);
+    res.status(500).json({ 
+      error: 'Fehler beim Laden der E-Mail-Vorlage',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Generate default subject with order date
+router.post('/generate-subject', async (req: Request, res: Response) => {
+  try {
+    const { orderId } = req.body;
+    
+    if (!orderId) {
+      return res.status(400).json({ error: 'Bestell-ID ist erforderlich' });
+    }
+
+    const [order] = await db.select().from(orders).where(eq(orders.id, orderId));
+    
     if (!order) {
       return res.status(404).json({ error: 'Bestellung nicht gefunden' });
     }
 
-    // Bestellpositionen abrufen
-    const orderItems = await storage.getOrderItems(orderId);
+    const subject = generateDefaultSubject(new Date(order.orderDate));
     
-    // Passende Vorlage finden
-    let template;
-    if (templateType === 'dringend') {
-      template = templates[1]; // Dringende Bestellung
-    } else if (templateType === 'nachbestellung') {
-      template = templates[2]; // Nachbestellung
-    } else {
-      template = templates[0]; // Standard
-    }
-    
-    // Vollständige Bestelldetails für E-Mail zusammenstellen
-    const orderDate = new Date(order.createdAt).toLocaleDateString('de-DE');
-    const deliveryDate = order.expectedDeliveryDate ? 
-      new Date(order.expectedDeliveryDate).toLocaleDateString('de-DE') : 
-      'Noch nicht festgelegt';
-    
-    // Bestellpositionen formatieren mit korrekten Preisdaten
-    let itemsList = '';
-    let totalAmount = 0;
-    
-    orderItems.forEach(item => {
-      // Sichere Preisberechnung mit Fallbacks
-      const unitPrice = parseFloat(item.unitPrice || item.unit_price || 0);
-      const quantity = parseInt(item.quantity || 1);
-      const itemTotal = quantity * unitPrice;
-      totalAmount += itemTotal;
-      
-      // Produktname mit Fallback
-      const productName = item.productName || item.product_name || `Produkt-ID ${item.productId || item.product_id}`;
-      const unit = item.unit || 'Stk';
-      
-      itemsList += `<li>${quantity} ${unit} ${productName} (${unitPrice.toFixed(2)} € je ${unit})</li>`;
+    res.json({ subject });
+
+  } catch (error) {
+    console.error('Error generating subject:', error);
+    res.status(500).json({ 
+      error: 'Fehler beim Generieren des Betreffs',
+      details: error instanceof Error ? error.message : String(error)
     });
-    
-    // Vollständige E-Mail mit allen Bestelldaten erstellen
-    let subject = template.subject.replace('{{orderNumber}}', order.orderNumber);
-    
-    let content = `Sehr geehrte Damen und Herren,
-
-hiermit bestellen wir folgende Artikel:
-
-<ul>${itemsList}</ul>
-
-<strong>Bestelldetails:</strong>
-• Bestellnummer: ${order.orderNumber}
-• Bestelldatum: ${orderDate}
-• Gewünschter Liefertermin: ${deliveryDate}
-• Gesamtwert: ${totalAmount.toFixed(2)} €
-• Priorität: ${order.priority || 'Normal'}
-
-${order.notes ? `<strong>Zusätzliche Hinweise:</strong>\n${order.notes}\n\n` : ''}
-
-Bitte bestätigen Sie den Eingang dieser Bestellung.
-
-Mit freundlichen Grüßen
-Ihr Proviantomat Team`;
-    
-    res.json({
-      subject,
-      content,
-      availableTemplates: templates.map(t => ({ id: t.id, name: t.name })),
-      orderDetails: {
-        orderNumber: order.orderNumber,
-        orderDate,
-        deliveryDate,
-        totalAmount: totalAmount.toFixed(2),
-        itemsCount: orderItems.length,
-        supplierName: order.supplierName
-      }
-    });
-  } catch (error: any) {
-    console.error('Fehler beim Laden der E-Mail-Vorlage:', error);
-    res.status(500).json({ error: `Fehler beim Laden der E-Mail-Vorlage: ${error.message}` });
   }
 });
 

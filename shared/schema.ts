@@ -85,6 +85,13 @@ export const suppliers = pgTable("suppliers", {
   taxId: text("tax_id"),
   accountNumber: text("account_number"),
   bankDetails: text("bank_details"),
+  // Email template fields
+  emailTemplate: text("email_template"), // HTML email template for orders
+  emailSubjectTemplate: text("email_subject_template"), // Subject line template
+  orderEmailRecipient: text("order_email_recipient"), // Primary recipient email
+  orderEmailCc: text("order_email_cc"), // CC recipients (comma-separated)
+  orderEmailBcc: text("order_email_bcc"), // BCC recipients (comma-separated)
+  emailSignature: text("email_signature"), // Custom email signature
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -112,6 +119,13 @@ export const insertSupplierSchema = createInsertSchema(suppliers)
     taxId: z.string().optional().nullable().or(z.literal("")),
     accountNumber: z.string().optional().nullable().or(z.literal("")),
     bankDetails: z.string().optional().nullable().or(z.literal("")),
+    // Email template fields
+    emailTemplate: z.string().optional().nullable().or(z.literal("")),
+    emailSubjectTemplate: z.string().optional().nullable().or(z.literal("")),
+    orderEmailRecipient: z.string().email("Ungültige E-Mail-Adresse").optional().or(z.literal("")),
+    orderEmailCc: z.string().optional().nullable().or(z.literal("")),
+    orderEmailBcc: z.string().optional().nullable().or(z.literal("")),
+    emailSignature: z.string().optional().nullable().or(z.literal("")),
   });
 
 export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
