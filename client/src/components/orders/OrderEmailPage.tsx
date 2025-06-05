@@ -58,147 +58,54 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [supplierId, setSupplierId] = useState<number | null>(null);
 
-  // Load order data and supplier information on component mount
+  // Load complete email data using the new fixed API endpoint
   useEffect(() => {
     if (!orderId) return;
     
-    const loadOrderAndSupplierData = async () => {
+    const loadEmailData = async () => {
+      setIsLoading(true);
+      setError(null);
+      
       try {
-        // CRITICAL FIX: Set supplier email from props immediately and persist it
-        if (supplierEmail && supplierEmail !== 'lieferant@example.com') {
-          console.log('Lieferanten-E-Mail aus Props:', supplierEmail);
-          setEmailAddress(supplierEmail);
-        } else {
-          console.log('Keine Lieferanten-E-Mail in Props, lade aus Bestelldaten');
-        }
+        console.log(`Lade vollständige E-Mail-Daten für Bestellung ${orderId} mit neuer API`);
         
-        // Load order data to get supplier information
         const authToken = localStorage.getItem('auth_token') || localStorage.getItem('authToken');
-        const orderResponse = await fetch(`/api/orders/${orderId}`, {
+        const response = await fetch(`/api/orders/${orderId}/email-data`, {
           headers: {
             ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
           }
         });
         
-        if (orderResponse.ok) {
-          const orderData = await orderResponse.json();
-          console.log('Bestelldaten geladen:', orderData);
+        if (!response.ok) {
+          throw new Error(`Fehler beim Laden der E-Mail-Daten: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Neue E-Mail-API Daten geladen:', data);
+        
+        if (data.success) {
+          setOrderDetails(data);
           
-          // CRITICAL FIX: Only set email from order if not already set from props
-          const supplierEmailFromOrder = orderData.supplier_email || orderData.supplierEmail;
-          if (supplierEmailFromOrder && supplierEmailFromOrder !== 'lieferant@example.com') {
-            if (!emailAddress) {
-              console.log('Setze Lieferanten-E-Mail aus Bestellung:', supplierEmailFromOrder);
-              setEmailAddress(supplierEmailFromOrder);
-            } else {
-              console.log('E-Mail bereits gesetzt, nicht überschreiben:', emailAddress);
-            }
-          }
+          // Set email addresses from supplier master data
+          const correctSupplierEmail = data.supplier.email || supplierEmail || '';
+          console.log('Korrekte Lieferanten-E-Mail gefunden:', correctSupplierEmail);
+          setEmailAddress(correctSupplierEmail);
+          setCcEmails(data.supplier.ccEmails || 'andreas@proviantomat.de,einkauf@proviantomat.de');
           
-          const supplierIdFromOrder = orderData.supplier_id || orderData.supplierId;
-          setSupplierId(supplierIdFromOrder);
-          
-          // Load supplier email templates if supplier ID is available
-          if (supplierIdFromOrder) {
-            try {
-              const templatesResponse = await fetch(`/api/supplier-email-templates/${supplierIdFromOrder}`, {
-                headers: {
-                  ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
-                }
-              });
-              
-              if (templatesResponse.ok) {
-                const templatesRaw = await templatesResponse.json();
-                console.log('E-Mail-Vorlagen (Roh) geladen:', templatesRaw);
-                
-                // Transform database templates to match expected format
-                const templates = templatesRaw.map((template: any) => ({
-                  id: template.id,
-                  name: template.template_name,
-                  subject: template.subject_template,
-                  body: template.content_template,
-                  isDefault: template.is_default,
-                  templateType: template.template_type
-                }));
-                
-                console.log('E-Mail-Vorlagen (transformiert):', templates);
-                setAvailableTemplates(templates);
-                
-                // Select default template if available
-                const defaultTemplate = templates.find((t: any) => t.isDefault && t.templateType === 'standard');
-                if (defaultTemplate) {
-                  console.log('Standard-Vorlage für Lieferant gefunden:', defaultTemplate.name);
-                  setSelectedTemplate(defaultTemplate);
-                } else if (templates.length > 0) {
-                  console.log('Erste verfügbare Vorlage verwenden:', templates[0].name);
-                  setSelectedTemplate(templates[0]);
-                }
-              } else {
-                console.log('Keine lieferantenspezifischen Vorlagen gefunden, verwende Standard-Vorlage');
-                // Create a standard template using the user's uploaded template
-                const standardTemplate = {
-                  id: 'standard',
-                  name: 'Standard-Vorlage',
-                  subject: `Bestellung {orderNumber} – Lieferung am {deliveryDate}`,
-                  body: `Sehr geehrte Damen und Herren,
-
-hiermit bestellen wir folgende Artikel:
-
-{productTable}
-
-Liefertermin: {deliveryDate}
-Bestellnummer: {orderNumber}
-
-Lieferanschrift:
-Elbsandstein Proviant & Quartier GmbH
-Bahnhofstraße 10
-01796 Pirna
-
-Bei Rückfragen stehen wir Ihnen gerne zur Verfügung.
-
-Mit freundlichen Grüßen
-Elbsandstein Proviant & Quartier GmbH
-USt-IdNr.: DE353967134`,
-                  isDefault: true,
-                  templateType: 'standard'
-                };
-                setAvailableTemplates([standardTemplate]);
-                setSelectedTemplate(standardTemplate);
-              }
-            } catch (error) {
-              console.error('Fehler beim Laden der E-Mail-Vorlagen:', error);
-              // Create a standard template using the user's uploaded template
-              const standardTemplate = {
-                id: 'standard',
-                name: 'Standard-Vorlage',
-                subject: `Bestellung {orderNumber} – Lieferung am {deliveryDate}`,
-                body: `Sehr geehrte Damen und Herren,
-
-hiermit bestellen wir folgende Artikel:
-
-{productTable}
-
-Liefertermin: {deliveryDate}
-Bestellnummer: {orderNumber}
-
-Lieferanschrift:
-Elbsandstein Proviant & Quartier GmbH
-Bahnhofstraße 10
-01796 Pirna
-
-Bei Rückfragen stehen wir Ihnen gerne zur Verfügung.
-
-Mit freundlichen Grüßen
-Elbsandstein Proviant & Quartier GmbH
-USt-IdNr.: DE353967134`,
-                isDefault: true,
-                templateType: 'standard'
-              };
-              setAvailableTemplates([standardTemplate]);
-              setSelectedTemplate(standardTemplate);
+          // Set available templates
+          if (data.emailTemplates && data.emailTemplates.length > 0) {
+            console.log('E-Mail-Vorlagen verfügbar:', data.emailTemplates.length);
+            setAvailableTemplates(data.emailTemplates);
+            
+            // Find and apply default template
+            const defaultTemplate = data.emailTemplates.find(t => t.isDefault) || data.emailTemplates[0];
+            if (defaultTemplate) {
+              console.log('Verwende Standard-Vorlage:', defaultTemplate.name);
+              setSelectedTemplate(defaultTemplate);
+              await generateEmailFromTemplate(defaultTemplate.id, data);
             }
           } else {
-            // No supplier ID found, use standard template
+            // Create default template if no templates available
             const standardTemplate = {
               id: 'standard',
               name: 'Standard-Vorlage',
@@ -207,10 +114,10 @@ USt-IdNr.: DE353967134`,
 
 hiermit bestellen wir folgende Artikel:
 
-{productTable}
+{itemsList}
 
 Bestellnummer: {orderNumber}
-Bestelldatum: ${new Date().toLocaleDateString('de-DE')}
+Bestelldatum: {orderDate}
 Gewünschter Liefertermin: {deliveryDate}
 
 Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns mit, wann wir mit der Lieferung rechnen können.
@@ -223,164 +130,98 @@ USt-IdNr.: DE353967134`,
             };
             setAvailableTemplates([standardTemplate]);
             setSelectedTemplate(standardTemplate);
+            await generateEmailFromTemplate('standard', data);
           }
         } else {
-          console.error('Fehler beim Laden der Bestelldaten - Status:', orderResponse.status);
-          // Use standard template as fallback
-          const standardTemplate = {
-            id: 'standard',
-            name: 'Standard-Vorlage',
-            subject: `Bestellung {orderNumber} – Lieferung am {deliveryDate}`,
-            body: `Sehr geehrte Damen und Herren,
-
-hiermit bestellen wir folgende Artikel:
-
-{productTable}
-
-Bestellnummer: {orderNumber}
-Bestelldatum: ${new Date().toLocaleDateString('de-DE')}
-Gewünschter Liefertermin: {deliveryDate}
-
-Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns mit, wann wir mit der Lieferung rechnen können.
-
-Mit freundlichen Grüßen
-Elbsandstein Proviant & Quartier GmbH
-USt-IdNr.: DE353967134`,
-            isDefault: true,
-            templateType: 'standard'
-          };
-          setAvailableTemplates([standardTemplate]);
-          setSelectedTemplate(standardTemplate);
+          throw new Error('Ungültige Antwort vom Server');
         }
       } catch (error) {
-        console.error('Fehler beim Laden der Bestelldaten:', error);
-        // Use standard template as fallback
-        const standardTemplate = {
-          id: 'standard',
-          name: 'Standard-Vorlage',
-          subject: `Bestellung {orderNumber} – Lieferung am {deliveryDate}`,
-          body: `Sehr geehrte Damen und Herren,
-
-hiermit bestellen wir folgende Artikel:
-
-{productTable}
-
-Bestellnummer: {orderNumber}
-Bestelldatum: ${new Date().toLocaleDateString('de-DE')}
-Gewünschter Liefertermin: {deliveryDate}
-
-Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns mit, wann wir mit der Lieferung rechnen können.
-
-Mit freundlichen Grüßen
-Elbsandstein Proviant & Quartier GmbH
-USt-IdNr.: DE353967134`,
-          isDefault: true,
-          templateType: 'standard'
-        };
-        setAvailableTemplates([standardTemplate]);
-        setSelectedTemplate(standardTemplate);
-      }
-    };
-    
-    loadOrderAndSupplierData();
-  }, [orderId, supplierEmail]);
-
-  // Lade E-Mail-Vorlage bei Komponenteninitialisierung oder Wechsel des Templates
-  useEffect(() => {
-    if (!orderId) return;
-    
-    const loadTemplate = async () => {
-      setIsLoading(true);
-      setError(null);
-      
-      try {
-        // Enhanced template loading with comprehensive fixes
-        const authToken = localStorage.getItem('auth_token') || localStorage.getItem('authToken');
+        console.error('Fehler beim Laden der E-Mail-Daten mit neuer API:', error);
         
-        // Try enhanced template first
-        let templateResponse = await fetch(`/api/orders/${orderId}/email-template-enhanced`, {
-          method: 'GET',
-          headers: {
-            ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
-          }
-        });
-        
-        if (directResponse.ok) {
-          const templateData = await directResponse.json();
-          console.log("E-Mail-Vorlage geladen:", templateData);
-          
-          if (templateData && templateData.subject && templateData.content) {
-            // Verwende die Vorlage direkt vom Server
-            setEmailSubject(templateData.subject);
-            setEmailText(templateData.content);
-          } else {
-            throw new Error('Keine gültige E-Mail-Vorlage gefunden');
-          }
-        } else {
-          // Versuche alternativ, die Vorlage über den direkten SQL-Endpunkt zu laden
-          const fallbackResponse = await fetch('/api/email-templates-direct');
-          
-          if (fallbackResponse.ok) {
-            const fallbackData = await fallbackResponse.json();
-            console.log("Fallback: E-Mail-Vorlagen geladen:", fallbackData);
-            
-            if (fallbackData && fallbackData.success && Array.isArray(fallbackData.data) && fallbackData.data.length > 0) {
-              // Wähle die passende Vorlage basierend auf dem Template-Typ
-              const template = fallbackData.data.find((tpl: any) => {
-                if (selectedTemplate === 'urgent' && tpl.name.toLowerCase().includes('dringend')) return true;
-                if (selectedTemplate === 'reorder' && tpl.name.toLowerCase().includes('nachbestellung')) return true;
-                if (selectedTemplate === 'standard' && tpl.is_default) return true;
-                return false;
-              }) || fallbackData.data[0]; // Fallback zur ersten Vorlage
-              
-              // Formatiere die Vorlage mit den verfügbaren Daten
-              // Vorlage mit Handlebars-ähnlichen Platzhaltern
-              setEmailSubject(template.subject
-                .replace('{{orderNumber}}', orderNumber || '')
-                .replace('{{date}}', new Date().toLocaleDateString('de-DE'))
-                .replace('{{supplier}}', supplierName || '')
-              );
-              
-              // Text speichern zum späteren Ersetzen
-              setEmailText(template.body);
-            } else {
-              throw new Error('Keine E-Mail-Vorlagen gefunden');
-            }
-          } else {
-            throw new Error('Ungültige Antwort vom Server');
-          }
-        }
-      } catch (error) {
-        console.error('Fehler beim Laden der E-Mail-Vorlage:', error);
-        
-        // Fix 2: Keine störenden Toast-Nachrichten mehr bei Template-Fehlern
-        console.log('E-Mail-Vorlage konnte nicht geladen werden, verwende Standard-Template');
-        
-        // Standard-Template setzen aber Dialog OFFEN lassen
-        const supplierText = supplierName ? ` von ${supplierName}` : '';
-        const orderText = orderNumber ? ` (Bestellnummer: ${orderNumber})` : '';
-        
-        setEmailText(`Sehr geehrte Damen und Herren,
-
-hiermit bestellen wir folgende Artikel${supplierText}${orderText}:
-
-{{orderItems}}
-
-Bitte bestätigen Sie den Eingang dieser Bestellung.
-
-Mit freundlichen Grüßen
-Ihr Proviantomat Team`);
-        
+        // Fallback to props data
+        setEmailAddress(supplierEmail || '');
         setEmailSubject(`Bestellung ${orderNumber || ''} vom ${new Date().toLocaleDateString('de-DE')}`);
-        setError(null); // Error zurücksetzen, da wir Fallback verwenden
-        return; // Dialog bleibt geöffnet
+        setError(error instanceof Error ? error.message : 'Unbekannter Fehler');
       } finally {
         setIsLoading(false);
       }
     };
     
-    loadTemplate();
-  }, [orderId, selectedTemplate, orderNumber, supplierName]);
+    loadEmailData();
+  }, [orderId, supplierEmail, orderNumber]);
+
+  // Generate email content from template using new API
+  const generateEmailFromTemplate = async (templateId: string | number, data?: any) => {
+    if (!orderId) return;
+    
+    try {
+      console.log(`Generiere E-Mail mit Vorlage ${templateId} über neue API`);
+      
+      const authToken = localStorage.getItem('auth_token') || localStorage.getItem('authToken');
+      const response = await fetch(`/api/orders/${orderId}/generate-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+        },
+        body: JSON.stringify({ templateId })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Fehler beim Generieren der E-Mail: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log('E-Mail-Inhalt generiert:', result);
+      
+      if (result.success) {
+        setEmailSubject(result.subject);
+        setEmailText(result.content);
+        
+        // Update email addresses if provided
+        if (result.supplierEmail) setEmailAddress(result.supplierEmail);
+        if (result.ccEmails) setCcEmails(result.ccEmails);
+      }
+    } catch (error) {
+      console.error('Fehler beim Generieren der E-Mail-Inhalt:', error);
+      
+      // Fallback template generation
+      if (data && data.order && data.items) {
+        const itemsList = data.items.map((item: any, index: number) => 
+          `${index + 1}. ${item.productName || 'Unbekanntes Produkt'} - ${item.quantity || 1} ${item.unit || 'Stk'} à ${(item.unitPrice || 0).toFixed(2)} € = ${(item.totalPrice || 0).toFixed(2)} €`
+        ).join('\n');
+        
+        setEmailSubject(`Bestellung ${data.order.orderNumber} – Lieferung am ${data.order.deliveryDate}`);
+        setEmailText(`Sehr geehrte Damen und Herren,
+
+hiermit bestellen wir folgende Artikel:
+
+${itemsList}
+
+Bestellnummer: ${data.order.orderNumber}
+Bestelldatum: ${data.order.orderDate}
+Gewünschter Liefertermin: ${data.order.deliveryDate}
+
+Gesamtsumme: ${data.order.grossTotal} €
+
+Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns mit, wann wir mit der Lieferung rechnen können.
+
+Mit freundlichen Grüßen
+Elbsandstein Proviant & Quartier GmbH
+USt-IdNr.: DE353967134`);
+      }
+    }
+  };
+
+  // Handle template selection change
+  const handleTemplateChange = async (value: string) => {
+    const template = availableTemplates.find(t => t.id.toString() === value);
+    if (template) {
+      console.log('Vorlage gewechselt zu:', template.name);
+      setSelectedTemplate(template);
+      await generateEmailFromTemplate(template.id, orderDetails);
+    }
+  };
   
   // Bestellpositionen über den direkten SQL-Endpunkt laden
   useEffect(() => {
@@ -662,10 +503,7 @@ Ihr Proviantomat Team`);
               {availableTemplates.length > 0 ? (
                 <Select 
                   value={selectedTemplate?.id?.toString() || ''} 
-                  onValueChange={(value) => {
-                    const template = availableTemplates.find((t: any) => t.id.toString() === value);
-                    setSelectedTemplate(template);
-                  }}
+                  onValueChange={handleTemplateChange}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Vorlage auswählen" />
