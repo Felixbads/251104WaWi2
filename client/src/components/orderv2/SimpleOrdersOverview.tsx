@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Package, AlertCircle, RefreshCw, Plus } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Package, AlertCircle, RefreshCw, Plus, Filter } from "lucide-react";
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 
@@ -27,8 +28,10 @@ const SimpleOrdersOverview: React.FC<SimpleOrdersOverviewProps> = ({
   onCreateNew 
 }) => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [filteredOrders, setFilteredOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
 
   const loadOrders = async () => {
     try {
@@ -91,6 +94,7 @@ const SimpleOrdersOverview: React.FC<SimpleOrdersOverviewProps> = ({
         }));
         
         setOrders(safeOrders);
+        setFilteredOrders(safeOrders);
         console.log("✅ Orders successfully set:", safeOrders.length);
       } else {
         console.error("❌ Response is not an array:", typeof data);
@@ -116,12 +120,24 @@ const SimpleOrdersOverview: React.FC<SimpleOrdersOverviewProps> = ({
     loadOrders();
   }, []);
 
+  // Filter-Effekt
+  useEffect(() => {
+    if (statusFilter === 'all') {
+      setFilteredOrders(orders);
+    } else {
+      setFilteredOrders(orders.filter(order => order.status === statusFilter));
+    }
+  }, [orders, statusFilter]);
+
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; color: string }> = {
       'draft': { label: 'Entwurf', color: 'bg-yellow-100 text-yellow-800' },
       'sent': { label: 'Versendet', color: 'bg-blue-100 text-blue-800' },
       'received': { label: 'Erhalten', color: 'bg-green-100 text-green-800' },
-      'completed': { label: 'Abgeschlossen', color: 'bg-gray-100 text-gray-800' }
+      'delivered': { label: 'Geliefert', color: 'bg-green-100 text-green-800' },
+      'completed': { label: 'Abgeschlossen', color: 'bg-gray-100 text-gray-800' },
+      'pending': { label: 'Ausstehend', color: 'bg-orange-100 text-orange-800' },
+      'cancelled': { label: 'Storniert', color: 'bg-red-100 text-red-800' }
     };
     
     const statusInfo = statusMap[status] || { label: status, color: 'bg-gray-100 text-gray-800' };

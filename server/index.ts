@@ -73,7 +73,12 @@ app.get('/orders-data', (req, res) => {
       o.created_at,
       COALESCE(s.name, 'Kein Lieferant') as supplier_name,
       COALESCE(w.name, 'Kein Lager') as location_name,
-      o.total_amount,
+      COALESCE(
+        (SELECT SUM(oi.quantity * oi.unit_price) 
+         FROM order_items oi 
+         WHERE oi.order_id = o.id),
+        0
+      ) as total_amount,
       o.expected_delivery_date
     FROM orders o
     LEFT JOIN suppliers s ON o.supplier_id = s.id
