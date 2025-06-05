@@ -32,11 +32,17 @@ interface AdditionalInfoFormProps {
     expectedDeliveryDate: Date | null;
     priority: string;
     notes: string;
+    deliveryType: string;
+    deliveryAddress: string;
+    pickupLocation: string;
   };
   onAdditionalInfoChange: (info: {
     expectedDeliveryDate: Date | null;
     priority: string;
     notes: string;
+    deliveryType: string;
+    deliveryAddress: string;
+    pickupLocation: string;
   }) => void;
   onNext: () => void;
   onBack: () => void;
@@ -69,6 +75,33 @@ const AdditionalInfoForm: React.FC<AdditionalInfoFormProps> = ({
     onAdditionalInfoChange({
       ...additionalInfo,
       notes: e.target.value
+    });
+  };
+  
+  // Update delivery type
+  const handleDeliveryTypeChange = (value: string) => {
+    onAdditionalInfoChange({
+      ...additionalInfo,
+      deliveryType: value,
+      // Clear the other field when switching types
+      deliveryAddress: value === 'pickup' ? '' : additionalInfo.deliveryAddress,
+      pickupLocation: value === 'delivery' ? '' : additionalInfo.pickupLocation
+    });
+  };
+  
+  // Update delivery address
+  const handleDeliveryAddressChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    onAdditionalInfoChange({
+      ...additionalInfo,
+      deliveryAddress: e.target.value
+    });
+  };
+  
+  // Update pickup location
+  const handlePickupLocationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onAdditionalInfoChange({
+      ...additionalInfo,
+      pickupLocation: e.target.value
     });
   };
   
@@ -113,6 +146,47 @@ const AdditionalInfoForm: React.FC<AdditionalInfoFormProps> = ({
           </Popover>
         </div>
         
+        {/* Delivery Type */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Lieferart</label>
+          <Select
+            value={additionalInfo.deliveryType}
+            onValueChange={handleDeliveryTypeChange}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Lieferart auswählen" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="delivery">Anlieferung</SelectItem>
+              <SelectItem value="pickup">Abholung</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Conditional fields based on delivery type */}
+        {additionalInfo.deliveryType === 'delivery' && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Lieferadresse</label>
+            <Textarea
+              placeholder="Vollständige Lieferadresse eingeben..."
+              value={additionalInfo.deliveryAddress}
+              onChange={handleDeliveryAddressChange}
+              rows={3}
+            />
+          </div>
+        )}
+
+        {additionalInfo.deliveryType === 'pickup' && (
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Abholort</label>
+            <Input
+              placeholder="Abholort eingeben..."
+              value={additionalInfo.pickupLocation}
+              onChange={handlePickupLocationChange}
+            />
+          </div>
+        )}
+
         {/* Priority */}
         <div className="space-y-2">
           <label className="text-sm font-medium">Priorität</label>
