@@ -272,6 +272,16 @@ export default function Sidebar() {
               Benutzerverwaltung
             </NavItem>
             
+            {/* Datenbank-Manager nur für Admins sichtbar */}
+            <NavItem 
+              href="/database-manager" 
+              icon={<Database className="h-5 w-5 mr-3" />}
+              isActive={isActive("/database-manager")}
+              disabled={!isAdmin}
+            >
+              Datenbank-Manager
+            </NavItem>
+            
             <NavItem 
               href="/settings" 
               icon={<Settings className="h-5 w-5 mr-3" />}
