@@ -285,8 +285,8 @@ app.get('/orders-data', (req, res) => {
       const itemsResult = await pool.query(`
         SELECT 
           oi.*,
-          p.name as product_name,
-          p.unit as product_unit,
+          p.product_name,
+          p.units as product_unit,
           COALESCE(oi.unit_price, 0) as unit_price,
           COALESCE(oi.total_price, oi.quantity * COALESCE(oi.unit_price, 0)) as total_price
         FROM order_items oi
@@ -473,16 +473,31 @@ Elbsandstein Proviant & Quartier GmbH`;
         });
       }
       
-      // Bestellpositionen laden mit korrekten Preisdaten
+      // Bestellpositionen laden mit Gebindegrößen und MwSt-Daten
       const itemsResult = await pool.query(`
         SELECT 
           oi.*,
           p.product_name, 
           p.sku, 
           p.category,
+          p.package_size,
+          p.units,
+          p.vat,
           COALESCE(oi.unit_price, 0) as unit_price,
           COALESCE(oi.total_price, 0) as total_price,
-          COALESCE(oi.quantity, 1) as quantity
+          COALESCE(oi.quantity, 1) as quantity,
+          COALESCE(oi.vat_rate, p.vat, 19) as vat_rate,
+          -- Berechne Gebinde-basierte Mengen
+          CASE 
+            WHEN p.package_size IS NOT NULL AND p.package_size > 0 
+            THEN CEIL(COALESCE(oi.quantity, 1)::float / p.package_size) * p.package_size
+            ELSE COALESCE(oi.quantity, 1)
+          END as package_quantity,
+          -- Berechne MwSt-Beträge
+          ROUND(
+            (COALESCE(oi.unit_price, 0) * COALESCE(oi.quantity, 1) * COALESCE(oi.vat_rate, p.vat, 19) / 100)::numeric, 
+            2
+          ) as vat_amount
         FROM order_items oi
         LEFT JOIN products p ON oi.product_id = p.id
         WHERE oi.order_id = $1
