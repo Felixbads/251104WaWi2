@@ -1,13 +1,31 @@
-import { MailService } from '@sendgrid/mail';
+import nodemailer from 'nodemailer';
+import fs from 'fs';
+import path from 'path';
 
-if (!process.env.SENDGRID_API_KEY) {
-  console.warn("SENDGRID_API_KEY environment variable not set. Email functionality will be disabled.");
+// Load SMTP configuration from .env.smtp file
+const envSmtpPath = path.join(process.cwd(), '.env.smtp');
+if (fs.existsSync(envSmtpPath)) {
+  const envSmtpContent = fs.readFileSync(envSmtpPath, 'utf8');
+  const envLines = envSmtpContent.split('\n');
+  
+  envLines.forEach(line => {
+    const [key, value] = line.split('=');
+    if (key && value && !process.env[key]) {
+      process.env[key] = value;
+    }
+  });
 }
 
-const mailService = new MailService();
-if (process.env.SENDGRID_API_KEY) {
-  mailService.setApiKey(process.env.SENDGRID_API_KEY);
-}
+// Create nodemailer transporter
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: parseInt(process.env.SMTP_PORT || '587'),
+  secure: process.env.SMTP_SECURE === 'true',
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
 
 interface EmailParams {
   to: string;
@@ -20,24 +38,24 @@ interface EmailParams {
 }
 
 export async function sendEmail(params: EmailParams): Promise<boolean> {
-  if (!process.env.SENDGRID_API_KEY) {
-    console.error('SendGrid API key not configured');
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    console.error('SMTP configuration not found. Please check .env.smtp file.');
     return false;
   }
 
   try {
     const emailData: any = {
+      from: params.from || process.env.SMTP_FROM || process.env.SMTP_USER,
       to: params.to,
-      from: params.from,
       subject: params.subject,
     };
 
     if (params.cc) {
-      emailData.cc = params.cc.split(',').map(email => email.trim()).filter(email => email);
+      emailData.cc = params.cc.split(',').map((email: string) => email.trim()).filter((email: string) => email);
     }
 
     if (params.bcc) {
-      emailData.bcc = params.bcc.split(',').map(email => email.trim()).filter(email => email);
+      emailData.bcc = params.bcc.split(',').map((email: string) => email.trim()).filter((email: string) => email);
     }
 
     if (params.text) {
@@ -48,10 +66,11 @@ export async function sendEmail(params: EmailParams): Promise<boolean> {
       emailData.html = params.html;
     }
 
-    await mailService.send(emailData);
+    await transporter.sendMail(emailData);
+    console.log('Email sent successfully to:', params.to);
     return true;
   } catch (error) {
-    console.error('SendGrid email error:', error);
+    console.error('SMTP email error:', error);
     return false;
   }
 }

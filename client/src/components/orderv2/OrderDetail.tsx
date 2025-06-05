@@ -423,6 +423,26 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
           )}
         </div>
       </div>
+
+      {/* Email Dialog */}
+      <EmailDialog
+        isOpen={isEmailDialogOpen}
+        onClose={() => setIsEmailDialogOpen(false)}
+        order={{
+          ...order,
+          supplierId: order.supplier_id,
+          supplierEmail: order.supplier_email,
+          supplierName: order.supplier_name,
+          warehouseName: order.warehouse_name,
+          orderNumber: order.order_number,
+          orderDate: order.created_at,
+          expectedDeliveryDate: order.expected_delivery_date,
+          comments: order.notes
+        }}
+        onEmailSent={() => {
+          console.log('Email sent successfully');
+        }}
+      />
     </div>
   );
 };
