@@ -198,17 +198,31 @@ const SimpleOrdersOverview: React.FC<SimpleOrdersOverviewProps> = ({
         )}
       </div>
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {orders.length} Bestellungen gefunden
-        </p>
-        <Button onClick={loadOrders} variant="outline" size="sm">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Aktualisieren
-        </Button>
+      {/* Status Filter */}
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <Filter className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">Status:</span>
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-48">
+            <SelectValue placeholder="Status auswählen" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Alle Status</SelectItem>
+            <SelectItem value="draft">Entwurf</SelectItem>
+            <SelectItem value="sent">Versendet</SelectItem>
+            <SelectItem value="confirmed">Bestätigt</SelectItem>
+            <SelectItem value="delivered">Geliefert</SelectItem>
+            <SelectItem value="cancelled">Storniert</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="text-sm text-muted-foreground">
+          {filteredOrders.length} von {orders.length} Bestellungen
+        </div>
       </div>
 
-      {orders.length === 0 ? (
+      {filteredOrders.length === 0 ? (
         <Card>
           <CardContent className="py-8">
             <div className="text-center">
@@ -228,7 +242,7 @@ const SimpleOrdersOverview: React.FC<SimpleOrdersOverviewProps> = ({
         </Card>
       ) : (
         <div className="grid gap-4">
-          {orders.map((order) => (
+          {filteredOrders.map((order) => (
             <Card 
               key={order.id} 
               className="cursor-pointer hover:shadow-md transition-shadow"
