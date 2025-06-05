@@ -16,6 +16,7 @@ const sendOrderEmailSchema = z.object({
   subject: z.string().min(1, "Betreff ist erforderlich"),
   htmlContent: z.string().optional(),
   useTemplate: z.boolean().default(true),
+  templateId: z.number().optional(),
 });
 
 // Send order email endpoint
@@ -54,24 +55,69 @@ router.post('/send-order-email', async (req: Request, res: Response) => {
 
     // Get warehouse details
     let warehouse = null;
-    if (order.warehouseId) {
-      [warehouse] = await db.select().from(warehouses).where(eq(warehouses.id, order.warehouseId));
+    if (order.locationId) {
+      [warehouse] = await db.select().from(warehouses).where(eq(warehouses.id, order.locationId));
     }
 
     // Generate email content
     let htmlContent = emailData.htmlContent;
     
     if (emailData.useTemplate && !htmlContent) {
-      // Use supplier template if available, otherwise default template
-      if (supplier?.emailTemplate) {
-        htmlContent = supplier.emailTemplate
-          .replace(/\{orderNumber\}/g, order.orderNumber || order.id.toString())
-          .replace(/\{orderDate\}/g, formatOrderDate(new Date(order.orderDate)))
-          .replace(/\{expectedDeliveryDate\}/g, order.expectedDeliveryDate ? formatOrderDate(new Date(order.expectedDeliveryDate)) : 'Nicht angegeben')
-          .replace(/\{warehouseName\}/g, warehouse?.name || 'Nicht angegeben')
-          .replace(/\{comments\}/g, order.comments || '')
-          .replace(/\{totalAmount\}/g, order.totalAmount?.toFixed(2) || '0.00');
-      } else {
+      // Use selected template if available
+      if (emailData.templateId) {
+        try {
+          const { supplierEmailTemplates } = await import('../../shared/schema');
+          const [selectedTemplate] = await db
+            .select()
+            .from(supplierEmailTemplates)
+            .where(eq(supplierEmailTemplates.id, emailData.templateId));
+          
+          if (selectedTemplate) {
+            // Create product table HTML
+            const productTableRows = items.map(item => `
+              <tr>
+                <td style="padding: 8px; border: 1px solid #ddd;">${item.quantity || 0}</td>
+                <td style="padding: 8px; border: 1px solid #ddd;">${item.productName || 'Unbekanntes Produkt'}</td>
+                <td style="padding: 8px; border: 1px solid #ddd;">${(item.unitPrice || 0).toFixed(2)} €</td>
+                <td style="padding: 8px; border: 1px solid #ddd;">${(item.totalPrice || 0).toFixed(2)} €</td>
+              </tr>
+            `).join('');
+            
+            const productTable = `
+              <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                <thead>
+                  <tr style="background-color: #f5f5f5;">
+                    <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Menge</th>
+                    <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Artikel</th>
+                    <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Einzelpreis</th>
+                    <th style="padding: 12px; border: 1px solid #ddd; text-align: left;">Gesamtpreis</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${productTableRows}
+                </tbody>
+              </table>
+            `;
+            
+            const totalAmount = items.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
+            
+            htmlContent = selectedTemplate.contentTemplate
+              .replace(/\{orderNumber\}/g, order.orderNumber || order.id.toString())
+              .replace(/\{orderDate\}/g, formatOrderDate(new Date(order.orderDate)))
+              .replace(/\{deliveryDate\}/g, order.expectedDeliveryDate ? formatOrderDate(new Date(order.expectedDeliveryDate)) : 'Nicht angegeben')
+              .replace(/\{supplierName\}/g, supplier?.name || order.supplierName || 'Unbekannter Lieferant')
+              .replace(/\{productTable\}/g, productTable)
+              .replace(/\{totalAmount\}/g, totalAmount.toFixed(2))
+              .replace(/\{warehouseName\}/g, warehouse?.name || 'Nicht angegeben')
+              .replace(/\{notes\}/g, order.notes || '');
+          }
+        } catch (error) {
+          console.error('Fehler beim Laden der E-Mail-Vorlage:', error);
+        }
+      }
+      
+      // Fallback to default template if no custom template was found
+      if (!htmlContent) {
         htmlContent = generateDefaultEmailTemplate({
           order,
           orderItems: items,

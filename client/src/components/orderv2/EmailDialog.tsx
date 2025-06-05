@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Mail, Send } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface EmailDialogProps {
   isOpen: boolean;
@@ -146,6 +147,7 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
           subject: emailData.subject.trim(),
           htmlContent: emailData.htmlContent.trim() || undefined,
           useTemplate: useTemplate,
+          templateId: selectedTemplate?.id || undefined,
         }),
       });
 
@@ -192,16 +194,47 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Template Toggle */}
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="useTemplate"
-              checked={useTemplate}
-              onCheckedChange={setUseTemplate}
-            />
-            <Label htmlFor="useTemplate">
-              Standard-E-Mail-Vorlage verwenden
-            </Label>
+          {/* Template Selection */}
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="useTemplate"
+                checked={useTemplate}
+                onCheckedChange={setUseTemplate}
+              />
+              <Label htmlFor="useTemplate">
+                E-Mail-Vorlage verwenden
+              </Label>
+            </div>
+            
+            {useTemplate && availableTemplates.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="templateSelect">Vorlage auswählen</Label>
+                <Select
+                  value={selectedTemplate?.id?.toString() || ''}
+                  onValueChange={(value) => {
+                    const template = availableTemplates.find((t: any) => t.id.toString() === value);
+                    setSelectedTemplate(template);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Vorlage auswählen..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTemplates.map((template: any) => (
+                      <SelectItem key={template.id} value={template.id.toString()}>
+                        {template.name} {template.isDefault ? '(Standard)' : ''} - {template.templateType === 'urgent' ? 'DRINGEND' : 'Normal'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedTemplate && (
+                  <p className="text-sm text-muted-foreground">
+                    {selectedTemplate.description || 'Keine Beschreibung verfügbar'}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Recipient */}
