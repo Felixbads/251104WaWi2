@@ -3,7 +3,7 @@
  * Tests the enhanced email service configuration and connectivity
  */
 
-const { emailService } = require('./server/utils/enhancedEmailService');
+import { emailService } from './server/utils/enhancedEmailService.js';
 
 async function testMailConfiguration() {
   console.log('=== Mail System Configuration Test ===\n');
@@ -89,8 +89,6 @@ async function testMailConfiguration() {
 }
 
 // Run the test
-if (require.main === module) {
-  testMailConfiguration().catch(console.error);
-}
+testMailConfiguration().catch(console.error);
 
-module.exports = { testMailConfiguration };
+export { testMailConfiguration };
