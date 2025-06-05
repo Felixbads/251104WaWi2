@@ -5,6 +5,77 @@ import { eq } from 'drizzle-orm';
 
 const router = Router();
 
+// Direct email sending route that intercepts the exact frontend call
+router.post('/:orderId/send-email', async (req: Request, res: Response) => {
+  console.log('[OrdersEmailFix] Direct email send intercepted for order:', req.params.orderId);
+  console.log('[OrdersEmailFix] Request body:', JSON.stringify(req.body, null, 2));
+  
+  try {
+    const { to, subject, content, supplierEmail } = req.body;
+    
+    if (!to && !supplierEmail) {
+      return res.status(400).json({
+        success: false,
+        error: 'Keine E-Mail-Adresse angegeben',
+        details: 'Weder "to" noch "supplierEmail" wurden übermittelt'
+      });
+    }
+    
+    if (!subject) {
+      return res.status(400).json({
+        success: false,
+        error: 'Kein Betreff angegeben',
+        details: 'Das Feld "subject" ist erforderlich'
+      });
+    }
+    
+    if (!content) {
+      return res.status(400).json({
+        success: false,
+        error: 'Kein Inhalt angegeben',
+        details: 'Das Feld "content" ist erforderlich'
+      });
+    }
+
+    // Import the enhanced email service
+    const { emailService } = await import('../utils/enhancedEmailService');
+    
+    console.log('[OrdersEmailFix] Attempting to send email via enhanced service...');
+    
+    const result = await emailService.sendEmail(
+      to || supplierEmail,
+      subject, 
+      content,
+      process.env.SMTP_FROM || 'einkauf@proviantomat.de'
+    );
+
+    console.log('[OrdersEmailFix] Email send result:', result);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'E-Mail erfolgreich gesendet',
+        messageId: result.messageId,
+        method: result.method
+      });
+    } else {
+      console.error('[OrdersEmailFix] Email send failed:', result.error);
+      res.status(500).json({
+        success: false,
+        error: 'E-Mail konnte nicht gesendet werden',
+        details: result.error || 'Unbekannter Fehler bei der E-Mail-Übertragung'
+      });
+    }
+  } catch (error: any) {
+    console.error('[OrdersEmailFix] Exception in email send:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Serverfehler beim E-Mail-Versand',
+      details: error.message || 'Unbekannter Serverfehler'
+    });
+  }
+});
+
 // Get complete order data with supplier email information
 router.get('/:orderId/email-data', async (req: Request, res: Response) => {
   try {
