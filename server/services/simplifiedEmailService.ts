@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 
 // SMTP-Konfiguration - standardmäßig aktiviert, wenn SMTP-Einstellungen vorhanden sind
-const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD);
+const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
 console.log(`SMTP-Konfiguration: ${smtpConfigured ? 'Verfügbar' : 'Nicht verfügbar'}`);
 
 // Einrichtung für Nodemailer (SMTP)
@@ -16,7 +16,7 @@ if (smtpConfigured) {
       secure: process.env.SMTP_SECURE === 'true',
       auth: {
         user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASSWORD,
+        pass: process.env.SMTP_PASS,
       },
       // Zertifikatsfehler ignorieren (nur für Entwicklung, nicht für Produktion)
       tls: {
