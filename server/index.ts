@@ -415,6 +415,151 @@ Elbsandstein Proviant & Quartier GmbH`;
   
   const server = await registerRoutes(app);
 
+  // Direct email endpoint that bypasses all routing conflicts
+  app.post('/email-send-direct/:orderId', async (req, res) => {
+    console.log('[DirectEmailBypass] Direct email route hit - bypassing all middleware');
+    console.log('[DirectEmailBypass] Order ID:', req.params.orderId);
+    console.log('[DirectEmailBypass] Request body:', JSON.stringify(req.body, null, 2));
+    
+    try {
+      const orderId = parseInt(req.params.orderId);
+      const { emailAddress, subject, content } = req.body;
+      
+      if (!orderId || isNaN(orderId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Ungültige Bestell-ID'
+        });
+      }
+      
+      if (!emailAddress) {
+        return res.status(400).json({
+          success: false,
+          error: 'Keine E-Mail-Adresse angegeben'
+        });
+      }
+      
+      console.log('[DirectEmailBypass] Creating SMTP transporter...');
+      
+      // Import nodemailer and create transporter
+      const { createTransport } = await import('nodemailer');
+      const transporter = createTransport({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: false, // Use STARTTLS instead of SSL
+        requireTLS: true,
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
+        tls: {
+          rejectUnauthorized: false,
+          servername: process.env.SMTP_HOST
+        }
+      });
+      
+      // Verify SMTP connection
+      await transporter.verify();
+      console.log('[DirectEmailBypass] SMTP connection verified');
+      
+      // Fetch order data using direct SQL
+      const orderQuery = `
+        SELECT o.*, s.name as supplier_name
+        FROM orders o
+        LEFT JOIN suppliers s ON o.supplier_id = s.id
+        WHERE o.id = $1
+      `;
+      
+      const orderResult = await pool.query(orderQuery, [orderId]);
+      
+      if (!orderResult.rows || orderResult.rows.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: 'Bestellung nicht gefunden'
+        });
+      }
+      
+      const order = orderResult.rows[0];
+      console.log('[DirectEmailBypass] Order found:', order.order_number);
+      
+      // Fetch order items using direct SQL
+      const itemsQuery = `
+        SELECT oi.*, p.product_name
+        FROM order_items oi
+        LEFT JOIN products p ON oi.product_id = p.id
+        WHERE oi.order_id = $1
+      `;
+      
+      const itemsResult = await pool.query(itemsQuery, [orderId]);
+      const items = itemsResult.rows || [];
+      
+      console.log(`[DirectEmailBypass] Found ${items.length} order items`);
+      
+      // Create email content
+      let emailContent = content;
+      
+      if (!emailContent) {
+        // Simple email template
+        const itemsList = items.map(item => 
+          `${item.product_name || item.product_name}: ${item.quantity} x ${(item.unit_price || 0).toFixed(2)}€`
+        ).join('\n');
+        
+        const totalAmount = items.reduce((sum, item) => sum + ((item.unit_price || 0) * (item.quantity || 0)), 0);
+        
+        emailContent = `
+Sehr geehrte Damen und Herren,
+
+hiermit bestellen wir folgende Artikel:
+
+Bestellnummer: ${order.order_number}
+Lieferant: ${order.supplier_name || order.supplier_name || 'Unbekannt'}
+
+Bestellpositionen:
+${itemsList}
+
+Gesamtbetrag: ${totalAmount.toFixed(2)}€
+
+Bitte bestätigen Sie den Empfang dieser Bestellung.
+
+Mit freundlichen Grüßen
+Ihr Proviantomat Team
+        `;
+      }
+      
+      // Create email subject
+      let emailSubject = subject;
+      if (!emailSubject) {
+        emailSubject = `Bestellung ${order.order_number} - ${order.supplier_name || order.supplier_name}`;
+      }
+      
+      const mailOptions = {
+        from: process.env.SMTP_FROM || 'einkauf@proviantomat.de',
+        to: emailAddress,
+        subject: emailSubject,
+        text: emailContent
+      };
+      
+      console.log('[DirectEmailBypass] Sending email...');
+      const result = await transporter.sendMail(mailOptions);
+      
+      console.log(`[DirectEmailBypass] Email sent successfully, Message ID: ${result.messageId}`);
+      
+      return res.json({
+        success: true,
+        message: 'E-Mail erfolgreich gesendet',
+        messageId: result.messageId,
+        orderNumber: order.order_number
+      });
+      
+    } catch (error: any) {
+      console.error('[DirectEmailBypass] Error sending order email:', error);
+      return res.status(500).json({
+        success: false,
+        error: error.message || 'Unbekannter Fehler beim Senden der E-Mail'
+      });
+    }
+  });
+
   // Email routes mounted AFTER registerRoutes to override any conflicts
   const directEmailRouter = (await import('./routes/direct-email-send')).default;
   app.use('/api/direct-email', directEmailRouter);
