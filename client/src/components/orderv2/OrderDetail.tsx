@@ -47,9 +47,10 @@ interface EmailTemplate {
 interface OrderDetailProps {
   orderId: number;
   onBack: () => void;
+  onEmailPrepare?: () => void;
 }
 
-const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack }) => {
+const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepare }) => {
   const [order, setOrder] = useState<Order | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [emailTemplate, setEmailTemplate] = useState<EmailTemplate | null>(null);

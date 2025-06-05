@@ -698,8 +698,8 @@ const BestellungV2: React.FC = () => {
           setStep('goodsReceipt');
         }
         else {
-          // Alle anderen Status zur Übersicht
-          setStep('viewOrder');
+          // Alle anderen Status zur Detailansicht
+          setStep('orderDetail');
         }
       } else {
         console.log("Bestellung nicht gefunden - ID:", orderId);
@@ -1358,102 +1358,28 @@ const BestellungV2: React.FC = () => {
         }
         
         return (
-          <>
-            <div className="flex justify-between items-center mb-4">
-              <Button 
-                variant="outline" 
-                onClick={() => setStep('overview')}
-                size="sm"
-              >
-                <ChevronRight className="mr-2 h-4 w-4 rotate-180" />
-                Zurück zur Übersicht
-              </Button>
-              
-              <Button 
-                onClick={() => {
-                  // Fix 3: prepareOrderEmail nur im Button-Handler
-                  console.log('E-Mail-Button geklickt - starte E-Mail-Vorbereitung');
-                  setStep('sendOrder');
-                  prepareOrderEmail(existingOrderData, true);
-                }}
-              >
-                <Mail className="mr-2 h-4 w-4" />
-                E-Mail vorbereiten
-              </Button>
-            </div>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>Bestellung #{existingOrderData.order_number || existingOrderData.id}</CardTitle>
-                <CardDescription>
-                  Erstellt am {new Date(existingOrderData.created_at).toLocaleDateString()}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                  <div>
-                    <h3 className="text-sm font-medium">Lieferant</h3>
-                    <p>{existingOrderData.supplierName || existingOrderData.supplier_name || 'Nicht angegeben'}</p>
-                    {existingOrderData.supplierEmail && (
-                      <p className="text-sm text-muted-foreground">{existingOrderData.supplierEmail}</p>
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium">Lieferort</h3>
-                    <p>{existingOrderData.warehouseName || existingOrderData.location_name || 'Nicht angegeben'}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium">Status</h3>
-                    <Badge variant={existingOrderData.status === 'draft' ? 'outline' : 'default'}>
-                      {existingOrderData.status === 'draft' ? 'Entwurf' : 
-                       existingOrderData.status === 'sent' ? 'Gesendet' : existingOrderData.status}
-                    </Badge>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium">Erwartetes Lieferdatum</h3>
-                    <p>{existingOrderData.expected_delivery_date ? 
-                        new Date(existingOrderData.expected_delivery_date).toLocaleDateString() : 
-                        'Nicht angegeben'}</p>
-                  </div>
-                </div>
-                
-                <h3 className="text-sm font-medium mb-2">Bestellte Artikel</h3>
-                {existingOrderData.items && existingOrderData.items.length > 0 ? (
-                  <div className="border rounded-md p-4">
-                    <div className="grid grid-cols-4 gap-2 font-medium mb-2">
-                      <div>Produkt</div>
-                      <div className="text-right">Menge</div>
-                      <div className="text-right">Preis</div>
-                      <div className="text-right">Gesamt</div>
-                    </div>
-                    <Separator className="my-2" />
-                    {existingOrderData.items.map((item: any) => (
-                      <div key={item.id || item.product_id} className="grid grid-cols-4 gap-2 py-2">
-                        <div>{item.product_name || item.productName}</div>
-                        <div className="text-right">{item.quantity} {item.unit || 'Stk.'}</div>
-                        <div className="text-right">{(item.unit_price || item.unitPrice || 0).toFixed(2)} €</div>
-                        <div className="text-right">{(item.total_price || (item.quantity * (item.unit_price || item.unitPrice || 0)) || 0).toFixed(2)} €</div>
-                      </div>
-                    ))}
-                    <Separator className="my-2" />
-                    <div className="grid grid-cols-4 gap-2 py-2 font-medium">
-                      <div className="col-span-3">Gesamtbetrag</div>
-                      <div className="text-right">{(existingOrderData.total_amount || 0).toFixed(2)} €</div>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground">Keine Artikel in dieser Bestellung.</p>
-                )}
-                
-                {existingOrderData.notes && (
-                  <div className="mt-6">
-                    <h3 className="text-sm font-medium mb-2">Notizen</h3>
-                    <p className="text-sm">{existingOrderData.notes}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </>
+          <OrderDetail 
+            orderId={orderId!}
+            onBack={() => setStep('overview')}
+            onEmailPrepare={() => {
+              console.log('E-Mail-Button geklickt - starte E-Mail-Vorbereitung');
+              setStep('sendOrder');
+              prepareOrderEmail(existingOrderData, true);
+            }}
+          />
+        );
+        
+      case 'orderDetail':
+        return (
+          <OrderDetail 
+            orderId={orderId!}
+            onBack={() => setStep('overview')}
+            onEmailPrepare={() => {
+              console.log('E-Mail-Button geklickt - starte E-Mail-Vorbereitung');
+              setStep('sendOrder');
+              prepareOrderEmail(existingOrderData, true);
+            }}
+          />
         );
         
       case 'sendOrder':
