@@ -1,5 +1,4 @@
 import { createTransport } from 'nodemailer';
-import Handlebars from 'handlebars';
 import { orders, orderItems, suppliers } from '../../shared/schema';
 import { db } from '../db';
 import { eq } from 'drizzle-orm';
