@@ -63,6 +63,12 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
     
     const loadOrderAndSupplierData = async () => {
       try {
+        // First try to get supplier email from props if available
+        if (supplierEmail && supplierEmail !== 'lieferant@example.com') {
+          console.log('Lieferanten-E-Mail aus Props:', supplierEmail);
+          setEmailAddress(supplierEmail);
+        }
+        
         // Load order data to get supplier information
         const authToken = localStorage.getItem('auth_token') || localStorage.getItem('authToken');
         const orderResponse = await fetch(`/api/orders/${orderId}`, {
@@ -76,9 +82,11 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
           console.log('Bestelldaten geladen:', orderData);
           
           // Set supplier email and ID
-          const supplierEmailFromOrder = orderData.supplier_email || orderData.supplierEmail || supplierEmail;
-          console.log('Lieferanten-E-Mail gefunden:', supplierEmailFromOrder);
-          setEmailAddress(supplierEmailFromOrder || '');
+          const supplierEmailFromOrder = orderData.supplier_email || orderData.supplierEmail;
+          if (supplierEmailFromOrder && supplierEmailFromOrder !== 'lieferant@example.com') {
+            console.log('Lieferanten-E-Mail aus Bestellung gefunden:', supplierEmailFromOrder);
+            setEmailAddress(supplierEmailFromOrder);
+          }
           
           const supplierIdFromOrder = orderData.supplier_id || orderData.supplierId;
           setSupplierId(supplierIdFromOrder);
@@ -104,14 +112,144 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
                 } else if (templates.length > 0) {
                   setSelectedTemplate(templates[0]);
                 }
+              } else {
+                console.log('Keine lieferantenspezifischen Vorlagen gefunden, verwende Standard-Vorlage');
+                // Create a standard template as fallback
+                const standardTemplate = {
+                  id: 'standard',
+                  name: 'Standard-Vorlage',
+                  subject: `Bestellung {orderNumber} – Lieferung am {deliveryDate}`,
+                  body: `Sehr geehrte Damen und Herren,
+
+hiermit bestellen wir folgende Artikel:
+
+{productTable}
+
+Bestellnummer: {orderNumber}
+Bestelldatum: ${new Date().toLocaleDateString('de-DE')}
+Gewünschter Liefertermin: {deliveryDate}
+
+Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns mit, wann wir mit der Lieferung rechnen können.
+
+Mit freundlichen Grüßen
+Elbsandstein Proviant & Quartier GmbH
+USt-IdNr.: DE353967134`,
+                  isDefault: true,
+                  templateType: 'standard'
+                };
+                setAvailableTemplates([standardTemplate]);
+                setSelectedTemplate(standardTemplate);
               }
             } catch (error) {
               console.error('Fehler beim Laden der E-Mail-Vorlagen:', error);
+              // Create a standard template as fallback
+              const standardTemplate = {
+                id: 'standard',
+                name: 'Standard-Vorlage',
+                subject: `Bestellung {orderNumber} – Lieferung am {deliveryDate}`,
+                body: `Sehr geehrte Damen und Herren,
+
+hiermit bestellen wir folgende Artikel:
+
+{productTable}
+
+Bestellnummer: {orderNumber}
+Bestelldatum: ${new Date().toLocaleDateString('de-DE')}
+Gewünschter Liefertermin: {deliveryDate}
+
+Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns mit, wann wir mit der Lieferung rechnen können.
+
+Mit freundlichen Grüßen
+Elbsandstein Proviant & Quartier GmbH
+USt-IdNr.: DE353967134`,
+                isDefault: true,
+                templateType: 'standard'
+              };
+              setAvailableTemplates([standardTemplate]);
+              setSelectedTemplate(standardTemplate);
             }
+          } else {
+            // No supplier ID found, use standard template
+            const standardTemplate = {
+              id: 'standard',
+              name: 'Standard-Vorlage',
+              subject: `Bestellung {orderNumber} – Lieferung am {deliveryDate}`,
+              body: `Sehr geehrte Damen und Herren,
+
+hiermit bestellen wir folgende Artikel:
+
+{productTable}
+
+Bestellnummer: {orderNumber}
+Bestelldatum: ${new Date().toLocaleDateString('de-DE')}
+Gewünschter Liefertermin: {deliveryDate}
+
+Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns mit, wann wir mit der Lieferung rechnen können.
+
+Mit freundlichen Grüßen
+Elbsandstein Proviant & Quartier GmbH
+USt-IdNr.: DE353967134`,
+              isDefault: true,
+              templateType: 'standard'
+            };
+            setAvailableTemplates([standardTemplate]);
+            setSelectedTemplate(standardTemplate);
           }
+        } else {
+          console.error('Fehler beim Laden der Bestelldaten - Status:', orderResponse.status);
+          // Use standard template as fallback
+          const standardTemplate = {
+            id: 'standard',
+            name: 'Standard-Vorlage',
+            subject: `Bestellung {orderNumber} – Lieferung am {deliveryDate}`,
+            body: `Sehr geehrte Damen und Herren,
+
+hiermit bestellen wir folgende Artikel:
+
+{productTable}
+
+Bestellnummer: {orderNumber}
+Bestelldatum: ${new Date().toLocaleDateString('de-DE')}
+Gewünschter Liefertermin: {deliveryDate}
+
+Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns mit, wann wir mit der Lieferung rechnen können.
+
+Mit freundlichen Grüßen
+Elbsandstein Proviant & Quartier GmbH
+USt-IdNr.: DE353967134`,
+            isDefault: true,
+            templateType: 'standard'
+          };
+          setAvailableTemplates([standardTemplate]);
+          setSelectedTemplate(standardTemplate);
         }
       } catch (error) {
         console.error('Fehler beim Laden der Bestelldaten:', error);
+        // Use standard template as fallback
+        const standardTemplate = {
+          id: 'standard',
+          name: 'Standard-Vorlage',
+          subject: `Bestellung {orderNumber} – Lieferung am {deliveryDate}`,
+          body: `Sehr geehrte Damen und Herren,
+
+hiermit bestellen wir folgende Artikel:
+
+{productTable}
+
+Bestellnummer: {orderNumber}
+Bestelldatum: ${new Date().toLocaleDateString('de-DE')}
+Gewünschter Liefertermin: {deliveryDate}
+
+Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns mit, wann wir mit der Lieferung rechnen können.
+
+Mit freundlichen Grüßen
+Elbsandstein Proviant & Quartier GmbH
+USt-IdNr.: DE353967134`,
+          isDefault: true,
+          templateType: 'standard'
+        };
+        setAvailableTemplates([standardTemplate]);
+        setSelectedTemplate(standardTemplate);
       }
     };
     
