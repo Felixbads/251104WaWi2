@@ -34,8 +34,7 @@ export const menuItems = {
     { title: 'Lagerbestand', icon: <Building2 className="h-5 w-5 mr-3" />, path: '/lagerbestand' },
     { title: 'Warenbewegung', icon: <MoveHorizontal className="h-5 w-5 mr-3" />, path: '/warenbewegung' },
     { title: 'Inventur', icon: <ClipboardCheck className="h-5 w-5 mr-3" />, path: '/inventur' },
-    { title: 'Bestellungen V2', icon: <ShoppingCart className="h-5 w-5 mr-3" />, path: '/bestellungen/neu-v2' },
-    { title: 'Bestellungen V4', icon: <ShoppingCart className="h-5 w-5 mr-3" />, path: '/bestellungen-v4' },
+    { title: 'Bestellungen', icon: <ShoppingCart className="h-5 w-5 mr-3" />, path: '/bestellungen/neu-v2' },
   ] as MenuItem[],
   analysis: [
     { title: 'Auswertung', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/auswertungen' },

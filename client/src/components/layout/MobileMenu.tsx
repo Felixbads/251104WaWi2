@@ -107,7 +107,7 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
                     }`}
                   >
                     {item.icon}
-                    {item.title === "Bestellungen" ? "Bestellungen 2.0" : item.title}
+                    {item.title}
                   </div>
                 </Link>
               ))}
