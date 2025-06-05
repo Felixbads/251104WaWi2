@@ -34,8 +34,50 @@ export default function SupplierEmailTemplates({ supplierId, supplierName }: Sup
   const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState({
     templateName: '',
-    subjectTemplate: '',
-    contentTemplate: '',
+    subjectTemplate: 'Bestellung {orderNumber} – Lieferung am {deliveryDate}',
+    contentTemplate: `Sehr geehrte Damen und Herren,
+
+anbei erhalten Sie unsere aktuelle Bestellung {orderNumber} mit geplantem {deliveryType} am {deliveryDate} für unseren Lagerstandort {warehouseAddress}.
+
+Bestellinformationen
+Bestellnummer: {orderNumber}
+Bestelldatum: {orderDate}
+Lieferanten-Nr.: {supplierNumber}
+Bearbeiter: Felix Zschoge
+E-Mail für Rückfragen: felix@proviantomat.de
+Bestelltyp: Standardbestellung
+
+{deliveryAddress}
+
+Rechnungsadresse:
+Elbsandstein Proviant & Quartier GmbH
+Seifhennersdorfer Straße 14
+01099 Dresden
+
+Bestellte Artikel:
+{itemsList}
+
+Kostenübersicht:
+Nettosumme: {netAmount} €
+zzgl. {vatRate} % MwSt.: {vatAmount} €
+Gesamtsumme brutto: {totalAmount} €
+
+Bitte bestätigen Sie uns den Erhalt dieser Bestellung sowie den geplanten {deliveryType}.
+
+Für Rückfragen stehen wir jederzeit zur Verfügung.
+
+Mit freundlichen Grüßen
+Felix Zschoge
+
+Elbsandstein Proviant & Quartier GmbH
+Seifhennersdorfer Straße 14
+01099 Dresden
+Tel.: +49 173 4385330
+E-Mail: felix@proviantomat.de
+
+Unternehmensdaten:
+USt-IdNr.: DE353967134
+Steuernummer: 202/108/12994`,
     templateType: 'standard',
     isDefault: false
   });
@@ -255,7 +297,7 @@ export default function SupplierEmailTemplates({ supplierId, supplierName }: Sup
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Verfügbare Platzhalter: {`{orderNumber}, {orderDate}, {supplierName}, {deliveryDate}`}
+                  Verfügbare Platzhalter: {`{orderNumber}, {orderDate}, {supplierName}, {deliveryDate}, {deliveryType}`}
                 </p>
               </div>
 
@@ -270,7 +312,7 @@ export default function SupplierEmailTemplates({ supplierId, supplierName }: Sup
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Verfügbare Platzhalter: {`{orderNumber}, {orderDate}, {supplierName}, {deliveryDate}, {itemsList}, {totalAmount}`}
+                  Verfügbare Platzhalter: {`{orderNumber}, {orderDate}, {supplierName}, {supplierNumber}, {deliveryDate}, {deliveryType}, {deliveryAddress}, {warehouseAddress}, {itemsList}, {netAmount}, {vatRate}, {vatAmount}, {totalAmount}`}
                 </p>
               </div>
 
