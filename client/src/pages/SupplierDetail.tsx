@@ -1273,6 +1273,14 @@ export default function SupplierDetail() {
             </CardContent>
           </Card>
         </TabsContent>
+        
+        {/* E-Mail-Vorlagen Tab */}
+        <TabsContent value="emailTemplates">
+          <SupplierEmailTemplates 
+            supplierId={parseInt(id)} 
+            supplierName={supplier?.name || ''} 
+          />
+        </TabsContent>
       </Tabs>
 
       {/* Dialog zum Erstellen einer neuen Einkaufsbedingung */}
