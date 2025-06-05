@@ -422,6 +422,10 @@ Elbsandstein Proviant & Quartier GmbH`;
   const ordersEmailFixRouter = (await import('./routes/orders-email-fix')).default;
   app.use('/api/orders', ordersEmailFixRouter);
   
+  // Working email router with corrected SMTP configuration
+  const ordersEmailWorkingRouter = (await import('./routes/orders-email-working')).default;
+  app.use('/api/orders-email-working', ordersEmailWorkingRouter);
+  
   app.use('/api/enhanced-email', enhancedEmailRouter);
   
   app.use('/api/supplier-email-templates', supplierEmailTemplatesRouter);
