@@ -26,7 +26,54 @@ router.get('/email/test-config', async (req, res) => {
   }
 });
 
-// Verbesserte Bestell-E-Mail-Route
+// Fallback route to handle existing frontend calls
+router.post('/orders/:id/send-email', async (req, res) => {
+  console.log('[EnhancedEmailRoute] Handling order email send request for order:', req.params.id);
+  console.log('[EnhancedEmailRoute] Request body:', req.body);
+  
+  try {
+    const { id } = req.params;
+    const orderId = parseInt(id);
+    const { to, subject, content, supplierEmail } = req.body;
+
+    console.log('[EnhancedEmailRoute] Attempting to send email with enhanced service...');
+    
+    // Use the enhanced email service to send the email
+    const result = await emailService.sendEmail({
+      to: to || supplierEmail,
+      subject: subject || `Bestellung - Order ${orderId}`,
+      content: content || 'Bestelldetails werden verarbeitet...',
+      from: process.env.SMTP_FROM || 'einkauf@proviantomat.de'
+    });
+
+    console.log('[EnhancedEmailRoute] Email send result:', result);
+
+    if (result.success) {
+      res.json({
+        success: true,
+        message: 'E-Mail erfolgreich gesendet',
+        messageId: result.messageId,
+        provider: result.provider
+      });
+    } else {
+      console.error('[EnhancedEmailRoute] Email send failed:', result.error);
+      res.status(500).json({
+        success: false,
+        error: 'E-Mail konnte nicht gesendet werden',
+        details: result.error || 'Unbekannter Fehler bei der E-Mail-Übertragung'
+      });
+    }
+  } catch (error: any) {
+    console.error('[EnhancedEmailRoute] Exception in order email send:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Fehler beim Senden der E-Mail',
+      details: error.message || 'Unbekannter Serverfehler'
+    });
+  }
+});
+
+// Verbesserte Bestell-E-Mail-Route (Enhanced endpoint)
 router.post('/orders/:id/send-email-enhanced', async (req, res) => {
   try {
     const { id } = req.params;
