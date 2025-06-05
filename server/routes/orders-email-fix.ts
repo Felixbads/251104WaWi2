@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
-import { orders, suppliers, supplierEmailTemplates, orderItems, products, warehouses } from '../../shared/schema';
+import { orders, suppliers, supplierEmailTemplates, orderItems, products, warehouses, locations } from '../../shared/schema';
 import { eq } from 'drizzle-orm';
 
 const router = Router();
@@ -70,7 +70,7 @@ router.get('/:orderId/email-data', async (req: Request, res: Response) => {
       .where(eq(orderItems.orderId, orderId));
 
     // Get supplier email templates if supplier exists
-    let emailTemplates = [];
+    let emailTemplates: any[] = [];
     if (order.supplierId) {
       emailTemplates = await db
         .select()
@@ -117,7 +117,7 @@ router.get('/:orderId/email-data', async (req: Request, res: Response) => {
         signature: order.emailSignature || '',
       },
       items,
-      emailTemplates: emailTemplates.map(template => ({
+      emailTemplates: (emailTemplates as any[]).map(template => ({
         id: template.id,
         name: template.templateName,
         subject: template.subjectTemplate,
