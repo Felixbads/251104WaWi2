@@ -44,10 +44,10 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
   }, []);
   
   // State-Variablen
-  const [emailAddress, setEmailAddress] = useState(supplierEmail || '');
+  const [emailAddress, setEmailAddress] = useState('');
   const [emailSubject, setEmailSubject] = useState(`Bestellung ${orderNumber || ''} vom ${new Date().toLocaleDateString('de-DE')}`);
   const [emailText, setEmailText] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState('standard');
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [availableTemplates, setAvailableTemplates] = useState([]);
   const [orderDetails, setOrderDetails] = useState(null);
   const [isSending, setIsSending] = useState(false);
@@ -55,6 +55,68 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [supplierId, setSupplierId] = useState<number | null>(null);
+
+  // Load order data and supplier information on component mount
+  useEffect(() => {
+    if (!orderId) return;
+    
+    const loadOrderAndSupplierData = async () => {
+      try {
+        // Load order data to get supplier information
+        const authToken = localStorage.getItem('auth_token') || localStorage.getItem('authToken');
+        const orderResponse = await fetch(`/api/orders/${orderId}`, {
+          headers: {
+            ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+          }
+        });
+        
+        if (orderResponse.ok) {
+          const orderData = await orderResponse.json();
+          console.log('Bestelldaten geladen:', orderData);
+          
+          // Set supplier email and ID
+          const supplierEmailFromOrder = orderData.supplier_email || orderData.supplierEmail || supplierEmail;
+          console.log('Lieferanten-E-Mail gefunden:', supplierEmailFromOrder);
+          setEmailAddress(supplierEmailFromOrder || '');
+          
+          const supplierIdFromOrder = orderData.supplier_id || orderData.supplierId;
+          setSupplierId(supplierIdFromOrder);
+          
+          // Load supplier email templates if supplier ID is available
+          if (supplierIdFromOrder) {
+            try {
+              const templatesResponse = await fetch(`/api/supplier-email-templates/${supplierIdFromOrder}`, {
+                headers: {
+                  ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+                }
+              });
+              
+              if (templatesResponse.ok) {
+                const templates = await templatesResponse.json();
+                console.log('E-Mail-Vorlagen geladen:', templates);
+                setAvailableTemplates(templates);
+                
+                // Select default template if available
+                const defaultTemplate = templates.find((t: any) => t.isDefault && t.templateType === 'standard');
+                if (defaultTemplate) {
+                  setSelectedTemplate(defaultTemplate);
+                } else if (templates.length > 0) {
+                  setSelectedTemplate(templates[0]);
+                }
+              }
+            } catch (error) {
+              console.error('Fehler beim Laden der E-Mail-Vorlagen:', error);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Fehler beim Laden der Bestelldaten:', error);
+      }
+    };
+    
+    loadOrderAndSupplierData();
+  }, [orderId, supplierEmail]);
 
   // Lade E-Mail-Vorlage bei Komponenteninitialisierung oder Wechsel des Templates
   useEffect(() => {
@@ -208,10 +270,13 @@ Ihr Proviantomat Team`);
     loadOrderItems();
   }, [orderId]);
 
-  // Handler für Template-Auswahl
-  const handleTemplateChange = (value: string) => {
-    setSelectedTemplate(value);
-  };
+  // Load template content when template selection changes
+  useEffect(() => {
+    if (selectedTemplate && selectedTemplate.subject && selectedTemplate.body) {
+      setEmailSubject(selectedTemplate.subject);
+      setEmailText(selectedTemplate.body);
+    }
+  }, [selectedTemplate]);
   
   // E-Mail senden
   const handleSendEmail = async () => {
@@ -293,23 +358,56 @@ Ihr Proviantomat Team`);
   // Helper-Funktion zur Vorbereitung des E-Mail-Inhalts
   const prepareEmailContent = () => {
     if (!orderItems || orderItems.length === 0) {
-      return emailText.replace('{{orderItems}}', 'Keine Bestellpositionen vorhanden');
+      return emailText.replace(/\{productTable\}|\{\{orderItems\}\}/g, 'Keine Bestellpositionen vorhanden');
     }
     
-    // Artikel-HTML für die E-Mail erstellen
-    let orderItemsHtml = '<ul>';
+    // HTML-Tabelle für die Bestellpositionen erstellen
+    let productTableHtml = `
+      <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+        <thead>
+          <tr style="background-color: #f5f5f5;">
+            <th style="text-align: left; padding: 8px;">Menge</th>
+            <th style="text-align: left; padding: 8px;">Produktname</th>
+            <th style="text-align: right; padding: 8px;">Einzelpreis</th>
+            <th style="text-align: right; padding: 8px;">Gesamtpreis</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+    
+    let total = 0;
     orderItems.forEach(item => {
-      orderItemsHtml += `<li>${item.quantity} ${item.unit} ${item.productName} (${item.price.toFixed(2)} € je ${item.unit})</li>`;
+      const itemTotal = (item.quantity || 0) * (item.price || 0);
+      total += itemTotal;
+      
+      productTableHtml += `
+        <tr>
+          <td style="padding: 8px;">${item.quantity} ${item.unit || 'Stk'}</td>
+          <td style="padding: 8px;">${item.productName}</td>
+          <td style="padding: 8px; text-align: right;">${(item.price || 0).toFixed(2)} €</td>
+          <td style="padding: 8px; text-align: right;">${itemTotal.toFixed(2)} €</td>
+        </tr>
+      `;
     });
-    orderItemsHtml += '</ul>';
     
-    // Total berechnen
-    const total = orderItems.reduce((sum, item) => sum + (item.quantity * item.price), 0);
+    productTableHtml += `
+        </tbody>
+        <tfoot>
+          <tr style="background-color: #f5f5f5; font-weight: bold;">
+            <td colspan="3" style="padding: 8px; text-align: right;">Gesamtsumme:</td>
+            <td style="padding: 8px; text-align: right;">${total.toFixed(2)} €</td>
+          </tr>
+        </tfoot>
+      </table>
+    `;
     
-    // Ersatz des Platzhalters im E-Mail-Text
+    // Ersatz der Platzhalter im E-Mail-Text
     return emailText
-      .replace('{{orderItems}}', orderItemsHtml)
-      .replace('{{totalAmount}}', total.toFixed(2));
+      .replace(/\{productTable\}/g, productTableHtml)
+      .replace(/\{\{orderItems\}\}/g, productTableHtml)
+      .replace(/\{\{totalAmount\}\}/g, total.toFixed(2))
+      .replace(/\{orderNumber\}/g, orderNumber || '')
+      .replace(/\{deliveryDate\}/g, new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toLocaleDateString('de-DE'));
   };
   
   return (
@@ -354,13 +452,30 @@ Ihr Proviantomat Team`);
             
             <div className="space-y-2">
               <Label>Vorlage</Label>
-              <Tabs value={selectedTemplate} onValueChange={handleTemplateChange} defaultValue="standard">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="standard">Standard</TabsTrigger>
-                  <TabsTrigger value="urgent">Dringend</TabsTrigger>
-                  <TabsTrigger value="reorder">Nachbestellung</TabsTrigger>
-                </TabsList>
-              </Tabs>
+              {availableTemplates.length > 0 ? (
+                <Select 
+                  value={selectedTemplate?.id?.toString() || ''} 
+                  onValueChange={(value) => {
+                    const template = availableTemplates.find((t: any) => t.id.toString() === value);
+                    setSelectedTemplate(template);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Vorlage auswählen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTemplates.map((template: any) => (
+                      <SelectItem key={template.id} value={template.id.toString()}>
+                        {template.name} {template.isDefault ? '(Standard)' : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="text-sm text-gray-500">
+                  Keine E-Mail-Vorlagen verfügbar
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
