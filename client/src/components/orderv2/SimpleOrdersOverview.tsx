@@ -189,7 +189,6 @@ const SimpleOrdersOverview: React.FC<SimpleOrdersOverviewProps> = ({
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Bestellungen</h1>
         {onCreateNew && (
           <Button onClick={onCreateNew}>
             <Plus className="h-4 w-4 mr-2" />

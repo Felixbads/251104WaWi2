@@ -1676,16 +1676,24 @@ const BestellungV2: React.FC = () => {
   
   return (
     <div className="container py-6 mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-3xl font-bold">
-          {step === 'overview' ? 'Bestellungen' : 'Neue Bestellung'}
-          {orderId && step !== 'overview' && (
-            <Badge variant="outline" className="ml-2">
-              {orderNumber || `#${orderId}`}
-            </Badge>
-          )}
-        </h1>
-      </div>
+      {step !== 'overview' && (
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold">
+            Neue Bestellung
+            {orderId && (
+              <Badge variant="outline" className="ml-2">
+                {orderNumber || `#${orderId}`}
+              </Badge>
+            )}
+          </h1>
+        </div>
+      )}
+      
+      {step === 'overview' && (
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold">Bestellungen</h1>
+        </div>
+      )}
       
       {showSteps && steps.length > 0 && (
         <div className="mb-8">
