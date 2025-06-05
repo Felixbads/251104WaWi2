@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { 
   Clock, 
   DoorOpen, 
@@ -203,6 +204,8 @@ export default function StandortStatus() {
 }
 
 function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
+  const [, setLocation] = useLocation();
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'ok':
@@ -222,12 +225,19 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
     return `vor ${daysAgo} Tagen`;
   };
 
+  const handleCardClick = () => {
+    setLocation(`/automaten/${machine.id}`);
+  };
+
   return (
-    <Card className={`border-l-4 ${
-      machine.status === 'ok' ? 'border-l-green-500' :
-      machine.status === 'warning' ? 'border-l-yellow-500' :
-      'border-l-red-500'
-    }`}>
+    <Card 
+      className={`border-l-4 cursor-pointer hover:shadow-lg transition-shadow duration-200 ${
+        machine.status === 'ok' ? 'border-l-green-500' :
+        machine.status === 'warning' ? 'border-l-yellow-500' :
+        'border-l-red-500'
+      }`}
+      onClick={handleCardClick}
+    >
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg font-semibold truncate">

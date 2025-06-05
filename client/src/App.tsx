@@ -70,7 +70,7 @@ import Reporting from "@/pages/Reporting";
 import Orders from "@/pages/Orders";
 import NewOrder from "@/pages/NewOrder";
 import BestellungV2 from "@/pages/BestellungV2"; // Neue Bestellung 2.0 Seite
-import BestellungenV4 from "@/pages/BestellungenV4"; // Kompletter Bestellprozess V4
+// import BestellungenV4 from "@/pages/BestellungenV4"; // Kompletter Bestellprozess V4 - temporarily disabled
 // BestellungV3 wurde entfernt
 import OrderDetail from "@/pages/OrderDetail";
 import OrderReceipt from "@/pages/OrderReceipt";
@@ -213,11 +213,7 @@ function AuthenticatedRouter() {
         )} />
 
         {/* Spezifische Routen MÜSSEN vor dynamischen Routen stehen */}
-        <Route path="/bestellungen-v4" component={props => (
-          <ApprovedUserRoute>
-            <BestellungenV4 {...props} />
-          </ApprovedUserRoute>
-        )} />
+        {/* BestellungenV4 temporarily disabled */}
 
         <Route path="/bestellungen/neu-v2" component={props => (
           <ApprovedUserRoute>
