@@ -42,12 +42,14 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
     try {
       setIsLoading(true);
 
-      // Load supplier email templates
-      if (order.supplier_id) {
+      // Load supplier email templates  
+      const supplierId = order.supplier_id || order.supplierId;
+      if (supplierId) {
         try {
-          const templatesResponse = await fetch(`/api/supplier-email-templates/${order.supplier_id}`);
+          const templatesResponse = await fetch(`/api/supplier-email-templates/${supplierId}`);
           if (templatesResponse.ok) {
             const templates = await templatesResponse.json();
+            console.log('E-Mail-Vorlagen geladen:', templates);
             setAvailableTemplates(templates);
             
             // Find default template
@@ -79,26 +81,15 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
         }));
       }
 
-      // Load supplier template if available
-      if (order.supplierId) {
-        const templateResponse = await fetch(`/api/email/supplier-template/${order.supplierId}`);
-        
-        if (templateResponse.ok) {
-          const templateData = await templateResponse.json();
-          setEmailData(prev => ({
-            ...prev,
-            to: templateData.orderEmailRecipient || order.supplierEmail || '',
-            cc: templateData.orderEmailCc || 'andreas@proviantomat.de,einkauf@proviantomat.de',
-            bcc: templateData.orderEmailBcc || '',
-          }));
-        }
-      } else {
-        // Fallback to order supplier email
-        setEmailData(prev => ({
-          ...prev,
-          to: order.supplierEmail || '',
-        }));
-      }
+      // Set email recipient from order data
+      const supplierEmail = order.supplier_email || order.supplierEmail || '';
+      console.log('Lieferanten-E-Mail gefunden:', supplierEmail);
+      
+      setEmailData(prev => ({
+        ...prev,
+        to: supplierEmail,
+        cc: 'andreas@proviantomat.de,einkauf@proviantomat.de',
+      }));
 
     } catch (error) {
       console.error('Error loading email template:', error);
