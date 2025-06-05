@@ -17,6 +17,7 @@ import orderV3Router from './routes/order-v3';
 import ordersV4Router from './routes/orders-v4';
 import inventoryBatchesRouter from './routes/inventory-batches.js';
 import emailRouter from './routes/email';
+import supplierEmailTemplatesRouter from './routes/supplier-email-templates';
 import { pool } from './db';
 
 const app = express();
@@ -409,6 +410,9 @@ Elbsandstein Proviant & Quartier GmbH`;
       });
     }
   });
+  
+  // E-Mail-Vorlagen für Lieferanten registrieren
+  app.use('/api/supplier-email-templates', supplierEmailTemplatesRouter);
   
   const server = await registerRoutes(app);
 

@@ -131,6 +131,34 @@ export const insertSupplierSchema = createInsertSchema(suppliers)
 export type InsertSupplier = z.infer<typeof insertSupplierSchema>;
 export type Supplier = typeof suppliers.$inferSelect;
 
+// Supplier Email Templates table
+export const supplierEmailTemplates = pgTable("supplier_email_templates", {
+  id: serial("id").primaryKey(),
+  supplierId: integer("supplier_id").notNull().references(() => suppliers.id, { onDelete: "cascade" }),
+  templateName: text("template_name").notNull(),
+  subjectTemplate: text("subject_template").notNull(),
+  contentTemplate: text("content_template").notNull(),
+  isDefault: boolean("is_default").default(false),
+  templateType: text("template_type").default("standard"), // standard, urgent, reorder
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSupplierEmailTemplateSchema = createInsertSchema(supplierEmailTemplates)
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .extend({
+    templateName: z.string().min(1, "Vorlagenname ist erforderlich"),
+    subjectTemplate: z.string().min(1, "Betreff-Vorlage ist erforderlich"),
+    contentTemplate: z.string().min(1, "Inhalt-Vorlage ist erforderlich"),
+  });
+
+export type InsertSupplierEmailTemplate = z.infer<typeof insertSupplierEmailTemplateSchema>;
+export type SupplierEmailTemplate = typeof supplierEmailTemplates.$inferSelect;
+
 // Users table
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
