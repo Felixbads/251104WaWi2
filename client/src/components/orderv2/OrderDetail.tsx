@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { Loader2, Package, Mail, FileText, AlertCircle, ArrowLeft } from "lucide-react";
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
+import EmailDialog from './EmailDialog';
 
 interface OrderItem {
   id: number;
@@ -82,6 +83,7 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
   const [isLoadingItems, setIsLoadingItems] = useState(true);
   const [isLoadingEmail, setIsLoadingEmail] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
 
   const loadOrderData = async () => {
     try {
@@ -243,9 +245,19 @@ const OrderDetail: React.FC<OrderDetailProps> = ({ orderId, onBack, onEmailPrepa
             </p>
           </div>
         </div>
-        <Badge className={getStatusColor(order.status)}>
-          {getStatusText(order.status)}
-        </Badge>
+        <div className="flex items-center space-x-2">
+          <Button 
+            onClick={() => setIsEmailDialogOpen(true)}
+            variant="outline"
+            size="sm"
+          >
+            <Mail className="h-4 w-4 mr-2" />
+            E-Mail senden
+          </Button>
+          <Badge className={getStatusColor(order.status)}>
+            {getStatusText(order.status)}
+          </Badge>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

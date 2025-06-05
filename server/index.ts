@@ -16,6 +16,7 @@ import directSqlRouter from './routes/direct-sql';
 import orderV3Router from './routes/order-v3';
 import ordersV4Router from './routes/orders-v4';
 import inventoryBatchesRouter from './routes/inventory-batches.js';
+import emailRouter from './routes/email';
 import { pool } from './db';
 
 const app = express();
