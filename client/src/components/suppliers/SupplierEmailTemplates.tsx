@@ -251,11 +251,11 @@ export default function SupplierEmailTemplates({ supplierId, supplierName }: Sup
                   id="subjectTemplate"
                   value={formData.subjectTemplate}
                   onChange={(e) => setFormData(prev => ({ ...prev, subjectTemplate: e.target.value }))}
-                  placeholder="z.B. Bestellung {{orderNumber}} vom {{orderDate}}"
+                  placeholder="z.B. Bestellung {orderNumber} vom {orderDate}"
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Verfügbare Platzhalter: {{orderNumber}}, {{orderDate}}, {{supplierName}}, {{deliveryDate}}
+                  Verfügbare Platzhalter: {`{orderNumber}, {orderDate}, {supplierName}, {deliveryDate}`}
                 </p>
               </div>
 
@@ -265,12 +265,12 @@ export default function SupplierEmailTemplates({ supplierId, supplierName }: Sup
                   id="contentTemplate"
                   value={formData.contentTemplate}
                   onChange={(e) => setFormData(prev => ({ ...prev, contentTemplate: e.target.value }))}
-                  placeholder="Sehr geehrter {{supplierName}}, hiermit bestellen wir..."
+                  placeholder="Sehr geehrter {supplierName}, hiermit bestellen wir..."
                   rows={8}
                   required
                 />
                 <p className="text-xs text-muted-foreground">
-                  Verfügbare Platzhalter: {{orderNumber}}, {{orderDate}}, {{supplierName}}, {{deliveryDate}}, {{itemsList}}, {{totalAmount}}
+                  Verfügbare Platzhalter: {`{orderNumber}, {orderDate}, {supplierName}, {deliveryDate}, {itemsList}, {totalAmount}`}
                 </p>
               </div>
 
@@ -390,7 +390,12 @@ export default function SupplierEmailTemplates({ supplierId, supplierName }: Sup
                     variant="outline"
                     className="mt-2"
                     onClick={() => {
-                      setFormData(prev => ({ ...prev, templateType: type.value }));
+                      setFormData(prev => ({ 
+                        ...prev, 
+                        templateType: type.value,
+                        subjectTemplate: '',
+                        contentTemplate: ''
+                      }));
                       setIsCreating(true);
                     }}
                   >
