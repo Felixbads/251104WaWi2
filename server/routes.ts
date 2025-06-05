@@ -36,6 +36,7 @@ import vendonImportStatsRouter from './routes/vendonImportStats';
 import vendonHistoricalImportRouter from './routes/vendonHistoricalImport';
 import eventsRouter from './routes/events';
 import locationStatusRouter from './routes/location-status';
+import databaseRouter from './routes/database';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -2905,6 +2906,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/email`, emailRoutes);
   app.use(`${API_PREFIX}/refills`, refillsRoutes);
   app.use(`${API_PREFIX}/database-viewer`, databaseViewerRoutes);
+  app.use(`${API_PREFIX}/database`, databaseRouter);
   app.use(`${API_PREFIX}/admin`, adminRouter);
   app.use(`${API_PREFIX}/location-status`, locationStatusRouter);
   

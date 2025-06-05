@@ -442,6 +442,13 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
 
+        {/* Datenbank-Manager für Admins */}
+        <Route path="/database-manager" component={props => (
+          <AdminRoute>
+            <DatabaseManager {...props} />
+          </AdminRoute>
+        )} />
+
         {/* Benutzer-Verwaltung für Admins */}
         <Route path="/benutzer">
           {() => (
