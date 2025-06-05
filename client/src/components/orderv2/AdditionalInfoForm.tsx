@@ -82,26 +82,7 @@ const AdditionalInfoForm: React.FC<AdditionalInfoFormProps> = ({
   const handleDeliveryTypeChange = (value: string) => {
     onAdditionalInfoChange({
       ...additionalInfo,
-      deliveryType: value,
-      // Clear the other field when switching types
-      deliveryAddress: value === 'pickup' ? '' : additionalInfo.deliveryAddress,
-      pickupLocation: value === 'delivery' ? '' : additionalInfo.pickupLocation
-    });
-  };
-  
-  // Update delivery address
-  const handleDeliveryAddressChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    onAdditionalInfoChange({
-      ...additionalInfo,
-      deliveryAddress: e.target.value
-    });
-  };
-  
-  // Update pickup location
-  const handlePickupLocationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onAdditionalInfoChange({
-      ...additionalInfo,
-      pickupLocation: e.target.value
+      deliveryType: value
     });
   };
   
@@ -163,27 +144,24 @@ const AdditionalInfoForm: React.FC<AdditionalInfoFormProps> = ({
           </Select>
         </div>
 
-        {/* Conditional fields based on delivery type */}
+        {/* Display delivery information */}
         {additionalInfo.deliveryType === 'delivery' && (
           <div className="space-y-2">
             <label className="text-sm font-medium">Lieferadresse</label>
-            <Textarea
-              placeholder="Vollständige Lieferadresse eingeben..."
-              value={additionalInfo.deliveryAddress}
-              onChange={handleDeliveryAddressChange}
-              rows={3}
-            />
+            <div className="bg-muted p-3 rounded-md text-sm">
+              <div className="font-medium">Lageradresse wird automatisch verwendet</div>
+              <div className="text-muted-foreground">Die Adresse des ausgewählten Lagers wird als Lieferadresse verwendet.</div>
+            </div>
           </div>
         )}
 
         {additionalInfo.deliveryType === 'pickup' && (
           <div className="space-y-2">
             <label className="text-sm font-medium">Abholort</label>
-            <Input
-              placeholder="Abholort eingeben..."
-              value={additionalInfo.pickupLocation}
-              onChange={handlePickupLocationChange}
-            />
+            <div className="bg-muted p-3 rounded-md text-sm">
+              <div className="font-medium">Lieferantenadresse wird automatisch verwendet</div>
+              <div className="text-muted-foreground">Die Adresse des Lieferanten wird als Abholort verwendet.</div>
+            </div>
           </div>
         )}
 

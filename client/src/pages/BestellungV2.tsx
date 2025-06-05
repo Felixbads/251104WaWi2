@@ -1316,8 +1316,9 @@ const BestellungV2: React.FC = () => {
                 priority: additionalInfo?.priority || 'normal',
                 notes: additionalInfo?.notes || '',
                 deliveryType: additionalInfo?.deliveryType || '',
-                deliveryAddress: additionalInfo?.deliveryAddress || '',
-                pickupLocation: additionalInfo?.pickupLocation || '',
+                // Set addresses automatically based on delivery type
+                deliveryAddress: additionalInfo?.deliveryType === 'delivery' ? warehouseName : '',
+                pickupLocation: additionalInfo?.deliveryType === 'pickup' ? supplierName : '',
                 orderDate: new Date().toISOString().split('T')[0], // Als String im Format "YYYY-MM-DD"
                 items: selectedProducts.map(product => ({
                   productId: Number(product.id),

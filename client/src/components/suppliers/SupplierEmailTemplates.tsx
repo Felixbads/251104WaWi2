@@ -239,7 +239,53 @@ Steuernummer: 202/108/12994`,
           </p>
         </div>
         <Button onClick={() => {
-          setFormData(defaultFormData);
+          setFormData({
+            templateName: 'Standard Bestellung',
+            subjectTemplate: 'Bestellung {orderNumber} – Lieferung am {deliveryDate}',
+            contentTemplate: `Sehr geehrte Damen und Herren,
+
+hiermit bestellen wir bei Ihnen folgende Artikel:
+
+Bestellnummer: {orderNumber}
+Bestelldatum: {orderDate}
+Geplante Lieferung: {deliveryDate}
+Lieferart: {deliveryType}
+
+Lieferadresse:
+{deliveryAddress}
+
+Rechnungsadresse:
+Elbsandstein Proviant & Quartier GmbH
+Seifhennersdorfer Straße 14
+01099 Dresden
+
+Bestellte Artikel:
+{itemsList}
+
+Kostenübersicht:
+Nettosumme: {netAmount} €
+zzgl. {vatRate} % MwSt.: {vatAmount} €
+Gesamtsumme brutto: {totalAmount} €
+
+Bitte bestätigen Sie uns den Erhalt dieser Bestellung sowie den geplanten {deliveryType}.
+
+Für Rückfragen stehen wir jederzeit zur Verfügung.
+
+Mit freundlichen Grüßen
+Felix Zschoge
+
+Elbsandstein Proviant & Quartier GmbH
+Seifhennersdorfer Straße 14
+01099 Dresden
+Tel.: +49 173 4385330
+E-Mail: felix@proviantomat.de
+
+Unternehmensdaten:
+USt-IdNr.: DE353967134
+Steuernummer: 202/108/12994`,
+            templateType: 'standard',
+            isDefault: false
+          });
           setEditingTemplate(null);
           setIsCreating(true);
         }} className="flex items-center gap-2">
