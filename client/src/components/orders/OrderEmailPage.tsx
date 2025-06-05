@@ -294,9 +294,11 @@ USt-IdNr.: DE353967134`,
       setError(null);
       
       try {
-        // Fix 1: Korrekter GET-Request ohne method: 'POST'
+        // Enhanced template loading with comprehensive fixes
         const authToken = localStorage.getItem('auth_token') || localStorage.getItem('authToken');
-        const directResponse = await fetch(`/api/orders/${orderId}/email-template?type=${selectedTemplate}`, {
+        
+        // Try enhanced template first
+        let templateResponse = await fetch(`/api/orders/${orderId}/email-template-enhanced`, {
           method: 'GET',
           headers: {
             ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})

@@ -414,6 +414,7 @@ Elbsandstein Proviant & Quartier GmbH`;
   
   // E-Mail-Vorlagen für Lieferanten registrieren
   app.use('/api/supplier-email-templates', supplierEmailTemplatesRouter);
+app.use('/api', emailTemplateFixRouter);
   
   const server = await registerRoutes(app);
 

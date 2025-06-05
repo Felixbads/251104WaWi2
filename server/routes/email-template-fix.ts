@@ -21,19 +21,19 @@ router.get('/orders/:id/email-template-enhanced', async (req: Request, res: Resp
       .select({
         id: orders.id,
         orderNumber: orders.orderNumber,
-        supplierEmail: orders.supplierEmail,
+        supplierEmail: suppliers.email,
         supplierId: orders.supplierId,
-        supplierName: suppliers.companyName,
+        supplierName: suppliers.name,
         orderDate: orders.orderDate,
         expectedDeliveryDate: orders.expectedDeliveryDate,
         deliveryType: orders.deliveryType,
-        warehouseId: orders.warehouseId,
+        warehouseId: orders.locationId,
         warehouseName: warehouses.name,
-        warehouseLocation: warehouses.location
+        warehouseLocation: warehouses.address
       })
       .from(orders)
       .leftJoin(suppliers, eq(orders.supplierId, suppliers.id))
-      .leftJoin(warehouses, eq(orders.warehouseId, warehouses.id))
+      .leftJoin(warehouses, eq(orders.locationId, warehouses.id))
       .where(eq(orders.id, orderId));
 
     if (!orderData) {
