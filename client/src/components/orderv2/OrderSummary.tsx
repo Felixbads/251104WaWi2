@@ -42,6 +42,9 @@ interface OrderSummaryProps {
     expectedDeliveryDate: Date | null;
     priority: string;
     notes: string;
+    deliveryType: string;
+    deliveryAddress: string;
+    pickupLocation: string;
   };
   onCreateOrder: () => void;
   isCreatingOrder: boolean;
@@ -136,6 +139,29 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
           </Badge>
         </div>
         
+        {/* Delivery Type */}
+        {additionalInfo.deliveryType && (
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Lieferart:</div>
+            <div className="flex items-center">
+              <Truck className="h-4 w-4 mr-2 text-primary" />
+              <span>{additionalInfo.deliveryType === 'delivery' ? 'Anlieferung' : 'Abholung'}</span>
+            </div>
+            {additionalInfo.deliveryType === 'delivery' && additionalInfo.deliveryAddress && (
+              <div className="bg-muted p-3 rounded-md text-sm">
+                <div className="font-medium mb-1">Lieferadresse:</div>
+                <div className="whitespace-pre-wrap">{additionalInfo.deliveryAddress}</div>
+              </div>
+            )}
+            {additionalInfo.deliveryType === 'pickup' && additionalInfo.pickupLocation && (
+              <div className="bg-muted p-3 rounded-md text-sm">
+                <div className="font-medium mb-1">Abholort:</div>
+                <div>{additionalInfo.pickupLocation}</div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Notes if present */}
         {additionalInfo.notes && (
           <div className="space-y-2">

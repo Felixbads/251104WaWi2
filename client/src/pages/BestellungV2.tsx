@@ -119,10 +119,16 @@ const BestellungV2: React.FC = () => {
     expectedDeliveryDate: Date | null;
     priority: string;
     notes: string;
+    deliveryType: string;
+    deliveryAddress: string;
+    pickupLocation: string;
   }>({
     expectedDeliveryDate: null,
     priority: 'normal',
     notes: '',
+    deliveryType: '',
+    deliveryAddress: '',
+    pickupLocation: ''
   });
   const [orderId, setOrderId] = useState<number | null>(null);
   const [orderNumber, setOrderNumber] = useState<string>('');
@@ -281,6 +287,9 @@ const BestellungV2: React.FC = () => {
         // Nur hinzufügen, wenn es ein valides Datum im richtigen Format gibt
         ...(formattedDate && { expectedDeliveryDate: formattedDate }),
         notes: orderData.notes || '',
+        deliveryType: orderData.deliveryType || '',
+        deliveryAddress: orderData.deliveryAddress || '',
+        pickupLocation: orderData.pickupLocation || '',
         status: 'draft',
         // Transformiere die ausgewählten Produkte ins richtige Format
         orderItems: Array.isArray(orderData.products) ? orderData.products.map((product: any) => ({
@@ -1110,6 +1119,9 @@ const BestellungV2: React.FC = () => {
                 expectedDeliveryDate: null,
                 priority: 'normal',
                 notes: '',
+                deliveryType: '',
+                deliveryAddress: '',
+                pickupLocation: ''
               });
               setExistingOrderData(null);
               setOrderId(null);
@@ -1297,12 +1309,15 @@ const BestellungV2: React.FC = () => {
                 return;
               }
               
-              // Erstelle ein Payload-Objekt ohne das expectedDeliveryDate
+              // Erstelle ein Payload-Objekt mit allen Feldern inklusive Lieferart
               const orderPayload: any = {
                 warehouseId: Number(warehouseId),
                 supplierId: Number(supplierId),
                 priority: additionalInfo?.priority || 'normal',
                 notes: additionalInfo?.notes || '',
+                deliveryType: additionalInfo?.deliveryType || '',
+                deliveryAddress: additionalInfo?.deliveryAddress || '',
+                pickupLocation: additionalInfo?.pickupLocation || '',
                 orderDate: new Date().toISOString().split('T')[0], // Als String im Format "YYYY-MM-DD"
                 items: selectedProducts.map(product => ({
                   productId: Number(product.id),
