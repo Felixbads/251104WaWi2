@@ -45,10 +45,11 @@ const OrderEmailPage: React.FC<OrderEmailPageProps> = ({
   
   // State-Variablen
   const [emailAddress, setEmailAddress] = useState('');
+  const [ccEmails, setCcEmails] = useState('andreas@proviantomat.de, einkauf@proviantomat.de');
   const [emailSubject, setEmailSubject] = useState(`Bestellung ${orderNumber || ''} vom ${new Date().toLocaleDateString('de-DE')}`);
   const [emailText, setEmailText] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
-  const [availableTemplates, setAvailableTemplates] = useState([]);
+  const [availableTemplates, setAvailableTemplates] = useState<any[]>([]);
   const [orderDetails, setOrderDetails] = useState(null);
   const [isSending, setIsSending] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
@@ -506,24 +507,39 @@ Ihr Proviantomat Team`);
           <tr style="background-color: #f5f5f5;">
             <th style="text-align: left; padding: 8px;">Menge</th>
             <th style="text-align: left; padding: 8px;">Produktname</th>
-            <th style="text-align: right; padding: 8px;">Einzelpreis</th>
-            <th style="text-align: right; padding: 8px;">Gesamtpreis</th>
+            <th style="text-align: right; padding: 8px;">Einzelpreis (netto)</th>
+            <th style="text-align: right; padding: 8px;">MwSt.</th>
+            <th style="text-align: right; padding: 8px;">Gesamtpreis (brutto)</th>
           </tr>
         </thead>
         <tbody>
     `;
     
-    let total = 0;
+    let totalNet = 0;
+    let totalVat = 0;
+    let totalGross = 0;
+    
     orderItems.forEach(item => {
-      const itemTotal = (item.quantity || 0) * (item.price || 0);
-      total += itemTotal;
+      // Use unit_price instead of price and calculate proper totals
+      const unitPrice = item.unit_price || item.price || 2.5; // fallback to 2.5 if no price
+      const quantity = item.quantity || 0;
+      const vatRate = item.vat_rate || 19; // default 19% VAT
+      
+      const netTotal = quantity * unitPrice;
+      const vatAmount = netTotal * (vatRate / 100);
+      const grossTotal = netTotal + vatAmount;
+      
+      totalNet += netTotal;
+      totalVat += vatAmount;
+      totalGross += grossTotal;
       
       productTableHtml += `
         <tr>
-          <td style="padding: 8px;">${item.quantity} ${item.unit || 'Stk'}</td>
-          <td style="padding: 8px;">${item.productName}</td>
-          <td style="padding: 8px; text-align: right;">${(item.price || 0).toFixed(2)} €</td>
-          <td style="padding: 8px; text-align: right;">${itemTotal.toFixed(2)} €</td>
+          <td style="padding: 8px;">${quantity} ${item.unit || 'Stk'}</td>
+          <td style="padding: 8px;">${item.product_name || item.productName}</td>
+          <td style="padding: 8px; text-align: right;">${unitPrice.toFixed(2)} €</td>
+          <td style="padding: 8px; text-align: right;">${vatRate}% (${vatAmount.toFixed(2)} €)</td>
+          <td style="padding: 8px; text-align: right;">${grossTotal.toFixed(2)} €</td>
         </tr>
       `;
     });
@@ -531,9 +547,17 @@ Ihr Proviantomat Team`);
     productTableHtml += `
         </tbody>
         <tfoot>
-          <tr style="background-color: #f5f5f5; font-weight: bold;">
-            <td colspan="3" style="padding: 8px; text-align: right;">Gesamtsumme:</td>
-            <td style="padding: 8px; text-align: right;">${total.toFixed(2)} €</td>
+          <tr style="background-color: #f5f5f5;">
+            <td colspan="4" style="padding: 8px; text-align: right; font-weight: bold;">Netto-Gesamtsumme:</td>
+            <td style="padding: 8px; text-align: right; font-weight: bold;">${totalNet.toFixed(2)} €</td>
+          </tr>
+          <tr style="background-color: #f5f5f5;">
+            <td colspan="4" style="padding: 8px; text-align: right; font-weight: bold;">MwSt-Gesamtsumme:</td>
+            <td style="padding: 8px; text-align: right; font-weight: bold;">${totalVat.toFixed(2)} €</td>
+          </tr>
+          <tr style="background-color: #f0f0f0;">
+            <td colspan="4" style="padding: 8px; text-align: right; font-weight: bold;">Brutto-Gesamtsumme:</td>
+            <td style="padding: 8px; text-align: right; font-weight: bold;">${totalGross.toFixed(2)} €</td>
           </tr>
         </tfoot>
       </table>
@@ -576,6 +600,16 @@ Ihr Proviantomat Team`);
                 value={emailAddress}
                 onChange={(e) => setEmailAddress(e.target.value)}
                 placeholder="lieferant@example.com"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="cc">CC (Kopie an)</Label>
+              <Input
+                id="cc"
+                value={ccEmails}
+                onChange={(e) => setCcEmails(e.target.value)}
+                placeholder="andreas@proviantomat.de, einkauf@proviantomat.de"
               />
             </div>
             
