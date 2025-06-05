@@ -13,6 +13,7 @@ import {
   Bell, User, Clock, Shield, Cog
 } from "lucide-react";
 import DatabaseViewer from "@/components/settings/DatabaseViewer";
+import DatabaseManager from "@/pages/DatabaseManager";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Settings() {
@@ -166,7 +167,7 @@ export default function Settings() {
       <Card>
         <CardContent className="pt-6">
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value)} className="space-y-4">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="api" className="flex items-center">
                 <Key className="h-4 w-4 mr-2" />
                 API-Verbindung
@@ -182,6 +183,10 @@ export default function Settings() {
               <TabsTrigger value="database" className="flex items-center">
                 <Database className="h-4 w-4 mr-2" />
                 Datenbank-Viewer
+              </TabsTrigger>
+              <TabsTrigger value="backup" className="flex items-center">
+                <Database className="h-4 w-4 mr-2" />
+                Datenbank-Manager
               </TabsTrigger>
             </TabsList>
 
@@ -461,6 +466,11 @@ export default function Settings() {
             {/* Database Viewer Tab */}
             <TabsContent value="database" className="space-y-4">
               <DatabaseViewer />
+            </TabsContent>
+
+            {/* Database Manager Tab */}
+            <TabsContent value="backup" className="space-y-4">
+              <DatabaseManager />
             </TabsContent>
           </Tabs>
         </CardContent>

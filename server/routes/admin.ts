@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import { storage } from '../storage';
 import { User } from '../../shared/schema';
 import { productSync } from '../services/productSync';
+import { validateToken } from '../auth';
 
 const router = express.Router();
 
@@ -9,6 +10,30 @@ const router = express.Router();
 interface AuthRequest extends Request {
   user?: User;
 }
+
+// Auth-Middleware: Authentifiziert Benutzer und setzt req.user
+const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const authHeader = req.headers.authorization;
+    
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    const user = await validateToken(token);
+    
+    if (!user) {
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+    
+    req.user = user;
+    next();
+  } catch (error) {
+    console.error("Authentication error:", error);
+    res.status(401).json({ error: "Authentication failed" });
+  }
+};
 
 // Admin-Middleware: Stellt sicher, dass der Benutzer Admin-Rechte hat
 const requireAdmin = async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -29,7 +54,7 @@ const requireAdmin = async (req: AuthRequest, res: Response, next: NextFunction)
 };
 
 // Alle Benutzer abrufen (nur für Admins)
-router.get('/users', requireAdmin, async (req: AuthRequest, res: Response) => {
+router.get('/users', authenticate, requireAdmin, async (req: AuthRequest, res: Response) => {
   try {
     const users = await storage.getUsers();
     res.json(users);
