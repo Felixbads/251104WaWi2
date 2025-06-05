@@ -77,10 +77,11 @@ import OrderSummary from '@/components/orderv2/OrderSummary';
 import GoodsReceiptForm from '@/components/orderv2/GoodsReceiptForm';
 import OrdersOverview from '@/components/orderv2/OrdersOverview';
 import SimpleOrdersOverview from '@/components/orderv2/SimpleOrdersOverview';
+import OrderDetail from '@/components/orderv2/OrderDetail';
 import { Badge } from '@/components/ui/badge';
 
 // Define the order steps
-type OrderStep = 'overview' | 'warehouse' | 'mode' | 'supplier' | 'products' | 'additionalInfo' | 'summary' | 'viewOrder' | 'sendOrder' | 'goodsReceipt' | 'warehouseReceiptOfExistingOrder';
+type OrderStep = 'overview' | 'warehouse' | 'mode' | 'supplier' | 'products' | 'additionalInfo' | 'summary' | 'viewOrder' | 'orderDetail' | 'sendOrder' | 'goodsReceipt' | 'warehouseReceiptOfExistingOrder';
 
 const BestellungV2: React.FC = () => {
   const { toast } = useToast();

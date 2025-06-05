@@ -211,6 +211,203 @@ app.get('/orders-data', (req, res) => {
       });
     }
   });
+
+  // Order Items Endpunkt mit korrekten Preisdaten
+  app.get('/api/orders/:id/items', async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.id);
+      console.log(`GET /api/orders/${orderId}/items - Lade Bestellpositionen mit korrekten Preisen...`);
+      
+      const result = await pool.query(`
+        SELECT 
+          oi.*,
+          p.name as product_name,
+          p.unit as product_unit,
+          COALESCE(oi.unit_price, 0) as unit_price,
+          COALESCE(oi.total_price, oi.quantity * COALESCE(oi.unit_price, 0)) as total_price
+        FROM order_items oi
+        LEFT JOIN products p ON oi.product_id = p.id
+        WHERE oi.order_id = $1
+        ORDER BY oi.id
+      `, [orderId]);
+      
+      // Format data for frontend consumption with proper field mapping
+      const formattedItems = result.rows.map(item => ({
+        ...item,
+        // Ensure both camelCase and snake_case fields are available
+        productName: item.product_name || `Produkt-ID ${item.product_id}`,
+        product_name: item.product_name || `Produkt-ID ${item.product_id}`,
+        unitPrice: parseFloat(item.unit_price || 0),
+        unit_price: parseFloat(item.unit_price || 0),
+        totalPrice: parseFloat(item.total_price || 0),
+        total_price: parseFloat(item.total_price || 0),
+        unit: item.product_unit || item.unit || 'Stk'
+      }));
+      
+      console.log(`${formattedItems.length} Bestellpositionen mit Preisdaten geladen`);
+      return res.json(formattedItems);
+    } catch (error) {
+      console.error('Fehler beim Laden der Bestellpositionen:', error);
+      return res.status(500).json({ 
+        error: 'Datenbankfehler', 
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+      });
+    }
+  });
+
+  // Email Template Endpunkt mit echten Lieferantendaten
+  app.get('/api/orders/:id/email-template', async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.id);
+      const templateType = req.query.type || 'standard';
+      console.log(`GET /api/orders/${orderId}/email-template - Generiere E-Mail-Vorlage...`);
+      
+      // Bestellung mit Lieferantendaten laden
+      const orderResult = await pool.query(`
+        SELECT 
+          o.*,
+          s.name as supplier_name,
+          s.email as supplier_email,
+          s.phone as supplier_phone,
+          s.address as supplier_address
+        FROM orders o
+        LEFT JOIN suppliers s ON o.supplier_id = s.id
+        WHERE o.id = $1
+      `, [orderId]);
+      
+      if (orderResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Bestellung nicht gefunden' });
+      }
+      
+      const order = orderResult.rows[0];
+      
+      // Bestellpositionen mit korrekten Preisen laden
+      const itemsResult = await pool.query(`
+        SELECT 
+          oi.*,
+          p.name as product_name,
+          p.unit as product_unit,
+          COALESCE(oi.unit_price, 0) as unit_price,
+          COALESCE(oi.total_price, oi.quantity * COALESCE(oi.unit_price, 0)) as total_price
+        FROM order_items oi
+        LEFT JOIN products p ON oi.product_id = p.id
+        WHERE oi.order_id = $1
+        ORDER BY oi.id
+      `, [orderId]);
+      
+      // E-Mail-Vorlage basierend auf Typ generieren
+      let subject = '';
+      let content = '';
+      
+      const supplierName = order.supplier_name || 'Sehr geehrte Damen und Herren';
+      const orderNumber = order.order_number || `#${order.id}`;
+      const orderDate = new Date(order.created_at).toLocaleDateString('de-DE');
+      const deliveryDate = order.expected_delivery_date ? 
+        new Date(order.expected_delivery_date).toLocaleDateString('de-DE') : 
+        'Noch nicht festgelegt';
+      
+      // Bestellpositionen formatieren
+      let itemsList = '';
+      let totalAmount = 0;
+      
+      itemsResult.rows.forEach(item => {
+        const unitPrice = parseFloat(item.unit_price || 0);
+        const quantity = parseInt(item.quantity || 1);
+        const itemTotal = quantity * unitPrice;
+        totalAmount += itemTotal;
+        
+        const productName = item.product_name || `Produkt-ID ${item.product_id}`;
+        const unit = item.product_unit || item.unit || 'Stk';
+        
+        itemsList += `• ${quantity} ${unit} ${productName} (${unitPrice.toFixed(2)} € je ${unit} = ${itemTotal.toFixed(2)} €)\n`;
+      });
+      
+      // Template-spezifische Inhalte
+      switch (templateType) {
+        case 'urgent':
+        case 'dringend':
+          subject = `DRINGEND: Bestellung ${orderNumber} - Elbsandstein Proviant & Quartier GmbH`;
+          content = `Sehr geehrter ${supplierName},
+
+DRINGENDE BESTELLUNG - Bitte um bevorzugte Bearbeitung!
+
+hiermit bestellen wir dringend folgende Artikel:
+
+${itemsList}
+
+Bestellnummer: ${orderNumber}
+Bestelldatum: ${orderDate}
+Gewünschter Liefertermin: ${deliveryDate}
+Gesamtwert: ${totalAmount.toFixed(2)} €
+
+Wir benötigen die Lieferung so schnell wie möglich. Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns den voraussichtlichen Liefertermin mit.
+
+Bei Rückfragen erreichen Sie uns jederzeit.
+
+Mit freundlichen Grüßen
+Elbsandstein Proviant & Quartier GmbH`;
+          break;
+          
+        case 'reorder':
+        case 'nachbestellung':
+          subject = `Nachbestellung ${orderNumber} - Elbsandstein Proviant & Quartier GmbH`;
+          content = `Sehr geehrter ${supplierName},
+
+hiermit bestellen wir erneut nach:
+
+${itemsList}
+
+Bestellnummer: ${orderNumber}
+Bestelldatum: ${orderDate}
+Gewünschter Liefertermin: ${deliveryDate}
+Gesamtwert: ${totalAmount.toFixed(2)} €
+
+Bitte liefern Sie die aufgeführten Artikel gemäß unserer üblichen Konditionen.
+
+Mit freundlichen Grüßen
+Elbsandstein Proviant & Quartier GmbH`;
+          break;
+          
+        default: // standard
+          subject = `Bestellung ${orderNumber} - Elbsandstein Proviant & Quartier GmbH`;
+          content = `Sehr geehrter ${supplierName},
+
+hiermit bestellen wir folgende Artikel:
+
+${itemsList}
+
+Bestellnummer: ${orderNumber}
+Bestelldatum: ${orderDate}
+Gewünschter Liefertermin: ${deliveryDate}
+Gesamtwert: ${totalAmount.toFixed(2)} €
+
+Bitte bestätigen Sie den Erhalt dieser Bestellung und teilen Sie uns mit, wann wir mit der Lieferung rechnen können.
+
+Mit freundlichen Grüßen
+Elbsandstein Proviant & Quartier GmbH`;
+      }
+      
+      return res.json({
+        subject,
+        content,
+        supplierEmail: order.supplier_email || '',
+        orderDetails: {
+          orderNumber,
+          orderDate,
+          deliveryDate,
+          totalAmount: totalAmount.toFixed(2),
+          itemsCount: itemsResult.rows.length,
+          supplierName: order.supplier_name
+        }
+      });
+    } catch (error) {
+      console.error('Fehler beim Generieren der E-Mail-Vorlage:', error);
+      return res.status(500).json({ 
+        error: 'Fehler beim Generieren der E-Mail-Vorlage', 
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+      });
+    }
+  });
   
   const server = await registerRoutes(app);
 

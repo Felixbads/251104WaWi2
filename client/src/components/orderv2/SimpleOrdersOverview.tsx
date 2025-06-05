@@ -81,16 +81,16 @@ const SimpleOrdersOverview: React.FC<SimpleOrdersOverviewProps> = ({
       
       if (Array.isArray(data)) {
         console.log("✅ Setting", data.length, "orders");
-        // Sichere Datenverarbeitung ohne Validierung
+        // Sichere Datenverarbeitung mit korrekter Feldmappierung
         const safeOrders = data.map((order: any) => ({
           id: order.id || 0,
-          order_number: order.order_number || `Bestellung #${order.id}`,
+          order_number: order.order_number || order.orderNumber || `Bestellung #${order.id}`,
           status: order.status || 'unknown',
-          created_at: order.created_at || new Date().toISOString(),
-          supplier_name: order.supplier_name || 'Unbekannt',
-          location_name: order.location_name || 'Unbekannt',
-          total_amount: order.total_amount || 0,
-          expected_delivery_date: order.expected_delivery_date || null
+          created_at: order.created_at || order.createdAt || new Date().toISOString(),
+          supplier_name: order.supplier_name || order.supplierName || 'Unbekannter Lieferant',
+          location_name: order.warehouse_name || order.warehouseName || order.location_name || 'Unbekanntes Lager',
+          total_amount: parseFloat(order.total_amount || order.totalAmount || 0),
+          expected_delivery_date: order.expected_delivery_date || order.expectedDeliveryDate || null
         }));
         
         setOrders(safeOrders);
