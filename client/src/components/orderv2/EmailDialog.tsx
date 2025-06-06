@@ -56,14 +56,119 @@ export default function EmailDialog({
     try {
       setIsLoading(true);
 
-      // Set basic email data with fallback values
-      const basicSubject = `Bestellung ${orderNumber || orderId} - ${supplierName}`;
-      const basicContent = `<h2>Neue Bestellung</h2><p>Sehr geehrte Damen und Herren,</p><p>hiermit erhalten Sie eine neue Bestellung mit der Nummer ${orderNumber || orderId}.</p>`;
+      // Try to load order data and create comprehensive email template
+      let orderData = null;
+      try {
+        const orderResponse = await fetch(`/api/orders-direct/${orderId}`);
+        if (orderResponse.ok) {
+          orderData = await orderResponse.json();
+        }
+      } catch (error) {
+        console.log('Could not load order data, using basic template');
+      }
+
+      // Load order items
+      let orderItems = [];
+      try {
+        const itemsResponse = await fetch(`/api/order-items-direct/${orderId}`);
+        if (itemsResponse.ok) {
+          const itemsData = await itemsResponse.json();
+          orderItems = itemsData.data || [];
+        }
+      } catch (error) {
+        console.log('Could not load order items');
+      }
+
+      // Create comprehensive email template
+      const subject = `Bestellung ${orderNumber || orderId} - ${supplierName}`;
+      
+      // Build detailed HTML content
+      let htmlContent = `
+        <h2>Neue Bestellung</h2>
+        <p>Sehr geehrte Damen und Herren,</p>
+        <p>hiermit erhalten Sie eine neue Bestellung mit der Nummer <strong>${orderNumber || orderId}</strong>.</p>
+        
+        <h3>Bestelldetails:</h3>
+        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+          <tr style="background-color: #f5f5f5;">
+            <td><strong>Bestellnummer:</strong></td>
+            <td>${orderNumber || orderId}</td>
+          </tr>
+          <tr>
+            <td><strong>Lieferant:</strong></td>
+            <td>${supplierName}</td>
+          </tr>
+          <tr>
+            <td><strong>Lager:</strong></td>
+            <td>${orderData?.warehouse_name || 'Nicht angegeben'}</td>
+          </tr>
+          <tr>
+            <td><strong>Gewünschter Liefertermin:</strong></td>
+            <td>${orderData?.expected_delivery_date ? new Date(orderData.expected_delivery_date).toLocaleDateString('de-DE') : 'Nicht angegeben'}</td>
+          </tr>
+        </table>
+      `;
+
+      // Add order items if available
+      if (orderItems.length > 0) {
+        htmlContent += `
+          <h3>Bestellpositionen:</h3>
+          <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+            <thead>
+              <tr style="background-color: #f5f5f5;">
+                <th>Artikel</th>
+                <th>Menge</th>
+                <th>Einheit</th>
+                <th>Einzelpreis</th>
+                <th>Gesamtpreis</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+        
+        let totalAmount = 0;
+        orderItems.forEach(item => {
+          const itemTotal = item.total_price || (item.quantity * item.unit_price);
+          totalAmount += itemTotal;
+          htmlContent += `
+            <tr>
+              <td>${item.product_name || 'Unbekanntes Produkt'}</td>
+              <td>${item.quantity || 0}</td>
+              <td>${item.unit || 'Stk'}</td>
+              <td>${item.unit_price ? item.unit_price.toFixed(2) + ' €' : 'N/A'}</td>
+              <td>${itemTotal ? itemTotal.toFixed(2) + ' €' : 'N/A'}</td>
+            </tr>
+          `;
+        });
+        
+        htmlContent += `
+            <tr style="background-color: #f5f5f5; font-weight: bold;">
+              <td colspan="4">Gesamtsumme:</td>
+              <td>${totalAmount.toFixed(2)} €</td>
+            </tr>
+            </tbody>
+          </table>
+        `;
+      }
+
+      htmlContent += `
+        <h3>Weitere Informationen:</h3>
+        <p>Bei Fragen zur Bestellung stehen wir Ihnen gerne zur Verfügung.</p>
+        <p>Mit freundlichen Grüßen<br>
+        Ihr Proviantomat-Team</p>
+        
+        <hr>
+        <p style="font-size: 12px; color: #666;">
+        Proviantomat<br>
+        E-Mail: einkauf@proviantomat.de<br>
+        Diese E-Mail wurde automatisch generiert.
+        </p>
+      `;
 
       setEmailData(prev => ({
         ...prev,
-        subject: basicSubject,
-        htmlContent: basicContent,
+        subject: subject,
+        htmlContent: htmlContent,
       }));
 
       // Use test email for safe testing
@@ -128,7 +233,7 @@ export default function EmailDialog({
           cc: emailData.cc.trim() || undefined,
           bcc: emailData.bcc.trim() || undefined,
           subject: emailData.subject.trim(),
-          htmlContent: emailData.htmlContent.trim() || undefined,
+          content: emailData.htmlContent.trim() || undefined,
         }),
       });
 
