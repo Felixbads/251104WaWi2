@@ -126,8 +126,8 @@ async function testRefillProcessing(refillId) {
         INSERT INTO inventory_movements (
           source_warehouse_id, product_id, quantity, movement_type, direction,
           reference_type, reference_id, machine_id, previous_stock, current_stock,
-          notes, performed_by, performed_at, created_at, updated_at
-        ) VALUES ($1, $2, $3, 'refill', 'OUT', 'REFILL', $4, $5, $6, $7, $8, 'system', NOW(), NOW(), NOW())
+          notes, performed_at, created_at, updated_at
+        ) VALUES ($1, $2, $3, 'refill', 'OUT', 'REFILL', $4, $5, $6, $7, $8, NOW(), NOW(), NOW())
       `, [
         warehouseId, productId, quantity, refillId.toString(), refill.machine_id,
         currentStock, newStock, `Refill ${refill.machine_name}: ${detail.product_name}`
@@ -185,6 +185,7 @@ async function main() {
   }
 }
 
+// Run if this file is executed directly
 if (require.main === module) {
   main();
 }
