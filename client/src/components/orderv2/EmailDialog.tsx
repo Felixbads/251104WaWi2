@@ -327,7 +327,7 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
           {/* HTML Preview Section */}
           <div className="space-y-2">
             <Label>E-Mail-Vorschau</Label>
-            <Tabs defaultValue="preview" className="w-full">
+            <Tabs value={previewTab} onValueChange={setPreviewTab} className="w-full">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="preview" className="flex items-center gap-2">
                   <Eye className="w-4 h-4" />
@@ -364,7 +364,7 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
           {!useTemplate && (
             <div className="space-y-2">
               <Label>E-Mail-Inhalt (HTML) (optional)</Label>
-              <Tabs defaultValue="edit" className="w-full">
+              <Tabs value={editTab} onValueChange={setEditTab} className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="edit" className="flex items-center gap-2">
                     <Code className="w-4 h-4" />
