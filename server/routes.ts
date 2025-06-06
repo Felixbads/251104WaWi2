@@ -2866,6 +2866,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const finalBatchNumber = batchNumber || `BATCH-${Date.now()}-${productId}`;
         console.log(`[GOODS_RECEIPT] Using batch number: ${finalBatchNumber}`);
         
+        // Handle expiry date - database requires non-null expiry_date
+        const finalExpiryDate = expiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year from now if not provided
+        console.log(`[GOODS_RECEIPT] Using expiry date: ${finalExpiryDate}`);
+        
         // Batch erstellen
         const batchQuery = `
           INSERT INTO product_batches (
@@ -2876,7 +2880,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `;
         
         const batchResult = await client.query(batchQuery, [
-          productId, order.warehouse_id, finalBatchNumber, expiryDate,
+          productId, order.warehouse_id, finalBatchNumber, finalExpiryDate,
           receivedQuantity, receivedQuantity
         ]);
         
