@@ -27,6 +27,10 @@ import emailBypassRouter from './routes/email-bypass';
 import emailDebugRouter from './routes/email-debug';
 import rawEmailRouter from './routes/raw-email';
 import { pool } from './db';
+import { db } from './db';
+import { orders } from '../shared/schema';
+import { eq } from 'drizzle-orm';
+import * as nodemailer from 'nodemailer';
 
 const app = express();
 app.use(express.json());
@@ -419,8 +423,78 @@ Elbsandstein Proviant & Quartier GmbH`;
     }
   });
   
+  // FINAL EMAIL FIX - Direct endpoint to bypass all routing conflicts
+  app.post('/api/send-email-simple/:id', async (req, res) => {
+    console.log(`[DirectEmailFix] ROUTE HIT - /api/send-email-simple/${req.params.id}`);
+    console.log(`[DirectEmailFix] Request body:`, req.body);
+    
+    try {
+      const orderId = parseInt(req.params.id);
+      const { to, cc, bcc, subject, content } = req.body;
+
+      if (!to || !subject || !content) {
+        return res.status(400).json({
+          success: false,
+          error: 'Fehlende erforderliche Felder: to, subject, content'
+        });
+      }
+
+      // Load order data
+      const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).limit(1);
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          error: 'Bestellung nicht gefunden'
+        });
+      }
+
+      // Create transporter
+      const transporter = nodemailer.createTransporter({
+        host: 'smtp.ionos.de',
+        port: 587,
+        secure: false,
+        auth: {
+          user: 'info@proviantomat.de',
+          pass: process.env.EMAIL_PASSWORD || 'defaultpassword'
+        }
+      });
+
+      // Send email
+      const mailOptions = {
+        from: 'info@proviantomat.de',
+        to: to,
+        cc: cc || undefined,
+        bcc: bcc || undefined,
+        subject: subject,
+        html: content
+      };
+
+      console.log(`[DirectEmailFix] Sending email to ${to}...`);
+      const result = await transporter.sendMail(mailOptions);
+      
+      console.log(`[DirectEmailFix] Email sent successfully, Message ID: ${result.messageId}`);
+      
+      return res.json({
+        success: true,
+        message: 'E-Mail erfolgreich gesendet',
+        messageId: result.messageId,
+        orderNumber: order.orderNumber
+      });
+      
+    } catch (error: any) {
+      console.error('[DirectEmailFix] Error sending email:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Fehler beim Senden der E-Mail',
+        details: error.message
+      });
+    }
+  });
+
   // Mount simple email router BEFORE registerRoutes to avoid conflicts
+  console.log('[SERVER] Mounting simple email router at /api');
   app.use('/api', simpleEmailRouter);
+  console.log('[SERVER] Simple email router mounted successfully');
   
   const server = await registerRoutes(app);
 
