@@ -764,6 +764,10 @@ export default function OrderDetail() {
             <Mail className="h-4 w-4" />
             <span>Dokumente</span>
           </TabsTrigger>
+          <TabsTrigger value="email-test" className="gap-1.5">
+            <Send className="h-4 w-4" />
+            <span>E-Mail Test</span>
+          </TabsTrigger>
         </TabsList>
         
         {/* Übersicht Tab */}
@@ -1119,6 +1123,34 @@ export default function OrderDetail() {
                     in der Aktionsleiste.
                   </p>
                 </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* E-Mail Test Tab */}
+        <TabsContent value="email-test">
+          <Card>
+            <CardHeader>
+              <CardTitle>E-Mail Test - Bypass-Modus</CardTitle>
+              <CardDescription>
+                Alternative E-Mail-Versendung für Tests und Debugging ohne Formvalidierung
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {order && (
+                <DirectEmailSender
+                  orderId={Number(id)}
+                  orderNumber={order.orderNumber || ""}
+                  supplierEmail={order.supplier?.email || "test@proviantomat.de"}
+                  onSuccess={() => {
+                    toast({
+                      title: "E-Mail Test erfolgreich",
+                      description: "Die E-Mail wurde erfolgreich im Bypass-Modus verarbeitet.",
+                    });
+                    queryClient.invalidateQueries({ queryKey: orderKeys.detail(Number(id)) });
+                  }}
+                />
               )}
             </CardContent>
           </Card>
