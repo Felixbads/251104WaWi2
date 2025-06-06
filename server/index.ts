@@ -471,7 +471,7 @@ Elbsandstein Proviant & Quartier GmbH`;
 
       // Send email with proper sender format - use a valid email address
       const mailOptions = {
-        from: `"Proviantomat" <noreply@proviantomat.de>`,
+        from: `"Proviantomat" <einkauf@proviantomat.de>`,
         to: to,
         cc: cc || undefined,
         bcc: bcc || undefined,
