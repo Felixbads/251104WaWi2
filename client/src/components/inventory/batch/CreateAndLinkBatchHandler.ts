@@ -103,6 +103,12 @@ export function useBatchLinkMutation(
       // Cache erst nach erfolgreicher Operation invalidieren
       invalidateInventoryCache(queryClient, inventoryId);
       
+      // Invalidiere auch alle Batch-bezogenen Queries
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/products'], 
+        refetchType: 'active'
+      });
+      
       // Stelle die Scroll-Position wieder her
       setTimeout(() => {
         if (typeof window !== 'undefined') {
@@ -212,6 +218,18 @@ export async function createAndLinkBatch({
     
     // Cache sofort invalidieren für bessere Datenaktualität
     await invalidateInventoryCache(queryClient, inventoryId, item.productId);
+    
+    // Invalidiere alle produktbezogenen Batch-Queries
+    queryClient.invalidateQueries({ 
+      queryKey: [`/api/products/${item.productId}/batches`],
+      refetchType: 'active'
+    });
+    
+    // Invalidiere alle inventory-count Batch-Queries
+    queryClient.invalidateQueries({ 
+      queryKey: [`/api/inventory-counts/${inventoryId}/product-batches`],
+      refetchType: 'active'
+    });
     
     // Zusätzlich den Batch-spezifischen Cache invalidieren
     queryClient.invalidateQueries({

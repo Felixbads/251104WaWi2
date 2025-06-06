@@ -60,6 +60,7 @@ interface InventoryCountBatchDialogProps {
   onBatchSelect: (batchId: number | null) => void;
   inventoryId: string;
   warehouseId: number; // Lagernummer ist wichtig für die korrekte Batch-Erstellung
+  onBatchCreated?: () => void; // Callback zum Neuladen der Batches
 }
 
 export default function InventoryCountBatchDialog({
@@ -69,7 +70,8 @@ export default function InventoryCountBatchDialog({
   availableBatches,
   onBatchSelect,
   inventoryId,
-  warehouseId
+  warehouseId,
+  onBatchCreated
 }: InventoryCountBatchDialogProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -364,6 +366,11 @@ export default function InventoryCountBatchDialog({
         notes: `Erstellt bei Inventur #${inventoryId}`,
         queryClient,
         onSuccess: () => {
+          // Batch-Liste neu laden
+          if (onBatchCreated) {
+            onBatchCreated();
+          }
+          
           // Dialog schließen
           onOpenChange(false);
           
