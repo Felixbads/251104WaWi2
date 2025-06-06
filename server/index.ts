@@ -654,6 +654,8 @@ Elbsandstein Proviant & Quartier GmbH`;
   app.use('/api/supplier-email-templates', supplierEmailTemplatesRouter);
   
   app.use('/api', emailTemplateFixRouter);
+  
+  app.use('/api', emailCompleteFixRouter);
 
   // Fehlende API-Routen für den Bestellprozess hinzufügen
   

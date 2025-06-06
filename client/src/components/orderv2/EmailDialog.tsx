@@ -64,26 +64,52 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
         }
       }
 
-      // Generate default subject
-      const subjectResponse = await fetch('/api/email/generate-subject', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ orderId: order.id }),
-      });
-
-      if (subjectResponse.ok) {
-        const subjectData = await subjectResponse.json();
-        setEmailData(prev => ({
-          ...prev,
-          subject: subjectData.subject,
-        }));
-      }
-
-      // Set email recipient from order data - check all possible field names
+      // Set email recipient from order data - check all possible field names first
       console.log('Full order object:', order);
       const supplierEmail = order.supplier_email || order.supplierEmail || order.orderEmailRecipient || '';
+
+      // Load complete email template with proper variable handling
+      const templateResponse = await fetch(`/api/orders/${order.id}/email-template-complete`);
+
+      if (templateResponse.ok) {
+        const templateData = await templateResponse.json();
+        console.log('📧 Complete template data loaded:', templateData);
+        
+        setEmailData(prev => ({
+          ...prev,
+          subject: templateData.subject || prev.subject,
+          htmlContent: templateData.content || prev.htmlContent,
+        }));
+        
+        // Override supplier email from template if available
+        if (templateData.supplierEmail && templateData.supplierEmail !== supplierEmail) {
+          console.log('📧 Using supplier email from template:', templateData.supplierEmail);
+          setEmailData(prev => ({
+            ...prev,
+            to: templateData.supplierEmail,
+          }));
+        }
+        
+      } else {
+        console.warn('⚠️ Failed to load complete template, falling back to basic subject generation');
+        
+        // Fallback to basic subject generation
+        const subjectResponse = await fetch('/api/email/generate-subject', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ orderId: order.id }),
+        });
+
+        if (subjectResponse.ok) {
+          const subjectData = await subjectResponse.json();
+          setEmailData(prev => ({
+            ...prev,
+            subject: subjectData.subject,
+          }));
+        }
+      }
       console.log('Checking order data for email:', {
         supplier_email: order.supplier_email,
         supplierEmail: order.supplierEmail,
@@ -143,20 +169,17 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
     try {
       setIsLoading(true);
 
-      const response = await fetch('/api/email/send-order-email', {
+      const response = await fetch(`/api/orders/${order.id}/send-email-complete`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          orderId: order.id,
           to: emailData.to.trim(),
           cc: emailData.cc.trim() || undefined,
           bcc: emailData.bcc.trim() || undefined,
           subject: emailData.subject.trim(),
           htmlContent: emailData.htmlContent.trim() || undefined,
-          useTemplate: useTemplate,
-          templateId: selectedTemplate?.id || undefined,
         }),
       });
 
