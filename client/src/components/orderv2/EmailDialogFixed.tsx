@@ -269,9 +269,8 @@ export default function EmailDialogFixed({
       return;
     }
 
-    // Basic email validation - more permissive pattern
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailPattern.test(emailData.to.trim())) {
+    // Simple email validation - just check for @ symbol
+    if (!emailData.to.trim().includes('@')) {
       toast({
         title: "Fehler",
         description: "Bitte geben Sie eine gültige E-Mail-Adresse ein",
