@@ -339,11 +339,13 @@ export default function InventoryCountBatchDialog({
       return;
     }
     
-    // Validierung: Chargenmenge darf nicht größer als verfügbarer Bestand sein
-    if (batchQuantity > (selectedItem.expectedQuantity || 0)) {
+    // Validierung: Chargenmenge darf nicht größer als der gezählte Bestand sein
+    // Verwende countedQuantity (eingegebener Wert) statt expectedQuantity (alter Bestand)
+    const availableQuantity = selectedItem.countedQuantity ?? selectedItem.expectedQuantity ?? 0;
+    if (batchQuantity > availableQuantity) {
       toast({
         title: 'Fehler',
-        description: `Die Chargenmenge (${batchQuantity}) darf nicht größer als der verfügbare Bestand (${selectedItem.expectedQuantity || 0}) sein.`,
+        description: `Die Chargenmenge (${batchQuantity}) darf nicht größer als der gezählte Bestand (${availableQuantity}) sein.`,
         variant: 'destructive',
       });
       setIsSubmitting(false);
@@ -695,7 +697,7 @@ export default function InventoryCountBatchDialog({
                     <Input
                       type="number"
                       min="1"
-                      max={selectedItem?.expectedQuantity || undefined}
+                      max={selectedItem?.countedQuantity ?? selectedItem?.expectedQuantity}
                       value={batchQuantity}
                       onChange={(e) => setBatchQuantity(parseInt(e.target.value) || 1)}
                       placeholder="Anzahl eingeben"
@@ -704,9 +706,9 @@ export default function InventoryCountBatchDialog({
                       <p className="text-xs text-muted-foreground">
                         Anzahl der Produkte in dieser Charge
                       </p>
-                      {selectedItem?.expectedQuantity && (
+                      {(selectedItem?.countedQuantity ?? selectedItem?.expectedQuantity) && (
                         <p className="text-xs text-blue-600 font-medium">
-                          Max verfügbar: {selectedItem.expectedQuantity}
+                          Max verfügbar: {selectedItem.countedQuantity ?? selectedItem.expectedQuantity}
                         </p>
                       )}
                     </div>
@@ -730,7 +732,7 @@ export default function InventoryCountBatchDialog({
                         <Calendar
                           mode="single"
                           selected={expiryDate || undefined}
-                          onSelect={(date) => setExpiryDate(date)}
+                          onSelect={(date) => setExpiryDate(date || null)}
                           initialFocus
                         />
                       </PopoverContent>
