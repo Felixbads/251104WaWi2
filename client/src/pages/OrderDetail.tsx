@@ -10,6 +10,7 @@ import ManualStatusChange from "@/components/orders/ManualStatusChange";
 import EmailDialogFixed from "@/components/orderv2/EmailDialogFixed";
 import OrderEmailPage from "@/components/orders/OrderEmailPage";
 import SimpleEmailActionButton from "@/components/orders/SimpleEmailActionButton";
+import DirectEmailSender from "@/components/orderv2/DirectEmailSender";
 import { getOrder, updateOrder } from "@/lib/api";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { orderKeys, warehouseKeys } from "@/lib/queryKeys";
