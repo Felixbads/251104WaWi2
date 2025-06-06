@@ -647,6 +647,9 @@ Elbsandstein Proviant & Quartier GmbH`;
   
   app.use('/api/enhanced-email', enhancedEmailRouter);
   
+  // Complete email fix router with proper HTML formatting and CC support
+  app.use('/api/orders', ordersEmailCompleteFixRouter);
+  
   app.use('/api/supplier-email-templates', supplierEmailTemplatesRouter);
   
   app.use('/api', emailTemplateFixRouter);

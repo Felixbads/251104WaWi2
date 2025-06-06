@@ -7,7 +7,7 @@ import { eq } from 'drizzle-orm';
 const router = Router();
 
 // Configure SMTP transporter with STARTTLS
-const transporter = nodemailer.createTransporter({
+const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'mail.proviantomat.de',
   port: 587,
   secure: false, // Use STARTTLS
@@ -44,6 +44,8 @@ router.post('/:orderId/send-email', async (req: Request, res: Response) => {
         error: 'Keine gültige E-Mail-Adresse angegeben'
       });
     }
+    
+    // Content is optional - we'll generate if not provided
     
     console.log('[CompleteEmailFix] Fetching order data...');
     
@@ -243,7 +245,7 @@ router.post('/:orderId/send-email', async (req: Request, res: Response) => {
                 </tr>` : ''}
                 <tr>
                     <td>Lieferart:</td>
-                    <td><strong>${order.deliveryMethod || 'Anlieferung'}</strong></td>
+                    <td><strong>Anlieferung</strong></td>
                 </tr>
             </table>
         </div>
@@ -348,7 +350,6 @@ router.post('/:orderId/send-email', async (req: Request, res: Response) => {
         .update(orders)
         .set({
           status: 'sent',
-          sentAt: new Date(),
           updatedAt: new Date(),
           statusHistory: JSON.stringify([...currentHistory, newStatusEntry])
         })
