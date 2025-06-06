@@ -88,7 +88,6 @@ export default function InventoryCountBatchDialog({
     new Date(new Date().setMonth(new Date().getMonth() + 3))
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
   
   // Neue State für die Menge der Charge
   const [batchQuantity, setBatchQuantity] = useState<number>(1);
@@ -172,9 +171,7 @@ export default function InventoryCountBatchDialog({
       });
       
       // Dialog schließen
-      setShowSuccess(true);
       setTimeout(() => {
-        setShowSuccess(false);
         onOpenChange(false);
         
         // Stelle die Scroll-Position wieder her
@@ -198,7 +195,6 @@ export default function InventoryCountBatchDialog({
       });
       
       // Dialog trotz Fehler schließen, da Charge erstellt wurde
-      setShowSuccess(false);
       onOpenChange(false);
       
       // Stelle die Scroll-Position wieder her
@@ -547,19 +543,10 @@ export default function InventoryCountBatchDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange} modal={true}>
       <DialogContent 
-        className={`max-w-lg overflow-y-auto max-h-[90vh] bg-white dark:bg-gray-900 border shadow-xl ${showSuccess ? 'bg-success-100' : ''}`}
+        className="max-w-lg overflow-y-auto max-h-[90vh] bg-white dark:bg-gray-900 border shadow-xl"
         style={{ zIndex: 50 }}
       >
-        {showSuccess ? (
-          <div className="flex flex-col items-center justify-center py-8">
-            <CheckCircle2 className="text-green-500 h-16 w-16 mb-4" />
-            <h2 className="text-xl font-bold mb-2">Erfolg!</h2>
-            <p className="text-center mb-4">
-              Die Charge wurde erfolgreich verknüpft.
-            </p>
-          </div>
-        ) : (
-          <>
+        <>
             <DialogHeader>
               <DialogTitle>
                 <div className="flex items-center">
@@ -783,7 +770,6 @@ export default function InventoryCountBatchDialog({
               )}
             </DialogFooter>
           </>
-        )}
       </DialogContent>
     </Dialog>
   );
