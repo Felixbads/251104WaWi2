@@ -2962,6 +2962,27 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         onBatchSelect={handleBatchUpdate}
         inventoryId={inventurData?.id.toString() || '0'}
         warehouseId={inventurData?.warehouseId || 0}
+        onBatchCreated={() => {
+          // Batches für das ausgewählte Produkt neu laden
+          if (selectedItem && inventurData?.warehouseId) {
+            console.log('Lade Batches neu nach Erstellung...');
+            fetch(`/api/products/${selectedItem.productId}/batches?warehouseId=${inventurData.warehouseId}`, {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache, no-store'
+              }
+            })
+            .then(response => response.json())
+            .then(batches => {
+              setAvailableBatches(Array.isArray(batches) ? batches : []);
+              console.log('Batches erfolgreich neu geladen:', batches);
+            })
+            .catch(error => {
+              console.error('Fehler beim Neuladen der Batches:', error);
+            });
+          }
+        }}
       />
     </div>
   );
