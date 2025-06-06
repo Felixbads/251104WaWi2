@@ -56,108 +56,39 @@ export default function EmailDialog({
     try {
       setIsLoading(true);
 
-      // First load order details to get supplier ID
-      const orderResponse = await fetch(`/api/orders/${orderId}`);
-      const orderData = await orderResponse.json();
-      
-      // Load supplier email templates  
-      const supplierId = orderData.supplier_id || orderData.supplierId;
-      if (supplierId) {
-        try {
-          const templatesResponse = await fetch(`/api/supplier-email-templates/${supplierId}`);
-          if (templatesResponse.ok) {
-            const templates = await templatesResponse.json();
-            console.log('E-Mail-Vorlagen geladen:', templates);
-            setAvailableTemplates(templates);
-            
-            // Find default template
-            const defaultTemplate = templates.find((t: any) => t.isDefault && t.templateType === 'standard');
-            if (defaultTemplate) {
-              setSelectedTemplate(defaultTemplate);
-              setUseTemplate(true);
-            }
-          }
-        } catch (error) {
-          console.error('Fehler beim Laden der E-Mail-Vorlagen:', error);
-        }
-      }
+      // Set basic email data with fallback values
+      const basicSubject = `Bestellung ${orderNumber || orderId} - ${supplierName}`;
+      const basicContent = `<h2>Neue Bestellung</h2><p>Sehr geehrte Damen und Herren,</p><p>hiermit erhalten Sie eine neue Bestellung mit der Nummer ${orderNumber || orderId}.</p>`;
 
-      // Set email recipient from props and order data
-      console.log('Order data from API:', orderData);
-      const emailRecipient = supplierEmail || orderData.supplier_email || orderData.supplierEmail || '';
+      setEmailData(prev => ({
+        ...prev,
+        subject: basicSubject,
+        htmlContent: basicContent,
+      }));
 
-      // Load complete email template with proper variable handling
-      const templateResponse = await fetch(`/api/orders/${orderId}/email-template-complete`);
-
-      if (templateResponse.ok) {
-        const templateData = await templateResponse.json();
-        console.log('📧 Complete template data loaded:', templateData);
-        
-        setEmailData(prev => ({
-          ...prev,
-          subject: templateData.subject || prev.subject,
-          htmlContent: templateData.content || prev.htmlContent,
-        }));
-        
-        // Override supplier email from template if available
-        if (templateData.supplierEmail && templateData.supplierEmail !== supplierEmail) {
-          console.log('📧 Using supplier email from template:', templateData.supplierEmail);
-          setEmailData(prev => ({
-            ...prev,
-            to: templateData.supplierEmail,
-          }));
-        }
-        
-      } else {
-        console.warn('⚠️ Failed to load complete template, falling back to basic subject generation');
-        
-        // Fallback to basic subject generation
-        const subjectResponse = await fetch('/api/email/generate-subject', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ orderId: orderId }),
-        });
-
-        if (subjectResponse.ok) {
-          const subjectData = await subjectResponse.json();
-          setEmailData(prev => ({
-            ...prev,
-            subject: subjectData.subject,
-          }));
-        }
-      }
-      console.log('Checking order data for email:', {
-        supplier_email: orderData.supplier_email,
-        supplierEmail: orderData.supplierEmail,
-        orderEmailRecipient: orderData.orderEmailRecipient,
-        result: emailRecipient
-      });
-      
-      // Only set email data if we have a valid supplier email
-      if (emailRecipient && emailRecipient !== 'lieferant@example.com') {
-        console.log('Setting supplier email:', emailRecipient);
-        setEmailData(prev => ({
-          ...prev,
-          to: emailRecipient,
-          cc: 'andreas@proviantomat.de, einkauf@proviantomat.de',
-        }));
-      } else {
-        // Use test email for safe testing
-        console.log('Using test email instead of supplier email');
-        setEmailData(prev => ({
-          ...prev,
-          to: 'test@example.com',
-          cc: 'andreas@proviantomat.de, einkauf@proviantomat.de',
-        }));
-      }
+      // Use test email for safe testing
+      console.log('Using test email for safe testing');
+      setEmailData(prev => ({
+        ...prev,
+        to: 'test@example.com',
+        cc: 'andreas@proviantomat.de, einkauf@proviantomat.de',
+      }));
 
     } catch (error) {
       console.error('Error loading email template:', error);
+      
+      // Set minimal fallback data even on error
+      setEmailData(prev => ({
+        ...prev,
+        subject: `Bestellung ${orderNumber || orderId}`,
+        htmlContent: '<p>Bestellung wurde erstellt.</p>',
+        to: 'test@example.com',
+        cc: 'andreas@proviantomat.de, einkauf@proviantomat.de',
+      }));
+      
       toast({
-        title: "Fehler",
-        description: "Fehler beim Laden der E-Mail-Vorlage",
+        title: "Warnung",
+        description: "E-Mail-Vorlage konnte nicht vollständig geladen werden. Basisvorlage wird verwendet.",
         variant: "destructive",
       });
     } finally {
