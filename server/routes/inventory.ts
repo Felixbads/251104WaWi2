@@ -296,6 +296,48 @@ router.get('/inventory-count-items/:id/batches', async (req, res) => {
   }
 });
 
+// Starten einer Inventur (pending -> in_progress)
+router.post('/inventory-counts/:id/start', async (req, res) => {
+  try {
+    const inventoryCountId = parseInt(req.params.id);
+    
+    // Prüfe, ob die Inventur existiert und im pending Status ist
+    const inventoryCount = await db.query.inventoryCounts.findFirst({
+      where: and(
+        eq(schema.inventoryCounts.id, inventoryCountId),
+        eq(schema.inventoryCounts.status, 'pending')
+      ),
+      with: {
+        warehouse: true
+      }
+    });
+
+    if (!inventoryCount) {
+      return res.status(404).json({ 
+        error: 'Inventur nicht gefunden oder nicht im pending Status'
+      });
+    }
+
+    // Setze die Inventur auf "in_progress"
+    await db.update(inventoryCounts)
+      .set({ 
+        status: 'in_progress', 
+        startDate: new Date()
+      })
+      .where(eq(schema.inventoryCounts.id, inventoryCountId));
+
+    // Erfolgreiche Antwort
+    return res.status(200).json({ 
+      message: 'Inventur erfolgreich gestartet',
+      inventoryCountId,
+      warehouseName: inventoryCount.warehouse?.name
+    });
+  } catch (error) {
+    console.error('Fehler beim Starten der Inventur:', error);
+    return res.status(500).json({ error: 'Serverfehler' });
+  }
+});
+
 // Abschließen einer Inventur und Übertragen der Daten in den Lagerbestand
 router.post('/inventory-counts/:id/complete', async (req, res) => {
   try {
