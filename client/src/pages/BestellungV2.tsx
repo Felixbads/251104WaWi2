@@ -560,17 +560,22 @@ const BestellungV2: React.FC = () => {
       console.log("Goods receipt mutation input:", goodsReceiptData);
       console.log("Receipt data:", receiptData);
       
-      // Transform the data to match the API expectations
+      // Transform the data to match the backend API expectations
+      const receivedItems = [];
+      
+      for (const item of receiptData) {
+        if (item.receivedQuantity > 0) {
+          receivedItems.push({
+            productId: item.productId,
+            receivedQuantity: item.receivedQuantity,
+            expiryDate: item.expiryDate || null,
+            batchNumber: item.batchNumber || null
+          });
+        }
+      }
+      
       const transformedData = {
-        deliveryDate: new Date().toISOString(),
-        notes: 'Wareneingang über Frontend gebucht',
-        items: receiptData.map((item: any) => ({
-          id: item.orderItemId || item.id,  // Use orderItemId first, then fallback to id
-          deliveredQuantity: item.receivedQuantity || 0,
-          productId: item.productId,
-          expiryDate: item.expiryDate || null,
-          batchNumber: item.batchNumber || null
-        }))
+        receivedItems: receivedItems
       };
       
       console.log("Transformed data for API:", transformedData);
