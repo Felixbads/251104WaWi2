@@ -8,9 +8,18 @@ const router = Router();
 
 // Simple email sending endpoint for orders
 router.post('/orders/:id/send-email-simple', async (req: Request, res: Response) => {
+  console.log(`[SimpleEmail] ROUTE HIT - /orders/:id/send-email-simple`);
+  console.log(`[SimpleEmail] Raw req.params:`, req.params);
+  console.log(`[SimpleEmail] Raw req.body:`, req.body);
+  console.log(`[SimpleEmail] Request headers:`, req.headers);
+  
   try {
+    console.log(`[SimpleEmail] Entering try block`);
     const orderId = parseInt(req.params.id);
+    console.log(`[SimpleEmail] Parsed orderId:`, orderId);
+    
     const { to, cc, bcc, subject, content } = req.body;
+    console.log(`[SimpleEmail] Extracted fields - to: ${to}, subject: ${subject}, content length: ${content?.length || 0}`);
 
     console.log(`[SimpleEmail] Processing email for order ${orderId}`);
     console.log(`[SimpleEmail] To: ${to}, Subject: ${subject ? 'provided' : 'missing'}`);
