@@ -225,7 +225,7 @@ export default function EmailDialog({
     try {
       setIsLoading(true);
 
-      const response = await fetch(`/api/orders/${orderId}/send-email-simple`, {
+      const response = await fetch(`/api/send-email-simple/${orderId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

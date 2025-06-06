@@ -6,8 +6,16 @@ import { eq } from 'drizzle-orm';
 
 const router = Router();
 
+// Debug middleware to log all requests to this router
+router.use((req, res, next) => {
+  console.log(`[SimpleEmailRouter] Request received: ${req.method} ${req.path}`);
+  console.log(`[SimpleEmailRouter] Full URL: ${req.originalUrl}`);
+  console.log(`[SimpleEmailRouter] Base URL: ${req.baseUrl}`);
+  next();
+});
+
 // Simple email sending endpoint for orders
-router.post('/orders/:id/send-email-simple', async (req: Request, res: Response) => {
+router.post('/send-email-simple/:id', async (req: Request, res: Response) => {
   console.log(`[SimpleEmail] ROUTE HIT - /orders/:id/send-email-simple`);
   console.log(`[SimpleEmail] Raw req.params:`, req.params);
   console.log(`[SimpleEmail] Raw req.body:`, req.body);
