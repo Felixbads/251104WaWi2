@@ -23,6 +23,7 @@ import enhancedEmailRouter from './routes/enhanced-email';
 import ordersEmailCompleteFixRouter from './routes/orders-email-complete-fix';
 import emailCompleteFixRouter from './routes/email-complete-fix';
 import emailWorkingRouter from './routes/email-working';
+import emailBypassRouter from './routes/email-bypass';
 import { pool } from './db';
 
 const app = express();
@@ -661,6 +662,7 @@ Elbsandstein Proviant & Quartier GmbH`;
   
   app.use('/api', emailCompleteFixRouter);
   app.use('/api', emailWorkingRouter);
+  app.use('/api', emailBypassRouter);
 
   // Fehlende API-Routen für den Bestellprozess hinzufügen
   
