@@ -101,15 +101,25 @@ router.post('/send-order-email', async (req: Request, res: Response) => {
             
             const totalAmount = items.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
             
-            htmlContent = selectedTemplate.contentTemplate
-              .replace(/\{orderNumber\}/g, order.orderNumber || order.id.toString())
-              .replace(/\{orderDate\}/g, formatOrderDate(new Date(order.orderDate)))
-              .replace(/\{deliveryDate\}/g, order.expectedDeliveryDate ? formatOrderDate(new Date(order.expectedDeliveryDate)) : 'Nicht angegeben')
-              .replace(/\{supplierName\}/g, supplier?.name || order.supplierName || 'Unbekannter Lieferant')
-              .replace(/\{productTable\}/g, productTable)
-              .replace(/\{totalAmount\}/g, totalAmount.toFixed(2))
-              .replace(/\{warehouseName\}/g, warehouse?.name || 'Nicht angegeben')
-              .replace(/\{notes\}/g, order.notes || '');
+            // Safe template variable replacement with proper escaping
+            const templateVariables = {
+              orderNumber: order.orderNumber || order.id.toString(),
+              orderDate: formatOrderDate(new Date(order.orderDate || order.createdAt)),
+              deliveryDate: order.expectedDeliveryDate ? formatOrderDate(new Date(order.expectedDeliveryDate)) : 'Nicht angegeben',
+              supplierName: supplier?.name || order.supplierName || 'Unbekannter Lieferant',
+              productTable: productTable,
+              totalAmount: totalAmount.toFixed(2),
+              warehouseName: warehouse?.name || 'Nicht angegeben',
+              notes: order.notes || ''
+            };
+            
+            htmlContent = selectedTemplate.contentTemplate;
+            
+            // Replace each variable safely
+            Object.entries(templateVariables).forEach(([key, value]) => {
+              const pattern = new RegExp(`\\{${key}\\}`, 'g');
+              htmlContent = htmlContent.replace(pattern, String(value));
+            });
           }
         } catch (error) {
           console.error('Fehler beim Laden der E-Mail-Vorlage:', error);
