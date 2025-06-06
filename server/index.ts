@@ -499,30 +499,103 @@ Elbsandstein Proviant & Quartier GmbH`;
       let emailContent = content;
       
       if (!emailContent) {
-        // Simple email template
-        const itemsList = items.map(item => 
-          `${item.product_name || item.product_name}: ${item.quantity} x ${(item.unit_price || 0).toFixed(2)}€`
-        ).join('\n');
+        // Create formatted HTML email template
+        const itemsList = items.map((item, index) => 
+          `<tr>
+            <td style="border: 1px solid #ddd; padding: 8px;">${index + 1}</td>
+            <td style="border: 1px solid #ddd; padding: 8px;">${item.product_name || 'Unbekanntes Produkt'}</td>
+            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${item.quantity || 0}</td>
+            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${(item.unit_price || 0).toFixed(2)}€</td>
+            <td style="border: 1px solid #ddd; padding: 8px; text-align: right;">${((item.unit_price || 0) * (item.quantity || 0)).toFixed(2)}€</td>
+          </tr>`
+        ).join('');
         
         const totalAmount = items.reduce((sum, item) => sum + ((item.unit_price || 0) * (item.quantity || 0)), 0);
+        const vatAmount = totalAmount * 0.19;
+        const totalWithVat = totalAmount * 1.19;
         
         emailContent = `
-Sehr geehrte Damen und Herren,
-
-hiermit bestellen wir folgende Artikel:
-
-Bestellnummer: ${order.order_number}
-Lieferant: ${order.supplier_name || order.supplier_name || 'Unbekannt'}
-
-Bestellpositionen:
-${itemsList}
-
-Gesamtbetrag: ${totalAmount.toFixed(2)}€
-
-Bitte bestätigen Sie den Empfang dieser Bestellung.
-
-Mit freundlichen Grüßen
-Ihr Proviantomat Team
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Bestellung ${order.order_number}</title>
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 20px;">
+    <h2 style="color: #2563eb; border-bottom: 2px solid #2563eb; padding-bottom: 10px;">Bestellung ${order.order_number}</h2>
+    
+    <p>Sehr geehrte Damen und Herren,</p>
+    
+    <p>hiermit bestellen wir bei Ihnen folgende Artikel:</p>
+    
+    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+                <td style="font-weight: bold;">Bestellnummer:</td>
+                <td>${order.order_number}</td>
+            </tr>
+            <tr>
+                <td style="font-weight: bold;">Lieferant:</td>
+                <td>${order.supplier_name || 'Unbekannt'}</td>
+            </tr>
+            <tr>
+                <td style="font-weight: bold;">Bestelldatum:</td>
+                <td>${new Date(order.created_at).toLocaleDateString('de-DE')}</td>
+            </tr>
+            ${order.expected_delivery_date ? `
+            <tr>
+                <td style="font-weight: bold;">Erwartetes Lieferdatum:</td>
+                <td>${new Date(order.expected_delivery_date).toLocaleDateString('de-DE')}</td>
+            </tr>` : ''}
+        </table>
+    </div>
+    
+    <h3 style="color: #2563eb; margin-top: 30px;">Bestellpositionen:</h3>
+    
+    <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+        <thead>
+            <tr style="background-color: #f1f5f9;">
+                <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">Nr.</th>
+                <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">Artikel</th>
+                <th style="border: 1px solid #ddd; padding: 10px; text-align: right;">Menge</th>
+                <th style="border: 1px solid #ddd; padding: 10px; text-align: right;">Einzelpreis</th>
+                <th style="border: 1px solid #ddd; padding: 10px; text-align: right;">Gesamtpreis</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${itemsList}
+        </tbody>
+        <tfoot>
+            <tr style="background-color: #f8f9fa; font-weight: bold;">
+                <td colspan="4" style="border: 1px solid #ddd; padding: 10px; text-align: right;">Nettosumme:</td>
+                <td style="border: 1px solid #ddd; padding: 10px; text-align: right;">${totalAmount.toFixed(2)}€</td>
+            </tr>
+            <tr style="background-color: #f8f9fa;">
+                <td colspan="4" style="border: 1px solid #ddd; padding: 10px; text-align: right;">zzgl. 19% MwSt.:</td>
+                <td style="border: 1px solid #ddd; padding: 10px; text-align: right;">${vatAmount.toFixed(2)}€</td>
+            </tr>
+            <tr style="background-color: #e2e8f0; font-weight: bold; font-size: 1.1em;">
+                <td colspan="4" style="border: 1px solid #ddd; padding: 12px; text-align: right;">Gesamtbetrag (brutto):</td>
+                <td style="border: 1px solid #ddd; padding: 12px; text-align: right;">${totalWithVat.toFixed(2)}€</td>
+            </tr>
+        </tfoot>
+    </table>
+    
+    <div style="margin-top: 30px; padding: 15px; background-color: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 0 5px 5px 0;">
+        <p style="margin: 0; font-weight: bold;">Bitte bestätigen Sie uns den Erhalt dieser Bestellung sowie den geplanten Liefertermin.</p>
+    </div>
+    
+    <p style="margin-top: 30px;">Für Rückfragen stehen wir Ihnen gerne zur Verfügung.</p>
+    
+    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+        <p style="margin: 0;">Mit freundlichen Grüßen</p>
+        <p style="margin: 5px 0 0 0; font-weight: bold;">Ihr Proviantomat Team</p>
+        <p style="margin: 15px 0 0 0; font-size: 0.9em; color: #6b7280;">
+            E-Mail: ${process.env.SMTP_FROM || 'einkauf@proviantomat.de'}
+        </p>
+    </div>
+</body>
+</html>
         `;
       }
       
@@ -536,7 +609,7 @@ Ihr Proviantomat Team
         from: process.env.SMTP_FROM || 'einkauf@proviantomat.de',
         to: emailAddress,
         subject: emailSubject,
-        text: emailContent
+        html: emailContent
       };
       
       console.log('[DirectEmailBypass] Sending email...');
