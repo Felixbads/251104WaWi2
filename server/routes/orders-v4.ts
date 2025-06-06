@@ -237,7 +237,7 @@ Ihr Proviantomat-Team
   }
 });
 
-// 3. Wareneingang erfassen
+// 3. Wareneingang erfassen (Haupt-Route)
 router.post('/:orderId/goods-receipt', async (req, res) => {
   const client = await pool.connect();
   
@@ -343,6 +343,119 @@ router.post('/:orderId/goods-receipt', async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     logOrderProcess('GOODS_RECEIPT_ERROR', { error: error.message });
+    console.error('Fehler beim Wareneingang:', error);
+    res.status(500).json({ error: 'Fehler beim Wareneingang' });
+  } finally {
+    client.release();
+  }
+});
+
+// 3a. Wareneingang erfassen (Alias-Route für Frontend-Kompatibilität)
+router.post('/:orderId/receipt', async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    const { orderId } = req.params;
+    const { receivedItems } = req.body;
+    
+    logOrderProcess('GOODS_RECEIPT_STARTED_ALIAS', { 
+      orderId, 
+      receivedItemsCount: receivedItems?.length 
+    }, parseInt(orderId));
+    
+    if (!receivedItems || !Array.isArray(receivedItems) || receivedItems.length === 0) {
+      return res.status(400).json({ error: 'Keine Wareneingangsdaten erhalten' });
+    }
+    
+    await client.query('BEGIN');
+    
+    // Bestellung laden
+    const orderQuery = 'SELECT * FROM orders WHERE id = $1';
+    const orderResult = await client.query(orderQuery, [orderId]);
+    
+    if (orderResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Bestellung nicht gefunden' });
+    }
+    
+    const order = orderResult.rows[0];
+    
+    // Für jede erhaltene Position
+    for (const item of receivedItems) {
+      const { productId, receivedQuantity, expiryDate, batchNumber = null } = item;
+      
+      if (!productId || !receivedQuantity || receivedQuantity <= 0) {
+        logOrderProcess('GOODS_RECEIPT_VALIDATION_ERROR_ALIAS', { item });
+        continue;
+      }
+      
+      // Batch erstellen
+      const batchQuery = `
+        INSERT INTO product_batches (
+          product_id, warehouse_id, batch_number, expiry_date,
+          initial_quantity, current_quantity, status, received_date
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'active', NOW())
+        RETURNING id
+      `;
+      
+      const batchResult = await client.query(batchQuery, [
+        productId, order.warehouse_id, batchNumber, expiryDate,
+        receivedQuantity, receivedQuantity
+      ]);
+      
+      const batchId = batchResult.rows[0].id;
+      
+      logOrderProcess('BATCH_CREATED_ALIAS', {
+        batchId,
+        productId,
+        warehouseId: order.warehouse_id,
+        quantity: receivedQuantity,
+        expiryDate
+      }, parseInt(orderId));
+      
+      // Lagerbestand aktualisieren oder erstellen
+      const inventoryUpdateQuery = `
+        INSERT INTO inventory_items (warehouse_id, product_id, quantity, min_quantity, status)
+        VALUES ($1, $2, $3, 5, 'active')
+        ON CONFLICT (warehouse_id, product_id)
+        DO UPDATE SET 
+          quantity = inventory_items.quantity + $3,
+          last_updated = NOW()
+      `;
+      
+      await client.query(inventoryUpdateQuery, [
+        order.warehouse_id, productId, receivedQuantity
+      ]);
+      
+      logOrderProcess('INVENTORY_UPDATED_ALIAS', {
+        warehouseId: order.warehouse_id,
+        productId,
+        addedQuantity: receivedQuantity
+      }, parseInt(orderId));
+    }
+    
+    // Bestellstatus aktualisieren
+    await client.query(
+      'UPDATE orders SET status = $1, received_date = NOW() WHERE id = $2',
+      ['received', orderId]
+    );
+    
+    await client.query('COMMIT');
+    
+    logOrderProcess('GOODS_RECEIPT_COMPLETED_ALIAS', { 
+      orderId,
+      processedItems: receivedItems.length,
+      newStatus: 'received'
+    }, parseInt(orderId));
+    
+    res.json({
+      success: true,
+      message: 'Wareneingang erfolgreich erfasst',
+      processedItems: receivedItems.length
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    logOrderProcess('GOODS_RECEIPT_ERROR_ALIAS', { error: error.message });
     console.error('Fehler beim Wareneingang:', error);
     res.status(500).json({ error: 'Fehler beim Wareneingang' });
   } finally {

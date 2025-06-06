@@ -2823,6 +2823,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const ordersV4Router = await import('./routes/orders-v4');
   app.use(`${API_PREFIX}/orders-v4`, ordersV4Router.default);
   
+  // Direkte Route für Wareneingang - Frontend-kompatibel
+  app.post(`${API_PREFIX}/orders/:orderId/receipt`, async (req, res) => {
+    const { pool } = await import('./db');
+    const client = await pool.connect();
+    
+    try {
+      const { orderId } = req.params;
+      const { receivedItems } = req.body;
+      
+      console.log(`[GOODS_RECEIPT] Processing order ${orderId} with items:`, receivedItems);
+      
+      if (!receivedItems || !Array.isArray(receivedItems) || receivedItems.length === 0) {
+        return res.status(400).json({ error: 'Keine Wareneingangsdaten erhalten' });
+      }
+      
+      await client.query('BEGIN');
+      
+      // Bestellung laden
+      const orderQuery = 'SELECT * FROM orders WHERE id = $1';
+      const orderResult = await client.query(orderQuery, [orderId]);
+      
+      if (orderResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Bestellung nicht gefunden' });
+      }
+      
+      const order = orderResult.rows[0];
+      console.log(`[GOODS_RECEIPT] Found order for warehouse ${order.warehouse_id}`);
+      
+      // Für jede erhaltene Position
+      for (const item of receivedItems) {
+        const { productId, receivedQuantity, expiryDate, batchNumber = null } = item;
+        
+        if (!productId || !receivedQuantity || receivedQuantity <= 0) {
+          console.log(`[GOODS_RECEIPT] Skipping invalid item:`, item);
+          continue;
+        }
+        
+        console.log(`[GOODS_RECEIPT] Processing product ${productId}, quantity ${receivedQuantity}`);
+        
+        // Batch erstellen
+        const batchQuery = `
+          INSERT INTO product_batches (
+            product_id, warehouse_id, batch_number, expiry_date,
+            initial_quantity, current_quantity, status, received_date
+          ) VALUES ($1, $2, $3, $4, $5, $6, 'active', NOW())
+          RETURNING id
+        `;
+        
+        const batchResult = await client.query(batchQuery, [
+          productId, order.warehouse_id, batchNumber, expiryDate,
+          receivedQuantity, receivedQuantity
+        ]);
+        
+        const batchId = batchResult.rows[0].id;
+        console.log(`[GOODS_RECEIPT] Created batch ${batchId}`);
+        
+        // Lagerbestand aktualisieren oder erstellen
+        const inventoryUpdateQuery = `
+          INSERT INTO inventory_items (warehouse_id, product_id, quantity, min_quantity, status)
+          VALUES ($1, $2, $3, 5, 'active')
+          ON CONFLICT (warehouse_id, product_id)
+          DO UPDATE SET 
+            quantity = inventory_items.quantity + $3,
+            last_updated = NOW()
+        `;
+        
+        await client.query(inventoryUpdateQuery, [
+          order.warehouse_id, productId, receivedQuantity
+        ]);
+        
+        console.log(`[GOODS_RECEIPT] Updated inventory for warehouse ${order.warehouse_id}, product ${productId}, added ${receivedQuantity}`);
+      }
+      
+      // Bestellstatus aktualisieren
+      await client.query(
+        'UPDATE orders SET status = $1, received_date = NOW() WHERE id = $2',
+        ['received', orderId]
+      );
+      
+      await client.query('COMMIT');
+      console.log(`[GOODS_RECEIPT] Order ${orderId} completed successfully`);
+      
+      res.json({
+        success: true,
+        message: 'Wareneingang erfolgreich erfasst',
+        processedItems: receivedItems.length
+      });
+      
+    } catch (error: any) {
+      await client.query('ROLLBACK');
+      console.error('[GOODS_RECEIPT] Error:', error);
+      res.status(500).json({ error: 'Fehler beim Wareneingang', details: error.message });
+    } finally {
+      client.release();
+    }
+  });
+  
   // Registriere Inventar-Endpunkte
   app.use(`${API_PREFIX}/inventory`, inventoryRouter);
   app.use(`${API_PREFIX}/machine-warehouse-assignments`, machineWarehouseAssignmentsRouter);
