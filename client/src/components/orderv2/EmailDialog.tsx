@@ -11,13 +11,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface EmailDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  order: any;
-  onEmailSent?: () => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  orderId: number;
+  supplierEmail: string;
+  orderNumber: string;
+  supplierName: string;
+  onSendEmail: (success: boolean) => void;
 }
 
-export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: EmailDialogProps) {
+export default function EmailDialog({ 
+  open, 
+  onOpenChange, 
+  orderId, 
+  supplierEmail, 
+  orderNumber, 
+  supplierName, 
+  onSendEmail 
+}: EmailDialogProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [useTemplate, setUseTemplate] = useState(true);
@@ -36,17 +47,21 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
 
   // Load supplier template and default values when dialog opens
   useEffect(() => {
-    if (isOpen && order) {
+    if (open && orderId) {
       loadEmailTemplate();
     }
-  }, [isOpen, order]);
+  }, [open, orderId]);
 
   const loadEmailTemplate = async () => {
     try {
       setIsLoading(true);
 
+      // First load order details to get supplier ID
+      const orderResponse = await fetch(`/api/orders/${orderId}`);
+      const orderData = await orderResponse.json();
+      
       // Load supplier email templates  
-      const supplierId = order.supplier_id || order.supplierId;
+      const supplierId = orderData.supplier_id || orderData.supplierId;
       if (supplierId) {
         try {
           const templatesResponse = await fetch(`/api/supplier-email-templates/${supplierId}`);
@@ -67,12 +82,12 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
         }
       }
 
-      // Set email recipient from order data - check all possible field names first
-      console.log('Full order object:', order);
-      const supplierEmail = order.supplier_email || order.supplierEmail || order.orderEmailRecipient || '';
+      // Set email recipient from props and order data
+      console.log('Order data from API:', orderData);
+      const emailRecipient = supplierEmail || orderData.supplier_email || orderData.supplierEmail || '';
 
       // Load complete email template with proper variable handling
-      const templateResponse = await fetch(`/api/orders/${order.id}/email-template-complete`);
+      const templateResponse = await fetch(`/api/orders/${orderId}/email-template-complete`);
 
       if (templateResponse.ok) {
         const templateData = await templateResponse.json();
@@ -102,7 +117,7 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ orderId: order.id }),
+          body: JSON.stringify({ orderId: orderId }),
         });
 
         if (subjectResponse.ok) {
@@ -114,18 +129,18 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
         }
       }
       console.log('Checking order data for email:', {
-        supplier_email: order.supplier_email,
-        supplierEmail: order.supplierEmail,
-        orderEmailRecipient: order.orderEmailRecipient,
-        result: supplierEmail
+        supplier_email: orderData.supplier_email,
+        supplierEmail: orderData.supplierEmail,
+        orderEmailRecipient: orderData.orderEmailRecipient,
+        result: emailRecipient
       });
       
       // Only set email data if we have a valid supplier email
-      if (supplierEmail && supplierEmail !== 'lieferant@example.com') {
-        console.log('Setting supplier email:', supplierEmail);
+      if (emailRecipient && emailRecipient !== 'lieferant@example.com') {
+        console.log('Setting supplier email:', emailRecipient);
         setEmailData(prev => ({
           ...prev,
-          to: supplierEmail,
+          to: emailRecipient,
           cc: 'andreas@proviantomat.de, einkauf@proviantomat.de',
         }));
       } else {
