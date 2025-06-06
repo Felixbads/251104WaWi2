@@ -67,14 +67,31 @@ import {
 const saveGoodsReceipt = async (orderId: number, receiptData: any) => {
   console.log("Sende Wareneingang-Anfrage:", JSON.stringify(receiptData, null, 2));
   
+  // Transform the complex frontend structure to the simple backend format
+  const receivedItems = [];
+  
+  for (const item of receiptData.items) {
+    if (item.receivedQuantity > 0 && item.batches && item.batches.length > 0) {
+      // Create an entry for each batch
+      for (const batch of item.batches) {
+        if (batch.quantity > 0) {
+          receivedItems.push({
+            productId: item.productId,
+            receivedQuantity: batch.quantity,
+            expiryDate: batch.expiryDate,
+            batchNumber: batch.batchNumber
+          });
+        }
+      }
+    }
+  }
+  
   // Das Format umwandeln, um sicherzustellen, dass wir das vom Server erwartete Format senden
   const serverData = {
-    ...receiptData,
-    // Sicherstellen, dass receivedItems im Feldnamen "receivedItems" gesendet wird
-    receivedItems: receiptData.items
+    receivedItems: receivedItems
   };
   
-  delete serverData.items; // items entfernen, damit es keine Duplikate gibt
+  console.log("Transformed server data:", JSON.stringify(serverData, null, 2));
 
   try {
     const response = await fetch(`/api/orders/${orderId}/receipt`, {
