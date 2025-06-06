@@ -1679,10 +1679,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
             }
           );
           
-          toast({
-            title: "Neue Charge erstellt",
-            description: "Die Charge wurde erfolgreich erstellt und mit dem Inventurposten verknüpft."
-          });
+          // Toast-Benachrichtigung entfernt - keine störende Meldung mehr
         } catch (linkError) {
           console.error('Fehler beim Verknüpfen der Charge:', linkError);
           
@@ -2137,15 +2134,24 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
               <Button 
                 variant="default"
                 className="bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={() => startInventurMutation.mutate()}
-                disabled={startInventurMutation.isPending}
+                onClick={() => saveInventurMutation.mutate()}
+                disabled={saveInventurMutation.isPending}
               >
-                {startInventurMutation.isPending ? (
+                {saveInventurMutation.isPending ? (
                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
-                  <PlayCircle className="h-4 w-4 mr-2" />
+                  <Save className="h-4 w-4 mr-2" />
                 )}
-                Inventur starten
+                Zwischenspeichern
+              </Button>
+              
+              <Button 
+                variant="default"
+                className="bg-green-600 hover:bg-green-700 text-white"
+                onClick={() => setShowCompleteDialog(true)}
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Beenden
               </Button>
               
               <Button 

@@ -105,6 +105,9 @@ export default function InventoryCountBatchDialog({
       
       // Setze auch das Default-Ablaufdatum
       setExpiryDate(new Date(getDefaultExpiryDate()));
+      
+      // Setze Standardmenge auf verfügbaren Lagerbestand (expectedQuantity)
+      setBatchQuantity(selectedItem.expectedQuantity || 1);
     }
   }, [open, selectedItem]);
 
@@ -422,11 +425,7 @@ export default function InventoryCountBatchDialog({
             queryClient,
             inventoryId
           }).then(newBatch => {
-            // Erfolgsmeldung
-            toast({
-              title: 'Erfolg',
-              description: 'Charge automatisch erstellt und verknüpft.',
-            });
+            // Toast-Benachrichtigung entfernt - keine störende Meldung mehr
             
             // Dialog schließen
             onOpenChange(false);
@@ -546,9 +545,15 @@ export default function InventoryCountBatchDialog({
                   Charge auswählen oder erstellen
                 </div>
               </DialogTitle>
-              <DialogDescription>
-                Wählen Sie eine bestehende Charge aus oder erstellen Sie eine neue für den Artikel: <br />
-                <span className="font-medium">{selectedItem?.productName}</span>
+              <DialogDescription className="space-y-2">
+                <div>
+                  Wählen Sie eine bestehende Charge aus oder erstellen Sie eine neue für den Artikel: <br />
+                  <span className="font-medium">{selectedItem?.productName}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm bg-blue-50 p-2 rounded-md">
+                  <span>Verfügbarer Bestand:</span>
+                  <span className="font-semibold text-blue-600">{selectedItem?.expectedQuantity || 0} Stück</span>
+                </div>
               </DialogDescription>
             </DialogHeader>
 
