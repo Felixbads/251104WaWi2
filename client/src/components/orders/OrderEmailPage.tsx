@@ -565,32 +565,74 @@ USt-IdNr.: DE353967134`);
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[500px] border-collapse">
+              <table className="w-full min-w-[900px] border-collapse text-sm">
                 <thead>
-                  <tr className="border-b">
-                    <th className="py-2 text-left">Produkt</th>
-                    <th className="py-2 text-right">Menge</th>
-                    <th className="py-2 text-right">Einheit</th>
-                    <th className="py-2 text-right">Einzelpreis</th>
-                    <th className="py-2 text-right">Gesamt</th>
+                  <tr className="border-b bg-muted/50">
+                    <th className="py-3 px-2 text-left">Produkt</th>
+                    <th className="py-3 px-2 text-right">Menge</th>
+                    <th className="py-3 px-2 text-right">Gebindegröße</th>
+                    <th className="py-3 px-2 text-right">Gesamtmenge</th>
+                    <th className="py-3 px-2 text-right">Einzelpreis (Netto)</th>
+                    <th className="py-3 px-2 text-right">Pfand</th>
+                    <th className="py-3 px-2 text-right">Netto</th>
+                    <th className="py-3 px-2 text-right">MwSt.</th>
+                    <th className="py-3 px-2 text-right">Brutto</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {orderItems.map((item, index) => (
-                    <tr key={index} className="border-b">
-                      <td className="py-2">{item.productName}</td>
-                      <td className="py-2 text-right">{item.quantity}</td>
-                      <td className="py-2 text-right">{item.unit}</td>
-                      <td className="py-2 text-right">{item.price?.toFixed(2)} €</td>
-                      <td className="py-2 text-right">{(item.quantity * item.price)?.toFixed(2)} €</td>
-                    </tr>
-                  ))}
-                  <tr className="font-bold">
-                    <td colSpan={4} className="py-2 text-right">Gesamtbetrag:</td>
-                    <td className="py-2 text-right">
-                      {orderItems.reduce((sum, item) => sum + (item.quantity * item.price), 0).toFixed(2)} €
-                    </td>
-                  </tr>
+                  {(() => {
+                    let totalNet = 0;
+                    let totalVat = 0;
+                    let totalGross = 0;
+                    let totalPfand = 0;
+
+                    const rows = orderItems.map((item, index) => {
+                      const unitPrice = item.price || item.unit_price || 0;
+                      const quantity = item.quantity || 0;
+                      const vatRate = item.vat_rate || 19;
+                      const gebindegroesse = item.package_size || item.gebindegroesse || 1;
+                      const gesamtmenge = quantity * gebindegroesse;
+                      const pfandPerUnit = item.deposit || item.pfand || 0;
+                      const pfandTotal = quantity * pfandPerUnit;
+                      
+                      const netTotal = quantity * unitPrice;
+                      const vatAmount = netTotal * (vatRate / 100);
+                      const grossTotal = netTotal + vatAmount;
+                      
+                      totalNet += netTotal;
+                      totalVat += vatAmount;
+                      totalGross += grossTotal;
+                      totalPfand += pfandTotal;
+
+                      return (
+                        <tr key={index} className="border-b hover:bg-muted/30">
+                          <td className="py-2 px-2">{item.productName}</td>
+                          <td className="py-2 px-2 text-right">{quantity}</td>
+                          <td className="py-2 px-2 text-right">{gebindegroesse}</td>
+                          <td className="py-2 px-2 text-right">{gesamtmenge}</td>
+                          <td className="py-2 px-2 text-right">{unitPrice.toFixed(2)} €</td>
+                          <td className="py-2 px-2 text-right">{pfandTotal.toFixed(2)} €</td>
+                          <td className="py-2 px-2 text-right">{netTotal.toFixed(2)} €</td>
+                          <td className="py-2 px-2 text-right">{vatAmount.toFixed(2)} €</td>
+                          <td className="py-2 px-2 text-right font-medium">{grossTotal.toFixed(2)} €</td>
+                        </tr>
+                      );
+                    });
+
+                    return [...rows, (
+                      <tr key="totals" className="font-bold bg-muted/50 border-t-2">
+                        <td className="py-3 px-2">Summen:</td>
+                        <td className="py-3 px-2"></td>
+                        <td className="py-3 px-2"></td>
+                        <td className="py-3 px-2"></td>
+                        <td className="py-3 px-2"></td>
+                        <td className="py-3 px-2 text-right">{totalPfand.toFixed(2)} €</td>
+                        <td className="py-3 px-2 text-right">{totalNet.toFixed(2)} €</td>
+                        <td className="py-3 px-2 text-right">{totalVat.toFixed(2)} €</td>
+                        <td className="py-3 px-2 text-right text-lg">{totalGross.toFixed(2)} €</td>
+                      </tr>
+                    )];
+                  })()}
                 </tbody>
               </table>
             </div>

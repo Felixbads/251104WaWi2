@@ -85,16 +85,20 @@ router.get('/orders/:id/email-template-enhanced', async (req: Request, res: Resp
       }
     }
 
-    // Generate product table with proper tax calculations
+    // Generate enhanced product table with detailed breakdown
     let productTableHtml = `
-      <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;">
         <thead>
           <tr style="background-color: #f8f9fa;">
-            <th style="padding: 12px; border: 1px solid #dee2e6; text-align: left;">Menge</th>
-            <th style="padding: 12px; border: 1px solid #dee2e6; text-align: left;">Artikel</th>
-            <th style="padding: 12px; border: 1px solid #dee2e6; text-align: right;">Einzelpreis (netto)</th>
-            <th style="padding: 12px; border: 1px solid #dee2e6; text-align: right;">MwSt</th>
-            <th style="padding: 12px; border: 1px solid #dee2e6; text-align: right;">Gesamtpreis (brutto)</th>
+            <th style="padding: 10px; border: 1px solid #dee2e6; text-align: left;">Produkt</th>
+            <th style="padding: 10px; border: 1px solid #dee2e6; text-align: right;">Menge</th>
+            <th style="padding: 10px; border: 1px solid #dee2e6; text-align: right;">Gebindegröße</th>
+            <th style="padding: 10px; border: 1px solid #dee2e6; text-align: right;">Gesamtmenge</th>
+            <th style="padding: 10px; border: 1px solid #dee2e6; text-align: right;">Einzelpreis (Netto)</th>
+            <th style="padding: 10px; border: 1px solid #dee2e6; text-align: right;">Pfand</th>
+            <th style="padding: 10px; border: 1px solid #dee2e6; text-align: right;">Netto</th>
+            <th style="padding: 10px; border: 1px solid #dee2e6; text-align: right;">MwSt.</th>
+            <th style="padding: 10px; border: 1px solid #dee2e6; text-align: right;">Brutto</th>
           </tr>
         </thead>
         <tbody>
@@ -103,11 +107,16 @@ router.get('/orders/:id/email-template-enhanced', async (req: Request, res: Resp
     let totalNet = 0;
     let totalVat = 0;
     let totalGross = 0;
+    let totalPfand = 0;
 
     for (const item of items) {
       const quantity = item.quantity || 0;
       const unitPrice = item.unitPrice || 0;
       const vatRate = item.vatRate || 19;
+      const gebindegroesse = item.packageSize || item.gebindegroesse || 1;
+      const gesamtmenge = quantity * gebindegroesse;
+      const pfandPerUnit = item.deposit || item.pfand || 0;
+      const pfandTotal = quantity * pfandPerUnit;
       
       const netTotal = quantity * unitPrice;
       const vatAmount = netTotal * (vatRate / 100);
@@ -116,20 +125,21 @@ router.get('/orders/:id/email-template-enhanced', async (req: Request, res: Resp
       totalNet += netTotal;
       totalVat += vatAmount;
       totalGross += grossTotal;
+      totalPfand += pfandTotal;
       
-      // Include packaging info if available
-      let productDisplayName = item.productName || 'Unbekanntes Produkt';
-      if (item.packageSize) {
-        productDisplayName += ` (Gebinde: ${item.packageSize})`;
-      }
+      const productDisplayName = item.productName || 'Unbekanntes Produkt';
       
       productTableHtml += `
         <tr>
-          <td style="padding: 8px; border: 1px solid #dee2e6;">${quantity} ${item.unit || 'Stk'}</td>
           <td style="padding: 8px; border: 1px solid #dee2e6;">${productDisplayName}</td>
+          <td style="padding: 8px; border: 1px solid #dee2e6; text-align: right;">${quantity}</td>
+          <td style="padding: 8px; border: 1px solid #dee2e6; text-align: right;">${gebindegroesse}</td>
+          <td style="padding: 8px; border: 1px solid #dee2e6; text-align: right;">${gesamtmenge}</td>
           <td style="padding: 8px; border: 1px solid #dee2e6; text-align: right;">${unitPrice.toFixed(2)} €</td>
-          <td style="padding: 8px; border: 1px solid #dee2e6; text-align: right;">${vatRate}% (${vatAmount.toFixed(2)} €)</td>
-          <td style="padding: 8px; border: 1px solid #dee2e6; text-align: right;">${grossTotal.toFixed(2)} €</td>
+          <td style="padding: 8px; border: 1px solid #dee2e6; text-align: right;">${pfandTotal.toFixed(2)} €</td>
+          <td style="padding: 8px; border: 1px solid #dee2e6; text-align: right;">${netTotal.toFixed(2)} €</td>
+          <td style="padding: 8px; border: 1px solid #dee2e6; text-align: right;">${vatAmount.toFixed(2)} €</td>
+          <td style="padding: 8px; border: 1px solid #dee2e6; text-align: right; font-weight: bold;">${grossTotal.toFixed(2)} €</td>
         </tr>
       `;
     }
@@ -138,10 +148,15 @@ router.get('/orders/:id/email-template-enhanced', async (req: Request, res: Resp
         </tbody>
         <tfoot>
           <tr style="background-color: #f8f9fa; font-weight: bold;">
-            <td colspan="2" style="padding: 12px; border: 1px solid #dee2e6;">Summen:</td>
+            <td style="padding: 12px; border: 1px solid #dee2e6;">Summen:</td>
+            <td style="padding: 12px; border: 1px solid #dee2e6;"></td>
+            <td style="padding: 12px; border: 1px solid #dee2e6;"></td>
+            <td style="padding: 12px; border: 1px solid #dee2e6;"></td>
+            <td style="padding: 12px; border: 1px solid #dee2e6;"></td>
+            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right;">${totalPfand.toFixed(2)} €</td>
             <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right;">${totalNet.toFixed(2)} €</td>
             <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right;">${totalVat.toFixed(2)} €</td>
-            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right;">${totalGross.toFixed(2)} €</td>
+            <td style="padding: 12px; border: 1px solid #dee2e6; text-align: right; font-size: 16px;">${totalGross.toFixed(2)} €</td>
           </tr>
         </tfoot>
       </table>
@@ -173,19 +188,27 @@ router.get('/orders/:id/email-template-enhanced', async (req: Request, res: Resp
       subject = customTemplate.subjectTemplate || `Bestellung ${orderData.orderNumber} – Lieferung am ${deliveryDate}`;
       content = customTemplate.contentTemplate || '';
       
-      // Replace placeholders in custom template
-      content = content
-        .replace(/\{orderNumber\}/g, orderData.orderNumber || '')
-        .replace(/\{orderDate\}/g, orderDate)
-        .replace(/\{deliveryDate\}/g, deliveryDate)
-        .replace(/\{deliveryType\}/g, orderData.deliveryType === 'pickup' ? 'Abholung' : 'Anlieferung')
-        .replace(/\{deliveryAddress\}/g, deliveryAddress)
-        .replace(/\{netAmount\}/g, totalNet.toFixed(2))
-        .replace(/\{vatAmount\}/g, totalVat.toFixed(2))
-        .replace(/\{totalAmount\}/g, totalGross.toFixed(2))
-        .replace(/\{vatRate\}/g, '19') // Default VAT rate
-        .replace(/\{itemsList\}/g, productTableHtml)
-        .replace(/\{productTable\}/g, productTableHtml);
+      // Replace placeholders in custom template with safe string replacement
+      const replacements = {
+        '{orderNumber}': orderData.orderNumber || '',
+        '{orderDate}': orderDate,
+        '{deliveryDate}': deliveryDate,
+        '{deliveryType}': orderData.deliveryType === 'pickup' ? 'Abholung' : 'Anlieferung',
+        '{deliveryAddress}': deliveryAddress.replace(/\n/g, '<br>'),
+        '{netAmount}': totalNet.toFixed(2),
+        '{vatAmount}': totalVat.toFixed(2),
+        '{totalAmount}': totalGross.toFixed(2),
+        '{pfandAmount}': totalPfand.toFixed(2),
+        '{vatRate}': '19',
+        '{itemsList}': productTableHtml,
+        '{productTable}': productTableHtml,
+        '{{orderItems}}': productTableHtml
+      };
+      
+      // Apply replacements safely
+      for (const [placeholder, value] of Object.entries(replacements)) {
+        content = content.split(placeholder).join(value);
+      }
         
     } else {
       // Use standard template with user's uploaded text
