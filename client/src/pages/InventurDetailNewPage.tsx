@@ -235,6 +235,10 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   
   // Lokaler State für alle gezählten Artikel, um Änderungen über Dialog-Öffnen/Schließen zu persistieren
   const [countedItems, setCountedItems] = useState<InventoryCountItem[]>([]);
+  
+  // Auto-Save State
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
 
   // Lade Inventurdaten
   const { 
@@ -315,6 +319,51 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     staleTime: 30 * 1000,
     enabled: !!id && showAddDialog
   });
+
+  // Auto-Save Mutation für alle Änderungen
+  const autoSaveMutation = useMutation({
+    mutationFn: async () => {
+      setAutoSaveStatus('saving');
+      const updates = Object.entries(editedCounts).map(([id, countedQuantity]) => ({
+        id: parseInt(id),
+        countedQuantity
+      }));
+      
+      const promises = updates.map(update => 
+        fetch(`/api/inventory-count-items/${update.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(update),
+        })
+      );
+      
+      await Promise.all(promises);
+      return updates;
+    },
+    onSuccess: () => {
+      setAutoSaveStatus('saved');
+      setLastSaveTime(new Date());
+      setEditedCounts({});
+      setTimeout(() => setAutoSaveStatus('idle'), 2000);
+    },
+    onError: () => {
+      setAutoSaveStatus('error');
+      setTimeout(() => setAutoSaveStatus('idle'), 3000);
+    }
+  });
+
+  // Auto-Save Effect - speichert nach 3 Sekunden Inaktivität
+  useEffect(() => {
+    if (Object.keys(editedCounts).length === 0) return;
+    
+    const timer = setTimeout(() => {
+      autoSaveMutation.mutate();
+    }, 3000);
+    
+    return () => clearTimeout(timer);
+  }, [editedCounts]);
 
   // Mutation zum Aktualisieren eines Zählerstands (mit optimistischem Update)
   const updateCountMutation = useMutation({
@@ -667,8 +716,8 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       window.sessionStorage.setItem('inventur_scroll_position', savedScrollPosition.toString());
       console.log(`Scroll-Position vor Speichern gesichert: ${savedScrollPosition}`);
       
-      // Verwende invalidateInventoryCache statt direkter Invalidierung für bessere Scroll-Erhaltung
-      invalidateInventoryCache(queryClient, id, undefined, true);
+      // Invalidiere den Cache für diese Inventur
+      queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}`] });
       
       toast({
         title: "Inventur gespeichert",
@@ -1293,7 +1342,7 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         setSelectedItem(null);
         
         // Cache nach erfolgreicher Operation invalidieren ohne Scroll-Reset
-        invalidateInventoryCache(queryClient, id, selectedItem.productId);
+        queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}`] });
         
         // Erfolgsmeldung
         toast({
