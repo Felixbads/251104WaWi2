@@ -88,6 +88,9 @@ export default function InventoryCountBatchDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   
+  // Neue State für die Menge der Charge
+  const [batchQuantity, setBatchQuantity] = useState<number>(1);
+  
   // Wir verwenden jetzt die importierte Funktion aus CreateAndLinkBatchHandler.ts
   // für eine konsistente Batch-Nummern-Generierung im ganzen System
 
@@ -341,6 +344,7 @@ export default function InventoryCountBatchDialog({
         inventoryId,
         batchNumber: newBatchNumber,
         expiryDate: expiryDate ? format(expiryDate, 'yyyy-MM-dd') : null,
+        quantity: batchQuantity,
         notes: `Erstellt bei Inventur #${inventoryId}`,
         queryClient,
         toast,
@@ -351,6 +355,7 @@ export default function InventoryCountBatchDialog({
           // Formularzustände zurücksetzen
           setNewBatchNumber('');
           setExpiryDate(null);
+          setBatchQuantity(1);
           setIsSubmitting(false);
           setShowSuccess(true);
         }
@@ -665,6 +670,22 @@ export default function InventoryCountBatchDialog({
                     />
                     <p className="text-xs text-muted-foreground mt-1">
                       Eine eindeutige Kennung für diese Charge
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-1">
+                      Menge der Charge
+                    </label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={batchQuantity}
+                      onChange={(e) => setBatchQuantity(parseInt(e.target.value) || 1)}
+                      placeholder="Anzahl eingeben"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Anzahl der Produkte in dieser Charge
                     </p>
                   </div>
                   

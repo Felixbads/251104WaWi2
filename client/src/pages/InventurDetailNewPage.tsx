@@ -371,12 +371,8 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       window.sessionStorage.setItem('inventur_scroll_position', savedScrollPosition.toString());
       console.log(`Scroll-Position gespeichert: ${savedScrollPosition}`);
       
-      // Erfolg: Toast anzeigen, aber keine Invalidierung des Caches oder Page-Scroll
-      // Wir behalten die aktuelle Position bei, ohne den kompletten Cache zu invalidieren
-      toast({
-        title: "Zählerstand aktualisiert",
-        description: "Der Zählerstand wurde erfolgreich aktualisiert.",
-      });
+      // Erfolg: Keine Toast-Nachricht anzeigen, da dies bei jeder Eingabe stört
+      // Stattdessen stilles Update ohne Benachrichtigung
       
       // WICHTIG: KEIN window.scrollTo hier, damit die Seite nicht springt
       // Das React Query Cache-Update erfolgt automatisch über das optimistische Update
