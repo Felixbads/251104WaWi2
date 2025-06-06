@@ -2862,6 +2862,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         console.log(`[GOODS_RECEIPT] Processing product ${productId}, quantity ${receivedQuantity}`);
         
+        // Generate batch number if not provided (database requires non-null batch_number)
+        const finalBatchNumber = batchNumber || `BATCH-${Date.now()}-${productId}`;
+        console.log(`[GOODS_RECEIPT] Using batch number: ${finalBatchNumber}`);
+        
         // Batch erstellen
         const batchQuery = `
           INSERT INTO product_batches (
@@ -2872,7 +2876,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `;
         
         const batchResult = await client.query(batchQuery, [
-          productId, order.warehouse_id, batchNumber, expiryDate,
+          productId, order.warehouse_id, finalBatchNumber, expiryDate,
           receivedQuantity, receivedQuantity
         ]);
         
@@ -2914,6 +2918,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       await client.query('ROLLBACK');
       console.error('[GOODS_RECEIPT] Error:', error);
+      console.error('[GOODS_RECEIPT] Error stack:', error.stack);
+      console.error('[GOODS_RECEIPT] Error details:', {
+        message: error.message,
+        code: error.code,
+        detail: error.detail,
+        constraint: error.constraint
+      });
       res.status(500).json({ error: 'Fehler beim Wareneingang', details: error.message });
     } finally {
       client.release();
