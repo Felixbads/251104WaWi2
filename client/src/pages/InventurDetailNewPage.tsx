@@ -236,6 +236,13 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   // Lokaler State für alle gezählten Artikel, um Änderungen über Dialog-Öffnen/Schließen zu persistieren
   const [countedItems, setCountedItems] = useState<InventoryCountItem[]>([]);
   
+  // Auto-Save State
+  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
+  
+  // Local storage key for persisting data
+  const localStorageKey = `inventur_${id}_data`;
+  
   // Load data from localStorage on mount
   useEffect(() => {
     try {
@@ -267,13 +274,6 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       }
     }
   }, [editedCounts, editedNotes, localStorageKey]);
-  
-  // Auto-Save State
-  const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
-  
-  // Local storage key for persisting data
-  const localStorageKey = `inventur_${id}_data`;
 
   // Lade Inventurdaten
   const { 
@@ -421,8 +421,13 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
       // Speichere aktuelle Scroll-Position
       const prevScroll = window.scrollY;
       
+      // KRITISCH: Persistiere Daten in editedCounts für Navigation zwischen Produkten
+      setEditedCounts(prev => ({
+        ...prev,
+        [data.id]: data.countedQuantity
+      }));
+      
       // Optimistisch lokalen State aktualisieren ohne Server-Anfrage
-      // Finde das Item, das aktualisiert werden soll
       const item = countedItems.find(item => item.id === data.id);
       if (item) {
         const updatedItem = {
@@ -434,6 +439,8 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         updateCountedItem(updatedItem);
       }
       
+      console.log('Inventurdaten persistiert für Item:', data.id, 'Menge:', data.countedQuantity);
+      
       // Rückgabewert für den Fall eines Rollbacks
       return { prevScroll };
     },
@@ -443,9 +450,12 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         window.scrollTo(0, context.prevScroll);
       }
       
+      // WICHTIG: editedCounts wird NICHT zurückgesetzt, um Datenverlust zu vermeiden
+      console.warn('Server-Update fehlgeschlagen, aber lokale Daten bleiben erhalten für Item:', variables.id);
+      
       toast({
-        title: "Fehler",
-        description: "Der Zählerstand konnte nicht aktualisiert werden.",
+        title: "Server-Update fehlgeschlagen",
+        description: "Daten wurden lokal gespeichert. Versuchen Sie 'Jetzt speichern'.",
         variant: "destructive",
       });
     },
@@ -2185,6 +2195,28 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         
         {/* Aktionsbuttons im Header-Bereich */}
         <div className="flex flex-wrap gap-2 justify-end">
+          {/* Manual Save Button - always visible when there are changes */}
+          {(Object.keys(editedCounts).length > 0 || Object.keys(editedNotes).length > 0) && (
+            <Button 
+              variant="outline"
+              className="border-green-200 text-green-700 hover:bg-green-50"
+              onClick={() => saveInventurMutation.mutate()}
+              disabled={saveInventurMutation.isPending || autoSaveStatus === 'saving'}
+            >
+              {saveInventurMutation.isPending ? (
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Jetzt speichern
+              {lastSaveTime && (
+                <span className="ml-2 text-xs opacity-70">
+                  {lastSaveTime.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+            </Button>
+          )}
+          
           {/* Status: pending */}
           {showStartButton && (
             <>
