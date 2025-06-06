@@ -545,8 +545,11 @@ export default function InventoryCountBatchDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={`max-w-lg overflow-y-auto max-h-[90vh] ${showSuccess ? 'bg-success-100' : ''}`}>
+    <Dialog open={open} onOpenChange={onOpenChange} modal={true}>
+      <DialogContent 
+        className={`max-w-lg overflow-y-auto max-h-[90vh] bg-white dark:bg-gray-900 border shadow-xl ${showSuccess ? 'bg-success-100' : ''}`}
+        style={{ zIndex: 50 }}
+      >
         {showSuccess ? (
           <div className="flex flex-col items-center justify-center py-8">
             <CheckCircle2 className="text-green-500 h-16 w-16 mb-4" />
@@ -587,6 +590,9 @@ export default function InventoryCountBatchDialog({
               </TabsList>
               
               <TabsContent value="existing">
+                <div className="mb-4 p-2 bg-blue-50 rounded text-sm">
+                  <strong>Debug Info:</strong> {availableBatches.length} Chargen gefunden für Produkt {selectedItem?.productId} in Lager {warehouseId}
+                </div>
                 {availableBatches.length === 0 ? (
                   <div className="flex flex-col items-center p-4 border rounded-md mb-4">
                     <CircleAlert className="h-12 w-12 text-amber-500 mb-2" />

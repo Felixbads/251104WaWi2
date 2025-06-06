@@ -373,6 +373,7 @@ export interface IStorage {
     orderId?: number;
   }): Promise<ProductBatch[]>;
   getProductBatchById(id: number): Promise<ProductBatch | undefined>;
+  getProductBatch(id: number): Promise<any | null>;
   getProductBatchByBatchNumber(batchNumber: string, productId: number, warehouseId: number): Promise<ProductBatch | undefined>;
   createProductBatch(batch: InsertProductBatch): Promise<ProductBatch>;
   updateProductBatch(id: number, batch: Partial<InsertProductBatch>): Promise<ProductBatch | undefined>;
