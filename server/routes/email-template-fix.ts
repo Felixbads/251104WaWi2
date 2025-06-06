@@ -113,9 +113,9 @@ router.get('/orders/:id/email-template-enhanced', async (req: Request, res: Resp
       const quantity = item.quantity || 0;
       const unitPrice = item.unitPrice || 0;
       const vatRate = item.vatRate || 19;
-      const gebindegroesse = item.packageSize || item.gebindegroesse || 1;
+      const gebindegroesse = item.packageSize || 1;
       const gesamtmenge = quantity * gebindegroesse;
-      const pfandPerUnit = item.deposit || item.pfand || 0;
+      const pfandPerUnit = 0; // Set to 0 for now since deposit field doesn't exist
       const pfandTotal = quantity * pfandPerUnit;
       
       const netTotal = quantity * unitPrice;

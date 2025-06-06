@@ -81,14 +81,19 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
         }));
       }
 
-      // Set email recipient from order data
-      const supplierEmail = order.supplier_email || order.supplierEmail || '';
-      console.log('Lieferanten-E-Mail gefunden:', supplierEmail);
+      // Set email recipient from order data - check all possible field names
+      const supplierEmail = order.supplier_email || order.supplierEmail || order.orderEmailRecipient || '';
+      console.log('Checking order data for email:', {
+        supplier_email: order.supplier_email,
+        supplierEmail: order.supplierEmail,
+        orderEmailRecipient: order.orderEmailRecipient,
+        found: supplierEmail
+      });
       
       setEmailData(prev => ({
         ...prev,
         to: supplierEmail,
-        cc: 'andreas@proviantomat.de,einkauf@proviantomat.de',
+        cc: 'andreas@proviantomat.de, einkauf@proviantomat.de',
       }));
 
     } catch (error) {
@@ -246,10 +251,10 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
             <Label htmlFor="cc">CC (optional)</Label>
             <Input
               id="cc"
-              type="email"
+              type="text"
               value={emailData.cc}
               onChange={(e) => handleInputChange('cc', e.target.value)}
-              placeholder="andreas@proviantomat.de,einkauf@proviantomat.de"
+              placeholder="andreas@proviantomat.de, einkauf@proviantomat.de"
             />
             <p className="text-sm text-muted-foreground">
               Mehrere E-Mail-Adressen durch Komma trennen
