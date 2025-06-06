@@ -2879,6 +2879,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           RETURNING id
         `;
         
+        console.log(`[GOODS_RECEIPT] Creating batch with params:`, {
+          productId, 
+          warehouseId: order.warehouse_id, 
+          batchNumber: finalBatchNumber, 
+          expiryDate: finalExpiryDate,
+          quantity: receivedQuantity
+        });
+        
         const batchResult = await client.query(batchQuery, [
           productId, order.warehouse_id, finalBatchNumber, finalExpiryDate,
           receivedQuantity, receivedQuantity
