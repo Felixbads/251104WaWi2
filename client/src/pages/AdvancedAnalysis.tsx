@@ -56,33 +56,33 @@ export default function AdvancedAnalysis() {
       </Alert>
       
       <Card>
-        <CardHeader className="pb-3">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <CardHeader className="pb-3">
             <TabsList className="w-full justify-start">
               <TabsTrigger value="product-performance">Produktleistung</TabsTrigger>
               <TabsTrigger value="removed-products">Entfernte Produkte</TabsTrigger>
               <TabsTrigger value="event-frequency">Ereignisanalyse</TabsTrigger>
               <TabsTrigger value="weather-correlation">Wettereinfluss</TabsTrigger>
             </TabsList>
-          </Tabs>
-        </CardHeader>
-        <CardContent className="pt-2">
-          <TabsContent value="product-performance" className="mt-0">
-            <ProductPerformanceTab buildQueryUrl={buildQueryUrl} />
-          </TabsContent>
-          
-          <TabsContent value="removed-products" className="mt-0">
-            <RemovedProductsTab buildQueryUrl={buildQueryUrl} />
-          </TabsContent>
-          
-          <TabsContent value="event-frequency" className="mt-0">
-            <EventFrequencyTab buildQueryUrl={buildQueryUrl} />
-          </TabsContent>
-          
-          <TabsContent value="weather-correlation" className="mt-0">
-            <WeatherCorrelationTab buildQueryUrl={buildQueryUrl} />
-          </TabsContent>
-        </CardContent>
+          </CardHeader>
+          <CardContent className="pt-2">
+            <TabsContent value="product-performance" className="mt-0">
+              <ProductPerformanceTab buildQueryUrl={buildQueryUrl} />
+            </TabsContent>
+            
+            <TabsContent value="removed-products" className="mt-0">
+              <RemovedProductsTab buildQueryUrl={buildQueryUrl} />
+            </TabsContent>
+            
+            <TabsContent value="event-frequency" className="mt-0">
+              <EventFrequencyTab buildQueryUrl={buildQueryUrl} />
+            </TabsContent>
+            
+            <TabsContent value="weather-correlation" className="mt-0">
+              <WeatherCorrelationTab buildQueryUrl={buildQueryUrl} />
+            </TabsContent>
+          </CardContent>
+        </Tabs>
       </Card>
     </div>
   );
