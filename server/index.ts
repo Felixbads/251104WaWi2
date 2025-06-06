@@ -20,6 +20,7 @@ import emailRouter from './routes/email';
 import supplierEmailTemplatesRouter from './routes/supplier-email-templates';
 import emailTemplateFixRouter from './routes/email-template-fix';
 import enhancedEmailRouter from './routes/enhanced-email';
+import ordersEmailCompleteFixRouter from './routes/orders-email-complete-fix';
 import { pool } from './db';
 
 const app = express();
