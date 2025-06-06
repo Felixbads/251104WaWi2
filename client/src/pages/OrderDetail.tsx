@@ -301,10 +301,17 @@ export default function OrderDetail() {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showStatusChangeDialog, setShowStatusChangeDialog] = useState(false);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [showQrDialog, setShowQrDialog] = useState(false);
   
   // Form States
   const [sendNote, setSendNote] = useState("");
   const [cancelReason, setCancelReason] = useState("");
+  
+  // QR Code and PDF States
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
+  
+  // Refs
+  const qrCodeRef = useRef<HTMLDivElement>(null);
   
   // Lade Bestelldetails
   const { data: order, isLoading, error } = useQuery({
