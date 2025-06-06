@@ -30,7 +30,7 @@ import { pool } from './db';
 import { db } from './db';
 import { orders } from '../shared/schema';
 import { eq } from 'drizzle-orm';
-import * as nodemailer from 'nodemailer';
+import nodemailer from 'nodemailer';
 
 const app = express();
 app.use(express.json());
@@ -449,7 +449,7 @@ Elbsandstein Proviant & Quartier GmbH`;
       }
 
       // Create transporter
-      const transporter = nodemailer.createTransporter({
+      const transporter = nodemailer.createTransport({
         host: 'smtp.ionos.de',
         port: 587,
         secure: false,
