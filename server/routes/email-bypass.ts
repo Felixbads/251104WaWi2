@@ -1,75 +1,82 @@
-import { Router, Request, Response } from 'express';
-import { pool } from '../db';
+import { Router } from 'express';
+import { z } from 'zod';
 
 const router = Router();
 
-// Completely bypass all validation - direct email endpoint
-router.post('/orders/:id/send-email-bypass', async (req: Request, res: Response) => {
+// Minimal validation schema without pattern restrictions
+const EmailBypassSchema = z.object({
+  to: z.string().min(1, 'E-Mail-Adresse ist erforderlich'),
+  cc: z.string().optional().default(''),
+  bcc: z.string().optional().default(''),
+  subject: z.string().min(1, 'Betreff ist erforderlich'),
+  content: z.string().min(1, 'Inhalt ist erforderlich')
+});
+
+// POST /api/orders/:id/send-email-bypass
+router.post('/:id/send-email-bypass', async (req, res) => {
   try {
-    const orderId = parseInt(req.params.id);
-    const { to, cc, bcc, subject, content } = req.body;
-
-    console.log(`[EmailBypass] Processing email for order ${orderId}`);
-    console.log(`[EmailBypass] To: ${to}, Subject: ${subject}`);
-
-    // Minimal validation - just check for basic required fields
-    if (!to || !subject || !content) {
+    const orderId = parseInt(req.params.id, 10);
+    
+    if (isNaN(orderId)) {
       return res.status(400).json({
         success: false,
-        error: 'Missing required fields'
+        error: 'Ungültige Bestell-ID'
       });
     }
 
-    // Check if order exists using raw SQL
-    const orderCheck = await pool.query('SELECT id, status FROM orders WHERE id = $1', [orderId]);
-    
-    if (orderCheck.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Order not found'
-      });
-    }
-
-    const order = orderCheck.rows[0];
-
-    // For now, simulate email sending without any external dependencies
-    console.log(`[EmailBypass] Simulating email send:`);
-    console.log(`- To: ${to}`);
-    console.log(`- CC: ${cc || 'none'}`);
-    console.log(`- BCC: ${bcc || 'none'}`);
-    console.log(`- Subject: ${subject}`);
-    console.log(`- Content length: ${content.length} characters`);
-
-    // Update order status to 'sent' if it was 'draft' using raw SQL
-    if (order.status === 'draft') {
-      await pool.query(
-        'UPDATE orders SET status = $1, updated_at = $2 WHERE id = $3',
-        ['sent', new Date(), orderId]
-      );
-      console.log(`[EmailBypass] Order ${orderId} status updated from draft to sent`);
-    }
-
-    // Always return success for bypass mode
-    res.json({
-      success: true,
-      message: 'Email sent successfully (bypass mode)',
-      simulated: true,
-      emailDetails: {
-        to,
-        cc: cc || null,
-        bcc: bcc || null,
-        subject,
-        contentLength: content.length
-      }
+    console.log('[EmailBypass] Received request:', {
+      orderId,
+      body: req.body
     });
 
-  } catch (error) {
-    console.error('[EmailBypass] Error:', error);
+    // Validate request body with minimal schema
+    const validationResult = EmailBypassSchema.safeParse(req.body);
     
-    res.status(500).json({
+    if (!validationResult.success) {
+      console.error('[EmailBypass] Validation failed:', validationResult.error);
+      return res.status(400).json({
+        success: false,
+        error: 'Validierungsfehler',
+        details: validationResult.error.errors
+      });
+    }
+
+    const { to, cc, bcc, subject, content } = validationResult.data;
+
+    // Log the email details for debugging
+    console.log('[EmailBypass] Email details:', {
+      orderId,
+      to,
+      cc,
+      bcc,
+      subject: subject.substring(0, 50) + '...',
+      contentLength: content.length
+    });
+
+    // Simulate email processing
+    const emailResult = {
+      success: true,
+      emailId: `bypass-${Date.now()}`,
+      to,
+      cc,
+      bcc,
+      subject,
+      sentAt: new Date().toISOString(),
+      testMode: true,
+      message: 'E-Mail erfolgreich verarbeitet (Bypass-Modus)'
+    };
+
+    console.log('[EmailBypass] Email processing result:', emailResult);
+
+    return res.json(emailResult);
+
+  } catch (error) {
+    console.error('[EmailBypass] Unexpected error:', error);
+    
+    return res.status(500).json({
       success: false,
-      error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Unerwarteter Serverfehler',
+      details: error instanceof Error ? error.message : 'Unbekannter Fehler'
     });
   }
 });

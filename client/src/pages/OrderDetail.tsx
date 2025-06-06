@@ -303,6 +303,7 @@ export default function OrderDetail() {
   const [showStatusChangeDialog, setShowStatusChangeDialog] = useState(false);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [showQrDialog, setShowQrDialog] = useState(false);
+  const [showDirectEmailSender, setShowDirectEmailSender] = useState(false);
   
   // Form States
   const [sendNote, setSendNote] = useState("");
