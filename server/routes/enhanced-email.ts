@@ -38,13 +38,13 @@ router.post('/orders/:id/send-email', async (req, res) => {
 
     console.log('[EnhancedEmailRoute] Attempting to send email with enhanced service...');
     
-    // Use the enhanced email service to send the email
-    const result = await emailService.sendEmail({
-      to: to || supplierEmail,
-      subject: subject || `Bestellung - Order ${orderId}`,
-      content: content || 'Bestelldetails werden verarbeitet...',
-      from: process.env.SMTP_FROM || 'einkauf@proviantomat.de'
-    });
+    // Use the enhanced email service to send the email with correct parameters
+    const result = await emailService.sendEmail(
+      to || supplierEmail,
+      subject || `Bestellung - Order ${orderId}`,
+      content || 'Bestelldetails werden verarbeitet...',
+      process.env.SMTP_FROM || 'einkauf@proviantomat.de'
+    );
 
     console.log('[EnhancedEmailRoute] Email send result:', result);
 
