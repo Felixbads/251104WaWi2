@@ -229,13 +229,7 @@ export async function createAndLinkBatch({
       }
     }
     
-    // Optional: Erfolgsmeldung anzeigen
-    if (toast) {
-      toast({
-        title: 'Charge erstellt und verknüpft',
-        description: `Die Charge ${batchNumber} wurde erfolgreich erstellt und verknüpft.`
-      });
-    }
+    // Keine Toast-Benachrichtigung mehr anzeigen - stilles Erstellen
     
     // Optional: Callback für weitere Aktionen
     if (onSuccess) {

@@ -339,6 +339,17 @@ export default function InventoryCountBatchDialog({
       return;
     }
     
+    // Validierung: Chargenmenge darf nicht größer als verfügbarer Bestand sein
+    if (batchQuantity > (selectedItem.expectedQuantity || 0)) {
+      toast({
+        title: 'Fehler',
+        description: `Die Chargenmenge (${batchQuantity}) darf nicht größer als der verfügbare Bestand (${selectedItem.expectedQuantity || 0}) sein.`,
+        variant: 'destructive',
+      });
+      setIsSubmitting(false);
+      return;
+    }
+    
     try {
       // Verwende unseren optimierten Handler
       await createAndLinkBatch({
@@ -350,7 +361,6 @@ export default function InventoryCountBatchDialog({
         quantity: batchQuantity,
         notes: `Erstellt bei Inventur #${inventoryId}`,
         queryClient,
-        toast,
         onSuccess: () => {
           // Dialog schließen
           onOpenChange(false);
