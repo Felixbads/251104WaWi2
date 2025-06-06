@@ -448,14 +448,17 @@ Elbsandstein Proviant & Quartier GmbH`;
         });
       }
 
-      // Create transporter
+      // Create transporter with alternative IONOS settings
       const transporter = nodemailer.createTransport({
         host: 'smtp.ionos.de',
-        port: 587,
-        secure: false,
+        port: 465,
+        secure: true,
         auth: {
           user: 'info@proviantomat.de',
-          pass: process.env.EMAIL_PASSWORD || 'defaultpassword'
+          pass: process.env.EMAIL_PASSWORD
+        },
+        tls: {
+          rejectUnauthorized: false
         }
       });
 
