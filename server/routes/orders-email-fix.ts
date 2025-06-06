@@ -29,35 +29,199 @@ router.post('/:orderId/send-email', async (req: Request, res: Response) => {
       });
     }
     
-    // Content is optional - will be generated if not provided
-
-    // Import the enhanced email service
-    const { emailService } = await import('../utils/enhancedEmailService');
+    console.log('[CompleteEmailFix] Fetching order data...');
     
-    console.log('[OrdersEmailFix] Attempting to send email via enhanced service...');
+    // Fetch order data
+    const orderResult = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
     
-    const result = await emailService.sendEmail(
-      to || supplierEmail,
-      subject, 
-      content,
-      process.env.SMTP_FROM || 'einkauf@proviantomat.de'
-    );
-
-    console.log('[OrdersEmailFix] Email send result:', result);
-
-    if (result.success) {
+    if (!orderResult || orderResult.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: 'Bestellung nicht gefunden'
+      });
+    }
+    
+    const order = orderResult[0];
+    
+    // Auto-generate content if not provided
+    if (!content) {
+      console.log('[CompleteEmailFix] Generating email content...');
+      
+      // Fetch order items
+      const orderItems = await db
+        .select()
+        .from(orderItems)
+        .where(eq(orderItems.orderId, orderId));
+      
+      // Generate HTML email content
+      content = `
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .header { background-color: #f8f9fa; padding: 20px; border-bottom: 2px solid #007bff; }
+            .content { padding: 20px; }
+            .order-info { background-color: #e9ecef; padding: 15px; margin: 20px 0; border-radius: 5px; }
+            .items-table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            .items-table th, .items-table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+            .items-table th { background-color: #f8f9fa; font-weight: bold; }
+            .total { font-weight: bold; background-color: #f8f9fa; }
+            .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h2>Bestellung ${order.orderNumber}</h2>
+          </div>
+          
+          <div class="content">
+            <p>Sehr geehrte Damen und Herren,</p>
+            
+            <p>hiermit bestellen wir bei Ihnen folgende Artikel:</p>
+            
+            <div class="order-info">
+              <strong>Bestellnummer:</strong> ${order.orderNumber}<br>
+              <strong>Bestelldatum:</strong> ${new Date(order.orderDate || order.createdAt).toLocaleDateString('de-DE')}<br>
+              <strong>Geplante Lieferung:</strong> ${order.expectedDeliveryDate ? new Date(order.expectedDeliveryDate).toLocaleDateString('de-DE') : 'Nach Absprache'}<br>
+              <strong>Lieferart:</strong> ${order.deliveryType === 'pickup' ? 'Abholung' : 'Anlieferung'}
+            </div>
+            
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th>Pos.</th>
+                  <th>Artikel</th>
+                  <th>Menge</th>
+                  <th>Einheit</th>
+                  <th>Einzelpreis</th>
+                  <th>Gesamtpreis</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${orderItems.map((item, index) => `
+                  <tr>
+                    <td>${index + 1}</td>
+                    <td>${item.productName || 'Unbekanntes Produkt'}</td>
+                    <td>${item.quantity}</td>
+                    <td>${item.unit || 'Stk.'}</td>
+                    <td>${item.price ? `${item.price.toFixed(2)} €` : 'N/A'}</td>
+                    <td>${item.price ? `${(item.quantity * item.price).toFixed(2)} €` : 'N/A'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+            
+            ${order.notes ? `<p><strong>Anmerkungen:</strong><br>${order.notes}</p>` : ''}
+            
+            <p>Bitte bestätigen Sie uns den Erhalt dieser Bestellung sowie den geplanten Liefertermin.</p>
+            
+            <p>Für Rückfragen stehen wir jederzeit zur Verfügung.</p>
+            
+            <div class="footer">
+              <p>Mit freundlichen Grüßen<br>
+              Ihr Einkaufsteam</p>
+              
+              <p><strong>Elbsandstein Proviant & Quartier GmbH</strong><br>
+              Seifhennersdorfer Straße 14<br>
+              01099 Dresden<br>
+              Tel.: +49 173 4385330<br>
+              E-Mail: einkauf@proviantomat.de</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+    }
+    
+    // Auto-generate subject if not provided
+    if (!subject) {
+      subject = `Bestellung ${order.orderNumber} - ${order.supplierName || 'Lieferant'}`;
+    }
+    
+    console.log('[CompleteEmailFix] Sending email with SMTP...');
+    
+    // Configure SMTP transporter
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransporter({
+      host: process.env.SMTP_HOST || 'mail.proviantomat.de',
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: false,
+      auth: {
+        user: process.env.SMTP_USER || 'einkauf@proviantomat.de',
+        pass: process.env.SMTP_PASSWORD || process.env.SMTP_PASS
+      },
+      tls: {
+        rejectUnauthorized: false
+      }
+    });
+    
+    const mailOptions = {
+      from: process.env.SMTP_FROM || 'einkauf@proviantomat.de',
+      to: to,
+      cc: cc,
+      subject: subject,
+      html: content
+    };
+    
+    try {
+      const result = await transporter.sendMail(mailOptions);
+      console.log('[CompleteEmailFix] Email sent successfully, Message ID:', result.messageId);
+      
+      // Update order status from draft to sent
+      if (order.status === 'draft') {
+        console.log('[CompleteEmailFix] Updating order status to "sent"');
+        
+        let currentHistory = [];
+        try {
+          if (order.statusHistory) {
+            if (typeof order.statusHistory === 'string') {
+              currentHistory = JSON.parse(order.statusHistory);
+            } else if (Array.isArray(order.statusHistory)) {
+              currentHistory = order.statusHistory;
+            }
+          }
+        } catch (parseError) {
+          console.error('Error parsing status history:', parseError);
+          currentHistory = [];
+        }
+        
+        const newStatusEntry = {
+          status: 'sent',
+          timestamp: new Date().toISOString(),
+          note: `E-Mail erfolgreich an ${to} gesendet${cc ? ` (CC: ${cc})` : ''}`
+        };
+        
+        await db
+          .update(orders)
+          .set({
+            status: 'sent',
+            updatedAt: new Date(),
+            statusHistory: JSON.stringify([...currentHistory, newStatusEntry])
+          })
+          .where(eq(orders.id, orderId));
+        
+        console.log('[CompleteEmailFix] Order status updated to "sent"');
+      }
+      
       res.json({
         success: true,
         message: 'E-Mail erfolgreich gesendet',
         messageId: result.messageId,
-        method: result.method
+        orderNumber: order.orderNumber,
+        sentTo: to,
+        ccSentTo: cc || null
       });
-    } else {
-      console.error('[OrdersEmailFix] Email send failed:', result.error);
+    } catch (emailError) {
+      console.error('[CompleteEmailFix] Email send failed:', emailError);
       res.status(500).json({
         success: false,
         error: 'E-Mail konnte nicht gesendet werden',
-        details: result.error || 'Unbekannter Fehler bei der E-Mail-Übertragung'
+        details: emailError.message || 'SMTP-Fehler'
       });
     }
   } catch (error: any) {
