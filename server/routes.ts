@@ -3320,15 +3320,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Route für Refill-Verarbeitung mit Lagerbestandsabzug
   app.post('/api/refills/:id/process', async (req: Request, res: Response) => {
-    const client = await pool.connect();
     try {
-      await client.query('BEGIN');
+      await rawDb.query('BEGIN');
       
       const refillId = parseInt(req.params.id);
       console.log(`[REFILL_PROCESS] Processing refill ${refillId}`);
       
       // Refill-Daten abrufen
-      const refillResult = await client.query(
+      const refillResult = await rawDb.query(
         'SELECT r.*, m.machine_name FROM refills r LEFT JOIN machines m ON r.machine_id = m.id WHERE r.id = $1',
         [refillId]
       );
@@ -3367,9 +3366,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'Keine Refill-Details gefunden' });
       }
       
+      let processedItems = 0;
+      
       // Für jedes Detail Inventarabzug erstellen
       for (const detail of details) {
-        const quantity = detail.removed || detail.quantity || 0;
+        const quantity = detail.added || detail.quantity || 0; // Use 'added' for refills
         
         if (quantity <= 0) {
           console.log(`[REFILL_PROCESS] Skipping detail ${detail.id} - no quantity to deduct`);
@@ -3436,14 +3437,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           INSERT INTO inventory_movements (
             source_warehouse_id, product_id, quantity, movement_type, direction,
             reference_type, reference_id, machine_id, previous_stock, current_stock,
-            notes, performed_by, performed_at, created_at, updated_at
-          ) VALUES ($1, $2, $3, 'refill', 'OUT', 'REFILL', $4, $5, $6, $7, $8, 'system', NOW(), NOW(), NOW())
+            notes, performed_at, created_at, updated_at
+          ) VALUES ($1, $2, $3, 'refill', 'OUT', 'REFILL', $4, $5, $6, $7, $8, NOW(), NOW(), NOW())
         `, [
           warehouseId, productId, quantity, refillId.toString(), refill.machine_id,
           currentStock, newStock, `Refill ${refill.machine_name}: ${detail.product_name}`
         ]);
         
-        console.log(`[REFILL_PROCESS] Created inventory movement: ${quantity} units of product ${productId} from warehouse ${warehouseId}`);
+        console.log(`[REFILL_PROCESS] Created inventory movement: ${quantity} units of product ${productId} from warehouse ${warehouseId} (${currentStock} -> ${newStock})`);
+        processedItems++;
       }
       
       // Refill als verarbeitet markieren
@@ -3453,13 +3455,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
       
       await client.query('COMMIT');
-      console.log(`[REFILL_PROCESS] Successfully processed refill ${refillId}`);
+      console.log(`[REFILL_PROCESS] Successfully processed refill ${refillId} - ${processedItems} items processed`);
       
       res.json({
         success: true,
         message: 'Refill erfolgreich verarbeitet - Lagerbestände wurden aktualisiert',
         refillId,
-        processedItems: details.length
+        processedItems
       });
       
     } catch (error: any) {
