@@ -5,9 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Mail, Send } from 'lucide-react';
+import { Loader2, Mail, Send, Eye, Code } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface EmailDialogProps {
   isOpen: boolean;
@@ -30,6 +31,8 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
   
   const [availableTemplates, setAvailableTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
+  const [previewTab, setPreviewTab] = useState('preview');
+  const [editTab, setEditTab] = useState('edit');
 
   // Load supplier template and default values when dialog opens
   useEffect(() => {
@@ -321,20 +324,83 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
             />
           </div>
 
+          {/* HTML Preview Section */}
+          <div className="space-y-2">
+            <Label>E-Mail-Vorschau</Label>
+            <Tabs defaultValue="preview" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="preview" className="flex items-center gap-2">
+                  <Eye className="w-4 h-4" />
+                  Vorschau
+                </TabsTrigger>
+                <TabsTrigger value="html" className="flex items-center gap-2">
+                  <Code className="w-4 h-4" />
+                  HTML-Code
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="preview" className="mt-2">
+                <div className="border rounded-md p-4 bg-white min-h-[300px] max-h-[400px] overflow-y-auto">
+                  {emailData.htmlContent ? (
+                    <div 
+                      dangerouslySetInnerHTML={{ __html: emailData.htmlContent }}
+                      className="prose prose-sm max-w-none"
+                    />
+                  ) : (
+                    <p className="text-muted-foreground italic">E-Mail-Inhalt wird automatisch generiert basierend auf der Bestellung</p>
+                  )}
+                </div>
+              </TabsContent>
+              <TabsContent value="html" className="mt-2">
+                <div className="border rounded-md p-4 bg-gray-50 min-h-[300px] max-h-[400px] overflow-y-auto">
+                  <pre className="text-xs font-mono whitespace-pre-wrap break-words">
+                    {emailData.htmlContent || '<!-- E-Mail-Inhalt wird automatisch generiert -->'}
+                  </pre>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
+
           {/* Custom Content (only if not using template) */}
           {!useTemplate && (
             <div className="space-y-2">
-              <Label htmlFor="htmlContent">E-Mail-Inhalt (HTML) (optional)</Label>
-              <Textarea
-                id="htmlContent"
-                value={emailData.htmlContent}
-                onChange={(e) => handleInputChange('htmlContent', e.target.value)}
-                placeholder="Benutzerdefinierter E-Mail-Inhalt..."
-                rows={8}
-              />
-              <p className="text-sm text-muted-foreground">
-                Leer lassen, um die Standard-Vorlage zu verwenden
-              </p>
+              <Label>E-Mail-Inhalt (HTML) (optional)</Label>
+              <Tabs defaultValue="edit" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="edit" className="flex items-center gap-2">
+                    <Code className="w-4 h-4" />
+                    Bearbeiten
+                  </TabsTrigger>
+                  <TabsTrigger value="preview" className="flex items-center gap-2">
+                    <Eye className="w-4 h-4" />
+                    HTML-Vorschau
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="edit" className="mt-2">
+                  <Textarea
+                    id="htmlContent"
+                    value={emailData.htmlContent}
+                    onChange={(e) => handleInputChange('htmlContent', e.target.value)}
+                    placeholder="Benutzerdefinierter E-Mail-Inhalt..."
+                    rows={10}
+                    className="font-mono text-sm"
+                  />
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Leer lassen, um die Standard-Vorlage zu verwenden
+                  </p>
+                </TabsContent>
+                <TabsContent value="preview" className="mt-2">
+                  <div className="border rounded-md p-4 bg-white min-h-[250px] max-h-[350px] overflow-y-auto">
+                    {emailData.htmlContent ? (
+                      <div 
+                        dangerouslySetInnerHTML={{ __html: emailData.htmlContent }}
+                        className="prose prose-sm max-w-none"
+                      />
+                    ) : (
+                      <p className="text-muted-foreground italic">Kein Inhalt vorhanden - Standard-Vorlage wird verwendet</p>
+                    )}
+                  </div>
+                </TabsContent>
+              </Tabs>
             </div>
           )}
 
