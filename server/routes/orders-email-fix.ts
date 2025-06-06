@@ -29,13 +29,7 @@ router.post('/:orderId/send-email', async (req: Request, res: Response) => {
       });
     }
     
-    if (!content) {
-      return res.status(400).json({
-        success: false,
-        error: 'Kein Inhalt angegeben',
-        details: 'Das Feld "content" ist erforderlich'
-      });
-    }
+    // Content is optional - will be generated if not provided
 
     // Import the enhanced email service
     const { emailService } = await import('../utils/enhancedEmailService');

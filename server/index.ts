@@ -634,21 +634,21 @@ Elbsandstein Proviant & Quartier GmbH`;
     }
   });
 
+  // Complete email fix router with proper HTML formatting and CC support (FIRST PRIORITY)
+  app.use('/api/orders', ordersEmailCompleteFixRouter);
+  
   // Email routes mounted AFTER registerRoutes to override any conflicts
   const directEmailRouter = (await import('./routes/direct-email-send')).default;
   app.use('/api/direct-email', directEmailRouter);
   
   const ordersEmailFixRouter = (await import('./routes/orders-email-fix')).default;
-  app.use('/api/orders', ordersEmailFixRouter);
+  app.use('/api/orders-email-fix', ordersEmailFixRouter);
   
   // Working email router with corrected SMTP configuration
   const ordersEmailWorkingRouter = (await import('./routes/orders-email-working')).default;
   app.use('/api/orders-email-working', ordersEmailWorkingRouter);
   
   app.use('/api/enhanced-email', enhancedEmailRouter);
-  
-  // Complete email fix router with proper HTML formatting and CC support
-  app.use('/api/orders', ordersEmailCompleteFixRouter);
   
   app.use('/api/supplier-email-templates', supplierEmailTemplatesRouter);
   
