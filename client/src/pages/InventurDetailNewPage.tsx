@@ -236,9 +236,44 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
   // Lokaler State für alle gezählten Artikel, um Änderungen über Dialog-Öffnen/Schließen zu persistieren
   const [countedItems, setCountedItems] = useState<InventoryCountItem[]>([]);
   
+  // Load data from localStorage on mount
+  useEffect(() => {
+    try {
+      const savedData = localStorage.getItem(localStorageKey);
+      if (savedData) {
+        const parsedData = JSON.parse(savedData);
+        setEditedCounts(parsedData.editedCounts || {});
+        setEditedNotes(parsedData.editedNotes || {});
+        console.log('Gespeicherte Inventurdaten geladen:', parsedData);
+      }
+    } catch (error) {
+      console.warn('Fehler beim Laden gespeicherter Inventurdaten:', error);
+    }
+  }, [localStorageKey]);
+  
+  // Save data to localStorage whenever editedCounts or editedNotes change
+  useEffect(() => {
+    if (Object.keys(editedCounts).length > 0 || Object.keys(editedNotes).length > 0) {
+      try {
+        const dataToSave = {
+          editedCounts,
+          editedNotes,
+          lastSaved: new Date().toISOString()
+        };
+        localStorage.setItem(localStorageKey, JSON.stringify(dataToSave));
+        console.log('Inventurdaten lokal gespeichert:', dataToSave);
+      } catch (error) {
+        console.warn('Fehler beim lokalen Speichern:', error);
+      }
+    }
+  }, [editedCounts, editedNotes, localStorageKey]);
+  
   // Auto-Save State
   const [autoSaveStatus, setAutoSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [lastSaveTime, setLastSaveTime] = useState<Date | null>(null);
+  
+  // Local storage key for persisting data
+  const localStorageKey = `inventur_${id}_data`;
 
   // Lade Inventurdaten
   const { 
@@ -693,48 +728,70 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
     },
   });
 
-  // Mutation zum Speichern der Inventur
-  const saveInventurMutation = useMutation({
-    mutationFn: async () => {
+  // Enhanced auto-save function that persists all current data
+  const performAutoSave = async () => {
+    setAutoSaveStatus('saving');
+    
+    try {
+      // First, save all pending count changes
+      const pendingUpdates = Object.entries(editedCounts).map(([itemId, countedQuantity]) => ({
+        id: parseInt(itemId),
+        countedQuantity
+      }));
+      
+      // Save each count update
+      for (const update of pendingUpdates) {
+        await updateCountMutation.mutateAsync(update);
+      }
+      
+      // Save the inventory state
       const response = await fetch(`/api/inventory-counts/${id}/save`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          notes: Object.entries(editedNotes).map(([itemId, note]) => ({
+            itemId: parseInt(itemId),
+            note
+          }))
+        }),
       });
       
       if (!response.ok) {
         throw new Error(`Fehler beim Speichern: ${response.status}`);
       }
       
-      return await response.json();
-    },
+      // Clear local storage after successful save
+      localStorage.removeItem(localStorageKey);
+      setEditedCounts({});
+      setEditedNotes({});
+      
+      setAutoSaveStatus('saved');
+      setLastSaveTime(new Date());
+      
+      console.log('Auto-save erfolgreich abgeschlossen');
+      
+    } catch (error) {
+      console.error('Auto-save Fehler:', error);
+      setAutoSaveStatus('error');
+      
+      toast({
+        title: "Auto-Save Fehler",
+        description: "Daten wurden lokal gespeichert, aber Serverupdate fehlgeschlagen.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Mutation zum Speichern der Inventur
+  const saveInventurMutation = useMutation({
+    mutationFn: performAutoSave,
     onSuccess: () => {
-      // Aktuelle Scroll-Position sichern
-      const savedScrollPosition = window.scrollY;
-      window.sessionStorage.setItem('inventur_scroll_position', savedScrollPosition.toString());
-      console.log(`Scroll-Position vor Speichern gesichert: ${savedScrollPosition}`);
-      
-      // Invalidiere den Cache für diese Inventur
-      queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}`] });
-      
       toast({
         title: "Inventur gespeichert",
         description: "Die Inventur wurde erfolgreich gespeichert.",
       });
-      
-      // Nach einer kurzen Verzögerung die Scroll-Position wiederherstellen
-      setTimeout(() => {
-        const posToRestore = parseInt(window.sessionStorage.getItem('inventur_scroll_position') || '0', 10);
-        if (posToRestore > 0) {
-          window.scrollTo({
-            top: posToRestore,
-            behavior: 'auto'
-          });
-          console.log(`Scroll-Position nach Speichern wiederhergestellt: ${posToRestore}`);
-        }
-      }, 150);
     },
     onError: () => {
       toast({
