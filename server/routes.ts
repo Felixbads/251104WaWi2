@@ -2894,7 +2894,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ON CONFLICT (warehouse_id, product_id)
           DO UPDATE SET 
             quantity = inventory_items.quantity + $3,
-            last_updated = NOW()
+            updated_at = NOW()
         `;
         
         await client.query(inventoryUpdateQuery, [
