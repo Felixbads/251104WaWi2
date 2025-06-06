@@ -44,7 +44,7 @@ interface CreateAndLinkBatchOptions {
   quantity?: number;
   notes?: string | null;
   queryClient: QueryClient;
-  toast?: Toast;
+  toast?: any; // Toast-Typ entfernt wegen fehlender Typdefinition
   onSuccess?: (batch: ProductBatch) => void;
 }
 
