@@ -81,10 +81,22 @@ router.post('/orders/:id/send-email-simple', async (req: Request, res: Response)
 
   } catch (error) {
     console.error('[SimpleEmail] Error:', error);
+    
+    // Check if this is the mysterious validation pattern error
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.includes('string did not match the expected pattern')) {
+      console.log('[SimpleEmail] FOUND THE VALIDATION PATTERN ERROR!');
+      console.log('[SimpleEmail] Error details:', error);
+      console.log('[SimpleEmail] Stack trace:', error instanceof Error ? error.stack : 'No stack');
+      console.log('[SimpleEmail] Request body:', req.body);
+      console.log('[SimpleEmail] Request params:', req.params);
+    }
+    
     res.status(500).json({
       success: false,
       error: 'Fehler beim Senden der E-Mail',
-      details: error instanceof Error ? error.message : 'Unbekannter Fehler'
+      details: errorMessage,
+      debugInfo: errorMessage.includes('string did not match the expected pattern') ? 'VALIDATION_PATTERN_ERROR_DETECTED' : undefined
     });
   }
 });
