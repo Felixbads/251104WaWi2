@@ -16,6 +16,7 @@ import directSqlRouter from './routes/direct-sql';
 import orderV3Router from './routes/order-v3';
 import ordersV4Router from './routes/orders-v4';
 import inventoryBatchesRouter from './routes/inventory-batches.js';
+import inventoryCountBatchesRouter from './routes/inventory-count-batches';
 import emailRouter from './routes/email';
 import supplierEmailTemplatesRouter from './routes/supplier-email-templates';
 import emailTemplateFixRouter from './routes/email-template-fix';
@@ -760,6 +761,9 @@ Elbsandstein Proviant & Quartier GmbH`;
   app.use('/api', emailBypassRouter);
   app.use('/api', emailDebugRouter);
   app.use('/api/orders', rawEmailRouter);
+
+  // Register inventory-count-batches router
+  app.use('/api/inventory-counts', inventoryCountBatchesRouter);
 
   // Fehlende API-Routen für den Bestellprozess hinzufügen
   
