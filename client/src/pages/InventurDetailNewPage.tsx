@@ -2101,6 +2101,25 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                 <StatusIcon className="h-3.5 w-3.5 mr-1.5" />
                 {statusLabel}
               </Badge>
+              {/* Auto-Save Status Anzeige */}
+              {autoSaveStatus === 'saving' && (
+                <Badge variant="outline" className="ml-2 text-blue-600 border-blue-200">
+                  <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                  Speichert...
+                </Badge>
+              )}
+              {autoSaveStatus === 'saved' && (
+                <Badge variant="outline" className="ml-2 text-green-600 border-green-200">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  Gespeichert
+                </Badge>
+              )}
+              {autoSaveStatus === 'error' && (
+                <Badge variant="outline" className="ml-2 text-red-600 border-red-200">
+                  <CircleAlert className="h-3 w-3 mr-1" />
+                  Fehler
+                </Badge>
+              )}
             </h1>
             <p className="text-muted-foreground">
               Erstellt am {formatDate(inventurData?.createdAt)}

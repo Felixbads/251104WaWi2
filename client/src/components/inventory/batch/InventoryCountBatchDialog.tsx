@@ -680,13 +680,21 @@ export default function InventoryCountBatchDialog({
                     <Input
                       type="number"
                       min="1"
+                      max={selectedItem?.expectedQuantity || undefined}
                       value={batchQuantity}
                       onChange={(e) => setBatchQuantity(parseInt(e.target.value) || 1)}
                       placeholder="Anzahl eingeben"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Anzahl der Produkte in dieser Charge
-                    </p>
+                    <div className="flex justify-between items-center mt-1">
+                      <p className="text-xs text-muted-foreground">
+                        Anzahl der Produkte in dieser Charge
+                      </p>
+                      {selectedItem?.expectedQuantity && (
+                        <p className="text-xs text-blue-600 font-medium">
+                          Max verfügbar: {selectedItem.expectedQuantity}
+                        </p>
+                      )}
+                    </div>
                   </div>
                   
                   <div>
