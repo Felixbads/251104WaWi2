@@ -171,11 +171,13 @@ export default function EmailDialog({
         htmlContent: htmlContent,
       }));
 
-      // Use test email for safe testing
-      console.log('Using test email for safe testing');
+      // Use supplier email from order data if available
+      const supplierEmail = orderData?.supplier_email || '';
+      console.log('Setting supplier email from order data:', supplierEmail);
+      
       setEmailData(prev => ({
         ...prev,
-        to: 'test@example.com',
+        to: supplierEmail || 'test@example.com',
         cc: 'andreas@proviantomat.de, einkauf@proviantomat.de',
       }));
 

@@ -7,7 +7,7 @@ import { de } from "date-fns/locale";
 import ReceiveOrderDialog from "@/components/orders/ReceiveOrderDialog";
 import OrderDetailActions from "@/components/orders/OrderDetailActions";
 import ManualStatusChange from "@/components/orders/ManualStatusChange";
-import OrderEmailDialog from "@/components/orders/OrderEmailDialog";
+import EmailDialogFixed from "@/components/orderv2/EmailDialogFixed";
 import OrderEmailPage from "@/components/orders/OrderEmailPage";
 import SimpleEmailActionButton from "@/components/orders/SimpleEmailActionButton";
 import { getOrder, updateOrder } from "@/lib/api";
@@ -1254,13 +1254,18 @@ export default function OrderDetail() {
       {/* PDF Dialog */}
       {/* E-Mail Dialog */}
       {order && (
-        <OrderEmailDialog
-          open={showEmailDialog}
+        <EmailDialogFixed
+          isOpen={showEmailDialog}
           onOpenChange={setShowEmailDialog}
           orderId={Number(id)}
           orderNumber={order.orderNumber || ""}
           supplierName={order.supplierName || ""}
           supplierEmail={order.supplier?.email || ""}
+          onSendEmail={(success) => {
+            if (success) {
+              queryClient.invalidateQueries({ queryKey: orderKeys.detail(Number(id)) });
+            }
+          }}
         />
       )}
 
