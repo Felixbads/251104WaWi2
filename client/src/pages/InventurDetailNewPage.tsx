@@ -721,13 +721,26 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         return data;
       }
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: [`/api/inventory-counts/${id}`] });
       
-      toast({
-        title: "Status aktualisiert",
-        description: "Der Status der Inventur wurde erfolgreich aktualisiert.",
-      });
+      // When inventory is started (pending -> in_progress), hide start button and refresh data
+      if (variables === 'in_progress') {
+        setShowStartButton(false);
+        // Force refetch to get updated status and items
+        refetchInventur();
+        refetchItems();
+        
+        toast({
+          title: "Inventur gestartet",
+          description: "Die Inventur wurde erfolgreich gestartet.",
+        });
+      } else {
+        toast({
+          title: "Status aktualisiert", 
+          description: "Der Status der Inventur wurde erfolgreich aktualisiert.",
+        });
+      }
     },
     onError: () => {
       toast({

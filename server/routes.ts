@@ -1879,6 +1879,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get batches for a specific product in a warehouse
+  app.get(`${API_PREFIX}/products/:id/batches`, async (req: Request, res: Response) => {
+    try {
+      const productId = parseInt(req.params.id);
+      const warehouseId = req.query.warehouseId ? parseInt(req.query.warehouseId as string) : undefined;
+      
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+      
+      console.log(`Loading batches for product ${productId} in warehouse ${warehouseId}`);
+      
+      // Use the correct storage method with proper parameters
+      const params: any = { productId };
+      if (warehouseId) {
+        params.warehouseId = warehouseId;
+      }
+      
+      const batches = await storage.getProductBatches(params);
+      
+      console.log(`Found ${batches ? batches.length : 0} batches for product ${productId}`);
+      res.json(batches || []);
+    } catch (error) {
+      console.error(`Error fetching batches for product ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch product batches", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
   // Automaten für ein Produkt abrufen
   app.get(`${API_PREFIX}/products/:id/machines`, async (req: Request, res: Response) => {
     try {
