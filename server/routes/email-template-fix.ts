@@ -202,12 +202,25 @@ router.get('/orders/:id/email-template-enhanced', async (req: Request, res: Resp
         '{vatRate}': '19',
         '{itemsList}': productTableHtml,
         '{productTable}': productTableHtml,
-        '{{orderItems}}': productTableHtml
+        '{{orderItems}}': productTableHtml,
+        // Additional warehouse info
+        '{warehouseAddress}': deliveryAddress.replace(/\n/g, '<br>'),
+        '{supplierNumber}': orderData.supplierId?.toString() || ''
       };
       
-      // Apply replacements safely
+      // Apply replacements safely using regex to avoid issues with special characters
       for (const [placeholder, value] of Object.entries(replacements)) {
-        content = content.split(placeholder).join(value);
+        try {
+          const escapedPlaceholder = placeholder.replace(/[{}]/g, '\\$&');
+          const regex = new RegExp(escapedPlaceholder, 'g');
+          content = content.replace(regex, value || '');
+          subject = subject.replace(regex, value || '');
+        } catch (error) {
+          console.warn(`Failed to replace placeholder ${placeholder}:`, error);
+          // Fallback to simple string replacement
+          content = content.split(placeholder).join(value || '');
+          subject = subject.split(placeholder).join(value || '');
+        }
       }
         
     } else {

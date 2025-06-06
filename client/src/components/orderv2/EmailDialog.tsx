@@ -88,11 +88,12 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
         supplier_email: order.supplier_email,
         supplierEmail: order.supplierEmail,
         orderEmailRecipient: order.orderEmailRecipient,
-        found: supplierEmail
+        result: supplierEmail
       });
       
       // Only set email data if we have a valid supplier email
       if (supplierEmail && supplierEmail !== 'lieferant@example.com') {
+        console.log('Setting supplier email:', supplierEmail);
         setEmailData(prev => ({
           ...prev,
           to: supplierEmail,
@@ -100,6 +101,7 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
         }));
       } else {
         // Use test email for safe testing
+        console.log('Using test email instead of supplier email');
         setEmailData(prev => ({
           ...prev,
           to: 'test@example.com',
