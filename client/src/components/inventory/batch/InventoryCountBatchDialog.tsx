@@ -375,7 +375,6 @@ export default function InventoryCountBatchDialog({
           setExpiryDate(null);
           setBatchQuantity(1);
           setIsSubmitting(false);
-          setShowSuccess(true);
         }
       });
       
