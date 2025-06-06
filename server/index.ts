@@ -448,23 +448,28 @@ Elbsandstein Proviant & Quartier GmbH`;
         });
       }
 
-      // Create transporter with alternative IONOS settings
+      // Create transporter using proper SMTP secrets
+      console.log('[DirectEmailFix] SMTP Configuration:', {
+        host: process.env.SMTP_HOST,
+        port: process.env.SMTP_PORT,
+        secure: process.env.SMTP_SECURE,
+        user: process.env.SMTP_USER,
+        passExists: !!process.env.SMTP_PASS
+      });
+      
       const transporter = nodemailer.createTransport({
-        host: 'smtp.ionos.de',
-        port: 465,
-        secure: true,
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: process.env.SMTP_SECURE === 'true',
         auth: {
-          user: 'info@proviantomat.de',
-          pass: process.env.EMAIL_PASSWORD
-        },
-        tls: {
-          rejectUnauthorized: false
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS
         }
       });
 
       // Send email
       const mailOptions = {
-        from: 'info@proviantomat.de',
+        from: process.env.SMTP_USER,
         to: to,
         cc: cc || undefined,
         bcc: bcc || undefined,
