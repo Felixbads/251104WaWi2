@@ -469,9 +469,9 @@ Elbsandstein Proviant & Quartier GmbH`;
         }
       });
 
-      // Send email with proper sender format
+      // Send email with proper sender format - use a valid email address
       const mailOptions = {
-        from: `"Proviantomat" <${process.env.SMTP_USER}@w019449b.kasserver.com>`,
+        from: `"Proviantomat" <noreply@proviantomat.de>`,
         to: to,
         cc: cc || undefined,
         bcc: bcc || undefined,
@@ -487,8 +487,7 @@ Elbsandstein Proviant & Quartier GmbH`;
       // Update order status to 'sent' after successful email
       await db.update(orders)
         .set({ 
-          status: 'sent',
-          updated_at: new Date()
+          status: 'sent'
         })
         .where(eq(orders.id, orderId));
       
