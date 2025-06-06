@@ -305,7 +305,7 @@ router.post('/inventory-counts/:id/complete', async (req, res) => {
     const inventoryCount = await db.query.inventoryCounts.findFirst({
       where: and(
         eq(schema.inventoryCounts.id, inventoryCountId),
-        eq(schema.inventoryCounts.status, 'open')
+        sql`status IN ('open', 'pending', 'in_progress')`
       ),
       with: {
         warehouse: true

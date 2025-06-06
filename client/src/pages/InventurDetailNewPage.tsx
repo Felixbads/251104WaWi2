@@ -10,7 +10,7 @@ import {
   Search, TrendingUp, TrendingDown, Equal, Calendar,
   ChevronDown, ChevronUp, ChevronRight, Plus,
   Split, ClockIcon, MoreHorizontal, FileText,
-  CalendarDays, CircleAlert, ArrowUp, ArrowDown
+  CalendarDays, CircleAlert, ArrowUp, ArrowDown, Play
 } from 'lucide-react';
 
 // UI-Komponenten
@@ -2222,7 +2222,21 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
             <>
               <Button 
                 variant="default"
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-green-600 hover:bg-green-700 text-white"
+                onClick={() => updateStatusMutation.mutate('in_progress')}
+                disabled={updateStatusMutation.isPending}
+              >
+                {updateStatusMutation.isPending ? (
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4 mr-2" />
+                )}
+                Inventur starten
+              </Button>
+              
+              <Button 
+                variant="outline"
+                className="border-blue-500 text-blue-600 hover:bg-blue-50"
                 onClick={() => saveInventurMutation.mutate()}
                 disabled={saveInventurMutation.isPending}
               >
@@ -2232,15 +2246,6 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
                   <Save className="h-4 w-4 mr-2" />
                 )}
                 Zwischenspeichern
-              </Button>
-              
-              <Button 
-                variant="default"
-                className="bg-green-600 hover:bg-green-700 text-white"
-                onClick={() => setShowCompleteDialog(true)}
-              >
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                Beenden
               </Button>
               
               <Button 
