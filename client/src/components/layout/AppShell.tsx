@@ -23,8 +23,7 @@ interface MenuItem {
 export const menuItems = {
   overview: [
     { title: 'Dashboard', icon: <Home className="h-5 w-5 mr-3" />, path: '/' },
-    { title: 'Standort-Status', icon: <BarChart4 className="h-5 w-5 mr-3" />, path: '/standort-status' },
-    { title: 'Automaten', icon: <Package className="h-5 w-5 mr-3" />, path: '/automaten' },
+    { title: 'Standorte', icon: <BarChart4 className="h-5 w-5 mr-3" />, path: '/standort-status' },
     { title: 'Produkte', icon: <ShoppingBag className="h-5 w-5 mr-3" />, path: '/produkte' },
     { title: 'Lieferanten', icon: <Truck className="h-5 w-5 mr-3" />, path: '/lieferanten' },
     { title: 'Transaktionen', icon: <Mail className="h-5 w-5 mr-3" />, path: '/transactions' },
@@ -112,6 +111,8 @@ export default function AppShell({ children }: AppShellProps) {
     switch (location) {
       case "/":
         return "Dashboard";
+      case "/standort-status":
+        return "Standorte";
       case "/transactions":
         return "Transaktionen";
       case "/machines":
