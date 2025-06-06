@@ -179,26 +179,70 @@ const OrderSummary: React.FC<OrderSummaryProps> = ({
             <TableHeader>
               <TableRow>
                 <TableHead>Produkt</TableHead>
-                <TableHead className="text-right">Einheitspreis</TableHead>
                 <TableHead className="text-right">Menge</TableHead>
-                <TableHead className="text-right">Gesamt</TableHead>
+                <TableHead className="text-right">Gebindegröße</TableHead>
+                <TableHead className="text-right">Gesamtmenge</TableHead>
+                <TableHead className="text-right">Einzelpreis</TableHead>
+                <TableHead className="text-right">Pfand</TableHead>
+                <TableHead className="text-right">Netto</TableHead>
+                <TableHead className="text-right">MwSt.</TableHead>
+                <TableHead className="text-right">Brutto</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {Array.isArray(selectedProducts) ? selectedProducts.map((product, index) => (
-                <TableRow key={index}>
-                  <TableCell className="font-medium">{product?.name || ''}</TableCell>
-                  <TableCell className="text-right">{(product?.price || 0).toFixed(2)} €</TableCell>
-                  <TableCell className="text-right">{product?.orderQuantity || 0}</TableCell>
-                  <TableCell className="text-right">
-                    {((product?.price || 0) * (product?.orderQuantity || 0)).toFixed(2)} €
-                  </TableCell>
-                </TableRow>
-              )) : null}
+              {Array.isArray(selectedProducts) ? selectedProducts.map((product, index) => {
+                const quantity = product?.orderQuantity || 0;
+                const packageSize = product?.packageSize || 1;
+                const totalQuantity = quantity * packageSize;
+                const unitPrice = product?.price || 0;
+                const deposit = product?.deposit || 0;
+                const vatRate = product?.vatRate || 19; // Default 19% MwSt.
+                const netPrice = unitPrice / (1 + vatRate / 100);
+                const vatAmount = unitPrice - netPrice;
+                const totalNet = quantity * netPrice;
+                const totalVat = quantity * vatAmount;
+                const totalGross = quantity * unitPrice;
+                const totalDeposit = quantity * deposit;
+
+                return (
+                  <TableRow key={index}>
+                    <TableCell className="font-medium">{product?.name || ''}</TableCell>
+                    <TableCell className="text-right">{quantity}</TableCell>
+                    <TableCell className="text-right">{packageSize}</TableCell>
+                    <TableCell className="text-right">{totalQuantity}</TableCell>
+                    <TableCell className="text-right">{unitPrice.toFixed(2)} €</TableCell>
+                    <TableCell className="text-right">{deposit > 0 ? `${totalDeposit.toFixed(2)} €` : '-'}</TableCell>
+                    <TableCell className="text-right">{totalNet.toFixed(2)} €</TableCell>
+                    <TableCell className="text-right">{totalVat.toFixed(2)} €</TableCell>
+                    <TableCell className="text-right">{totalGross.toFixed(2)} €</TableCell>
+                  </TableRow>
+                );
+              }) : null}
             </TableBody>
             <TableFooter>
               <TableRow>
-                <TableCell colSpan={3}>Gesamtsumme</TableCell>
+                <TableCell colSpan={6}>Gesamtsumme</TableCell>
+                <TableCell className="text-right font-bold">
+                  {Array.isArray(selectedProducts) ? 
+                    selectedProducts.reduce((sum, product) => {
+                      const quantity = product?.orderQuantity || 0;
+                      const unitPrice = product?.price || 0;
+                      const vatRate = product?.vatRate || 19;
+                      const netPrice = unitPrice / (1 + vatRate / 100);
+                      return sum + (quantity * netPrice);
+                    }, 0).toFixed(2) : '0.00'} €
+                </TableCell>
+                <TableCell className="text-right font-bold">
+                  {Array.isArray(selectedProducts) ? 
+                    selectedProducts.reduce((sum, product) => {
+                      const quantity = product?.orderQuantity || 0;
+                      const unitPrice = product?.price || 0;
+                      const vatRate = product?.vatRate || 19;
+                      const netPrice = unitPrice / (1 + vatRate / 100);
+                      const vatAmount = unitPrice - netPrice;
+                      return sum + (quantity * vatAmount);
+                    }, 0).toFixed(2) : '0.00'} €
+                </TableCell>
                 <TableCell className="text-right font-bold">{total.toFixed(2)} €</TableCell>
               </TableRow>
             </TableFooter>

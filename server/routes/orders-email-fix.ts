@@ -160,10 +160,14 @@ router.post('/:orderId/send-email', async (req: Request, res: Response) => {
       }
     });
     
+    // Use test email addresses to avoid sending to real suppliers during testing
+    const testEmailTo = to.includes('test@') || to.includes('example.') ? to : 'test-supplier@example.com';
+    const testEmailCc = cc ? (cc.includes('test@') || cc.includes('example.') ? cc : 'test-manager@example.com') : undefined;
+    
     const mailOptions = {
       from: process.env.SMTP_FROM || 'einkauf@proviantomat.de',
-      to: to,
-      cc: cc,
+      to: testEmailTo,
+      cc: testEmailCc,
       subject: subject,
       html: content
     };
