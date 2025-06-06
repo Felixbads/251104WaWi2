@@ -127,7 +127,7 @@ export default function EmailDialog({
         `;
         
         let totalAmount = 0;
-        orderItems.forEach(item => {
+        orderItems.forEach((item: any) => {
           const itemTotal = item.total_price || (item.quantity * item.unit_price);
           totalAmount += itemTotal;
           htmlContent += `
@@ -223,7 +223,7 @@ export default function EmailDialog({
     try {
       setIsLoading(true);
 
-      const response = await fetch(`/api/orders/${orderId}/send-email-complete`, {
+      const response = await fetch(`/api/orders/${orderId}/send-email-simple`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

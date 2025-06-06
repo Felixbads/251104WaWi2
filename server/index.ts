@@ -638,6 +638,9 @@ Elbsandstein Proviant & Quartier GmbH`;
   // Complete email fix router with proper HTML formatting and CC support (FIRST PRIORITY)
   app.use('/api/orders', ordersEmailCompleteFixRouter);
   
+  // Simple email router for reliable email sending
+  app.use('/api', simpleEmailRouter);
+  
   // Email routes mounted AFTER registerRoutes to override any conflicts
   const directEmailRouter = (await import('./routes/direct-email-send')).default;
   app.use('/api/direct-email', directEmailRouter);
