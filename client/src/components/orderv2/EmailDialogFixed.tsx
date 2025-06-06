@@ -300,7 +300,7 @@ export default function EmailDialogFixed({
     try {
       setIsLoading(true);
 
-      const response = await fetch(`/api/orders/${orderId}/send-email-simple`, {
+      const response = await fetch(`/api/orders/${orderId}/send-email-working`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

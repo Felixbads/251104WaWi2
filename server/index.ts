@@ -660,6 +660,7 @@ Elbsandstein Proviant & Quartier GmbH`;
   app.use('/api', emailTemplateFixRouter);
   
   app.use('/api', emailCompleteFixRouter);
+  app.use('/api', emailWorkingRouter);
 
   // Fehlende API-Routen für den Bestellprozess hinzufügen
   
