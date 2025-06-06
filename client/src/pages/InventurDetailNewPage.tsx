@@ -3069,7 +3069,20 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
         onBatchSelect={handleBatchUpdate}
         inventoryId={inventurData?.id.toString() || '0'}
         warehouseId={inventurData?.warehouseId || 0}
-        onBatchCreated={() => {
+        onBatchCreated={(newBatch) => {
+          console.log('Neue Batch erstellt:', newBatch);
+          
+          // React Query Caches invalidieren für sofortige UI-Updates
+          queryClient.invalidateQueries({ 
+            queryKey: [`/api/products/${selectedItem?.productId}/batches`],
+            exact: false 
+          });
+          
+          queryClient.invalidateQueries({ 
+            queryKey: [`/api/inventory-counts/${id}/items`],
+            exact: false 
+          });
+          
           // Batches für das ausgewählte Produkt neu laden
           if (selectedItem && inventurData?.warehouseId) {
             console.log('Lade Batches neu nach Erstellung...');
@@ -3077,13 +3090,21 @@ export default function InventurDetailNewPage({ params }: InventurDetailNewPageP
               method: 'GET',
               headers: {
                 'Content-Type': 'application/json',
-                'Cache-Control': 'no-cache, no-store'
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
               }
             })
             .then(response => response.json())
             .then(batches => {
               setAvailableBatches(Array.isArray(batches) ? batches : []);
               console.log('Batches erfolgreich neu geladen:', batches);
+              
+              // Force a re-render by updating the expanded state
+              setExpandedItems(prev => ({
+                ...prev,
+                [selectedItem.id]: true
+              }));
             })
             .catch(error => {
               console.error('Fehler beim Neuladen der Batches:', error);
