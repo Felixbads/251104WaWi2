@@ -3340,7 +3340,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[REFILL_PROCESS] Found refill for machine: ${refill.machine_name}`);
       
       // Machine-Warehouse-Assignment abrufen
-      const assignmentResult = await client.query(
+      const assignmentResult = await rawDb.query(
         'SELECT warehouse_id FROM machine_warehouse_assignments WHERE machine_id = $1',
         [refill.machine_id]
       );
@@ -3354,7 +3354,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[REFILL_PROCESS] Using warehouse: ${warehouseId}`);
       
       // Refill-Details abrufen
-      const detailsResult = await client.query(
+      const detailsResult = await rawDb.query(
         'SELECT * FROM refill_details WHERE refill_id = $1',
         [refillId]
       );
@@ -3382,7 +3382,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (detail.vendon_product_id) {
           // Zuerst über Vendon-ID suchen
-          const productByVendonResult = await client.query(
+          const productByVendonResult = await rawDb.query(
             'SELECT id FROM products WHERE vendon_id = $1',
             [detail.vendon_product_id]
           );
@@ -3394,7 +3394,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (!productId && detail.product_name) {
           // Fallback: über Namen suchen
-          const productByNameResult = await client.query(
+          const productByNameResult = await rawDb.query(
             'SELECT id FROM products WHERE LOWER(product_name) = LOWER($1)',
             [detail.product_name]
           );
@@ -3412,7 +3412,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[REFILL_PROCESS] Processing product ${productId}: ${detail.product_name}, quantity: ${quantity}`);
         
         // Aktuellen Lagerbestand abrufen
-        const inventoryResult = await client.query(
+        const inventoryResult = await rawDb.query(
           'SELECT quantity FROM inventory_items WHERE warehouse_id = $1 AND product_id = $2',
           [warehouseId, productId]
         );
@@ -3425,7 +3425,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const newStock = Math.max(0, currentStock - quantity);
         
         // Lagerbestand aktualisieren oder erstellen
-        await client.query(`
+        await rawDb.query(`
           INSERT INTO inventory_items (warehouse_id, product_id, quantity, min_quantity, updated_at)
           VALUES ($1, $2, $3, 0, NOW())
           ON CONFLICT (warehouse_id, product_id)
@@ -3433,7 +3433,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `, [warehouseId, productId, newStock]);
         
         // Inventarbewegung erstellen
-        await client.query(`
+        await rawDb.query(`
           INSERT INTO inventory_movements (
             source_warehouse_id, product_id, quantity, movement_type, direction,
             reference_type, reference_id, machine_id, previous_stock, current_stock,
@@ -3449,12 +3449,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Refill als verarbeitet markieren
-      await client.query(
+      await rawDb.query(
         'UPDATE refills SET process_status = $1, processed_at = NOW() WHERE id = $2',
         ['processed', refillId]
       );
       
-      await client.query('COMMIT');
+      await rawDb.query('COMMIT');
       console.log(`[REFILL_PROCESS] Successfully processed refill ${refillId} - ${processedItems} items processed`);
       
       res.json({
@@ -3465,11 +3465,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
     } catch (error: any) {
-      await client.query('ROLLBACK');
+      await rawDb.query('ROLLBACK');
       console.error('[REFILL_PROCESS] Error:', error);
       res.status(500).json({ error: 'Fehler bei der Refill-Verarbeitung', details: error.message });
-    } finally {
-      client.release();
     }
   });
 
