@@ -348,7 +348,6 @@ router.get('/:inventoryCountId/product-batches/:productId', async (req: Request,
         pb.product_id = $1
         AND pb.warehouse_id = $2
         AND pb.status = 'active'
-        AND pb.current_quantity > 0
       ORDER BY 
         pb.expiry_date ASC NULLS LAST
     `;
