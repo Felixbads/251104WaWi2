@@ -187,7 +187,7 @@ export default function EmailDialog({
     try {
       setIsLoading(true);
 
-      const response = await fetch(`/api/orders/${order.id}/send-email-complete`, {
+      const response = await fetch(`/api/orders/${orderId}/send-email-complete`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -208,8 +208,8 @@ export default function EmailDialog({
           title: "Erfolg",
           description: "E-Mail erfolgreich gesendet",
         });
-        onEmailSent?.();
-        onClose();
+        onSendEmail(true);
+        onOpenChange(false);
       } else {
         throw new Error(result.error || 'Fehler beim Senden der E-Mail');
       }
@@ -234,12 +234,12 @@ export default function EmailDialog({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Mail className="w-5 h-5" />
-            E-Mail senden - Bestellung {order?.orderNumber || order?.id}
+            E-Mail senden - Bestellung {orderNumber || orderId}
           </DialogTitle>
         </DialogHeader>
 
@@ -423,17 +423,18 @@ export default function EmailDialog({
           <div className="bg-muted p-4 rounded-lg">
             <h4 className="font-medium mb-2">Bestellinformationen</h4>
             <div className="text-sm space-y-1">
-              <p><strong>Lieferant:</strong> {order?.supplierName || 'Unbekannt'}</p>
-              <p><strong>Lager:</strong> {order?.warehouseName || 'Unbekannt'}</p>
-              <p><strong>Bestelldatum:</strong> {order?.orderDate ? new Date(order.orderDate).toLocaleDateString('de-DE') : 'Unbekannt'}</p>
-              <p><strong>Liefertermin:</strong> {order?.expectedDeliveryDate ? new Date(order.expectedDeliveryDate).toLocaleDateString('de-DE') : 'Nicht angegeben'}</p>
-              {order?.comments && <p><strong>Kommentare:</strong> {order.comments}</p>}
+              <p><strong>Lieferant:</strong> {supplierName || 'Unbekannt'}</p>
+              <p><strong>Bestellnummer:</strong> {orderNumber || orderId}</p>
+              <p><strong>Status:</strong> {orderData?.status || 'Unbekannt'}</p>
+              {orderData?.orderDate && <p><strong>Bestelldatum:</strong> {new Date(orderData.orderDate).toLocaleDateString('de-DE')}</p>}
+              {orderData?.expectedDeliveryDate && <p><strong>Liefertermin:</strong> {new Date(orderData.expectedDeliveryDate).toLocaleDateString('de-DE')}</p>}
+              {orderData?.comments && <p><strong>Kommentare:</strong> {orderData.comments}</p>}
             </div>
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isLoading}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
             Abbrechen
           </Button>
           <Button onClick={handleSendEmail} disabled={isLoading}>
