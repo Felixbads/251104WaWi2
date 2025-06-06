@@ -11,6 +11,7 @@ import EmailDialogFixed from "@/components/orderv2/EmailDialogFixed";
 import OrderEmailPage from "@/components/orders/OrderEmailPage";
 import SimpleEmailActionButton from "@/components/orders/SimpleEmailActionButton";
 import DirectEmailSender from "@/components/orderv2/DirectEmailSender";
+import { RawHttpEmailSender } from "@/components/orderv2/RawHttpEmailSender";
 import { getOrder, updateOrder } from "@/lib/api";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { orderKeys, warehouseKeys } from "@/lib/queryKeys";
@@ -1130,30 +1131,57 @@ export default function OrderDetail() {
 
         {/* E-Mail Test Tab */}
         <TabsContent value="email-test">
-          <Card>
-            <CardHeader>
-              <CardTitle>E-Mail Test - Bypass-Modus</CardTitle>
-              <CardDescription>
-                Alternative E-Mail-Versendung für Tests und Debugging ohne Formvalidierung
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {order && (
-                <DirectEmailSender
-                  orderId={Number(id)}
-                  orderNumber={order.orderNumber || ""}
-                  supplierEmail={order.supplier?.email || "test@proviantomat.de"}
-                  onSuccess={() => {
-                    toast({
-                      title: "E-Mail Test erfolgreich",
-                      description: "Die E-Mail wurde erfolgreich im Bypass-Modus verarbeitet.",
-                    });
-                    queryClient.invalidateQueries({ queryKey: orderKeys.detail(Number(id)) });
-                  }}
-                />
-              )}
-            </CardContent>
-          </Card>
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>E-Mail Test - Bypass-Modus</CardTitle>
+                <CardDescription>
+                  Alternative E-Mail-Versendung für Tests und Debugging ohne Formvalidierung
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {order && (
+                  <DirectEmailSender
+                    orderId={Number(id)}
+                    orderNumber={order.orderNumber || ""}
+                    supplierEmail={order.supplier?.email || "test@proviantomat.de"}
+                    onSuccess={() => {
+                      toast({
+                        title: "E-Mail Test erfolgreich",
+                        description: "Die E-Mail wurde erfolgreich im Bypass-Modus verarbeitet.",
+                      });
+                      queryClient.invalidateQueries({ queryKey: orderKeys.detail(Number(id)) });
+                    }}
+                  />
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Raw HTTP E-Mail Sender</CardTitle>
+                <CardDescription>
+                  Vollständig rohe HTTP-Anfrage ohne jegliche Validierung oder Bibliotheken
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {order && (
+                  <RawHttpEmailSender
+                    orderId={Number(id)}
+                    orderNumber={order.orderNumber || ""}
+                    supplierEmail={order.supplier?.email || "test@proviantomat.de"}
+                    onSuccess={() => {
+                      toast({
+                        title: "Raw HTTP E-Mail erfolgreich",
+                        description: "Die rohe HTTP-Anfrage wurde erfolgreich verarbeitet.",
+                      });
+                      queryClient.invalidateQueries({ queryKey: orderKeys.detail(Number(id)) });
+                    }}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
       
