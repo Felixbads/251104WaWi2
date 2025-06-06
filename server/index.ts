@@ -461,14 +461,11 @@ Elbsandstein Proviant & Quartier GmbH`;
       const transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
         port: smtpPort,
-        secure: false, // Don't use SSL directly
-        requireTLS: true, // Use STARTTLS
+        secure: false,
+        ignoreTLS: true, // Ignore TLS entirely for testing
         auth: {
           user: process.env.SMTP_USER,
           pass: process.env.SMTP_PASS
-        },
-        tls: {
-          rejectUnauthorized: false // Accept self-signed certificates
         }
       });
 
