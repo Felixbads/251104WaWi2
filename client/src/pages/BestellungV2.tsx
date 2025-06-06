@@ -69,8 +69,7 @@ import {
 import WarehouseSelector from '@/components/orderv2/WarehouseSelector';
 import OrderModeSelector, { OrderMode } from '@/components/orderv2/OrderModeSelector';
 import SupplierSelector from '@/components/orderv2/SupplierSelector';
-import OrderEmailDialog from '@/components/orders/OrderEmailDialog';
-import OrderEmailPage from '@/components/orders/OrderEmailPage';
+import EmailDialog from '@/components/orderv2/EmailDialog';
 import ProductSelectionTable from '@/components/orderv2/ProductSelectionTable';
 import AdditionalInfoForm from '@/components/orderv2/AdditionalInfoForm';
 import OrderSummary from '@/components/orderv2/OrderSummary';
@@ -1424,25 +1423,29 @@ const BestellungV2: React.FC = () => {
               </Button>
             </div>
             
-            <OrderEmailPage
-              orderId={orderId}
-              supplierEmail={existingOrderData?.supplierEmail || ''}
-              orderNumber={orderNumber || existingOrderData?.order_number}
-              supplierName={supplierName || existingOrderData?.supplierName || existingOrderData?.supplier_name}
-              onSendEmail={handleSendEmail}
-              onBack={() => {
-                if (existingOrderData) {
-                  setStep('viewOrder');
-                } else if (orderMode === 'new') {
-                  setStep('summary');
-                } else {
-                  setStep('overview');
+            <EmailDialog
+              open={true}
+              onOpenChange={(open) => {
+                if (!open) {
+                  // When dialog is closed, navigate back
+                  if (existingOrderData) {
+                    setStep('viewOrder');
+                  } else if (orderMode === 'new') {
+                    setStep('summary');
+                  } else {
+                    setStep('overview');
+                  }
                 }
               }}
-              onNext={() => {
-                console.log('E-Mail erfolgreich gesendet, navigiere zurück zur Übersicht');
-                // Fix 4: Redirect nur nach echtem Send-Click
-                setStep('overview');
+              orderId={orderId!}
+              supplierEmail={existingOrderData?.supplier_email || existingOrderData?.supplierEmail || ''}
+              orderNumber={orderNumber || existingOrderData?.order_number || ''}
+              supplierName={supplierName || existingOrderData?.supplier_name || existingOrderData?.supplierName || 'Unbekannt'}
+              onSendEmail={(success) => {
+                if (success) {
+                  console.log('E-Mail erfolgreich gesendet, navigiere zurück zur Übersicht');
+                  setStep('overview');
+                }
               }}
             />
           </>
