@@ -351,20 +351,31 @@ router.post('/orders', async (req: Request, res: Response) => {
     // Validieren und Konvertieren von expectedDeliveryDate
     let parsedDeliveryDate: Date | null = null;
     if (expectedDeliveryDate && typeof expectedDeliveryDate === 'string') {
-      // Normalisieren des Datums auf YYYY-MM-DD Format oder null
-      if (/^\d{4}-\d{2}-\d{2}$/.test(expectedDeliveryDate)) {
-        // Das Datum ist bereits im richtigen Format YYYY-MM-DD
-        parsedDeliveryDate = new Date(expectedDeliveryDate);
-      } else {
-        // Versuche andere Formate zu parsen
-        try {
+      try {
+        // Erweiterte Muster für verschiedene Datumsformate
+        const patterns = [
+          /^\d{4}-\d{2}-\d{2}$/,                    // YYYY-MM-DD
+          /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/,  // ISO 8601 with time
+          /^\d{2}\/\d{2}\/\d{4}$/,                  // MM/DD/YYYY
+          /^\d{2}\.\d{2}\.\d{4}$/,                  // DD.MM.YYYY
+        ];
+        
+        // Prüfe ob es ein bekanntes Format ist
+        const isKnownFormat = patterns.some(pattern => pattern.test(expectedDeliveryDate));
+        
+        if (isKnownFormat || expectedDeliveryDate.length >= 8) {
           const tempDate = new Date(expectedDeliveryDate);
-          if (!isNaN(tempDate.getTime())) {
+          if (!isNaN(tempDate.getTime()) && tempDate.getFullYear() > 1900) {
             parsedDeliveryDate = tempDate;
+            console.log(`Datum erfolgreich geparst: ${expectedDeliveryDate} → ${parsedDeliveryDate.toISOString()}`);
+          } else {
+            console.warn(`Ungültiges Datum erkannt: ${expectedDeliveryDate}`);
           }
-        } catch (e) {
-          console.warn("Ungültiges Datumsformat, verwende Standarddatum:", e);
+        } else {
+          console.warn(`Unbekanntes Datumsformat: ${expectedDeliveryDate}`);
         }
+      } catch (e) {
+        console.warn("Fehler beim Parsen des Datums:", e, "Input:", expectedDeliveryDate);
       }
     }
     
