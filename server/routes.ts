@@ -2906,7 +2906,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Bestellstatus aktualisieren
       await client.query(
-        'UPDATE orders SET status = $1, received_date = NOW() WHERE id = $2',
+        'UPDATE orders SET status = $1, actual_delivery_date = NOW() WHERE id = $2',
         ['received', orderId]
       );
       
