@@ -181,7 +181,7 @@ router.get('/inventory-counts/:id/items', async (req, res) => {
 router.patch('/inventory-count-items/:id', async (req, res) => {
   try {
     const itemId = parseInt(req.params.id);
-    const { countedQuantity, notes } = req.body;
+    const { countedQuantity, notes, expectedQuantity } = req.body;
     
     // Prüfe, ob die Inventurposition existiert
     const existingItem = await db.query.inventoryCountItems.findFirst({
@@ -196,7 +196,8 @@ router.patch('/inventory-count-items/:id', async (req, res) => {
     const [updatedItem] = await db.update(inventoryCountItems)
       .set({ 
         countedQuantity: countedQuantity !== undefined ? countedQuantity : existingItem.countedQuantity,
-        notes: notes !== undefined ? notes : existingItem.notes
+        notes: notes !== undefined ? notes : existingItem.notes,
+        expectedQuantity: expectedQuantity !== undefined ? expectedQuantity : existingItem.expectedQuantity
       })
       .where(eq(schema.inventoryCountItems.id, itemId))
       .returning();

@@ -11,7 +11,7 @@
 import { format } from 'date-fns';
 import { QueryClient, useMutation } from '@tanstack/react-query';
 import { invalidateInventoryCache } from '../../../lib/invalidateInventoryCache';
-import { type Toast } from '@/hooks/use-toast';
+// Import der Toast-Funktion ohne Type (nicht verfügbar)
 
 interface ProductBatch {
   id: number;
