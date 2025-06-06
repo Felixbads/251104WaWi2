@@ -4383,6 +4383,25 @@ export class DatabaseStorage implements IStorage {
       supplierName: result.supplier?.name || ''
     };
   }
+
+  async getProductBatch(id: number): Promise<any | null> {
+    const [result] = await db.select({
+      batch: productBatches,
+      product: products
+    })
+    .from(productBatches)
+    .leftJoin(products, eq(productBatches.productId, products.id))
+    .where(eq(productBatches.id, id));
+    
+    if (!result) return null;
+    
+    return {
+      ...result.batch,
+      productName: result.product?.productName || 'Unbekanntes Produkt',
+      category: result.product?.category || '',
+      sku: result.product?.sku || ''
+    };
+  }
   
   async getProductBatchByBatchNumber(
     batchNumber: string,
