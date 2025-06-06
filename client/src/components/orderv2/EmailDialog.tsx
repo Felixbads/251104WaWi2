@@ -425,10 +425,7 @@ export default function EmailDialog({
             <div className="text-sm space-y-1">
               <p><strong>Lieferant:</strong> {supplierName || 'Unbekannt'}</p>
               <p><strong>Bestellnummer:</strong> {orderNumber || orderId}</p>
-              <p><strong>Status:</strong> {orderData?.status || 'Unbekannt'}</p>
-              {orderData?.orderDate && <p><strong>Bestelldatum:</strong> {new Date(orderData.orderDate).toLocaleDateString('de-DE')}</p>}
-              {orderData?.expectedDeliveryDate && <p><strong>Liefertermin:</strong> {new Date(orderData.expectedDeliveryDate).toLocaleDateString('de-DE')}</p>}
-              {orderData?.comments && <p><strong>Kommentare:</strong> {orderData.comments}</p>}
+              <p><strong>E-Mail:</strong> {supplierEmail || 'Nicht angegeben'}</p>
             </div>
           </div>
         </div>
