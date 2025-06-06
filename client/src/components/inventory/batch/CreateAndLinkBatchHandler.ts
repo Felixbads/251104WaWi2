@@ -210,11 +210,18 @@ export async function createAndLinkBatch({
       }
     );
     
-    // Cache nach erfolgreicher Operation invalidieren,
-    // aber mit Verzögerung damit die Scroll-Position beibehalten wird
-    setTimeout(() => {
-      invalidateInventoryCache(queryClient, inventoryId, item.productId);
-    }, 100);
+    // Cache sofort invalidieren für bessere Datenaktualität
+    await invalidateInventoryCache(queryClient, inventoryId, item.productId);
+    
+    // Zusätzlich den Batch-spezifischen Cache invalidieren
+    queryClient.invalidateQueries({
+      queryKey: [`/api/products/${item.productId}/batches`]
+    });
+    
+    // Inventur-Items Cache ebenfalls invalidieren
+    queryClient.invalidateQueries({
+      queryKey: [`/api/inventory-counts/${inventoryId}/items`]
+    });
     
     // Stelle die Scroll-Position wieder her
     if (typeof window !== 'undefined') {

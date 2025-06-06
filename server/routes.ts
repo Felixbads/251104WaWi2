@@ -594,12 +594,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const items = await storage.getInventoryCountItems(inventoryCountId);
       
-      // Hole detaillierte Produktinformationen für jedes Item
+      // Hole detaillierte Produktinformationen und Batch-Daten für jedes Item
       const enrichedItems = await Promise.all(items.map(async (item) => {
         const product = await storage.getProduct(item.productId);
+        
+        // Wenn eine batchId vorhanden ist, lade die Batch-Informationen
+        let batch = null;
+        if (item.batchId) {
+          try {
+            batch = await storage.getProductBatch(item.batchId);
+          } catch (batchError) {
+            console.warn(`Batch ${item.batchId} für Item ${item.id} nicht gefunden:`, batchError);
+          }
+        }
+        
         return {
           ...item,
-          product
+          product,
+          batch
         };
       }));
       
