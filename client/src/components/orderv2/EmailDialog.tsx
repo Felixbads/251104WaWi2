@@ -82,6 +82,7 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
       }
 
       // Set email recipient from order data - check all possible field names
+      console.log('Full order object:', order);
       const supplierEmail = order.supplier_email || order.supplierEmail || order.orderEmailRecipient || '';
       console.log('Checking order data for email:', {
         supplier_email: order.supplier_email,
@@ -90,11 +91,21 @@ export default function EmailDialog({ isOpen, onClose, order, onEmailSent }: Ema
         found: supplierEmail
       });
       
-      setEmailData(prev => ({
-        ...prev,
-        to: supplierEmail,
-        cc: 'andreas@proviantomat.de, einkauf@proviantomat.de',
-      }));
+      // Only set email data if we have a valid supplier email
+      if (supplierEmail && supplierEmail !== 'lieferant@example.com') {
+        setEmailData(prev => ({
+          ...prev,
+          to: supplierEmail,
+          cc: 'andreas@proviantomat.de, einkauf@proviantomat.de',
+        }));
+      } else {
+        // Use test email for safe testing
+        setEmailData(prev => ({
+          ...prev,
+          to: 'test@example.com',
+          cc: 'andreas@proviantomat.de, einkauf@proviantomat.de',
+        }));
+      }
 
     } catch (error) {
       console.error('Error loading email template:', error);
