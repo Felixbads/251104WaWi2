@@ -7,7 +7,7 @@ import {
   LogOut, Users, Home, Package, ShoppingBag, Truck, Mail, 
   ShoppingCart, Building2, TrashIcon, BarChart2, RefreshCw, 
   Clock, Settings, LineChart, Database, PieChart, BarChart4,
-  ClipboardCheck, MoveHorizontal, AlertTriangle
+  ClipboardCheck, MoveHorizontal, AlertTriangle, Cloud, Calendar
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
@@ -48,6 +48,8 @@ export const menuItems = {
     { title: 'Synchronisierung', icon: <RefreshCw className="h-5 w-5 mr-3" />, path: '/synchronization' },
     { title: 'Sync-Verlauf', icon: <Clock className="h-5 w-5 mr-3" />, path: '/sync-history' },
     { title: 'Datenverfügbarkeit', icon: <Database className="h-5 w-5 mr-3" />, path: '/datenverfuegbarkeit' },
+    { title: '  • Wetterdaten', icon: <Cloud className="h-4 w-4 mr-3 ml-2" />, path: '/datenverfuegbarkeit/wetter' },
+    { title: '  • Feiertage', icon: <Calendar className="h-4 w-4 mr-3 ml-2" />, path: '/datenverfuegbarkeit/feiertage' },
     { title: 'Benutzer', icon: <Users className="h-5 w-5 mr-3" />, path: '/benutzer' },
     { title: 'Einstellungen', icon: <Settings className="h-5 w-5 mr-3" />, path: '/settings' },
   ] as MenuItem[]
