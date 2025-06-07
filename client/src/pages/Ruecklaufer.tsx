@@ -32,7 +32,7 @@ interface ProductRemovalStats {
   removalsCount: number;
   lastRemoved: string;
   avgPerRemoval: number;
-  avgSalePrice: number;
+  avgPurchasePrice: number;
   estimatedLoss: number;
   machines: Array<{
     machineId: number;
@@ -55,7 +55,7 @@ interface LocationTrend {
     totalRemoved: number;
     removalEvents: number;
     avgPerEvent: number;
-    avgSalePrice: number;
+    avgPurchasePrice: number;
     locationLoss: number;
     rankAtLocation: number;
   }>;
@@ -217,7 +217,12 @@ export default function Ruecklaufer() {
             Top 20 Entfernte Produkte
           </CardTitle>
           <CardDescription>
-            Häufigste Rückläufer der letzten {dateRange} Tage
+            Häufigste Rückläufer basierend auf Einkaufspreisen.
+            <br />
+            <span className="text-sm text-muted-foreground font-medium">
+              Zeitraum: {dateRange.from ? format(dateRange.from, 'dd.MM.yyyy', { locale: de }) : ''} 
+              {dateRange.to && ` - ${format(dateRange.to, 'dd.MM.yyyy', { locale: de })}`}
+            </span>
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -489,7 +494,12 @@ export default function Ruecklaufer() {
             Standort-Trends: Überschuss-Probleme
           </CardTitle>
           <CardDescription>
-            Welche Produkte werden an welchen Standorten übermäßig entfernt - zeigt Überschuss-Probleme
+            Welche Produkte werden an welchen Standorten übermäßig entfernt - zeigt Überschuss-Probleme basierend auf Einkaufspreisen.
+            <br />
+            <span className="text-sm text-muted-foreground font-medium">
+              Zeitraum: {dateRange.from ? format(dateRange.from, 'dd.MM.yyyy', { locale: de }) : ''} 
+              {dateRange.to && ` - ${format(dateRange.to, 'dd.MM.yyyy', { locale: de })}`}
+            </span>
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -526,7 +536,7 @@ export default function Ruecklaufer() {
                           <TableHead className="text-right">Entfernt</TableHead>
                           <TableHead className="text-right">Ereignisse</TableHead>
                           <TableHead className="text-right">Ø pro Ereignis</TableHead>
-                          <TableHead className="text-right">Ø Preis</TableHead>
+                          <TableHead className="text-right">Ø Einkaufspreis</TableHead>
                           <TableHead className="text-right">Verlust</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -555,7 +565,7 @@ export default function Ruecklaufer() {
                             </TableCell>
                             <TableCell className="text-right">
                               <span className="text-blue-600 font-medium">
-                                {product.avgSalePrice > 0 ? `€${product.avgSalePrice.toFixed(2)}` : '-'}
+                                {product.avgPurchasePrice > 0 ? `€${product.avgPurchasePrice.toFixed(2)}` : '-'}
                               </span>
                             </TableCell>
                             <TableCell className="text-right">
