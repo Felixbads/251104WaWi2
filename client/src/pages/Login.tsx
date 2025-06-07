@@ -148,7 +148,7 @@ export default function Login() {
             </Button>
           </p>
         </CardFooter>
-      </Card>
+        </Card>
 
         {/* MHD Alert Tile */}
         <div className="w-full max-w-md mx-auto lg:mx-0">
