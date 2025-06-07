@@ -191,13 +191,39 @@ export default function Dashboard() {
 
   // Top Produkte
   const topProducts = transactions?.reduce((acc: Record<string, {count: number, revenue: number}>, tx) => {
-    if (!acc[tx.productName]) {
-      acc[tx.productName] = { count: 0, revenue: 0 };
+    const productName = tx.productName || 'Unbekanntes Produkt';
+    if (!acc[productName]) {
+      acc[productName] = { count: 0, revenue: 0 };
     }
-    acc[tx.productName].count += 1;
-    acc[tx.productName].revenue += tx.price || 0;
+    acc[productName].count += 1;
+    acc[productName].revenue += tx.price || 0;
     return acc;
   }, {}) || {};
+
+  // Debug Top Products
+  React.useEffect(() => {
+    console.log('Top Products check:', {
+      hasTopProducts: !!topProducts,
+      keyCount: Object.keys(topProducts).length,
+      isObject: typeof topProducts === 'object',
+      firstProduct: Object.entries(topProducts)[0]
+    });
+    if (Object.keys(topProducts).length > 0) {
+      console.log('Top Products calculated:', Object.keys(topProducts).length, 'products');
+      console.log('First 3 products:', Object.entries(topProducts).slice(0, 3));
+    }
+  }, [topProducts]);
+
+  // Debug Transactions
+  React.useEffect(() => {
+    console.log('Transactions check:', {
+      hasTransactions: !!transactions,
+      isArray: Array.isArray(transactions),
+      length: transactions?.length,
+      isLoading: isLoadingTransactions,
+      firstTransaction: transactions?.[0]
+    });
+  }, [transactions, isLoadingTransactions]);
 
   // Top Maschinen nach Transaktionen
   const machineTransactions = transactions?.reduce((acc: Record<string, {count: number, revenue: number}>, tx) => {
@@ -800,7 +826,7 @@ export default function Dashboard() {
           <CardDescription>Nach Verkaufszahlen sortiert</CardDescription>
         </CardHeader>
         <CardContent>
-          {Object.keys(topProducts).length > 0 ? (
+          {topProducts && Object.keys(topProducts).length > 0 ? (
             <div className="overflow-x-auto">
               <div className="min-w-full bg-white border rounded-md">
                 {/* Tabellenkopf */}
