@@ -83,6 +83,7 @@ export default function WeatherDataOverview() {
   const [selectedState, setSelectedState] = useState('SN');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+  const [autoRefresh, setAutoRefresh] = useState(true);
   const [viewMode, setViewMode] = useState<'overview' | 'hourly'>('overview');
 
   // Fetch yearly weather statistics
@@ -103,10 +104,11 @@ export default function WeatherDataOverview() {
     enabled: viewMode === 'hourly' && !!selectedDate
   });
 
-  // Fetch weather data overview
+  // Fetch weather data overview with auto-refresh during import
   const { data: weatherOverview, isLoading: overviewLoading } = useQuery({
     queryKey: ['/api/weather/overview'],
-    enabled: true
+    enabled: true,
+    refetchInterval: autoRefresh ? 5000 : false // Refresh every 5 seconds during import
   });
 
   const formatTemperature = (temp: number) => `${temp.toFixed(1)}°C`;
