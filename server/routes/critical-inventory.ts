@@ -15,16 +15,21 @@ router.get('/critical-inventory-test', async (req: Request, res: Response) => {
   }
 });
 
-// Working critical inventory endpoint
+// Working critical inventory endpoint - shows products with low stock that are actively sold
 router.get('/critical-inventory', async (req: Request, res: Response) => {
   try {
     console.log('Critical inventory request received');
     const warehouseId = req.query.warehouseId ? parseInt(req.query.warehouseId as string) : undefined;
 
-    // First get critical inventory items, then check if they're actively sold
-    console.log('Querying critical inventory items...');
-    const basicQuery = warehouseId ? `
-      SELECT 
+    // Get critical inventory items with simplified logic
+    console.log('Querying critical inventory items with active sales filter...');
+    
+    // Use a single optimized query to find products that are:
+    // 1. Below minimum stock
+    // 2. In active warehouses
+    // 3. Have recent sales in assigned machines
+    const query = `
+      SELECT DISTINCT
         ii.id,
         ii.warehouse_id as "warehouseId",
         w.name as "warehouseName",
@@ -33,89 +38,47 @@ router.get('/critical-inventory', async (req: Request, res: Response) => {
         ii.quantity as "currentQuantity",
         ii.min_quantity as "minQuantity",
         p.price,
-        p.category
+        p.category,
+        COUNT(DISTINCT m.id) as machine_count,
+        COUNT(DISTINCT t.id) as sales_count
       FROM inventory_items ii
       INNER JOIN products p ON ii.product_id = p.id
       INNER JOIN warehouses w ON ii.warehouse_id = w.id
+      INNER JOIN machine_warehouse_assignments mwa ON w.id = mwa.warehouse_id
+      INNER JOIN machines m ON mwa.machine_id = m.id AND m.is_active = true
+      LEFT JOIN transactions t ON p.id = t.product_id 
+        AND t.machine_id = m.id
+        AND t.transaction_date >= NOW() - INTERVAL '7 days'
       WHERE ii.quantity < COALESCE(ii.min_quantity, 5)
         AND ii.quantity >= 0
         AND ii.status = 'active'
         AND w.is_active = true
-        AND ii.warehouse_id = $1
-      ORDER BY (ii.quantity::float / NULLIF(COALESCE(ii.min_quantity, 5), 0))
-      LIMIT 100
-    ` : `
-      SELECT 
-        ii.id,
-        ii.warehouse_id as "warehouseId",
-        w.name as "warehouseName",
-        ii.product_id as "productId",
-        p.product_name as "productName",
-        ii.quantity as "currentQuantity",
-        ii.min_quantity as "minQuantity",
-        p.price,
-        p.category
-      FROM inventory_items ii
-      INNER JOIN products p ON ii.product_id = p.id
-      INNER JOIN warehouses w ON ii.warehouse_id = w.id
-      WHERE ii.quantity < COALESCE(ii.min_quantity, 5)
-        AND ii.quantity >= 0
-        AND ii.status = 'active'
-        AND w.is_active = true
-      ORDER BY (ii.quantity::float / NULLIF(COALESCE(ii.min_quantity, 5), 0))
-      LIMIT 100
+        ${warehouseId ? 'AND ii.warehouse_id = $1' : ''}
+      GROUP BY ii.id, ii.warehouse_id, w.name, ii.product_id, p.product_name, 
+               ii.quantity, ii.min_quantity, p.price, p.category
+      HAVING COUNT(DISTINCT m.id) > 0
+        AND COUNT(DISTINCT t.id) > 0
+      ORDER BY COUNT(DISTINCT t.id) DESC
+      LIMIT 50
     `;
 
-    const result = warehouseId ? await pool.query(basicQuery, [warehouseId]) : await pool.query(basicQuery);
-    const potentialCriticalItems = result.rows;
+    const result = warehouseId ? await pool.query(query, [warehouseId]) : await pool.query(query);
+    const criticalItems = result.rows;
 
-    console.log(`Found ${potentialCriticalItems.length} potential critical items, now filtering for active sales...`);
+    console.log(`Found ${criticalItems.length} critical inventory items with active sales`);
 
-    // Now filter for products that are actually sold in machines
-    const criticalItems = [];
-    for (const item of potentialCriticalItems) {
-      // Check if this product has been sold in the last 30 days in assigned machines
-      const salesQuery = `
-        SELECT 
-          COUNT(DISTINCT mwa.machine_id) as machine_count,
-          COUNT(DISTINCT t.id) as sales_count,
-          MAX(t.transaction_date) as last_sale
-        FROM machine_warehouse_assignments mwa
-        INNER JOIN machines m ON mwa.machine_id = m.id AND m.is_active = true
-        LEFT JOIN transactions t ON t.product_id = $1 
-          AND t.machine_id = m.id
-          AND t.transaction_date >= CURRENT_DATE - INTERVAL '30 days'
-        WHERE mwa.warehouse_id = $2
-      `;
-      
-      const salesResult = await pool.query(salesQuery, [item.productId, item.warehouseId]);
-      const salesData = salesResult.rows[0];
-      
-      // Only include if product has assigned machines AND recent sales
-      if (parseInt(salesData.machine_count) > 0 && parseInt(salesData.sales_count) > 0) {
-        criticalItems.push({
-          ...item,
-          assignedMachinesCount: parseInt(salesData.machine_count),
-          salesLast30Days: parseInt(salesData.sales_count),
-          lastSaleDate: salesData.last_sale
-        });
-      }
-    }
-
-    console.log(`Found ${criticalItems.length} truly critical inventory items (with active sales)`);
-
-    // Enhance items with the real data from the query
+    // Enhance items with calculated fields
     const enrichedItems = criticalItems.map((item: any) => ({
       ...item,
       criticalityScore: (item.currentQuantity || 0) / Math.max(item.minQuantity || 5, 1),
       shouldAlert: true,
-      assignedMachines: parseInt(item.assignedMachinesCount) || 0,
-      isActivelySold: parseInt(item.salesLast30Days) > 0,
-      lastSaleDate: item.lastSaleDate,
-      salesLast30Days: parseInt(item.salesLast30Days) || 0,
+      assignedMachines: parseInt(item.machine_count) || 0,
+      isActivelySold: parseInt(item.sales_count) > 0,
+      lastSaleDate: null, // We'll keep this simple for now
+      salesLast7Days: parseInt(item.sales_count) || 0,
     }));
 
-    // Create summary with proper types
+    // Create summary
     interface WarehouseSummary {
       warehouseId: number;
       warehouseName: string;
@@ -127,10 +90,6 @@ router.get('/critical-inventory', async (req: Request, res: Response) => {
       count: number;
     }
 
-    const warehouseSummary: WarehouseSummary[] = [];
-    const categorySummary: CategorySummary[] = [];
-
-    // Group by warehouse
     const warehouseMap = new Map<number, WarehouseSummary>();
     const categoryMap = new Map<string, CategorySummary>();
 
