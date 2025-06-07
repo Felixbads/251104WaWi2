@@ -3754,8 +3754,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: 'Fehler beim Export der Daten' });
     }
   });
-  app.use(`${API_PREFIX}/weather`, weatherRoutes);
-  app.use(`${API_PREFIX}/holidays`, holidaysRoutes);
+  app.use(`${API_PREFIX}/holidays`, holidaysRouter);
   app.use(`${API_PREFIX}/calendar`, calendarRoutes);
   app.use(`${API_PREFIX}/calendar/overview`, calendarOverviewRoutes);
   app.use(`${API_PREFIX}/bulk`, bulkSyncRoutes);
