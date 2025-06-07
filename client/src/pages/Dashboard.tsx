@@ -529,7 +529,7 @@ export default function Dashboard() {
             ) : criticalInventory && (criticalInventory.totalCritical > 0 || criticalInventory.totalCriticalItems > 0) ? (
               <div className="space-y-2">
                 <div className="text-3xl font-bold text-orange-600">
-                  {criticalInventory.totalCritical}
+                  {criticalInventory.totalCriticalItems || criticalInventory.totalCritical || 0}
                 </div>
                 <div className="text-sm text-muted-foreground">
                   Produkte benötigen Nachbestellung
