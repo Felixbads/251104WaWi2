@@ -3028,10 +3028,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`Found ${machinesList.length} machines for location status`);
       
-      // MHD-Alerts für alle Automaten - using exact same logic as working MHD alerts API
-      const mhdQuery = `
+      // Get MHD alerts data using the exact same query as the working MHD alerts API
+      const mhdAlertsQuery = `
         WITH machine_products AS (
-          -- Get all unique products sold in each machine based on transaction history
+          -- Get all products that have been sold in each machine
           SELECT DISTINCT 
             t.machine_id,
             t.product_name as transaction_product_name
@@ -3070,23 +3070,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         )
         SELECT 
           mb.machine_id,
+          mb.machine_name,
+          mb.location,
           COUNT(CASE 
             WHEN mb.expiry_date < NOW() THEN 1 
           END) as expired_count,
           COUNT(CASE 
             WHEN mb.expiry_date >= NOW() AND mb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 
           END) as warning_count,
-          MIN(mb.expiry_date) as earliest_expiry
+          COUNT(CASE 
+            WHEN mb.expiry_date > NOW() + INTERVAL '7 days' AND mb.expiry_date <= NOW() + INTERVAL '14 days' THEN 1 
+          END) as attention_count,
+          MIN(mb.expiry_date) as earliest_expiry,
+          COUNT(mb.batch_id) as total_products_with_expiry
         FROM machine_batches mb
-        GROUP BY mb.machine_id
+        GROUP BY mb.machine_id, mb.machine_name, mb.location
+        HAVING COUNT(CASE 
+          WHEN mb.expiry_date < NOW() OR mb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 
+        END) > 0
       `;
       
-      const mhdResult = await rawDb.query(mhdQuery);
+      const mhdAlertsResult = await rawDb.query(mhdAlertsQuery);
       const mhdAlertsByMachine = new Map();
       
-      console.log(`MHD query returned ${mhdResult.rows.length} rows`);
+      console.log(`MHD alerts query returned ${mhdAlertsResult.rows.length} machines with MHD issues`);
       
-      mhdResult.rows.forEach(row => {
+      // Process only machines with MHD alerts
+      mhdAlertsResult.rows.forEach(row => {
         const expiredCount = parseInt(row.expired_count) || 0;
         const warningCount = parseInt(row.warning_count) || 0;
         
@@ -3098,7 +3108,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         
         if (row.machine_id === 3) {
-          console.log(`Machine 3 MHD data:`, {
+          console.log(`Machine 3 MHD alerts data found:`, {
             machine_id: row.machine_id,
             expired_count: row.expired_count,
             warning_count: row.warning_count,
