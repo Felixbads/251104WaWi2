@@ -35,14 +35,15 @@ router.get('/critical-inventory', async (req: Request, res: Response) => {
         ii.quantity as "currentQuantity",
         COALESCE(ii.min_quantity, 5) as "minQuantity",
         COALESCE(p.price, 0) as price,
-        COALESCE(p.category, 'Unbekannt') as category
+        COALESCE(p.category, 'Unbekannt') as category,
+        COALESCE(p.sku, '') as sku
       FROM inventory_items ii
       INNER JOIN products p ON ii.product_id = p.id
       INNER JOIN warehouses w ON ii.warehouse_id = w.id
       WHERE ii.quantity < COALESCE(ii.min_quantity, 5)
         AND ii.quantity >= 0
-        AND ii.status = 'active'
-        AND w.is_active = true
+        AND COALESCE(ii.status, 'active') = 'active'
+        AND COALESCE(w.is_active, true) = true
         ${warehouseId ? 'AND ii.warehouse_id = $1' : ''}
       ORDER BY ii.quantity ASC
       LIMIT 100
@@ -143,6 +144,7 @@ router.get('/critical-inventory', async (req: Request, res: Response) => {
     res.json({
       criticalItems: enrichedItems,
       totalCritical: enrichedItems.length,
+      totalInventoryItems: potentialCriticalItems.length,
       summary,
     });
   } catch (error) {
