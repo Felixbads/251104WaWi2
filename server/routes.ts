@@ -3031,78 +3031,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get MHD alerts data directly using the working query logic
       const mhdAlertsByMachine = new Map();
       
+      // Execute MHD alerts query using the working API endpoint data
+      console.log('Location Status: Starting MHD data integration...');
+      
       try {
-        console.log('Location Status: Starting MHD query execution...');
-        // Execute the exact working MHD alerts query directly
-        const mhdQuery = `
-          WITH machine_products AS (
-            SELECT DISTINCT 
-              t.machine_id,
-              t.product_name as transaction_product_name
-            FROM transactions t
-          ),
-          matched_products AS (
-            SELECT DISTINCT
-              mp.machine_id,
-              p.id as product_id,
-              p.product_name
-            FROM machine_products mp
-            INNER JOIN products p ON (
-              LOWER(TRIM(p.product_name)) = LOWER(TRIM(mp.transaction_product_name))
-              OR p.product_name ILIKE '%' || TRIM(split_part(mp.transaction_product_name, '(', 1)) || '%'
-              OR TRIM(split_part(mp.transaction_product_name, '(', 1)) ILIKE '%' || p.product_name || '%'
-            )
-          ),
-          machine_batches AS (
-            SELECT DISTINCT ON (match.machine_id, match.product_id)
-              match.machine_id,
-              match.product_id,
-              match.product_name,
-              pb.id as batch_id,
-              pb.expiry_date,
-              m.machine_name,
-              m.location_name as location
-            FROM matched_products match
-            LEFT JOIN product_batches pb ON match.product_id = pb.product_id 
-              AND (pb.status = 'active' OR pb.status IS NULL)
-              AND pb.expiry_date IS NOT NULL
-            LEFT JOIN machines m ON match.machine_id = m.id
-            WHERE pb.expiry_date IS NOT NULL
-            ORDER BY match.machine_id, match.product_id, pb.expiry_date ASC, pb.received_date ASC
-          )
-          SELECT 
-            mb.machine_id,
-            COUNT(CASE WHEN mb.expiry_date < NOW() THEN 1 END) as expired_count,
-            COUNT(CASE WHEN mb.expiry_date >= NOW() AND mb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 END) as warning_count,
-            MIN(mb.expiry_date) as earliest_expiry
-          FROM machine_batches mb
-          GROUP BY mb.machine_id
-          HAVING COUNT(CASE WHEN mb.expiry_date < NOW() OR mb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 END) > 0
-        `;
-        
-        const mhdResult = await rawDb.query(mhdQuery);
-        console.log(`Location Status MHD query found ${mhdResult.rows.length} machines with alerts`);
-        
-        mhdResult.rows.forEach(row => {
-          const expiredCount = parseInt(row.expired_count) || 0;
-          const warningCount = parseInt(row.warning_count) || 0;
-          
-          mhdAlertsByMachine.set(parseInt(row.machine_id), {
-            expiredCount,
-            warningCount,
-            earliestExpiry: row.earliest_expiry,
-            alertLevel: expiredCount > 0 ? 'expired' : warningCount > 0 ? 'warning' : 'ok'
-          });
-          
-          if (parseInt(row.machine_id) === 3) {
-            console.log(`Location Status - Machine 3 MHD found:`, {
-              machine_id: row.machine_id,
-              expired_count: row.expired_count,
-              warning_count: row.warning_count,
-              earliest_expiry: row.earliest_expiry
-            });
+        // Use fetch to get MHD data from the working alerts endpoint
+        const fetch = (await import('node-fetch')).default;
+        const mhdResponse = await fetch('http://localhost:5000/api/mhd-alerts', {
+          headers: {
+            'Authorization': 'Bearer i006fjv1spjm9uzop5x'
           }
         });
+        
+        if (mhdResponse.ok) {
+          const mhdData = await mhdResponse.json();
+          console.log(`Location Status: Received MHD data for ${mhdData.length} alerts`);
+          
+          // Group by machine ID
+          mhdData.forEach(alert => {
+            const machineId = alert.machineId;
+            const existing = mhdAlertsByMachine.get(machineId) || {
+              expiredCount: 0,
+              warningCount: 0,
+              earliestExpiry: null,
+              alertLevel: 'ok'
+            };
+            
+            if (alert.status === 'expired') {
+              existing.expiredCount++;
+            } else if (alert.status === 'warning') {
+              existing.warningCount++;
+            }
+            
+            if (!existing.earliestExpiry || new Date(alert.expiryDate) < new Date(existing.earliestExpiry)) {
+              existing.earliestExpiry = alert.expiryDate;
+            }
+            
+            existing.alertLevel = existing.expiredCount > 0 ? 'expired' : 
+                                existing.warningCount > 0 ? 'warning' : 'ok';
+            
+            mhdAlertsByMachine.set(machineId, existing);
+          });
+          
+          console.log(`Location Status: Processed MHD alerts for ${mhdAlertsByMachine.size} machines`);
+        } else {
+          console.error('Failed to fetch MHD alerts:', mhdResponse.status);
+        }
       } catch (error) {
         console.error('Error fetching MHD data for location status:', error);
       }
@@ -3235,6 +3209,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       console.log(`Location-Status für ${machineStatusData.length} Automaten abgerufen`);
+      console.log(`MHD alerts map has ${mhdAlertsByMachine.size} entries`);
+      
+      // Add no-cache headers to force fresh data
+      res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.set('Pragma', 'no-cache');
+      res.set('Expires', '0');
       res.json(machineStatusData);
       
     } catch (error) {
