@@ -62,7 +62,7 @@ import {
   MachineInventoryWithMHD,
   BatchInfo
 } from "@/lib/api";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { 
   BarChart,
   Bar,
