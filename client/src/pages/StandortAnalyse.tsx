@@ -42,7 +42,7 @@ export default function StandortAnalyse() {
 
   // Fetch all locations for dropdown
   const { data: locations } = useQuery({
-    queryKey: ['/api/machines'],
+    queryKey: ['/api/location-analysis/locations'],
     enabled: true,
   });
 
@@ -53,9 +53,7 @@ export default function StandortAnalyse() {
   });
 
   const uniqueLocations = locations ? 
-    [...new Set(locations.map((m: any) => m.location_name))]
-      .filter(Boolean)
-      .sort() : [];
+    locations.filter(Boolean).sort() : [];
 
   const currentLocationData = analysisData?.find((loc: LocationAnalysisData) => 
     loc.locationName === selectedLocation

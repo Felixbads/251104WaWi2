@@ -4,6 +4,29 @@ import { sql } from 'drizzle-orm';
 
 const router = Router();
 
+// Get all available locations
+router.get('/locations', async (req, res) => {
+  try {
+    console.log('Fetching available locations...');
+    
+    const locationsResult = await db.execute(sql`
+      SELECT DISTINCT location_name 
+      FROM machines 
+      WHERE location_name IS NOT NULL 
+      AND location_name != ''
+      ORDER BY location_name
+    `);
+    
+    const locations = locationsResult.rows.map((row: any) => row.location_name);
+    console.log(`Found ${locations.length} locations:`, locations);
+    
+    res.json(locations);
+  } catch (error) {
+    console.error('Error fetching locations:', error);
+    res.status(500).json({ error: 'Failed to fetch locations' });
+  }
+});
+
 // Get location analysis data with weekly sales vs removals and recommendations
 router.get('/:location/:weeks', async (req, res) => {
   try {
