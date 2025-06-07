@@ -28,17 +28,42 @@ router.get('/critical-inventory-final', async (req: Request, res: Response) => {
       'Schöna': { name: 'Bahnhof', id: 3 }
     };
 
-    // Query to find low stock items with proper warehouse assignment based on machine locations
+    // Query to find low stock items with consolidated warehouse assignment
     const lowStockQuery = `
-      WITH product_locations AS (
+      WITH product_warehouse_mapping AS (
         SELECT 
           TRIM(t.product_name) as product_name,
-          array_agg(DISTINCT m.location_name) as machine_locations,
-          m.location_name as primary_location
+          array_agg(DISTINCT m.location_name) as all_locations,
+          COUNT(*) as total_sales,
+          -- Determine primary warehouse based on highest sales volume by region
+          CASE 
+            WHEN COUNT(CASE WHEN m.location_name IN ('Bad Gottleuba-Berggießhübel', 'Gohrisch', 'Leupoldishain ', 'Papstdorf - Am Feuerwehrmuseum') THEN 1 END) >= 
+                 GREATEST(
+                   COUNT(CASE WHEN m.location_name IN ('Bahnhof Bad Schandau', 'Elbkai, Bad Schandau', 'Pfaffendorf', 'Rathen', 'Schmilka, Alte Feuerwehr', 'Schöna') THEN 1 END),
+                   COUNT(CASE WHEN m.location_name IN ('Burg Stolpen, Zehrgarten', 'Landfleischerei Struppen') THEN 1 END),
+                   COUNT(CASE WHEN m.location_name IN ('Hotel zur Post, Pirna', 'Ostrau Kurpark', 'Pötzscha') THEN 1 END),
+                   COUNT(CASE WHEN m.location_name = 'Hohnstein, An der Burg' THEN 1 END)
+                 ) THEN 'Bad Gottleuba'
+            WHEN COUNT(CASE WHEN m.location_name IN ('Bahnhof Bad Schandau', 'Elbkai, Bad Schandau', 'Pfaffendorf', 'Rathen', 'Schmilka, Alte Feuerwehr', 'Schöna') THEN 1 END) >= 
+                 GREATEST(
+                   COUNT(CASE WHEN m.location_name IN ('Burg Stolpen, Zehrgarten', 'Landfleischerei Struppen') THEN 1 END),
+                   COUNT(CASE WHEN m.location_name IN ('Hotel zur Post, Pirna', 'Ostrau Kurpark', 'Pötzscha') THEN 1 END),
+                   COUNT(CASE WHEN m.location_name = 'Hohnstein, An der Burg' THEN 1 END)
+                 ) THEN 'Bahnhof'
+            WHEN COUNT(CASE WHEN m.location_name IN ('Burg Stolpen, Zehrgarten', 'Landfleischerei Struppen') THEN 1 END) >= 
+                 GREATEST(
+                   COUNT(CASE WHEN m.location_name IN ('Hotel zur Post, Pirna', 'Ostrau Kurpark', 'Pötzscha') THEN 1 END),
+                   COUNT(CASE WHEN m.location_name = 'Hohnstein, An der Burg' THEN 1 END)
+                 ) THEN 'Stolpen'
+            WHEN COUNT(CASE WHEN m.location_name IN ('Hotel zur Post, Pirna', 'Ostrau Kurpark', 'Pötzscha') THEN 1 END) >= 
+                 COUNT(CASE WHEN m.location_name = 'Hohnstein, An der Burg' THEN 1 END) THEN 'Pirna'
+            WHEN COUNT(CASE WHEN m.location_name = 'Hohnstein, An der Burg' THEN 1 END) > 0 THEN 'Hohenstein'
+            ELSE 'Bahnhof'
+          END as primary_warehouse
         FROM transactions t
         INNER JOIN machines m ON t.machine_id = m.id
         WHERE t.created_at >= NOW() - INTERVAL '30 days'
-        GROUP BY TRIM(t.product_name), m.location_name
+        GROUP BY TRIM(t.product_name)
       )
       SELECT 
         s.id,
@@ -49,14 +74,15 @@ router.get('/critical-inventory-final', async (req: Request, res: Response) => {
         COALESCE(s.price, 0) as price,
         'Standard' as category,
         COALESCE(s.sku, '') as sku,
-        pl.machine_locations,
-        pl.primary_location
+        pwm.all_locations as machine_locations,
+        pwm.primary_warehouse,
+        pwm.total_sales
       FROM stocks s
-      LEFT JOIN product_locations pl ON TRIM(s.product_name) = pl.product_name
+      LEFT JOIN product_warehouse_mapping pwm ON TRIM(s.product_name) = pwm.product_name
       WHERE s.amount_standard <= s.amount_critical
         AND s.amount_standard >= 0
         AND s.status = 'active'
-      ORDER BY s.amount_standard ASC
+      ORDER BY s.amount_standard ASC, pwm.total_sales DESC
       LIMIT 20
     `;
 
@@ -83,16 +109,22 @@ router.get('/critical-inventory-final', async (req: Request, res: Response) => {
 
         // Only include items with recent sales (truly critical)
         if (salesCount > 0) {
-          // Determine warehouse based on machine locations
-          let warehouseInfo = { name: 'Bahnhof', id: 3 }; // Default fallback
-          if (item.primary_location && locationToWarehouse[item.primary_location]) {
-            warehouseInfo = locationToWarehouse[item.primary_location];
-          }
+          // Map warehouse name to ID using existing warehouse data
+          const warehouseMapping = {
+            'Bad Gottleuba': 5,
+            'Bahnhof': 3,
+            'Stolpen': 4,
+            'Pirna': 7,
+            'Hohenstein': 6
+          };
+          
+          const warehouseName = item.primary_warehouse || 'Bahnhof';
+          const warehouseId = warehouseMapping[warehouseName as keyof typeof warehouseMapping] || 3;
           
           criticalItems.push({
             id: item.id,
-            warehouseId: warehouseInfo.id,
-            warehouseName: warehouseInfo.name,
+            warehouseId: warehouseId,
+            warehouseName: warehouseName,
             productId: item.product_id,
             productName: item.product_name,
             currentQuantity: item.quantity,
