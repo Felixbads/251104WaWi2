@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, useParams } from "wouter";
 import { 
   Package, 
@@ -1488,7 +1488,263 @@ export default function AutomatDetail() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* MHD Tab */}
+        <TabsContent value="mhd" className="mt-4">
+          <MHDTab machineId={parseInt(params.id)} />
+        </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+// MHD Tab Component
+function MHDTab({ machineId }: { machineId: number }) {
+  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [editData, setEditData] = useState<{ [key: string]: { expiryDate: string; batchId: string } }>({});
+
+  // Fetch MHD data for the machine
+  const { data: mhdData, isLoading, refetch } = useQuery({
+    queryKey: ['/api/machines', machineId, 'mhd'],
+    enabled: !!machineId
+  });
+
+  // Update MHD mutation
+  const updateMhdMutation = useMutation({
+    mutationFn: async ({ batchId, expiryDate }: { batchId: string; expiryDate: string }) => {
+      return updateMachineMHD(machineId.toString(), batchId, { expiryDate });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/machines', machineId, 'mhd'] });
+      setEditingItem(null);
+      setEditData({});
+    }
+  });
+
+  // Helper function to get expiry status color
+  const getExpiryStatusColor = (expiryDate: string) => {
+    const now = new Date();
+    const expiry = new Date(expiryDate);
+    const daysUntilExpiry = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysUntilExpiry < 0) return 'bg-red-100 text-red-800 border-red-200'; // Expired
+    if (daysUntilExpiry <= 7) return 'bg-yellow-100 text-yellow-800 border-yellow-200'; // Soon to expire
+    return 'bg-green-100 text-green-800 border-green-200'; // Good
+  };
+
+  // Helper function to format expiry status
+  const getExpiryStatus = (expiryDate: string) => {
+    const now = new Date();
+    const expiry = new Date(expiryDate);
+    const daysUntilExpiry = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysUntilExpiry < 0) return `Abgelaufen vor ${Math.abs(daysUntilExpiry)} Tagen`;
+    if (daysUntilExpiry === 0) return 'Läuft heute ab';
+    if (daysUntilExpiry <= 7) return `Läuft in ${daysUntilExpiry} Tagen ab`;
+    return `Noch ${daysUntilExpiry} Tage`;
+  };
+
+  const handleEdit = (productId: string, batchId: string, currentExpiryDate: string) => {
+    const key = `${productId}-${batchId}`;
+    setEditingItem(key);
+    setEditData({
+      [key]: {
+        expiryDate: currentExpiryDate ? new Date(currentExpiryDate).toISOString().split('T')[0] : '',
+        batchId: batchId || ''
+      }
+    });
+  };
+
+  const handleSave = async (productId: string, batchId: string) => {
+    const key = `${productId}-${batchId}`;
+    const data = editData[key];
+    if (data) {
+      await updateMhdMutation.mutateAsync({
+        batchId: data.batchId,
+        expiryDate: data.expiryDate
+      });
+    }
+  };
+
+  const handleCancel = () => {
+    setEditingItem(null);
+    setEditData({});
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center text-lg">
+            <Calendar className="h-5 w-5 mr-2" />
+            MHD Verwaltung
+          </CardTitle>
+          <CardDescription>Mindesthaltbarkeitsdaten der Produkte in diesem Automaten</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-8">
+            <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+            <span>Lade MHD-Daten...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center text-lg">
+              <Calendar className="h-5 w-5 mr-2" />
+              MHD Verwaltung
+            </CardTitle>
+            <CardDescription>Mindesthaltbarkeitsdaten der Produkte in diesem Automaten</CardDescription>
+          </div>
+          <Button variant="outline" onClick={() => refetch()}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Aktualisieren
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {mhdData && Array.isArray(mhdData) && mhdData.length > 0 ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+              {mhdData.map((item: any) => {
+                const key = `${item.productId}-${item.batches?.[0]?.batchId || 'no-batch'}`;
+                const isEditing = editingItem === key;
+                
+                return (
+                  <Card key={key} className="relative">
+                    <CardContent className="p-4">
+                      <div className="space-y-3">
+                        {/* Product Name */}
+                        <div>
+                          <h3 className="font-medium text-sm leading-tight">{item.productName}</h3>
+                          <p className="text-xs text-muted-foreground mt-1">Bestand: {item.currentStock} Stück</p>
+                        </div>
+
+                        {/* Batches */}
+                        {item.batches && item.batches.length > 0 ? (
+                          <div className="space-y-2">
+                            {item.batches.map((batch: any, batchIndex: number) => (
+                              <div key={batchIndex} className="space-y-2">
+                                {isEditing && batchIndex === 0 ? (
+                                  /* Edit Mode */
+                                  <div className="space-y-2 p-3 bg-muted/50 rounded-lg">
+                                    <div className="space-y-1">
+                                      <label className="text-xs font-medium">Ablaufdatum:</label>
+                                      <input
+                                        type="date"
+                                        value={editData[key]?.expiryDate || ''}
+                                        onChange={(e) => setEditData({
+                                          ...editData,
+                                          [key]: { ...editData[key], expiryDate: e.target.value }
+                                        })}
+                                        className="w-full px-2 py-1 text-xs border rounded"
+                                      />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <label className="text-xs font-medium">Batch-ID:</label>
+                                      <input
+                                        type="text"
+                                        value={editData[key]?.batchId || ''}
+                                        onChange={(e) => setEditData({
+                                          ...editData,
+                                          [key]: { ...editData[key], batchId: e.target.value }
+                                        })}
+                                        className="w-full px-2 py-1 text-xs border rounded"
+                                        placeholder="Optional"
+                                      />
+                                    </div>
+                                    <div className="flex gap-1">
+                                      <Button
+                                        size="sm"
+                                        onClick={() => handleSave(item.productId, batch.batchId)}
+                                        disabled={updateMhdMutation.isPending}
+                                      >
+                                        <Save className="h-3 w-3 mr-1" />
+                                        Speichern
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={handleCancel}
+                                      >
+                                        <X className="h-3 w-3 mr-1" />
+                                        Abbrechen
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  /* Display Mode */
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between">
+                                      <div className="space-y-1 flex-1">
+                                        {batch.expiryDate && (
+                                          <div className={`inline-block px-2 py-1 rounded-md text-xs border ${getExpiryStatusColor(batch.expiryDate)}`}>
+                                            MHD: {new Date(batch.expiryDate).toLocaleDateString('de-DE')}
+                                          </div>
+                                        )}
+                                        {batch.batchId && (
+                                          <div className="text-xs text-muted-foreground">
+                                            Batch: {batch.batchId}
+                                          </div>
+                                        )}
+                                        <div className="text-xs text-muted-foreground">
+                                          {batch.quantity || 0} Stück
+                                        </div>
+                                        {batch.expiryDate && (
+                                          <div className="text-xs font-medium">
+                                            {getExpiryStatus(batch.expiryDate)}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        onClick={() => handleEdit(item.productId, batch.batchId, batch.expiryDate)}
+                                      >
+                                        <Edit3 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="text-xs text-muted-foreground">Keine Batch-Informationen verfügbar</div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleEdit(item.productId, '', '')}
+                            >
+                              <Edit3 className="h-3 w-3 mr-1" />
+                              MHD hinzufügen
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <Calendar className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium mb-2">Keine MHD-Daten verfügbar</h3>
+            <p className="text-muted-foreground text-sm">
+              Für diesen Automaten sind noch keine Mindesthaltbarkeitsdaten erfasst.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
