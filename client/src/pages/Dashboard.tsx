@@ -13,7 +13,8 @@ import {
   RefreshCw,
   Database,
   Clock,
-  ArrowUpRight
+  ArrowUpRight,
+  AlertTriangle
 } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 import WeatherWidget from "@/components/weather/WeatherWidget";
@@ -131,6 +132,17 @@ export default function Dashboard() {
       endDate: new Date().toISOString().split('T')[0],
       limit: 100
     }),
+  });
+
+  // Kritische Bestände für das Dashboard
+  const { data: criticalInventory, isLoading: isLoadingCriticalInventory } = useQuery({
+    queryKey: ['/api/critical-inventory/dashboard-summary'],
+    queryFn: async () => {
+      const response = await fetch('/api/critical-inventory/dashboard-summary');
+      if (!response.ok) throw new Error('Fehler beim Laden der kritischen Bestände');
+      return response.json();
+    },
+    refetchInterval: 300000 // Alle 5 Minuten aktualisieren
   });
 
   // Berechne aktuelle Metriken aus realen Daten
@@ -458,6 +470,60 @@ export default function Dashboard() {
               <div className="flex flex-col items-center justify-center h-[120px]">
                 <div className="text-lg font-medium text-green-600">Alle Automaten OK</div>
                 <div className="text-sm text-muted-foreground">Keine Warnungen oder Fehler</div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Kachel 4: Kritische Bestände */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center">
+              <AlertTriangle className="h-5 w-5 mr-2 text-orange-500" />
+              Kritische Bestände
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isLoadingCriticalInventory ? (
+              <div className="flex items-center justify-center h-[120px]">
+                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : criticalInventory && criticalInventory.totalCritical > 0 ? (
+              <div className="space-y-2">
+                <div className="text-3xl font-bold text-orange-600">
+                  {criticalInventory.totalCritical}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Produkte benötigen Nachbestellung
+                </div>
+                {criticalInventory.byWarehouse && criticalInventory.byWarehouse.length > 0 && (
+                  <div className="space-y-1 max-h-[80px] overflow-y-auto">
+                    {criticalInventory.byWarehouse.slice(0, 3).map((warehouse: any, idx: number) => (
+                      <div key={idx} className="flex items-center justify-between text-xs">
+                        <span className="truncate font-medium">{warehouse.warehouseName}</span>
+                        <Badge variant="outline" className="bg-orange-50 text-orange-700">
+                          {warehouse.count}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="pt-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full"
+                    onClick={() => setLocation("/kritische-bestaende")}
+                  >
+                    <ArrowUpRight className="h-4 w-4 mr-1" />
+                    Details anzeigen
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-[120px]">
+                <div className="text-lg font-medium text-green-600">Alle Bestände OK</div>
+                <div className="text-sm text-muted-foreground">Keine kritischen Bestände</div>
               </div>
             )}
           </CardContent>
