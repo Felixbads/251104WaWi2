@@ -1506,7 +1506,11 @@ function MHDTab({ machineId }: { machineId: number }) {
   // Fetch MHD data for the machine
   const { data: mhdData, isLoading, refetch } = useQuery({
     queryKey: ['/api/machines', machineId, 'mhd'],
-    enabled: !!machineId
+    enabled: !!machineId,
+    select: (data) => {
+      console.log('MHD API Response:', data);
+      return data;
+    }
   });
 
   // Update MHD mutation
@@ -1613,6 +1617,7 @@ function MHDTab({ machineId }: { machineId: number }) {
           <div className="space-y-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
               {mhdData.map((item: any, itemIndex: number) => {
+                console.log('Rendering MHD item:', item);
                 const productKey = `product-${item.productId}-${itemIndex}`;
                 
                 return (
