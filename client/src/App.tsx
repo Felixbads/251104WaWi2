@@ -98,6 +98,8 @@ import WarehouseOverviewPage from "@/pages/warehouse/WarehouseOverviewPage";
 import WarehouseMovement from "@/pages/WarehouseMovement";
 import LagerbestandPage from "@/pages/LagerbestandPage";
 import SustainableVending from "@/pages/SustainableVending";
+import WeatherDataOverview from "@/pages/WeatherDataOverview";
+import HolidaysVacationsOverview from "@/pages/HolidaysVacationsOverview";
 import DatabaseManager from "@/pages/DatabaseManager";
 import CriticalInventory from "@/pages/CriticalInventory";
 import Ruecklaufer from "@/pages/Ruecklaufer";
@@ -402,6 +404,18 @@ function AuthenticatedRouter() {
         <Route path="/datenverfuegbarkeit" component={props => (
           <ApprovedUserRoute>
             <DataAvailability {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/datenverfuegbarkeit/wetter" component={props => (
+          <ApprovedUserRoute>
+            <WeatherDataOverview {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/datenverfuegbarkeit/feiertage" component={props => (
+          <ApprovedUserRoute>
+            <HolidaysVacationsOverview {...props} />
           </ApprovedUserRoute>
         )} />
 

@@ -446,4 +446,51 @@ router.post('/sync-school', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * GET /api/holidays/comprehensive
+ * Get comprehensive holidays and school holidays data for table view
+ */
+router.get('/comprehensive/:year', async (req, res) => {
+  try {
+    const year = parseInt(req.params.year);
+    
+    // Get all holidays for the year
+    const holidaysQuery = sql`
+      SELECT 
+        date,
+        name,
+        'public_holiday' as type,
+        state
+      FROM holidays
+      WHERE EXTRACT(YEAR FROM date) = ${year}
+      
+      UNION ALL
+      
+      SELECT 
+        start_date as date,
+        name,
+        'school_holiday' as type,
+        state
+      FROM school_holidays
+      WHERE EXTRACT(YEAR FROM start_date) = ${year}
+      
+      ORDER BY date, state
+    `;
+    
+    const result = await db.execute(holidaysQuery);
+    
+    const holidays = result.map(row => ({
+      date: row.date,
+      name: row.name,
+      type: row.type,
+      state: row.state
+    }));
+    
+    res.json(holidays);
+  } catch (error) {
+    console.error('Error fetching comprehensive holidays:', error);
+    res.status(500).json({ error: 'Failed to fetch comprehensive holidays data' });
+  }
+});
+
 export default router;

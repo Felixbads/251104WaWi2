@@ -1,163 +1,177 @@
 /**
- * Wetterservice API-Routen
+ * Weather Data API Routes
  * 
- * Diese Routen ermöglichen die manuelle Synchronisierung von Wetterdaten
- * sowie das Abrufen von Wettervorhersagen und historischen Wetterdaten.
+ * Provides endpoints for weather data visualization and hourly access
  */
 
-import express from 'express';
-import { z } from 'zod';
-import { 
-  syncWeatherForecast, 
-  syncHistoricalWeather,
-  syncHistoricalWeatherBatch,
-  getCurrentWeather, 
-  getWeatherForecast,
-  getMissingHistoricalWeatherDates,
-  updateWeatherDataCoverage 
-} from '../services/openWeatherService';
+import { Router } from 'express';
+import { db } from '../db';
+import { sql } from 'drizzle-orm';
 
-// Validierungsschema für Synchronisierungsanfragen
-const syncWeatherSchema = z.object({
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  batchSize: z.number().int().min(1).max(30).optional()
-});
-
-// Router erstellen
-const router = express.Router();
+const router = Router();
 
 /**
- * Aktuelle Wetterdaten für das Dashboard abrufen
+ * GET /api/weather/overview
+ * Get overall weather data statistics
  */
-router.get('/current', async (req, res) => {
+router.get('/overview', async (req, res) => {
   try {
-    const location = req.query.location as string || 'Bad Schandau,DE';
-    const weatherData = await getCurrentWeather(location);
-    return res.json(weatherData);
-  } catch (error) {
-    console.error('Fehler beim Abrufen aktueller Wetterdaten:', error);
-    return res.status(500).json({ 
-      error: 'Fehler beim Abrufen aktueller Wetterdaten',
-      message: error instanceof Error ? error.message : 'Unbekannter Fehler'
+    const overviewQuery = sql`
+      SELECT 
+        COUNT(*) as "totalDataPoints",
+        AVG(temperature) as "avgTemperature",
+        SUM(precipitation) as "totalPrecipitation",
+        COUNT(DISTINCT EXTRACT(YEAR FROM date)) as "yearsCovered"
+      FROM weather_data
+    `;
+    
+    const result = await db.execute(overviewQuery);
+    const overview = result[0] || {};
+    
+    res.json({
+      totalDataPoints: parseInt(overview.totalDataPoints || '0'),
+      avgTemperature: parseFloat(overview.avgTemperature || '0'),
+      totalPrecipitation: parseFloat(overview.totalPrecipitation || '0'),
+      yearsCovered: parseInt(overview.yearsCovered || '0')
     });
+  } catch (error) {
+    console.error('Error fetching weather overview:', error);
+    res.status(500).json({ error: 'Failed to fetch weather overview' });
   }
 });
 
 /**
- * Wettervorhersage für das Dashboard abrufen
+ * GET /api/weather/yearly-stats
+ * Get yearly weather statistics for a specific state
  */
-router.get('/forecast', async (req, res) => {
+router.get('/yearly-stats', async (req, res) => {
   try {
-    const location = req.query.location as string || 'Bad Schandau,DE';
-    const days = req.query.days ? parseInt(req.query.days as string) : 7;
+    const { state = 'SN' } = req.query;
     
-    const forecastData = await getWeatherForecast(location, days);
-    return res.json(forecastData);
+    const statsQuery = sql`
+      SELECT 
+        EXTRACT(YEAR FROM date) as year,
+        state,
+        COUNT(*) as "dataPoints",
+        AVG(temperature) as "avgTemperature",
+        AVG(humidity) as "avgHumidity",
+        SUM(precipitation) as "totalPrecipitation",
+        (COUNT(*) * 100.0 / (365 * 24)) as coverage
+      FROM weather_data
+      WHERE state = ${state as string}
+      GROUP BY EXTRACT(YEAR FROM date), state
+      ORDER BY year
+    `;
+    
+    const result = await db.execute(statsQuery);
+    
+    const stats = result.map(row => ({
+      year: parseInt(row.year as string),
+      state: row.state,
+      dataPoints: parseInt(row.dataPoints as string),
+      avgTemperature: parseFloat(row.avgTemperature as string || '0'),
+      avgHumidity: parseFloat(row.avgHumidity as string || '0'),
+      totalPrecipitation: parseFloat(row.totalPrecipitation as string || '0'),
+      coverage: parseFloat(row.coverage as string || '0')
+    }));
+    
+    res.json(stats);
   } catch (error) {
-    console.error('Fehler beim Abrufen der Wettervorhersage:', error);
-    return res.status(500).json({ 
-      error: 'Fehler beim Abrufen der Wettervorhersage',
-      message: error instanceof Error ? error.message : 'Unbekannter Fehler'
-    });
+    console.error('Error fetching yearly weather stats:', error);
+    res.status(500).json({ error: 'Failed to fetch yearly weather statistics' });
   }
 });
 
 /**
- * Fehlende historische Wetterdaten ermitteln
+ * GET /api/weather/daily-coverage
+ * Get daily weather data coverage for a specific state and year
  */
-router.get('/missing', async (req, res) => {
+router.get('/daily-coverage', async (req, res) => {
   try {
-    const startDate = req.query.startDate as string || '2023-01-01';
-    const endDate = req.query.endDate as string || new Date().toISOString().split('T')[0];
+    const { state = 'SN', year = new Date().getFullYear() } = req.query;
     
-    const missingDates = await getMissingHistoricalWeatherDates(startDate, endDate);
-    return res.json({
-      total: missingDates.length,
-      dates: missingDates
-    });
+    const coverageQuery = sql`
+      SELECT 
+        date,
+        COUNT(*) as "hourlyCount",
+        (COUNT(*) * 1.0 / 24) as coverage
+      FROM weather_data
+      WHERE state = ${state as string}
+        AND EXTRACT(YEAR FROM date) = ${parseInt(year as string)}
+      GROUP BY date
+      ORDER BY date
+    `;
+    
+    const result = await db.execute(coverageQuery);
+    
+    const coverage = result.map(row => ({
+      date: row.date,
+      hourlyCount: parseInt(row.hourlyCount as string),
+      coverage: parseFloat(row.coverage as string || '0')
+    }));
+    
+    res.json(coverage);
   } catch (error) {
-    console.error('Fehler beim Ermitteln fehlender Wetterdaten:', error);
-    return res.status(500).json({ 
-      error: 'Fehler beim Ermitteln fehlender Wetterdaten',
-      message: error instanceof Error ? error.message : 'Unbekannter Fehler'
-    });
+    console.error('Error fetching daily coverage:', error);
+    res.status(500).json({ error: 'Failed to fetch daily weather coverage' });
   }
 });
 
 /**
- * Aktualisieren der Wettervorhersage
+ * GET /api/weather/hourly
+ * Get hourly weather data for a specific state and date
  */
-router.post('/sync/forecast', async (req, res) => {
+router.get('/hourly', async (req, res) => {
   try {
-    const result = await syncWeatherForecast();
+    const { state = 'SN', date } = req.query;
     
-    // Aktualisiere den Datenabdeckungsstatus
-    await updateWeatherDataCoverage();
-    
-    return res.json(result);
-  } catch (error) {
-    console.error('Fehler bei der Synchronisierung der Wettervorhersage:', error);
-    return res.status(500).json({ 
-      error: 'Fehler bei der Synchronisierung der Wettervorhersage',
-      message: error instanceof Error ? error.message : 'Unbekannter Fehler'
-    });
-  }
-});
-
-/**
- * Aktualisieren historischer Wetterdaten (einzelner Tag)
- */
-router.post('/sync/historical/:date', async (req, res) => {
-  try {
-    const date = req.params.date;
-    
-    const result = await syncHistoricalWeather(date);
-    
-    // Aktualisiere den Datenabdeckungsstatus
-    await updateWeatherDataCoverage();
-    
-    return res.json(result);
-  } catch (error) {
-    console.error('Fehler bei der Synchronisierung historischer Wetterdaten:', error);
-    return res.status(500).json({ 
-      error: 'Fehler bei der Synchronisierung historischer Wetterdaten',
-      message: error instanceof Error ? error.message : 'Unbekannter Fehler'
-    });
-  }
-});
-
-/**
- * Aktualisieren historischer Wetterdaten (Zeitraum/Batch)
- */
-router.post('/sync/historical', async (req, res) => {
-  try {
-    const validationResult = syncWeatherSchema.safeParse(req.body);
-    if (!validationResult.success) {
-      return res.status(400).json({ 
-        error: 'Ungültige Anfrageparameter',
-        details: validationResult.error.format()
-      });
+    if (!date) {
+      return res.status(400).json({ error: 'Date parameter is required' });
     }
     
-    const { startDate, endDate, batchSize } = validationResult.data;
+    const hourlyQuery = sql`
+      SELECT 
+        id,
+        state,
+        date,
+        hour,
+        temperature,
+        humidity,
+        pressure,
+        wind_speed as "windSpeed",
+        wind_direction as "windDirection",
+        visibility,
+        cloud_cover as "cloudCover",
+        precipitation,
+        conditions
+      FROM weather_data
+      WHERE state = ${state as string}
+        AND date = ${date as string}
+      ORDER BY hour
+    `;
     
-    const result = await syncHistoricalWeatherBatch(
-      startDate || '2023-01-01', 
-      endDate || new Date(), 
-      batchSize || 10
-    );
+    const result = await db.execute(hourlyQuery);
     
-    // Aktualisiere den Datenabdeckungsstatus
-    await updateWeatherDataCoverage();
+    const hourlyData = result.map(row => ({
+      id: row.id,
+      state: row.state,
+      date: row.date,
+      hour: parseInt(row.hour as string || '0'),
+      temperature: parseFloat(row.temperature as string || '0'),
+      humidity: parseFloat(row.humidity as string || '0'),
+      pressure: parseFloat(row.pressure as string || '0'),
+      windSpeed: parseFloat(row.windSpeed as string || '0'),
+      windDirection: parseFloat(row.windDirection as string || '0'),
+      visibility: parseFloat(row.visibility as string || '0'),
+      cloudCover: parseFloat(row.cloudCover as string || '0'),
+      precipitation: parseFloat(row.precipitation as string || '0'),
+      conditions: row.conditions || 'Unknown'
+    }));
     
-    return res.json(result);
+    res.json(hourlyData);
   } catch (error) {
-    console.error('Fehler bei der Batch-Synchronisierung historischer Wetterdaten:', error);
-    return res.status(500).json({ 
-      error: 'Fehler bei der Batch-Synchronisierung historischer Wetterdaten',
-      message: error instanceof Error ? error.message : 'Unbekannter Fehler'
-    });
+    console.error('Error fetching hourly weather data:', error);
+    res.status(500).json({ error: 'Failed to fetch hourly weather data' });
   }
 });
 
