@@ -33,6 +33,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDateTime, getMachines, Machine } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
+import StandortAnalyse from "@/pages/StandortAnalyse";
 
 // Erweiterte Maschinenschnittstelle mit den zusätzlichen KPIs
 interface EnhancedMachine extends Machine {
@@ -674,13 +675,7 @@ export default function Automaten() {
 
         {/* Standort-Analyse Tab Content */}
         <TabsContent value="standort-analyse" className="space-y-6">
-          <div className="w-full">
-            <iframe 
-              src="/standort-analyse" 
-              className="w-full h-[800px] border rounded-lg"
-              title="Standort-Analyse"
-            />
-          </div>
+          <StandortAnalyse />
         </TabsContent>
       </Tabs>
     </div>
