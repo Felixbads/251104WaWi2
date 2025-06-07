@@ -40,16 +40,16 @@ router.get('/critical-inventory-final', async (req: Request, res: Response) => {
     // Process each item to check for recent sales
     for (const item of lowStockItems) {
       try {
-        // Check for recent sales of this product
+        // Check for recent sales of this product (handle text/integer type mismatch)
         const recentSalesQuery = `
           SELECT COUNT(*) as sales_count, MAX(datetime) as last_sale
           FROM transactions 
-          WHERE product_id = $1
-            AND datetime >= CURRENT_DATE - INTERVAL '7 days'
+          WHERE product_id = $1::text
+            AND datetime >= CURRENT_DATE - INTERVAL '30 days'
             AND COALESCE(status, 'completed') = 'completed'
         `;
         
-        const salesResult = await pool.query(recentSalesQuery, [item.product_id]);
+        const salesResult = await pool.query(recentSalesQuery, [item.product_id.toString()]);
         const salesData = salesResult.rows[0] || {};
         const salesCount = parseInt(salesData.sales_count) || 0;
 
