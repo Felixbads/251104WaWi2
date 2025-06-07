@@ -152,7 +152,7 @@ router.get('/hourly', async (req, res) => {
     
     const result = await db.execute(hourlyQuery);
     
-    const hourlyData = result.rows.map(row => ({
+    const hourlyData = (result.rows || result || []).map((row: any) => ({
       id: row.id,
       station: row.station_name,
       date: row.date,
