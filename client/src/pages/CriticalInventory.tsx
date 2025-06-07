@@ -82,8 +82,13 @@ export default function CriticalInventory() {
         params.append('includeRecentSales', 'true');
       }
       
-      const response = await fetch(`/api/critical-inventory/critical-inventory?${params}`);
+      const url = `/api/critical-inventory/critical-inventory${params.toString() ? `?${params}` : ''}`;
+      console.log('Fetching critical inventory from:', url);
+      
+      const response = await fetch(url);
       if (!response.ok) {
+        console.error('Response status:', response.status);
+        console.error('Response text:', await response.text());
         throw new Error('Fehler beim Laden der kritischen Bestände');
       }
       return response.json();

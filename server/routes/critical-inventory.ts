@@ -24,41 +24,27 @@ router.get('/critical-inventory', async (req: Request, res: Response) => {
     // Get critical inventory items with simplified logic
     console.log('Querying critical inventory items with active sales filter...');
     
-    // Use a single optimized query to find products that are:
-    // 1. Below minimum stock
-    // 2. In active warehouses
-    // 3. Have recent sales in assigned machines
+    // Simplified query to test basic functionality first
     const query = `
-      SELECT DISTINCT
+      SELECT 
         ii.id,
         ii.warehouse_id as "warehouseId",
         w.name as "warehouseName",
         ii.product_id as "productId",
         p.product_name as "productName",
         ii.quantity as "currentQuantity",
-        ii.min_quantity as "minQuantity",
-        p.price,
-        p.category,
-        COUNT(DISTINCT m.id) as machine_count,
-        COUNT(DISTINCT t.id) as sales_count
+        COALESCE(ii.min_quantity, 5) as "minQuantity",
+        COALESCE(p.price, 0) as price,
+        COALESCE(p.category, 'Unbekannt') as category
       FROM inventory_items ii
       INNER JOIN products p ON ii.product_id = p.id
       INNER JOIN warehouses w ON ii.warehouse_id = w.id
-      INNER JOIN machine_warehouse_assignments mwa ON w.id = mwa.warehouse_id
-      INNER JOIN machines m ON mwa.machine_id = m.id AND m.is_active = true
-      LEFT JOIN transactions t ON p.id = t.product_id 
-        AND t.machine_id = m.id
-        AND t.transaction_date >= NOW() - INTERVAL '7 days'
       WHERE ii.quantity < COALESCE(ii.min_quantity, 5)
         AND ii.quantity >= 0
         AND ii.status = 'active'
         AND w.is_active = true
         ${warehouseId ? 'AND ii.warehouse_id = $1' : ''}
-      GROUP BY ii.id, ii.warehouse_id, w.name, ii.product_id, p.product_name, 
-               ii.quantity, ii.min_quantity, p.price, p.category
-      HAVING COUNT(DISTINCT m.id) > 0
-        AND COUNT(DISTINCT t.id) > 0
-      ORDER BY COUNT(DISTINCT t.id) DESC
+      ORDER BY ii.quantity ASC
       LIMIT 50
     `;
 
@@ -72,10 +58,10 @@ router.get('/critical-inventory', async (req: Request, res: Response) => {
       ...item,
       criticalityScore: (item.currentQuantity || 0) / Math.max(item.minQuantity || 5, 1),
       shouldAlert: true,
-      assignedMachines: parseInt(item.machine_count) || 0,
-      isActivelySold: parseInt(item.sales_count) > 0,
-      lastSaleDate: null, // We'll keep this simple for now
-      salesLast7Days: parseInt(item.sales_count) || 0,
+      assignedMachines: 0, // Will be updated when we add machine logic back
+      isActivelySold: false, // Will be updated when we add sales logic back
+      lastSaleDate: null,
+      salesLast7Days: 0,
     }));
 
     // Create summary
