@@ -67,6 +67,18 @@ export default function Dashboard() {
     queryFn: () => getTransactions(500),
   });
 
+  // Debug: Log transaction data structure
+  React.useEffect(() => {
+    if (transactions) {
+      console.log('Dashboard transactions data:', {
+        type: typeof transactions,
+        isArray: Array.isArray(transactions),
+        length: Array.isArray(transactions) ? transactions.length : 'not array',
+        firstItem: Array.isArray(transactions) && transactions.length > 0 ? transactions[0] : null
+      });
+    }
+  }, [transactions]);
+
   const { data: machines, isLoading: isLoadingMachines } = useQuery({
     queryKey: ['/api/machines'],
     queryFn: () => getMachines(),
@@ -967,7 +979,7 @@ export default function Dashboard() {
             <div className="flex justify-center py-6">
               <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full"></div>
             </div>
-          ) : transactions && transactions.length > 0 ? (
+          ) : transactions && Array.isArray(transactions) && transactions.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
