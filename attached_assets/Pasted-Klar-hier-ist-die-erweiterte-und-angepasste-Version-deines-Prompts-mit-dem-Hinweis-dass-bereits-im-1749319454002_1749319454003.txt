@@ -1,0 +1,68 @@
+Klar, hier ist die erweiterte und angepasste Version deines Prompts mit dem Hinweis, dass bereits implementierte APIs und Lösungen zu prüfen und zu nutzen sind:
+
+⸻
+
+🔧 Prompt: Überprüfung und Nutzung bestehender APIs zur Speicherung von Feiertagen, Ferien und Wetterdaten
+
+🧩 Ziel:
+
+Stelle sicher, dass die im System bereits implementierten APIs und Lösungen für Feiertage, Ferien (Urlaub) und Wetterdaten:
+	•	korrekt funktionieren,
+	•	systematisch genutzt werden,
+	•	und die Daten vollständig, historisch und prognostisch in einer zentralen Datenbankstruktur gespeichert werden.
+
+⸻
+
+✅ 1. Feiertage & Ferien (Urlaub)
+
+Aufgaben:
+	•	Analysiere die bereits implementierten Schnittstellen und Abrufmethoden für gesetzliche Feiertage und Schulferien.
+	•	Nutze die bestehenden APIs, sofern vorhanden (z. B. feiertage-api.de, ferien-api.de, eigene Datenquellen etc.).
+	•	Ziel:
+	•	Für alle 16 Bundesländer in Deutschland
+	•	für jeden Tag der letzten 5 Jahre, des aktuellen Jahres und der nächsten 2 Jahre
+	•	soll gespeichert werden, ob:
+	•	gesetzlicher Feiertag ist (inkl. Name)
+	•	Schulferien sind (inkl. Art: Sommer, Herbst, etc.)
+	•	beides zutrifft
+
+Beispielhafte Tabellenstruktur calendar_metadata:
+
+datum | bundesland | ist_feiertag | feiertag_name | ist_ferien | ferien_typ | quelle
+
+
+⸻
+
+✅ 2. Wetterdaten (historisch & prognostisch)
+
+Aufgaben:
+	•	Verwende die bereits im System integrierte Wetter-API, z. B. OpenWeatherMap (achte auf vorhandenen API-Key).
+	•	Für alle definierten Standorte (z. B. Automatenstandorte) soll stündlich erfasst und gespeichert werden:
+	•	Temperatur
+	•	Wetterlage (z. B. klar, Regen, Schnee)
+	•	Niederschlagsmenge
+	•	Luftfeuchtigkeit
+	•	Windgeschwindigkeit
+	•	ggf. weitere Parameter (UV, Sonnenstunden)
+
+Zeiträume:
+	•	Vergangenheit: mindestens die letzten 2 Jahre
+	•	Zukunft: aktuelle Prognosen für die nächsten 7 Tage
+	•	Taktung: Stündlich
+
+Beispielhafte Tabellenstruktur weather_data:
+
+zeitstempel | standort | temperatur | wetterlage | niederschlag | wind | luftfeuchtigkeit | quelle
+
+
+⸻
+
+🔄 Allgemeine Hinweise:
+	•	Bestehende Lösungen sollen priorisiert genutzt und bei Bedarf angepasst oder erweitert werden – keine parallelen Neuentwicklungen.
+	•	Automatisierter Abruf: über Hintergrundprozesse (z. B. CronJobs, Scheduled Tasks) zur Sicherstellung der Aktualität.
+	•	Datensicherheit: Prüfe, ob doppelte Einträge ausgeschlossen und Updates sauber verarbeitet werden (Upsert statt Insert-only).
+	•	Langfristige Archivierung: Daten so abspeichern, dass sie langfristig zur Analyse (z. B. Prognose, Korrelation mit Verkäufen) genutzt werden können.
+
+⸻
+
+Wenn du willst, kann ich dir zusätzlich Beispielabfragen oder ein konkretes Migrations-/Datenpflegekonzept formulieren.
