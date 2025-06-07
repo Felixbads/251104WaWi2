@@ -32,16 +32,35 @@ interface ProductRemovalStats {
   removalsCount: number;
   lastRemoved: string;
   avgPerRemoval: number;
+  avgSalePrice: number;
+  estimatedLoss: number;
   machines: Array<{
     machineId: number;
     machineName: string;
     removedCount: number;
+    avgPrice: number;
+    machineLoss: number;
   }>;
   timeline: Array<{
     date: string;
     removed: number;
     count: number;
   }>;
+}
+
+interface LocationTrend {
+  locationName: string;
+  products: Array<{
+    productName: string;
+    totalRemoved: number;
+    removalEvents: number;
+    avgPerEvent: number;
+    avgSalePrice: number;
+    locationLoss: number;
+    rankAtLocation: number;
+  }>;
+  totalRemovedAtLocation: number;
+  totalLossAtLocation: number;
 }
 
 // API-Funktionen
@@ -69,7 +88,15 @@ const getProductRemovalStats = async (productName: string, days: number = 30) =>
 };
 
 const getTopRemovedProducts = async (days: number = 30, limit: number = 20) => {
-  return apiRequest(`/api/removed-products/top?days=${days}&limit=${limit}`);
+  return apiRequest(`/api/removed-products/top?days=${days}&limit=${limit}`, {
+    method: 'POST'
+  });
+};
+
+const getLocationTrends = async (days: number = 30, limit: number = 50): Promise<LocationTrend[]> => {
+  return apiRequest(`/api/removed-products/location-trends?days=${days}&limit=${limit}`, {
+    method: 'POST'
+  });
 };
 
 const exportRemovedProducts = async (params: any) => {
@@ -116,6 +143,12 @@ export default function Ruecklaufer() {
     queryKey: ['/api/removed-products/stats', selectedProduct, dateRange],
     queryFn: () => selectedProduct ? getProductRemovalStats(selectedProduct, dateRange) : null,
     enabled: !!selectedProduct,
+  });
+
+  // Fetch Standort-Trends
+  const { data: locationTrends, isLoading: isLoadingTrends } = useQuery({
+    queryKey: ['/api/removed-products/location-trends', dateRange],
+    queryFn: () => getLocationTrends(dateRange, 20),
   });
 
   // Zeitraum-Optionen
@@ -202,6 +235,8 @@ export default function Ruecklaufer() {
                     <TableHead className="text-right">Gesamt entfernt</TableHead>
                     <TableHead className="text-right">Anzahl Entnahmen</TableHead>
                     <TableHead className="text-right">Ø pro Entnahme</TableHead>
+                    <TableHead className="text-right">Ø Verkaufspreis</TableHead>
+                    <TableHead className="text-right">Geschätzter Verlust</TableHead>
                     <TableHead>Letzte Entnahme</TableHead>
                     <TableHead>Aktion</TableHead>
                   </TableRow>
