@@ -15,10 +15,12 @@ router.post('/top', async (req, res) => {
         SUM(rd.removed) as "totalRemoved",
         COUNT(*) as "removalsCount",
         MAX(r.datetime) as "lastRemoved",
-        AVG(t.price) as "avgSalePrice",
-        SUM(rd.removed * COALESCE(t.price, 0)) as "estimatedLoss"
+        COALESCE(AVG(pc.purchase_price), AVG(t.price), 0) as "avgPurchasePrice",
+        SUM(rd.removed * COALESCE(pc.purchase_price, t.price, 0)) as "estimatedLoss"
       FROM refill_details rd
       INNER JOIN refills r ON rd.refill_id = r.id
+      LEFT JOIN products p ON rd.product_name = p.name
+      LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
       LEFT JOIN transactions t ON rd.product_name = t.product_name
       WHERE rd.removed > 0 
         AND r.datetime >= NOW() - INTERVAL '${days} days'
@@ -35,7 +37,7 @@ router.post('/top', async (req, res) => {
       totalRemoved: parseInt(row.totalRemoved),
       removalsCount: parseInt(row.removalsCount),
       lastRemoved: row.lastRemoved,
-      avgSalePrice: row.avgSalePrice ? parseFloat(row.avgSalePrice) : 0,
+      avgPurchasePrice: row.avgPurchasePrice ? parseFloat(row.avgPurchasePrice) : 0,
       estimatedLoss: row.estimatedLoss ? parseFloat(row.estimatedLoss) : 0
     }));
     
@@ -241,21 +243,22 @@ router.post('/location-trends', async (req, res) => {
         SUM(rd.removed) as "totalRemoved",
         COUNT(*) as "removalEvents",
         AVG(rd.removed) as "avgPerEvent",
-        AVG(t.price) as "avgSalePrice",
-        SUM(rd.removed * COALESCE(t.price, 0)) as "locationLoss",
+        COALESCE(AVG(pc.purchase_price), AVG(t.price), 0) as "avgPurchasePrice",
+        SUM(rd.removed * COALESCE(pc.purchase_price, t.price, 0)) as "locationLoss",
         RANK() OVER (PARTITION BY r.machine_name ORDER BY SUM(rd.removed) DESC) as "rankAtLocation"
       FROM refill_details rd
       INNER JOIN refills r ON rd.refill_id = r.id
+      LEFT JOIN products p ON rd.product_name = p.name
+      LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
       LEFT JOIN transactions t ON rd.product_name = t.product_name AND r.machine_id = t.machine_id
       WHERE rd.removed > 0 
         AND r.datetime >= NOW() - INTERVAL '${days} days'
       GROUP BY r.machine_name, rd.product_name
-      HAVING SUM(rd.removed) >= 3
+      HAVING SUM(rd.removed) >= 2
       ORDER BY r.machine_name, "totalRemoved" DESC
-      LIMIT $1
     `;
     
-    const result = await pool.query(query, [limit]);
+    const result = await pool.query(query);
     
     // Gruppiere Ergebnisse nach Standort
     const locationTrends: any = {};
@@ -275,7 +278,7 @@ router.post('/location-trends', async (req, res) => {
         totalRemoved: parseInt(row.totalRemoved),
         removalEvents: parseInt(row.removalEvents),
         avgPerEvent: parseFloat(row.avgPerEvent),
-        avgSalePrice: row.avgSalePrice ? parseFloat(row.avgSalePrice) : 0,
+        avgPurchasePrice: row.avgPurchasePrice ? parseFloat(row.avgPurchasePrice) : 0,
         locationLoss: row.locationLoss ? parseFloat(row.locationLoss) : 0,
         rankAtLocation: parseInt(row.rankAtLocation)
       };

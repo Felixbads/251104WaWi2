@@ -235,7 +235,7 @@ export default function Ruecklaufer() {
                     <TableHead className="text-right">Gesamt entfernt</TableHead>
                     <TableHead className="text-right">Anzahl Entnahmen</TableHead>
                     <TableHead className="text-right">Ø pro Entnahme</TableHead>
-                    <TableHead className="text-right">Ø Verkaufspreis</TableHead>
+                    <TableHead className="text-right">Ø Einkaufspreis</TableHead>
                     <TableHead className="text-right">Geschätzter Verlust</TableHead>
                     <TableHead>Letzte Entnahme</TableHead>
                     <TableHead>Aktion</TableHead>
@@ -263,7 +263,7 @@ export default function Ruecklaufer() {
                       </TableCell>
                       <TableCell className="text-right">
                         <span className="text-blue-600 font-medium">
-                          {product.avgSalePrice ? `€${product.avgSalePrice.toFixed(2)}` : '-'}
+                          {product.avgPurchasePrice ? `€${product.avgPurchasePrice.toFixed(2)}` : '-'}
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
