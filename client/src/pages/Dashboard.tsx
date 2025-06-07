@@ -518,7 +518,7 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center">
               <AlertTriangle className="h-5 w-5 mr-2 text-orange-500" />
-              Kritische Bestände
+              Kritische Lagerbestände
             </CardTitle>
           </CardHeader>
           <CardContent>

@@ -58,14 +58,20 @@ router.get('/', async (req, res) => {
       byDate: [] as {date: string, count: number}[]
     };
     
+    console.log("Removed Products Debug:", {
+      type: typeof removedProducts,
+      isArray: Array.isArray(removedProducts),
+      length: removedProducts?.length || 0,
+      hasRows: !!removedProducts?.rows,
+      rowsLength: removedProducts?.rows?.length || 0
+    });
+
     // Prüfen, ob removedProducts ein Array ist
-    if (!Array.isArray(removedProducts)) {
-      console.log("removedProducts ist kein Array:", removedProducts);
-      // Falls kein Array, setze als leeres Array
-      const emptyArray = [];
+    if (!Array.isArray(removedProducts) && !removedProducts?.length) {
+      console.log("removedProducts ist kein Array und hat keine rows:", removedProducts);
       
       res.json({
-        products: emptyArray,
+        products: [],
         analytics: {
           byProduct: [],
           byMachine: [],
