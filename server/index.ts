@@ -32,6 +32,7 @@ import removedProductsRouter from './routes/removed-products';
 import criticalInventoryWorkingRouter from './routes/critical-inventory-working';
 import criticalInventoryFinalRouter from './routes/critical-inventory-final';
 import inventoryHealthRouter from './routes/inventory-health';
+import locationAnalysisRouter from './routes/location-analysis';
 import { pool } from './db';
 import { db } from './db';
 import { orders } from '../shared/schema';
@@ -772,6 +773,9 @@ Elbsandstein Proviant & Quartier GmbH`;
   
   // Register removed products router
   app.use('/api/removed-products', removedProductsRouter);
+  
+  // Register location analysis router
+  app.use('/api/location-analysis', locationAnalysisRouter);
 
   // Fehlende API-Routen für den Bestellprozess hinzufügen
   
