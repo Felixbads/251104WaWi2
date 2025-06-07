@@ -102,7 +102,7 @@ router.get('/critical-inventory', async (req: Request, res: Response) => {
           isActivelySold,
           lastSaleDate,
           salesLast7Days,
-          criticalityScore: item.currentQuantity / Math.max(item.minQuantity || 5, 1),
+          criticalityScore: (item.currentQuantity || 0) / Math.max(item.minQuantity || 5, 1),
           shouldAlert: isActivelySold, // Only alert if actively sold
         };
       })
@@ -125,13 +125,13 @@ router.get('/critical-inventory', async (req: Request, res: Response) => {
           const warehouse = acc.find(w => w.warehouseId === item.warehouseId);
           if (warehouse) {
             warehouse.count++;
-            warehouse.totalValue += (item.price || 0) * item.currentQuantity;
+            warehouse.totalValue += (item.price || 0) * (item.currentQuantity || 0);
           } else {
             acc.push({
               warehouseId: item.warehouseId,
               warehouseName: item.warehouseName,
               count: 1,
-              totalValue: (item.price || 0) * item.currentQuantity,
+              totalValue: (item.price || 0) * (item.currentQuantity || 0),
             });
           }
           return acc;
@@ -157,18 +157,19 @@ router.get('/critical-inventory', async (req: Request, res: Response) => {
 // Get machines with critical inventory products
 router.get('/machines-with-critical-inventory', async (req: Request, res: Response) => {
   try {
-    // Get all machines with their warehouse assignments
+    // Get all machines with their warehouse assignments through the assignment table
     const machinesWithWarehouses = await db
       .select({
         id: machines.id,
         machineName: machines.machineName,
         locationName: machines.locationName,
         status: machines.status,
-        warehouseId: machines.warehouseId,
+        warehouseId: machineWarehouseAssignments.warehouseId,
         warehouseName: warehouses.name,
       })
       .from(machines)
-      .leftJoin(warehouses, eq(machines.warehouseId, warehouses.id))
+      .leftJoin(machineWarehouseAssignments, eq(machines.id, machineWarehouseAssignments.machineId))
+      .leftJoin(warehouses, eq(machineWarehouseAssignments.warehouseId, warehouses.id))
       .where(eq(machines.status, 'active'));
 
     const machinesWithCriticalProducts = await Promise.all(

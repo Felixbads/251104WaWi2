@@ -38,7 +38,7 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 // Konfiguriere den File-Upload-Handler mit angepassten Optionen
-app.use(fileUpload());
+app.use(fileUpload() as any);
 
 // HINWEIS: Der direkte SQL-Endpunkt für BestellungV3 wurde in eine separate Route-Datei verschoben: server/routes/order-v3.ts
 
@@ -1552,7 +1552,7 @@ Elbsandstein Proviant & Quartier GmbH`;
         log(`Fehler beim initialen Lagerabgleich: ${error.message}`);
       });
     } catch (error) {
-      log(`Fehler beim Starten des initialen Lagerabgleichs: ${error.message}`);
+      log(`Fehler beim Starten des initialen Lagerabgleichs: ${error instanceof Error ? error.message : String(error)}`);
     }
     
     log('Automatischer täglicher Lagerabgleich ist aktiviert und erfolgt alle 24 Stunden.');
