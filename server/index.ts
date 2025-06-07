@@ -28,6 +28,7 @@ import emailBypassRouter from './routes/email-bypass';
 import emailDebugRouter from './routes/email-debug';
 import rawEmailRouter from './routes/raw-email';
 import criticalInventoryRouter from './routes/critical-inventory';
+import criticalInventoryWorkingRouter from './routes/critical-inventory-working';
 import { pool } from './db';
 import { db } from './db';
 import { orders } from '../shared/schema';

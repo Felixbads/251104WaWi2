@@ -62,15 +62,15 @@ router.get('/critical-inventory', async (req: Request, res: Response) => {
         SELECT 
           COUNT(DISTINCT mwa.machine_id) as machine_count,
           COUNT(DISTINCT t.id) as sales_count,
-          MAX(t.transaction_date) as last_sale
+          MAX(t.datetime) as last_sale
         FROM machine_warehouse_assignments mwa
         INNER JOIN machines m ON mwa.machine_id = m.id 
         LEFT JOIN transactions t ON t.product_id = $1 
           AND t.machine_id = m.id
-          AND t.transaction_date >= CURRENT_DATE - INTERVAL '7 days'
+          AND t.datetime >= CURRENT_DATE - INTERVAL '7 days'
           AND t.status = 'completed'
         WHERE mwa.warehouse_id = $2
-          AND m.status = 'active'
+          AND COALESCE(m.is_active, true) = true
       `;
       
       const machineResult = await pool.query(machineQuery, [item.productId, item.warehouseId]);
