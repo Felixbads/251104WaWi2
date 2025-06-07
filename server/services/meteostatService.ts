@@ -16,7 +16,7 @@ import axios from 'axios';
 
 // Bad Schandau weather station configuration (closest official station)
 const BAD_SCHANDAU_STATION = {
-  id: '10471', // Dresden-Hosterwitz (closest to Bad Schandau in Sächsische Schweiz)
+  id: '10488', // Dresden-Klotzsche (beste verfügbare Station für Sächsische Schweiz)
   name: 'Bad Schandau',
   lat: 50.9167,
   lon: 14.1500
