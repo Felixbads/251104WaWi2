@@ -8,26 +8,24 @@ router.get('/critical-inventory-final', async (req: Request, res: Response) => {
   try {
     console.log('Fetching critical inventory data...');
     
-    // Direct SQL query for low stock items
+    // Direct SQL query for low stock items using stocks table
     const lowStockQuery = `
       SELECT 
-        ii.id,
-        ii.warehouse_id,
-        w.name as warehouse_name,
-        ii.product_id,
-        p.product_name,
-        ii.quantity,
-        COALESCE(ii.min_quantity, 5) as min_quantity,
-        COALESCE(p.price, 0) as price,
-        COALESCE(p.category, 'Standard') as category,
-        COALESCE(p.sku, '') as sku
-      FROM inventory_items ii
-      INNER JOIN products p ON ii.product_id = p.id
-      INNER JOIN warehouses w ON ii.warehouse_id = w.id
-      WHERE ii.quantity <= COALESCE(ii.min_quantity, 5)
-        AND ii.quantity >= 0
-        AND COALESCE(w.is_active, true) = true
-      ORDER BY ii.quantity ASC
+        s.id,
+        1 as warehouse_id,
+        'Hauptlager' as warehouse_name,
+        s.id as product_id,
+        s.product_name,
+        s.amount_standard as quantity,
+        s.amount_critical as min_quantity,
+        COALESCE(s.price, 0) as price,
+        'Standard' as category,
+        COALESCE(s.sku, '') as sku
+      FROM stocks s
+      WHERE s.amount_standard <= s.amount_critical
+        AND s.amount_standard >= 0
+        AND s.status = 'active'
+      ORDER BY s.amount_standard ASC
       LIMIT 20
     `;
 
@@ -40,16 +38,15 @@ router.get('/critical-inventory-final', async (req: Request, res: Response) => {
     // Process each item to check for recent sales
     for (const item of lowStockItems) {
       try {
-        // Check for recent sales of this product (handle text/integer type mismatch)
+        // Check for recent sales of this product by matching product name
         const recentSalesQuery = `
-          SELECT COUNT(*) as sales_count, MAX(datetime) as last_sale
+          SELECT COUNT(*) as sales_count, MAX(created_at) as last_sale
           FROM transactions 
-          WHERE product_id = $1::text
-            AND datetime >= CURRENT_DATE - INTERVAL '30 days'
-            AND COALESCE(status, 'completed') = 'completed'
+          WHERE LOWER(TRIM(product_name)) = LOWER(TRIM($1))
+            AND created_at >= CURRENT_DATE - INTERVAL '30 days'
         `;
         
-        const salesResult = await pool.query(recentSalesQuery, [item.product_id.toString()]);
+        const salesResult = await pool.query(recentSalesQuery, [item.product_name]);
         const salesData = salesResult.rows[0] || {};
         const salesCount = parseInt(salesData.sales_count) || 0;
 
