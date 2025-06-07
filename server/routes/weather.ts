@@ -1,177 +1,268 @@
 /**
  * Weather Data API Routes
  * 
- * Provides endpoints for weather data visualization and hourly access
+ * Provides comprehensive weather data management for Bad Schandau station:
+ * - Import historical data from MeteoStat API 
+ * - Coverage statistics and data quality reports
+ * - Real-time import status monitoring
  */
 
 import { Router } from 'express';
-import { db } from '../db';
-import { sql } from 'drizzle-orm';
+import { z } from 'zod';
+import { meteostatService } from '../services/meteostatService.js';
+import { db } from '../db.js';
+import { weatherData } from '@shared/schema';
+import { desc, eq, and, gte, lte, sql } from 'drizzle-orm';
 
 const router = Router();
 
-/**
- * GET /api/weather/overview
- * Get overall weather data statistics
- */
-router.get('/overview', async (req, res) => {
-  try {
-    const overviewQuery = sql`
-      SELECT 
-        COUNT(*) as "totalDataPoints",
-        AVG(temp) as "avgTemperature",
-        SUM(precipitation) as "totalPrecipitation",
-        COUNT(DISTINCT EXTRACT(YEAR FROM date)) as "yearsCovered",
-        station_name as "stationName"
-      FROM weather_data
-      GROUP BY station_name
-    `;
-    
-    const result = await db.execute(overviewQuery);
-    const overview = (result.rows || result || [])[0] || {};
-    
-    res.json({
-      totalDataPoints: parseInt(overview.totalDataPoints || '0'),
-      avgTemperature: parseFloat(overview.avgTemperature || '0'),
-      totalPrecipitation: parseFloat(overview.totalPrecipitation || '0'),
-      yearsCovered: parseInt(overview.yearsCovered || '0'),
-      stationName: overview.stationName || 'Dresden'
-    });
-  } catch (error) {
-    console.error('Error fetching weather overview:', error);
-    res.status(500).json({ error: 'Failed to fetch weather overview' });
-  }
+// Schema for import requests
+const importRequestSchema = z.object({
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  fillMissingOnly: z.boolean().default(false),
+  batchSize: z.number().min(1).max(100).default(30)
+});
+
+// Schema for coverage requests
+const coverageRequestSchema = z.object({
+  year: z.number().optional(),
+  detailed: z.boolean().default(false)
 });
 
 /**
- * GET /api/weather/yearly-stats
- * Get yearly weather statistics for a specific state
+ * POST /api/weather/import
+ * Import historical weather data from MeteoStat
  */
-router.get('/yearly-stats', async (req, res) => {
+router.post('/import', async (req, res) => {
   try {
-    const { state = 'SN' } = req.query;
+    const body = importRequestSchema.parse(req.body);
     
-    const statsQuery = sql`
-      SELECT 
-        EXTRACT(YEAR FROM date) as year,
-        station_name,
-        COUNT(*) as "dataPoints",
-        AVG(temp) as "avgTemperature",
-        AVG(humidity) as "avgHumidity",
-        SUM(precipitation) as "totalPrecipitation",
-        (COUNT(*) * 100.0 / (365 * 24)) as coverage
-      FROM weather_data
-      GROUP BY EXTRACT(YEAR FROM date), station_name
-      ORDER BY year
-    `;
+    console.log('Starting MeteoStat weather import for Bad Schandau:', body);
     
-    const result = await db.execute(statsQuery);
-    
-    const stats = (result.rows || result || []).map((row: any) => ({
-      year: parseInt(row.year as string),
-      station: row.station_name,
-      dataPoints: parseInt(row.dataPoints as string),
-      avgTemperature: parseFloat(row.avgTemperature as string || '0'),
-      avgHumidity: parseFloat(row.avgHumidity as string || '0'),
-      totalPrecipitation: parseFloat(row.totalPrecipitation as string || '0'),
-      coverage: parseFloat(row.coverage as string || '0')
-    }));
-    
-    res.json(stats);
-  } catch (error) {
-    console.error('Error fetching yearly weather stats:', error);
-    res.status(500).json({ error: 'Failed to fetch yearly weather statistics' });
-  }
-});
-
-/**
- * GET /api/weather/daily-coverage
- * Get daily weather data coverage for a specific state and year
- */
-router.get('/daily-coverage', async (req, res) => {
-  try {
-    const { state = 'SN', year = new Date().getFullYear() } = req.query;
-    
-    const coverageQuery = sql`
-      SELECT 
-        date,
-        COUNT(*) as "hourlyCount",
-        (COUNT(*) * 1.0 / 24) as coverage
-      FROM weather_data
-      WHERE EXTRACT(YEAR FROM date) = ${parseInt(year as string)}
-      GROUP BY date
-      ORDER BY date
-    `;
-    
-    const result = await db.execute(coverageQuery);
-    
-    const coverage = (result.rows || result || []).map((row: any) => ({
-      date: row.date,
-      hourlyCount: parseInt(row.hourlyCount as string),
-      coverage: parseFloat(row.coverage as string || '0')
-    }));
-    
-    res.json(coverage);
-  } catch (error) {
-    console.error('Error fetching daily coverage:', error);
-    res.status(500).json({ error: 'Failed to fetch daily weather coverage' });
-  }
-});
-
-/**
- * GET /api/weather/hourly
- * Get hourly weather data for a specific state and date
- */
-router.get('/hourly', async (req, res) => {
-  try {
-    const { state = 'SN', date } = req.query;
-    
-    if (!date) {
-      return res.status(400).json({ error: 'Date parameter is required' });
+    let result;
+    if (body.startDate && body.endDate) {
+      // Import specific date range
+      result = await meteostatService.importDateRange(body.startDate, body.endDate);
+    } else {
+      // Import complete historical data with options
+      result = await meteostatService.importCompleteHistoricalData({
+        startYear: 2022,
+        endYear: new Date().getFullYear(),
+        fillMissingOnly: body.fillMissingOnly,
+        batchSizeDays: body.batchSize,
+        progressCallback: (progress) => {
+          console.log(`Import progress: ${progress.processedDays}/${progress.totalDays} days`);
+        }
+      });
     }
     
-    const hourlyQuery = sql`
-      SELECT 
-        id,
-        station_name,
-        date,
-        hour,
-        temp as temperature,
-        humidity,
-        pressure,
-        wind_speed as "windSpeed",
-        wind_deg as "windDirection",
-        visibility,
-        clouds as "cloudCover",
-        precipitation,
-        weather_description as conditions
-      FROM weather_data
-      WHERE date = ${date as string}
-      ORDER BY hour
-    `;
+    res.json({
+      success: true,
+      recordsImported: result,
+      message: `Successfully imported ${result} weather records for Bad Schandau`,
+      timestamp: new Date().toISOString()
+    });
     
-    const result = await db.execute(hourlyQuery);
-    
-    const hourlyData = (result.rows || result || []).map((row: any) => ({
-      id: row.id,
-      station: row.station_name,
-      date: row.date,
-      hour: parseInt(row.hour as string || '0'),
-      temperature: parseFloat(row.temperature as string || '0'),
-      humidity: parseFloat(row.humidity as string || '0'),
-      pressure: parseFloat(row.pressure as string || '0'),
-      windSpeed: parseFloat(row.windSpeed as string || '0'),
-      windDirection: parseFloat(row.windDirection as string || '0'),
-      visibility: parseFloat(row.visibility as string || '0'),
-      cloudCover: parseFloat(row.cloudCover as string || '0'),
-      precipitation: parseFloat(row.precipitation as string || '0'),
-      conditions: row.conditions || 'Unknown'
-    }));
-    
-    res.json(hourlyData);
   } catch (error) {
-    console.error('Error fetching hourly weather data:', error);
-    res.status(500).json({ error: 'Failed to fetch hourly weather data' });
+    console.error('Weather import error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Import failed',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * POST /api/weather/import/today
+ * Import today's weather data for real-time updates
+ */
+router.post('/import/today', async (req, res) => {
+  try {
+    console.log('Importing today\'s weather data for Bad Schandau');
+    
+    const result = await meteostatService.importTodayData();
+    
+    res.json({
+      success: true,
+      recordsImported: result,
+      message: `Successfully imported ${result} hourly records for today`,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Today weather import error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Today import failed',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * GET /api/weather/coverage
+ * Get comprehensive data coverage statistics
+ */
+router.get('/coverage', async (req, res) => {
+  try {
+    const query = coverageRequestSchema.parse(req.query);
+    
+    console.log('Getting weather data coverage for Bad Schandau:', query);
+    
+    const coverage = await meteostatService.getDataCoverage();
+    
+    res.json({
+      success: true,
+      coverage,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Coverage check error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Coverage check failed',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * GET /api/weather/stats
+ * Get basic weather data statistics
+ */
+router.get('/stats', async (req, res) => {
+  try {
+    console.log('Getting weather data statistics');
+    
+    // Get total record count
+    const totalResult = await db.select({ 
+      count: sql<number>`COUNT(*)` 
+    }).from(weatherData);
+    const totalRecords = totalResult[0]?.count || 0;
+    
+    // Get date range
+    const rangeResult = await db.select({
+      minDate: sql<string>`MIN(date)`,
+      maxDate: sql<string>`MAX(date)`
+    }).from(weatherData);
+    const range = rangeResult[0];
+    
+    // Get latest records
+    const latestRecords = await db.select()
+      .from(weatherData)
+      .orderBy(desc(weatherData.date), desc(weatherData.hour))
+      .limit(5);
+    
+    res.json({
+      success: true,
+      stats: {
+        totalRecords,
+        dateRange: {
+          start: range?.minDate || null,
+          end: range?.maxDate || null
+        },
+        latestRecords: latestRecords.map(record => ({
+          date: record.date,
+          hour: record.hour,
+          temp: record.temp,
+          humidity: record.humidity,
+          precipitation: record.precipitation
+        }))
+      },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Weather stats error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Stats retrieval failed',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * GET /api/weather/data
+ * Get weather data for specific date range
+ */
+router.get('/data', async (req, res) => {
+  try {
+    const { startDate, endDate, limit = '100' } = req.query;
+    
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        error: 'startDate and endDate are required'
+      });
+    }
+    
+    console.log(`Getting weather data from ${startDate} to ${endDate}`);
+    
+    const records = await db.select()
+      .from(weatherData)
+      .where(
+        and(
+          gte(weatherData.date, startDate as string),
+          lte(weatherData.date, endDate as string)
+        )
+      )
+      .orderBy(desc(weatherData.date), desc(weatherData.hour))
+      .limit(parseInt(limit as string));
+    
+    res.json({
+      success: true,
+      data: records,
+      count: records.length,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Weather data retrieval error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Data retrieval failed',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * POST /api/weather/fill-missing
+ * Fill missing data for specific months/years
+ */
+router.post('/fill-missing', async (req, res) => {
+  try {
+    const { year, months } = req.body;
+    
+    if (!year || !Array.isArray(months)) {
+      return res.status(400).json({
+        success: false,
+        error: 'year (number) and months (array) are required'
+      });
+    }
+    
+    console.log(`Filling missing weather data for ${year}, months: ${months.join(', ')}`);
+    
+    const result = await meteostatService.fillMissingMonths(year, months);
+    
+    res.json({
+      success: true,
+      recordsImported: result,
+      message: `Successfully filled ${result} missing records for ${year}`,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Fill missing data error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Fill missing failed',
+      timestamp: new Date().toISOString()
+    });
   }
 });
 

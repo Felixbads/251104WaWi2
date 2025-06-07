@@ -8,9 +8,9 @@
  * Dresden Station ID: 10488 (Dresden-Klotzsche)
  */
 
-import { db } from '../db';
+import { db } from '../db.js';
 import { weatherData, insertWeatherDataSchema } from '@shared/schema';
-import { eq, and, between, gte, lte } from 'drizzle-orm';
+import { eq, and, between, gte, lte, sql } from 'drizzle-orm';
 import { format, parseISO, addHours, startOfYear, endOfYear, eachDayOfInterval, startOfDay, endOfDay } from 'date-fns';
 import axios from 'axios';
 
@@ -271,31 +271,28 @@ export class MeteostatService {
   }> {
     try {
       // Get total records
-      const totalResult = await db.execute(`
-        SELECT COUNT(*) as total 
-        FROM weather_data 
-        WHERE station_name = '${BAD_SCHANDAU_STATION.name}'
-      `);
-      const totalRecords = parseInt((totalResult.rows || totalResult)[0]?.total || '0');
+      const totalResult = await db.select({ 
+        count: sql<number>`COUNT(*)` 
+      }).from(weatherData)
+        .where(eq(weatherData.station_name, BAD_SCHANDAU_STATION.name));
+      const totalRecords = totalResult[0]?.count || 0;
 
       // Get date range
-      const rangeResult = await db.execute(`
-        SELECT 
-          MIN(date) as start_date,
-          MAX(date) as end_date
-        FROM weather_data 
-        WHERE station_name = '${BAD_SCHANDAU_STATION.name}'
-      `);
-      const range = (rangeResult.rows || rangeResult)[0];
+      const rangeResult = await db.select({
+        startDate: sql<string>`MIN(date)`,
+        endDate: sql<string>`MAX(date)`
+      }).from(weatherData)
+        .where(eq(weatherData.station_name, BAD_SCHANDAU_STATION.name));
+      const range = rangeResult[0];
       
-      // Get yearly coverage
-      const yearlyResult = await db.execute(`
+      // Get yearly coverage using raw SQL for complex aggregation
+      const yearlyResult = await db.execute(sql`
         SELECT 
           EXTRACT(YEAR FROM date) as year,
           COUNT(*) as records,
           ROUND(COUNT(*) / 8760.0 * 100, 2) as percentage
         FROM weather_data 
-        WHERE station_name = '${BAD_SCHANDAU_STATION.name}'
+        WHERE station_name = ${BAD_SCHANDAU_STATION.name}
         GROUP BY EXTRACT(YEAR FROM date)
         ORDER BY year
       `);

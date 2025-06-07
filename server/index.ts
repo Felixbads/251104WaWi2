@@ -33,6 +33,7 @@ import criticalInventoryWorkingRouter from './routes/critical-inventory-working'
 import criticalInventoryFinalRouter from './routes/critical-inventory-final';
 import inventoryHealthRouter from './routes/inventory-health';
 import locationAnalysisRouter from './routes/location-analysis';
+import weatherRouter from './routes/weather';
 import { pool } from './db';
 import { db } from './db';
 import { orders } from '../shared/schema';
@@ -776,6 +777,9 @@ Elbsandstein Proviant & Quartier GmbH`;
   
   // Register location analysis router
   app.use('/api/location-analysis', locationAnalysisRouter);
+  
+  // Register weather data router
+  app.use('/api/weather', weatherRouter);
   
   // Direct machine locations endpoint for Standort-Analyse dropdown
   app.get('/api/machine-locations', async (req, res) => {
