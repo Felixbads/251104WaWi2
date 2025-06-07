@@ -55,7 +55,8 @@ router.get('/', async (req, res) => {
     const machineIds = machinesResult.rows.map((m: any) => m.id);
     
     // Get comprehensive product analysis for this location based on sales data
-    const analysisResult = await db.execute(sql`
+    const machineIdsList = machineIds.join(',');
+    const analysisQuery = `
       WITH weekly_sales AS (
         SELECT 
           t.product_name,
@@ -63,7 +64,7 @@ router.get('/', async (req, res) => {
           COUNT(*) as weekly_sales_count,
           SUM(COALESCE(t.price, 0)) as weekly_revenue
         FROM transactions t
-        WHERE t.machine_id = ANY(${machineIds})
+        WHERE t.machine_id = ANY(ARRAY[${machineIdsList}])
         AND t.datetime >= NOW() - INTERVAL '${timeRange} weeks'
         AND t.product_name IS NOT NULL
         GROUP BY t.product_name, date_trunc('week', t.datetime)
@@ -111,7 +112,9 @@ router.get('/', async (req, res) => {
         weekly_data
       FROM product_summary
       ORDER BY profitability DESC, total_sales DESC
-    `);
+    `;
+
+    const analysisResult = await db.execute(sql.raw(analysisQuery));
 
     const locationData = {
       locationName: location,
@@ -126,8 +129,8 @@ router.get('/', async (req, res) => {
         totalSales: parseInt(row.total_sales) || 0,
         totalRemovals: parseInt(row.total_removals) || 0,
         recommendedWeeklyStock: parseInt(row.recommended_weekly_stock) || 0,
-        removalLoss: parseFloat(row.total_loss) || 0,
-        salesRevenue: parseFloat(row.total_revenue) || 0,
+        removalLoss: parseFloat(row.removal_loss) || 0,
+        salesRevenue: parseFloat(row.sales_revenue) || 0,
         profitability: parseFloat(row.profitability) || 0
       }))
     };
