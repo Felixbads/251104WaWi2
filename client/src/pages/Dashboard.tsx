@@ -359,7 +359,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Kachel 2: Anzahl offene Lieferungen */}
+        {/* Kachel 2: Verschickte aber noch nicht gelieferte Bestellungen */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center">
@@ -371,22 +371,38 @@ export default function Dashboard() {
             <div className="flex flex-col">
               <div className="text-3xl font-bold">{openOrders?.length || 0}</div>
               {openOrders && openOrders.length > 0 ? (
-                <div className="mt-2 text-sm">
-                  <div className="flex justify-between items-center text-muted-foreground">
-                    <span>Nächste Lieferung:</span>
-                    <span className="font-medium text-foreground">
-                      {openOrders[0].expectedDeliveryDate ? 
-                        formatDateTime(openOrders[0].expectedDeliveryDate, 'date') : 'Nicht angegeben'}
-                    </span>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="w-full mt-2"
-                    onClick={() => setLocation("/bestellungen/neu-v2")}
-                  >
-                    Bestellungen anzeigen
-                  </Button>
+                <div className="mt-2 space-y-2">
+                  {openOrders.slice(0, 3).map((order, idx) => (
+                    <div 
+                      key={idx} 
+                      className="flex items-center justify-between p-2 rounded border hover:bg-gray-50 cursor-pointer"
+                      onClick={() => setLocation(`/wareneingang/${order.id}`)}
+                    >
+                      <div className="flex flex-col text-xs">
+                        <span className="font-medium">{order.orderNumber}</span>
+                        <span className="text-muted-foreground">{order.supplierName}</span>
+                      </div>
+                      <div className="text-xs text-right">
+                        <div className="font-medium">
+                          {order.expectedDeliveryDate ? 
+                            formatDateTime(order.expectedDeliveryDate, 'date') : 'Offen'}
+                        </div>
+                        <div className="text-muted-foreground">
+                          {order.totalAmount ? `${order.totalAmount.toFixed(2)} €` : ''}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {openOrders.length > 3 && (
+                    <div className="text-center pt-1">
+                      <button 
+                        onClick={() => setLocation("/bestellungen/neu-v2")}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        Alle {openOrders.length} Lieferungen anzeigen
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-sm text-muted-foreground mt-2">Keine offenen Lieferungen</div>
@@ -404,26 +420,44 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {machines && machines.filter(m => m.status !== "active").length > 0 ? (
+            {locationStatus && locationStatus.filter(m => m.status === "warning" || m.status === "error").length > 0 ? (
               <div className="space-y-2 max-h-[120px] overflow-y-auto">
-                {machines.filter(m => m.status !== "active").slice(0, 5).map((machine, idx) => (
-                  <div key={idx} className="flex items-center justify-between rounded-md border p-2">
+                {locationStatus.filter(m => m.status === "warning" || m.status === "error").slice(0, 5).map((machine, idx) => (
+                  <div 
+                    key={idx} 
+                    className="flex items-center justify-between rounded-md border p-2 cursor-pointer hover:bg-gray-50"
+                    onClick={() => setLocation(`/automaten/${machine.id}`)}
+                  >
                     <div className="font-medium truncate" title={machine.machineName}>
                       {machine.machineName}
                     </div>
-                    <Badge variant="outline" className="bg-red-50 text-red-700">
-                      {machine.status === "inactive" ? "Inaktiv" : 
-                       machine.status === "error" ? "Fehler" : 
-                       machine.status === "maintenance" ? "Wartung" : 
-                       machine.status}
-                    </Badge>
+                    <div className="flex items-center space-x-2">
+                      <Badge variant="outline" className={machine.status === "error" ? "bg-red-50 text-red-700" : "bg-yellow-50 text-yellow-700"}>
+                        {machine.status === "error" ? "Fehler" : "Warnung"}
+                      </Badge>
+                      {machine.warnings && machine.warnings.length > 0 && (
+                        <span className="text-xs text-muted-foreground" title={machine.warnings.join(", ")}>
+                          {machine.warnings[0]}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ))}
+                {locationStatus.filter(m => m.status === "warning" || m.status === "error").length > 5 && (
+                  <div className="text-center pt-2">
+                    <button 
+                      onClick={() => setLocation("/standort-status")}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Alle {locationStatus.filter(m => m.status === "warning" || m.status === "error").length} kritischen Automaten anzeigen
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-[120px]">
-                <div className="text-lg font-medium text-green-600">Alle Automaten aktiv</div>
-                <div className="text-sm text-muted-foreground">Keine kritischen Probleme</div>
+                <div className="text-lg font-medium text-green-600">Alle Automaten OK</div>
+                <div className="text-sm text-muted-foreground">Keine Warnungen oder Fehler</div>
               </div>
             )}
           </CardContent>

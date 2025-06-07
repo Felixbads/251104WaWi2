@@ -31,23 +31,12 @@ router.get('/dashboard/open', async (req: Request, res: Response) => {
     
     // Hole nur verschickte aber noch nicht gelieferte Bestellungen
     const openOrdersQuery = await db
-      .select({
-        id: orders.id,
-        orderNumber: orders.orderNumber,
-        status: orders.status,
-        createdAt: orders.createdAt,
-        orderDate: orders.orderDate,
-        expectedDeliveryDate: orders.expectedDeliveryDate,
-        actualDeliveryDate: orders.actualDeliveryDate,
-        supplierName: suppliers.name,
-        totalAmount: orders.totalAmount
-      })
+      .select()
       .from(orders)
-      .leftJoin(suppliers, eq(orders.supplierId, suppliers.id))
       .where(and(
         eq(orders.status, 'sent'), // Nur verschickte Bestellungen
         // Noch nicht geliefert (actualDeliveryDate ist null)
-        eq(orders.actualDeliveryDate, null)
+        isNull(orders.actualDeliveryDate)
       ))
       .orderBy(asc(orders.expectedDeliveryDate), desc(orders.createdAt))
       .limit(limit);
@@ -57,9 +46,10 @@ router.get('/dashboard/open', async (req: Request, res: Response) => {
       orderNumber: order.orderNumber,
       status: order.status,
       createdAt: order.createdAt,
+      orderDate: order.orderDate,
       expectedDeliveryDate: order.expectedDeliveryDate,
-      supplierName: order.supplierName || 'Unbekannter Lieferant',
-      warehouseName: order.warehouseName || 'Unbekanntes Lager',
+      actualDeliveryDate: order.actualDeliveryDate,
+      supplierName: 'Lieferant', // Will be populated from join later
       totalAmount: order.totalAmount || 0
     }));
 
