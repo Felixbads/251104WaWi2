@@ -3,7 +3,7 @@ import { pool } from '../db';
 
 const router = Router();
 
-// Top entfernte Produkte API
+// Top entfernte Produkte API mit Kostenanalyse
 router.post('/top', async (req, res) => {
   try {
     const days = parseInt(req.query.days as string) || 30;
@@ -14,9 +14,12 @@ router.post('/top', async (req, res) => {
         rd.product_name as "productName",
         SUM(rd.removed) as "totalRemoved",
         COUNT(*) as "removalsCount",
-        MAX(r.datetime) as "lastRemoved"
+        MAX(r.datetime) as "lastRemoved",
+        AVG(t.price) as "avgSalePrice",
+        SUM(rd.removed * COALESCE(t.price, 0)) as "estimatedLoss"
       FROM refill_details rd
       INNER JOIN refills r ON rd.refill_id = r.id
+      LEFT JOIN transactions t ON rd.product_name = t.product_name
       WHERE rd.removed > 0 
         AND r.datetime >= NOW() - INTERVAL '${days} days'
       GROUP BY rd.product_name
@@ -31,7 +34,9 @@ router.post('/top', async (req, res) => {
       productName: row.productName,
       totalRemoved: parseInt(row.totalRemoved),
       removalsCount: parseInt(row.removalsCount),
-      lastRemoved: row.lastRemoved
+      lastRemoved: row.lastRemoved,
+      avgSalePrice: row.avgSalePrice ? parseFloat(row.avgSalePrice) : 0,
+      estimatedLoss: row.estimatedLoss ? parseFloat(row.estimatedLoss) : 0
     }));
     
     console.log(`Top removed products response: ${response.length} items`);
@@ -51,16 +56,19 @@ router.post('/stats/:productName', async (req, res) => {
     
     console.log(`[RemovedProducts] Getting detailed stats for: "${productName}" (${days} days)`);
     
-    // Grundlegende Statistiken
+    // Grundlegende Statistiken mit Kostenanalyse
     const statsQuery = `
       SELECT 
         rd.product_name as "productName",
         SUM(rd.removed) as "totalRemoved",
         COUNT(*) as "removalsCount",
         MAX(r.datetime) as "lastRemoved",
-        AVG(rd.removed) as "avgPerRemoval"
+        AVG(rd.removed) as "avgPerRemoval",
+        AVG(t.price) as "avgSalePrice",
+        SUM(rd.removed * COALESCE(t.price, 0)) as "estimatedLoss"
       FROM refill_details rd
       INNER JOIN refills r ON rd.refill_id = r.id
+      LEFT JOIN transactions t ON rd.product_name = t.product_name
       WHERE rd.removed > 0 
         AND rd.product_name = $1
         AND r.datetime >= NOW() - INTERVAL '${days} days'
@@ -78,6 +86,8 @@ router.post('/stats/:productName', async (req, res) => {
         removalsCount: 0,
         lastRemoved: null,
         avgPerRemoval: 0,
+        avgSalePrice: 0,
+        estimatedLoss: 0,
         machines: [],
         timeline: []
       });
@@ -86,14 +96,17 @@ router.post('/stats/:productName', async (req, res) => {
     const stats = statsResult.rows[0];
     console.log(`[RemovedProducts] Stats:`, stats);
     
-    // Automaten-spezifische Aufschlüsselung
+    // Automaten-spezifische Aufschlüsselung mit Kostenberechnung
     const machinesQuery = `
       SELECT 
         r.machine_id as "machineId",
         r.machine_name as "machineName",
-        SUM(rd.removed) as "removedCount"
+        SUM(rd.removed) as "removedCount",
+        AVG(t.price) as "avgPrice",
+        SUM(rd.removed * COALESCE(t.price, 0)) as "machineLoss"
       FROM refill_details rd
       INNER JOIN refills r ON rd.refill_id = r.id
+      LEFT JOIN transactions t ON rd.product_name = t.product_name AND r.machine_id = t.machine_id
       WHERE rd.removed > 0 
         AND rd.product_name = $1
         AND r.datetime >= NOW() - INTERVAL '${days} days'
@@ -127,8 +140,19 @@ router.post('/stats/:productName', async (req, res) => {
       totalRemoved: parseInt(stats.totalRemoved),
       removalsCount: parseInt(stats.removalsCount),
       avgPerRemoval: parseFloat(stats.avgPerRemoval),
-      machines: machinesResult.rows,
-      timeline: timelineResult.rows
+      avgSalePrice: stats.avgSalePrice ? parseFloat(stats.avgSalePrice) : 0,
+      estimatedLoss: stats.estimatedLoss ? parseFloat(stats.estimatedLoss) : 0,
+      machines: machinesResult.rows.map(m => ({
+        ...m,
+        removedCount: parseInt(m.removedCount),
+        avgPrice: m.avgPrice ? parseFloat(m.avgPrice) : 0,
+        machineLoss: m.machineLoss ? parseFloat(m.machineLoss) : 0
+      })),
+      timeline: timelineResult.rows.map(t => ({
+        ...t,
+        removed: parseInt(t.removed),
+        count: parseInt(t.count)
+      }))
     };
     
     console.log(`[RemovedProducts] Sending response:`, response);
@@ -201,6 +225,75 @@ router.get('/export', async (req, res) => {
   } catch (error) {
     console.error('Fehler beim Excel-Export:', error);
     res.status(500).json({ error: 'Fehler beim Export' });
+  }
+});
+
+// Standort-Trends API - zeigt welche Produkte an welchen Standorten übermäßig entfernt werden
+router.post('/location-trends', async (req, res) => {
+  try {
+    const days = parseInt(req.query.days as string) || 30;
+    const limit = parseInt(req.query.limit as string) || 50;
+    
+    const query = `
+      SELECT 
+        r.machine_name as "locationName",
+        rd.product_name as "productName",
+        SUM(rd.removed) as "totalRemoved",
+        COUNT(*) as "removalEvents",
+        AVG(rd.removed) as "avgPerEvent",
+        AVG(t.price) as "avgSalePrice",
+        SUM(rd.removed * COALESCE(t.price, 0)) as "locationLoss",
+        RANK() OVER (PARTITION BY r.machine_name ORDER BY SUM(rd.removed) DESC) as "rankAtLocation"
+      FROM refill_details rd
+      INNER JOIN refills r ON rd.refill_id = r.id
+      LEFT JOIN transactions t ON rd.product_name = t.product_name AND r.machine_id = t.machine_id
+      WHERE rd.removed > 0 
+        AND r.datetime >= NOW() - INTERVAL '${days} days'
+      GROUP BY r.machine_name, rd.product_name
+      HAVING SUM(rd.removed) >= 3
+      ORDER BY r.machine_name, "totalRemoved" DESC
+      LIMIT $1
+    `;
+    
+    const result = await pool.query(query, [limit]);
+    
+    // Gruppiere Ergebnisse nach Standort
+    const locationTrends: any = {};
+    result.rows.forEach((row: any) => {
+      const location = row.locationName;
+      if (!locationTrends[location]) {
+        locationTrends[location] = {
+          locationName: location,
+          products: [],
+          totalRemovedAtLocation: 0,
+          totalLossAtLocation: 0
+        };
+      }
+      
+      const productData = {
+        productName: row.productName,
+        totalRemoved: parseInt(row.totalRemoved),
+        removalEvents: parseInt(row.removalEvents),
+        avgPerEvent: parseFloat(row.avgPerEvent),
+        avgSalePrice: row.avgSalePrice ? parseFloat(row.avgSalePrice) : 0,
+        locationLoss: row.locationLoss ? parseFloat(row.locationLoss) : 0,
+        rankAtLocation: parseInt(row.rankAtLocation)
+      };
+      
+      locationTrends[location].products.push(productData);
+      locationTrends[location].totalRemovedAtLocation += productData.totalRemoved;
+      locationTrends[location].totalLossAtLocation += productData.locationLoss;
+    });
+    
+    // Konvertiere zu Array und sortiere nach Gesamtverlust
+    const response = Object.values(locationTrends).sort((a: any, b: any) => b.totalLossAtLocation - a.totalLossAtLocation);
+    
+    console.log(`Location trends response: ${response.length} locations with removal patterns`);
+    res.json(response);
+    
+  } catch (error) {
+    console.error('Fehler beim Abrufen der Standort-Trends:', error);
+    res.status(500).json({ error: 'Fehler beim Abrufen der Standort-Trends' });
   }
 });
 
