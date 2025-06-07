@@ -306,8 +306,8 @@ export class MeteostatService {
       return {
         totalRecords,
         dateRange: {
-          start: range?.start_date || '',
-          end: range?.end_date || ''
+          start: range?.startDate || '',
+          end: range?.endDate || ''
         },
         yearCoverage,
         missingDays: [] // Could implement gap detection here

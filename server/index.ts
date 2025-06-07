@@ -33,7 +33,7 @@ import criticalInventoryWorkingRouter from './routes/critical-inventory-working'
 import criticalInventoryFinalRouter from './routes/critical-inventory-final';
 import inventoryHealthRouter from './routes/inventory-health';
 import locationAnalysisRouter from './routes/location-analysis';
-import weatherRouter from './routes/weather';
+import weatherRouter from './routes/weather.js';
 import { pool } from './db';
 import { db } from './db';
 import { orders } from '../shared/schema';
