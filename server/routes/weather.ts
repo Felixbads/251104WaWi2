@@ -19,10 +19,12 @@ router.get('/overview', async (req, res) => {
     const overviewQuery = sql`
       SELECT 
         COUNT(*) as "totalDataPoints",
-        AVG(temperature) as "avgTemperature",
+        AVG(temp) as "avgTemperature",
         SUM(precipitation) as "totalPrecipitation",
-        COUNT(DISTINCT EXTRACT(YEAR FROM date)) as "yearsCovered"
+        COUNT(DISTINCT EXTRACT(YEAR FROM date)) as "yearsCovered",
+        station_name as "stationName"
       FROM weather_data
+      GROUP BY station_name
     `;
     
     const result = await db.execute(overviewQuery);
@@ -51,15 +53,14 @@ router.get('/yearly-stats', async (req, res) => {
     const statsQuery = sql`
       SELECT 
         EXTRACT(YEAR FROM date) as year,
-        state,
+        station_name,
         COUNT(*) as "dataPoints",
-        AVG(temperature) as "avgTemperature",
+        AVG(temp) as "avgTemperature",
         AVG(humidity) as "avgHumidity",
         SUM(precipitation) as "totalPrecipitation",
         (COUNT(*) * 100.0 / (365 * 24)) as coverage
       FROM weather_data
-      WHERE state = ${state as string}
-      GROUP BY EXTRACT(YEAR FROM date), state
+      GROUP BY EXTRACT(YEAR FROM date), station_name
       ORDER BY year
     `;
     
@@ -67,7 +68,7 @@ router.get('/yearly-stats', async (req, res) => {
     
     const stats = result.map(row => ({
       year: parseInt(row.year as string),
-      state: row.state,
+      station: row.station_name,
       dataPoints: parseInt(row.dataPoints as string),
       avgTemperature: parseFloat(row.avgTemperature as string || '0'),
       avgHumidity: parseFloat(row.avgHumidity as string || '0'),
@@ -96,8 +97,7 @@ router.get('/daily-coverage', async (req, res) => {
         COUNT(*) as "hourlyCount",
         (COUNT(*) * 1.0 / 24) as coverage
       FROM weather_data
-      WHERE state = ${state as string}
-        AND EXTRACT(YEAR FROM date) = ${parseInt(year as string)}
+      WHERE EXTRACT(YEAR FROM date) = ${parseInt(year as string)}
       GROUP BY date
       ORDER BY date
     `;
