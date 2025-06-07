@@ -1505,7 +1505,7 @@ function MHDTab({ machineId }: { machineId: number }) {
 
   // Fetch MHD data for the machine
   const { data: mhdData, isLoading, refetch } = useQuery({
-    queryKey: ['/api/machines', machineId, 'mhd'],
+    queryKey: [`/api/machines/${machineId}/mhd`],
     enabled: !!machineId,
     select: (data) => {
       console.log('MHD API Response:', data);
@@ -1516,10 +1516,13 @@ function MHDTab({ machineId }: { machineId: number }) {
   // Update MHD mutation
   const updateMhdMutation = useMutation({
     mutationFn: async ({ batchId, expiryDate }: { batchId: string; expiryDate: string }) => {
-      return updateMachineMHD(machineId.toString(), batchId, { expiryDate });
+      return apiRequest(`/api/machines/${machineId}/mhd/${batchId}`, {
+        method: 'PATCH',
+        body: { expiryDate }
+      });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/machines', machineId, 'mhd'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/machines/${machineId}/mhd`] });
       setEditingItem(null);
       setEditData({});
     }
