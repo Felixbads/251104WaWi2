@@ -11,7 +11,9 @@ router.post('/:orderId/send-email', async (req: Request, res: Response) => {
   console.log('[OrdersEmailFix] Request body:', JSON.stringify(req.body, null, 2));
   
   try {
-    const { to, subject, content, supplierEmail } = req.body;
+    const orderId = parseInt(req.params.orderId);
+    const { to, supplierEmail, cc } = req.body;
+    let { subject, content } = req.body;
     
     if (!to && !supplierEmail) {
       return res.status(400).json({
@@ -52,7 +54,7 @@ router.post('/:orderId/send-email', async (req: Request, res: Response) => {
       console.log('[CompleteEmailFix] Generating email content...');
       
       // Fetch order items
-      const orderItems = await db
+      const orderItemsResult = await db
         .select()
         .from(orderItems)
         .where(eq(orderItems.orderId, orderId));
@@ -103,7 +105,7 @@ router.post('/:orderId/send-email', async (req: Request, res: Response) => {
                 </tr>
               </thead>
               <tbody>
-                ${orderItems.map((item, index) => `
+                ${(orderItemsResult as any[]).map((item: any, index: number) => `
                   <tr>
                     <td>${index + 1}</td>
                     <td>${item.productName || 'Unbekanntes Produkt'}</td>
@@ -220,7 +222,7 @@ router.post('/:orderId/send-email', async (req: Request, res: Response) => {
         sentTo: to,
         ccSentTo: cc || null
       });
-    } catch (emailError) {
+    } catch (emailError: any) {
       console.error('[CompleteEmailFix] Email send failed:', emailError);
       res.status(500).json({
         success: false,
