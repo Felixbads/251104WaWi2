@@ -3550,6 +3550,162 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/product-disposals`, productDisposalsRoutes);
   app.use(`${API_PREFIX}/inventory-transfers`, inventoryTransfersRoutes);
   app.get(`${API_PREFIX}/removed-products`, getRemovedProducts);
+  
+  // Detaillierte Statistiken für ein spezifisches Produkt
+  app.get(`${API_PREFIX}/removed-products/stats/:productName`, async (req, res) => {
+    try {
+      const productName = decodeURIComponent(req.params.productName);
+      const days = parseInt(req.query.days as string) || 30;
+      
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+      
+      // Grundlegende Statistiken
+      const statsQuery = `
+        SELECT 
+          rd.product_name as "productName",
+          SUM(rd.removed) as "totalRemoved",
+          COUNT(*) as "removalsCount",
+          MAX(r.datetime) as "lastRemoved",
+          AVG(rd.removed) as "avgPerRemoval"
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        WHERE rd.removed > 0 
+          AND rd.product_name = $1
+          AND r.datetime >= $2 
+          AND r.datetime <= $3
+        GROUP BY rd.product_name
+      `;
+      
+      const statsResult = await db.query(statsQuery, [productName, startDate, new Date()]);
+      
+      if (statsResult.rows.length === 0) {
+        return res.json({
+          productName,
+          totalRemoved: 0,
+          removalsCount: 0,
+          lastRemoved: null,
+          avgPerRemoval: 0,
+          machines: [],
+          timeline: []
+        });
+      }
+      
+      const stats = statsResult.rows[0];
+      
+      // Automaten-spezifische Aufschlüsselung
+      const machinesQuery = `
+        SELECT 
+          r.machine_id as "machineId",
+          r.machine_name as "machineName",
+          SUM(rd.removed) as "removedCount"
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        WHERE rd.removed > 0 
+          AND rd.product_name = $1
+          AND r.datetime >= $2 
+          AND r.datetime <= $3
+        GROUP BY r.machine_id, r.machine_name
+        ORDER BY "removedCount" DESC
+      `;
+      
+      const machinesResult = await db.query(machinesQuery, [productName, startDate, new Date()]);
+      
+      // Zeitverlaufs-Daten (tagesweise)
+      const timelineQuery = `
+        SELECT 
+          DATE(r.datetime) as "date",
+          SUM(rd.removed) as "removed",
+          COUNT(*) as "count"
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        WHERE rd.removed > 0 
+          AND rd.product_name = $1
+          AND r.datetime >= $2 
+          AND r.datetime <= $3
+        GROUP BY DATE(r.datetime)
+        ORDER BY "date"
+      `;
+      
+      const timelineResult = await db.query(timelineQuery, [productName, startDate, new Date()]);
+      
+      res.json({
+        ...stats,
+        avgPerRemoval: parseFloat(stats.avgPerRemoval),
+        machines: machinesResult.rows,
+        timeline: timelineResult.rows
+      });
+      
+    } catch (error) {
+      console.error('Fehler beim Abrufen der Produktstatistiken:', error);
+      res.status(500).json({ error: 'Fehler beim Abrufen der Daten' });
+    }
+  });
+
+  // Export der Rückläufer-Daten als Excel
+  app.get(`${API_PREFIX}/removed-products/export`, async (req, res) => {
+    try {
+      const days = parseInt(req.query.days as string) || 30;
+      const machineId = req.query.machineId ? parseInt(req.query.machineId as string) : null;
+      const productName = req.query.productName as string;
+      
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
+      
+      let query = `
+        SELECT 
+          rd.product_name as "Produktname",
+          r.machine_name as "Automat",
+          rd.removed as "Entfernte Menge",
+          r.datetime as "Datum",
+          r.operator as "Operator",
+          rd.position as "Position"
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        WHERE rd.removed > 0 
+          AND r.datetime >= $1 
+          AND r.datetime <= $2
+      `;
+      
+      const params = [startDate, new Date()];
+      let paramIndex = 3;
+      
+      if (machineId) {
+        query += ` AND r.machine_id = $${paramIndex}`;
+        params.push(machineId);
+        paramIndex++;
+      }
+      
+      if (productName) {
+        query += ` AND rd.product_name ILIKE $${paramIndex}`;
+        params.push(`%${productName}%`);
+      }
+      
+      query += ` ORDER BY r.datetime DESC`;
+      
+      const result = await db.query(query, params);
+      
+      // Excel-Export mit xlsx
+      const XLSX = require('xlsx');
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet(result.rows);
+      
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Rückläufer');
+      
+      const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      
+      res.set({
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="ruecklaufer_${new Date().toISOString().split('T')[0]}.xlsx"`
+      });
+      
+      res.send(excelBuffer);
+      
+    } catch (error) {
+      console.error('Fehler beim Export der Rückläufer-Daten:', error);
+      res.status(500).json({ error: 'Fehler beim Export der Daten' });
+    }
+  });
   app.use(`${API_PREFIX}/weather`, weatherRoutes);
   app.use(`${API_PREFIX}/holidays`, holidaysRoutes);
   app.use(`${API_PREFIX}/calendar`, calendarRoutes);

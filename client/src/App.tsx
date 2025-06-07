@@ -99,6 +99,7 @@ import LagerbestandPage from "@/pages/LagerbestandPage";
 import SustainableVending from "@/pages/SustainableVending";
 import DatabaseManager from "@/pages/DatabaseManager";
 import CriticalInventory from "@/pages/CriticalInventory";
+import Ruecklaufer from "@/pages/Ruecklaufer";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -301,6 +302,12 @@ function AuthenticatedRouter() {
         <Route path="/kritische-bestaende" component={props => (
           <ApprovedUserRoute>
             <CriticalInventory {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/ruecklaufer" component={props => (
+          <ApprovedUserRoute>
+            <Ruecklaufer {...props} />
           </ApprovedUserRoute>
         )} />
 
