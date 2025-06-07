@@ -98,6 +98,7 @@ import WarehouseMovement from "@/pages/WarehouseMovement";
 import LagerbestandPage from "@/pages/LagerbestandPage";
 import SustainableVending from "@/pages/SustainableVending";
 import DatabaseManager from "@/pages/DatabaseManager";
+import CriticalInventory from "@/pages/CriticalInventory";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -294,6 +295,12 @@ function AuthenticatedRouter() {
         <Route path="/lagerbestand-neu" component={props => (
           <ApprovedUserRoute>
             <LagerbestandPage {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/kritische-bestaende" component={props => (
+          <ApprovedUserRoute>
+            <CriticalInventory {...props} />
           </ApprovedUserRoute>
         )} />
 

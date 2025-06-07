@@ -7,7 +7,7 @@ import {
   LogOut, Users, Home, Package, ShoppingBag, Truck, Mail, 
   ShoppingCart, Building2, TrashIcon, BarChart2, RefreshCw, 
   Clock, Settings, LineChart, Database, PieChart, BarChart4,
-  ClipboardCheck, MoveHorizontal
+  ClipboardCheck, MoveHorizontal, AlertTriangle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
