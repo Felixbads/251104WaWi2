@@ -1717,6 +1717,7 @@ function MHDTab({ machineId }: { machineId: number }) {
                                 )}
                               </div>
                             );
+                            })}
                           </div>
                         ) : (
                           <div className="space-y-2">
