@@ -1,90 +1,90 @@
 import { Router, Request, Response } from 'express';
-import { pool } from '../db';
+import { db } from '../db';
+import { inventoryItems, products, warehouses, transactions } from '../../shared/schema';
+import { sql } from 'drizzle-orm';
 
 const router = Router();
 
-// Working critical inventory endpoint with simplified approach
-router.get('/critical-inventory-working', async (req: Request, res: Response) => {
+// Final working critical inventory endpoint
+router.get('/critical-inventory-final', async (req: Request, res: Response) => {
   try {
-    console.log('Fetching critical inventory data...');
+    console.log('Fetching critical inventory with Drizzle ORM...');
     
-    // Test basic connectivity first
-    const testQuery = await pool.query('SELECT COUNT(*) FROM inventory_items');
-    console.log(`Database connectivity confirmed. Total inventory items: ${testQuery.rows[0]?.count || 0}`);
-    
-    // Start with a simple query to identify low stock items
-    const lowStockQuery = `
+    // Use raw SQL through Drizzle for better control
+    const criticalItemsQuery = sql`
       SELECT 
         ii.id,
-        ii.warehouse_id,
-        ii.product_id,
-        ii.quantity,
-        COALESCE(ii.min_quantity, 5) as min_quantity,
-        p.product_name,
-        w.name as warehouse_name
+        ii.warehouse_id as "warehouseId",
+        w.name as "warehouseName",
+        ii.product_id as "productId", 
+        p.product_name as "productName",
+        ii.quantity as "currentQuantity",
+        COALESCE(ii.min_quantity, 5) as "minQuantity",
+        COALESCE(ii.reorder_point, ii.min_quantity, 5) as "reorderPoint",
+        COALESCE(p.price, 0) as price,
+        COALESCE(p.category, 'Standard') as category,
+        COALESCE(p.sku, '') as sku
       FROM inventory_items ii
-      JOIN products p ON ii.product_id = p.id
-      JOIN warehouses w ON ii.warehouse_id = w.id
+      INNER JOIN products p ON ii.product_id = p.id
+      INNER JOIN warehouses w ON ii.warehouse_id = w.id
       WHERE ii.quantity <= COALESCE(ii.min_quantity, 5)
         AND ii.quantity >= 0
       ORDER BY ii.quantity ASC
-      LIMIT 50
+      LIMIT 20
     `;
 
-    const lowStockResult = await pool.query(lowStockQuery);
-    const lowStockItems = lowStockResult.rows;
-    
+    const lowStockItems = await db.execute(criticalItemsQuery);
     console.log(`Found ${lowStockItems.length} low stock items`);
 
-    // Process each item to check for active sales
     const criticalItems = [];
-    
+
+    // Process each item to check for recent sales
     for (const item of lowStockItems) {
       try {
-        // Check if this product has recent sales in any machine
-        const recentSalesQuery = `
+        // Check for recent sales of this product
+        const recentSalesQuery = sql`
           SELECT COUNT(*) as sales_count, MAX(datetime) as last_sale
           FROM transactions 
-          WHERE product_id = $1 
+          WHERE product_id = ${item.productId}
             AND datetime >= CURRENT_DATE - INTERVAL '7 days'
             AND COALESCE(status, 'completed') = 'completed'
         `;
         
-        const salesResult = await pool.query(recentSalesQuery, [item.product_id]);
-        const salesData = salesResult.rows[0] || {};
-        const salesCount = parseInt(salesData.sales_count) || 0;
+        const salesResult = await db.execute(recentSalesQuery);
+        const salesData = salesResult[0] || {};
+        const salesCount = parseInt(salesData.sales_count as string) || 0;
 
-        // Only include items that have recent sales (truly critical)
+        // Only include items with recent sales (truly critical)
         if (salesCount > 0) {
           criticalItems.push({
             id: item.id,
-            warehouseId: item.warehouse_id,
-            warehouseName: item.warehouse_name,
-            productId: item.product_id,
-            productName: item.product_name,
-            currentQuantity: item.quantity,
-            minQuantity: item.min_quantity,
-            reorderPoint: item.min_quantity,
-            price: 0,
-            sku: '',
-            category: 'Standard',
+            warehouseId: item.warehouseId,
+            warehouseName: item.warehouseName,
+            productId: item.productId,
+            productName: item.productName,
+            currentQuantity: item.currentQuantity,
+            minQuantity: item.minQuantity,
+            reorderPoint: item.reorderPoint,
+            price: item.price || 0,
+            sku: item.sku || '',
+            category: item.category || 'Standard',
             isActivelySold: true,
             lastSaleDate: salesData.last_sale,
             salesLast7Days: salesCount,
             shouldAlert: true,
-            criticalityScore: (item.min_quantity - item.quantity) * salesCount,
+            criticalityScore: (item.minQuantity - item.currentQuantity) * salesCount,
             assignedMachines: []
           });
         }
       } catch (itemError) {
         console.error(`Error processing item ${item.id}:`, itemError);
-        // Continue with next item
+        // Continue processing other items
       }
     }
 
     console.log(`Final critical items: ${criticalItems.length}`);
 
-    // Create summary
+    // Create summary data
     const warehouseSummary = new Map();
     const categorySummary = new Map();
 
@@ -125,7 +125,7 @@ router.get('/critical-inventory-working', async (req: Request, res: Response) =>
     res.json(response);
 
   } catch (error) {
-    console.error('Critical inventory endpoint error:', error);
+    console.error('Critical inventory final endpoint error:', error);
     res.status(500).json({ 
       error: 'Fehler beim Abrufen der kritischen Bestände',
       success: false,
