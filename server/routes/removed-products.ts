@@ -15,8 +15,8 @@ router.post('/top', async (req, res) => {
         SUM(rd.removed) as "totalRemoved",
         COUNT(*) as "removalsCount",
         MAX(r.datetime) as "lastRemoved",
-        COALESCE(AVG(pc.purchase_price), AVG(t.price), 0) as "avgPurchasePrice",
-        SUM(rd.removed * COALESCE(pc.purchase_price, t.price, 0)) as "estimatedLoss"
+        COALESCE(AVG(pc.unit_price), AVG(t.price), 0) as "avgPurchasePrice",
+        SUM(rd.removed * COALESCE(pc.unit_price, t.price, 0)) as "estimatedLoss"
       FROM refill_details rd
       INNER JOIN refills r ON rd.refill_id = r.id
       LEFT JOIN products p ON rd.product_name = p.product_name
@@ -243,8 +243,8 @@ router.post('/location-trends', async (req, res) => {
         SUM(rd.removed) as "totalRemoved",
         COUNT(*) as "removalEvents",
         AVG(rd.removed) as "avgPerEvent",
-        COALESCE(AVG(pc.purchase_price), AVG(t.price), 0) as "avgPurchasePrice",
-        SUM(rd.removed * COALESCE(pc.purchase_price, t.price, 0)) as "locationLoss",
+        COALESCE(AVG(pc.unit_price), AVG(t.price), 0) as "avgPurchasePrice",
+        SUM(rd.removed * COALESCE(pc.unit_price, t.price, 0)) as "locationLoss",
         RANK() OVER (PARTITION BY r.machine_name ORDER BY SUM(rd.removed) DESC) as "rankAtLocation"
       FROM refill_details rd
       INNER JOIN refills r ON rd.refill_id = r.id
