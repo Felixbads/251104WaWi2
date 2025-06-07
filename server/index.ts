@@ -30,6 +30,7 @@ import rawEmailRouter from './routes/raw-email';
 import criticalInventoryRouter from './routes/critical-inventory';
 import criticalInventoryWorkingRouter from './routes/critical-inventory-working';
 import criticalInventoryFinalRouter from './routes/critical-inventory-final';
+import inventoryHealthRouter from './routes/inventory-health';
 import { pool } from './db';
 import { db } from './db';
 import { orders } from '../shared/schema';
