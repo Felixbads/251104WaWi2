@@ -1898,6 +1898,81 @@ export async function initializeDefaultForecastModel() {
   }
 }
 
-// This was a duplicate of the function defined above
-// The version that includes includeZeroStock=true is kept
+// Interface für entnommene Produkte
+export interface RemovedProduct {
+  id: number;
+  refillId: number;
+  productName: string;
+  removed: number;
+  datetime: string;
+  machineId: number;
+  machineName: string;
+  operator?: string;
+  vendonProductId?: string;
+  position?: string;
+}
+
+// Interface für entnommene Produkte Antwort
+export interface RemovedProductsResponse {
+  items: RemovedProduct[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+// Funktion zum Abrufen entnommener Produkte
+export async function getRemovedProducts(params?: {
+  productName?: string;
+  machineId?: number;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const queryParams = new URLSearchParams();
+  
+  if (params?.productName) queryParams.append('productName', params.productName);
+  if (params?.machineId) queryParams.append('machineId', params.machineId.toString());
+  if (params?.startDate) queryParams.append('startDate', params.startDate);
+  if (params?.endDate) queryParams.append('endDate', params.endDate);
+  if (params?.page) queryParams.append('page', params.page.toString());
+  if (params?.limit) queryParams.append('limit', params.limit.toString());
+  
+  return apiRequest<RemovedProductsResponse>('get', `/removed-products?${queryParams.toString()}`);
+}
+
+// Funktion zum Abrufen entnommener Produkte pro Produkt
+export async function getRemovedProductsByProduct(productId: number, params?: {
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const queryParams = new URLSearchParams();
+  
+  if (params?.startDate) queryParams.append('startDate', params.startDate);
+  if (params?.endDate) queryParams.append('endDate', params.endDate);
+  if (params?.page) queryParams.append('page', params.page.toString());
+  if (params?.limit) queryParams.append('limit', params.limit.toString());
+  
+  return apiRequest<RemovedProductsResponse>('get', `/products/${productId}/removed?${queryParams.toString()}`);
+}
+
+// Funktion zum Abrufen entnommener Produkte pro Automat
+export async function getRemovedProductsByMachine(machineId: number, params?: {
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  limit?: number;
+}) {
+  const queryParams = new URLSearchParams();
+  
+  if (params?.startDate) queryParams.append('startDate', params.startDate);
+  if (params?.endDate) queryParams.append('endDate', params.endDate);
+  if (params?.page) queryParams.append('page', params.page.toString());
+  if (params?.limit) queryParams.append('limit', params.limit.toString());
+  
+  return apiRequest<RemovedProductsResponse>('get', `/machines/${machineId}/removed-products?${queryParams.toString()}`);
+}
 

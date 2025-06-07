@@ -2466,8 +2466,284 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
-  
 
+  // Get removed products by machine ID
+  app.get(`${API_PREFIX}/machines/:id/removed-products`, async (req: Request, res: Response) => {
+    try {
+      const machineId = parseInt(req.params.id);
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+      
+      if (isNaN(machineId)) {
+        return res.status(400).json({ error: "Ungültige Maschinen-ID" });
+      }
+
+      const offset = (page - 1) * limit;
+      
+      // Base query for removed products from refill details
+      let whereConditions = `rd.removed > 0 AND r.machine_id = $1`;
+      const queryParams = [machineId];
+      let paramIndex = 2;
+      
+      // Add date filters if provided
+      if (startDate) {
+        whereConditions += ` AND r.datetime >= $${paramIndex}`;
+        queryParams.push(startDate);
+        paramIndex++;
+      }
+      
+      if (endDate) {
+        whereConditions += ` AND r.datetime <= $${paramIndex}`;
+        queryParams.push(endDate);
+        paramIndex++;
+      }
+      
+      // Query for data
+      const dataQuery = `
+        SELECT 
+          rd.id,
+          rd.refill_id as "refillId",
+          rd.product_name as "productName",
+          rd.removed,
+          r.datetime,
+          r.machine_id as "machineId", 
+          r.machine_name as "machineName",
+          r.operator,
+          rd.vendon_product_id as "vendonProductId",
+          rd.position
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        WHERE ${whereConditions}
+        ORDER BY r.datetime DESC
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+      `;
+      
+      // Query for total count
+      const countQuery = `
+        SELECT COUNT(*) as total
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        WHERE ${whereConditions}
+      `;
+      
+      queryParams.push(limit, offset);
+      
+      const [dataResult, countResult] = await Promise.all([
+        rawDb.query(dataQuery, queryParams.slice(0, -2).concat([limit, offset])),
+        rawDb.query(countQuery, queryParams.slice(0, -2))
+      ]);
+      
+      const total = parseInt(countResult.rows[0]?.total || '0');
+      const totalPages = Math.ceil(total / limit);
+      
+      res.json({
+        items: dataResult.rows,
+        total,
+        page,
+        limit,
+        totalPages
+      });
+    } catch (error) {
+      console.error(`Error fetching removed products for machine ID ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch removed products", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
+  // Get all removed products across all machines
+  app.get(`${API_PREFIX}/removed-products`, async (req: Request, res: Response) => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+      const productName = req.query.productName as string;
+      const machineId = req.query.machineId ? parseInt(req.query.machineId as string) : undefined;
+
+      const offset = (page - 1) * limit;
+      
+      // Base query for removed products from refill details
+      let whereConditions = `rd.removed > 0`;
+      const queryParams = [];
+      let paramIndex = 1;
+      
+      // Add filters if provided
+      if (startDate) {
+        whereConditions += ` AND r.datetime >= $${paramIndex}`;
+        queryParams.push(startDate);
+        paramIndex++;
+      }
+      
+      if (endDate) {
+        whereConditions += ` AND r.datetime <= $${paramIndex}`;
+        queryParams.push(endDate);
+        paramIndex++;
+      }
+      
+      if (productName) {
+        whereConditions += ` AND rd.product_name ILIKE $${paramIndex}`;
+        queryParams.push(`%${productName}%`);
+        paramIndex++;
+      }
+      
+      if (machineId) {
+        whereConditions += ` AND r.machine_id = $${paramIndex}`;
+        queryParams.push(machineId);
+        paramIndex++;
+      }
+      
+      // Query for data
+      const dataQuery = `
+        SELECT 
+          rd.id,
+          rd.refill_id as "refillId",
+          rd.product_name as "productName",
+          rd.removed,
+          r.datetime,
+          r.machine_id as "machineId", 
+          r.machine_name as "machineName",
+          r.operator,
+          rd.vendon_product_id as "vendonProductId",
+          rd.position
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        WHERE ${whereConditions}
+        ORDER BY r.datetime DESC
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+      `;
+      
+      // Query for total count
+      const countQuery = `
+        SELECT COUNT(*) as total
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        WHERE ${whereConditions}
+      `;
+      
+      queryParams.push(limit, offset);
+      
+      const [dataResult, countResult] = await Promise.all([
+        rawDb.query(dataQuery, queryParams.slice(0, -2).concat([limit, offset])),
+        rawDb.query(countQuery, queryParams.slice(0, -2))
+      ]);
+      
+      const total = parseInt(countResult.rows[0]?.total || '0');
+      const totalPages = Math.ceil(total / limit);
+      
+      res.json({
+        items: dataResult.rows,
+        total,
+        page,
+        limit,
+        totalPages
+      });
+    } catch (error) {
+      console.error("Error fetching removed products:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch removed products", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
+  // Get removed products by product ID
+  app.get(`${API_PREFIX}/products/:id/removed`, async (req: Request, res: Response) => {
+    try {
+      const productId = parseInt(req.params.id);
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+      
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Ungültige Produkt-ID" });
+      }
+
+      const offset = (page - 1) * limit;
+      
+      // Get product name first
+      const productResult = await rawDb.query('SELECT product_name FROM products WHERE id = $1', [productId]);
+      if (productResult.rows.length === 0) {
+        return res.status(404).json({ error: "Produkt nicht gefunden" });
+      }
+      
+      const productName = productResult.rows[0].product_name;
+      
+      // Base query for removed products from refill details matching product name
+      let whereConditions = `rd.removed > 0 AND rd.product_name ILIKE $1`;
+      const queryParams = [`%${productName}%`];
+      let paramIndex = 2;
+      
+      // Add date filters if provided
+      if (startDate) {
+        whereConditions += ` AND r.datetime >= $${paramIndex}`;
+        queryParams.push(startDate);
+        paramIndex++;
+      }
+      
+      if (endDate) {
+        whereConditions += ` AND r.datetime <= $${paramIndex}`;
+        queryParams.push(endDate);
+        paramIndex++;
+      }
+      
+      // Query for data
+      const dataQuery = `
+        SELECT 
+          rd.id,
+          rd.refill_id as "refillId",
+          rd.product_name as "productName",
+          rd.removed,
+          r.datetime,
+          r.machine_id as "machineId", 
+          r.machine_name as "machineName",
+          r.operator,
+          rd.vendon_product_id as "vendonProductId",
+          rd.position
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        WHERE ${whereConditions}
+        ORDER BY r.datetime DESC
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+      `;
+      
+      // Query for total count
+      const countQuery = `
+        SELECT COUNT(*) as total
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        WHERE ${whereConditions}
+      `;
+      
+      queryParams.push(limit, offset);
+      
+      const [dataResult, countResult] = await Promise.all([
+        rawDb.query(dataQuery, queryParams.slice(0, -2).concat([limit, offset])),
+        rawDb.query(countQuery, queryParams.slice(0, -2))
+      ]);
+      
+      const total = parseInt(countResult.rows[0]?.total || '0');
+      const totalPages = Math.ceil(total / limit);
+      
+      res.json({
+        items: dataResult.rows,
+        total,
+        page,
+        limit,
+        totalPages
+      });
+    } catch (error) {
+      console.error(`Error fetching removed products for product ID ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch removed products", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
 
   // Get events
   app.get(`${API_PREFIX}/events`, async (req: Request, res: Response) => {
