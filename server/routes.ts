@@ -2745,6 +2745,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get top removed products for login tile
+  app.get(`${API_PREFIX}/removed-products/top`, async (req: Request, res: Response) => {
+    try {
+      const days = parseInt(req.query.days as string) || 7;
+      
+      // Calculate date range
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(endDate.getDate() - days);
+      
+      const query = `
+        SELECT 
+          rd.product_name as "productName",
+          SUM(rd.removed) as "totalRemoved",
+          COUNT(*) as "removalsCount",
+          MAX(r.datetime) as "lastRemoved"
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        WHERE rd.removed > 0 
+          AND r.datetime >= $1 
+          AND r.datetime <= $2
+        GROUP BY rd.product_name
+        ORDER BY "totalRemoved" DESC
+        LIMIT 10
+      `;
+      
+      const result = await rawDb.query(query, [startDate.toISOString(), endDate.toISOString()]);
+      
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Error fetching top removed products:", error);
+      res.status(500).json({ 
+        error: "Failed to fetch top removed products", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
   // Get events
   app.get(`${API_PREFIX}/events`, async (req: Request, res: Response) => {
     try {
