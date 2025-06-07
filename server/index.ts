@@ -1520,6 +1520,7 @@ Elbsandstein Proviant & Quartier GmbH`;
 
   // Register critical inventory routes
   app.use('/api/critical-inventory', criticalInventoryRouter);
+  app.use('/api', criticalInventoryWorkingRouter);
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
