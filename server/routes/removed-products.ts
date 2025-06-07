@@ -44,10 +44,12 @@ router.post('/top', async (req, res) => {
 });
 
 // Detaillierte Statistiken für ein spezifisches Produkt
-router.get('/stats/:productName', async (req, res) => {
+router.post('/stats/:productName', async (req, res) => {
   try {
     const productName = decodeURIComponent(req.params.productName);
     const days = parseInt(req.query.days as string) || 30;
+    
+    console.log(`[RemovedProducts] Getting detailed stats for: "${productName}" (${days} days)`);
     
     // Grundlegende Statistiken
     const statsQuery = `
@@ -66,8 +68,10 @@ router.get('/stats/:productName', async (req, res) => {
     `;
     
     const statsResult = await pool.query(statsQuery, [productName]);
+    console.log(`[RemovedProducts] Stats query returned ${statsResult.rows.length} rows`);
     
     if (statsResult.rows.length === 0) {
+      console.log(`[RemovedProducts] No data found for product: "${productName}"`);
       return res.json({
         productName,
         totalRemoved: 0,
@@ -80,6 +84,7 @@ router.get('/stats/:productName', async (req, res) => {
     }
     
     const stats = statsResult.rows[0];
+    console.log(`[RemovedProducts] Stats:`, stats);
     
     // Automaten-spezifische Aufschlüsselung
     const machinesQuery = `
@@ -97,6 +102,7 @@ router.get('/stats/:productName', async (req, res) => {
     `;
     
     const machinesResult = await pool.query(machinesQuery, [productName]);
+    console.log(`[RemovedProducts] Machines query returned ${machinesResult.rows.length} machines`);
     
     // Zeitverlaufs-Daten (tagesweise)
     const timelineQuery = `
@@ -114,13 +120,19 @@ router.get('/stats/:productName', async (req, res) => {
     `;
     
     const timelineResult = await pool.query(timelineQuery, [productName]);
+    console.log(`[RemovedProducts] Timeline query returned ${timelineResult.rows.length} timeline entries`);
     
-    res.json({
+    const response = {
       ...stats,
+      totalRemoved: parseInt(stats.totalRemoved),
+      removalsCount: parseInt(stats.removalsCount),
       avgPerRemoval: parseFloat(stats.avgPerRemoval),
       machines: machinesResult.rows,
       timeline: timelineResult.rows
-    });
+    };
+    
+    console.log(`[RemovedProducts] Sending response:`, response);
+    res.json(response);
     
   } catch (error) {
     console.error('Fehler beim Abrufen der Produktstatistiken:', error);
