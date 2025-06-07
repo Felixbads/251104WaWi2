@@ -107,6 +107,20 @@ export default function StandortStatus() {
     }, { ok: 0, warning: 0, error: 0 });
   }, [machineStatus]);
 
+  // MHD-Statistiken für Übersicht
+  const mhdCounts = useMemo(() => {
+    if (!machineStatus) return { expired: 0, warning: 0, total: 0 };
+    
+    return machineStatus.reduce((acc, machine) => {
+      if (machine.mhdStatus) {
+        if (machine.mhdStatus.expiredCount > 0) acc.expired++;
+        if (machine.mhdStatus.warningCount > 0) acc.warning++;
+        acc.total += machine.mhdStatus.expiredCount + machine.mhdStatus.warningCount;
+      }
+      return acc;
+    }, { expired: 0, warning: 0, total: 0 });
+  }, [machineStatus]);
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -153,7 +167,7 @@ export default function StandortStatus() {
       </div>
 
       {/* Status-Übersicht */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center space-x-2">
@@ -183,6 +197,23 @@ export default function StandortStatus() {
               <div>
                 <p className="text-2xl font-bold text-red-600">{statusCounts.error}</p>
                 <p className="text-sm text-muted-foreground">Fehler</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        {/* MHD Alert Summary */}
+        <Card className={`${mhdCounts.expired > 0 ? 'border-red-300 bg-red-50' : mhdCounts.warning > 0 ? 'border-yellow-300 bg-yellow-50' : ''}`}>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <PackageX className={`h-5 w-5 ${mhdCounts.expired > 0 ? 'text-red-600' : mhdCounts.warning > 0 ? 'text-yellow-600' : 'text-gray-400'}`} />
+              <div>
+                <p className={`text-2xl font-bold ${mhdCounts.expired > 0 ? 'text-red-600' : mhdCounts.warning > 0 ? 'text-yellow-600' : 'text-gray-600'}`}>
+                  {mhdCounts.expired}
+                </p>
+                <p className="text-sm text-muted-foreground">MHD abgelaufen</p>
+                {mhdCounts.warning > 0 && (
+                  <p className="text-xs text-yellow-600">{mhdCounts.warning} Warnungen</p>
+                )}
               </div>
             </div>
           </CardContent>
