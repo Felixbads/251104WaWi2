@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertTriangle, TrendingUp, TrendingDown, Package, BarChart3, Calendar, Target } from "lucide-react";
+import { AlertTriangle, TrendingUp, TrendingDown, Package, BarChart3, Calendar, Target, Euro, DollarSign, ShoppingCart, Trash2 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Bar, Legend, Area, AreaChart } from "recharts";
 import { format, subWeeks, startOfWeek, endOfWeek, eachWeekOfInterval } from "date-fns";
 import { de } from "date-fns/locale";
@@ -175,8 +175,9 @@ export default function StandortAnalyse() {
 
           {/* Produktanalyse Tabs */}
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="overview">Produktübersicht</TabsTrigger>
+              <TabsTrigger value="costs">Kostenanalyse</TabsTrigger>
               <TabsTrigger value="trends">Wochentrends</TabsTrigger>
               <TabsTrigger value="recommendations">Bestückungsempfehlungen</TabsTrigger>
             </TabsList>
@@ -266,7 +267,249 @@ export default function StandortAnalyse() {
               </Card>
             </TabsContent>
 
+            <TabsContent value="costs" className="space-y-4">
+              {/* Kostenübersicht Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center space-x-2">
+                      <Euro className="h-4 w-4 text-green-600" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Umsatz</p>
+                        <p className="text-lg font-bold text-green-600">
+                          €{currentLocationData.analysisData.reduce((sum, p) => sum + p.salesRevenue, 0).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center space-x-2">
+                      <Trash2 className="h-4 w-4 text-red-600" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Verlust durch Entnahmen</p>
+                        <p className="text-lg font-bold text-red-600">
+                          €{currentLocationData.analysisData.reduce((sum, p) => sum + p.removalLoss, 0).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center space-x-2">
+                      <DollarSign className="h-4 w-4 text-blue-600" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Nettogewinn</p>
+                        <p className="text-lg font-bold text-blue-600">
+                          €{(currentLocationData.analysisData.reduce((sum, p) => sum + p.salesRevenue, 0) - 
+                             currentLocationData.analysisData.reduce((sum, p) => sum + p.removalLoss, 0)).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center space-x-2">
+                      <Target className="h-4 w-4 text-purple-600" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Ø Rentabilität</p>
+                        <p className="text-lg font-bold text-purple-600">
+                          {(currentLocationData.analysisData.reduce((sum, p) => sum + p.profitability, 0) / 
+                            currentLocationData.analysisData.length).toFixed(1)}%
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Kosten-Nutzen Analyse Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Kosten-Nutzen Analyse</CardTitle>
+                  <CardDescription>
+                    Verkaufserlöse vs. Verluste durch Entnahmen (basierend auf Einkaufspreisen)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <ComposedChart data={currentLocationData.analysisData.slice(0, 15)}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis 
+                        dataKey="productName" 
+                        angle={-45}
+                        textAnchor="end"
+                        height={100}
+                        fontSize={12}
+                      />
+                      <YAxis />
+                      <Tooltip 
+                        formatter={(value, name) => [
+                          `€${typeof value === 'number' ? value.toFixed(2) : '0.00'}`,
+                          name === 'salesRevenue' ? 'Verkaufserlös' : 'Entnahmeverlust'
+                        ]}
+                      />
+                      <Legend />
+                      <Bar 
+                        dataKey="salesRevenue" 
+                        fill="#10b981" 
+                        name="Verkaufserlös"
+                        radius={[2, 2, 0, 0]}
+                      />
+                      <Bar 
+                        dataKey="removalLoss" 
+                        fill="#ef4444" 
+                        name="Entnahmeverlust"
+                        radius={[2, 2, 0, 0]}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Detaillierte Kostentabelle */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Detaillierte Kostenanalyse</CardTitle>
+                  <CardDescription>
+                    Vollständige Aufschlüsselung nach Produkten mit Einkaufspreisen
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Produkt</TableHead>
+                          <TableHead className="text-right">Verkäufe</TableHead>
+                          <TableHead className="text-right">Entnahmen</TableHead>
+                          <TableHead className="text-right">Verkaufserlös</TableHead>
+                          <TableHead className="text-right">Entnahmeverlust</TableHead>
+                          <TableHead className="text-right">Nettogewinn</TableHead>
+                          <TableHead className="text-right">ROI</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {currentLocationData.analysisData
+                          .sort((a, b) => (b.salesRevenue - b.removalLoss) - (a.salesRevenue - a.removalLoss))
+                          .map((product) => {
+                            const netProfit = product.salesRevenue - product.removalLoss;
+                            const roi = product.removalLoss > 0 ? ((netProfit / product.removalLoss) * 100) : 0;
+                            
+                            return (
+                              <TableRow key={product.productName}>
+                                <TableCell className="font-medium">
+                                  {product.productName}
+                                </TableCell>
+                                <TableCell className="text-right text-green-600">
+                                  {product.totalSales}
+                                </TableCell>
+                                <TableCell className="text-right text-red-600">
+                                  {product.totalRemovals}
+                                </TableCell>
+                                <TableCell className="text-right text-green-600 font-medium">
+                                  €{product.salesRevenue.toFixed(2)}
+                                </TableCell>
+                                <TableCell className="text-right text-red-600 font-medium">
+                                  €{product.removalLoss.toFixed(2)}
+                                </TableCell>
+                                <TableCell className={`text-right font-bold ${netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  €{netProfit.toFixed(2)}
+                                </TableCell>
+                                <TableCell className={`text-right ${roi >= 50 ? 'text-green-600' : roi >= 0 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                  {roi.toFixed(1)}%
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             <TabsContent value="trends" className="space-y-4">
+              {/* Sales vs Removals Trend Overview */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Verkäufe vs. Entnahmen Trendanalyse</CardTitle>
+                  <CardDescription>
+                    Wöchentliche Entwicklung mit Bestückungsempfehlungen als Trendlinien
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={500}>
+                    <ComposedChart 
+                      data={currentLocationData.analysisData[0]?.weeklyData || []}
+                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis 
+                        dataKey="week" 
+                        tickFormatter={(value) => format(new Date(value), 'dd.MM', { locale: de })}
+                      />
+                      <YAxis yAxisId="left" />
+                      <YAxis yAxisId="right" orientation="right" />
+                      <Tooltip 
+                        labelFormatter={(value) => format(new Date(value), 'dd. MMM yyyy', { locale: de })}
+                        formatter={(value, name) => [
+                          value,
+                          name === 'sales' ? 'Verkäufe' : 
+                          name === 'removals' ? 'Entnahmen' : 
+                          name === 'netDemand' ? 'Netto-Nachfrage' : 'Empfohlene Bestückung'
+                        ]}
+                      />
+                      <Legend />
+                      <Bar 
+                        yAxisId="left"
+                        dataKey="sales" 
+                        fill="#10b981" 
+                        name="Verkäufe"
+                        radius={[2, 2, 0, 0]}
+                      />
+                      <Bar 
+                        yAxisId="left"
+                        dataKey="removals" 
+                        fill="#ef4444" 
+                        name="Entnahmen"
+                        radius={[2, 2, 0, 0]}
+                      />
+                      <Line 
+                        yAxisId="right"
+                        type="monotone" 
+                        dataKey="netDemand" 
+                        stroke="#3b82f6" 
+                        strokeWidth={3}
+                        name="Netto-Nachfrage"
+                        dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
+                      />
+                      <Line 
+                        yAxisId="right"
+                        type="monotone" 
+                        dataKey={(entry) => {
+                          // Calculate recommended stock based on trends
+                          const avgSales = (entry.sales || 0);
+                          const avgRemovals = (entry.removals || 0);
+                          return Math.ceil(avgSales * 1.5 + avgRemovals + (avgSales + avgRemovals) * 0.1);
+                        }}
+                        stroke="#f59e0b" 
+                        strokeWidth={2}
+                        strokeDasharray="5 5"
+                        name="Empfohlene Bestückung"
+                        dot={{ fill: '#f59e0b', strokeWidth: 2, r: 3 }}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
               {selectedProduct ? (
                 <Card>
                   <CardHeader>
