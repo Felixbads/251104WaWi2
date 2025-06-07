@@ -1165,7 +1165,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             OR TRIM(split_part(mp.transaction_product_name, '(', 1)) ILIKE '%' || p.product_name || '%'
           )
         )
-        SELECT DISTINCT 
+        SELECT DISTINCT ON (mp.product_id)
           mp.product_id,
           mp.product_name,
           pb.id as batch_id,
@@ -1181,32 +1181,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         FROM matched_products mp
         LEFT JOIN product_batches pb ON mp.product_id = pb.product_id AND (pb.status = 'active' OR pb.status IS NULL)
         LEFT JOIN suppliers s ON pb.supplier_id = s.id
-        ORDER BY mp.product_name, pb.expiry_date ASC NULLS LAST
+        ORDER BY mp.product_id, 
+                 CASE WHEN pb.expiry_date IS NULL THEN 1 ELSE 0 END,
+                 pb.expiry_date ASC,
+                 pb.received_date ASC
       `;
 
       const result = await rawDb.query(query, [machineId]);
       const rows = result.rows;
 
-      // Group by product and calculate totals
-      const productGroups = new Map();
-      
-      rows.forEach(row => {
-        const productId = row.product_id;
-        const productName = row.product_name;
+      // Process FIFO batch data - now we get only one batch per product (earliest expiring)
+      const mhdData = rows.map(row => {
+        const result = {
+          productId: row.product_id,
+          productName: row.product_name,
+          currentStock: parseInt(row.machine_quantity) || 0,
+          totalQuantity: parseInt(row.machine_quantity) || 0,
+          batches: []
+        };
         
-        if (!productGroups.has(productId)) {
-          productGroups.set(productId, {
-            productId,
-            productName,
-            currentStock: parseInt(row.machine_quantity) || 0,
-            totalQuantity: parseInt(row.machine_quantity) || 0,
-            batches: []
-          });
-        }
-        
-        const product = productGroups.get(productId);
-        
-        // Only add batch information if we have valid batch data
+        // Only add batch information if we have valid batch data (FIFO - earliest expiring batch)
         if (row.batch_id && row.expiry_date) {
           // Calculate days until expiry
           const expiryDate = new Date(row.expiry_date);
@@ -1223,12 +1217,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             status = 'attention';
           }
           
-          product.batches.push({
+          result.batches.push({
             batchId: row.batch_id,
             batchNumber: row.batch_number,
             supplierBatchNumber: row.supplier_batch_number,
             expiryDate: row.expiry_date,
-            quantity: parseInt(row.machine_quantity) || 0,
+            quantity: row.current_quantity || parseInt(row.machine_quantity) || 0,
             status,
             daysUntilExpiry,
             supplierName: row.supplier_name,
@@ -1236,9 +1230,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             lastRefill: row.last_refill
           });
         }
-      });
-
-      const mhdData = Array.from(productGroups.values());
+        
+        return result;
+      }).filter(product => product.productId); // Filter out any null products
       
       console.log(`Found MHD data for ${mhdData.length} products in machine ${machineId}`);
       
