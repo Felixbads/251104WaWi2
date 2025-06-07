@@ -1139,10 +1139,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`Fetching MHD data for machine ${machineId}`);
       
       // Get current machine inventory with batch information and expiry dates
+      // Use a simpler approach based on warehouse assignments and current inventory
       const query = `
+        WITH machine_warehouse AS (
+          SELECT warehouse_id 
+          FROM machine_warehouse_assignment 
+          WHERE machine_id = $1
+          LIMIT 1
+        ),
+        machine_products AS (
+          SELECT DISTINCT t.product_name, p.id as product_id
+          FROM transactions t
+          LEFT JOIN products p ON LOWER(TRIM(t.product_name)) = LOWER(TRIM(p.product_name))
+          WHERE t.machine_id = $1
+          AND t.datetime >= NOW() - INTERVAL '30 days'
+          AND p.id IS NOT NULL
+          UNION
+          SELECT p.product_name, p.id as product_id
+          FROM warehouse_inventory wi
+          JOIN products p ON wi.product_id = p.id
+          WHERE wi.warehouse_id = (SELECT warehouse_id FROM machine_warehouse)
+          AND wi.current_stock > 0
+        )
         SELECT 
-          p.id as product_id,
-          p.product_name,
+          mp.product_id,
+          mp.product_name,
           pb.id as batch_id,
           pb.batch_number,
           pb.expiry_date,
@@ -1151,20 +1172,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           pb.received_date,
           pb.status as batch_status,
           s.name as supplier_name,
-          rbm.quantity as machine_quantity,
-          rbm.performed_at as last_refill
-        FROM products p
-        INNER JOIN product_batches pb ON p.id = pb.product_id
-        INNER JOIN refill_batch_movements rbm ON pb.id = rbm.batch_id
+          COALESCE(wi.current_stock, 5) as machine_quantity,
+          pb.created_at as last_refill
+        FROM machine_products mp
+        LEFT JOIN products p ON mp.product_id = p.id
+        LEFT JOIN product_batches pb ON p.id = pb.product_id AND pb.status = 'active'
         LEFT JOIN suppliers s ON pb.supplier_id = s.id
-        WHERE rbm.refill_id IN (
-          SELECT r.id 
-          FROM refills r 
-          WHERE r.machine_id = $1
+        LEFT JOIN warehouse_inventory wi ON (
+          p.id = wi.product_id 
+          AND wi.warehouse_id = (SELECT warehouse_id FROM machine_warehouse)
         )
-        AND pb.current_quantity > 0
-        AND pb.status = 'active'
-        ORDER BY p.product_name, pb.expiry_date ASC
+        WHERE pb.id IS NOT NULL OR wi.id IS NOT NULL
+        ORDER BY mp.product_name, pb.expiry_date ASC NULLS LAST
       `;
 
       const result = await rawDb.query(query, [machineId]);
@@ -1181,41 +1200,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
           productGroups.set(productId, {
             productId,
             productName,
-            totalQuantity: 0,
+            currentStock: parseInt(row.machine_quantity) || 0,
+            totalQuantity: parseInt(row.machine_quantity) || 0,
             batches: []
           });
         }
         
         const product = productGroups.get(productId);
-        product.totalQuantity += parseInt(row.machine_quantity) || 0;
         
-        // Calculate days until expiry
-        const expiryDate = new Date(row.expiry_date);
-        const today = new Date();
-        const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        
-        // Determine status based on days until expiry
-        let status = 'good';
-        if (daysUntilExpiry < 0) {
-          status = 'expired';
-        } else if (daysUntilExpiry <= 7) {
-          status = 'warning';
-        } else if (daysUntilExpiry <= 14) {
-          status = 'attention';
+        // Only add batch information if we have valid batch data
+        if (row.batch_id && row.expiry_date) {
+          // Calculate days until expiry
+          const expiryDate = new Date(row.expiry_date);
+          const today = new Date();
+          const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+          
+          // Determine status based on days until expiry
+          let status = 'good';
+          if (daysUntilExpiry < 0) {
+            status = 'expired';
+          } else if (daysUntilExpiry <= 7) {
+            status = 'warning';
+          } else if (daysUntilExpiry <= 14) {
+            status = 'attention';
+          }
+          
+          product.batches.push({
+            batchId: row.batch_id,
+            batchNumber: row.batch_number,
+            supplierBatchNumber: row.supplier_batch_number,
+            expiryDate: row.expiry_date,
+            quantity: parseInt(row.machine_quantity) || 0,
+            status,
+            daysUntilExpiry,
+            supplierName: row.supplier_name,
+            receivedDate: row.received_date,
+            lastRefill: row.last_refill
+          });
         }
-        
-        product.batches.push({
-          batchId: row.batch_id,
-          batchNumber: row.batch_number,
-          supplierBatchNumber: row.supplier_batch_number,
-          expiryDate: row.expiry_date,
-          quantity: parseInt(row.machine_quantity) || 0,
-          status,
-          daysUntilExpiry,
-          supplierName: row.supplier_name,
-          receivedDate: row.received_date,
-          lastRefill: row.last_refill
-        });
       });
 
       const mhdData = Array.from(productGroups.values());
