@@ -13,7 +13,8 @@ import {
   Clock3,
   Search,
   RefreshCw,
-  Euro
+  Euro,
+  PackageX
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -257,6 +258,32 @@ function MachineStatusCard({ machine }: { machine: MachineStatusData }) {
       </CardHeader>
       
       <CardContent className="space-y-3">
+        {/* MHD Status - Prominent display at top */}
+        {machine.mhdStatus && (machine.mhdStatus.expiredCount > 0 || machine.mhdStatus.warningCount > 0) && (
+          <div className={`flex items-center space-x-2 text-sm p-2 rounded-md border ${
+            machine.mhdStatus.expiredCount > 0 
+              ? 'bg-red-50 border-red-200 text-red-800' 
+              : 'bg-yellow-50 border-yellow-200 text-yellow-800'
+          }`}>
+            <PackageX className={`h-4 w-4 ${
+              machine.mhdStatus.expiredCount > 0 ? 'text-red-600' : 'text-yellow-600'
+            }`} />
+            <div className="flex-1">
+              <p className="font-medium">
+                {machine.mhdStatus.expiredCount > 0 ? 'Abgelaufene Produkte!' : 'MHD-Warnung'}
+              </p>
+              <p className="text-xs">
+                {machine.mhdStatus.expiredCount > 0 && `${machine.mhdStatus.expiredCount} abgelaufen`}
+                {machine.mhdStatus.expiredCount > 0 && machine.mhdStatus.warningCount > 0 && ', '}
+                {machine.mhdStatus.warningCount > 0 && `${machine.mhdStatus.warningCount} laufen bald ab`}
+              </p>
+            </div>
+            <Badge variant={machine.mhdStatus.expiredCount > 0 ? "destructive" : "secondary"}>
+              {machine.mhdStatus.expiredCount > 0 ? "KRITISCH" : "WARNUNG"}
+            </Badge>
+          </div>
+        )}
+
         {/* Letzte Füllung */}
         <div className="flex items-center space-x-2 text-sm">
           <Clock className="h-4 w-4 text-blue-500" />

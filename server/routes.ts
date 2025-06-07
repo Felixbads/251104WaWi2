@@ -3095,19 +3095,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? Math.floor((now.getTime() - new Date(lastCashlessSaleDate).getTime()) / (1000 * 60 * 60 * 24))
           : null;
         
-        // MHD Status abrufen
+        // MHD Status abrufen - use same logic as MHD alerts API
         const mhdQuery = `
+          WITH machine_products AS (
+            SELECT DISTINCT p.id as product_id, p.product_name
+            FROM transactions t
+            INNER JOIN products p ON (
+              LOWER(TRIM(p.product_name)) = LOWER(TRIM(t.product_name))
+              OR p.product_name ILIKE '%' || TRIM(split_part(t.product_name, '(', 1)) || '%'
+              OR TRIM(split_part(t.product_name, '(', 1)) ILIKE '%' || p.product_name || '%'
+            )
+            WHERE t.machine_id = $1 
+            AND t.datetime >= NOW() - INTERVAL '30 days'
+          )
           SELECT 
             COUNT(CASE WHEN pb.expiry_date < NOW() THEN 1 END) as expired_count,
             COUNT(CASE WHEN pb.expiry_date >= NOW() AND pb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 END) as warning_count,
             MIN(pb.expiry_date) as earliest_expiry
-          FROM product_batches pb
-          INNER JOIN products p ON pb.product_id = p.id
-          INNER JOIN transactions t ON LOWER(TRIM(p.product_name)) = LOWER(TRIM(t.product_name))
-          WHERE t.machine_id = $1 
-          AND pb.status = 'active' 
+          FROM machine_products mp
+          INNER JOIN product_batches pb ON mp.product_id = pb.product_id
+          WHERE pb.status = 'active' 
           AND pb.expiry_date IS NOT NULL
-          AND t.datetime >= NOW() - INTERVAL '30 days'
         `;
         
         const mhdResult = await rawDb.query(mhdQuery, [machine.id]);
@@ -3115,6 +3123,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         const expiredCount = parseInt(mhdData.expired_count) || 0;
         const warningCount = parseInt(mhdData.warning_count) || 0;
+        
+        // Debug logging for machine 3
+        if (machine.id === 3) {
+          console.log(`Debug MHD for machine ${machine.id}:`, {
+            mhdData,
+            expiredCount,
+            warningCount
+          });
+        }
         
         // Status bewerten (MHD hat höchste Priorität)
         let status = 'ok';
