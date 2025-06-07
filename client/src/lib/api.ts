@@ -899,6 +899,43 @@ export async function unassignProductFromSupplier(productId: number): Promise<Pr
   });
 }
 
+// MHD (Best Before Date) interfaces and functions
+export interface BatchInfo {
+  batchId: number;
+  batchNumber: string;
+  supplierBatchNumber?: string;
+  expiryDate: string;
+  quantity: number;
+  status: 'good' | 'attention' | 'warning' | 'expired';
+  daysUntilExpiry: number;
+  supplierName?: string;
+  receivedDate?: string;
+  lastRefill?: string;
+}
+
+export interface MachineInventoryWithMHD {
+  productId: number;
+  productName: string;
+  totalQuantity: number;
+  batches: BatchInfo[];
+}
+
+export async function getMachineMHDData(machineId: number): Promise<MachineInventoryWithMHD[]> {
+  return apiRequest<MachineInventoryWithMHD[]>('get', `/machines/${machineId}/mhd`);
+}
+
+export async function updateMachineMHD(
+  machineId: number, 
+  batchId: number, 
+  data: { expiryDate?: string; quantity?: number; notes?: string }
+): Promise<{ success: boolean; message: string; batch: any }> {
+  return apiRequest<{ success: boolean; message: string; batch: any }>(
+    'put', 
+    `/machines/${machineId}/mhd/${batchId}`, 
+    data
+  );
+}
+
 /**
  * Produktdaten als Excel exportieren
  * @returns Ein Blob mit der Excel-Datei

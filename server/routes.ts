@@ -1127,6 +1127,182 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /machines/:id/mhd - Get MHD (Best Before Date) data for a machine
+  app.get(`${API_PREFIX}/machines/:id/mhd`, async (req: Request, res: Response) => {
+    try {
+      const machineId = parseInt(req.params.id);
+      
+      if (isNaN(machineId)) {
+        return res.status(400).json({ error: "Invalid machine ID" });
+      }
+
+      console.log(`Fetching MHD data for machine ${machineId}`);
+      
+      // Get current machine inventory with batch information and expiry dates
+      const query = `
+        SELECT 
+          p.id as product_id,
+          p.product_name,
+          pb.id as batch_id,
+          pb.batch_number,
+          pb.expiry_date,
+          pb.current_quantity,
+          pb.supplier_batch_number,
+          pb.received_date,
+          pb.status as batch_status,
+          s.name as supplier_name,
+          rbm.quantity as machine_quantity,
+          rbm.performed_at as last_refill
+        FROM products p
+        INNER JOIN product_batches pb ON p.id = pb.product_id
+        INNER JOIN refill_batch_movements rbm ON pb.id = rbm.batch_id
+        LEFT JOIN suppliers s ON pb.supplier_id = s.id
+        WHERE rbm.refill_id IN (
+          SELECT r.id 
+          FROM refills r 
+          WHERE r.machine_id = $1
+        )
+        AND pb.current_quantity > 0
+        AND pb.status = 'active'
+        ORDER BY p.product_name, pb.expiry_date ASC
+      `;
+
+      const result = await rawDb.query(query, [machineId]);
+      const rows = result.rows;
+
+      // Group by product and calculate totals
+      const productGroups = new Map();
+      
+      rows.forEach(row => {
+        const productId = row.product_id;
+        const productName = row.product_name;
+        
+        if (!productGroups.has(productId)) {
+          productGroups.set(productId, {
+            productId,
+            productName,
+            totalQuantity: 0,
+            batches: []
+          });
+        }
+        
+        const product = productGroups.get(productId);
+        product.totalQuantity += parseInt(row.machine_quantity) || 0;
+        
+        // Calculate days until expiry
+        const expiryDate = new Date(row.expiry_date);
+        const today = new Date();
+        const daysUntilExpiry = Math.ceil((expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        
+        // Determine status based on days until expiry
+        let status = 'good';
+        if (daysUntilExpiry < 0) {
+          status = 'expired';
+        } else if (daysUntilExpiry <= 7) {
+          status = 'warning';
+        } else if (daysUntilExpiry <= 14) {
+          status = 'attention';
+        }
+        
+        product.batches.push({
+          batchId: row.batch_id,
+          batchNumber: row.batch_number,
+          supplierBatchNumber: row.supplier_batch_number,
+          expiryDate: row.expiry_date,
+          quantity: parseInt(row.machine_quantity) || 0,
+          status,
+          daysUntilExpiry,
+          supplierName: row.supplier_name,
+          receivedDate: row.received_date,
+          lastRefill: row.last_refill
+        });
+      });
+
+      const mhdData = Array.from(productGroups.values());
+      
+      console.log(`Found MHD data for ${mhdData.length} products in machine ${machineId}`);
+      
+      res.json(mhdData);
+    } catch (error) {
+      console.error(`Error fetching MHD data for machine ${req.params.id}:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch MHD data", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
+  // PUT /machines/:id/mhd/:batchId - Update MHD information for a specific batch
+  app.put(`${API_PREFIX}/machines/:id/mhd/:batchId`, async (req: Request, res: Response) => {
+    try {
+      const machineId = parseInt(req.params.id);
+      const batchId = parseInt(req.params.batchId);
+      const { expiryDate, quantity, notes } = req.body;
+      
+      if (isNaN(machineId) || isNaN(batchId)) {
+        return res.status(400).json({ error: "Invalid machine ID or batch ID" });
+      }
+
+      console.log(`Updating MHD data for batch ${batchId} in machine ${machineId}`);
+      
+      // Update the product batch
+      const updateQuery = `
+        UPDATE product_batches 
+        SET 
+          expiry_date = COALESCE($1, expiry_date),
+          current_quantity = COALESCE($2, current_quantity),
+          notes = COALESCE($3, notes),
+          updated_at = NOW()
+        WHERE id = $4
+        RETURNING *
+      `;
+      
+      const result = await rawDb.query(updateQuery, [expiryDate, quantity, notes, batchId]);
+      
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: "Batch not found" });
+      }
+
+      // Log the change
+      const logQuery = `
+        INSERT INTO product_movements (
+          product_id, 
+          product_batch_id, 
+          movement_type, 
+          quantity, 
+          notes, 
+          performed_by
+        ) VALUES (
+          (SELECT product_id FROM product_batches WHERE id = $1),
+          $1,
+          'MHD_UPDATE',
+          $2,
+          $3,
+          $4
+        )
+      `;
+      
+      await rawDb.query(logQuery, [
+        batchId, 
+        quantity || 0, 
+        `MHD updated: ${notes || 'Manual correction'}`,
+        req.user?.id || null
+      ]);
+      
+      res.json({ 
+        success: true, 
+        message: "MHD data updated successfully",
+        batch: result.rows[0]
+      });
+    } catch (error) {
+      console.error(`Error updating MHD data:`, error);
+      res.status(500).json({ 
+        error: "Failed to update MHD data", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
   // API Health Check
   app.get(`${API_PREFIX}/health`, (_req: Request, res: Response) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });

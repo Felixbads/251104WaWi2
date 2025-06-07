@@ -25,7 +25,10 @@ import {
   BarChart as BarChartIcon,
   PieChart as PieChartIcon,
   ClipboardCheck,
-  Plus
+  Plus,
+  Edit3,
+  Save,
+  X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,7 +56,11 @@ import {
   Transaction,
   Refill,
   RefillDetail,
-  formatDateTime
+  formatDateTime,
+  getMachineMHDData,
+  updateMachineMHD,
+  MachineInventoryWithMHD,
+  BatchInfo
 } from "@/lib/api";
 import { queryClient } from "@/lib/queryClient";
 import { 
@@ -672,6 +679,10 @@ export default function AutomatDetail() {
             <TabsTrigger value="auffullungen" className="whitespace-nowrap flex items-center">
               <PackagePlus className="h-4 w-4 mr-2" />
               <span>Auffüllungen</span>
+            </TabsTrigger>
+            <TabsTrigger value="mhd" className="whitespace-nowrap flex items-center">
+              <Calendar className="h-4 w-4 mr-2" />
+              <span>MHD</span>
             </TabsTrigger>
           </TabsList>
         </div>
