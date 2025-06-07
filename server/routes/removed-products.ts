@@ -260,6 +260,39 @@ router.post('/location-trends', async (req, res) => {
     
     const result = await pool.query(query);
     
+    // Verkaufsdaten für die letzten 24 Monate abrufen
+    const salesQuery = `
+      SELECT 
+        t.machine_name as "locationName",
+        t.product_name as "productName",
+        DATE_TRUNC('month', t.datetime) as "month",
+        COUNT(*) as "monthlySales",
+        SUM(t.quantity) as "monthlyQuantity",
+        AVG(t.price) as "avgSalePrice"
+      FROM transactions t
+      WHERE t.datetime >= NOW() - INTERVAL '24 months'
+      GROUP BY t.machine_name, t.product_name, DATE_TRUNC('month', t.datetime)
+      ORDER BY t.machine_name, t.product_name, "month"
+    `;
+    
+    const salesResult = await pool.query(salesQuery);
+    console.log(`[RemovedProducts] Sales query returned ${salesResult.rows.length} monthly sales records`);
+    
+    // Organisiere Verkaufsdaten nach Standort und Produkt
+    const salesData: any = {};
+    salesResult.rows.forEach((row: any) => {
+      const key = `${row.locationName}|${row.productName}`;
+      if (!salesData[key]) {
+        salesData[key] = [];
+      }
+      salesData[key].push({
+        month: row.month,
+        monthlySales: parseInt(row.monthlySales),
+        monthlyQuantity: parseInt(row.monthlyQuantity),
+        avgSalePrice: parseFloat(row.avgSalePrice)
+      });
+    });
+    
     // Gruppiere Ergebnisse nach Standort
     const locationTrends: any = {};
     result.rows.forEach((row: any) => {
@@ -273,6 +306,14 @@ router.post('/location-trends', async (req, res) => {
         };
       }
       
+      const salesKey = `${row.locationName}|${row.productName}`;
+      const productSalesData = salesData[salesKey] || [];
+      
+      // Berechne Durchschnittswerte für die letzten 24 Monate
+      const totalMonthlySales = productSalesData.reduce((sum: number, month: any) => sum + month.monthlySales, 0);
+      const totalMonthlyQuantity = productSalesData.reduce((sum: number, month: any) => sum + month.monthlyQuantity, 0);
+      const avgWeeklySales = totalMonthlySales > 0 ? (totalMonthlySales / Math.max(productSalesData.length, 1)) / 4.33 : 0; // ~4.33 Wochen pro Monat
+      
       const productData = {
         productName: row.productName,
         totalRemoved: parseInt(row.totalRemoved),
@@ -280,7 +321,13 @@ router.post('/location-trends', async (req, res) => {
         avgPerEvent: parseFloat(row.avgPerEvent),
         avgPurchasePrice: row.avgPurchasePrice ? parseFloat(row.avgPurchasePrice) : 0,
         locationLoss: row.locationLoss ? parseFloat(row.locationLoss) : 0,
-        rankAtLocation: parseInt(row.rankAtLocation)
+        rankAtLocation: parseInt(row.rankAtLocation),
+        salesAnalysis: {
+          avgWeeklySales: Math.round(avgWeeklySales * 100) / 100,
+          totalMonthlySales: totalMonthlySales,
+          totalMonthsWithData: productSalesData.length,
+          monthlySalesData: productSalesData
+        }
       };
       
       locationTrends[location].products.push(productData);

@@ -538,6 +538,8 @@ export default function Ruecklaufer() {
                           <TableHead className="text-right">Ø pro Ereignis</TableHead>
                           <TableHead className="text-right">Ø Einkaufspreis</TableHead>
                           <TableHead className="text-right">Verlust</TableHead>
+                          <TableHead className="text-right">Ø Verkäufe/Woche</TableHead>
+                          <TableHead className="text-right">Monate mit Daten</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -571,6 +573,22 @@ export default function Ruecklaufer() {
                             <TableCell className="text-right">
                               <span className="text-red-600 font-bold">
                                 {product.locationLoss > 0 ? `€${product.locationLoss.toFixed(2)}` : '-'}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <span className="text-green-600 font-medium">
+                                {product.salesAnalysis?.avgWeeklySales > 0 ? 
+                                  `${product.salesAnalysis.avgWeeklySales}` : 
+                                  <span className="text-gray-400">-</span>
+                                }
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <span className="text-gray-600">
+                                {product.salesAnalysis?.totalMonthsWithData > 0 ? 
+                                  `${product.salesAnalysis.totalMonthsWithData}/24` : 
+                                  <span className="text-gray-400">-</span>
+                                }
                               </span>
                             </TableCell>
                           </TableRow>
