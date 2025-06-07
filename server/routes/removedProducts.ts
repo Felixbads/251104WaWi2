@@ -11,8 +11,8 @@ export async function getRemovedProducts(req: Request, res: Response) {
     
     console.log("Fetching removed products with limit:", limit);
 
-    // Use direct SQL query to get top products from transactions
-    const queryResult = await storage.execute(`
+    // Use direct SQL query to get top sold products from transactions
+    const queryResult = await storage.query(`
       SELECT 
         product_name,
         COUNT(*) as removal_count,
