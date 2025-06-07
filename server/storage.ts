@@ -2728,7 +2728,59 @@ export class DatabaseStorage implements IStorage {
   // Get location status data for location status overview page
   async getLocationStatusData(): Promise<any[]> {
     try {
+      console.log("=== LOCATION STATUS START ===");
       console.log("Fetching location status data...");
+      
+      // Get MHD alerts data first using the working alerts endpoint
+      const mhdAlertsByMachine = new Map();
+      
+      try {
+        console.log("=== MHD INTEGRATION START ===");
+        console.log("Fetching MHD data for location status...");
+        const fetch = (await import('node-fetch')).default;
+        const mhdResponse = await fetch('http://localhost:5000/api/mhd-alerts', {
+          headers: {
+            'Authorization': 'Bearer i006fjv1spjm9uzop5x'
+          }
+        });
+        
+        if (mhdResponse.ok) {
+          const mhdData = await mhdResponse.json();
+          console.log(`MHD SUCCESS: Received ${mhdData.length} alerts for location status`);
+          
+          // Group by machine ID
+          mhdData.forEach((alert: any) => {
+            const machineId = alert.machineId;
+            const existing = mhdAlertsByMachine.get(machineId) || {
+              expiredCount: 0,
+              warningCount: 0,
+              earliestExpiry: null,
+              alertLevel: 'ok'
+            };
+            
+            if (alert.status === 'expired') {
+              existing.expiredCount++;
+            } else if (alert.status === 'warning') {
+              existing.warningCount++;
+            }
+            
+            if (!existing.earliestExpiry || new Date(alert.expiryDate) < new Date(existing.earliestExpiry)) {
+              existing.earliestExpiry = alert.expiryDate;
+            }
+            
+            existing.alertLevel = existing.expiredCount > 0 ? 'expired' : 
+                                existing.warningCount > 0 ? 'warning' : 'ok';
+            
+            mhdAlertsByMachine.set(machineId, existing);
+          });
+          
+          console.log(`MHD SUCCESS: Processed alerts for ${mhdAlertsByMachine.size} machines with MHD data`);
+        } else {
+          console.error('Failed to fetch MHD alerts:', mhdResponse.status);
+        }
+      } catch (error) {
+        console.error('Error fetching MHD data for location status:', error);
+      }
       
       // Enhanced query to get detailed information including door openings, revenue, and recent transactions
       const statusQuery = `
@@ -2841,21 +2893,41 @@ export class DatabaseStorage implements IStorage {
           doorOpenDaysAgo = Math.floor((now.getTime() - doorOpenDate.getTime()) / (1000 * 60 * 60 * 24));
         }
         
-        // Determine status based on refill timing
+        // Get MHD status for this machine (highest priority)
+        const mhdData = mhdAlertsByMachine.get(machine.id) || {
+          expiredCount: 0,
+          warningCount: 0,
+          earliestExpiry: null,
+          alertLevel: 'ok'
+        };
+        
+        // Determine status based on MHD first, then refill timing
         let status = 'ok';
         const warnings = [];
         
-        if (refillDaysAgo !== null) {
-          if (refillDaysAgo > 7) {
-            warnings.push('Keine Auffüllung seit über 7 Tagen');
-            status = 'error';
-          } else if (refillDaysAgo > 3) {
-            warnings.push('Keine Auffüllung seit über 3 Tagen');
+        // MHD has highest priority
+        if (mhdData.expiredCount > 0) {
+          status = 'error';
+          warnings.push(`${mhdData.expiredCount} abgelaufene Produkte`);
+        } else if (mhdData.warningCount > 0) {
+          status = 'warning';
+          warnings.push(`${mhdData.warningCount} Produkte laufen bald ab`);
+        }
+        
+        // Only check refill timing if no MHD issues
+        if (status === 'ok') {
+          if (refillDaysAgo !== null) {
+            if (refillDaysAgo > 7) {
+              warnings.push('Keine Auffüllung seit über 7 Tagen');
+              status = 'error';
+            } else if (refillDaysAgo > 3) {
+              warnings.push('Keine Auffüllung seit über 3 Tagen');
+              status = 'warning';
+            }
+          } else {
+            warnings.push('Keine Auffüllung gefunden');
             status = 'warning';
           }
-        } else {
-          warnings.push('Keine Auffüllung gefunden');
-          status = 'warning';
         }
         
         // Get recent transactions for this machine
@@ -2890,7 +2962,13 @@ export class DatabaseStorage implements IStorage {
           todayRevenue: parseFloat(machine.today_revenue) || 0,
           recentTransactions: recentTransactions,
           status,
-          warnings
+          warnings,
+          mhdStatus: {
+            expiredCount: mhdData.expiredCount,
+            warningCount: mhdData.warningCount,
+            earliestExpiry: mhdData.earliestExpiry,
+            alertLevel: mhdData.alertLevel
+          }
         };
       });
       
