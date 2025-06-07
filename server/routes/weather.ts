@@ -266,4 +266,156 @@ router.post('/fill-missing', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/weather/overview
+ * Get overall weather data statistics and overview
+ */
+router.get('/overview', async (req, res) => {
+  try {
+    console.log('Getting weather data overview');
+    
+    // Get comprehensive statistics
+    const overviewData = await db.select({
+      totalDataPoints: sql<number>`COUNT(*)`,
+      avgTemperature: sql<number>`AVG(temp)`,
+      totalPrecipitation: sql<number>`SUM(precipitation)`,
+      minDate: sql<string>`MIN(date)`,
+      maxDate: sql<string>`MAX(date)`,
+      uniqueDays: sql<number>`COUNT(DISTINCT date)`
+    }).from(weatherData);
+    
+    const overview = overviewData[0];
+    
+    // Calculate years covered
+    let yearsCovered = 0;
+    if (overview.minDate && overview.maxDate) {
+      const startYear = new Date(overview.minDate).getFullYear();
+      const endYear = new Date(overview.maxDate).getFullYear();
+      yearsCovered = endYear - startYear + 1;
+    }
+    
+    res.json({
+      success: true,
+      totalDataPoints: overview.totalDataPoints || 0,
+      avgTemperature: overview.avgTemperature || null,
+      totalPrecipitation: overview.totalPrecipitation || null,
+      yearsCovered,
+      earliestDate: overview.minDate,
+      latestDate: overview.maxDate,
+      uniqueDays: overview.uniqueDays || 0,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Weather overview error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Overview retrieval failed',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+/**
+ * GET /api/weather/yearly-stats/:state
+ * Get yearly statistics for a specific state (for Bad Schandau, state will be 'SN')
+ */
+router.get('/yearly-stats/:state', async (req, res) => {
+  try {
+    const { state } = req.params;
+    console.log(`Getting yearly weather stats for state: ${state}`);
+    
+    // For Bad Schandau (Saxony), get yearly aggregated data
+    const yearlyStats = await db.select({
+      year: sql<number>`EXTRACT(YEAR FROM date::date)`,
+      dataPoints: sql<number>`COUNT(*)`,
+      avgTemperature: sql<number>`AVG(temp)`,
+      avgHumidity: sql<number>`AVG(humidity)`,
+      totalPrecipitation: sql<number>`SUM(precipitation)`,
+      coverage: sql<number>`COUNT(DISTINCT date) * 100.0 / 365`
+    })
+    .from(weatherData)
+    .where(eq(weatherData.station_name, 'Bad Schandau'))
+    .groupBy(sql`EXTRACT(YEAR FROM date::date)`)
+    .orderBy(sql`EXTRACT(YEAR FROM date::date)`);
+    
+    res.json(yearlyStats.map(stat => ({
+      ...stat,
+      state: 'SN'
+    })));
+    
+  } catch (error) {
+    console.error('Yearly stats error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Yearly stats retrieval failed'
+    });
+  }
+});
+
+/**
+ * GET /api/weather/daily-coverage/:state/:year
+ * Get daily data coverage for a specific state and year
+ */
+router.get('/daily-coverage/:state/:year', async (req, res) => {
+  try {
+    const { state, year } = req.params;
+    console.log(`Getting daily coverage for ${state} in ${year}`);
+    
+    const dailyCoverage = await db.select({
+      date: weatherData.date,
+      dataPoints: sql<number>`COUNT(*)`,
+      coverage: sql<number>`COUNT(*) * 1.0 / 24` // Assuming 24 hourly readings per day
+    })
+    .from(weatherData)
+    .where(
+      and(
+        eq(weatherData.stationName, 'Bad Schandau'),
+        sql`EXTRACT(YEAR FROM date::date) = ${parseInt(year)}`
+      )
+    )
+    .groupBy(weatherData.date)
+    .orderBy(weatherData.date);
+    
+    res.json(dailyCoverage);
+    
+  } catch (error) {
+    console.error('Daily coverage error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Daily coverage retrieval failed'
+    });
+  }
+});
+
+/**
+ * GET /api/weather/hourly/:state/:date
+ * Get hourly weather data for a specific state and date
+ */
+router.get('/hourly/:state/:date', async (req, res) => {
+  try {
+    const { state, date } = req.params;
+    console.log(`Getting hourly data for ${state} on ${date}`);
+    
+    const hourlyData = await db.select()
+      .from(weatherData)
+      .where(
+        and(
+          eq(weatherData.stationName, 'Bad Schandau'),
+          eq(weatherData.date, date)
+        )
+      )
+      .orderBy(weatherData.hour);
+    
+    res.json(hourlyData);
+    
+  } catch (error) {
+    console.error('Hourly data error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Hourly data retrieval failed'
+    });
+  }
+});
+
 export default router;
