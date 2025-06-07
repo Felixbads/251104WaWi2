@@ -3032,6 +3032,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const mhdAlertsByMachine = new Map();
       
       try {
+        console.log('Location Status: Starting MHD query execution...');
         // Execute the exact working MHD alerts query directly
         const mhdQuery = `
           WITH machine_products AS (
