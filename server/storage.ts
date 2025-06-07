@@ -2748,30 +2748,14 @@ export class DatabaseStorage implements IStorage {
           const mhdData = await mhdResponse.json();
           console.log(`MHD SUCCESS: Received ${mhdData.length} alerts for location status`);
           
-          // Group by machine ID
-          mhdData.forEach((alert: any) => {
-            const machineId = alert.machineId;
-            const existing = mhdAlertsByMachine.get(machineId) || {
-              expiredCount: 0,
-              warningCount: 0,
-              earliestExpiry: null,
-              alertLevel: 'ok'
-            };
-            
-            if (alert.status === 'expired') {
-              existing.expiredCount++;
-            } else if (alert.status === 'warning') {
-              existing.warningCount++;
-            }
-            
-            if (!existing.earliestExpiry || new Date(alert.expiryDate) < new Date(existing.earliestExpiry)) {
-              existing.earliestExpiry = alert.expiryDate;
-            }
-            
-            existing.alertLevel = existing.expiredCount > 0 ? 'expired' : 
-                                existing.warningCount > 0 ? 'warning' : 'ok';
-            
-            mhdAlertsByMachine.set(machineId, existing);
+          // Process machine summaries directly
+          mhdData.forEach((machineAlert: any) => {
+            mhdAlertsByMachine.set(machineAlert.machineId, {
+              expiredCount: machineAlert.expiredCount || 0,
+              warningCount: machineAlert.warningCount || 0,
+              earliestExpiry: machineAlert.earliestExpiry,
+              alertLevel: machineAlert.alertLevel || 'ok'
+            });
           });
           
           console.log(`MHD SUCCESS: Processed alerts for ${mhdAlertsByMachine.size} machines with MHD data`);
