@@ -1976,3 +1976,15 @@ export async function getRemovedProductsByMachine(machineId: number, params?: {
   return apiRequest<RemovedProductsResponse>('get', `/machines/${machineId}/removed-products?${queryParams.toString()}`);
 }
 
+// Top entnommene Produkte für Login-Kachel
+export interface TopRemovedProduct {
+  productName: string;
+  totalRemoved: number;
+  removalsCount: number;
+  lastRemoved: string;
+}
+
+export async function getTopRemovedProducts(days: number = 7): Promise<TopRemovedProduct[]> {
+  return apiRequest<TopRemovedProduct[]>('get', `/removed-products/top?days=${days}`);
+}
+
