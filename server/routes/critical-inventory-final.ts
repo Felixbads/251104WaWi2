@@ -8,20 +8,51 @@ router.get('/critical-inventory-final', async (req: Request, res: Response) => {
   try {
     console.log('Fetching critical inventory data...');
     
-    // Direct SQL query for low stock items using stocks table
+    // Map machine locations to warehouse regions for realistic inventory organization  
+    const locationToWarehouse = {
+      'Bad Gottleuba-Berggießhübel': { name: 'Bad Gottleuba', id: 5 },
+      'Bahnhof Bad Schandau': { name: 'Bahnhof', id: 3 },
+      'Burg Stolpen, Zehrgarten': { name: 'Stolpen', id: 4 },
+      'Elbkai, Bad Schandau': { name: 'Bahnhof', id: 3 },
+      'Gohrisch': { name: 'Bad Gottleuba', id: 5 },
+      'Hohnstein, An der Burg': { name: 'Hohenstein', id: 6 },
+      'Hotel zur Post, Pirna': { name: 'Pirna', id: 7 },
+      'Landfleischerei Struppen': { name: 'Stolpen', id: 4 },
+      'Leupoldishain ': { name: 'Bad Gottleuba', id: 5 },
+      'Ostrau Kurpark': { name: 'Pirna', id: 7 },
+      'Papstdorf - Am Feuerwehrmuseum': { name: 'Bad Gottleuba', id: 5 },
+      'Pfaffendorf': { name: 'Bahnhof', id: 3 },
+      'Pötzscha': { name: 'Pirna', id: 7 },
+      'Rathen': { name: 'Bahnhof', id: 3 },
+      'Schmilka, Alte Feuerwehr': { name: 'Bahnhof', id: 3 },
+      'Schöna': { name: 'Bahnhof', id: 3 }
+    };
+
+    // Query to find low stock items with proper warehouse assignment based on machine locations
     const lowStockQuery = `
+      WITH product_locations AS (
+        SELECT 
+          TRIM(t.product_name) as product_name,
+          array_agg(DISTINCT m.location_name) as machine_locations,
+          m.location_name as primary_location
+        FROM transactions t
+        INNER JOIN machines m ON t.machine_id = m.id
+        WHERE t.created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY TRIM(t.product_name), m.location_name
+      )
       SELECT 
         s.id,
-        1 as warehouse_id,
-        'Hauptlager' as warehouse_name,
         s.id as product_id,
         s.product_name,
         s.amount_standard as quantity,
         s.amount_critical as min_quantity,
         COALESCE(s.price, 0) as price,
         'Standard' as category,
-        COALESCE(s.sku, '') as sku
+        COALESCE(s.sku, '') as sku,
+        pl.machine_locations,
+        pl.primary_location
       FROM stocks s
+      LEFT JOIN product_locations pl ON TRIM(s.product_name) = pl.product_name
       WHERE s.amount_standard <= s.amount_critical
         AND s.amount_standard >= 0
         AND s.status = 'active'
@@ -52,10 +83,16 @@ router.get('/critical-inventory-final', async (req: Request, res: Response) => {
 
         // Only include items with recent sales (truly critical)
         if (salesCount > 0) {
+          // Determine warehouse based on machine locations
+          let warehouseInfo = { name: 'Bahnhof', id: 3 }; // Default fallback
+          if (item.primary_location && locationToWarehouse[item.primary_location]) {
+            warehouseInfo = locationToWarehouse[item.primary_location];
+          }
+          
           criticalItems.push({
             id: item.id,
-            warehouseId: item.warehouse_id,
-            warehouseName: item.warehouse_name,
+            warehouseId: warehouseInfo.id,
+            warehouseName: warehouseInfo.name,
             productId: item.product_id,
             productName: item.product_name,
             currentQuantity: item.quantity,
@@ -69,7 +106,7 @@ router.get('/critical-inventory-final', async (req: Request, res: Response) => {
             salesLast7Days: salesCount,
             shouldAlert: true,
             criticalityScore: (item.min_quantity - item.quantity) * salesCount,
-            assignedMachines: []
+            assignedMachines: item.machine_locations || []
           });
         }
       } catch (itemError) {
