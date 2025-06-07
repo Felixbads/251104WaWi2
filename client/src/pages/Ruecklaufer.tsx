@@ -261,6 +261,16 @@ export default function Ruecklaufer() {
                       <TableCell className="text-right">
                         {(parseInt(product.totalRemoved) / parseInt(product.removalsCount)).toFixed(1)}
                       </TableCell>
+                      <TableCell className="text-right">
+                        <span className="text-blue-600 font-medium">
+                          {product.avgSalePrice ? `€${product.avgSalePrice.toFixed(2)}` : '-'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className="text-red-600 font-bold">
+                          {product.estimatedLoss ? `€${product.estimatedLoss.toFixed(2)}` : '-'}
+                        </span>
+                      </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1 text-sm text-gray-600">
                           <Clock className="h-3 w-3" />
@@ -470,6 +480,113 @@ export default function Ruecklaufer() {
           </CardContent>
         </Card>
       )}
+
+      {/* Standort-Trends: Problematische Produkte nach Standort */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-orange-500" />
+            Standort-Trends: Überschuss-Probleme
+          </CardTitle>
+          <CardDescription>
+            Welche Produkte werden an welchen Standorten übermäßig entfernt - zeigt Überschuss-Probleme
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingTrends ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full"></div>
+            </div>
+          ) : locationTrends && locationTrends.length > 0 ? (
+            <div className="space-y-6">
+              {locationTrends.map((location, locationIndex) => (
+                <div key={locationIndex} className="border rounded-lg p-4 bg-gray-50">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {location.locationName}
+                    </h3>
+                    <div className="flex gap-4 text-sm">
+                      <div className="text-center">
+                        <div className="text-red-600 font-bold">{location.totalRemovedAtLocation}</div>
+                        <div className="text-gray-500">Gesamt entfernt</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-red-600 font-bold">€{location.totalLossAtLocation.toFixed(2)}</div>
+                        <div className="text-gray-500">Gesamtverlust</div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Rank</TableHead>
+                          <TableHead>Produktname</TableHead>
+                          <TableHead className="text-right">Entfernt</TableHead>
+                          <TableHead className="text-right">Ereignisse</TableHead>
+                          <TableHead className="text-right">Ø pro Ereignis</TableHead>
+                          <TableHead className="text-right">Ø Preis</TableHead>
+                          <TableHead className="text-right">Verlust</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {location.products.slice(0, 5).map((product, productIndex) => (
+                          <TableRow key={productIndex} className="hover:bg-white">
+                            <TableCell>
+                              <Badge 
+                                variant={product.rankAtLocation <= 3 ? "destructive" : "outline"} 
+                                className="text-xs"
+                              >
+                                #{product.rankAtLocation}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="font-medium text-sm">{product.productName}</div>
+                            </TableCell>
+                            <TableCell className="text-right font-bold text-red-600">
+                              {product.totalRemoved}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {product.removalEvents}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {product.avgPerEvent.toFixed(1)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <span className="text-blue-600 font-medium">
+                                {product.avgSalePrice > 0 ? `€${product.avgSalePrice.toFixed(2)}` : '-'}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <span className="text-red-600 font-bold">
+                                {product.locationLoss > 0 ? `€${product.locationLoss.toFixed(2)}` : '-'}
+                              </span>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  
+                  {location.products.length > 5 && (
+                    <div className="text-center mt-3">
+                      <span className="text-sm text-gray-500">
+                        ... und {location.products.length - 5} weitere Produkte
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+              <p>Keine Standort-Trends im gewählten Zeitraum gefunden</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
