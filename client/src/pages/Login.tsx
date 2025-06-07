@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ShoppingBag, LogIn, Loader2 } from "lucide-react";
+import MHDAlertTile from "@/components/MHDAlertTile";
 
 // Login schema mit Validierungsregeln
 const loginSchema = z.object({
@@ -72,7 +73,9 @@ export default function Login() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50 px-4">
-      <Card className="w-full max-w-md">
+      <div className="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+        {/* Login Form */}
+        <Card className="w-full max-w-md mx-auto">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
             <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
@@ -146,6 +149,12 @@ export default function Login() {
           </p>
         </CardFooter>
       </Card>
+
+        {/* MHD Alert Tile */}
+        <div className="w-full max-w-md mx-auto lg:mx-0">
+          <MHDAlertTile />
+        </div>
+      </div>
     </div>
   );
 }
