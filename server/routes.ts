@@ -3028,94 +3028,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`Found ${machinesList.length} machines for location status`);
       
-      // Get MHD alerts data using the exact same query as the working MHD alerts API
-      const mhdAlertsQuery = `
-        WITH machine_products AS (
-          -- Get all products that have been sold in each machine
-          SELECT DISTINCT 
-            t.machine_id,
-            t.product_name as transaction_product_name
-          FROM transactions t
-        ),
-        matched_products AS (
-          -- Match transaction product names to actual products
-          SELECT DISTINCT
-            mp.machine_id,
-            p.id as product_id,
-            p.product_name
-          FROM machine_products mp
-          INNER JOIN products p ON (
-            LOWER(TRIM(p.product_name)) = LOWER(TRIM(mp.transaction_product_name))
-            OR p.product_name ILIKE '%' || TRIM(split_part(mp.transaction_product_name, '(', 1)) || '%'
-            OR TRIM(split_part(mp.transaction_product_name, '(', 1)) ILIKE '%' || p.product_name || '%'
-          )
-        ),
-        machine_batches AS (
-          -- Get the earliest expiring batch for each product in each machine (FIFO)
-          SELECT DISTINCT ON (match.machine_id, match.product_id)
-            match.machine_id,
-            match.product_id,
-            match.product_name,
-            pb.id as batch_id,
-            pb.expiry_date,
-            m.machine_name,
-            m.location_name as location
-          FROM matched_products match
-          LEFT JOIN product_batches pb ON match.product_id = pb.product_id 
-            AND (pb.status = 'active' OR pb.status IS NULL)
-            AND pb.expiry_date IS NOT NULL
-          LEFT JOIN machines m ON match.machine_id = m.id
-          WHERE pb.expiry_date IS NOT NULL
-          ORDER BY match.machine_id, match.product_id, pb.expiry_date ASC, pb.received_date ASC
-        )
-        SELECT 
-          mb.machine_id,
-          mb.machine_name,
-          mb.location,
-          COUNT(CASE 
-            WHEN mb.expiry_date < NOW() THEN 1 
-          END) as expired_count,
-          COUNT(CASE 
-            WHEN mb.expiry_date >= NOW() AND mb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 
-          END) as warning_count,
-          COUNT(CASE 
-            WHEN mb.expiry_date > NOW() + INTERVAL '7 days' AND mb.expiry_date <= NOW() + INTERVAL '14 days' THEN 1 
-          END) as attention_count,
-          MIN(mb.expiry_date) as earliest_expiry,
-          COUNT(mb.batch_id) as total_products_with_expiry
-        FROM machine_batches mb
-        GROUP BY mb.machine_id, mb.machine_name, mb.location
-        HAVING COUNT(CASE 
-          WHEN mb.expiry_date < NOW() OR mb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 
-        END) > 0
-      `;
-      
-      const mhdAlertsResult = await rawDb.query(mhdAlertsQuery);
+      // Get MHD alerts data directly using the working query logic
       const mhdAlertsByMachine = new Map();
       
-      console.log(`MHD alerts query returned ${mhdAlertsResult.rows.length} machines with MHD issues`);
-      
-      // Process only machines with MHD alerts
-      mhdAlertsResult.rows.forEach(row => {
-        const expiredCount = parseInt(row.expired_count) || 0;
-        const warningCount = parseInt(row.warning_count) || 0;
+      try {
+        // Execute the exact working MHD alerts query directly
+        const mhdQuery = `
+          WITH machine_products AS (
+            SELECT DISTINCT 
+              t.machine_id,
+              t.product_name as transaction_product_name
+            FROM transactions t
+          ),
+          matched_products AS (
+            SELECT DISTINCT
+              mp.machine_id,
+              p.id as product_id,
+              p.product_name
+            FROM machine_products mp
+            INNER JOIN products p ON (
+              LOWER(TRIM(p.product_name)) = LOWER(TRIM(mp.transaction_product_name))
+              OR p.product_name ILIKE '%' || TRIM(split_part(mp.transaction_product_name, '(', 1)) || '%'
+              OR TRIM(split_part(mp.transaction_product_name, '(', 1)) ILIKE '%' || p.product_name || '%'
+            )
+          ),
+          machine_batches AS (
+            SELECT DISTINCT ON (match.machine_id, match.product_id)
+              match.machine_id,
+              match.product_id,
+              match.product_name,
+              pb.id as batch_id,
+              pb.expiry_date,
+              m.machine_name,
+              m.location_name as location
+            FROM matched_products match
+            LEFT JOIN product_batches pb ON match.product_id = pb.product_id 
+              AND (pb.status = 'active' OR pb.status IS NULL)
+              AND pb.expiry_date IS NOT NULL
+            LEFT JOIN machines m ON match.machine_id = m.id
+            WHERE pb.expiry_date IS NOT NULL
+            ORDER BY match.machine_id, match.product_id, pb.expiry_date ASC, pb.received_date ASC
+          )
+          SELECT 
+            mb.machine_id,
+            COUNT(CASE WHEN mb.expiry_date < NOW() THEN 1 END) as expired_count,
+            COUNT(CASE WHEN mb.expiry_date >= NOW() AND mb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 END) as warning_count,
+            MIN(mb.expiry_date) as earliest_expiry
+          FROM machine_batches mb
+          GROUP BY mb.machine_id
+          HAVING COUNT(CASE WHEN mb.expiry_date < NOW() OR mb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 END) > 0
+        `;
         
-        mhdAlertsByMachine.set(row.machine_id, {
-          expiredCount,
-          warningCount,
-          earliestExpiry: row.earliest_expiry,
-          alertLevel: expiredCount > 0 ? 'expired' : warningCount > 0 ? 'warning' : 'ok'
-        });
+        const mhdResult = await rawDb.query(mhdQuery);
+        console.log(`Location Status MHD query found ${mhdResult.rows.length} machines with alerts`);
         
-        if (row.machine_id === 3) {
-          console.log(`Machine 3 MHD alerts data found:`, {
-            machine_id: row.machine_id,
-            expired_count: row.expired_count,
-            warning_count: row.warning_count,
-            earliest_expiry: row.earliest_expiry
+        mhdResult.rows.forEach(row => {
+          const expiredCount = parseInt(row.expired_count) || 0;
+          const warningCount = parseInt(row.warning_count) || 0;
+          
+          mhdAlertsByMachine.set(parseInt(row.machine_id), {
+            expiredCount,
+            warningCount,
+            earliestExpiry: row.earliest_expiry,
+            alertLevel: expiredCount > 0 ? 'expired' : warningCount > 0 ? 'warning' : 'ok'
           });
-        }
-      });
+          
+          if (parseInt(row.machine_id) === 3) {
+            console.log(`Location Status - Machine 3 MHD found:`, {
+              machine_id: row.machine_id,
+              expired_count: row.expired_count,
+              warning_count: row.warning_count,
+              earliest_expiry: row.earliest_expiry
+            });
+          }
+        });
+      } catch (error) {
+        console.error('Error fetching MHD data for location status:', error);
+      }
       
       const machineStatusData = [];
       

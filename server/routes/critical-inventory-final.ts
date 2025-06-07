@@ -28,8 +28,8 @@ router.get('/critical-inventory-final', async (req: Request, res: Response) => {
       'Schöna': { name: 'Bahnhof', id: 3 }
     };
 
-    // Query to find low stock items using actual warehouse assignments from inventory_items table
-    const lowStockQuery = `
+    // Optimized single query to find low stock items with recent sales data
+    const criticalInventoryQuery = `
       WITH critical_inventory AS (
         SELECT 
           s.id,
@@ -49,6 +49,15 @@ router.get('/critical-inventory-final', async (req: Request, res: Response) => {
           AND s.amount_standard >= 0
           AND s.status = 'active'
           AND w.status = 'active'
+      ),
+      recent_sales AS (
+        SELECT 
+          LOWER(TRIM(product_name)) as normalized_name,
+          COUNT(*) as sales_count,
+          MAX(created_at) as last_sale
+        FROM transactions 
+        WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
+        GROUP BY LOWER(TRIM(product_name))
       )
       SELECT 
         ci.id,
@@ -60,61 +69,38 @@ router.get('/critical-inventory-final', async (req: Request, res: Response) => {
         ci.category,
         ci.sku,
         ci.warehouse_id,
-        ci.warehouse_name
+        ci.warehouse_name,
+        COALESCE(rs.sales_count, 0) as recent_sales_count,
+        rs.last_sale
       FROM critical_inventory ci
+      LEFT JOIN recent_sales rs ON LOWER(TRIM(ci.product_name)) = rs.normalized_name
+      WHERE COALESCE(rs.sales_count, 0) > 0
       ORDER BY ci.quantity ASC
       LIMIT 50
     `;
 
-    const lowStockResult = await pool.query(lowStockQuery);
-    const lowStockItems = lowStockResult.rows;
-    console.log(`Found ${lowStockItems.length} low stock items`);
+    const criticalResult = await pool.query(criticalInventoryQuery);
+    console.log(`Found ${criticalResult.rows.length} critical items with recent sales`);
 
-    const criticalItems = [];
-
-    // Process each item to check for recent sales and build response
-    for (const item of lowStockItems) {
-      try {
-        // Check for recent sales of this product by matching product name
-        const recentSalesQuery = `
-          SELECT COUNT(*) as sales_count, MAX(created_at) as last_sale
-          FROM transactions 
-          WHERE LOWER(TRIM(product_name)) = LOWER(TRIM($1))
-            AND created_at >= CURRENT_DATE - INTERVAL '30 days'
-        `;
-        
-        const salesResult = await pool.query(recentSalesQuery, [item.product_name]);
-        const salesData = salesResult.rows[0] || {};
-        const salesCount = parseInt(salesData.sales_count) || 0;
-
-        // Only include items with recent sales (truly critical)
-        if (salesCount > 0) {
-          // Use authentic warehouse assignment from inventory_items table
-          criticalItems.push({
-            id: item.id,
-            warehouseId: item.warehouse_id,
-            warehouseName: item.warehouse_name,
-            productId: item.product_id,
-            productName: item.product_name,
-            currentQuantity: item.quantity,
-            minQuantity: item.min_quantity,
-            reorderPoint: item.min_quantity,
-            price: item.price,
-            sku: item.sku,
-            category: item.category,
-            isActivelySold: true,
-            lastSaleDate: salesData.last_sale,
-            salesLast7Days: salesCount,
-            shouldAlert: true,
-            criticalityScore: (item.min_quantity - item.quantity) * salesCount,
-            assignedMachines: item.machine_locations || []
-          });
-        }
-      } catch (itemError) {
-        console.error(`Error processing item ${item.id}:`, itemError);
-        // Continue processing other items
-      }
-    }
+    const criticalItems = criticalResult.rows.map(item => ({
+      id: item.id,
+      warehouseId: item.warehouse_id,
+      warehouseName: item.warehouse_name,
+      productId: item.product_id,
+      productName: item.product_name,
+      currentQuantity: item.quantity,
+      minQuantity: item.min_quantity,
+      reorderPoint: item.min_quantity,
+      price: item.price,
+      sku: item.sku,
+      category: item.category,
+      isActivelySold: true,
+      lastSaleDate: item.last_sale,
+      salesLast7Days: item.recent_sales_count,
+      shouldAlert: true,
+      criticalityScore: (item.min_quantity - item.quantity) * item.recent_sales_count,
+      assignedMachines: []
+    }));
 
     console.log(`Final critical items: ${criticalItems.length}`);
 
