@@ -78,6 +78,7 @@ import {
   Pie,
   Cell
 } from "recharts";
+import RemovedProductsMachineTab from "@/components/machines/RemovedProductsMachineTab";
 
 // Erweiterte Maschinenschnittstelle mit den zusätzlichen KPIs
 interface EnhancedMachine extends Machine {
@@ -683,6 +684,10 @@ export default function AutomatDetail() {
             <TabsTrigger value="mhd" className="whitespace-nowrap flex items-center">
               <Calendar className="h-4 w-4 mr-2" />
               <span>MHD</span>
+            </TabsTrigger>
+            <TabsTrigger value="entnommene-produkte" className="whitespace-nowrap flex items-center">
+              <Package className="h-4 w-4 mr-2 text-red-500" />
+              <span>Entnommene Produkte</span>
             </TabsTrigger>
           </TabsList>
         </div>
@@ -1492,6 +1497,11 @@ export default function AutomatDetail() {
         {/* MHD Tab */}
         <TabsContent value="mhd" className="mt-4">
           <MHDTab machineId={parseInt(params.id)} />
+        </TabsContent>
+
+        {/* Entnommene Produkte Tab */}
+        <TabsContent value="entnommene-produkte" className="mt-4">
+          <RemovedProductsMachineTab machineId={parseInt(params.id)} />
         </TabsContent>
       </Tabs>
     </div>
