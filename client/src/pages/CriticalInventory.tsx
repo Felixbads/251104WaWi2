@@ -69,7 +69,7 @@ export default function CriticalInventory() {
 
   const { data, isLoading, error, refetch } = useQuery<CriticalInventoryResponse>({
     queryKey: [
-      '/api/critical-inventory/critical-inventory',
+      '/api/critical-inventory-final',
       selectedWarehouse,
       includeRecentSales
     ],
@@ -82,7 +82,7 @@ export default function CriticalInventory() {
         params.append('includeRecentSales', 'true');
       }
       
-      const url = `/api/critical-inventory/critical-inventory${params.toString() ? `?${params}` : ''}`;
+      const url = `/api/critical-inventory-final${params.toString() ? `?${params}` : ''}`;
       console.log('Fetching critical inventory from:', url);
       
       const response = await fetch(url);
