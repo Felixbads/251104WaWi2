@@ -42,7 +42,7 @@ export default function StandortAnalyse() {
 
   // Fetch all locations for dropdown
   const { data: locations } = useQuery({
-    queryKey: ['/api/location-analysis/locations'],
+    queryKey: ['/api/machine-locations'],
     enabled: true,
   });
 

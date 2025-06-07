@@ -776,6 +776,28 @@ Elbsandstein Proviant & Quartier GmbH`;
   
   // Register location analysis router
   app.use('/api/location-analysis', locationAnalysisRouter);
+  
+  // Direct machine locations endpoint for Standort-Analyse dropdown
+  app.get('/api/machine-locations', async (req, res) => {
+    try {
+      console.log('Fetching machine locations for dropdown...');
+      const result = await pool.query(`
+        SELECT DISTINCT location_name 
+        FROM machines 
+        WHERE location_name IS NOT NULL 
+        AND location_name != ''
+        ORDER BY location_name
+      `);
+      
+      const locations = result.rows.map(row => row.location_name);
+      console.log(`Found ${locations.length} machine locations:`, locations.slice(0, 5));
+      
+      res.json(locations);
+    } catch (error) {
+      console.error('Error fetching machine locations:', error);
+      res.status(500).json({ error: 'Failed to fetch machine locations' });
+    }
+  });
 
   // Fehlende API-Routen für den Bestellprozess hinzufügen
   
