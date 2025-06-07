@@ -141,10 +141,7 @@ export default function Ruecklaufer() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Rückläufer-Analyse"
-        description="Detaillierte Übersicht über entfernte Produkte (abgelaufen/beschädigt)"
-      />
+      <PageHeader title="Rückläufer-Analyse" />
 
       {/* Filter und Steuerung */}
       <div className="flex flex-col sm:flex-row gap-4 items-end">

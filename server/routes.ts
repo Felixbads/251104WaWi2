@@ -3560,6 +3560,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
       
+      const { pool } = await import('./db');
+      
       // Grundlegende Statistiken
       const statsQuery = `
         SELECT 
@@ -3577,7 +3579,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         GROUP BY rd.product_name
       `;
       
-      const statsResult = await db.query(statsQuery, [productName, startDate, new Date()]);
+      const statsResult = await pool.query(statsQuery, [productName, startDate, new Date()]);
       
       if (statsResult.rows.length === 0) {
         return res.json({
@@ -3609,7 +3611,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ORDER BY "removedCount" DESC
       `;
       
-      const machinesResult = await db.query(machinesQuery, [productName, startDate, new Date()]);
+      const machinesResult = await pool.query(machinesQuery, [productName, startDate, new Date()]);
       
       // Zeitverlaufs-Daten (tagesweise)
       const timelineQuery = `
@@ -3627,7 +3629,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ORDER BY "date"
       `;
       
-      const timelineResult = await db.query(timelineQuery, [productName, startDate, new Date()]);
+      const timelineResult = await pool.query(timelineQuery, [productName, startDate, new Date()]);
       
       res.json({
         ...stats,
@@ -3683,7 +3685,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       query += ` ORDER BY r.datetime DESC`;
       
-      const result = await db.query(query, params);
+      const result = await pool.query(query, params);
       
       // Excel-Export mit xlsx
       const XLSX = require('xlsx');
