@@ -3551,6 +3551,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/inventory-transfers`, inventoryTransfersRoutes);
   app.get(`${API_PREFIX}/removed-products`, getRemovedProducts);
   
+  // Top entfernte Produkte API
+  app.post(`${API_PREFIX}/removed-products/top`, async (req, res) => {
+    try {
+      const days = parseInt(req.query.days as string) || 30;
+      const limit = parseInt(req.query.limit as string) || 20;
+      
+      const { pool } = await import('./db');
+      
+      const query = `
+        SELECT 
+          rd.product_name as "productName",
+          SUM(rd.removed) as "totalRemoved",
+          COUNT(*) as "removalsCount",
+          MAX(r.datetime) as "lastRemoved"
+        FROM refill_details rd
+        INNER JOIN refills r ON rd.refill_id = r.id
+        WHERE rd.removed > 0 
+          AND r.datetime >= NOW() - INTERVAL '${days} days'
+        GROUP BY rd.product_name
+        ORDER BY "totalRemoved" DESC
+        LIMIT $1
+      `;
+      
+      const result = await pool.query(query, [limit]);
+      
+      const response = result.rows.map((row, index) => ({
+        rank: index + 1,
+        productName: row.productName,
+        totalRemoved: parseInt(row.totalRemoved),
+        removalsCount: parseInt(row.removalsCount),
+        lastRemoved: row.lastRemoved
+      }));
+      
+      console.log(`Top removed products response: ${response.length} items`);
+      res.json(response);
+      
+    } catch (error) {
+      console.error('Fehler beim Abrufen der Top entfernten Produkte:', error);
+      res.status(500).json({ error: 'Fehler beim Abrufen der Daten', details: error.message });
+    }
+  });
+  
   // Detaillierte Statistiken für ein spezifisches Produkt
   app.get(`${API_PREFIX}/removed-products/stats/:productName`, async (req, res) => {
     try {
