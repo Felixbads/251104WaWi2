@@ -14,7 +14,8 @@ import {
   Database,
   Clock,
   ArrowUpRight,
-  AlertTriangle
+  AlertTriangle,
+  Coffee
 } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 import WeatherWidget from "@/components/weather/WeatherWidget";
@@ -996,6 +997,91 @@ export default function Dashboard() {
               Keine Verkaufsdaten in den letzten 7 Tagen gefunden
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Aktive Automaten (letzte 7 Tage) */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center">
+            <Coffee className="h-5 w-5 mr-2 text-blue-500" />
+            Aktive Automaten (letzte 7 Tage)
+          </CardTitle>
+          <CardDescription>Automaten mit Produktentnahmen und Anzahl der verkauften Produkte</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoadingTransactions ? (
+            <div className="flex justify-center py-6">
+              <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full"></div>
+            </div>
+          ) : (() => {
+            // Calculate machines with removals in last 7 days
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            
+            const machineActivity = transactions
+              ?.filter((tx: any) => {
+                const txDate = new Date(tx.datetime);
+                return txDate >= sevenDaysAgo && tx.productName && tx.machineName;
+              })
+              .reduce((acc: Record<string, { machineId: number; machineName: string; count: number; revenue: number; products: Set<string> }>, tx: any) => {
+                const key = tx.machineName;
+                if (!acc[key]) {
+                  acc[key] = {
+                    machineId: tx.machineId,
+                    machineName: tx.machineName,
+                    count: 0,
+                    revenue: 0,
+                    products: new Set()
+                  };
+                }
+                acc[key].count += tx.quantity || 1;
+                acc[key].revenue += tx.price || 0;
+                acc[key].products.add(tx.productName);
+                return acc;
+              }, {}) || {};
+
+            const activeMachines = Object.values(machineActivity)
+              .sort((a, b) => b.count - a.count);
+
+            return activeMachines.length > 0 ? (
+              <div className="overflow-x-auto">
+                <div className="min-w-full bg-white border rounded-md">
+                  {/* Header */}
+                  <div className="grid grid-cols-4 border-b text-xs font-medium">
+                    <div className="px-3 py-2">Automat</div>
+                    <div className="px-3 py-2 text-right">Verkäufe</div>
+                    <div className="px-3 py-2 text-right">Produktarten</div>
+                    <div className="px-3 py-2 text-right">Umsatz</div>
+                  </div>
+
+                  {/* Content */}
+                  <div className="max-h-[300px] overflow-y-auto">
+                    {activeMachines.map((machine, index) => (
+                      <div 
+                        key={index} 
+                        className="grid grid-cols-4 text-xs border-b hover:bg-blue-50 cursor-pointer transition-colors"
+                        onClick={() => {
+                          // Navigate to machine detail view with machine ID
+                          window.location.href = `/machines/${machine.machineId}`;
+                        }}
+                        title={`Klicken um Details zu ${machine.machineName} anzuzeigen`}
+                      >
+                        <div className="px-3 py-2 font-medium truncate">{machine.machineName}</div>
+                        <div className="px-3 py-2 text-right">{machine.count}</div>
+                        <div className="px-3 py-2 text-right">{machine.products.size}</div>
+                        <div className="px-3 py-2 text-right">{machine.revenue.toFixed(2)} €</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-4 text-gray-500">
+                Keine aktiven Automaten in den letzten 7 Tagen
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
 
