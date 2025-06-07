@@ -82,7 +82,7 @@ export default function CriticalInventory() {
         params.append('includeRecentSales', 'true');
       }
       
-      const url = `/api/critical-inventory-final${params.toString() ? `?${params}` : ''}`;
+      const url = `/api/critical-inventory-working${params.toString() ? `?${params}` : ''}`;
       console.log('Fetching critical inventory from:', url);
       
       const response = await fetch(url);
