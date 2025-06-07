@@ -576,6 +576,9 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* Kachel 5: Häufigste Entnahmen */}
+        <TopRemovedProductsTile />
       </div>
 
       {/* Wettervorhersage und Verkaufsprognose */}
