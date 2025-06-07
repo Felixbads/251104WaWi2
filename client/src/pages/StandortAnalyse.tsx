@@ -49,15 +49,25 @@ export default function StandortAnalyse() {
   // Fetch location analysis data
   const { data: analysisData, isLoading } = useQuery({
     queryKey: ['/api/location-analysis', selectedLocation, timeRange],
+    queryFn: async () => {
+      const response = await fetch(`/api/location-analysis?location=${encodeURIComponent(selectedLocation)}&weeks=${timeRange}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch location analysis data');
+      }
+      return response.json();
+    },
     enabled: selectedLocation !== "all",
   });
 
   const uniqueLocations = locations ? 
     locations.filter(Boolean).sort() : [];
 
-  const currentLocationData = analysisData?.find((loc: LocationAnalysisData) => 
-    loc.locationName === selectedLocation
-  );
+  const currentLocationData = analysisData && analysisData.length > 0 ? analysisData[0] : null;
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -122,7 +132,23 @@ export default function StandortAnalyse() {
         </Card>
       )}
 
-      {selectedLocation !== "all" && !isLoading && currentLocationData && (
+      {selectedLocation !== "all" && !isLoading && !currentLocationData && (
+        <Card>
+          <CardContent className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                Keine Daten verfügbar
+              </h3>
+              <p className="text-gray-500">
+                Für den ausgewählten Standort "{selectedLocation}" sind keine Analyse-Daten verfügbar.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {selectedLocation !== "all" && !isLoading && currentLocationData && currentLocationData.analysisData && (
         <div className="space-y-6">
           {/* Standort-Übersicht */}
           <Card>

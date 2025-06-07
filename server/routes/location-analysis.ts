@@ -28,12 +28,17 @@ router.get('/locations', async (req, res) => {
 });
 
 // Get location analysis data with weekly sales vs removals and recommendations
-router.get('/:location/:weeks', async (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const { location, weeks } = req.params;
+    const location = req.query.location as string;
+    const weeks = req.query.weeks as string;
     const timeRange = parseInt(weeks) || 12;
     
     console.log(`Standort-Analyse für: ${location}, Zeitraum: ${timeRange} Wochen`);
+    
+    if (!location || location === 'all') {
+      return res.json([]);
+    }
 
     // Get all machines for this location
     const machinesResult = await db.execute(sql`
