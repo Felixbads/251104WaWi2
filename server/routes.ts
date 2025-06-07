@@ -3028,15 +3028,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`Found ${machinesList.length} machines for location status`);
       
-      // MHD-Alerts für alle Automaten auf einmal abrufen (effizienter)
+      // MHD-Alerts für alle Automaten - using exact same logic as working MHD alerts API
       const mhdQuery = `
         WITH machine_products AS (
+          -- Get all unique products sold in each machine based on transaction history
           SELECT DISTINCT 
             t.machine_id,
             t.product_name as transaction_product_name
           FROM transactions t
         ),
         matched_products AS (
+          -- Match transaction product names to actual products
           SELECT DISTINCT
             mp.machine_id,
             p.id as product_id,
@@ -3049,21 +3051,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
           )
         ),
         machine_batches AS (
+          -- Get the earliest expiring batch for each product in each machine (FIFO)
           SELECT DISTINCT ON (match.machine_id, match.product_id)
             match.machine_id,
             match.product_id,
-            pb.expiry_date
+            match.product_name,
+            pb.id as batch_id,
+            pb.expiry_date,
+            m.machine_name,
+            m.location_name as location
           FROM matched_products match
           LEFT JOIN product_batches pb ON match.product_id = pb.product_id 
             AND (pb.status = 'active' OR pb.status IS NULL)
             AND pb.expiry_date IS NOT NULL
+          LEFT JOIN machines m ON match.machine_id = m.id
           WHERE pb.expiry_date IS NOT NULL
-          ORDER BY match.machine_id, match.product_id, pb.expiry_date ASC
+          ORDER BY match.machine_id, match.product_id, pb.expiry_date ASC, pb.received_date ASC
         )
         SELECT 
           mb.machine_id,
-          COUNT(CASE WHEN mb.expiry_date < NOW() THEN 1 END) as expired_count,
-          COUNT(CASE WHEN mb.expiry_date >= NOW() AND mb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 END) as warning_count,
+          COUNT(CASE 
+            WHEN mb.expiry_date < NOW() THEN 1 
+          END) as expired_count,
+          COUNT(CASE 
+            WHEN mb.expiry_date >= NOW() AND mb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 
+          END) as warning_count,
           MIN(mb.expiry_date) as earliest_expiry
         FROM machine_batches mb
         GROUP BY mb.machine_id
@@ -3071,6 +3083,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const mhdResult = await rawDb.query(mhdQuery);
       const mhdAlertsByMachine = new Map();
+      
+      console.log(`MHD query returned ${mhdResult.rows.length} rows`);
       
       mhdResult.rows.forEach(row => {
         const expiredCount = parseInt(row.expired_count) || 0;
@@ -3082,6 +3096,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           earliestExpiry: row.earliest_expiry,
           alertLevel: expiredCount > 0 ? 'expired' : warningCount > 0 ? 'warning' : 'ok'
         });
+        
+        if (row.machine_id === 3) {
+          console.log(`Machine 3 MHD data:`, {
+            machine_id: row.machine_id,
+            expired_count: row.expired_count,
+            warning_count: row.warning_count,
+            earliest_expiry: row.earliest_expiry
+          });
+        }
       });
       
       const machineStatusData = [];
@@ -3153,54 +3176,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? Math.floor((now.getTime() - new Date(lastCashlessSaleDate).getTime()) / (1000 * 60 * 60 * 24))
           : null;
         
-        // MHD Status abrufen - use same logic as MHD alerts API
-        const mhdQuery = `
-          WITH machine_products AS (
-            SELECT DISTINCT p.id as product_id, p.product_name
-            FROM transactions t
-            INNER JOIN products p ON (
-              LOWER(TRIM(p.product_name)) = LOWER(TRIM(t.product_name))
-              OR p.product_name ILIKE '%' || TRIM(split_part(t.product_name, '(', 1)) || '%'
-              OR TRIM(split_part(t.product_name, '(', 1)) ILIKE '%' || p.product_name || '%'
-            )
-            WHERE t.machine_id = $1 
-            AND t.datetime >= NOW() - INTERVAL '30 days'
-          )
-          SELECT 
-            COUNT(CASE WHEN pb.expiry_date < NOW() THEN 1 END) as expired_count,
-            COUNT(CASE WHEN pb.expiry_date >= NOW() AND pb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 END) as warning_count,
-            MIN(pb.expiry_date) as earliest_expiry
-          FROM machine_products mp
-          INNER JOIN product_batches pb ON mp.product_id = pb.product_id
-          WHERE (pb.status = 'active' OR pb.status IS NULL)
-            AND pb.expiry_date IS NOT NULL
-        `;
-        
-        const mhdResult = await rawDb.query(mhdQuery, [machine.id]);
-        const mhdData = mhdResult.rows[0] || { expired_count: 0, warning_count: 0, earliest_expiry: null };
-        
-        const expiredCount = parseInt(mhdData.expired_count) || 0;
-        const warningCount = parseInt(mhdData.warning_count) || 0;
-        
-        // Debug logging for machine 3
-        if (machine.id === 3) {
-          console.log(`Debug MHD for machine ${machine.id}:`, {
-            mhdData,
-            expiredCount,
-            warningCount
-          });
-        }
+        // MHD Status aus der vorbereiteten Map abrufen
+        const mhdData = mhdAlertsByMachine.get(machine.id) || {
+          expiredCount: 0,
+          warningCount: 0,
+          earliestExpiry: null,
+          alertLevel: 'ok'
+        };
         
         // Status bewerten (MHD hat höchste Priorität)
         let status = 'ok';
         const warnings = [];
         
-        if (expiredCount > 0) {
+        if (mhdData.expiredCount > 0) {
           status = 'error';
-          warnings.push(`${expiredCount} abgelaufene Produkte`);
-        } else if (warningCount > 0) {
+          warnings.push(`${mhdData.expiredCount} abgelaufene Produkte`);
+        } else if (mhdData.warningCount > 0) {
           status = 'warning';
-          warnings.push(`${warningCount} Produkte laufen bald ab`);
+          warnings.push(`${mhdData.warningCount} Produkte laufen bald ab`);
         } else if (daysSinceLastSale && daysSinceLastSale > 5) {
           status = 'error';
           warnings.push('Keine Verkäufe seit über 5 Tagen');
@@ -3233,10 +3226,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status,
           warnings,
           mhdStatus: {
-            expiredCount,
-            warningCount,
-            earliestExpiry: mhdData.earliest_expiry,
-            alertLevel: expiredCount > 0 ? 'expired' : warningCount > 0 ? 'warning' : 'ok'
+            expiredCount: mhdData.expiredCount,
+            warningCount: mhdData.warningCount,
+            earliestExpiry: mhdData.earliestExpiry,
+            alertLevel: mhdData.alertLevel
           }
         });
       }
