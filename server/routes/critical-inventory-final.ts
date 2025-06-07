@@ -1,26 +1,23 @@
 import { Router, Request, Response } from 'express';
-import { db } from '../db';
-import { inventoryItems, products, warehouses, transactions } from '../../shared/schema';
-import { sql } from 'drizzle-orm';
+import { pool } from '../db';
 
 const router = Router();
 
-// Final working critical inventory endpoint
+// Final working critical inventory endpoint using direct SQL
 router.get('/critical-inventory-final', async (req: Request, res: Response) => {
   try {
-    console.log('Fetching critical inventory with Drizzle ORM...');
+    console.log('Fetching critical inventory data...');
     
-    // Use raw SQL through Drizzle for better control
-    const criticalItemsQuery = sql`
+    // Direct SQL query for low stock items
+    const lowStockQuery = `
       SELECT 
         ii.id,
-        ii.warehouse_id as "warehouseId",
-        w.name as "warehouseName",
-        ii.product_id as "productId", 
-        p.product_name as "productName",
-        ii.quantity as "currentQuantity",
-        COALESCE(ii.min_quantity, 5) as "minQuantity",
-        COALESCE(ii.reorder_point, ii.min_quantity, 5) as "reorderPoint",
+        ii.warehouse_id,
+        w.name as warehouse_name,
+        ii.product_id,
+        p.product_name,
+        ii.quantity,
+        COALESCE(ii.min_quantity, 5) as min_quantity,
         COALESCE(p.price, 0) as price,
         COALESCE(p.category, 'Standard') as category,
         COALESCE(p.sku, '') as sku
@@ -29,11 +26,13 @@ router.get('/critical-inventory-final', async (req: Request, res: Response) => {
       INNER JOIN warehouses w ON ii.warehouse_id = w.id
       WHERE ii.quantity <= COALESCE(ii.min_quantity, 5)
         AND ii.quantity >= 0
+        AND COALESCE(w.is_active, true) = true
       ORDER BY ii.quantity ASC
       LIMIT 20
     `;
 
-    const lowStockItems = await db.execute(criticalItemsQuery);
+    const lowStockResult = await pool.query(lowStockQuery);
+    const lowStockItems = lowStockResult.rows;
     console.log(`Found ${lowStockItems.length} low stock items`);
 
     const criticalItems = [];
@@ -42,37 +41,37 @@ router.get('/critical-inventory-final', async (req: Request, res: Response) => {
     for (const item of lowStockItems) {
       try {
         // Check for recent sales of this product
-        const recentSalesQuery = sql`
+        const recentSalesQuery = `
           SELECT COUNT(*) as sales_count, MAX(datetime) as last_sale
           FROM transactions 
-          WHERE product_id = ${item.productId}
+          WHERE product_id = $1
             AND datetime >= CURRENT_DATE - INTERVAL '7 days'
             AND COALESCE(status, 'completed') = 'completed'
         `;
         
-        const salesResult = await db.execute(recentSalesQuery);
-        const salesData = salesResult[0] || {};
-        const salesCount = parseInt(salesData.sales_count as string) || 0;
+        const salesResult = await pool.query(recentSalesQuery, [item.product_id]);
+        const salesData = salesResult.rows[0] || {};
+        const salesCount = parseInt(salesData.sales_count) || 0;
 
         // Only include items with recent sales (truly critical)
         if (salesCount > 0) {
           criticalItems.push({
             id: item.id,
-            warehouseId: item.warehouseId,
-            warehouseName: item.warehouseName,
-            productId: item.productId,
-            productName: item.productName,
-            currentQuantity: item.currentQuantity,
-            minQuantity: item.minQuantity,
-            reorderPoint: item.reorderPoint,
-            price: item.price || 0,
-            sku: item.sku || '',
-            category: item.category || 'Standard',
+            warehouseId: item.warehouse_id,
+            warehouseName: item.warehouse_name,
+            productId: item.product_id,
+            productName: item.product_name,
+            currentQuantity: item.quantity,
+            minQuantity: item.min_quantity,
+            reorderPoint: item.min_quantity,
+            price: item.price,
+            sku: item.sku,
+            category: item.category,
             isActivelySold: true,
             lastSaleDate: salesData.last_sale,
             salesLast7Days: salesCount,
             shouldAlert: true,
-            criticalityScore: (item.minQuantity - item.currentQuantity) * salesCount,
+            criticalityScore: (item.min_quantity - item.quantity) * salesCount,
             assignedMachines: []
           });
         }
