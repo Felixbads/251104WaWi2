@@ -286,21 +286,29 @@ export default function Dashboard() {
     };
   }
 
-  // Top 5 entnommene Waren - aus der spezialisierten API-Route für Removed Products
+  // Top 5 verkaufte Waren - aus Transaktionsdaten (letzte 7 Tage)
   const refillRemovedItems = React.useMemo<Record<string, number>>(() => {
-    const data = removedProductsData as RemovedProductsData | undefined;
-    if (!data?.analytics?.byProduct) return {};
+    if (!transactions || !Array.isArray(transactions)) return {};
 
-    return data.analytics.byProduct.reduce(
-      (acc: Record<string, number>, item: RemovedProductItem) => {
-        if (item?.name && typeof item.count === 'number') {
-          acc[item.name] = item.count;
-        }
-        return acc;
-      }, 
-      {} as Record<string, number>
-    );
-  }, [removedProductsData]);
+    // Filter transactions from last 7 days
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const recentTransactions = transactions.filter((tx: any) => {
+      const txDate = new Date(tx.datetime);
+      return txDate >= sevenDaysAgo && tx.productName;
+    });
+
+    // Count products sold
+    const productCounts: Record<string, number> = {};
+    recentTransactions.forEach((tx: any) => {
+      if (tx.productName) {
+        productCounts[tx.productName] = (productCounts[tx.productName] || 0) + (tx.quantity || 1);
+      }
+    });
+
+    return productCounts;
+  }, [transactions]);
 
   // Synchronisationsstatus
   const getLatestSyncTime = () => {
@@ -923,9 +931,9 @@ export default function Dashboard() {
         <CardHeader className="pb-2">
           <CardTitle className="text-lg flex items-center">
             <ShoppingBag className="h-5 w-5 mr-2 text-orange-500" />
-            Top 5 Entnommene Waren
+            Top 5 verkaufte Waren (letzte 7 Tage)
           </CardTitle>
-          <CardDescription>Aus Nachfüllungen (Refills) mit Einkaufspreis</CardDescription>
+          <CardDescription>Aus Verkaufsdaten mit geschätztem Einkaufspreis</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoadingRemovedProducts ? (
@@ -985,7 +993,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="text-center py-4 text-gray-500">
-              Keine entnommenen Produkte in den Refill-Daten gefunden
+              Keine Verkaufsdaten in den letzten 7 Tagen gefunden
             </div>
           )}
         </CardContent>
