@@ -104,11 +104,11 @@ export default function WeatherDataOverview() {
     enabled: viewMode === 'hourly' && !!selectedDate
   });
 
-  // Fetch weather data overview with auto-refresh during import
+  // Fetch weather data overview - manual refresh only
   const { data: weatherOverview, isLoading: overviewLoading } = useQuery({
     queryKey: ['/api/weather/overview'],
     enabled: true,
-    refetchInterval: autoRefresh ? 5000 : false // Refresh every 5 seconds during import
+    staleTime: 24 * 60 * 60 * 1000 // Consider data fresh for 24 hours
   });
 
   const formatTemperature = (temp: number) => `${temp.toFixed(1)}°C`;
