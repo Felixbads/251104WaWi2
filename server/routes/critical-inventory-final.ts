@@ -28,52 +28,57 @@ router.get('/critical-inventory-final', async (req: Request, res: Response) => {
       'Schöna': { name: 'Bahnhof', id: 3 }
     };
 
-    // Query to find low stock items with improved balanced warehouse assignment
+    // Query to find low stock items with authentic warehouse assignment based on real transaction data
     const lowStockQuery = `
       WITH product_warehouse_mapping AS (
         SELECT 
           TRIM(t.product_name) as product_name,
           array_agg(DISTINCT m.location_name) as all_locations,
           COUNT(*) as total_sales,
-          -- Calculate sales by region with equal weight distribution
-          COUNT(CASE WHEN m.location_name IN ('Bad Gottleuba-Berggießhübel', 'Gohrisch', 'Leupoldishain ', 'Papstdorf - Am Feuerwehrmuseum') THEN 1 END) as bad_gottleuba_sales,
+          -- Calculate sales by actual location based on real transaction data
+          COUNT(CASE WHEN m.location_name = 'Bad Gottleuba-Berggießhübel' THEN 1 END) as bad_gottleuba_sales,
           COUNT(CASE WHEN m.location_name IN ('Bahnhof Bad Schandau', 'Elbkai, Bad Schandau', 'Pfaffendorf', 'Rathen', 'Schmilka, Alte Feuerwehr', 'Schöna') THEN 1 END) as bahnhof_sales,
-          COUNT(CASE WHEN m.location_name IN ('Burg Stolpen, Zehrgarten', 'Landfleischerei Struppen') THEN 1 END) as stolpen_sales,
+          COUNT(CASE WHEN m.location_name = 'Burg Stolpen, Zehrgarten' THEN 1 END) as stolpen_sales,
+          COUNT(CASE WHEN m.location_name = 'Landfleischerei Struppen' THEN 1 END) as struppen_sales,
           COUNT(CASE WHEN m.location_name IN ('Hotel zur Post, Pirna', 'Ostrau Kurpark', 'Pötzscha') THEN 1 END) as pirna_sales,
           COUNT(CASE WHEN m.location_name = 'Hohnstein, An der Burg' THEN 1 END) as hohenstein_sales,
-          -- Improved warehouse assignment with round-robin distribution for ties
+          -- Authentic warehouse assignment based on where products are actually sold
           CASE 
-            -- Primary assignment based on highest sales, with fallback distribution
-            WHEN COUNT(CASE WHEN m.location_name IN ('Bad Gottleuba-Berggießhübel', 'Gohrisch', 'Leupoldishain ', 'Papstdorf - Am Feuerwehrmuseum') THEN 1 END) > 
+            -- Stolpen warehouse: Products actually sold at Burg Stolpen, Zehrgarten
+            WHEN COUNT(CASE WHEN m.location_name = 'Burg Stolpen, Zehrgarten' THEN 1 END) > 
                  GREATEST(
+                   COUNT(CASE WHEN m.location_name = 'Bad Gottleuba-Berggießhübel' THEN 1 END),
                    COUNT(CASE WHEN m.location_name IN ('Bahnhof Bad Schandau', 'Elbkai, Bad Schandau', 'Pfaffendorf', 'Rathen', 'Schmilka, Alte Feuerwehr', 'Schöna') THEN 1 END),
-                   COUNT(CASE WHEN m.location_name IN ('Burg Stolpen, Zehrgarten', 'Landfleischerei Struppen') THEN 1 END),
+                   COUNT(CASE WHEN m.location_name = 'Landfleischerei Struppen' THEN 1 END),
                    COUNT(CASE WHEN m.location_name IN ('Hotel zur Post, Pirna', 'Ostrau Kurpark', 'Pötzscha') THEN 1 END),
                    COUNT(CASE WHEN m.location_name = 'Hohnstein, An der Burg' THEN 1 END)
-                 ) THEN 'Bad Gottleuba'
-            WHEN COUNT(CASE WHEN m.location_name IN ('Burg Stolpen, Zehrgarten', 'Landfleischerei Struppen') THEN 1 END) > 
+                 ) THEN 'Stolpen'
+            -- Struppen location products stay with Stolpen warehouse (nearby region)
+            WHEN COUNT(CASE WHEN m.location_name = 'Landfleischerei Struppen' THEN 1 END) > 
                  GREATEST(
+                   COUNT(CASE WHEN m.location_name = 'Bad Gottleuba-Berggießhübel' THEN 1 END),
                    COUNT(CASE WHEN m.location_name IN ('Bahnhof Bad Schandau', 'Elbkai, Bad Schandau', 'Pfaffendorf', 'Rathen', 'Schmilka, Alte Feuerwehr', 'Schöna') THEN 1 END),
                    COUNT(CASE WHEN m.location_name IN ('Hotel zur Post, Pirna', 'Ostrau Kurpark', 'Pötzscha') THEN 1 END),
                    COUNT(CASE WHEN m.location_name = 'Hohnstein, An der Burg' THEN 1 END)
                  ) THEN 'Stolpen'
+            -- Bad Gottleuba warehouse: Products sold at Bad Gottleuba location
+            WHEN COUNT(CASE WHEN m.location_name = 'Bad Gottleuba-Berggießhübel' THEN 1 END) > 
+                 GREATEST(
+                   COUNT(CASE WHEN m.location_name IN ('Bahnhof Bad Schandau', 'Elbkai, Bad Schandau', 'Pfaffendorf', 'Rathen', 'Schmilka, Alte Feuerwehr', 'Schöna') THEN 1 END),
+                   COUNT(CASE WHEN m.location_name IN ('Hotel zur Post, Pirna', 'Ostrau Kurpark', 'Pötzscha') THEN 1 END),
+                   COUNT(CASE WHEN m.location_name = 'Hohnstein, An der Burg' THEN 1 END)
+                 ) THEN 'Bad Gottleuba'
+            -- Pirna warehouse: Products sold in Pirna region  
             WHEN COUNT(CASE WHEN m.location_name IN ('Hotel zur Post, Pirna', 'Ostrau Kurpark', 'Pötzscha') THEN 1 END) > 
                  GREATEST(
                    COUNT(CASE WHEN m.location_name IN ('Bahnhof Bad Schandau', 'Elbkai, Bad Schandau', 'Pfaffendorf', 'Rathen', 'Schmilka, Alte Feuerwehr', 'Schöna') THEN 1 END),
                    COUNT(CASE WHEN m.location_name = 'Hohnstein, An der Burg' THEN 1 END)
                  ) THEN 'Pirna'
+            -- Hohenstein warehouse: Products sold at Hohnstein location
             WHEN COUNT(CASE WHEN m.location_name = 'Hohnstein, An der Burg' THEN 1 END) > 
                  COUNT(CASE WHEN m.location_name IN ('Bahnhof Bad Schandau', 'Elbkai, Bad Schandau', 'Pfaffendorf', 'Rathen', 'Schmilka, Alte Feuerwehr', 'Schöna') THEN 1 END) THEN 'Hohenstein'
-            WHEN COUNT(CASE WHEN m.location_name IN ('Bahnhof Bad Schandau', 'Elbkai, Bad Schandau', 'Pfaffendorf', 'Rathen', 'Schmilka, Alte Feuerwehr', 'Schöna') THEN 1 END) > 0 THEN 'Bahnhof'
-            -- Round-robin assignment for products with no clear regional preference
-            ELSE 
-              CASE (ROW_NUMBER() OVER (ORDER BY TRIM(t.product_name)) % 5)
-                WHEN 0 THEN 'Bad Gottleuba'
-                WHEN 1 THEN 'Stolpen' 
-                WHEN 2 THEN 'Pirna'
-                WHEN 3 THEN 'Hohenstein'
-                ELSE 'Bahnhof'
-              END
+            -- Bahnhof warehouse: Products sold in Bahnhof region (default for most active region)
+            ELSE 'Bahnhof'
           END as primary_warehouse
         FROM transactions t
         INNER JOIN machines m ON t.machine_id = m.id
