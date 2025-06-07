@@ -28,82 +28,42 @@ router.get('/critical-inventory-final', async (req: Request, res: Response) => {
       'Schöna': { name: 'Bahnhof', id: 3 }
     };
 
-    // Query to find low stock items with authentic warehouse assignment based on real transaction data
+    // Query to find low stock items using actual warehouse assignments from inventory_items table
     const lowStockQuery = `
-      WITH product_warehouse_mapping AS (
+      WITH critical_inventory AS (
         SELECT 
-          TRIM(t.product_name) as product_name,
-          array_agg(DISTINCT m.location_name) as all_locations,
-          COUNT(*) as total_sales,
-          -- Calculate sales by actual location based on real transaction data
-          COUNT(CASE WHEN m.location_name = 'Bad Gottleuba-Berggießhübel' THEN 1 END) as bad_gottleuba_sales,
-          COUNT(CASE WHEN m.location_name IN ('Bahnhof Bad Schandau', 'Elbkai, Bad Schandau', 'Pfaffendorf', 'Rathen', 'Schmilka, Alte Feuerwehr', 'Schöna') THEN 1 END) as bahnhof_sales,
-          COUNT(CASE WHEN m.location_name = 'Burg Stolpen, Zehrgarten' THEN 1 END) as stolpen_sales,
-          COUNT(CASE WHEN m.location_name = 'Landfleischerei Struppen' THEN 1 END) as struppen_sales,
-          COUNT(CASE WHEN m.location_name IN ('Hotel zur Post, Pirna', 'Ostrau Kurpark', 'Pötzscha') THEN 1 END) as pirna_sales,
-          COUNT(CASE WHEN m.location_name = 'Hohnstein, An der Burg' THEN 1 END) as hohenstein_sales,
-          -- Authentic warehouse assignment based on where products are actually sold
-          CASE 
-            -- Stolpen warehouse: Products actually sold at Burg Stolpen, Zehrgarten
-            WHEN COUNT(CASE WHEN m.location_name = 'Burg Stolpen, Zehrgarten' THEN 1 END) > 
-                 GREATEST(
-                   COUNT(CASE WHEN m.location_name = 'Bad Gottleuba-Berggießhübel' THEN 1 END),
-                   COUNT(CASE WHEN m.location_name IN ('Bahnhof Bad Schandau', 'Elbkai, Bad Schandau', 'Pfaffendorf', 'Rathen', 'Schmilka, Alte Feuerwehr', 'Schöna') THEN 1 END),
-                   COUNT(CASE WHEN m.location_name = 'Landfleischerei Struppen' THEN 1 END),
-                   COUNT(CASE WHEN m.location_name IN ('Hotel zur Post, Pirna', 'Ostrau Kurpark', 'Pötzscha') THEN 1 END),
-                   COUNT(CASE WHEN m.location_name = 'Hohnstein, An der Burg' THEN 1 END)
-                 ) THEN 'Stolpen'
-            -- Struppen location products stay with Stolpen warehouse (nearby region)
-            WHEN COUNT(CASE WHEN m.location_name = 'Landfleischerei Struppen' THEN 1 END) > 
-                 GREATEST(
-                   COUNT(CASE WHEN m.location_name = 'Bad Gottleuba-Berggießhübel' THEN 1 END),
-                   COUNT(CASE WHEN m.location_name IN ('Bahnhof Bad Schandau', 'Elbkai, Bad Schandau', 'Pfaffendorf', 'Rathen', 'Schmilka, Alte Feuerwehr', 'Schöna') THEN 1 END),
-                   COUNT(CASE WHEN m.location_name IN ('Hotel zur Post, Pirna', 'Ostrau Kurpark', 'Pötzscha') THEN 1 END),
-                   COUNT(CASE WHEN m.location_name = 'Hohnstein, An der Burg' THEN 1 END)
-                 ) THEN 'Stolpen'
-            -- Bad Gottleuba warehouse: Products sold at Bad Gottleuba location
-            WHEN COUNT(CASE WHEN m.location_name = 'Bad Gottleuba-Berggießhübel' THEN 1 END) > 
-                 GREATEST(
-                   COUNT(CASE WHEN m.location_name IN ('Bahnhof Bad Schandau', 'Elbkai, Bad Schandau', 'Pfaffendorf', 'Rathen', 'Schmilka, Alte Feuerwehr', 'Schöna') THEN 1 END),
-                   COUNT(CASE WHEN m.location_name IN ('Hotel zur Post, Pirna', 'Ostrau Kurpark', 'Pötzscha') THEN 1 END),
-                   COUNT(CASE WHEN m.location_name = 'Hohnstein, An der Burg' THEN 1 END)
-                 ) THEN 'Bad Gottleuba'
-            -- Pirna warehouse: Products sold in Pirna region  
-            WHEN COUNT(CASE WHEN m.location_name IN ('Hotel zur Post, Pirna', 'Ostrau Kurpark', 'Pötzscha') THEN 1 END) > 
-                 GREATEST(
-                   COUNT(CASE WHEN m.location_name IN ('Bahnhof Bad Schandau', 'Elbkai, Bad Schandau', 'Pfaffendorf', 'Rathen', 'Schmilka, Alte Feuerwehr', 'Schöna') THEN 1 END),
-                   COUNT(CASE WHEN m.location_name = 'Hohnstein, An der Burg' THEN 1 END)
-                 ) THEN 'Pirna'
-            -- Hohenstein warehouse: Products sold at Hohnstein location
-            WHEN COUNT(CASE WHEN m.location_name = 'Hohnstein, An der Burg' THEN 1 END) > 
-                 COUNT(CASE WHEN m.location_name IN ('Bahnhof Bad Schandau', 'Elbkai, Bad Schandau', 'Pfaffendorf', 'Rathen', 'Schmilka, Alte Feuerwehr', 'Schöna') THEN 1 END) THEN 'Hohenstein'
-            -- Bahnhof warehouse: Products sold in Bahnhof region (default for most active region)
-            ELSE 'Bahnhof'
-          END as primary_warehouse
-        FROM transactions t
-        INNER JOIN machines m ON t.machine_id = m.id
-        WHERE t.created_at >= NOW() - INTERVAL '30 days'
-        GROUP BY TRIM(t.product_name)
+          s.id,
+          s.id as product_id,
+          s.product_name,
+          s.amount_standard as quantity,
+          s.amount_critical as min_quantity,
+          COALESCE(s.price, 0) as price,
+          'Standard' as category,
+          COALESCE(s.sku, '') as sku,
+          ii.warehouse_id,
+          w.name as warehouse_name
+        FROM stocks s
+        INNER JOIN inventory_items ii ON s.id = ii.product_id
+        INNER JOIN warehouses w ON ii.warehouse_id = w.id
+        WHERE s.amount_standard <= s.amount_critical
+          AND s.amount_standard >= 0
+          AND s.status = 'active'
+          AND w.status = 'active'
       )
       SELECT 
-        s.id,
-        s.id as product_id,
-        s.product_name,
-        s.amount_standard as quantity,
-        s.amount_critical as min_quantity,
-        COALESCE(s.price, 0) as price,
-        'Standard' as category,
-        COALESCE(s.sku, '') as sku,
-        pwm.all_locations as machine_locations,
-        pwm.primary_warehouse,
-        pwm.total_sales
-      FROM stocks s
-      LEFT JOIN product_warehouse_mapping pwm ON TRIM(s.product_name) = pwm.product_name
-      WHERE s.amount_standard <= s.amount_critical
-        AND s.amount_standard >= 0
-        AND s.status = 'active'
-      ORDER BY s.amount_standard ASC, pwm.total_sales DESC
-      LIMIT 20
+        ci.id,
+        ci.product_id,
+        ci.product_name,
+        ci.quantity,
+        ci.min_quantity,
+        ci.price,
+        ci.category,
+        ci.sku,
+        ci.warehouse_id,
+        ci.warehouse_name
+      FROM critical_inventory ci
+      ORDER BY ci.quantity ASC
+      LIMIT 50
     `;
 
     const lowStockResult = await pool.query(lowStockQuery);
@@ -112,7 +72,7 @@ router.get('/critical-inventory-final', async (req: Request, res: Response) => {
 
     const criticalItems = [];
 
-    // Process each item to check for recent sales
+    // Process each item to check for recent sales and build response
     for (const item of lowStockItems) {
       try {
         // Check for recent sales of this product by matching product name
@@ -129,22 +89,11 @@ router.get('/critical-inventory-final', async (req: Request, res: Response) => {
 
         // Only include items with recent sales (truly critical)
         if (salesCount > 0) {
-          // Map warehouse name to ID using existing warehouse data
-          const warehouseMapping = {
-            'Bad Gottleuba': 5,
-            'Bahnhof': 3,
-            'Stolpen': 4,
-            'Pirna': 7,
-            'Hohenstein': 6
-          };
-          
-          const warehouseName = item.primary_warehouse || 'Bahnhof';
-          const warehouseId = warehouseMapping[warehouseName as keyof typeof warehouseMapping] || 3;
-          
+          // Use authentic warehouse assignment from inventory_items table
           criticalItems.push({
             id: item.id,
-            warehouseId: warehouseId,
-            warehouseName: warehouseName,
+            warehouseId: item.warehouse_id,
+            warehouseName: item.warehouse_name,
             productId: item.product_id,
             productName: item.product_name,
             currentQuantity: item.quantity,
