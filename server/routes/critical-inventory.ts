@@ -8,11 +8,13 @@ const router = Router();
 // Endpoint to get critical inventory items
 router.get('/critical-inventory', async (req: Request, res: Response) => {
   try {
+    console.log('Critical inventory request received');
     const warehouseId = req.query.warehouseId ? parseInt(req.query.warehouseId as string) : undefined;
     const includeRecentSales = req.query.includeRecentSales === 'true';
 
-    // Get critical inventory items (quantity <= minQuantity AND quantity > 0)
-    let criticalItemsQuery = db
+    // Get critical inventory items with machine assignments and sales data
+    console.log('Querying critical inventory items...');
+    const criticalItemsQuery = await db
       .select({
         id: inventoryItems.id,
         warehouseId: inventoryItems.warehouseId,
@@ -46,34 +48,34 @@ router.get('/critical-inventory', async (req: Request, res: Response) => {
         desc(inventoryItems.updatedAt)
       );
 
-    const criticalItems = await criticalItemsQuery;
+    const criticalItems = criticalItemsQuery;
 
-    // For each critical item, check if it's actively sold in machines assigned to its warehouse
-    const enrichedItems = await Promise.all(
-      criticalItems.map(async (item) => {
-        // Find machines assigned to this warehouse through the assignment table
-        const assignedMachines = await db
-          .select({
-            id: machines.id,
-            machineName: machines.machineName,
-            locationName: machines.locationName,
-            status: machines.status,
-          })
-          .from(machineWarehouseAssignments)
-          .innerJoin(machines, eq(machineWarehouseAssignments.machineId, machines.id))
-          .where(eq(machineWarehouseAssignments.warehouseId, item.warehouseId));
+    // Optimize with a single query to get machine assignments and recent sales
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-        // Check if this product is actively sold in any of these machines
-        const machineIds = assignedMachines.map(m => m.id);
-        let isActivelySold = false;
-        let lastSaleDate = null;
-        let salesLast7Days = 0;
+    // Get all machine assignments for these warehouses
+    const warehouseIds = criticalItems.map(item => item.warehouseId);
+    const machineAssignments = await db
+      .select({
+        warehouseId: machineWarehouseAssignments.warehouseId,
+        machineId: machines.id,
+        machineName: machines.machineName,
+        locationName: machines.locationName,
+        status: machines.status,
+      })
+      .from(machineWarehouseAssignments)
+      .innerJoin(machines, eq(machineWarehouseAssignments.machineId, machines.id))
+      .where(inArray(machineWarehouseAssignments.warehouseId, warehouseIds));
 
-        if (machineIds.length > 0) {
-          // Check recent transactions for this product in assigned machines
-          const sevenDaysAgo = new Date();
-          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
+    // Get recent sales data in batches to avoid timeout
+    const salesData = new Map();
+    for (const item of criticalItems) {
+      const assignedMachines = machineAssignments.filter(m => m.warehouseId === item.warehouseId);
+      const machineIds = assignedMachines.map(m => m.machineId);
+      
+      if (machineIds.length > 0) {
+        try {
           const recentSales = await db
             .select({
               count: sql<number>`COUNT(*)`,
@@ -89,24 +91,40 @@ router.get('/critical-inventory', async (req: Request, res: Response) => {
               )
             );
 
-          if (recentSales.length > 0 && recentSales[0].count > 0) {
-            isActivelySold = true;
-            salesLast7Days = recentSales[0].count;
-            lastSaleDate = recentSales[0].lastSale;
-          }
+          salesData.set(item.id, {
+            assignedMachines,
+            sales: recentSales[0] || { count: 0, lastSale: null }
+          });
+        } catch (error) {
+          console.error(`Error checking sales for item ${item.id}:`, error);
+          salesData.set(item.id, {
+            assignedMachines,
+            sales: { count: 0, lastSale: null }
+          });
         }
+      } else {
+        salesData.set(item.id, {
+          assignedMachines: [],
+          sales: { count: 0, lastSale: null }
+        });
+      }
+    }
 
-        return {
-          ...item,
-          assignedMachines,
-          isActivelySold,
-          lastSaleDate,
-          salesLast7Days,
-          criticalityScore: (item.currentQuantity || 0) / Math.max(item.minQuantity || 5, 1),
-          shouldAlert: isActivelySold, // Only alert if actively sold
-        };
-      })
-    );
+    // Enrich items with sales data
+    const enrichedItems = criticalItems.map(item => {
+      const data = salesData.get(item.id) || { assignedMachines: [], sales: { count: 0, lastSale: null } };
+      const isActivelySold = data.sales.count > 0;
+      
+      return {
+        ...item,
+        assignedMachines: data.assignedMachines,
+        isActivelySold,
+        lastSaleDate: data.sales.lastSale,
+        salesLast7Days: data.sales.count,
+        criticalityScore: (item.currentQuantity || 0) / Math.max(item.minQuantity || 5, 1),
+        shouldAlert: isActivelySold, // Only alert if actively sold
+      };
+    });
 
     // Filter to only include items that should generate alerts (actively sold)
     const alertItems = enrichedItems.filter(item => item.shouldAlert);
