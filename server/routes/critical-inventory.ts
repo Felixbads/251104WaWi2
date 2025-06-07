@@ -21,72 +21,98 @@ router.get('/critical-inventory', async (req: Request, res: Response) => {
     console.log('Critical inventory request received');
     const warehouseId = req.query.warehouseId ? parseInt(req.query.warehouseId as string) : undefined;
 
-    // Use a direct SQL query for better performance
-    console.log('Querying critical inventory with direct SQL...');
-    let query: string;
-    let result: any;
+    // First get critical inventory items, then check if they're actively sold
+    console.log('Querying critical inventory items...');
+    const basicQuery = warehouseId ? `
+      SELECT 
+        ii.id,
+        ii.warehouse_id as "warehouseId",
+        w.name as "warehouseName",
+        ii.product_id as "productId",
+        p.product_name as "productName",
+        ii.quantity as "currentQuantity",
+        ii.min_quantity as "minQuantity",
+        p.price,
+        p.category
+      FROM inventory_items ii
+      INNER JOIN products p ON ii.product_id = p.id
+      INNER JOIN warehouses w ON ii.warehouse_id = w.id
+      WHERE ii.quantity < COALESCE(ii.min_quantity, 5)
+        AND ii.quantity >= 0
+        AND ii.status = 'active'
+        AND w.is_active = true
+        AND ii.warehouse_id = $1
+      ORDER BY (ii.quantity::float / NULLIF(COALESCE(ii.min_quantity, 5), 0))
+      LIMIT 100
+    ` : `
+      SELECT 
+        ii.id,
+        ii.warehouse_id as "warehouseId",
+        w.name as "warehouseName",
+        ii.product_id as "productId",
+        p.product_name as "productName",
+        ii.quantity as "currentQuantity",
+        ii.min_quantity as "minQuantity",
+        p.price,
+        p.category
+      FROM inventory_items ii
+      INNER JOIN products p ON ii.product_id = p.id
+      INNER JOIN warehouses w ON ii.warehouse_id = w.id
+      WHERE ii.quantity < COALESCE(ii.min_quantity, 5)
+        AND ii.quantity >= 0
+        AND ii.status = 'active'
+        AND w.is_active = true
+      ORDER BY (ii.quantity::float / NULLIF(COALESCE(ii.min_quantity, 5), 0))
+      LIMIT 100
+    `;
 
-    if (warehouseId) {
-      query = `
+    const result = warehouseId ? await pool.query(basicQuery, [warehouseId]) : await pool.query(basicQuery);
+    const potentialCriticalItems = result.rows;
+
+    console.log(`Found ${potentialCriticalItems.length} potential critical items, now filtering for active sales...`);
+
+    // Now filter for products that are actually sold in machines
+    const criticalItems = [];
+    for (const item of potentialCriticalItems) {
+      // Check if this product has been sold in the last 30 days in assigned machines
+      const salesQuery = `
         SELECT 
-          ii.id,
-          ii.warehouse_id as "warehouseId",
-          w.name as "warehouseName",
-          ii.product_id as "productId",
-          p.product_name as "productName",
-          ii.quantity as "currentQuantity",
-          ii.min_quantity as "minQuantity",
-          p.price,
-          p.category
-        FROM inventory_items ii
-        INNER JOIN products p ON ii.product_id = p.id
-        INNER JOIN warehouses w ON ii.warehouse_id = w.id
-        WHERE ii.quantity < COALESCE(ii.min_quantity, 5)
-          AND ii.quantity >= 0
-          AND ii.status = 'active'
-          AND w.is_active = true
-          AND ii.warehouse_id = $1
-        ORDER BY (ii.quantity::float / NULLIF(COALESCE(ii.min_quantity, 5), 0))
-        LIMIT 50
+          COUNT(DISTINCT mwa.machine_id) as machine_count,
+          COUNT(DISTINCT t.id) as sales_count,
+          MAX(t.transaction_date) as last_sale
+        FROM machine_warehouse_assignments mwa
+        INNER JOIN machines m ON mwa.machine_id = m.id AND m.is_active = true
+        LEFT JOIN transactions t ON t.product_id = $1 
+          AND t.machine_id = m.id
+          AND t.transaction_date >= CURRENT_DATE - INTERVAL '30 days'
+        WHERE mwa.warehouse_id = $2
       `;
-      result = await pool.query(query, [warehouseId]);
-    } else {
-      query = `
-        SELECT 
-          ii.id,
-          ii.warehouse_id as "warehouseId",
-          w.name as "warehouseName",
-          ii.product_id as "productId",
-          p.product_name as "productName",
-          ii.quantity as "currentQuantity",
-          ii.min_quantity as "minQuantity",
-          p.price,
-          p.category
-        FROM inventory_items ii
-        INNER JOIN products p ON ii.product_id = p.id
-        INNER JOIN warehouses w ON ii.warehouse_id = w.id
-        WHERE ii.quantity < COALESCE(ii.min_quantity, 5)
-          AND ii.quantity >= 0
-          AND ii.status = 'active'
-          AND w.is_active = true
-        ORDER BY (ii.quantity::float / NULLIF(COALESCE(ii.min_quantity, 5), 0))
-        LIMIT 50
-      `;
-      result = await pool.query(query);
+      
+      const salesResult = await pool.query(salesQuery, [item.productId, item.warehouseId]);
+      const salesData = salesResult.rows[0];
+      
+      // Only include if product has assigned machines AND recent sales
+      if (parseInt(salesData.machine_count) > 0 && parseInt(salesData.sales_count) > 0) {
+        criticalItems.push({
+          ...item,
+          assignedMachinesCount: parseInt(salesData.machine_count),
+          salesLast30Days: parseInt(salesData.sales_count),
+          lastSaleDate: salesData.last_sale
+        });
+      }
     }
-    const criticalItems = result.rows;
 
-    console.log(`Found ${criticalItems.length} critical inventory items`);
+    console.log(`Found ${criticalItems.length} truly critical inventory items (with active sales)`);
 
-    // Enhance items with additional data
+    // Enhance items with the real data from the query
     const enrichedItems = criticalItems.map((item: any) => ({
       ...item,
       criticalityScore: (item.currentQuantity || 0) / Math.max(item.minQuantity || 5, 1),
       shouldAlert: true,
-      assignedMachines: [],
-      isActivelySold: true, // Simplified for now
-      lastSaleDate: null,
-      salesLast7Days: 0,
+      assignedMachines: parseInt(item.assignedMachinesCount) || 0,
+      isActivelySold: parseInt(item.salesLast30Days) > 0,
+      lastSaleDate: item.lastSaleDate,
+      salesLast30Days: parseInt(item.salesLast30Days) || 0,
     }));
 
     // Create summary with proper types
