@@ -1234,7 +1234,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return result;
       }).filter(product => product.productId); // Filter out any null products
       
-      console.log(`Found MHD data for ${mhdData.length} products in machine ${machineId}`);
+      // Sort products by expiry date (FIFO - most critical first)
+      mhdData.sort((a, b) => {
+        // Products with no batches go to the end
+        if (!a.batches.length && !b.batches.length) return 0;
+        if (!a.batches.length) return 1;
+        if (!b.batches.length) return -1;
+        
+        // Sort by status priority first: expired > warning > attention > good
+        const statusPriority = { expired: 0, warning: 1, attention: 2, good: 3 };
+        const statusA = statusPriority[a.batches[0].status] || 3;
+        const statusB = statusPriority[b.batches[0].status] || 3;
+        
+        if (statusA !== statusB) {
+          return statusA - statusB;
+        }
+        
+        // Then sort by days until expiry (ascending - earliest first)
+        return a.batches[0].daysUntilExpiry - b.batches[0].daysUntilExpiry;
+      });
+      
+      console.log(`Found MHD data for ${mhdData.length} products in machine ${machineId}, sorted by expiry date`);
       
       res.json(mhdData);
     } catch (error) {
@@ -3075,18 +3095,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? Math.floor((now.getTime() - new Date(lastCashlessSaleDate).getTime()) / (1000 * 60 * 60 * 24))
           : null;
         
-        // Status bewerten
+        // MHD Status abrufen
+        const mhdQuery = `
+          SELECT 
+            COUNT(CASE WHEN pb.expiry_date < NOW() THEN 1 END) as expired_count,
+            COUNT(CASE WHEN pb.expiry_date >= NOW() AND pb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 END) as warning_count,
+            MIN(pb.expiry_date) as earliest_expiry
+          FROM product_batches pb
+          INNER JOIN products p ON pb.product_id = p.id
+          INNER JOIN transactions t ON LOWER(TRIM(p.product_name)) = LOWER(TRIM(t.product_name))
+          WHERE t.machine_id = $1 
+          AND pb.status = 'active' 
+          AND pb.expiry_date IS NOT NULL
+          AND t.datetime >= NOW() - INTERVAL '30 days'
+        `;
+        
+        const mhdResult = await rawDb.query(mhdQuery, [machine.id]);
+        const mhdData = mhdResult.rows[0] || { expired_count: 0, warning_count: 0, earliest_expiry: null };
+        
+        const expiredCount = parseInt(mhdData.expired_count) || 0;
+        const warningCount = parseInt(mhdData.warning_count) || 0;
+        
+        // Status bewerten (MHD hat höchste Priorität)
         let status = 'ok';
         const warnings = [];
         
-        if (daysSinceLastSale > 2) {
+        if (expiredCount > 0) {
+          status = 'error';
+          warnings.push(`${expiredCount} abgelaufene Produkte`);
+        } else if (warningCount > 0) {
           status = 'warning';
-          warnings.push('Keine Verkäufe seit über 2 Tagen');
-        }
-        
-        if (daysSinceLastSale > 5) {
+          warnings.push(`${warningCount} Produkte laufen bald ab`);
+        } else if (daysSinceLastSale > 5) {
           status = 'error';
           warnings.push('Keine Verkäufe seit über 5 Tagen');
+        } else if (daysSinceLastSale > 2) {
+          status = 'warning';
+          warnings.push('Keine Verkäufe seit über 2 Tagen');
         }
         
         machineStatusData.push({
@@ -3111,7 +3156,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             amount: parseFloat(t.price?.toString() || '0')
           })),
           status,
-          warnings
+          warnings,
+          mhdStatus: {
+            expiredCount,
+            warningCount,
+            earliestExpiry: mhdData.earliest_expiry,
+            alertLevel: expiredCount > 0 ? 'expired' : warningCount > 0 ? 'warning' : 'ok'
+          }
         });
       }
       

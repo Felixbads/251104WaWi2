@@ -56,6 +56,12 @@ interface MachineStatusData {
   }>;
   status: 'ok' | 'warning' | 'error';
   warnings: string[];
+  mhdStatus?: {
+    expiredCount: number;
+    warningCount: number;
+    earliestExpiry: string | null;
+    alertLevel: 'expired' | 'warning' | 'ok';
+  };
 }
 
 // API-Funktionen
