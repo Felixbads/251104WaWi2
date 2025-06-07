@@ -31,6 +31,7 @@ import criticalInventoryRouter from './routes/critical-inventory';
 import criticalInventoryWorkingRouter from './routes/critical-inventory-working';
 import criticalInventoryFinalRouter from './routes/critical-inventory-final';
 import inventoryHealthRouter from './routes/inventory-health';
+import removedProductsRouter from './routes/removed-products';
 import { pool } from './db';
 import { db } from './db';
 import { orders } from '../shared/schema';
@@ -768,6 +769,9 @@ Elbsandstein Proviant & Quartier GmbH`;
 
   // Register inventory-count-batches router
   app.use('/api/inventory-counts', inventoryCountBatchesRouter);
+  
+  // Register removed products router
+  app.use('/api/removed-products', removedProductsRouter);
 
   // Fehlende API-Routen für den Bestellprozess hinzufügen
   
