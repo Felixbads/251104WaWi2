@@ -1139,10 +1139,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`Fetching MHD data for machine ${machineId}`);
       
       // Get products sold at this machine with available batch information
+      // Use a more flexible approach to find products and their batches
       const query = `
+        WITH machine_products AS (
+          SELECT DISTINCT 
+            t.product_name as transaction_product_name,
+            COUNT(*) as transaction_count,
+            SUM(t.quantity) as total_quantity,
+            MAX(t.datetime) as last_transaction
+          FROM transactions t
+          WHERE t.machine_id = $1
+          AND t.datetime >= NOW() - INTERVAL '30 days'
+          GROUP BY t.product_name
+        ),
+        matched_products AS (
+          SELECT DISTINCT
+            p.id as product_id,
+            p.product_name,
+            mp.total_quantity as machine_quantity,
+            mp.last_transaction
+          FROM machine_products mp
+          INNER JOIN products p ON (
+            LOWER(TRIM(p.product_name)) = LOWER(TRIM(mp.transaction_product_name))
+            OR p.product_name ILIKE '%' || TRIM(split_part(mp.transaction_product_name, '(', 1)) || '%'
+            OR TRIM(split_part(mp.transaction_product_name, '(', 1)) ILIKE '%' || p.product_name || '%'
+          )
+        )
         SELECT DISTINCT 
-          p.id as product_id,
-          p.product_name,
+          mp.product_id,
+          mp.product_name,
           pb.id as batch_id,
           pb.batch_number,
           pb.expiry_date,
@@ -1151,18 +1176,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           pb.received_date,
           pb.status as batch_status,
           s.name as supplier_name,
-          COALESCE(SUM(t.quantity), 5) as machine_quantity,
-          pb.created_at as last_refill
-        FROM transactions t
-        INNER JOIN products p ON LOWER(TRIM(t.product_name)) = LOWER(TRIM(p.product_name))
-        LEFT JOIN product_batches pb ON p.id = pb.product_id AND (pb.status = 'active' OR pb.status IS NULL)
+          COALESCE(mp.machine_quantity, 0) as machine_quantity,
+          COALESCE(pb.created_at, mp.last_transaction) as last_refill
+        FROM matched_products mp
+        LEFT JOIN product_batches pb ON mp.product_id = pb.product_id AND (pb.status = 'active' OR pb.status IS NULL)
         LEFT JOIN suppliers s ON pb.supplier_id = s.id
-        WHERE t.machine_id = $1
-        AND t.datetime >= NOW() - INTERVAL '30 days'
-        GROUP BY p.id, p.product_name, pb.id, pb.batch_number, pb.expiry_date, 
-                 pb.current_quantity, pb.supplier_batch_number, pb.received_date, 
-                 pb.status, s.name, pb.created_at
-        ORDER BY p.product_name, pb.expiry_date ASC NULLS LAST
+        ORDER BY mp.product_name, pb.expiry_date ASC NULLS LAST
       `;
 
       const result = await rawDb.query(query, [machineId]);
