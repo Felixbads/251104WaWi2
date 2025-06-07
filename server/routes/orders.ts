@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { storage } from '../storage';
 import { db } from '../db';
-import { and, asc, desc, eq, gte, ilike, inArray, lt, or, SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, or, SQL } from 'drizzle-orm';
 import { 
   orders, 
   orderItems,
@@ -24,29 +24,30 @@ function sendEmail(to: string, from: string, subject: string, html: string) {
 
 const router = Router();
 
-// Dashboard endpoint für offene Bestellungen
+// Dashboard endpoint für verschickte aber noch nicht gelieferte Bestellungen
 router.get('/dashboard/open', async (req: Request, res: Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 5;
     
+    // Hole nur verschickte aber noch nicht gelieferte Bestellungen
     const openOrdersQuery = await db
       .select({
         id: orders.id,
         orderNumber: orders.orderNumber,
         status: orders.status,
         createdAt: orders.createdAt,
+        orderDate: orders.orderDate,
         expectedDeliveryDate: orders.expectedDeliveryDate,
+        actualDeliveryDate: orders.actualDeliveryDate,
         supplierName: suppliers.name,
-        warehouseName: warehouses.name,
         totalAmount: orders.totalAmount
       })
       .from(orders)
       .leftJoin(suppliers, eq(orders.supplierId, suppliers.id))
-      .leftJoin(warehouses, eq(orders.warehouseId, warehouses.id))
-      .where(or(
-        eq(orders.status, 'open'),
-        eq(orders.status, 'sent'),
-        eq(orders.status, 'pending')
+      .where(and(
+        eq(orders.status, 'sent'), // Nur verschickte Bestellungen
+        // Noch nicht geliefert (actualDeliveryDate ist null)
+        eq(orders.actualDeliveryDate, null)
       ))
       .orderBy(asc(orders.expectedDeliveryDate), desc(orders.createdAt))
       .limit(limit);

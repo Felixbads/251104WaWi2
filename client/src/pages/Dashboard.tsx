@@ -82,11 +82,24 @@ export default function Dashboard() {
     refetchInterval: 30000 // Alle 30 Sekunden aktualisieren
   });
 
-  // Offene Bestellungen für die Dashboard-Ansicht
+  // Verschickte aber noch nicht gelieferte Bestellungen für die Dashboard-Ansicht
   const { data: openOrders, isLoading: isLoadingOpenOrders } = useQuery({
     queryKey: ['/api/orders/dashboard/open'],
     queryFn: () => getOpenOrders(),
     refetchInterval: 60000 // Jede Minute aktualisieren
+  });
+
+  // Kritische Automaten mit Warnungen oder Fehlern vom Standort-Status
+  const { data: locationStatus, isLoading: isLoadingLocationStatus } = useQuery({
+    queryKey: ['/api/location-status'],
+    queryFn: async () => {
+      const response = await fetch('/api/location-status');
+      if (!response.ok) {
+        throw new Error('Failed to fetch machine status data');
+      }
+      return response.json();
+    },
+    refetchInterval: 30000 // Alle 30 Sekunden aktualisieren für aktuelle Daten
   });
 
   // Prognosemodelle für das Dashboard
