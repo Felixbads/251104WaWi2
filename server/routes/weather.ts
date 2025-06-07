@@ -28,13 +28,14 @@ router.get('/overview', async (req, res) => {
     `;
     
     const result = await db.execute(overviewQuery);
-    const overview = result[0] || {};
+    const overview = (result.rows || result || [])[0] || {};
     
     res.json({
       totalDataPoints: parseInt(overview.totalDataPoints || '0'),
       avgTemperature: parseFloat(overview.avgTemperature || '0'),
       totalPrecipitation: parseFloat(overview.totalPrecipitation || '0'),
-      yearsCovered: parseInt(overview.yearsCovered || '0')
+      yearsCovered: parseInt(overview.yearsCovered || '0'),
+      stationName: overview.stationName || 'Dresden'
     });
   } catch (error) {
     console.error('Error fetching weather overview:', error);
@@ -66,7 +67,7 @@ router.get('/yearly-stats', async (req, res) => {
     
     const result = await db.execute(statsQuery);
     
-    const stats = result.map(row => ({
+    const stats = (result.rows || result || []).map((row: any) => ({
       year: parseInt(row.year as string),
       station: row.station_name,
       dataPoints: parseInt(row.dataPoints as string),
@@ -104,7 +105,7 @@ router.get('/daily-coverage', async (req, res) => {
     
     const result = await db.execute(coverageQuery);
     
-    const coverage = result.map(row => ({
+    const coverage = (result.rows || result || []).map((row: any) => ({
       date: row.date,
       hourlyCount: parseInt(row.hourlyCount as string),
       coverage: parseFloat(row.coverage as string || '0')
@@ -132,29 +133,28 @@ router.get('/hourly', async (req, res) => {
     const hourlyQuery = sql`
       SELECT 
         id,
-        state,
+        station_name,
         date,
         hour,
-        temperature,
+        temp as temperature,
         humidity,
         pressure,
         wind_speed as "windSpeed",
-        wind_direction as "windDirection",
+        wind_deg as "windDirection",
         visibility,
-        cloud_cover as "cloudCover",
+        clouds as "cloudCover",
         precipitation,
-        conditions
+        weather_description as conditions
       FROM weather_data
-      WHERE state = ${state as string}
-        AND date = ${date as string}
+      WHERE date = ${date as string}
       ORDER BY hour
     `;
     
     const result = await db.execute(hourlyQuery);
     
-    const hourlyData = result.map(row => ({
+    const hourlyData = result.rows.map(row => ({
       id: row.id,
-      state: row.state,
+      station: row.station_name,
       date: row.date,
       hour: parseInt(row.hour as string || '0'),
       temperature: parseFloat(row.temperature as string || '0'),
