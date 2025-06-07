@@ -5,44 +5,38 @@ export async function getRemovedProducts(req: Request, res: Response) {
   try {
     const query = req.query as {
       limit?: string;
-      offset?: string;
     };
 
     const limit = parseInt(query.limit || '5');
     
     console.log("Fetching removed products with limit:", limit);
 
-    const queryResult = await storage.db.query(`
-      SELECT 
-        t.product_name,
-        COUNT(*) as removal_count,
-        SUM(t.quantity) as total_quantity,
-        MAX(t.datetime) as last_removal
-      FROM transactions t
-      WHERE t.product_name IS NOT NULL
-        AND t.quantity > 0
-        AND t.datetime >= NOW() - INTERVAL '7 days'
-      GROUP BY t.product_name
-      ORDER BY removal_count DESC
-      LIMIT $1
-    `, [limit]);
+    // Use transactions table to get top removed products
+    const transactions = await storage.getTransactions({ 
+      limit: 1000,
+      startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Last 7 days
+    });
 
-    console.log("Query executed successfully");
-    console.log("Query result type:", typeof queryResult);
-    console.log("Has rows:", !!queryResult?.rows);
-    console.log("Rows length:", queryResult?.rows?.length || 0);
+    console.log("Transactions fetched:", transactions.length);
 
-    const rows = queryResult?.rows || [];
-    
-    console.log("Extracted rows:", rows.length);
-    console.log("Sample data:", rows.slice(0, 2));
+    // Count products by name
+    const productCounts: Record<string, number> = {};
+    transactions.forEach(tx => {
+      if (tx.productName) {
+        productCounts[tx.productName] = (productCounts[tx.productName] || 0) + (tx.quantity || 1);
+      }
+    });
 
-    const products = rows.map((row: any) => ({
-      productName: row.product_name,
-      removed: parseInt(row.removal_count) || 0,
-      totalQuantity: parseInt(row.total_quantity) || 0,
-      lastRemoval: row.last_removal
-    }));
+    // Convert to array and sort
+    const products = Object.entries(productCounts)
+      .map(([name, count]) => ({
+        productName: name,
+        removed: count,
+        totalQuantity: count,
+        lastRemoval: new Date()
+      }))
+      .sort((a, b) => b.removed - a.removed)
+      .slice(0, limit);
 
     console.log("Processed products:", products.length);
 
