@@ -526,7 +526,7 @@ export default function Dashboard() {
               <div className="flex items-center justify-center h-[120px]">
                 <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
-            ) : criticalInventory && criticalInventory.totalCritical > 0 ? (
+            ) : criticalInventory && (criticalInventory.totalCritical > 0 || criticalInventory.totalCriticalItems > 0) ? (
               <div className="space-y-2">
                 <div className="text-3xl font-bold text-orange-600">
                   {criticalInventory.totalCritical}

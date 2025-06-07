@@ -152,7 +152,7 @@ import vendonRoutes from "./routes/vendon";
 import productDisposalsRoutes from "./routes/productDisposals";
 import inventoryTransfersRoutes from "./routes/inventoryTransfers";
 import exportImportRoutes from "./routes/exportImport";
-import removedProductsRoutes from "./routes/removedProducts";
+import { getRemovedProducts } from "./routes/removedProducts";
 import weatherRoutes from "./routes/weather";
 import holidaysRoutes from "./routes/holidays";
 import bulkSyncRoutes from "./routes/bulkSync";
@@ -3235,7 +3235,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(`${API_PREFIX}/events`, eventsRouter);
   app.use(`${API_PREFIX}/product-disposals`, productDisposalsRoutes);
   app.use(`${API_PREFIX}/inventory-transfers`, inventoryTransfersRoutes);
-  app.use(`${API_PREFIX}/removed-products`, removedProductsRoutes);
+  app.get(`${API_PREFIX}/removed-products`, getRemovedProducts);
   app.use(`${API_PREFIX}/weather`, weatherRoutes);
   app.use(`${API_PREFIX}/holidays`, holidaysRoutes);
   app.use(`${API_PREFIX}/calendar`, calendarRoutes);
