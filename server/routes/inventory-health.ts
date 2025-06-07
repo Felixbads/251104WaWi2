@@ -133,7 +133,7 @@ router.get('/inventory-health', async (req, res) => {
           ((parseInt(ws.total_items) - parseInt(ws.low_stock_items || 0)) / parseInt(ws.total_items) * 100).toFixed(1) : 
           '0'
       })),
-      topProducts: topProducts.map(tp => ({
+      topProducts: topProducts.rows.map((tp: any) => ({
         productName: tp.product_name,
         salesCount: parseInt(tp.sales_count),
         lastSale: tp.last_sale,
@@ -142,7 +142,7 @@ router.get('/inventory-health', async (req, res) => {
         warehouseName: tp.warehouse_name || 'Unassigned',
         stockStatus: (parseInt(tp.quantity) || 0) <= (parseInt(tp.min_quantity) || 5) ? 'LOW' : 'OK'
       })),
-      attentionProducts: attentionProducts.map(ap => ({
+      attentionProducts: attentionProducts.rows.map((ap: any) => ({
         productName: ap.product_name,
         warehouseName: ap.warehouse_name,
         quantity: parseInt(ap.quantity),
