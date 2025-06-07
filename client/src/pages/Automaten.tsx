@@ -575,23 +575,37 @@ export default function Automaten() {
         </div>
       </div>
 
-      {/* Tabs for Status Filtering */}
-      <Tabs defaultValue="all" className="w-full">
-        <TabsList>
-          <TabsTrigger value="all" onClick={() => setStatusFilter(null)}>
-            Alle
-          </TabsTrigger>
-          <TabsTrigger value="active" onClick={() => setStatusFilter("active")}>
-            Aktiv
-          </TabsTrigger>
-          <TabsTrigger value="inactive" onClick={() => setStatusFilter("inactive")}>
-            Inaktiv
-          </TabsTrigger>
-          <TabsTrigger value="error" onClick={() => setStatusFilter("error")}>
-            Fehler
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      {/* Status Filter Buttons */}
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant={statusFilter === null ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStatusFilter(null)}
+        >
+          Alle
+        </Button>
+        <Button
+          variant={statusFilter === "active" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStatusFilter("active")}
+        >
+          Aktiv
+        </Button>
+        <Button
+          variant={statusFilter === "inactive" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStatusFilter("inactive")}
+        >
+          Inaktiv
+        </Button>
+        <Button
+          variant={statusFilter === "error" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setStatusFilter("error")}
+        >
+          Fehler
+        </Button>
+      </div>
 
       {/* Loading State */}
       {isLoading && (
