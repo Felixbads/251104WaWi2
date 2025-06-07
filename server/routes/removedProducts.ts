@@ -11,32 +11,29 @@ export async function getRemovedProducts(req: Request, res: Response) {
     
     console.log("Fetching removed products with limit:", limit);
 
-    // Use transactions table to get top removed products
-    const transactions = await storage.getTransactions({ 
-      limit: 1000,
-      startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Last 7 days
-    });
+    // Use direct SQL query to get top products from transactions
+    const queryResult = await storage.execute(`
+      SELECT 
+        product_name,
+        COUNT(*) as removal_count,
+        SUM(quantity) as total_quantity
+      FROM transactions 
+      WHERE product_name IS NOT NULL 
+        AND datetime >= NOW() - INTERVAL '7 days'
+      GROUP BY product_name 
+      ORDER BY COUNT(*) DESC 
+      LIMIT $1
+    `, [limit]);
 
-    console.log("Transactions fetched:", transactions.length);
+    console.log("Direct SQL query result:", queryResult.length);
 
-    // Count products by name
-    const productCounts: Record<string, number> = {};
-    transactions.forEach(tx => {
-      if (tx.productName) {
-        productCounts[tx.productName] = (productCounts[tx.productName] || 0) + (tx.quantity || 1);
-      }
-    });
-
-    // Convert to array and sort
-    const products = Object.entries(productCounts)
-      .map(([name, count]) => ({
-        productName: name,
-        removed: count,
-        totalQuantity: count,
-        lastRemoval: new Date()
-      }))
-      .sort((a, b) => b.removed - a.removed)
-      .slice(0, limit);
+    // Convert to expected format
+    const products = queryResult.map((row: any) => ({
+      productName: row.product_name,
+      removed: parseInt(row.removal_count),
+      totalQuantity: parseInt(row.total_quantity || row.removal_count),
+      lastRemoval: new Date()
+    }));
 
     console.log("Processed products:", products.length);
 
