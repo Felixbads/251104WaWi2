@@ -370,7 +370,7 @@ router.get('/daily-coverage/:state/:year', async (req, res) => {
     .from(weatherData)
     .where(
       and(
-        eq(weatherData.stationName, 'Bad Schandau'),
+        eq(weatherData.station_name, 'Bad Schandau'),
         sql`EXTRACT(YEAR FROM date::date) = ${parseInt(year)}`
       )
     )
@@ -401,7 +401,7 @@ router.get('/hourly/:state/:date', async (req, res) => {
       .from(weatherData)
       .where(
         and(
-          eq(weatherData.stationName, 'Bad Schandau'),
+          eq(weatherData.station_name, 'Bad Schandau'),
           eq(weatherData.date, date)
         )
       )
