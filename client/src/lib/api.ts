@@ -834,9 +834,16 @@ export async function getProductSyncStatus(): Promise<ProductSyncStatus> {
   }
 }
 
-// Der Kommentar wurde entfernt, da die Funktion bereits weiter oben definiert ist
-
-// Zweite Deklaration wurde entfernt, die Funktion ist bereits oben definiert
+// MHD (Best Before Date) Management Functions
+export async function updateMachineMHD(machineId: string, batchId: string, data: { expiryDate: string }): Promise<any> {
+  try {
+    const response = await apiRequest<any>('put', `/machines/${machineId}/mhd/${batchId}`, data);
+    return response;
+  } catch (error: any) {
+    console.error(`Fehler beim Aktualisieren des MHD für Batch ${batchId}:`, error);
+    throw error;
+  }
+}
 
 export async function getProducts(params?: {
   limit?: number;

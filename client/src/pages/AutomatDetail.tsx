@@ -1635,7 +1635,7 @@ function MHDTab({ machineId }: { machineId: number }) {
                               return (
                                 <div key={`batch-${batch.batchId || batchIndex}-${item.productId}`} className="space-y-2">
                                   {isEditing ? (
-                                  /* Edit Mode */
+                                  // Edit Mode
                                   <div className="space-y-2 p-3 bg-muted/50 rounded-lg">
                                     <div className="space-y-1">
                                       <label className="text-xs font-medium">Ablaufdatum:</label>
@@ -1682,7 +1682,7 @@ function MHDTab({ machineId }: { machineId: number }) {
                                     </div>
                                   </div>
                                 ) : (
-                                  /* Display Mode */
+                                  // Display Mode
                                   <div className="space-y-1">
                                     <div className="flex items-center justify-between">
                                       <div className="space-y-1 flex-1">
@@ -1716,7 +1716,7 @@ function MHDTab({ machineId }: { machineId: number }) {
                                   </div>
                                 )}
                               </div>
-                            ))}
+                            );
                           </div>
                         ) : (
                           <div className="space-y-2">
