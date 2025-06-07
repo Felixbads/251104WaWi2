@@ -19,7 +19,9 @@ import {
   Grid,
   List,
   Plus,
-  SlidersHorizontal
+  SlidersHorizontal,
+  BarChart3,
+  Monitor
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +50,7 @@ export default function Automaten() {
   const [locationFilter, setLocationFilter] = useState<string>("alle");
   const [machineTypeFilter, setMachineTypeFilter] = useState<string>("alle");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("automaten");
 
   // Daten abrufen und aktuelle Werte aus der API verwenden
   const { data: machines, isLoading, error, refetch } = useQuery({
@@ -448,8 +451,23 @@ export default function Automaten() {
 
   return (
     <div className="space-y-6">
-      {/* Einheitliche Filter- und Aktionsleiste */}
-      <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
+      {/* Tabs Navigation */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="w-full justify-start overflow-x-auto py-1">
+          <TabsTrigger value="automaten" className="flex items-center">
+            <Monitor className="mr-2 h-4 w-4" />
+            Automaten-Übersicht
+          </TabsTrigger>
+          <TabsTrigger value="standort-analyse" className="flex items-center">
+            <BarChart3 className="mr-2 h-4 w-4" />
+            Standort-Analyse
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Automaten Tab Content */}
+        <TabsContent value="automaten" className="space-y-6">
+          {/* Einheitliche Filter- und Aktionsleiste */}
+          <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
         {/* Linke Seite: Suchfeld und Filter-Dropdowns */}
         <div className="flex-grow flex flex-col sm:flex-row gap-2">
           {/* Suchfeld */}
@@ -652,6 +670,19 @@ export default function Automaten() {
           </Button>
         </div>
       )}
+        </TabsContent>
+
+        {/* Standort-Analyse Tab Content */}
+        <TabsContent value="standort-analyse" className="space-y-6">
+          <div className="w-full">
+            <iframe 
+              src="/standort-analyse" 
+              className="w-full h-[800px] border rounded-lg"
+              title="Standort-Analyse"
+            />
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
