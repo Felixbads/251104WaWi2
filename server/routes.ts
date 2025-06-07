@@ -1317,6 +1317,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // GET /mhd-alerts - Get machines with critical MHD status
+  app.get(`${API_PREFIX}/mhd-alerts`, async (_req: Request, res: Response) => {
+    try {
+      console.log(`Fetching MHD alerts for all machines`);
+      
+      // Get all machines with products that have critical MHD status
+      const query = `
+        WITH machine_products AS (
+          SELECT DISTINCT 
+            t.machine_id,
+            t.product_name as transaction_product_name,
+            COUNT(*) as transaction_count,
+            SUM(t.quantity) as total_quantity,
+            MAX(t.datetime) as last_transaction
+          FROM transactions t
+          WHERE t.datetime >= NOW() - INTERVAL '30 days'
+          GROUP BY t.machine_id, t.product_name
+        ),
+        matched_products AS (
+          SELECT DISTINCT
+            mp.machine_id,
+            p.id as product_id,
+            p.product_name,
+            mp.total_quantity as machine_quantity,
+            mp.last_transaction
+          FROM machine_products mp
+          INNER JOIN products p ON (
+            LOWER(TRIM(p.product_name)) = LOWER(TRIM(mp.transaction_product_name))
+            OR p.product_name ILIKE '%' || TRIM(split_part(mp.transaction_product_name, '(', 1)) || '%'
+            OR TRIM(split_part(mp.transaction_product_name, '(', 1)) ILIKE '%' || p.product_name || '%'
+          )
+        ),
+        machine_batches AS (
+          SELECT DISTINCT ON (mp.machine_id, mp.product_id)
+            mp.machine_id,
+            mp.product_id,
+            mp.product_name,
+            pb.id as batch_id,
+            pb.batch_number,
+            pb.expiry_date,
+            pb.current_quantity,
+            m.machine_name,
+            m.location_name as location
+          FROM matched_products mp
+          LEFT JOIN product_batches pb ON mp.product_id = pb.product_id AND (pb.status = 'active' OR pb.status IS NULL)
+          LEFT JOIN machines m ON mp.machine_id = m.id
+          WHERE pb.expiry_date IS NOT NULL
+          ORDER BY mp.machine_id, mp.product_id, 
+                   pb.expiry_date ASC,
+                   pb.received_date ASC
+        ),
+        critical_machines AS (
+          SELECT 
+            mb.machine_id,
+            mb.machine_name,
+            mb.location,
+            COUNT(*) as total_products,
+            COUNT(CASE 
+              WHEN mb.expiry_date < NOW() THEN 1 
+            END) as expired_count,
+            COUNT(CASE 
+              WHEN mb.expiry_date >= NOW() AND mb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 
+            END) as warning_count,
+            COUNT(CASE 
+              WHEN mb.expiry_date > NOW() + INTERVAL '7 days' AND mb.expiry_date <= NOW() + INTERVAL '14 days' THEN 1 
+            END) as attention_count,
+            MIN(mb.expiry_date) as earliest_expiry,
+            ARRAY_AGG(
+              CASE 
+                WHEN mb.expiry_date < NOW() OR mb.expiry_date <= NOW() + INTERVAL '7 days'
+                THEN mb.product_name
+              END
+            ) FILTER (WHERE mb.expiry_date < NOW() OR mb.expiry_date <= NOW() + INTERVAL '7 days') as critical_products
+          FROM machine_batches mb
+          GROUP BY mb.machine_id, mb.machine_name, mb.location
+          HAVING COUNT(CASE 
+            WHEN mb.expiry_date < NOW() OR mb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 
+          END) > 0
+        )
+        SELECT 
+          cm.*,
+          CASE 
+            WHEN cm.expired_count > 0 THEN 'expired'
+            WHEN cm.warning_count > 0 THEN 'warning'
+            WHEN cm.attention_count > 0 THEN 'attention'
+            ELSE 'good'
+          END as alert_level,
+          EXTRACT(EPOCH FROM (cm.earliest_expiry - NOW())) / 86400 as days_until_earliest_expiry
+        FROM critical_machines cm
+        ORDER BY 
+          CASE 
+            WHEN cm.expired_count > 0 THEN 1
+            WHEN cm.warning_count > 0 THEN 2
+            ELSE 3
+          END,
+          cm.earliest_expiry ASC
+      `;
+
+      const result = await rawDb.query(query);
+      const alerts = result.rows.map(row => ({
+        machineId: row.machine_id,
+        machineName: row.machine_name,
+        location: row.location,
+        totalProducts: parseInt(row.total_products) || 0,
+        expiredCount: parseInt(row.expired_count) || 0,
+        warningCount: parseInt(row.warning_count) || 0,
+        attentionCount: parseInt(row.attention_count) || 0,
+        alertLevel: row.alert_level,
+        earliestExpiry: row.earliest_expiry,
+        daysUntilEarliestExpiry: Math.floor(parseFloat(row.days_until_earliest_expiry) || 0),
+        criticalProducts: row.critical_products || []
+      }));
+
+      console.log(`Found MHD alerts for ${alerts.length} machines`);
+      res.json(alerts);
+    } catch (error) {
+      console.error(`Error fetching MHD alerts:`, error);
+      res.status(500).json({ 
+        error: "Failed to fetch MHD alerts", 
+        details: error instanceof Error ? error.message : String(error) 
+      });
+    }
+  });
+
   // API Health Check
   app.get(`${API_PREFIX}/health`, (_req: Request, res: Response) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
