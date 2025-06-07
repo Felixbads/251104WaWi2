@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
+import { pool } from '../db';
 import { inventoryItems, products, warehouses, machines, transactions, machineWarehouseAssignments } from '../../shared/schema';
 import { eq, and, sql, lt, gte, inArray, desc } from 'drizzle-orm';
 
@@ -22,31 +23,57 @@ router.get('/critical-inventory', async (req: Request, res: Response) => {
 
     // Use a direct SQL query for better performance
     console.log('Querying critical inventory with direct SQL...');
-    const query = `
-      SELECT 
-        ii.id,
-        ii.warehouse_id as "warehouseId",
-        w.name as "warehouseName",
-        ii.product_id as "productId",
-        p.product_name as "productName",
-        ii.quantity as "currentQuantity",
-        ii.min_quantity as "minQuantity",
-        p.price,
-        p.category
-      FROM inventory_items ii
-      INNER JOIN products p ON ii.product_id = p.id
-      INNER JOIN warehouses w ON ii.warehouse_id = w.id
-      WHERE ii.quantity < COALESCE(ii.min_quantity, 5)
-        AND ii.quantity >= 0
-        AND ii.status = 'active'
-        AND w.is_active = true
-        ${warehouseId ? 'AND ii.warehouse_id = $1' : ''}
-      ORDER BY (ii.quantity::float / NULLIF(COALESCE(ii.min_quantity, 5), 0))
-      LIMIT 50
-    `;
+    let query: string;
+    let result: any;
 
-    const params = warehouseId ? [warehouseId] : [];
-    const result = await db.execute(sql.raw(query, params));
+    if (warehouseId) {
+      query = `
+        SELECT 
+          ii.id,
+          ii.warehouse_id as "warehouseId",
+          w.name as "warehouseName",
+          ii.product_id as "productId",
+          p.product_name as "productName",
+          ii.quantity as "currentQuantity",
+          ii.min_quantity as "minQuantity",
+          p.price,
+          p.category
+        FROM inventory_items ii
+        INNER JOIN products p ON ii.product_id = p.id
+        INNER JOIN warehouses w ON ii.warehouse_id = w.id
+        WHERE ii.quantity < COALESCE(ii.min_quantity, 5)
+          AND ii.quantity >= 0
+          AND ii.status = 'active'
+          AND w.is_active = true
+          AND ii.warehouse_id = $1
+        ORDER BY (ii.quantity::float / NULLIF(COALESCE(ii.min_quantity, 5), 0))
+        LIMIT 50
+      `;
+      result = await pool.query(query, [warehouseId]);
+    } else {
+      query = `
+        SELECT 
+          ii.id,
+          ii.warehouse_id as "warehouseId",
+          w.name as "warehouseName",
+          ii.product_id as "productId",
+          p.product_name as "productName",
+          ii.quantity as "currentQuantity",
+          ii.min_quantity as "minQuantity",
+          p.price,
+          p.category
+        FROM inventory_items ii
+        INNER JOIN products p ON ii.product_id = p.id
+        INNER JOIN warehouses w ON ii.warehouse_id = w.id
+        WHERE ii.quantity < COALESCE(ii.min_quantity, 5)
+          AND ii.quantity >= 0
+          AND ii.status = 'active'
+          AND w.is_active = true
+        ORDER BY (ii.quantity::float / NULLIF(COALESCE(ii.min_quantity, 5), 0))
+        LIMIT 50
+      `;
+      result = await pool.query(query);
+    }
     const criticalItems = result.rows;
 
     console.log(`Found ${criticalItems.length} critical inventory items`);
@@ -62,20 +89,29 @@ router.get('/critical-inventory', async (req: Request, res: Response) => {
       salesLast7Days: 0,
     }));
 
-    // Create summary
-    const summary = {
-      byWarehouse: [],
-      byCategory: [],
-    };
+    // Create summary with proper types
+    interface WarehouseSummary {
+      warehouseId: number;
+      warehouseName: string;
+      count: number;
+    }
+
+    interface CategorySummary {
+      category: string;
+      count: number;
+    }
+
+    const warehouseSummary: WarehouseSummary[] = [];
+    const categorySummary: CategorySummary[] = [];
 
     // Group by warehouse
-    const warehouseMap = new Map();
-    const categoryMap = new Map();
+    const warehouseMap = new Map<number, WarehouseSummary>();
+    const categoryMap = new Map<string, CategorySummary>();
 
     for (const item of enrichedItems) {
       // Warehouse grouping
       if (warehouseMap.has(item.warehouseId)) {
-        warehouseMap.get(item.warehouseId).count++;
+        warehouseMap.get(item.warehouseId)!.count++;
       } else {
         warehouseMap.set(item.warehouseId, {
           warehouseId: item.warehouseId,
@@ -87,14 +123,16 @@ router.get('/critical-inventory', async (req: Request, res: Response) => {
       // Category grouping
       const category = item.category || 'Unbekannt';
       if (categoryMap.has(category)) {
-        categoryMap.get(category).count++;
+        categoryMap.get(category)!.count++;
       } else {
         categoryMap.set(category, { category, count: 1 });
       }
     }
 
-    summary.byWarehouse = Array.from(warehouseMap.values());
-    summary.byCategory = Array.from(categoryMap.values());
+    const summary = {
+      byWarehouse: Array.from(warehouseMap.values()),
+      byCategory: Array.from(categoryMap.values()),
+    };
 
     res.json({
       criticalItems: enrichedItems,
