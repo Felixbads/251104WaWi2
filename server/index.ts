@@ -1546,24 +1546,10 @@ Elbsandstein Proviant & Quartier GmbH`;
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Automatische Synchronisierung wieder aktiviert
-    log('Initialisiere automatisches Synchronisierungssystem...');
-    startAutomaticSync();
-    
-    // Führen wir einen initialen Lagerabgleich beim Start durch
-    try {
-      log('Starte initialen Lagerabgleich beim Serverstart (NUR Produkte aus zugewiesenen Automaten)...');
-      reconcileWarehouseProducts(undefined, false, true).then(result => {
-        log(`Initialer Lagerabgleich abgeschlossen: 
-        - ${result.productsAdded} neue Produkte aus Automaten zu ${result.warehousesChecked} Lagern hinzugefügt
-        - Keine zusätzlichen Produkte aus dem Gesamtportfolio hinzugefügt, um Duplikate zu vermeiden`);
-      }).catch(error => {
-        log(`Fehler beim initialen Lagerabgleich: ${error.message}`);
-      });
-    } catch (error) {
-      log(`Fehler beim Starten des initialen Lagerabgleichs: ${error instanceof Error ? error.message : String(error)}`);
-    }
-    
-    log('Automatischer täglicher Lagerabgleich ist aktiviert und erfolgt alle 24 Stunden.');
+    // PERFORMANCE FIX: Intensive automatic synchronization disabled to improve application responsiveness
+    // This was causing hundreds of database queries on startup, making the app slow and unresponsive
+    // Synchronization can be run manually via API endpoints when needed
+    log('Automatische Synchronisierung ist für bessere Performance deaktiviert.');
+    log('Bei Bedarf kann die Synchronisierung manuell über API-Endpunkte gestartet werden.');
   });
 })();
