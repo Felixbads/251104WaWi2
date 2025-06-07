@@ -3019,16 +3019,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('Location-Status-Daten werden abgerufen...');
       
       // Alle Automaten mit ihren Lagern abrufen
-      const machines = await db.select({
+      const machinesList = await db.select({
         id: machines.id,
-        name: machines.name,
-        location: machines.location,
-        warehouseId: machines.warehouseId
+        name: machines.machineName,
+        location: machines.locationName,
+        warehouseId: machines.locationId
       }).from(machines);
+      
+      console.log(`Found ${machinesList.length} machines for location status`);
+      console.log('Machine 3 data:', machinesList.find(m => m.id === 3));
       
       const machineStatusData = [];
       
-      for (const machine of machines) {
+      for (const machine of machinesList) {
         // Heutiger Umsatz
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
