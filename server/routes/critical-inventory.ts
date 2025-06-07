@@ -24,8 +24,8 @@ router.get('/critical-inventory', async (req: Request, res: Response) => {
     // Get critical inventory items with simplified logic
     console.log('Querying critical inventory items with active sales filter...');
     
-    // Simplified query to test basic functionality first
-    const query = `
+    // Get products with low stock first, then filter for active sales
+    const basicQuery = `
       SELECT 
         ii.id,
         ii.warehouse_id as "warehouseId",
@@ -45,23 +45,58 @@ router.get('/critical-inventory', async (req: Request, res: Response) => {
         AND w.is_active = true
         ${warehouseId ? 'AND ii.warehouse_id = $1' : ''}
       ORDER BY ii.quantity ASC
-      LIMIT 50
+      LIMIT 100
     `;
 
-    const result = warehouseId ? await pool.query(query, [warehouseId]) : await pool.query(query);
-    const criticalItems = result.rows;
+    const result = warehouseId ? await pool.query(basicQuery, [warehouseId]) : await pool.query(basicQuery);
+    const potentialCriticalItems = result.rows;
 
-    console.log(`Found ${criticalItems.length} critical inventory items with active sales`);
+    console.log(`Found ${potentialCriticalItems.length} products below minimum stock, filtering for active sales...`);
+
+    // Now filter for products that are actively sold in assigned machines
+    const activeCriticalItems = [];
+    for (const item of potentialCriticalItems) {
+      // Check machine assignments and recent sales for this warehouse-product combination
+      const machineQuery = `
+        SELECT 
+          COUNT(DISTINCT mwa.machine_id) as machine_count,
+          COUNT(DISTINCT t.id) as sales_count,
+          MAX(t.transaction_date) as last_sale
+        FROM machine_warehouse_assignments mwa
+        INNER JOIN machines m ON mwa.machine_id = m.id 
+        LEFT JOIN transactions t ON t.product_id = $1 
+          AND t.machine_id = m.id
+          AND t.transaction_date >= CURRENT_DATE - INTERVAL '7 days'
+          AND t.status = 'completed'
+        WHERE mwa.warehouse_id = $2
+          AND m.status = 'active'
+      `;
+      
+      const machineResult = await pool.query(machineQuery, [item.productId, item.warehouseId]);
+      const machineData = machineResult.rows[0];
+      
+      const assignedMachines = parseInt(machineData.machine_count) || 0;
+      const salesLast7Days = parseInt(machineData.sales_count) || 0;
+      
+      // Only include if product has assigned machines AND recent sales
+      if (assignedMachines > 0 && salesLast7Days > 0) {
+        activeCriticalItems.push({
+          ...item,
+          assignedMachines,
+          salesLast7Days,
+          lastSaleDate: machineData.last_sale,
+          isActivelySold: true
+        });
+      }
+    }
+
+    console.log(`Found ${activeCriticalItems.length} truly critical items (below stock + assigned machines + recent sales)`);
 
     // Enhance items with calculated fields
-    const enrichedItems = criticalItems.map((item: any) => ({
+    const enrichedItems = activeCriticalItems.map((item: any) => ({
       ...item,
       criticalityScore: (item.currentQuantity || 0) / Math.max(item.minQuantity || 5, 1),
       shouldAlert: true,
-      assignedMachines: 0, // Will be updated when we add machine logic back
-      isActivelySold: false, // Will be updated when we add sales logic back
-      lastSaleDate: null,
-      salesLast7Days: 0,
     }));
 
     // Create summary
