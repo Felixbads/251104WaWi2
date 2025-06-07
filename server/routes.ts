@@ -1140,26 +1140,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get products sold at this machine with available batch information
       const query = `
-        WITH machine_warehouse AS (
-          SELECT warehouse_id 
-          FROM machine_warehouse_assignments 
-          WHERE machine_id = $1
-          LIMIT 1
-        ),
-        machine_products AS (
-          SELECT DISTINCT 
-            t.product_name,
-            p.id as product_id,
-            SUM(t.quantity) as total_sold
-          FROM transactions t
-          INNER JOIN products p ON LOWER(TRIM(t.product_name)) = LOWER(TRIM(p.product_name))
-          WHERE t.machine_id = $1
-          AND t.datetime >= NOW() - INTERVAL '30 days'
-          GROUP BY t.product_name, p.id
-        )
-        SELECT 
-          mp.product_id,
-          mp.product_name,
+        SELECT DISTINCT 
+          p.id as product_id,
+          p.product_name,
           pb.id as batch_id,
           pb.batch_number,
           pb.expiry_date,
@@ -1168,16 +1151,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           pb.received_date,
           pb.status as batch_status,
           s.name as supplier_name,
-          COALESCE(wi.current_stock, mp.total_sold, 10) as machine_quantity,
+          COALESCE(SUM(t.quantity), 5) as machine_quantity,
           pb.created_at as last_refill
-        FROM machine_products mp
-        LEFT JOIN product_batches pb ON mp.product_id = pb.product_id AND (pb.status = 'active' OR pb.status IS NULL)
+        FROM transactions t
+        INNER JOIN products p ON LOWER(TRIM(t.product_name)) = LOWER(TRIM(p.product_name))
+        LEFT JOIN product_batches pb ON p.id = pb.product_id AND (pb.status = 'active' OR pb.status IS NULL)
         LEFT JOIN suppliers s ON pb.supplier_id = s.id
-        LEFT JOIN warehouse_inventory wi ON (
-          mp.product_id = wi.product_id 
-          AND wi.warehouse_id = (SELECT warehouse_id FROM machine_warehouse)
-        )
-        ORDER BY mp.product_name, pb.expiry_date ASC NULLS LAST
+        WHERE t.machine_id = $1
+        AND t.datetime >= NOW() - INTERVAL '30 days'
+        GROUP BY p.id, p.product_name, pb.id, pb.batch_number, pb.expiry_date, 
+                 pb.current_quantity, pb.supplier_batch_number, pb.received_date, 
+                 pb.status, s.name, pb.created_at
+        ORDER BY p.product_name, pb.expiry_date ASC NULLS LAST
       `;
 
       const result = await rawDb.query(query, [machineId]);
