@@ -1612,36 +1612,39 @@ function MHDTab({ machineId }: { machineId: number }) {
         {mhdData && Array.isArray(mhdData) && mhdData.length > 0 ? (
           <div className="space-y-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-              {mhdData.map((item: any) => {
-                const key = `${item.productId}-${item.batches?.[0]?.batchId || 'no-batch'}`;
-                const isEditing = editingItem === key;
+              {mhdData.map((item: any, itemIndex: number) => {
+                const productKey = `product-${item.productId}-${itemIndex}`;
                 
                 return (
-                  <Card key={key} className="relative">
+                  <Card key={productKey} className="relative">
                     <CardContent className="p-4">
                       <div className="space-y-3">
                         {/* Product Name */}
                         <div>
-                          <h3 className="font-medium text-sm leading-tight">{item.productName}</h3>
-                          <p className="text-xs text-muted-foreground mt-1">Bestand: {item.currentStock} Stück</p>
+                          <h3 className="font-medium text-sm leading-tight">{item.productName || 'Unbekanntes Produkt'}</h3>
+                          <p className="text-xs text-muted-foreground mt-1">Bestand: {item.currentStock || item.totalQuantity || 0} Stück</p>
                         </div>
 
                         {/* Batches */}
                         {item.batches && item.batches.length > 0 ? (
                           <div className="space-y-2">
-                            {item.batches.map((batch: any, batchIndex: number) => (
-                              <div key={batchIndex} className="space-y-2">
-                                {isEditing && batchIndex === 0 ? (
+                            {item.batches.map((batch: any, batchIndex: number) => {
+                              const batchKey = `${item.productId}-${batch.batchId || batchIndex}`;
+                              const isEditing = editingItem === batchKey;
+                              
+                              return (
+                                <div key={`batch-${batch.batchId || batchIndex}-${item.productId}`} className="space-y-2">
+                                  {isEditing ? (
                                   /* Edit Mode */
                                   <div className="space-y-2 p-3 bg-muted/50 rounded-lg">
                                     <div className="space-y-1">
                                       <label className="text-xs font-medium">Ablaufdatum:</label>
                                       <input
                                         type="date"
-                                        value={editData[key]?.expiryDate || ''}
+                                        value={editData[batchKey]?.expiryDate || ''}
                                         onChange={(e) => setEditData({
                                           ...editData,
-                                          [key]: { ...editData[key], expiryDate: e.target.value }
+                                          [batchKey]: { ...editData[batchKey], expiryDate: e.target.value }
                                         })}
                                         className="w-full px-2 py-1 text-xs border rounded"
                                       />
@@ -1650,10 +1653,10 @@ function MHDTab({ machineId }: { machineId: number }) {
                                       <label className="text-xs font-medium">Batch-ID:</label>
                                       <input
                                         type="text"
-                                        value={editData[key]?.batchId || ''}
+                                        value={editData[batchKey]?.batchId || ''}
                                         onChange={(e) => setEditData({
                                           ...editData,
-                                          [key]: { ...editData[key], batchId: e.target.value }
+                                          [batchKey]: { ...editData[batchKey], batchId: e.target.value }
                                         })}
                                         className="w-full px-2 py-1 text-xs border rounded"
                                         placeholder="Optional"
