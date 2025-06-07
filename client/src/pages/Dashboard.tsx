@@ -50,6 +50,7 @@ import {
   YAxis
 } from "recharts";
 import TransactionsTable from "@/components/tables/TransactionsTable";
+import TopRemovedProductsTile from "@/components/TopRemovedProductsTile";
 
 export default function Dashboard() {
   const { toast } = useToast();
