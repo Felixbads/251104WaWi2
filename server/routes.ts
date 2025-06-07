@@ -1322,41 +1322,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log(`Fetching MHD alerts for all machines`);
       
-      // Simplified query that works with existing data structure
+      // Fixed query that properly connects machines to their products through transactions
       const query = `
+        WITH machine_products AS (
+          -- Get all products that have been sold in each machine
+          SELECT DISTINCT 
+            t.machine_id,
+            t.product_name as transaction_product_name
+          FROM transactions t
+        ),
+        matched_products AS (
+          -- Match transaction product names to actual products
+          SELECT DISTINCT
+            mp.machine_id,
+            p.id as product_id,
+            p.product_name
+          FROM machine_products mp
+          INNER JOIN products p ON (
+            LOWER(TRIM(p.product_name)) = LOWER(TRIM(mp.transaction_product_name))
+            OR p.product_name ILIKE '%' || TRIM(split_part(mp.transaction_product_name, '(', 1)) || '%'
+            OR TRIM(split_part(mp.transaction_product_name, '(', 1)) ILIKE '%' || p.product_name || '%'
+          )
+        ),
+        machine_batches AS (
+          -- Get the earliest expiring batch for each product in each machine (FIFO)
+          SELECT DISTINCT ON (match.machine_id, match.product_id)
+            match.machine_id,
+            match.product_id,
+            match.product_name,
+            pb.id as batch_id,
+            pb.expiry_date,
+            m.machine_name,
+            m.location_name as location
+          FROM matched_products match
+          LEFT JOIN product_batches pb ON match.product_id = pb.product_id 
+            AND (pb.status = 'active' OR pb.status IS NULL)
+            AND pb.expiry_date IS NOT NULL
+          LEFT JOIN machines m ON match.machine_id = m.id
+          WHERE pb.expiry_date IS NOT NULL
+          ORDER BY match.machine_id, match.product_id, pb.expiry_date ASC, pb.received_date ASC
+        )
         SELECT 
-          m.id as machine_id,
-          m.machine_name,
-          m.location_name as location,
+          mb.machine_id,
+          mb.machine_name,
+          mb.location,
           COUNT(CASE 
-            WHEN pb.expiry_date < NOW() THEN 1 
+            WHEN mb.expiry_date < NOW() THEN 1 
           END) as expired_count,
           COUNT(CASE 
-            WHEN pb.expiry_date >= NOW() AND pb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 
+            WHEN mb.expiry_date >= NOW() AND mb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 
           END) as warning_count,
           COUNT(CASE 
-            WHEN pb.expiry_date > NOW() + INTERVAL '7 days' AND pb.expiry_date <= NOW() + INTERVAL '14 days' THEN 1 
+            WHEN mb.expiry_date > NOW() + INTERVAL '7 days' AND mb.expiry_date <= NOW() + INTERVAL '14 days' THEN 1 
           END) as attention_count,
-          MIN(pb.expiry_date) as earliest_expiry,
-          COUNT(pb.id) as total_products_with_expiry,
+          MIN(mb.expiry_date) as earliest_expiry,
+          COUNT(mb.batch_id) as total_products_with_expiry,
           ARRAY_AGG(
             CASE 
-              WHEN pb.expiry_date < NOW() OR pb.expiry_date <= NOW() + INTERVAL '7 days'
-              THEN p.product_name
+              WHEN mb.expiry_date < NOW() OR mb.expiry_date <= NOW() + INTERVAL '7 days'
+              THEN mb.product_name
             END
-          ) FILTER (WHERE pb.expiry_date < NOW() OR pb.expiry_date <= NOW() + INTERVAL '7 days') as critical_products
-        FROM machines m
-        LEFT JOIN product_batches pb ON pb.status = 'active' AND pb.expiry_date IS NOT NULL
-        LEFT JOIN products p ON pb.product_id = p.id
-        WHERE pb.id IS NOT NULL
-        GROUP BY m.id, m.machine_name, m.location_name
+          ) FILTER (WHERE mb.expiry_date < NOW() OR mb.expiry_date <= NOW() + INTERVAL '7 days') as critical_products
+        FROM machine_batches mb
+        GROUP BY mb.machine_id, mb.machine_name, mb.location
         HAVING COUNT(CASE 
-          WHEN pb.expiry_date < NOW() OR pb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 
+          WHEN mb.expiry_date < NOW() OR mb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 
         END) > 0
         ORDER BY 
-          COUNT(CASE WHEN pb.expiry_date < NOW() THEN 1 END) DESC,
-          COUNT(CASE WHEN pb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 END) DESC,
-          MIN(pb.expiry_date) ASC
+          COUNT(CASE WHEN mb.expiry_date < NOW() THEN 1 END) DESC,
+          COUNT(CASE WHEN mb.expiry_date <= NOW() + INTERVAL '7 days' THEN 1 END) DESC,
+          MIN(mb.expiry_date) ASC
       `;
 
       const result = await rawDb.query(query);

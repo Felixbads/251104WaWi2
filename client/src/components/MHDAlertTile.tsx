@@ -78,35 +78,49 @@ export default function MHDAlertTile() {
   const warningMachines = alerts.filter(alert => alert.alertLevel === 'warning');
   const totalCritical = criticalMachines.length + warningMachines.length;
 
-  const getAlertColor = () => {
-    if (criticalMachines.length > 0) return 'red';
-    if (warningMachines.length > 0) return 'orange';
-    return 'yellow';
+  const getAlertStyles = () => {
+    if (criticalMachines.length > 0) {
+      return {
+        cardClass: 'border-red-500 bg-red-50 shadow-red-200 shadow-lg',
+        headerClass: 'text-red-900',
+        subtextClass: 'text-red-700',
+        badgeVariant: 'destructive' as const,
+        icon: <PackageX className="h-5 w-5 text-red-600" />
+      };
+    }
+    if (warningMachines.length > 0) {
+      return {
+        cardClass: 'border-orange-400 bg-orange-50 shadow-orange-200 shadow-md',
+        headerClass: 'text-orange-900',
+        subtextClass: 'text-orange-700',
+        badgeVariant: 'secondary' as const,
+        icon: <AlertTriangle className="h-5 w-5 text-orange-600" />
+      };
+    }
+    return {
+      cardClass: 'border-yellow-400 bg-yellow-50',
+      headerClass: 'text-yellow-900',
+      subtextClass: 'text-yellow-700',
+      badgeVariant: 'secondary' as const,
+      icon: <AlertTriangle className="h-5 w-5 text-yellow-600" />
+    };
   };
 
-  const getAlertIcon = () => {
-    if (criticalMachines.length > 0) return <PackageX className="h-5 w-5" />;
-    return <AlertTriangle className="h-5 w-5" />;
-  };
-
-  const alertColor = getAlertColor();
-  const cardClass = `border-${alertColor}-200 bg-${alertColor}-50`;
-  const textClass = `text-${alertColor}-800`;
-  const subtextClass = `text-${alertColor}-600`;
+  const alertStyles = getAlertStyles();
 
   return (
-    <Card className={cardClass}>
+    <Card className={alertStyles.cardClass}>
       <CardHeader className="pb-3">
-        <CardTitle className={`flex items-center gap-2 ${textClass}`}>
-          {getAlertIcon()}
+        <CardTitle className={`flex items-center gap-2 ${alertStyles.headerClass}`}>
+          {alertStyles.icon}
           MHD-Warnungen
           {totalCritical > 0 && (
-            <Badge variant="destructive" className="ml-auto">
+            <Badge variant={alertStyles.badgeVariant} className="ml-auto">
               {totalCritical}
             </Badge>
           )}
         </CardTitle>
-        <CardDescription className={subtextClass}>
+        <CardDescription className={alertStyles.subtextClass}>
           {criticalMachines.length > 0 ? (
             `${criticalMachines.length} Automat${criticalMachines.length > 1 ? 'en' : ''} mit abgelaufenen Produkten`
           ) : (
