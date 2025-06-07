@@ -54,105 +54,63 @@ router.get('/', async (req, res) => {
 
     const machineIds = machinesResult.rows.map((m: any) => m.id);
     
-    // Get comprehensive product analysis for this location
+    // Get comprehensive product analysis for this location based on sales data
     const analysisResult = await db.execute(sql`
-      WITH weekly_intervals AS (
+      WITH weekly_sales AS (
         SELECT 
-          date_trunc('week', generate_series(
-            NOW() - INTERVAL '${timeRange} weeks',
-            NOW(),
-            '1 week'::interval
-          )) as week_start
-      ),
-      
-      sales_data AS (
-        SELECT 
-          date_trunc('week', t.datetime) as week_start,
           t.product_name,
-          COUNT(*) as sales_count,
-          SUM(COALESCE(t.price, 0)) as sales_revenue
+          date_trunc('week', t.datetime) as week_start,
+          COUNT(*) as weekly_sales_count,
+          SUM(COALESCE(t.price, 0)) as weekly_revenue
         FROM transactions t
         WHERE t.machine_id = ANY(${machineIds})
         AND t.datetime >= NOW() - INTERVAL '${timeRange} weeks'
-        GROUP BY date_trunc('week', t.datetime), t.product_name
-      ),
-      
-      removal_data AS (
-        SELECT 
-          date_trunc('week', r.datetime) as week_start,
-          r.product_name,
-          SUM(r.quantity) as removal_count,
-          SUM(r.quantity * COALESCE(pc.unit_price, 0)) as removal_loss
-        FROM refills r
-        LEFT JOIN products p ON r.product_name = p.product_name
-        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id
-        WHERE r.machine_id = ANY(${machineIds})
-        AND r.type = 'removal'
-        AND r.datetime >= NOW() - INTERVAL '${timeRange} weeks'
-        GROUP BY date_trunc('week', r.datetime), r.product_name
-      ),
-      
-      all_products AS (
-        SELECT DISTINCT product_name FROM sales_data
-        UNION
-        SELECT DISTINCT product_name FROM removal_data
-      ),
-      
-      weekly_product_data AS (
-        SELECT 
-          wi.week_start,
-          ap.product_name,
-          COALESCE(sd.sales_count, 0) as sales,
-          COALESCE(sd.sales_revenue, 0) as revenue,
-          COALESCE(rd.removal_count, 0) as removals,
-          COALESCE(rd.removal_loss, 0) as loss
-        FROM weekly_intervals wi
-        CROSS JOIN all_products ap
-        LEFT JOIN sales_data sd ON wi.week_start = sd.week_start AND ap.product_name = sd.product_name
-        LEFT JOIN removal_data rd ON wi.week_start = rd.week_start AND ap.product_name = rd.product_name
+        AND t.product_name IS NOT NULL
+        GROUP BY t.product_name, date_trunc('week', t.datetime)
       ),
       
       product_summary AS (
         SELECT 
-          product_name,
-          ROUND(AVG(sales)::numeric, 1) as avg_weekly_sales,
-          ROUND(AVG(removals)::numeric, 1) as avg_weekly_removals,
-          SUM(sales) as total_sales,
-          SUM(removals) as total_removals,
-          SUM(revenue) as total_revenue,
-          SUM(loss) as total_loss,
-          -- Calculate recommended weekly stock (1.5x avg sales + 1x avg removals + 10% buffer)
-          CEIL((AVG(sales) * 1.5 + AVG(removals) + (AVG(sales) + AVG(removals)) * 0.1))::integer as recommended_weekly_stock,
-          -- Calculate profitability ratio
+          ws.product_name,
+          SUM(ws.weekly_sales_count) as total_sales,
+          SUM(ws.weekly_revenue) as total_revenue,
+          ROUND(AVG(ws.weekly_sales_count)::numeric, 1) as avg_weekly_sales,
+          COALESCE(pc.unit_price, 0) as purchase_price,
           CASE 
-            WHEN SUM(loss) > 0 THEN 
-              ROUND(((SUM(revenue) - SUM(loss)) / SUM(revenue) * 100)::numeric, 1)
-            ELSE 
-              ROUND((SUM(revenue) / GREATEST(SUM(revenue), 1) * 100)::numeric, 1)
-          END as profitability
-        FROM weekly_product_data
-        WHERE product_name IS NOT NULL
-        GROUP BY product_name
-        HAVING SUM(sales) > 0 OR SUM(removals) > 0
+            WHEN COALESCE(pc.unit_price, 0) > 0 AND SUM(ws.weekly_revenue) > 0
+            THEN ROUND(((SUM(ws.weekly_revenue) / SUM(ws.weekly_sales_count) - COALESCE(pc.unit_price, 0)) / COALESCE(pc.unit_price, 0) * 100)::numeric, 1)
+            ELSE 0 
+          END as profitability,
+          CEIL(AVG(ws.weekly_sales_count) * 1.5 + AVG(ws.weekly_sales_count) * 0.1) as recommended_weekly_stock,
+          json_agg(
+            json_build_object(
+              'week', to_char(ws.week_start, 'YYYY-MM-DD'),
+              'sales', ws.weekly_sales_count,
+              'removals', 0,
+              'netDemand', ws.weekly_sales_count
+            )
+            ORDER BY ws.week_start
+          ) as weekly_data
+        FROM weekly_sales ws
+        LEFT JOIN products p ON ws.product_name = p.product_name
+        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.is_preferred = true
+        GROUP BY ws.product_name, pc.unit_price
+        HAVING SUM(ws.weekly_sales_count) > 0
       )
       
       SELECT 
-        ps.*,
-        json_agg(
-          json_build_object(
-            'week', to_char(wpd.week_start, 'YYYY-MM-DD'),
-            'sales', wpd.sales,
-            'removals', wpd.removals,
-            'netDemand', wpd.sales - wpd.removals
-          )
-          ORDER BY wpd.week_start
-        ) as weekly_data
-      FROM product_summary ps
-      LEFT JOIN weekly_product_data wpd ON ps.product_name = wpd.product_name
-      GROUP BY ps.product_name, ps.avg_weekly_sales, ps.avg_weekly_removals, 
-               ps.total_sales, ps.total_removals, ps.total_revenue, ps.total_loss,
-               ps.recommended_weekly_stock, ps.profitability
-      ORDER BY ps.profitability DESC, ps.total_sales DESC
+        product_name,
+        total_sales,
+        0 as total_removals,
+        total_revenue as sales_revenue,
+        0 as removal_loss,
+        avg_weekly_sales,
+        0 as avg_weekly_removals,
+        recommended_weekly_stock,
+        profitability,
+        weekly_data
+      FROM product_summary
+      ORDER BY profitability DESC, total_sales DESC
     `);
 
     const locationData = {
