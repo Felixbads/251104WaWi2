@@ -20,7 +20,7 @@ router.get('/', async (req, res) => {
     };
     
     // Abrufen der entfernten Produkte aus der Datenbank
-    const removedProducts = await storage.query(`
+    const queryResult = await storage.query(`
       SELECT 
         rd.id,
         rd.refill_id as "refillId",
@@ -43,6 +43,13 @@ router.get('/', async (req, res) => {
       ...(query.startDate ? [new Date(query.startDate)] : []),
       ...(query.endDate ? [new Date(query.endDate)] : [])
     ]);
+
+    console.log("Query result type:", typeof queryResult);
+    console.log("Query result length:", queryResult?.length);
+    console.log("Query result sample:", queryResult?.slice(0, 2));
+
+    // Extract rows from query result
+    const removedProducts = Array.isArray(queryResult) ? queryResult : (queryResult?.rows || []);
     
     // Analytik erstellen
     const analytics = {

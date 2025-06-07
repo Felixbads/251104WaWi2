@@ -826,7 +826,7 @@ export default function Dashboard() {
           <CardDescription>Nach Verkaufszahlen sortiert</CardDescription>
         </CardHeader>
         <CardContent>
-          {topProducts && Object.keys(topProducts).length > 0 ? (
+          {!isLoadingTransactions && topProducts && Object.keys(topProducts).length > 0 ? (
             <div className="overflow-x-auto">
               <div className="min-w-full bg-white border rounded-md">
                 {/* Tabellenkopf */}
