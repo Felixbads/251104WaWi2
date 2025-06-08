@@ -25,6 +25,8 @@ interface DailyWeatherData {
   total_precipitation: string | null;
   avg_humidity: string | null;
   avg_pressure: string | null;
+  avg_clouds: string | null;
+  sunshine_hours: string | null;
 }
 
 export default function WeatherVisualization() {
@@ -42,7 +44,7 @@ export default function WeatherVisualization() {
       totalPrecipitation: record.total_precipitation ? parseFloat(record.total_precipitation) : 0,
       avgHumidity: record.avg_humidity ? parseFloat(record.avg_humidity) : 0,
       avgPressure: record.avg_pressure ? parseFloat(record.avg_pressure) : 0,
-      sunshineHours: 0,
+      sunshineHours: record.sunshine_hours ? parseFloat(record.sunshine_hours) : 0,
       recordCount: record.record_count ? parseInt(record.record_count) : 0
     })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
   : [];
@@ -255,6 +257,45 @@ export default function WeatherVisualization() {
                 radius={[2, 2, 0, 0]}
               />
             </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* Sunshine Hours Chart */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sun className="h-5 w-5 text-yellow-500" />
+            Sonnenscheindauer Bad Schandau
+          </CardTitle>
+          <CardDescription>
+            Tägliche Sonnenstunden berechnet aus Wolkenbedeckung
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={processedData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis 
+                dataKey="date" 
+                tickFormatter={formatDate}
+                interval="preserveStartEnd"
+              />
+              <YAxis 
+                label={{ value: 'Stunden', angle: -90, position: 'insideLeft' }}
+              />
+              <Tooltip 
+                labelFormatter={formatTooltipDate}
+                formatter={(value: number) => [`${value}h`, 'Sonnenschein']}
+              />
+              <Area
+                type="monotone"
+                dataKey="sunshineHours"
+                stroke="#f59e0b"
+                fill="#fef3c7"
+                name="Sonnenstunden"
+              />
+            </AreaChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>

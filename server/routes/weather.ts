@@ -50,7 +50,13 @@ router.get('/daily-aggregated', async (req, res) => {
         AVG(humidity)::NUMERIC(5,1) as avg_humidity,
         AVG(pressure)::NUMERIC(6,1) as avg_pressure,
         AVG(wind_speed)::NUMERIC(5,1) as avg_wind_speed,
-        AVG(clouds)::NUMERIC(5,1) as avg_clouds
+        AVG(clouds)::NUMERIC(5,1) as avg_clouds,
+        -- Calculate sunshine hours from cloud cover (100% - avg_clouds)/100 * daylight_hours
+        CASE 
+          WHEN AVG(clouds) IS NOT NULL THEN 
+            GREATEST(0, ((100 - AVG(clouds)) / 100.0) * 12)::NUMERIC(4,1)
+          ELSE 0 
+        END as sunshine_hours
       FROM weather_data 
       WHERE station_name = 'Bad Schandau'
       GROUP BY date
