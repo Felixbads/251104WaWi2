@@ -134,24 +134,30 @@ class MassiveHistoricalImporter {
   /**
    * Fetch transactions from Vendon API for a specific date range
    */
-  async fetchTransactions(startDate, endDate, page = 1, pageSize = 100) {
+  async fetchTransactions(startDate, endDate, offset = 0, limit = 100) {
     // Ensure fetch is loaded
     if (!fetch) {
       const nodeFetch = await import('node-fetch');
       fetch = nodeFetch.default;
     }
-    const url = `${VENDON_API_BASE}/vendsTotals`;
+    
+    // Convert dates to timestamps
+    const fromTimestamp = Math.floor(new Date(startDate).getTime() / 1000);
+    const toTimestamp = Math.floor(new Date(endDate).getTime() / 1000);
+    
+    const url = `${VENDON_API_BASE}/stats/vends`;
     const params = new URLSearchParams({
-      page: page.toString(),
-      pageSize: pageSize.toString(),
-      startDate: startDate,
-      endDate: endDate
+      from_timestamp: fromTimestamp.toString(),
+      to_timestamp: toTimestamp.toString(),
+      limit: limit.toString(),
+      offset: offset.toString()
     });
 
     const response = await fetch(`${url}?${params}`, {
       headers: {
-        'Authorization': `Bearer ${VENDON_API_KEY}`,
-        'Content-Type': 'application/json'
+        'Authorization': `Token ${VENDON_API_KEY}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       }
     });
 
@@ -159,7 +165,16 @@ class MassiveHistoricalImporter {
       throw new Error(`API request failed: ${response.status} ${response.statusText}`);
     }
 
-    return await response.json();
+    const result = await response.json();
+    
+    // Return in expected format - Vendon API returns results in different structure
+    if (result.code === 200 && Array.isArray(result.result)) {
+      return { data: result.result };
+    } else if (Array.isArray(result)) {
+      return { data: result };
+    } else {
+      throw new Error(`Unexpected API response format: ${JSON.stringify(result)}`);
+    }
   }
 
   /**
@@ -178,12 +193,23 @@ class MassiveHistoricalImporter {
       RETURNING id
     `;
 
-    const datetime = new Date(transaction.datetime * 1000);
+    // Handle datetime - could be Unix timestamp or already a proper date
+    let datetime;
+    if (transaction.datetime) {
+      if (typeof transaction.datetime === 'number') {
+        datetime = new Date(transaction.datetime > 1577836800000 ? transaction.datetime : transaction.datetime * 1000);
+      } else {
+        datetime = new Date(transaction.datetime);
+      }
+    } else {
+      datetime = new Date();
+    }
+    
     const transactionDt = transaction.transaction_dt ? new Date(transaction.transaction_dt * 1000) : null;
     const registeredDt = transaction.registered_dt ? new Date(transaction.registered_dt * 1000) : null;
 
     const values = [
-      transaction.transaction_id.toString(),
+      (transaction.id || transaction.transaction_id).toString(),
       machineId,
       transaction.machine_name || '',
       datetime,
@@ -255,21 +281,22 @@ class MassiveHistoricalImporter {
     const dateStr = date.toISOString().split('T')[0];
     this.currentDate = dateStr;
     
-    const startDateTime = `${dateStr}T00:00:00`;
-    const endDateTime = `${dateStr}T23:59:59`;
+    const startDateTime = `${dateStr}T00:00:00.000Z`;
+    const endDateTime = `${dateStr}T23:59:59.999Z`;
     
     console.log(`📅 Processing ${dateStr}...`);
     
-    let page = 1;
+    let offset = 0;
     let totalDayTransactions = 0;
-    let hasMorePages = true;
+    let hasMoreData = true;
+    const limit = 100;
     
-    while (hasMorePages) {
+    while (hasMoreData) {
       try {
-        const response = await this.fetchTransactions(startDateTime, endDateTime, page, 100);
+        const response = await this.fetchTransactions(startDateTime, endDateTime, offset, limit);
         
         if (!response.data || response.data.length === 0) {
-          hasMorePages = false;
+          hasMoreData = false;
           break;
         }
 
@@ -288,21 +315,21 @@ class MassiveHistoricalImporter {
             }
           } catch (error) {
             this.errors++;
-            console.error(`❌ Error processing transaction ${transaction.transaction_id}: ${error.message}`);
+            console.error(`❌ Error processing transaction ${transaction.id || transaction.transaction_id}: ${error.message}`);
           }
         }
 
-        // Check if we have more pages
-        hasMorePages = response.data.length === 100 && response.data.length > 0;
-        page++;
+        // Check if we have more data
+        hasMoreData = response.data.length === limit;
+        offset += limit;
         
         // Rate limiting - small delay between requests
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 500));
         
       } catch (error) {
-        console.error(`❌ Error fetching data for ${dateStr}, page ${page}: ${error.message}`);
+        console.error(`❌ Error fetching data for ${dateStr}, offset ${offset}: ${error.message}`);
         this.errors++;
-        hasMorePages = false;
+        hasMoreData = false;
       }
     }
     
