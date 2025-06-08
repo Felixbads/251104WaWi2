@@ -1,0 +1,65 @@
+Prompt: Analyse und Korrektur des historischen Transaktionsdownloads aus Vendon
+
+⸻
+
+Auftrag:
+Der Download der historischen Transaktionsdaten von Vendon funktioniert weiterhin nicht zuverlässig. Analysiere daher sehr ausführlich, wie aktuell Transaktionsdaten von der Vendon API heruntergeladen werden. Achte dabei besonders auf die folgenden Punkte:
+
+⸻
+
+🔍 1. Aktuelle Implementierung untersuchen
+	•	Prüfe genau, wie und wo im Code Transaktionsdaten von Vendon abgerufen werden.
+	•	Ermittle, welcher Code aktuell aktiv ist und erfolgreich Daten herunterlädt.
+	•	Dieser Code darf nicht verändert werden, da er möglicherweise für Echtzeitdaten oder Events zuständig ist.
+	•	Dokumentiere:
+	•	Welche API-Endpunkte aufgerufen werden,
+	•	welche Parameter (z. B. from, to, limit) gesetzt werden,
+	•	wie die Antwort verarbeitet und gespeichert wird.
+
+⸻
+
+🗃️ 2. Datenbankanbindung prüfen
+	•	Bestimme, in welche Datenbank und Tabelle(n) die Transaktionsdaten gespeichert werden.
+	•	Stelle sicher, dass:
+	•	alle Daten korrekt geschrieben werden,
+	•	es keine Duplikate gibt (z. B. durch Primärschlüssel, unique constraints oder Hashes),
+	•	jeder Eintrag relevante Felder wie Automat, Zeitstempel, Betrag, Zahlungsart usw. enthält.
+
+⸻
+
+⏱️ 3. Einschränkung durch API-Limitierung (max. 100 Transaktionen pro Abruf)
+	•	Die Vendon API gibt maximal 100 Transaktionen pro Abruf zurück.
+	•	Gleichzeitig muss aber ein fester Zeitraum (from und to) angegeben werden.
+	•	Entwickle eine robuste Logik, die:
+	•	sicherstellt, dass kein Abruf mehr als 100 Transaktionen enthält,
+	•	automatisch erkennt, wann der nächste Abrufzeitraum beginnt,
+	•	kontinuierlich fortsetzt, bis der gesamte historische Zeitraum vollständig geladen ist.
+
+⸻
+
+💡 Vorschlag zur Umsetzung (bitte berücksichtigen):
+
+Nutze eine iterative Schleife mit dynamischem Zeitfenster:
+	•	Starte mit einem definierten Zeitintervall (from und to, z. B. 2 Stunden).
+	•	Wenn der Abruf weniger als 100 Transaktionen zurückliefert, gehe einfach zum nächsten Intervall.
+	•	Wenn der Abruf genau 100 Transaktionen enthält:
+	•	sortiere die Transaktionen nach Zeitstempel,
+	•	setze from = timestamp der letzten Transaktion + 1 Sekunde,
+	•	behalte to zunächst bei,
+	•	wiederhole den Abruf bis ein Batch <100 Transaktionen enthält.
+	•	Danach kannst du den Zeitraum fortsetzen (from = letzter to-Wert + 1).
+
+Diese Methode vermeidet:
+	•	Lücken zwischen Abfragen,
+	•	Doppelte Einträge,
+	•	und bleibt API-konform ohne Offset-Logik.
+
+⸻
+
+✅ Ziel
+
+Ein stabiler und nachvollziehbarer Prozess, um sämtliche historischen Transaktionsdaten aus der Vendon-API:
+	•	inkrementell und vollständig zu laden,
+	•	in Batches à maximal 100 Datensätzen abzufragen,
+	•	korrekt und ohne Dopplungen in der Datenbank zu speichern,
+	•	und dabei den bereits funktionierenden Code nicht zu verändern.
