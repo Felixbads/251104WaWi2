@@ -162,6 +162,7 @@ import dbExportRoutes from "./routes/databaseExport";
 import databaseViewerRoutes from "./routes/database-viewer";
 import emailRoutes from "./routes/email";
 import refillsRoutes from "./routes/refills";
+import enhancedVendonImportRoutes from "./routes/enhancedVendonImport";
 import { WebSocketServer } from 'ws';
 
 // API route prefix
@@ -3548,6 +3549,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Registriere Vendon-API-Routen
   app.use(`${API_PREFIX}/vendon`, vendonRoutes);
   app.use(`${API_PREFIX}/vendon/historical-import`, vendonHistoricalImportRouter);
+  app.use(`${API_PREFIX}/enhanced-vendon-import`, enhancedVendonImportRoutes);
   app.use(`${API_PREFIX}/events`, eventsRouter);
   app.use(`${API_PREFIX}/comprehensive-data`, comprehensiveDataRouter);
   app.use(`${API_PREFIX}/weather`, weatherRouter);

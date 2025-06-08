@@ -218,7 +218,7 @@ export class EnhancedVendonHistoryImporter {
         } else if (transactionCount === batchSize) {
           // Got exactly batch size - might be more data
           // Sort transactions by timestamp to get the latest one
-          const sortedTransactions = transactions.sort((a, b) => a.datetime - b.datetime);
+          const sortedTransactions = transactions.sort((a: any, b: any) => a.datetime - b.datetime);
           const latestTransaction = sortedTransactions[sortedTransactions.length - 1];
           
           if (latestTransaction && latestTransaction.datetime) {
