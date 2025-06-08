@@ -106,6 +106,7 @@ import HolidayAnalysisDashboard from "@/pages/HolidayAnalysisDashboard";
 import DatabaseManager from "@/pages/DatabaseManager";
 import CriticalInventory from "@/pages/CriticalInventory";
 import Ruecklaufer from "@/pages/Ruecklaufer";
+import RevenueExpectations from "@/pages/RevenueExpectations";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -473,6 +474,12 @@ function AuthenticatedRouter() {
         <Route path="/product-forecasts" component={props => (
           <ApprovedUserRoute>
             <ProductForecastPage {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/revenue-expectations" component={props => (
+          <ApprovedUserRoute>
+            <RevenueExpectations {...props} />
           </ApprovedUserRoute>
         )} />
 
