@@ -98,6 +98,7 @@ import WarehouseOverviewPage from "@/pages/warehouse/WarehouseOverviewPage";
 import WarehouseMovement from "@/pages/WarehouseMovement";
 import LagerbestandPage from "@/pages/LagerbestandPage";
 import SustainableVending from "@/pages/SustainableVending";
+import ProductForecastPage from "@/pages/ProductForecastPage";
 import WeatherDataOverview from "@/pages/WeatherDataOverview";
 import WeatherVisualization from "@/pages/WeatherVisualization";
 import HolidaysVacationsOverview from "@/pages/HolidaysVacationsOverview";
@@ -466,6 +467,12 @@ function AuthenticatedRouter() {
         <Route path="/forecast-detail" component={props => (
           <ApprovedUserRoute>
             <ForecastDetail {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/product-forecasts" component={props => (
+          <ApprovedUserRoute>
+            <ProductForecastPage {...props} />
           </ApprovedUserRoute>
         )} />
 

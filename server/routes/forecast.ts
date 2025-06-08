@@ -497,6 +497,52 @@ export function registerForecastRoutes(app: Express): void {
     }
   });
   
+  // Weekly Forecast Summary for Products
+  app.get(`${API_PREFIX}/forecast/weekly-summary`, async (req: Request, res: Response) => {
+    try {
+      const { db } = await import('../db');
+      const { sql } = await import('drizzle-orm');
+      
+      const result = await db.execute(sql`
+        WITH weekly_aggregates AS (
+          SELECT 
+            f.product_id as product_name,
+            CASE 
+              WHEN f.forecast_date <= CURRENT_DATE + INTERVAL '7 days' THEN 'week1'
+              WHEN f.forecast_date <= CURRENT_DATE + INTERVAL '14 days' THEN 'week2'
+              WHEN f.forecast_date <= CURRENT_DATE + INTERVAL '21 days' THEN 'week3'
+              WHEN f.forecast_date <= CURRENT_DATE + INTERVAL '28 days' THEN 'week4'
+            END as week_period,
+            SUM(f.predicted_quantity) as weekly_total,
+            AVG(f.confidence) as avg_confidence
+          FROM forecasts f
+          WHERE f.forecast_date >= CURRENT_DATE 
+            AND f.forecast_date <= CURRENT_DATE + INTERVAL '28 days'
+            AND f.product_id IS NOT NULL
+          GROUP BY f.product_id, week_period
+        )
+        SELECT 
+          product_name,
+          COALESCE(SUM(CASE WHEN week_period = 'week1' THEN weekly_total END), 0) as week1,
+          COALESCE(SUM(CASE WHEN week_period = 'week2' THEN weekly_total END), 0) as week2,
+          COALESCE(SUM(CASE WHEN week_period = 'week3' THEN weekly_total END), 0) as week3,
+          COALESCE(SUM(CASE WHEN week_period = 'week4' THEN weekly_total END), 0) as week4,
+          COALESCE(SUM(weekly_total), 0) as total_4weeks,
+          AVG(avg_confidence) as confidence
+        FROM weekly_aggregates
+        GROUP BY product_name
+        HAVING SUM(weekly_total) > 0
+        ORDER BY SUM(weekly_total) DESC
+        LIMIT 20
+      `);
+      
+      res.json(result.rows || []);
+    } catch (error) {
+      console.error('Fehler beim Laden der wöchentlichen Prognosezusammenfassung:', error);
+      res.status(500).json({ error: 'Fehler beim Laden der Daten' });
+    }
+  });
+  
   // Aktuelle Prognosen für das Dashboard abrufen (14 Tage)
   app.get(`${API_PREFIX}/forecast/dashboard`, async (req: Request, res: Response) => {
     try {
