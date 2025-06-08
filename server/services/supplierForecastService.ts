@@ -60,13 +60,13 @@ export async function getAvailableSuppliersForForecast(): Promise<any[]> {
           FROM warehouses w
           JOIN inventory_items inv ON w.id = inv.warehouse_id
           JOIN products p ON inv.product_id = p.id
-          WHERE p.supplier_id = $1 AND w.is_active = true
+          WHERE p.supplier_id = ${supplier.id} AND w.is_active = true
           GROUP BY w.id, w.name, w.address, w.city
           ORDER BY total_stock DESC
         `;
         
-        const warehouseResult = await db.execute(warehouseQuery, [supplier.id]);
-        const warehouseDetails = Array.isArray(warehouseResult) ? warehouseResult : [];
+        const warehouseResult = await db.execute(warehouseQuery);
+        const warehouseDetails = Array.isArray(warehouseResult) ? warehouseResult : (warehouseResult.rows || []);
         
         // Get top products for this supplier
         const productsQuery = `
@@ -79,14 +79,14 @@ export async function getAvailableSuppliersForForecast(): Promise<any[]> {
             COALESCE(AVG(inv.quantity), 0) as avg_stock_per_warehouse
           FROM products p
           LEFT JOIN inventory_items inv ON p.id = inv.product_id
-          WHERE p.supplier_id = $1
+          WHERE p.supplier_id = ${supplier.id}
           GROUP BY p.id, p.product_name, p.sku
           ORDER BY total_stock_all_warehouses DESC
           LIMIT 10
         `;
         
-        const productsResult = await db.execute(productsQuery, [supplier.id]);
-        const topProducts = Array.isArray(productsResult) ? productsResult : [];
+        const productsResult = await db.execute(productsQuery);
+        const topProducts = productsResult.rows || productsResult;
         
         // Calculate enhanced statistics
         const totalWarehouses = warehouseDetails.length;
