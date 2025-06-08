@@ -404,7 +404,7 @@ export async function getAvailableSuppliersForForecast(): Promise<any[]> {
         COALESCE(AVG(inv.quantity), 0) as avg_inventory_per_product
       FROM suppliers s
       JOIN products p ON s.id = p.supplier_id
-      JOIN inventory inv ON p.id = inv.product_id
+      JOIN inventory_items inv ON p.id = inv.product_id
       JOIN warehouses w ON inv.warehouse_id = w.id
       WHERE s.status = 'active' 
         AND inv.quantity IS NOT NULL
@@ -428,7 +428,7 @@ export async function getAvailableSuppliersForForecast(): Promise<any[]> {
           COUNT(CASE WHEN inv.quantity <= 5 THEN 1 END) as low_stock_products,
           COUNT(CASE WHEN inv.quantity = 0 THEN 1 END) as out_of_stock_products
         FROM warehouses w
-        JOIN inventory inv ON w.id = inv.warehouse_id
+        JOIN inventory_items inv ON w.id = inv.warehouse_id
         JOIN products p ON inv.product_id = p.id
         WHERE p.supplier_id = ${supplier.id}
         GROUP BY w.id, w.name, w.location
@@ -447,7 +447,7 @@ export async function getAvailableSuppliersForForecast(): Promise<any[]> {
           COUNT(inv.warehouse_id) as warehouses_with_stock,
           COALESCE(AVG(inv.quantity), 0) as avg_stock_per_warehouse
         FROM products p
-        LEFT JOIN inventory inv ON p.id = inv.product_id
+        LEFT JOIN inventory_items inv ON p.id = inv.product_id
         WHERE p.supplier_id = ${supplier.id}
         GROUP BY p.id, p.name, p.sku
         ORDER BY total_stock_all_warehouses DESC
