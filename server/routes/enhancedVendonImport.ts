@@ -76,11 +76,11 @@ router.post('/start', async (req: Request, res: Response) => {
       });
     }
 
+    // Create new importer instance
+    enhancedVendonHistoryImporter = new EnhancedVendonHistoryImporter(importConfig);
+
     // Start the import process asynchronously
-    const importPromise = enhancedVendonHistoryImporter.startImport({
-      ...options,
-      endDate: options.endDate || endDate.toISOString().split('T')[0]
-    });
+    const importPromise = enhancedVendonHistoryImporter.startImport();
 
     // Don't wait for completion, return immediately with status
     res.json({
