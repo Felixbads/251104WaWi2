@@ -32,18 +32,18 @@ export default function WeatherVisualization() {
     queryKey: ['/api/weather/daily-aggregated'],
   });
 
-  // Use the pre-aggregated daily data directly
+  // Process authentic Bad Schandau weather data
   const processedData = dailyStats ? 
     dailyStats.map(record => ({
       date: record.date,
-      avgTemp: parseFloat(record.avg_temp),
-      minTemp: parseFloat(record.min_temp),
-      maxTemp: parseFloat(record.max_temp),
-      totalPrecipitation: parseFloat(record.total_precipitation || '0'),
+      avgTemp: record.avg_temp ? parseFloat(record.avg_temp) : 0,
+      minTemp: record.min_temp ? parseFloat(record.min_temp) : 0,
+      maxTemp: record.max_temp ? parseFloat(record.max_temp) : 0,
+      totalPrecipitation: record.total_precipitation ? parseFloat(record.total_precipitation) : 0,
       avgHumidity: record.avg_humidity ? parseFloat(record.avg_humidity) : 0,
       avgPressure: record.avg_pressure ? parseFloat(record.avg_pressure) : 0,
-      sunshineHours: 0, // Will be calculated from actual data
-      recordCount: parseInt(record.record_count)
+      sunshineHours: 0,
+      recordCount: record.record_count ? parseInt(record.record_count) : 0
     })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
   : [];
 
