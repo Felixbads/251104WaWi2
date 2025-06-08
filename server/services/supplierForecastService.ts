@@ -1,80 +1,103 @@
 /**
- * Working Supplier Forecast Service
+ * Final Working Supplier Forecast Service
  * Provides supplier information with current inventory levels for forecast-based ordering
  */
 
 import { db } from '../db';
-import { suppliers, products, inventoryItems, warehouses } from '../../shared/schema';
-import { eq, and, sql, count, sum, avg } from 'drizzle-orm';
 
 export async function getAvailableSuppliersForForecast(): Promise<any[]> {
   try {
-    console.log('Starting supplier forecast query with proper Drizzle syntax...');
+    console.log('Starting supplier forecast query with direct SQL...');
     
-    // Get basic supplier information using Drizzle ORM
-    const supplierData = await db
-      .select({
-        id: suppliers.id,
-        name: suppliers.name,
-        delivery_terms: suppliers.deliveryTerms,
-        minimum_order_value: suppliers.minimumOrderValue
-      })
-      .from(suppliers)
-      .innerJoin(products, eq(suppliers.id, products.supplierId))
-      .where(eq(suppliers.status, 'active'))
-      .groupBy(suppliers.id, suppliers.name, suppliers.deliveryTerms, suppliers.minimumOrderValue)
-      .limit(20);
+    // Use direct SQL queries to avoid Drizzle schema complications
+    const suppliersQuery = `
+      SELECT DISTINCT
+        s.id,
+        s.name,
+        s.delivery_terms,
+        s.minimum_order_value,
+        COUNT(DISTINCT w.id) as warehouse_count,
+        COUNT(DISTINCT p.id) as product_count,
+        COALESCE(SUM(inv.quantity), 0) as total_inventory
+      FROM suppliers s
+      JOIN products p ON s.id = p.supplier_id
+      LEFT JOIN inventory_items inv ON p.id = inv.product_id
+      LEFT JOIN warehouses w ON inv.warehouse_id = w.id
+      WHERE s.status = 'active'
+      GROUP BY s.id, s.name, s.delivery_terms, s.minimum_order_value
+      HAVING COUNT(DISTINCT p.id) > 0
+      ORDER BY warehouse_count DESC, product_count DESC
+      LIMIT 15
+    `;
     
-    console.log(`Found ${supplierData.length} suppliers using Drizzle ORM`);
+    const suppliersResult = await db.execute(suppliersQuery);
+    const suppliers = suppliersResult.rows || suppliersResult;
     
-    if (!supplierData || supplierData.length === 0) {
+    console.log(`Found ${suppliers.length} suppliers with direct SQL`);
+    
+    if (suppliers.length === 0) {
       return [];
     }
     
-    // Enrich each supplier with inventory information
+    // Enrich each supplier with detailed warehouse and product information
     const enrichedSuppliers = [];
     
-    for (const supplier of supplierData) {
+    for (const supplier of suppliers) {
       console.log(`Processing supplier: ${supplier.name} (ID: ${supplier.id})`);
       
       try {
-        // Get warehouse information for this supplier
-        const warehouseInfo = await db
-          .select({
-            warehouse_id: warehouses.id,
-            warehouse_name: warehouses.name,
-            warehouse_location: warehouses.locationName,
-            product_count: count(products.id),
-            total_stock: sum(inventoryItems.quantity)
-          })
-          .from(warehouses)
-          .innerJoin(inventoryItems, eq(warehouses.id, inventoryItems.warehouseId))
-          .innerJoin(products, eq(inventoryItems.productId, products.id))
-          .where(eq(products.supplierId, supplier.id))
-          .groupBy(warehouses.id, warehouses.name, warehouses.locationName)
-          .orderBy(sql`${sum(inventoryItems.quantity)} DESC`);
+        // Get warehouse details for this supplier
+        const warehouseQuery = `
+          SELECT 
+            w.id as warehouse_id,
+            w.name as warehouse_name,
+            w.address,
+            w.city,
+            COUNT(DISTINCT p.id) as product_count,
+            COALESCE(SUM(inv.quantity), 0) as total_stock,
+            COUNT(CASE WHEN inv.quantity <= 5 THEN 1 END) as low_stock_products,
+            COUNT(CASE WHEN inv.quantity = 0 OR inv.quantity IS NULL THEN 1 END) as out_of_stock_products
+          FROM warehouses w
+          JOIN inventory_items inv ON w.id = inv.warehouse_id
+          JOIN products p ON inv.product_id = p.id
+          WHERE p.supplier_id = $1 AND w.is_active = true
+          GROUP BY w.id, w.name, w.address, w.city
+          ORDER BY total_stock DESC
+        `;
+        
+        const warehouseResult = await db.execute(warehouseQuery, [supplier.id]);
+        const warehouseDetails = Array.isArray(warehouseResult) ? warehouseResult : [];
         
         // Get top products for this supplier
-        const topProducts = await db
-          .select({
-            id: products.id,
-            product_name: products.productName,
-            sku: products.sku,
-            total_stock_all_warehouses: sum(inventoryItems.quantity),
-            warehouses_with_stock: count(inventoryItems.warehouseId)
-          })
-          .from(products)
-          .leftJoin(inventoryItems, eq(products.id, inventoryItems.productId))
-          .where(eq(products.supplierId, supplier.id))
-          .groupBy(products.id, products.productName, products.sku)
-          .orderBy(sql`${sum(inventoryItems.quantity)} DESC`)
-          .limit(10);
+        const productsQuery = `
+          SELECT 
+            p.id,
+            p.product_name,
+            p.sku,
+            COALESCE(SUM(inv.quantity), 0) as total_stock_all_warehouses,
+            COUNT(DISTINCT inv.warehouse_id) as warehouses_with_stock,
+            COALESCE(AVG(inv.quantity), 0) as avg_stock_per_warehouse
+          FROM products p
+          LEFT JOIN inventory_items inv ON p.id = inv.product_id
+          WHERE p.supplier_id = $1
+          GROUP BY p.id, p.product_name, p.sku
+          ORDER BY total_stock_all_warehouses DESC
+          LIMIT 10
+        `;
         
-        // Calculate summary statistics
-        const totalWarehouses = warehouseInfo.length;
+        const productsResult = await db.execute(productsQuery, [supplier.id]);
+        const topProducts = Array.isArray(productsResult) ? productsResult : [];
+        
+        // Calculate enhanced statistics
+        const totalWarehouses = warehouseDetails.length;
         const totalProducts = topProducts.length;
-        const totalInventory = warehouseInfo.reduce((sum, w) => sum + (Number(w.total_stock) || 0), 0);
-        const lowStockProducts = topProducts.filter(p => (Number(p.total_stock_all_warehouses) || 0) <= 5).length;
+        const totalInventory = Number(supplier.total_inventory) || 0;
+        const lowStockProducts = topProducts.filter(p => Number(p.total_stock_all_warehouses) <= 5).length;
+        const outOfStockProducts = topProducts.filter(p => Number(p.total_stock_all_warehouses) === 0).length;
+        
+        // Calculate inventory health score (0-100)
+        const healthScore = totalProducts > 0 ? 
+          Math.round(((totalProducts - outOfStockProducts) / totalProducts) * 100) : 0;
         
         enrichedSuppliers.push({
           id: supplier.id,
@@ -85,8 +108,17 @@ export async function getAvailableSuppliersForForecast(): Promise<any[]> {
           product_count: totalProducts,
           total_inventory: totalInventory,
           low_stock_products: lowStockProducts,
-          warehouse_details: warehouseInfo,
-          top_products: topProducts
+          out_of_stock_products: outOfStockProducts,
+          inventory_health_score: healthScore,
+          warehouse_details: warehouseDetails,
+          top_products: topProducts,
+          summary: {
+            has_low_stock_warnings: lowStockProducts > 0,
+            has_out_of_stock_items: outOfStockProducts > 0,
+            inventory_status: healthScore >= 80 ? 'Excellent' : 
+                            healthScore >= 60 ? 'Good' : 
+                            healthScore >= 40 ? 'Warning' : 'Critical'
+          }
         });
         
       } catch (supplierError) {
@@ -102,13 +134,20 @@ export async function getAvailableSuppliersForForecast(): Promise<any[]> {
           product_count: 0,
           total_inventory: 0,
           low_stock_products: 0,
+          out_of_stock_products: 0,
+          inventory_health_score: 0,
           warehouse_details: [],
-          top_products: []
+          top_products: [],
+          summary: {
+            has_low_stock_warnings: false,
+            has_out_of_stock_items: false,
+            inventory_status: 'Unknown'
+          }
         });
       }
     }
     
-    console.log(`Successfully processed ${enrichedSuppliers.length} suppliers`);
+    console.log(`Successfully processed ${enrichedSuppliers.length} suppliers with enhanced inventory data`);
     return enrichedSuppliers;
     
   } catch (error) {
@@ -117,7 +156,7 @@ export async function getAvailableSuppliersForForecast(): Promise<any[]> {
   }
 }
 
-// Stub function for supplier aggregated forecast (to be implemented when core functionality works)
+// Stub function for supplier aggregated forecast
 export async function getSupplierAggregatedForecast(
   supplierId: number,
   weeksAhead: number = 2,
