@@ -764,7 +764,7 @@ router.get('/analysis/:year', async (req: Request, res: Response) => {
       data: {
         year,
         overview: stats,
-        stateStats: stateStatsResult
+        stateStats: Array.isArray(stateStatsResult) ? stateStatsResult : []
       }
     });
   } catch (error) {
