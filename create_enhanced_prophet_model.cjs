@@ -135,16 +135,16 @@ async function trainProphetModel(modelId, startDate, endDate) {
     // Simulate Prophet training process
     console.log('📚 Collecting training data...');
     
-    // Get aggregated daily transaction data
+    // Get aggregated daily transaction data with correct column names
     const trainingData = await pool.query(`
       SELECT 
         DATE(t.datetime) as date,
         COUNT(*) as transaction_count,
         SUM(t.price) as daily_revenue,
-        AVG(CASE WHEN w.temperature IS NOT NULL THEN w.temperature END) as avg_temp,
+        AVG(CASE WHEN w.temp IS NOT NULL THEN w.temp END) as avg_temp,
         MAX(CASE WHEN h.name IS NOT NULL THEN 1 ELSE 0 END) as is_holiday
       FROM transactions t
-      LEFT JOIN weather_data w ON DATE(t.datetime) = DATE(w.datetime)
+      LEFT JOIN weather_data w ON DATE(t.datetime) = DATE(w.timestamp)
       LEFT JOIN holidays h ON DATE(t.datetime) = h.date
       WHERE t.datetime >= $1 AND t.datetime <= $2
       GROUP BY DATE(t.datetime)
@@ -215,7 +215,6 @@ async function createSampleForecast(modelId, startDate, endDate) {
         forecastValue,
         forecastValue * 0.9, // lower_bound
         forecastValue * 1.1, // upper_bound
-        'daily_transactions',
         new Date(),
         new Date()
       ]);
@@ -223,16 +222,16 @@ async function createSampleForecast(modelId, startDate, endDate) {
 
     // Insert forecast data
     const placeholders = forecastInserts.map((_, index) => {
-      const base = index * 8;
-      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8})`;
+      const base = index * 7;
+      return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7})`;
     }).join(', ');
 
     const values = forecastInserts.flat();
 
     await pool.query(`
       INSERT INTO forecasts (
-        model_id, forecast_date, forecast_value, lower_bound, upper_bound, 
-        forecast_type, created_at, updated_at
+        model_id, forecast_date, predicted_quantity, lower_bound, upper_bound, 
+        created_at, updated_at
       ) VALUES ${placeholders}
     `, values);
 
