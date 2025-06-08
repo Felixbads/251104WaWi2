@@ -59,6 +59,13 @@ export default function HolidaysVacationsOverview() {
   // Fetch holidays and school holidays data
   const { data: holidaysData, isLoading } = useQuery<HolidayData[]>({
     queryKey: ['/api/holidays/comprehensive', selectedYear],
+    queryFn: async () => {
+      const response = await fetch(`/api/holidays/comprehensive/${selectedYear}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch holidays');
+      }
+      return response.json();
+    },
     select: (data: any[]) => {
       // Transform the API data into the format we need
       const holidaysByDate = new Map<string, HolidayData>();

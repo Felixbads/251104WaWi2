@@ -505,7 +505,7 @@ router.get('/comprehensive/:year', async (req, res) => {
     
     const calendarOverviewResult = await db.execute(calendarOverviewQuery);
     
-    if (calendarOverviewResult.length > 0) {
+    if (Array.isArray(calendarOverviewResult) && calendarOverviewResult.length > 0) {
       // Use calendar_overview data
       for (const row of calendarOverviewResult) {
         // Check each state for holidays or school holidays
@@ -547,7 +547,7 @@ router.get('/comprehensive/:year', async (req, res) => {
       `;
       
       const result = await db.execute(holidaysQuery);
-      holidays.push(...result.map(row => ({
+      holidays.push(...(Array.isArray(result) ? result : []).map((row: any) => ({
         date: row.date,
         name: row.name,
         type: row.type,
@@ -636,7 +636,13 @@ router.get('/analysis/:year', async (req: Request, res: Response) => {
     `;
     
     const statsResult = await db.execute(statsQuery);
-    const stats = statsResult[0];
+    const stats = Array.isArray(statsResult) && statsResult.length > 0 ? statsResult[0] : {
+      total_days: 0,
+      public_holiday_days: 0,
+      school_holiday_days: 0,
+      weekend_days: 0,
+      work_days: 0
+    };
     
     // Get state-wise holiday counts
     const stateStatsQuery = sql`
