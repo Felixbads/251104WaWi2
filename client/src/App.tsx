@@ -427,6 +427,12 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
 
+        <Route path="/feiertage-analyse" component={props => (
+          <ApprovedUserRoute>
+            <HolidayAnalysisDashboard {...props} />
+          </ApprovedUserRoute>
+        )} />
+
         <Route path="/synchronization" component={props => (
           <ApprovedUserRoute>
             <SyncDashboard {...props} />
