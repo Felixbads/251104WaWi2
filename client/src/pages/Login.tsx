@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { ShoppingBag, LogIn, Loader2 } from "lucide-react";
 import MHDAlertTile from "@/components/MHDAlertTile";
 import TopRemovedProductsTileStandalone from "@/components/TopRemovedProductsTileStandalone";
+import LiveDatabaseStatsTile from "@/components/LiveDatabaseStatsTile";
 
 // Login schema mit Validierungsregeln
 const loginSchema = z.object({
@@ -150,6 +151,11 @@ export default function Login() {
           </p>
         </CardFooter>
         </Card>
+
+        {/* Live Database Stats Tile */}
+        <div className="w-full max-w-md mx-auto lg:mx-0">
+          <LiveDatabaseStatsTile />
+        </div>
 
         {/* MHD Alert Tile */}
         <div className="w-full max-w-md mx-auto lg:mx-0">
