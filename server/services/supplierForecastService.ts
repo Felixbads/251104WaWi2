@@ -1,32 +1,31 @@
 /**
- * Simplified Supplier Forecast Service
+ * Working Supplier Forecast Service
  * Provides supplier information with current inventory levels for forecast-based ordering
  */
 
 import { db } from '../db';
-import { sql } from 'drizzle-orm';
+import { suppliers, products, inventoryItems, warehouses } from '../../shared/schema';
+import { eq, and, sql, count, sum, avg } from 'drizzle-orm';
 
 export async function getAvailableSuppliersForForecast(): Promise<any[]> {
   try {
-    console.log('Starting supplier forecast query...');
+    console.log('Starting supplier forecast query with proper Drizzle syntax...');
     
-    // Get basic supplier information
-    const suppliersResult = await db.execute(sql`
-      SELECT DISTINCT
-        s.id,
-        s.name,
-        s.delivery_terms,
-        s.minimum_order_value
-      FROM suppliers s
-      JOIN products p ON s.id = p.supplier_id
-      WHERE s.status = 'active'
-      ORDER BY s.name
-      LIMIT 20
-    `);
+    // Get basic supplier information using Drizzle ORM
+    const supplierData = await db
+      .select({
+        id: suppliers.id,
+        name: suppliers.name,
+        delivery_terms: suppliers.deliveryTerms,
+        minimum_order_value: suppliers.minimumOrderValue
+      })
+      .from(suppliers)
+      .innerJoin(products, eq(suppliers.id, products.supplierId))
+      .where(eq(suppliers.status, 'active'))
+      .groupBy(suppliers.id, suppliers.name, suppliers.deliveryTerms, suppliers.minimumOrderValue)
+      .limit(20);
     
-    // Extract actual supplier data from query result
-    const supplierData = suppliersResult[3] || [];
-    console.log(`Found ${supplierData.length} suppliers`);
+    console.log(`Found ${supplierData.length} suppliers using Drizzle ORM`);
     
     if (!supplierData || supplierData.length === 0) {
       return [];
@@ -40,46 +39,42 @@ export async function getAvailableSuppliersForForecast(): Promise<any[]> {
       
       try {
         // Get warehouse information for this supplier
-        const warehouseInfoResult = await db.execute(sql`
-          SELECT 
-            w.id as warehouse_id,
-            w.name as warehouse_name,
-            w.location as warehouse_location,
-            COUNT(DISTINCT p.id) as product_count,
-            COALESCE(SUM(inv.quantity), 0) as total_stock
-          FROM warehouses w
-          JOIN inventory_items inv ON w.id = inv.warehouse_id
-          JOIN products p ON inv.product_id = p.id
-          WHERE p.supplier_id = ${supplier.id}
-          GROUP BY w.id, w.name, w.location
-          ORDER BY total_stock DESC
-        `);
-        
-        const warehouseData = warehouseInfoResult[3] || [];
+        const warehouseInfo = await db
+          .select({
+            warehouse_id: warehouses.id,
+            warehouse_name: warehouses.name,
+            warehouse_location: warehouses.locationName,
+            product_count: count(products.id),
+            total_stock: sum(inventoryItems.quantity)
+          })
+          .from(warehouses)
+          .innerJoin(inventoryItems, eq(warehouses.id, inventoryItems.warehouseId))
+          .innerJoin(products, eq(inventoryItems.productId, products.id))
+          .where(eq(products.supplierId, supplier.id))
+          .groupBy(warehouses.id, warehouses.name, warehouses.locationName)
+          .orderBy(sql`${sum(inventoryItems.quantity)} DESC`);
         
         // Get top products for this supplier
-        const topProductsResult = await db.execute(sql`
-          SELECT 
-            p.id,
-            p.name as product_name,
-            p.sku,
-            COALESCE(SUM(inv.quantity), 0) as total_stock_all_warehouses,
-            COUNT(DISTINCT inv.warehouse_id) as warehouses_with_stock
-          FROM products p
-          LEFT JOIN inventory_items inv ON p.id = inv.product_id
-          WHERE p.supplier_id = ${supplier.id}
-          GROUP BY p.id, p.name, p.sku
-          ORDER BY total_stock_all_warehouses DESC
-          LIMIT 10
-        `);
-        
-        const topProductsData = topProductsResult[3] || [];
+        const topProducts = await db
+          .select({
+            id: products.id,
+            product_name: products.productName,
+            sku: products.sku,
+            total_stock_all_warehouses: sum(inventoryItems.quantity),
+            warehouses_with_stock: count(inventoryItems.warehouseId)
+          })
+          .from(products)
+          .leftJoin(inventoryItems, eq(products.id, inventoryItems.productId))
+          .where(eq(products.supplierId, supplier.id))
+          .groupBy(products.id, products.productName, products.sku)
+          .orderBy(sql`${sum(inventoryItems.quantity)} DESC`)
+          .limit(10);
         
         // Calculate summary statistics
-        const totalWarehouses = warehouseData.length;
-        const totalProducts = topProductsData.length;
-        const totalInventory = warehouseData.reduce((sum, w) => sum + (parseInt(w.total_stock) || 0), 0);
-        const lowStockProducts = topProductsData.filter(p => (parseInt(p.total_stock_all_warehouses) || 0) <= 5).length;
+        const totalWarehouses = warehouseInfo.length;
+        const totalProducts = topProducts.length;
+        const totalInventory = warehouseInfo.reduce((sum, w) => sum + (Number(w.total_stock) || 0), 0);
+        const lowStockProducts = topProducts.filter(p => (Number(p.total_stock_all_warehouses) || 0) <= 5).length;
         
         enrichedSuppliers.push({
           id: supplier.id,
@@ -90,8 +85,8 @@ export async function getAvailableSuppliersForForecast(): Promise<any[]> {
           product_count: totalProducts,
           total_inventory: totalInventory,
           low_stock_products: lowStockProducts,
-          warehouse_details: warehouseData,
-          top_products: topProductsData
+          warehouse_details: warehouseInfo,
+          top_products: topProducts
         });
         
       } catch (supplierError) {
@@ -120,4 +115,39 @@ export async function getAvailableSuppliersForForecast(): Promise<any[]> {
     console.error('Error in getAvailableSuppliersForForecast:', error);
     throw error;
   }
+}
+
+// Stub function for supplier aggregated forecast (to be implemented when core functionality works)
+export async function getSupplierAggregatedForecast(
+  supplierId: number,
+  weeksAhead: number = 2,
+  includeWeather: boolean = true,
+  includeHolidays: boolean = true
+): Promise<any> {
+  return {
+    supplierId,
+    supplierName: 'Test Supplier',
+    totalOrderValue: 0,
+    forecastPeriod: {
+      weeksAhead,
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: new Date(Date.now() + weeksAhead * 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    },
+    warehouseAllocations: [],
+    consolidatedProducts: [],
+    deliveryOptimization: {
+      routes: [],
+      totalDistance: 0,
+      estimatedCost: 0,
+      deliveryDays: 0,
+      optimization: 'Basic optimization'
+    },
+    summary: {
+      totalWarehouses: 0,
+      totalProducts: 0,
+      estimatedSavings: 0,
+      weatherImpact: 'Not implemented',
+      holidayImpact: 'Not implemented'
+    }
+  };
 }
