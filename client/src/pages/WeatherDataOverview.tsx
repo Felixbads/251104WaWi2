@@ -79,6 +79,27 @@ interface YearlyStats {
   coverage: number;
 }
 
+interface WeatherOverviewResponse {
+  success: boolean;
+  overview: {
+    total_data_points: string;
+    unique_days: string;
+    years_covered: string;
+    earliest_date: string;
+    latest_date: string;
+    overall_avg_temp: string;
+    overall_min_temp: string;
+    overall_max_temp: string;
+    total_precipitation: string;
+  };
+  sources: Array<{
+    source: string;
+    records: string;
+    days: string;
+    avg_temp: string;
+  }>;
+}
+
 export default function WeatherDataOverview() {
   const [selectedState, setSelectedState] = useState('SN');
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -105,7 +126,7 @@ export default function WeatherDataOverview() {
   });
 
   // Fetch weather data overview - manual refresh only
-  const { data: weatherOverview, isLoading: overviewLoading } = useQuery({
+  const { data: weatherOverview, isLoading: overviewLoading } = useQuery<WeatherOverviewResponse>({
     queryKey: ['/api/weather/overview'],
     enabled: true,
     staleTime: 24 * 60 * 60 * 1000 // Consider data fresh for 24 hours
@@ -225,7 +246,7 @@ export default function WeatherDataOverview() {
                     <div className="ml-4">
                       <p className="text-sm font-medium text-gray-600">Abgedeckte Jahre</p>
                       <p className="text-2xl font-bold text-gray-900">
-                        {weatherOverview.yearsCovered || 0}
+                        {weatherOverview.overview?.years_covered || '0'}
                       </p>
                     </div>
                   </div>
