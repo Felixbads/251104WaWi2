@@ -11,6 +11,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import { apiRequest } from "@/lib/queryClient";
 import { getPurchaseConditionsByProduct } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { ForecastOrderForm } from "@/components/ForecastOrderForm";
 
 // UI Komponenten
 import { Button } from "@/components/ui/button";

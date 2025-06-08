@@ -543,6 +543,110 @@ export function registerForecastRoutes(app: Express): void {
     }
   });
   
+  // Order suggestions based on product forecasts with weeks planning
+  app.get(`${API_PREFIX}/forecast/order-suggestions`, async (req: Request, res: Response) => {
+    try {
+      const weeksAhead = parseInt(req.query.weeksAhead as string) || 2;
+      const warehouseId = req.query.warehouseId ? parseInt(req.query.warehouseId as string) : undefined;
+      const { db } = await import('../db');
+      const { sql } = await import('drizzle-orm');
+      
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(startDate.getDate() + (weeksAhead * 7));
+      
+      const result = await db.execute(sql`
+        WITH product_forecasts AS (
+          SELECT 
+            f.product_id,
+            p.name as product_name,
+            p.supplier_id,
+            s.name as supplier_name,
+            p.price,
+            SUM(f.predicted_quantity) as total_predicted_sales,
+            AVG(f.confidence) as avg_confidence,
+            COUNT(DISTINCT f.forecast_date) as forecast_days
+          FROM forecasts f
+          INNER JOIN products p ON f.product_id = p.id::text
+          LEFT JOIN suppliers s ON p.supplier_id = s.id
+          WHERE f.forecast_date >= ${startDate.toISOString().split('T')[0]}
+            AND f.forecast_date <= ${endDate.toISOString().split('T')[0]}
+            AND f.product_id IS NOT NULL
+          GROUP BY f.product_id, p.name, p.supplier_id, s.name, p.price
+        ),
+        current_inventory AS (
+          SELECT 
+            i.product_id,
+            COALESCE(SUM(i.quantity), 0) as current_stock
+          FROM inventory i
+          ${warehouseId ? sql`WHERE i.warehouse_id = ${warehouseId}` : sql``}
+          GROUP BY i.product_id
+        )
+        SELECT 
+          pf.product_id,
+          pf.product_name,
+          pf.supplier_id,
+          pf.supplier_name,
+          pf.price,
+          pf.total_predicted_sales,
+          pf.avg_confidence,
+          COALESCE(ci.current_stock, 0) as current_stock,
+          GREATEST(0, CEIL(pf.total_predicted_sales - COALESCE(ci.current_stock, 0))) as recommended_order_quantity,
+          (pf.total_predicted_sales * pf.price) as expected_revenue
+        FROM product_forecasts pf
+        LEFT JOIN current_inventory ci ON pf.product_id = ci.product_id::text
+        WHERE pf.total_predicted_sales > 0
+        ORDER BY (pf.total_predicted_sales * pf.price) DESC
+        LIMIT 50
+      `);
+      
+      res.json({
+        weeksAhead,
+        periodStart: startDate.toISOString().split('T')[0],
+        periodEnd: endDate.toISOString().split('T')[0],
+        suggestions: result.rows || []
+      });
+    } catch (error) {
+      console.error('Fehler beim Erstellen der Bestellvorschläge:', error);
+      res.status(500).json({ error: 'Fehler beim Erstellen der Bestellvorschläge' });
+    }
+  });
+  
+  // Daily revenue expectations for dashboard
+  app.get(`${API_PREFIX}/forecast/revenue-expectations`, async (req: Request, res: Response) => {
+    try {
+      const { db } = await import('../db');
+      const { sql } = await import('drizzle-orm');
+      
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(startDate.getDate() + 14);
+      
+      const result = await db.execute(sql`
+        SELECT 
+          f.forecast_date,
+          SUM(f.predicted_quantity * COALESCE(p.price, 0)) as expected_revenue,
+          SUM(f.predicted_quantity) as expected_units,
+          AVG(f.confidence) as avg_confidence,
+          COUNT(DISTINCT f.product_id) as product_count,
+          BOOL_OR(f.is_holiday) as is_holiday,
+          MAX(CASE WHEN f.holiday_name IS NOT NULL THEN f.holiday_name ELSE NULL END) as holiday_name
+        FROM forecasts f
+        LEFT JOIN products p ON f.product_id = p.id::text
+        WHERE f.forecast_date >= ${startDate.toISOString().split('T')[0]}
+          AND f.forecast_date <= ${endDate.toISOString().split('T')[0]}
+          AND f.product_id IS NOT NULL
+        GROUP BY f.forecast_date
+        ORDER BY f.forecast_date ASC
+      `);
+      
+      res.json(result.rows || []);
+    } catch (error) {
+      console.error('Fehler beim Laden der Umsatzerwartungen:', error);
+      res.status(500).json({ error: 'Fehler beim Laden der Umsatzerwartungen' });
+    }
+  });
+  
   // Aktuelle Prognosen für das Dashboard abrufen (14 Tage)
   app.get(`${API_PREFIX}/forecast/dashboard`, async (req: Request, res: Response) => {
     try {
