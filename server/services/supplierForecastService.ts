@@ -86,7 +86,7 @@ export async function getAvailableSuppliersForForecast(): Promise<any[]> {
         `;
         
         const productsResult = await db.execute(productsQuery);
-        const topProducts = productsResult.rows || productsResult;
+        const topProducts = Array.isArray(productsResult) ? productsResult : (productsResult.rows || []);
         
         // Calculate enhanced statistics
         const totalWarehouses = warehouseDetails.length;
