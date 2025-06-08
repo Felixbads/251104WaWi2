@@ -58,7 +58,7 @@ export function ForecastOrderForm({ warehouseId, onBack }: ForecastOrderFormProp
   });
   
   const { data: orderSuggestions, isLoading: isLoadingSuggestions, refetch: refetchSuggestions } = useQuery({
-    queryKey: [`/api/forecast/enhanced-order-suggestions`, { weeksAhead, warehouseId, includeWeather, includeHolidays }],
+    queryKey: [`/api/forecast/enhanced-order-suggestions?warehouseId=${warehouseId}&weeksAhead=${weeksAhead}&includeWeather=${includeWeather}&includeHolidays=${includeHolidays}`],
     enabled: false, // Only fetch when explicitly triggered
   });
   
@@ -218,6 +218,40 @@ export function ForecastOrderForm({ warehouseId, onBack }: ForecastOrderFormProp
               onChange={(e) => setDeliveryDate(new Date(e.target.value))}
             />
           </div>
+        </div>
+
+        {/* Weather and Holiday Integration Options */}
+        <div className="bg-gray-50 p-4 rounded-lg">
+          <h3 className="text-sm font-medium mb-3">Prognose-Faktoren</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="includeWeather"
+                checked={includeWeather}
+                onChange={(e) => setIncludeWeather(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              <Label htmlFor="includeWeather" className="text-sm">
+                Wetterdaten berücksichtigen
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="includeHolidays"
+                checked={includeHolidays}
+                onChange={(e) => setIncludeHolidays(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              <Label htmlFor="includeHolidays" className="text-sm">
+                Feiertage berücksichtigen
+              </Label>
+            </div>
+          </div>
+          <p className="text-xs text-gray-600 mt-2">
+            Diese Faktoren beeinflussen die Prognose für höhere Genauigkeit bei besonderen Wetterbedingungen und Feiertagen.
+          </p>
         </div>
         
         {/* Generate Suggestions Button */}
