@@ -19,7 +19,7 @@ async function bulkImportWeatherData() {
   // Filter for Excel files that contain weather data
   const excelFiles = files.filter(file => 
     file.includes('export') && (file.endsWith('.xlsx') || file.endsWith('.xls'))
-  );
+  ).sort(); // Sort to process in consistent order
   
   console.log(`Found ${excelFiles.length} Excel files to process`);
   

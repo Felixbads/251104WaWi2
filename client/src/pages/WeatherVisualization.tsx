@@ -18,61 +18,32 @@ interface WeatherData {
 
 interface DailyWeatherData {
   date: string;
-  avgTemp: number;
-  minTemp: number;
-  maxTemp: number;
-  totalPrecipitation: number;
-  avgHumidity: number;
-  avgPressure: number;
-  sunshineHours: number;
-  recordCount: number;
+  record_count: string;
+  avg_temp: string;
+  min_temp: string;
+  max_temp: string;
+  total_precipitation: string | null;
+  avg_humidity: string | null;
+  avg_pressure: string | null;
 }
 
 export default function WeatherVisualization() {
-  const { data: weatherData, isLoading } = useQuery<WeatherData[]>({
-    queryKey: ['/api/weather/bad-schandau-data'],
-  });
-
-  const { data: dailyStats } = useQuery<DailyWeatherData[]>({
+  const { data: dailyStats, isLoading } = useQuery<DailyWeatherData[]>({
     queryKey: ['/api/weather/daily-aggregated'],
   });
 
-  // Aggregate hourly data to daily for visualization
-  const processedData = weatherData ? 
-    Object.values(
-      weatherData.reduce((acc, record) => {
-        const date = record.date;
-        if (!acc[date]) {
-          acc[date] = {
-            date,
-            temps: [],
-            precipitation: 0,
-            humidity: [],
-            pressure: [],
-            recordCount: 0
-          };
-        }
-        
-        acc[date].temps.push(record.temp);
-        acc[date].precipitation += record.precipitation || 0;
-        const humidityValue = typeof record.humidity === 'string' ? parseFloat(record.humidity) : record.humidity || 0;
-        const pressureValue = typeof record.pressure === 'string' ? parseFloat(record.pressure) : record.pressure || 0;
-        acc[date].humidity.push(humidityValue);
-        acc[date].pressure.push(pressureValue);
-        acc[date].recordCount++;
-        
-        return acc;
-      }, {} as any)
-    ).map((day: any) => ({
-      date: day.date,
-      avgTemp: +(day.temps.reduce((a: number, b: number) => a + b, 0) / day.temps.length).toFixed(1),
-      minTemp: +Math.min(...day.temps).toFixed(1),
-      maxTemp: +Math.max(...day.temps).toFixed(1),
-      totalPrecipitation: +day.precipitation.toFixed(2),
-      avgHumidity: +(day.humidity.reduce((a: number, b: number) => a + b, 0) / day.humidity.length).toFixed(1),
-      avgPressure: +(day.pressure.reduce((a: number, b: number) => a + b, 0) / day.pressure.length).toFixed(1),
-      sunshineHours: day.recordCount > 20 ? +(Math.random() * 8 + 2).toFixed(1) : 0, // Estimate based on data availability
-      recordCount: day.recordCount
+  // Use the pre-aggregated daily data directly
+  const processedData = dailyStats ? 
+    dailyStats.map(record => ({
+      date: record.date,
+      avgTemp: parseFloat(record.avg_temp),
+      minTemp: parseFloat(record.min_temp),
+      maxTemp: parseFloat(record.max_temp),
+      totalPrecipitation: parseFloat(record.total_precipitation || '0'),
+      avgHumidity: record.avg_humidity ? parseFloat(record.avg_humidity) : 0,
+      avgPressure: record.avg_pressure ? parseFloat(record.avg_pressure) : 0,
+      sunshineHours: 0, // Will be calculated from actual data
+      recordCount: parseInt(record.record_count)
     })).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
   : [];
 
