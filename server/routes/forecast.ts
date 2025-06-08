@@ -1548,7 +1548,7 @@ export function registerForecastRoutes(app: Express): void {
         });
       }
 
-      const { supplierForecastService } = await import("../services/supplierForecastService");
+      const supplierForecastService = await import("../services/supplierForecastService");
       const analysis = await supplierForecastService.getSupplierAggregatedForecast(
         supplierId,
         weeksAhead,

@@ -122,7 +122,7 @@ export async function getSupplierAggregatedForecast(
       throw new Error(`Lieferant ${supplierId} nicht gefunden oder nicht aktiv`);
     }
     
-    const supplier = supplierResult.rows[0];
+    const supplier = supplierResult.rows[0] as any;
     
     // Alle Lager finden, die Produkte von diesem Lieferanten haben
     const warehousesQuery = `

@@ -162,7 +162,7 @@ export default function ForecastOrderMode({ onBack, onOrderCreated }: ForecastOr
     try {
       const result = await refetchAnalysis();
       if (result.data) {
-        setForecastData(result.data);
+        setForecastData(result.data as SupplierForecastData);
         setStep('analysis');
       }
     } catch (error) {

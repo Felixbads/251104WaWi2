@@ -1108,6 +1108,22 @@ const BestellungV2: React.FC = () => {
   const renderContent = () => {
     switch (step) {
       case 'overview':
+        // If forecast mode is selected, show ForecastOrderMode
+        if (orderMode === 'forecast') {
+          return (
+            <ForecastOrderMode
+              onBack={() => {
+                setOrderMode('new');
+                setStep('overview');
+              }}
+              onOrderCreated={(orderId) => {
+                setOrderId(orderId);
+                setStep('viewOrder');
+              }}
+            />
+          );
+        }
+        
         return (
           <SimpleOrdersOverview 
             onSelectOrder={handleSelectOrder}
@@ -1183,7 +1199,12 @@ const BestellungV2: React.FC = () => {
               onSelectMode={(mode) => {
                 setOrderMode(mode);
                 setSourceOrderId(null);
-                setStep('supplier');
+                // Forecast mode bypasses warehouse-specific supplier selection
+                if (mode === 'forecast') {
+                  setStep('overview'); // Will render forecast mode
+                } else {
+                  setStep('supplier');
+                }
               }}
               sourceOrderId={sourceOrderId}
               onSourceOrderChange={(id) => setSourceOrderId(id)}
