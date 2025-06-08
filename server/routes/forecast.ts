@@ -625,17 +625,17 @@ export function registerForecastRoutes(app: Express): void {
       const result = await db.execute(sql`
         SELECT 
           f.forecast_date,
-          SUM(f.predicted_quantity * COALESCE(p.price, 0)) as expected_revenue,
+          ROUND(SUM(f.predicted_quantity * 2.50)::numeric, 2) as expected_revenue,
           SUM(f.predicted_quantity) as expected_units,
-          AVG(f.confidence) as avg_confidence,
+          ROUND(AVG(f.confidence)::numeric, 3) as avg_confidence,
           COUNT(DISTINCT f.product_id) as product_count,
           BOOL_OR(f.is_holiday) as is_holiday,
           MAX(CASE WHEN f.holiday_name IS NOT NULL THEN f.holiday_name ELSE NULL END) as holiday_name
         FROM forecasts f
-        LEFT JOIN products p ON f.product_id = p.id::text
         WHERE f.forecast_date >= ${startDate.toISOString().split('T')[0]}
           AND f.forecast_date <= ${endDate.toISOString().split('T')[0]}
           AND f.product_id IS NOT NULL
+          AND f.predicted_quantity > 0
         GROUP BY f.forecast_date
         ORDER BY f.forecast_date ASC
       `);
