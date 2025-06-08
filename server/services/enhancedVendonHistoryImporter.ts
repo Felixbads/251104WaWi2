@@ -44,7 +44,7 @@ export interface WindowResult {
 }
 
 export class EnhancedVendonHistoryImporter {
-  private pool: Pool;
+  private pool: any;
   private apiClient: AxiosInstance;
   private config: ImportConfig;
   private stats: ImportStats;
@@ -57,7 +57,7 @@ export class EnhancedVendonHistoryImporter {
 
     // Initialize API client
     this.apiClient = axios.create({
-      baseURL: 'https://api.vendon.net',
+      baseURL: 'https://cloud.vendon.net/rest/v1.8.0',
       headers: {
         'Authorization': `Token ${process.env.VENDON_API_KEY}`,
         'Content-Type': 'application/json'

@@ -6,7 +6,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { enhancedVendonHistoryImporter } from '../services/enhancedVendonHistoryImporter';
+import { EnhancedVendonHistoryImporter } from '../services/enhancedVendonHistoryImporter';
 import { db, rawDb } from '../db';
 import { syncLogs, syncState } from '@shared/schema';
 import { eq, desc, and, gte, lte } from 'drizzle-orm';
@@ -92,11 +92,11 @@ router.post('/start', async (req: Request, res: Response) => {
     });
 
     // Handle the import result asynchronously
-    importPromise.catch(error => {
+    importPromise.catch((error: any) => {
       console.error('Enhanced import failed:', error);
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error starting enhanced import:', error);
     res.status(500).json({
       success: false,
