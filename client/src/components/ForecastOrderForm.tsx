@@ -41,6 +41,8 @@ export function ForecastOrderForm({ warehouseId, onBack }: ForecastOrderFormProp
   
   // State
   const [weeksAhead, setWeeksAhead] = useState(2);
+  const [includeWeather, setIncludeWeather] = useState(true);
+  const [includeHolidays, setIncludeHolidays] = useState(true);
   const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
   const [deliveryDate, setDeliveryDate] = useState<Date>(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
   const [notes, setNotes] = useState("");
@@ -56,7 +58,7 @@ export function ForecastOrderForm({ warehouseId, onBack }: ForecastOrderFormProp
   });
   
   const { data: orderSuggestions, isLoading: isLoadingSuggestions, refetch: refetchSuggestions } = useQuery({
-    queryKey: [`/api/forecast/order-suggestions`, { weeksAhead, warehouseId }],
+    queryKey: [`/api/forecast/enhanced-order-suggestions`, { weeksAhead, warehouseId, includeWeather, includeHolidays }],
     enabled: false, // Only fetch when explicitly triggered
   });
   

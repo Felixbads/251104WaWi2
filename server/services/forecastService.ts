@@ -1090,3 +1090,223 @@ export async function updateForecastWithActual(
     return false;
   }
 }
+
+/**
+ * Generiert intelligente Bestellvorschläge basierend auf Prognosen, Wetter und Feiertagen
+ * 
+ * @param warehouseId ID des Lagers
+ * @param weeksAhead Anzahl der Wochen für die Vorhersage (1-8)
+ * @param includeWeather Soll Wetterdaten berücksichtigt werden?
+ * @param includeHolidays Sollen Feiertage berücksichtigt werden?
+ * @returns Bestellvorschläge mit detaillierten Begründungen
+ */
+export async function getEnhancedOrderSuggestions(
+  warehouseId: number,
+  weeksAhead: number = 2,
+  includeWeather: boolean = true,
+  includeHolidays: boolean = true
+): Promise<any> {
+  try {
+    console.log(`Generiere Bestellvorschläge für Lager ${warehouseId}, ${weeksAhead} Wochen voraus`);
+    
+    // Zeitraum berechnen
+    const startDate = new Date();
+    const endDate = addDays(startDate, weeksAhead * 7);
+    const formattedStartDate = format(startDate, 'yyyy-MM-dd');
+    const formattedEndDate = format(endDate, 'yyyy-MM-dd');
+    
+    // Aktuelle Lagerbestände abrufen
+    const inventoryQuery = `
+      SELECT 
+        inv.product_id,
+        p.name as product_name,
+        p.sku,
+        p.supplier_id,
+        s.name as supplier_name,
+        inv.quantity as current_stock,
+        inv.min_stock,
+        inv.max_stock,
+        p.unit_price,
+        COALESCE(pc.minimum_order_quantity, 1) as min_order_qty,
+        COALESCE(pc.price_per_unit, p.unit_price) as purchase_price
+      FROM inventory inv
+      JOIN products p ON inv.product_id = p.id
+      LEFT JOIN suppliers s ON p.supplier_id = s.id
+      LEFT JOIN purchase_conditions pc ON p.id = pc.product_id
+      WHERE inv.warehouse_id = $1 AND inv.quantity IS NOT NULL
+    `;
+    
+    const inventoryResult = await db.execute(sql.raw(inventoryQuery, [warehouseId]));
+    const inventory = inventoryResult.rows;
+    
+    // Prophet-basierte Produktprognosen abrufen
+    const forecastQuery = `
+      SELECT 
+        pf.product_id,
+        SUM(pf.predicted_quantity) as total_predicted_sales,
+        AVG(pf.confidence_interval_lower) as avg_confidence_lower,
+        AVG(pf.confidence_interval_upper) as avg_confidence_upper,
+        COUNT(*) as forecast_days
+      FROM product_forecasts pf
+      WHERE pf.forecast_date BETWEEN $1 AND $2
+        AND pf.product_id IN (
+          SELECT DISTINCT product_id FROM inventory WHERE warehouse_id = $3
+        )
+      GROUP BY pf.product_id
+    `;
+    
+    const forecastResult = await db.execute(sql.raw(forecastQuery, [formattedStartDate, formattedEndDate, warehouseId]));
+    const forecasts = forecastResult.rows;
+    
+    // Wetterdaten für den Zeitraum abrufen (falls gewünscht)
+    let weatherFactors = [];
+    if (includeWeather) {
+      const weatherQuery = `
+        SELECT 
+          date_trunc('day', datetime) as weather_date,
+          AVG(temperature) as avg_temp,
+          AVG(humidity) as avg_humidity,
+          SUM(CASE WHEN weather_condition LIKE '%rain%' OR weather_condition LIKE '%snow%' THEN 1 ELSE 0 END) as bad_weather_hours
+        FROM weather_data
+        WHERE datetime BETWEEN $1 AND $2
+        GROUP BY date_trunc('day', datetime)
+        ORDER BY weather_date
+      `;
+      
+      try {
+        const weatherResult = await db.execute(sql.raw(weatherQuery, [formattedStartDate, formattedEndDate]));
+        weatherFactors = weatherResult.rows;
+      } catch (weatherError) {
+        console.log('Wetterdaten nicht verfügbar, fahre ohne Wetteranpassung fort');
+        weatherFactors = [];
+      }
+    }
+    
+    // Feiertage für den Zeitraum abrufen (falls gewünscht)
+    let holidayFactors = [];
+    if (includeHolidays) {
+      const holidayQuery = `
+        SELECT holiday_date, name, type
+        FROM holidays
+        WHERE holiday_date BETWEEN $1 AND $2
+        ORDER BY holiday_date
+      `;
+      
+      try {
+        const holidayResult = await db.execute(sql.raw(holidayQuery, [formattedStartDate, formattedEndDate]));
+        holidayFactors = holidayResult.rows;
+      } catch (holidayError) {
+        console.log('Feiertagsdaten nicht verfügbar, fahre ohne Feiertagsanpassung fort');
+        holidayFactors = [];
+      }
+    }
+    
+    // Bestellvorschläge generieren
+    const suggestions = [];
+    const weatherAdjustment = weatherFactors.length > 0 ? 
+      weatherFactors.reduce((sum, w) => sum + (w.bad_weather_hours || 0), 0) / weatherFactors.length : 0;
+    const holidayAdjustment = holidayFactors.length * 0.15; // 15% Aufschlag pro Feiertag
+    
+    for (const item of inventory) {
+      const forecast = forecasts.find(f => f.product_id === item.product_id);
+      
+      if (!forecast) continue;
+      
+      const predictedSales = Number(forecast.total_predicted_sales || 0);
+      const confidenceLower = Number(forecast.avg_confidence_lower || 0);
+      const confidenceUpper = Number(forecast.avg_confidence_upper || 0);
+      
+      // Sicherheitsfaktor basierend auf Wetter und Feiertagen
+      let safetyFactor = 1.2; // Basis-Sicherheitspuffer
+      safetyFactor += weatherAdjustment * 0.1; // Wetteranpassung
+      safetyFactor += holidayAdjustment; // Feiertagsanpassung
+      
+      const adjustedDemand = Math.ceil(predictedSales * safetyFactor);
+      const currentStock = Number(item.current_stock || 0);
+      const minStock = Number(item.min_stock || 0);
+      
+      // Bestellmenge berechnen
+      const neededQuantity = Math.max(0, adjustedDemand + minStock - currentStock);
+      const minOrderQty = Number(item.min_order_qty || 1);
+      const suggestedOrderQty = Math.ceil(neededQuantity / minOrderQty) * minOrderQty;
+      
+      if (suggestedOrderQty > 0) {
+        const totalCost = suggestedOrderQty * Number(item.purchase_price || item.unit_price || 0);
+        
+        // Begründung generieren
+        const reasons = [];
+        reasons.push(`Prognostizierte Verkäufe: ${predictedSales.toFixed(1)} Stück`);
+        reasons.push(`Aktueller Bestand: ${currentStock} Stück`);
+        reasons.push(`Sicherheitspuffer: ${((safetyFactor - 1) * 100).toFixed(1)}%`);
+        
+        if (includeWeather && weatherAdjustment > 0) {
+          reasons.push(`Wetteranpassung: +${(weatherAdjustment * 10).toFixed(1)}% (schlechtes Wetter erwartet)`);
+        }
+        
+        if (includeHolidays && holidayFactors.length > 0) {
+          reasons.push(`Feiertagsanpassung: +${(holidayAdjustment * 100).toFixed(1)}% (${holidayFactors.length} Feiertag(e))`);
+        }
+        
+        suggestions.push({
+          productId: item.product_id,
+          productName: item.product_name,
+          sku: item.sku,
+          supplierId: item.supplier_id,
+          supplierName: item.supplier_name,
+          currentStock,
+          minStock,
+          predictedSales: predictedSales.toFixed(1),
+          confidenceRange: `${confidenceLower.toFixed(1)} - ${confidenceUpper.toFixed(1)}`,
+          adjustedDemand,
+          suggestedOrderQty,
+          unitPrice: Number(item.purchase_price || item.unit_price || 0),
+          totalCost: totalCost.toFixed(2),
+          priority: currentStock < minStock ? 'HIGH' : 
+                   currentStock < (minStock + adjustedDemand * 0.5) ? 'MEDIUM' : 'LOW',
+          reasons: reasons,
+          weatherImpact: includeWeather ? (weatherAdjustment * 10).toFixed(1) + '%' : 'Nicht berücksichtigt',
+          holidayImpact: includeHolidays ? (holidayAdjustment * 100).toFixed(1) + '%' : 'Nicht berücksichtigt'
+        });
+      }
+    }
+    
+    // Nach Priorität und dann nach Gesamtkosten sortieren
+    suggestions.sort((a, b) => {
+      const priorityOrder = { HIGH: 3, MEDIUM: 2, LOW: 1 };
+      if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
+        return priorityOrder[b.priority] - priorityOrder[a.priority];
+      }
+      return Number(b.totalCost) - Number(a.totalCost);
+    });
+    
+    // Zusammenfassung erstellen
+    const summary = {
+      totalSuggestions: suggestions.length,
+      totalCost: suggestions.reduce((sum, s) => sum + Number(s.totalCost), 0).toFixed(2),
+      highPriority: suggestions.filter(s => s.priority === 'HIGH').length,
+      mediumPriority: suggestions.filter(s => s.priority === 'MEDIUM').length,
+      lowPriority: suggestions.filter(s => s.priority === 'LOW').length,
+      weatherFactorsIncluded: includeWeather,
+      holidayFactorsIncluded: includeHolidays,
+      forecastPeriod: `${weeksAhead} Wochen (${formattedStartDate} bis ${formattedEndDate})`,
+      upcomingHolidays: holidayFactors.map(h => ({ date: h.holiday_date, name: h.name }))
+    };
+    
+    return {
+      success: true,
+      summary,
+      suggestions,
+      metadata: {
+        warehouseId,
+        weeksAhead,
+        generatedAt: new Date().toISOString(),
+        includeWeather,
+        includeHolidays
+      }
+    };
+    
+  } catch (error) {
+    console.error('Fehler beim Generieren der Bestellvorschläge:', error);
+    throw error;
+  }
+}

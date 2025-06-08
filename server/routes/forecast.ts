@@ -1485,4 +1485,44 @@ export function registerForecastRoutes(app: Express): void {
       res.status(500).json({ error: "Interner Serverfehler" });
     }
   });
+
+  // Enhanced order suggestions with weather and holiday integration
+  app.get(`${API_PREFIX}/forecast/enhanced-order-suggestions`, async (req: Request, res: Response) => {
+    try {
+      const warehouseId = parseInt(req.query.warehouseId as string);
+      const weeksAhead = parseInt(req.query.weeksAhead as string) || 2;
+      const includeWeather = req.query.includeWeather !== 'false';
+      const includeHolidays = req.query.includeHolidays !== 'false';
+
+      if (!warehouseId || warehouseId <= 0) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Gültige Lager-ID ist erforderlich" 
+        });
+      }
+
+      if (weeksAhead < 1 || weeksAhead > 8) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Wochen voraus muss zwischen 1 und 8 liegen" 
+        });
+      }
+
+      const suggestions = await forecastService.getEnhancedOrderSuggestions(
+        warehouseId,
+        weeksAhead,
+        includeWeather,
+        includeHolidays
+      );
+
+      res.json(suggestions);
+    } catch (error) {
+      console.error("Fehler beim Generieren der verbesserten Bestellvorschläge:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Fehler beim Generieren der Bestellvorschläge",
+        error: String(error)
+      });
+    }
+  });
 }

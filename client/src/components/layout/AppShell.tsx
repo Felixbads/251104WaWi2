@@ -43,6 +43,7 @@ export const menuItems = {
     { title: 'Erweiterte Auswertung', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/erweiterte-analyse' },
     { title: 'Prognose', icon: <BarChart2 className="h-5 w-5 mr-3" />, path: '/forecast' },
     { title: 'Prognoseanalyse', icon: <LineChart className="h-5 w-5 mr-3" />, path: '/forecast-evaluation' },
+    { title: 'Umsatzerwartungen', icon: <BarChart4 className="h-5 w-5 mr-3" />, path: '/revenue-expectations' },
   ] as MenuItem[],
   system: [
     { title: 'Synchronisierung', icon: <RefreshCw className="h-5 w-5 mr-3" />, path: '/synchronization' },
