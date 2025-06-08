@@ -1525,4 +1525,65 @@ export function registerForecastRoutes(app: Express): void {
       });
     }
   });
+
+  // Supplier aggregated forecast for multi-warehouse ordering
+  app.get(`${API_PREFIX}/forecast/supplier-analysis`, async (req: Request, res: Response) => {
+    try {
+      const supplierId = parseInt(req.query.supplierId as string);
+      const weeksAhead = parseInt(req.query.weeksAhead as string) || 2;
+      const includeWeather = req.query.includeWeather !== 'false';
+      const includeHolidays = req.query.includeHolidays !== 'false';
+
+      if (!supplierId || supplierId <= 0) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Gültige Lieferanten-ID ist erforderlich" 
+        });
+      }
+
+      if (weeksAhead < 1 || weeksAhead > 8) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Wochen voraus muss zwischen 1 und 8 liegen" 
+        });
+      }
+
+      const { supplierForecastService } = await import("../services/supplierForecastService");
+      const analysis = await supplierForecastService.getSupplierAggregatedForecast(
+        supplierId,
+        weeksAhead,
+        includeWeather,
+        includeHolidays
+      );
+
+      res.json(analysis);
+    } catch (error) {
+      console.error("Fehler bei der Lieferanten-Bedarfsanalyse:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Fehler bei der Lieferanten-Bedarfsanalyse",
+        error: String(error)
+      });
+    }
+  });
+
+  // Get suppliers available for forecast-based ordering
+  app.get(`${API_PREFIX}/forecast/available-suppliers`, async (req: Request, res: Response) => {
+    try {
+      const { supplierForecastService } = await import("../services/supplierForecastService");
+      const suppliers = await supplierForecastService.getAvailableSuppliersForForecast();
+
+      res.json({
+        success: true,
+        suppliers: suppliers
+      });
+    } catch (error) {
+      console.error("Fehler beim Abrufen der verfügbaren Lieferanten:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Fehler beim Abrufen der verfügbaren Lieferanten",
+        error: String(error)
+      });
+    }
+  });
 }
