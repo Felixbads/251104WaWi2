@@ -1570,7 +1570,7 @@ export function registerForecastRoutes(app: Express): void {
   // Get suppliers available for forecast-based ordering
   app.get(`${API_PREFIX}/forecast/available-suppliers`, async (req: Request, res: Response) => {
     try {
-      const { supplierForecastService } = await import("../services/supplierForecastService");
+      const supplierForecastService = await import("../services/supplierForecastService");
       const suppliers = await supplierForecastService.getAvailableSuppliersForForecast();
 
       res.json({
