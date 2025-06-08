@@ -126,6 +126,8 @@ export default function ForecastOrderMode({ onBack, onOrderCreated }: ForecastOr
     enabled: step === 'supplier',
   });
 
+  const suppliersData = (availableSuppliers as any)?.suppliers || [];
+
   const { data: supplierAnalysis, isLoading: loadingAnalysis, refetch: refetchAnalysis } = useQuery({
     queryKey: [`/api/forecast/supplier-analysis?supplierId=${selectedSupplierId}&weeksAhead=${weeksAhead}&includeWeather=${includeWeather}&includeHolidays=${includeHolidays}`],
     enabled: false,
@@ -310,7 +312,7 @@ export default function ForecastOrderMode({ onBack, onOrderCreated }: ForecastOr
             </div>
           ) : (
             <div className="space-y-4">
-              {availableSuppliers?.suppliers?.map((supplier: any) => (
+              {suppliersData?.map((supplier: any) => (
                 <Card 
                   key={supplier.id} 
                   className={`cursor-pointer transition-colors ${
