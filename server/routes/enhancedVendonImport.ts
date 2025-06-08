@@ -77,10 +77,15 @@ router.post('/start', async (req: Request, res: Response) => {
     }
 
     // Create new importer instance
-    enhancedVendonHistoryImporter = new EnhancedVendonHistoryImporter(importConfig);
+    globalEnhancedImporter = new EnhancedVendonHistoryImporter();
 
-    // Start the import process asynchronously
-    const importPromise = enhancedVendonHistoryImporter.startImport();
+    // Start the import process asynchronously with date range
+    const importStartDate = options.startDate || '2022-01-01';
+    const importEndDate = options.endDate || new Date().toISOString().split('T')[0];
+    
+    console.log(`Starting enhanced import from ${importStartDate} to ${importEndDate}`);
+    
+    const importPromise = globalEnhancedImporter.startImport();
 
     // Don't wait for completion, return immediately with status
     res.json({
