@@ -117,11 +117,13 @@ export async function getSupplierAggregatedForecast(
       WHERE id = ${supplierId} AND status = 'active'
     `);
     
-    if (!supplierResult || supplierResult.length === 0) {
+    const suppliers = Array.isArray(supplierResult) ? supplierResult : [supplierResult];
+    
+    if (suppliers.length === 0) {
       throw new Error(`Lieferant ${supplierId} nicht gefunden oder nicht aktiv`);
     }
     
-    const supplier = supplierResult[0] as any;
+    const supplier = suppliers[0] as any;
     
     // Alle Lager finden, die Produkte von diesem Lieferanten haben
     const warehousesResult = await db.execute(sql`
@@ -139,7 +141,7 @@ export async function getSupplierAggregatedForecast(
       ORDER BY product_count DESC
     `);
     
-    const warehouses = warehousesResult as any[];
+    const warehouses = Array.isArray(warehousesResult) ? warehousesResult : [warehousesResult];
     
     if (!warehouses.length) {
       throw new Error(`Keine Lager mit Produkten von Lieferant ${supplier.name} gefunden`);
@@ -149,7 +151,7 @@ export async function getSupplierAggregatedForecast(
     
     // Prognosen für jedes Lager sammeln
     const warehouseAllocations: WarehouseAllocation[] = [];
-    const productMap = new Map<number, ConsolidatedProduct>();
+    const productAggregation = new Map<number, ConsolidatedProduct>();
     
     let totalOrderValue = 0;
     let weatherImpactSum = 0;
@@ -195,8 +197,8 @@ export async function getSupplierAggregatedForecast(
           else urgencyScore += 1;
           
           // Produktaggregation aktualisieren
-          if (productMap.has(suggestion.productId)) {
-            const existing = productMap.get(suggestion.productId)!;
+          if (productAggregation.has(suggestion.productId)) {
+            const existing = productAggregation.get(suggestion.productId)!;
             existing.totalDemand += suggestion.suggestedOrderQty;
             existing.warehouseBreakdown.push({
               warehouseId: warehouse.warehouse_id,
@@ -206,7 +208,7 @@ export async function getSupplierAggregatedForecast(
               suggestedQuantity: suggestion.suggestedOrderQty
             });
           } else {
-            productMap.set(suggestion.productId, {
+            productAggregation.set(suggestion.productId, {
               productId: suggestion.productId,
               productName: suggestion.productName,
               sku: suggestion.sku || '',
@@ -265,38 +267,41 @@ export async function getSupplierAggregatedForecast(
     }
     
     // Konsolidierte Produkte finalisieren
-    const consolidatedProducts: ConsolidatedProduct[] = Array.from(productMap.values());
-    
-    for (const product of consolidatedProducts) {
+    const consolidatedProducts: ConsolidatedProduct[] = [];
+    for (const [productId, product] of productAggregation) {
       // Minimum Order Quantities und Volume Discounts abrufen
-      const productInfoResult = await db.execute(sql`
+      const productInfoQuery = `
         SELECT 
           COALESCE(pc.minimum_order_quantity, 1) as min_order_qty,
           COALESCE(pc.volume_discount_threshold, 0) as volume_threshold,
           COALESCE(pc.volume_discount_percentage, 0) as volume_discount
         FROM products p
         LEFT JOIN purchase_conditions pc ON p.id = pc.product_id
-        WHERE p.id = ${product.productId}
-      `);
+        WHERE p.id = $1
+      `;
       
-      if (productInfoResult && productInfoResult.length > 0) {
-        const productInfo = productInfoResult[0] as any;
+      try {
+        const productInfoResult = await db.execute(sql.raw(productInfoQuery, [productId]));
+        const productInfo = productInfoResult.rows[0];
         
-        product.minOrderQuantity = Number(productInfo.min_order_qty) || 1;
-        
-        // Volume Discount berechnen
-        const volThreshold = Number(productInfo.volume_threshold) || 0;
-        const volDiscount = Number(productInfo.volume_discount) || 0;
-        
-        if (product.totalDemand >= volThreshold && volDiscount > 0) {
-          product.volumeDiscount = volDiscount;
-          product.totalValue *= (1 - volDiscount / 100);
+        if (productInfo) {
+          product.minOrderQuantity = productInfo.min_order_qty;
+          
+          // Volume Discount berechnen
+          if (product.totalDemand >= productInfo.volume_threshold && productInfo.volume_discount > 0) {
+            product.volumeDiscount = productInfo.volume_discount;
+            product.totalValue *= (1 - productInfo.volume_discount / 100);
+          }
+          
+          // Konsolidierte Bestellmenge auf MOQ anpassen
+          product.consolidatedOrderQuantity = Math.ceil(product.totalDemand / product.minOrderQuantity) * product.minOrderQuantity;
+          product.totalValue = product.consolidatedOrderQuantity * product.unitPrice * (1 - product.volumeDiscount / 100);
         }
-        
-        // Konsolidierte Bestellmenge auf MOQ anpassen
-        product.consolidatedOrderQuantity = Math.ceil(product.totalDemand / product.minOrderQuantity) * product.minOrderQuantity;
-        product.totalValue = product.consolidatedOrderQuantity * product.unitPrice * (1 - product.volumeDiscount / 100);
+      } catch (error) {
+        console.error(`Fehler beim Abrufen der Produktinfo für ${productId}:`, error);
       }
+      
+      consolidatedProducts.push(product);
     }
     
     // Lieferplan optimieren
@@ -392,7 +397,7 @@ function calculateConsolidationSavings(
 export async function getAvailableSuppliersForForecast(): Promise<any[]> {
   try {
     // Basis-Lieferanten mit Gesamtstatistiken
-    const suppliersResult = await db.execute(sql`
+    const suppliersQuery = `
       SELECT DISTINCT
         s.id,
         s.name,
@@ -411,13 +416,14 @@ export async function getAvailableSuppliersForForecast(): Promise<any[]> {
       GROUP BY s.id, s.name, s.delivery_terms, s.minimum_order_value
       HAVING COUNT(DISTINCT w.id) > 0
       ORDER BY warehouse_count DESC, product_count DESC
-    `);
+    `;
     
-    const suppliers = suppliersResult as any[];
+    const suppliersResult = await db.execute(sql.raw(suppliersQuery));
+    const suppliers = suppliersResult.rows as any[];
     
     // Für jeden Lieferanten, detaillierte Lager-Bestandsinformationen abrufen
     for (const supplier of suppliers) {
-      const warehouseResult = await db.execute(sql`
+      const warehouseInventoryQuery = `
         SELECT 
           w.id as warehouse_id,
           w.name as warehouse_name,
@@ -430,15 +436,16 @@ export async function getAvailableSuppliersForForecast(): Promise<any[]> {
         FROM warehouses w
         JOIN inventory inv ON w.id = inv.warehouse_id
         JOIN products p ON inv.product_id = p.id
-        WHERE p.supplier_id = ${supplier.id}
+        WHERE p.supplier_id = $1
         GROUP BY w.id, w.name, w.location
         ORDER BY total_stock DESC
-      `);
+      `;
       
-      supplier.warehouse_details = warehouseResult;
+      const warehouseResult = await db.execute(sql.raw(warehouseInventoryQuery, [supplier.id]));
+      supplier.warehouse_details = warehouseResult.rows;
       
       // Top-Produkte dieses Lieferanten mit aktuellen Beständen
-      const topProductsResult = await db.execute(sql`
+      const topProductsQuery = `
         SELECT 
           p.id,
           p.name as product_name,
@@ -448,13 +455,14 @@ export async function getAvailableSuppliersForForecast(): Promise<any[]> {
           COALESCE(AVG(inv.quantity), 0) as avg_stock_per_warehouse
         FROM products p
         LEFT JOIN inventory inv ON p.id = inv.product_id
-        WHERE p.supplier_id = ${supplier.id}
+        WHERE p.supplier_id = $1
         GROUP BY p.id, p.name, p.sku
         ORDER BY total_stock_all_warehouses DESC
         LIMIT 10
-      `);
+      `;
       
-      supplier.top_products = topProductsResult;
+      const topProductsResult = await db.execute(sql.raw(topProductsQuery, [supplier.id]));
+      supplier.top_products = topProductsResult.rows;
     }
     
     return suppliers;
