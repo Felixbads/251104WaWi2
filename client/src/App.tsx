@@ -99,6 +99,7 @@ import WarehouseMovement from "@/pages/WarehouseMovement";
 import LagerbestandPage from "@/pages/LagerbestandPage";
 import SustainableVending from "@/pages/SustainableVending";
 import WeatherDataOverview from "@/pages/WeatherDataOverview";
+import WeatherVisualization from "@/pages/WeatherVisualization";
 import HolidaysVacationsOverview from "@/pages/HolidaysVacationsOverview";
 import DatabaseManager from "@/pages/DatabaseManager";
 import CriticalInventory from "@/pages/CriticalInventory";

@@ -39,7 +39,7 @@ router.get('/bad-schandau-data', async (req, res) => {
 // Get daily aggregated weather data for visualization
 router.get('/daily-aggregated', async (req, res) => {
   try {
-    const result = await db.query(`
+    const result = await pool.query(`
       SELECT 
         date,
         COUNT(*) as record_count,
@@ -67,7 +67,7 @@ router.get('/daily-aggregated', async (req, res) => {
 // Get weather data overview statistics
 router.get('/overview', async (req, res) => {
   try {
-    const overviewResult = await db.query(`
+    const overviewResult = await pool.query(`
       SELECT 
         COUNT(*) as total_data_points,
         COUNT(DISTINCT date) as unique_days,
@@ -82,7 +82,7 @@ router.get('/overview', async (req, res) => {
       WHERE station_name = 'Bad Schandau'
     `);
 
-    const sourceBreakdown = await db.query(`
+    const sourceBreakdown = await pool.query(`
       SELECT 
         source,
         COUNT(*) as records,
@@ -108,7 +108,7 @@ router.get('/overview', async (req, res) => {
 // Get yearly statistics
 router.get('/yearly-stats', async (req, res) => {
   try {
-    const result = await db.query(`
+    const result = await pool.query(`
       SELECT 
         EXTRACT(YEAR FROM date::date) as year,
         COUNT(*) as records,
@@ -158,7 +158,7 @@ router.get('/daily-coverage', async (req, res) => {
     
     query += ` GROUP BY date, source ORDER BY date DESC`;
     
-    const result = await db.query(query, params);
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching daily coverage:', error);
@@ -171,7 +171,7 @@ router.get('/hourly/:date', async (req, res) => {
   try {
     const { date } = req.params;
     
-    const result = await db.query(`
+    const result = await pool.query(`
       SELECT 
         hour,
         temp,
