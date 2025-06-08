@@ -391,29 +391,63 @@ function calculateConsolidationSavings(
  */
 export async function getAvailableSuppliersForForecast(): Promise<any[]> {
   try {
-    // Basis-Lieferanten mit Gesamtstatistiken
+    // Basis-Lieferanten mit Gesamtstatistiken - simplified approach
     const suppliersResult = await db.execute(sql`
       SELECT DISTINCT
         s.id,
         s.name,
         s.delivery_terms,
-        s.minimum_order_value,
-        COUNT(DISTINCT w.id) as warehouse_count,
-        COUNT(DISTINCT p.id) as product_count,
-        COALESCE(SUM(inv.quantity), 0) as total_inventory,
-        COALESCE(AVG(inv.quantity), 0) as avg_inventory_per_product
+        s.minimum_order_value
       FROM suppliers s
       JOIN products p ON s.id = p.supplier_id
-      JOIN inventory_items inv ON p.id = inv.product_id
-      JOIN warehouses w ON inv.warehouse_id = w.id
-      WHERE s.status = 'active' 
-        AND inv.quantity IS NOT NULL
-      GROUP BY s.id, s.name, s.delivery_terms, s.minimum_order_value
-      HAVING COUNT(DISTINCT w.id) > 0
-      ORDER BY warehouse_count DESC, product_count DESC
+      WHERE s.status = 'active'
+      ORDER BY s.name
+      LIMIT 10
     `);
     
-    const suppliers = suppliersResult as any[];
+    console.log('Raw suppliers result:', JSON.stringify(suppliersResult, null, 2));
+    
+    // Convert to array format compatible with iteration
+    const suppliers = Array.isArray(suppliersResult) ? suppliersResult : Object.values(suppliersResult);
+    
+    console.log('Converted suppliers:', suppliers);
+    console.log('Suppliers array length:', suppliers.length);
+    
+    if (!suppliers || suppliers.length === 0) {
+      console.log('Keine Lieferanten gefunden');
+      return [];
+    }
+    
+    // Add warehouse statistics separately for each supplier
+    const enrichedSuppliers = [];
+    
+    for (let i = 0; i < suppliers.length; i++) {
+      const supplier = suppliers[i];
+      console.log(`Processing supplier ${i}:`, supplier);
+      
+      // Get warehouse count for this supplier
+      const warehouseCountResult = await db.execute(sql`
+        SELECT COUNT(DISTINCT w.id) as warehouse_count
+        FROM warehouses w
+        JOIN inventory_items inv ON w.id = inv.warehouse_id
+        JOIN products p ON inv.product_id = p.id
+        WHERE p.supplier_id = ${supplier.id}
+      `);
+      
+      const warehouseCount = Array.isArray(warehouseCountResult) ? 
+        warehouseCountResult[0]?.warehouse_count || 0 : 
+        warehouseCountResult.warehouse_count || 0;
+        
+      enrichedSuppliers.push({
+        ...supplier,
+        warehouse_count: warehouseCount,
+        product_count: 0,
+        total_inventory: 0,
+        avg_inventory_per_product: 0,
+        warehouse_details: [],
+        top_products: []
+      });
+    }
     
     // Für jeden Lieferanten, detaillierte Lager-Bestandsinformationen abrufen
     for (const supplier of suppliers) {
@@ -435,7 +469,7 @@ export async function getAvailableSuppliersForForecast(): Promise<any[]> {
         ORDER BY total_stock DESC
       `);
       
-      supplier.warehouse_details = warehouseResult;
+      supplier.warehouse_details = warehouseResult.rows || warehouseResult;
       
       // Top-Produkte dieses Lieferanten mit aktuellen Beständen
       const topProductsResult = await db.execute(sql`
@@ -454,7 +488,7 @@ export async function getAvailableSuppliersForForecast(): Promise<any[]> {
         LIMIT 10
       `);
       
-      supplier.top_products = topProductsResult;
+      supplier.top_products = topProductsResult.rows || topProductsResult;
     }
     
     return suppliers;
