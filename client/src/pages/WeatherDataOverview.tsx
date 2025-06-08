@@ -183,7 +183,7 @@ export default function WeatherDataOverview() {
                     <div className="ml-4">
                       <p className="text-sm font-medium text-gray-600">Gesamt Datenpunkte</p>
                       <p className="text-2xl font-bold text-gray-900">
-                        {weatherOverview.totalDataPoints?.toLocaleString('de-DE') || 0}
+                        {weatherOverview.overview?.total_data_points ? parseInt(weatherOverview.overview.total_data_points).toLocaleString('de-DE') : '0'}
                       </p>
                     </div>
                   </div>
@@ -197,7 +197,7 @@ export default function WeatherDataOverview() {
                     <div className="ml-4">
                       <p className="text-sm font-medium text-gray-600">Durchschnittstemperatur</p>
                       <p className="text-2xl font-bold text-gray-900">
-                        {weatherOverview.avgTemperature ? formatTemperature(weatherOverview.avgTemperature) : 'N/A'}
+                        {weatherOverview.overview?.overall_avg_temp ? formatTemperature(parseFloat(weatherOverview.overview.overall_avg_temp)) : 'N/A'}
                       </p>
                     </div>
                   </div>
@@ -211,7 +211,7 @@ export default function WeatherDataOverview() {
                     <div className="ml-4">
                       <p className="text-sm font-medium text-gray-600">Niederschlag gesamt</p>
                       <p className="text-2xl font-bold text-gray-900">
-                        {weatherOverview.totalPrecipitation ? formatPrecipitation(weatherOverview.totalPrecipitation) : 'N/A'}
+                        {weatherOverview.overview?.total_precipitation ? formatPrecipitation(parseFloat(weatherOverview.overview.total_precipitation)) : 'N/A'}
                       </p>
                     </div>
                   </div>
