@@ -413,6 +413,12 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
 
+        <Route path="/datenverfuegbarkeit/wetter-visualisierung" component={props => (
+          <ApprovedUserRoute>
+            <WeatherVisualization {...props} />
+          </ApprovedUserRoute>
+        )} />
+
         <Route path="/datenverfuegbarkeit/feiertage" component={props => (
           <ApprovedUserRoute>
             <HolidaysVacationsOverview {...props} />
