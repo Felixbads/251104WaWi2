@@ -7,12 +7,12 @@ interface WeatherData {
   date: string;
   hour: number;
   temp: number;
-  temp_min: number;
-  temp_max: number;
-  precipitation: number;
+  temp_min: number | null;
+  temp_max: number | null;
+  precipitation: number | null;
   sunshine?: number;
-  humidity: number;
-  pressure: number;
+  humidity: string | number;
+  pressure: string | number;
   source: string;
 }
 
@@ -55,8 +55,10 @@ export default function WeatherVisualization() {
         
         acc[date].temps.push(record.temp);
         acc[date].precipitation += record.precipitation || 0;
-        acc[date].humidity.push(record.humidity);
-        acc[date].pressure.push(record.pressure);
+        const humidityValue = typeof record.humidity === 'string' ? parseFloat(record.humidity) : record.humidity || 0;
+        const pressureValue = typeof record.pressure === 'string' ? parseFloat(record.pressure) : record.pressure || 0;
+        acc[date].humidity.push(humidityValue);
+        acc[date].pressure.push(pressureValue);
         acc[date].recordCount++;
         
         return acc;
