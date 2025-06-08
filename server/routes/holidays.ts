@@ -1,5 +1,8 @@
 import express, { Request, Response } from 'express';
 import { holidayService, syncMissingHolidays } from '../services/holidayService';
+import { syncComprehensiveHolidays, syncMultipleYears } from '../services/comprehensiveHolidaySync';
+import { db } from '../db';
+import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 const router = express.Router();
@@ -447,49 +450,324 @@ router.post('/sync-school', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/holidays/comprehensive
+ * GET /api/holidays/comprehensive/:year
  * Get comprehensive holidays and school holidays data for table view
  */
 router.get('/comprehensive/:year', async (req, res) => {
   try {
     const year = parseInt(req.params.year);
     
-    // Get all holidays for the year
-    const holidaysQuery = sql`
-      SELECT 
-        date,
-        name,
-        'public_holiday' as type,
-        state
-      FROM holidays
+    // State mapping from short codes to full names used in database
+    const stateMapping: { [key: string]: string } = {
+      'BW': 'baden_wuerttemberg',
+      'BY': 'bayern', 
+      'BE': 'berlin',
+      'BB': 'brandenburg',
+      'HB': 'bremen',
+      'HH': 'hamburg',
+      'HE': 'hessen',
+      'MV': 'mecklenburg_vorpommern',
+      'NI': 'niedersachsen',
+      'NW': 'nordrhein_westfalen',
+      'RP': 'rheinland_pfalz',
+      'SL': 'saarland',
+      'SN': 'sachsen',
+      'ST': 'sachsen_anhalt',
+      'SH': 'schleswig_holstein',
+      'TH': 'thueringen'
+    };
+    
+    const holidays = [];
+    
+    // Check if calendar_overview has data
+    const calendarOverviewQuery = sql`
+      SELECT date, day_type, 
+        baden_wuerttemberg_status, baden_wuerttemberg_holiday_name, baden_wuerttemberg_is_school_holiday, baden_wuerttemberg_is_public_holiday,
+        bayern_status, bayern_holiday_name, bayern_is_school_holiday, bayern_is_public_holiday,
+        berlin_status, berlin_holiday_name, berlin_is_school_holiday, berlin_is_public_holiday,
+        brandenburg_status, brandenburg_holiday_name, brandenburg_is_school_holiday, brandenburg_is_public_holiday,
+        bremen_status, bremen_holiday_name, bremen_is_school_holiday, bremen_is_public_holiday,
+        hamburg_status, hamburg_holiday_name, hamburg_is_school_holiday, hamburg_is_public_holiday,
+        hessen_status, hessen_holiday_name, hessen_is_school_holiday, hessen_is_public_holiday,
+        mecklenburg_vorpommern_status, mecklenburg_vorpommern_holiday_name, mecklenburg_vorpommern_is_school_holiday, mecklenburg_vorpommern_is_public_holiday,
+        niedersachsen_status, niedersachsen_holiday_name, niedersachsen_is_school_holiday, niedersachsen_is_public_holiday,
+        nordrhein_westfalen_status, nordrhein_westfalen_holiday_name, nordrhein_westfalen_is_school_holiday, nordrhein_westfalen_is_public_holiday,
+        rheinland_pfalz_status, rheinland_pfalz_holiday_name, rheinland_pfalz_is_school_holiday, rheinland_pfalz_is_public_holiday,
+        saarland_status, saarland_holiday_name, saarland_is_school_holiday, saarland_is_public_holiday,
+        sachsen_status, sachsen_holiday_name, sachsen_is_school_holiday, sachsen_is_public_holiday,
+        sachsen_anhalt_status, sachsen_anhalt_holiday_name, sachsen_anhalt_is_school_holiday, sachsen_anhalt_is_public_holiday,
+        schleswig_holstein_status, schleswig_holstein_holiday_name, schleswig_holstein_is_school_holiday, schleswig_holstein_is_public_holiday,
+        thueringen_status, thueringen_holiday_name, thueringen_is_school_holiday, thueringen_is_public_holiday
+      FROM calendar_overview
       WHERE EXTRACT(YEAR FROM date) = ${year}
-      
-      UNION ALL
-      
-      SELECT 
-        start_date as date,
-        name,
-        'school_holiday' as type,
-        state
-      FROM school_holidays
-      WHERE EXTRACT(YEAR FROM start_date) = ${year}
-      
-      ORDER BY date, state
+      ORDER BY date
     `;
     
-    const result = await db.execute(holidaysQuery);
+    const calendarOverviewResult = await db.execute(calendarOverviewQuery);
     
-    const holidays = result.map(row => ({
-      date: row.date,
-      name: row.name,
-      type: row.type,
-      state: row.state
-    }));
+    if (calendarOverviewResult.length > 0) {
+      // Use calendar_overview data
+      for (const row of calendarOverviewResult) {
+        // Check each state for holidays or school holidays
+        Object.entries(stateMapping).forEach(([shortCode, fullName]) => {
+          const isPublicHoliday = row[`${fullName}_is_public_holiday`];
+          const isSchoolHoliday = row[`${fullName}_is_school_holiday`];
+          const holidayName = row[`${fullName}_holiday_name`];
+          
+          if (isPublicHoliday && holidayName) {
+            holidays.push({
+              date: row.date,
+              name: holidayName,
+              type: 'public_holiday',
+              state: shortCode
+            });
+          }
+          
+          if (isSchoolHoliday && holidayName) {
+            holidays.push({
+              date: row.date,
+              name: holidayName,
+              type: 'school_holiday', 
+              state: shortCode
+            });
+          }
+        });
+      }
+    } else {
+      // Fallback to holidays table if calendar_overview is empty
+      const holidaysQuery = sql`
+        SELECT 
+          date,
+          name,
+          'public_holiday' as type,
+          state
+        FROM holidays
+        WHERE EXTRACT(YEAR FROM date) = ${year}
+        ORDER BY date, state
+      `;
+      
+      const result = await db.execute(holidaysQuery);
+      holidays.push(...result.map(row => ({
+        date: row.date,
+        name: row.name,
+        type: row.type,
+        state: row.state
+      })));
+    }
     
     res.json(holidays);
   } catch (error) {
     console.error('Error fetching comprehensive holidays:', error);
     res.status(500).json({ error: 'Failed to fetch comprehensive holidays data' });
+  }
+});
+
+/**
+ * POST /api/holidays/sync-comprehensive
+ * Comprehensive holiday synchronization for all German federal states
+ */
+router.post('/sync-comprehensive', async (req: Request, res: Response) => {
+  try {
+    const { 
+      year = new Date().getFullYear(),
+      startYear,
+      endYear
+    } = req.body;
+    
+    console.log('Starting comprehensive holiday synchronization...');
+    
+    let result;
+    
+    if (startYear && endYear) {
+      // Sync multiple years
+      console.log(`Syncing holidays for years ${startYear}-${endYear}`);
+      result = await syncMultipleYears(startYear, endYear);
+    } else {
+      // Sync single year
+      console.log(`Syncing holidays for year ${year}`);
+      const singleYearResult = await syncComprehensiveHolidays(year);
+      result = {
+        success: singleYearResult.success,
+        results: { [year]: singleYearResult },
+        totalHolidays: singleYearResult.addedHolidays,
+        totalCalendarDays: singleYearResult.addedCalendarDays
+      };
+    }
+    
+    console.log('Comprehensive holiday synchronization completed');
+    
+    return res.json({
+      success: result.success,
+      message: 'Comprehensive holiday synchronization completed',
+      data: {
+        totalHolidays: result.totalHolidays,
+        totalCalendarDays: result.totalCalendarDays,
+        results: result.results
+      }
+    });
+  } catch (error) {
+    console.error('Error in comprehensive holiday sync:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Fehler bei der umfassenden Feiertags-Synchronisierung',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+/**
+ * GET /api/holidays/analysis
+ * Get holiday analysis and statistics
+ */
+router.get('/analysis/:year', async (req: Request, res: Response) => {
+  try {
+    const year = parseInt(req.params.year);
+    
+    // Get statistics from calendar_overview
+    const statsQuery = sql`
+      SELECT 
+        COUNT(*) as total_days,
+        COUNT(CASE WHEN is_public_holiday = true THEN 1 END) as public_holiday_days,
+        COUNT(CASE WHEN is_school_holiday = true THEN 1 END) as school_holiday_days,
+        COUNT(CASE WHEN is_weekend = true THEN 1 END) as weekend_days,
+        COUNT(CASE WHEN day_type = 'WORKDAY' THEN 1 END) as work_days
+      FROM calendar_overview
+      WHERE year = ${year}
+    `;
+    
+    const statsResult = await db.execute(statsQuery);
+    const stats = statsResult[0];
+    
+    // Get state-wise holiday counts
+    const stateStatsQuery = sql`
+      SELECT 
+        'BW' as state, COUNT(CASE WHEN baden_wuerttemberg_is_public_holiday = true THEN 1 END) as public_holidays,
+        COUNT(CASE WHEN baden_wuerttemberg_is_school_holiday = true THEN 1 END) as school_holidays
+      FROM calendar_overview WHERE year = ${year}
+      
+      UNION ALL
+      
+      SELECT 
+        'BY' as state, COUNT(CASE WHEN bayern_is_public_holiday = true THEN 1 END) as public_holidays,
+        COUNT(CASE WHEN bayern_is_school_holiday = true THEN 1 END) as school_holidays
+      FROM calendar_overview WHERE year = ${year}
+      
+      UNION ALL
+      
+      SELECT 
+        'BE' as state, COUNT(CASE WHEN berlin_is_public_holiday = true THEN 1 END) as public_holidays,
+        COUNT(CASE WHEN berlin_is_school_holiday = true THEN 1 END) as school_holidays
+      FROM calendar_overview WHERE year = ${year}
+      
+      UNION ALL
+      
+      SELECT 
+        'BB' as state, COUNT(CASE WHEN brandenburg_is_public_holiday = true THEN 1 END) as public_holidays,
+        COUNT(CASE WHEN brandenburg_is_school_holiday = true THEN 1 END) as school_holidays
+      FROM calendar_overview WHERE year = ${year}
+      
+      UNION ALL
+      
+      SELECT 
+        'HB' as state, COUNT(CASE WHEN bremen_is_public_holiday = true THEN 1 END) as public_holidays,
+        COUNT(CASE WHEN bremen_is_school_holiday = true THEN 1 END) as school_holidays
+      FROM calendar_overview WHERE year = ${year}
+      
+      UNION ALL
+      
+      SELECT 
+        'HH' as state, COUNT(CASE WHEN hamburg_is_public_holiday = true THEN 1 END) as public_holidays,
+        COUNT(CASE WHEN hamburg_is_school_holiday = true THEN 1 END) as school_holidays
+      FROM calendar_overview WHERE year = ${year}
+      
+      UNION ALL
+      
+      SELECT 
+        'HE' as state, COUNT(CASE WHEN hessen_is_public_holiday = true THEN 1 END) as public_holidays,
+        COUNT(CASE WHEN hessen_is_school_holiday = true THEN 1 END) as school_holidays
+      FROM calendar_overview WHERE year = ${year}
+      
+      UNION ALL
+      
+      SELECT 
+        'MV' as state, COUNT(CASE WHEN mecklenburg_vorpommern_is_public_holiday = true THEN 1 END) as public_holidays,
+        COUNT(CASE WHEN mecklenburg_vorpommern_is_school_holiday = true THEN 1 END) as school_holidays
+      FROM calendar_overview WHERE year = ${year}
+      
+      UNION ALL
+      
+      SELECT 
+        'NI' as state, COUNT(CASE WHEN niedersachsen_is_public_holiday = true THEN 1 END) as public_holidays,
+        COUNT(CASE WHEN niedersachsen_is_school_holiday = true THEN 1 END) as school_holidays
+      FROM calendar_overview WHERE year = ${year}
+      
+      UNION ALL
+      
+      SELECT 
+        'NW' as state, COUNT(CASE WHEN nordrhein_westfalen_is_public_holiday = true THEN 1 END) as public_holidays,
+        COUNT(CASE WHEN nordrhein_westfalen_is_school_holiday = true THEN 1 END) as school_holidays
+      FROM calendar_overview WHERE year = ${year}
+      
+      UNION ALL
+      
+      SELECT 
+        'RP' as state, COUNT(CASE WHEN rheinland_pfalz_is_public_holiday = true THEN 1 END) as public_holidays,
+        COUNT(CASE WHEN rheinland_pfalz_is_school_holiday = true THEN 1 END) as school_holidays
+      FROM calendar_overview WHERE year = ${year}
+      
+      UNION ALL
+      
+      SELECT 
+        'SL' as state, COUNT(CASE WHEN saarland_is_public_holiday = true THEN 1 END) as public_holidays,
+        COUNT(CASE WHEN saarland_is_school_holiday = true THEN 1 END) as school_holidays
+      FROM calendar_overview WHERE year = ${year}
+      
+      UNION ALL
+      
+      SELECT 
+        'SN' as state, COUNT(CASE WHEN sachsen_is_public_holiday = true THEN 1 END) as public_holidays,
+        COUNT(CASE WHEN sachsen_is_school_holiday = true THEN 1 END) as school_holidays
+      FROM calendar_overview WHERE year = ${year}
+      
+      UNION ALL
+      
+      SELECT 
+        'ST' as state, COUNT(CASE WHEN sachsen_anhalt_is_public_holiday = true THEN 1 END) as public_holidays,
+        COUNT(CASE WHEN sachsen_anhalt_is_school_holiday = true THEN 1 END) as school_holidays
+      FROM calendar_overview WHERE year = ${year}
+      
+      UNION ALL
+      
+      SELECT 
+        'SH' as state, COUNT(CASE WHEN schleswig_holstein_is_public_holiday = true THEN 1 END) as public_holidays,
+        COUNT(CASE WHEN schleswig_holstein_is_school_holiday = true THEN 1 END) as school_holidays
+      FROM calendar_overview WHERE year = ${year}
+      
+      UNION ALL
+      
+      SELECT 
+        'TH' as state, COUNT(CASE WHEN thueringen_is_public_holiday = true THEN 1 END) as public_holidays,
+        COUNT(CASE WHEN thueringen_is_school_holiday = true THEN 1 END) as school_holidays
+      FROM calendar_overview WHERE year = ${year}
+    `;
+    
+    const stateStatsResult = await db.execute(stateStatsQuery);
+    
+    return res.json({
+      success: true,
+      data: {
+        year,
+        overview: stats,
+        stateStats: stateStatsResult
+      }
+    });
+  } catch (error) {
+    console.error('Error getting holiday analysis:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Fehler bei der Feiertags-Analyse',
+      details: error instanceof Error ? error.message : String(error)
+    });
   }
 });
 

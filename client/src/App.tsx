@@ -101,6 +101,7 @@ import SustainableVending from "@/pages/SustainableVending";
 import WeatherDataOverview from "@/pages/WeatherDataOverview";
 import WeatherVisualization from "@/pages/WeatherVisualization";
 import HolidaysVacationsOverview from "@/pages/HolidaysVacationsOverview";
+import HolidayAnalysisDashboard from "@/pages/HolidayAnalysisDashboard";
 import DatabaseManager from "@/pages/DatabaseManager";
 import CriticalInventory from "@/pages/CriticalInventory";
 import Ruecklaufer from "@/pages/Ruecklaufer";
