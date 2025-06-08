@@ -117,12 +117,20 @@ export async function getSupplierAggregatedForecast(
       WHERE id = $1 AND status = 'active'
     `;
     
-    const supplierResult = await db.execute(sql.raw(supplierQuery, [supplierId]));
-    if (!supplierResult.rows.length) {
+    const supplierQuery = sql`
+      SELECT id, name, delivery_terms, minimum_order_value
+      FROM suppliers 
+      WHERE id = ${supplierId} AND status = 'active'
+    `;
+    
+    const supplierResult = await db.execute(supplierQuery);
+    const suppliers = Array.isArray(supplierResult) ? supplierResult : [supplierResult];
+    
+    if (suppliers.length === 0) {
       throw new Error(`Lieferant ${supplierId} nicht gefunden oder nicht aktiv`);
     }
     
-    const supplier = supplierResult.rows[0] as any;
+    const supplier = suppliers[0] as any;
     
     // Alle Lager finden, die Produkte von diesem Lieferanten haben
     const warehousesQuery = `
@@ -140,8 +148,22 @@ export async function getSupplierAggregatedForecast(
       ORDER BY product_count DESC
     `;
     
-    const warehousesResult = await db.execute(sql.raw(warehousesQuery, [supplierId]));
-    const warehouses = warehousesResult.rows;
+    const warehousesResult = await db.execute(sql`
+      SELECT DISTINCT 
+        w.id as warehouse_id,
+        w.name as warehouse_name,
+        w.location as location_name,
+        COUNT(DISTINCT inv.product_id) as product_count
+      FROM warehouses w
+      JOIN inventory inv ON w.id = inv.warehouse_id
+      JOIN products p ON inv.product_id = p.id
+      WHERE p.supplier_id = ${supplierId}
+        AND inv.quantity IS NOT NULL
+      GROUP BY w.id, w.name, w.location
+      ORDER BY product_count DESC
+    `);
+    
+    const warehouses = warehousesResult as any[];
     
     if (!warehouses.length) {
       throw new Error(`Keine Lager mit Produkten von Lieferant ${supplier.name} gefunden`);
@@ -392,10 +414,12 @@ function calculateConsolidationSavings(
 
 /**
  * Holt alle aktiven Lieferanten, die für Forecast-Bestellungen verfügbar sind
+ * Inkl. detaillierter Bestandsinformationen pro Lager
  */
 export async function getAvailableSuppliersForForecast(): Promise<any[]> {
   try {
-    const query = `
+    // Basis-Lieferanten mit Gesamtstatistiken
+    const suppliersQuery = `
       SELECT DISTINCT
         s.id,
         s.name,
@@ -403,21 +427,67 @@ export async function getAvailableSuppliersForForecast(): Promise<any[]> {
         s.minimum_order_value,
         COUNT(DISTINCT w.id) as warehouse_count,
         COUNT(DISTINCT p.id) as product_count,
-        SUM(inv.quantity) as total_inventory
+        COALESCE(SUM(inv.quantity), 0) as total_inventory,
+        COALESCE(AVG(inv.quantity), 0) as avg_inventory_per_product
       FROM suppliers s
       JOIN products p ON s.id = p.supplier_id
       JOIN inventory inv ON p.id = inv.product_id
       JOIN warehouses w ON inv.warehouse_id = w.id
       WHERE s.status = 'active' 
         AND inv.quantity IS NOT NULL
-        AND inv.quantity > 0
       GROUP BY s.id, s.name, s.delivery_terms, s.minimum_order_value
       HAVING COUNT(DISTINCT w.id) > 0
       ORDER BY warehouse_count DESC, product_count DESC
     `;
     
-    const result = await db.execute(sql.raw(query));
-    return result.rows;
+    const suppliersResult = await db.execute(sql.raw(suppliersQuery));
+    const suppliers = suppliersResult.rows as any[];
+    
+    // Für jeden Lieferanten, detaillierte Lager-Bestandsinformationen abrufen
+    for (const supplier of suppliers) {
+      const warehouseInventoryQuery = `
+        SELECT 
+          w.id as warehouse_id,
+          w.name as warehouse_name,
+          w.location as warehouse_location,
+          COUNT(DISTINCT p.id) as product_count,
+          COALESCE(SUM(inv.quantity), 0) as total_stock,
+          COALESCE(AVG(inv.quantity), 0) as avg_stock_per_product,
+          COUNT(CASE WHEN inv.quantity <= 5 THEN 1 END) as low_stock_products,
+          COUNT(CASE WHEN inv.quantity = 0 THEN 1 END) as out_of_stock_products
+        FROM warehouses w
+        JOIN inventory inv ON w.id = inv.warehouse_id
+        JOIN products p ON inv.product_id = p.id
+        WHERE p.supplier_id = $1
+        GROUP BY w.id, w.name, w.location
+        ORDER BY total_stock DESC
+      `;
+      
+      const warehouseResult = await db.execute(sql.raw(warehouseInventoryQuery, [supplier.id]));
+      supplier.warehouse_details = warehouseResult.rows;
+      
+      // Top-Produkte dieses Lieferanten mit aktuellen Beständen
+      const topProductsQuery = `
+        SELECT 
+          p.id,
+          p.name as product_name,
+          p.sku,
+          COALESCE(SUM(inv.quantity), 0) as total_stock_all_warehouses,
+          COUNT(inv.warehouse_id) as warehouses_with_stock,
+          COALESCE(AVG(inv.quantity), 0) as avg_stock_per_warehouse
+        FROM products p
+        LEFT JOIN inventory inv ON p.id = inv.product_id
+        WHERE p.supplier_id = $1
+        GROUP BY p.id, p.name, p.sku
+        ORDER BY total_stock_all_warehouses DESC
+        LIMIT 10
+      `;
+      
+      const topProductsResult = await db.execute(sql.raw(topProductsQuery, [supplier.id]));
+      supplier.top_products = topProductsResult.rows;
+    }
+    
+    return suppliers;
   } catch (error) {
     console.error('Fehler beim Abrufen der Lieferanten für Forecast-Bestellungen:', error);
     throw error;

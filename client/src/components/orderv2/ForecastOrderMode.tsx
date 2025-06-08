@@ -319,23 +319,73 @@ export default function ForecastOrderMode({ onBack, onOrderCreated }: ForecastOr
                   onClick={() => setSelectedSupplierId(supplier.id)}
                 >
                   <CardContent className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-medium">{supplier.name}</h3>
-                        <p className="text-sm text-gray-600">
-                          {supplier.warehouse_count} Lager • {supplier.product_count} Produkte
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          Gesamtbestand: {supplier.total_inventory} Einheiten
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        {supplier.minimum_order_value && (
+                    <div className="space-y-4">
+                      {/* Supplier Header */}
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-medium text-lg">{supplier.name}</h3>
                           <p className="text-sm text-gray-600">
-                            Min. Bestellwert: €{supplier.minimum_order_value}
+                            {supplier.warehouse_count} Lager • {supplier.product_count} Produkte
                           </p>
-                        )}
+                          <p className="text-sm text-gray-500">
+                            Gesamtbestand: {supplier.total_inventory} Einheiten
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          {supplier.minimum_order_value && (
+                            <p className="text-sm text-gray-600">
+                              Min. Bestellwert: €{supplier.minimum_order_value}
+                            </p>
+                          )}
+                        </div>
                       </div>
+
+                      {/* Warehouse Inventory Details */}
+                      {supplier.warehouse_details && supplier.warehouse_details.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-medium mb-2 text-gray-700">Lagerbestände:</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                            {supplier.warehouse_details.map((warehouse: any) => (
+                              <div key={warehouse.warehouse_id} className="bg-gray-50 p-2 rounded text-xs">
+                                <div className="font-medium">{warehouse.warehouse_name}</div>
+                                <div className="text-gray-600">{warehouse.warehouse_location}</div>
+                                <div className="flex justify-between mt-1">
+                                  <span>Bestand: {warehouse.total_stock}</span>
+                                  <span className="text-gray-500">{warehouse.product_count} Produkte</span>
+                                </div>
+                                {warehouse.low_stock_products > 0 && (
+                                  <div className="text-orange-600 mt-1">
+                                    {warehouse.low_stock_products} niedrige Bestände
+                                  </div>
+                                )}
+                                {warehouse.out_of_stock_products > 0 && (
+                                  <div className="text-red-600 mt-1">
+                                    {warehouse.out_of_stock_products} ausverkauft
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Top Products Preview */}
+                      {supplier.top_products && supplier.top_products.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-medium mb-2 text-gray-700">Top-Produkte:</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {supplier.top_products.slice(0, 4).map((product: any) => (
+                              <div key={product.id} className="bg-blue-50 p-2 rounded text-xs">
+                                <div className="font-medium truncate">{product.product_name}</div>
+                                <div className="flex justify-between text-gray-600">
+                                  <span>Gesamt: {product.total_stock_all_warehouses}</span>
+                                  <span>{product.warehouses_with_stock} Lager</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
