@@ -7,48 +7,34 @@ const router = Router();
 // Get all suppliers with analytics overview
 router.get('/overview', async (req, res) => {
   try {
-    const currentYear = new Date().getFullYear();
-    const currentYearStart = new Date(currentYear, 0, 1);
-    
+    // Simple query to get all suppliers with basic analytics
     const overviewQuery = `
-      WITH supplier_analytics AS (
-        SELECT 
-          s.id,
-          s.name,
-          s.status,
-          s.city,
-          s.email,
-          s.phone,
-          s.contact_person,
-          COUNT(DISTINCT pc.product_id) as products_count,
-          COUNT(DISTINCT t.id) as current_year_sales,
-          COALESCE(SUM(t.price), 0) as current_year_revenue,
-          COUNT(DISTINCT CASE WHEN i.quantity <= COALESCE(i.minimum_stock, 5) THEN i.product_id END) as low_stock_count,
-          COUNT(DISTINCT CASE WHEN t.datetime >= NOW() - INTERVAL '30 days' THEN t.id END) as recent_sales,
-          COALESCE(SUM(CASE WHEN t.datetime >= NOW() - INTERVAL '30 days' THEN t.price END), 0) as recent_revenue
-        FROM suppliers s
-        LEFT JOIN purchase_conditions pc ON s.id = pc.supplier_id
-        LEFT JOIN products p ON pc.product_id = p.id
-        LEFT JOIN transactions t ON (
-          LOWER(TRIM(t.product_name)) = LOWER(TRIM(p.product_name)) OR
-          LOWER(TRIM(t.product_name)) = LOWER(TRIM(p.article)) OR
-          LOWER(TRIM(t.product_name)) = LOWER(TRIM(p.sku))
-        ) AND t.datetime >= $1
-        LEFT JOIN inventory i ON p.id = i.product_id
-        GROUP BY s.id, s.name, s.status, s.city, s.email, s.phone, s.contact_person
-      )
-      SELECT * FROM supplier_analytics
-      ORDER BY current_year_revenue DESC, products_count DESC
+      SELECT 
+        s.id,
+        s.name,
+        s.status,
+        s.city,
+        s.email,
+        s.phone,
+        s.contact_person,
+        COUNT(DISTINCT pc.product_id) as products_count,
+        0 as current_year_revenue,
+        0 as recent_sales,
+        0 as recent_revenue
+      FROM suppliers s
+      LEFT JOIN purchase_conditions pc ON s.id = pc.supplier_id
+      GROUP BY s.id, s.name, s.status, s.city, s.email, s.phone, s.contact_person
+      ORDER BY s.name
     `;
     
-    const result = await db.execute(sql.raw(overviewQuery, [currentYearStart.toISOString()]));
+    const result = await db.execute(sql.raw(overviewQuery));
     
     const suppliers = result.rows.map((row: any) => ({
       supplierId: row.id,
-      openOrders: 0, // Will be calculated separately if needed
+      openOrders: 0,
       annualRevenue: Number(row.current_year_revenue || 0),
       productCount: Number(row.products_count || 0),
-      lastOrderDate: null // Will be calculated separately if needed
+      lastOrderDate: null
     }));
     
     res.json(suppliers);
@@ -232,7 +218,7 @@ router.get('/overview', async (req, res) => {
           LOWER(TRIM(t.product_name)) = LOWER(TRIM(p.product_name)) OR
           LOWER(TRIM(t.product_name)) = LOWER(TRIM(p.article)) OR
           LOWER(TRIM(t.product_name)) = LOWER(TRIM(p.sku))
-        ) AND t.datetime >= $1
+        ) AND t.datetime >= '${currentYearStart.toISOString()}'
         LEFT JOIN inventory i ON p.id = i.product_id
         GROUP BY s.id, s.name, s.status, s.city, s.email, s.phone, s.contact_person
       )
@@ -240,25 +226,17 @@ router.get('/overview', async (req, res) => {
       ORDER BY current_year_revenue DESC, products_count DESC
     `;
     
-    const result = await db.execute(sql.raw(overviewQuery, [currentYearStart.toISOString()]));
+    const result = await db.execute(sql.raw(overviewQuery));
     
     const suppliers = result.rows.map((row: any) => ({
-      id: row.id,
-      name: row.name,
-      status: row.status,
-      city: row.city,
-      email: row.email,
-      phone: row.phone,
-      contactPerson: row.contact_person,
-      productsCount: Number(row.products_count || 0),
-      currentYearSales: Number(row.current_year_sales || 0),
-      currentYearRevenue: Number(row.current_year_revenue || 0),
-      lowStockCount: Number(row.low_stock_count || 0),
-      recentSales: Number(row.recent_sales || 0),
-      recentRevenue: Number(row.recent_revenue || 0)
+      supplierId: row.id,
+      openOrders: 0,
+      annualRevenue: Number(row.current_year_revenue || 0),
+      productCount: Number(row.products_count || 0),
+      lastOrderDate: null
     }));
     
-    res.json({ data: suppliers });
+    res.json(suppliers);
     
   } catch (error) {
     console.error('Error fetching suppliers overview:', error);
