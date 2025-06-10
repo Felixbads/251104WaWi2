@@ -524,7 +524,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(forecastData as ForecastData[])?.map((item: ForecastData) => {
+                  {Array.isArray(forecastData) ? (forecastData as ForecastData[]).map((item: ForecastData) => {
                     const quantity = orderQuantities[item.productId] || 0;
                     const product = (inventoryData as any[])?.find((inv: any) => inv.productId === item.productId);
                     const totalCost = quantity * (product?.price || 0);
@@ -576,7 +576,13 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                         <TableCell>{totalCost.toFixed(2)} €</TableCell>
                       </TableRow>
                     );
-                  })}
+                  }) : (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                        Keine Prognosedaten verfügbar
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
               

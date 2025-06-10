@@ -351,47 +351,43 @@ router.get('/analysis/:supplierId/:weeks', async (req, res) => {
       WITH supplier_products AS (
         SELECT DISTINCT p.id, p.product_name
         FROM products p
-        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.supplier_id = ${supplierId}
-        WHERE p.id IN (
-          SELECT DISTINCT product_id FROM inventory_items WHERE product_id IS NOT NULL
-        )
+        INNER JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.supplier_id = ${supplierId}
       ),
       sales_data AS (
         SELECT 
           sp.id as product_id,
           sp.product_name,
           COUNT(t.id) as total_sales,
-          SUM(t.price) as total_revenue,
-          COUNT(t.id)::float / ${weeks} as avg_weekly_sales
+          SUM(COALESCE(t.price, 0)) as total_revenue,
+          COUNT(t.id)::numeric / ${weeks} as avg_weekly_sales
         FROM supplier_products sp
-        LEFT JOIN transactions t ON t.product_name = sp.product_name 
+        LEFT JOIN transactions t ON LOWER(TRIM(t.product_name)) = LOWER(TRIM(sp.product_name))
           AND t.datetime >= ${startDate.toISOString()}
           AND t.datetime <= ${endDate.toISOString()}
         GROUP BY sp.id, sp.product_name
       )
       SELECT 
-        product_id as "productId",
+        product_id::int as "productId",
         product_name as "productName", 
-        total_sales as "totalSales",
-        COALESCE(total_revenue, 0) as "totalRevenue",
-        COALESCE(avg_weekly_sales, 0) as "avgWeeklySales",
+        total_sales::int as "totalSales",
+        COALESCE(total_revenue, 0)::numeric(10,2) as "totalRevenue",
+        COALESCE(avg_weekly_sales, 0)::numeric(10,2) as "avgWeeklySales",
         CASE 
           WHEN avg_weekly_sales > 5 THEN 'up'
           WHEN avg_weekly_sales < 1 THEN 'down' 
           ELSE 'stable'
         END as "trendDirection",
         CASE 
-          WHEN avg_weekly_sales > 5 THEN 15
-          WHEN avg_weekly_sales < 1 THEN -10
-          ELSE 0
+          WHEN avg_weekly_sales > 5 THEN 15::numeric(10,2)
+          WHEN avg_weekly_sales < 1 THEN (-10)::numeric(10,2)
+          ELSE 0::numeric(10,2)
         END as "trendPercentage"
       FROM sales_data
-      WHERE total_sales > 0
-      ORDER BY total_revenue DESC
+      ORDER BY total_revenue DESC NULLS LAST
     `;
     
     const result = await db.execute(analysisQuery);
-    res.json(result);
+    res.json(result.rows);
     
   } catch (error) {
     console.error('Error fetching sales analysis:', error);
@@ -399,7 +395,7 @@ router.get('/analysis/:supplierId/:weeks', async (req, res) => {
   }
 });
 
-// Forecast endpoint
+// Forecast endpoint (remove duplicate)
 router.get('/forecast/:supplierId/:weeks', async (req, res) => {
   try {
     const supplierId = parseInt(req.params.supplierId);
