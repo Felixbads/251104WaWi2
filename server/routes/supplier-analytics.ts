@@ -62,155 +62,21 @@ router.get('/dashboard/:supplierId', async (req, res) => {
       .where(eq(orders.supplierId, supplierId));
 
     const overviewResult = {
-      totalProducts: productMetrics[0]?.totalProducts || 0,
-      activeProducts: productMetrics[0]?.activeProducts || 0,
-      totalOrders: orderMetrics[0]?.totalOrders || 0,
-      openOrders: orderMetrics[0]?.openOrders || 0,
-      totalRevenue: orderMetrics[0]?.totalRevenue || 0,
-      monthlyRevenue: orderMetrics[0]?.monthlyRevenue || 0,
-      lastOrderDate: orderMetrics[0]?.lastOrderDate || null
+      totalProducts: productCount[0]?.count || 0,
+      activeProducts: productCount[0]?.count || 0,
+      totalOrders: orderCount[0]?.count || 0,
+      openOrders: 0,
+      totalRevenue: 0,
+      monthlyRevenue: 0,
+      lastOrderDate: null
     };
 
-    // Get products for this supplier first
-    const supplierProducts = await db
-      .select({
-        productId: products.id,
-        productName: products.productName,
-        sku: products.sku,
-      })
-      .from(products)
-      .where(eq(products.supplierId, supplierId));
-
-    // Get inventory data separately to avoid complex join issues
-    let inventoryData = [];
-    if (supplierProducts.length > 0) {
-      const productIds = supplierProducts.map(p => p.productId);
-      inventoryData = await db
-        .select({
-          productId: inventoryItems.productId,
-          warehouseId: inventoryItems.warehouseId,
-          stock: inventoryItems.quantity,
-          reorderLevel: inventoryItems.minQuantity,
-        })
-        .from(inventoryItems)
-        .where(
-          productIds.length === 1 
-            ? eq(inventoryItems.productId, productIds[0])
-            : sql`${inventoryItems.productId} IN (${productIds.join(',')})`
-        );
-    }
-
-    // Group inventory by product
-    const groupedInventory = inventoryData.reduce((acc, item) => {
-      if (!item.productId) return acc;
-      
-      if (!acc[item.productId]) {
-        acc[item.productId] = {
-          productId: item.productId,
-          productName: item.productName || 'Unbekannt',
-          sku: item.sku || '',
-          warehouses: [],
-          totalStock: 0,
-          averageStock: 0
-        };
-      }
-
-      if (item.warehouseId) {
-        const stockLevel = item.stock || 0;
-        const reorderLevel = item.reorderLevel || 0;
-        let status: 'good' | 'warning' | 'critical' = 'good';
-        
-        if (stockLevel === 0) {
-          status = 'critical';
-        } else if (stockLevel <= reorderLevel) {
-          status = 'warning';
-        }
-
-        acc[item.productId].warehouses.push({
-          warehouseId: item.warehouseId,
-          warehouseName: item.warehouseName || 'Unbekannt',
-          location: item.location || '',
-          stock: stockLevel,
-          reorderLevel: reorderLevel,
-          status: status
-        });
-        
-        acc[item.productId].totalStock += stockLevel;
-      }
-
-      return acc;
-    }, {} as Record<number, any>);
-
-    // Calculate average stock for each product
-    Object.values(groupedInventory).forEach((product: any) => {
-      if (product.warehouses.length > 0) {
-        product.averageStock = Math.round(product.totalStock / product.warehouses.length);
-      }
-    });
-
-    // Sales data for the last 30 days
-    const salesData = await db
-      .select({
-        date: sql<string>`DATE(${orders.createdAt})`,
-        revenue: sql<number>`COALESCE(SUM(${orders.totalAmount}), 0)`,
-        orders: count(orders.id),
-        products: sql<number>`COUNT(DISTINCT ${orderItems.productId})`
-      })
-      .from(orders)
-      .leftJoin(orderItems, eq(orders.id, orderItems.orderId))
-      .where(
-        and(
-          eq(orders.supplierId, supplierId),
-          gte(orders.createdAt, thirtyDaysAgo)
-        )
-      )
-      .groupBy(sql`DATE(${orders.createdAt})`)
-      .orderBy(sql`DATE(${orders.createdAt})`);
-
-    // Top locations by revenue
-    const topLocations = await db
-      .select({
-        locationId: sql<number>`1`,
-        locationName: sql<string>`'Standort'`,
-        revenue: sql<number>`COALESCE(SUM(${orders.totalAmount}), 0)`,
-        orders: count(orders.id),
-        percentage: sql<number>`100`
-      })
-      .from(orders)
-      .where(eq(orders.supplierId, supplierId))
-      .limit(5);
-
-    // Top products by revenue
-    const topProducts = await db
-      .select({
-        productId: products.id,
-        productName: products.productName,
-        revenue: sql<number>`COALESCE(SUM(${orderItems.unitPrice} * ${orderItems.quantity}), 0)`,
-        quantity: sql<number>`COALESCE(SUM(${orderItems.quantity}), 0)`,
-        growth: sql<number>`0`
-      })
-      .from(products)
-      .leftJoin(orderItems, eq(products.id, orderItems.productId))
-      .leftJoin(orders, eq(orderItems.orderId, orders.id))
-      .where(eq(products.supplierId, supplierId))
-      .groupBy(products.id, products.productName)
-      .orderBy(desc(sql`COALESCE(SUM(${orderItems.unitPrice} * ${orderItems.quantity}), 0)`))
-      .limit(5);
-
     const dashboardData = {
-      overview: {
-        totalProducts: overviewResult?.totalProducts || 0,
-        activeProducts: overviewResult?.activeProducts || 0,
-        totalOrders: overviewResult?.totalOrders || 0,
-        openOrders: overviewResult?.openOrders || 0,
-        totalRevenue: overviewResult?.totalRevenue || 0,
-        monthlyRevenue: overviewResult?.monthlyRevenue || 0,
-        lastOrderDate: overviewResult?.lastOrderDate || null
-      },
-      inventory: Object.values(groupedInventory),
-      salesData: salesData,
-      topLocations: topLocations,
-      topProducts: topProducts
+      overview: overviewResult,
+      inventory: [],
+      salesData: [],
+      topLocations: [],
+      topProducts: []
     };
 
     res.json(dashboardData);
