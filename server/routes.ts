@@ -3774,6 +3774,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Registriere Bestellungs-Routen
   app.use(`${API_PREFIX}/orders`, ordersRouter);
+  app.use(`${API_PREFIX}/bulk-orders`, bulkOrdersRouter);
   
   // Neue Bestellungen V4
   const ordersV4Router = await import('./routes/orders-v4');
@@ -4426,9 +4427,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: 'Fehler bei der Refill-Verarbeitung', details: error.message });
     }
   });
-
-  // Use bulk orders router
-  app.use(`${API_PREFIX}/bulk-orders`, bulkOrdersRouter);
 
   return httpServer;
 }
