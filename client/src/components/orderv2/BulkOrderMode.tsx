@@ -184,9 +184,9 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   };
 
   const calculateLocationBreakdown = (productId: number, totalQuantity: number) => {
-    if (!warehouses?.data || !inventoryData) return [];
+    if (!warehouses || !inventoryData) return [];
 
-    const warehouseList = warehouses.data;
+    const warehouseList = Array.isArray(warehouses) ? warehouses : warehouses.data || [];
     const productInventory = (inventoryData as any[]).filter((inv: any) => inv.productId === productId);
     
     // Calculate total current stock across all warehouses for this product
@@ -573,6 +573,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                     <TableHead>Empfehlung</TableHead>
                     <TableHead>Bestellmenge</TableHead>
                     <TableHead>Gesamt</TableHead>
+                    <TableHead>Standorte</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -580,53 +581,110 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                     const quantity = orderQuantities[item.productId] || 0;
                     const product = (inventoryData as any[])?.find((inv: any) => inv.productId === item.productId);
                     const totalCost = quantity * (product?.price || 0);
+                    const isExpanded = expandedRows[item.productId];
+                    const locationBreakdown = calculateLocationBreakdown(item.productId, quantity);
                     
                     return (
-                      <TableRow key={item.productId}>
-                        <TableCell className="font-medium">{item.productName}</TableCell>
-                        <TableCell>
-                          {forecastWeeks === 1 ? item.predictedSales1Week :
-                           forecastWeeks === 2 ? item.predictedSales2Week :
-                           item.predictedSales3Week}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{item.recommendedOrder}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => updateOrderQuantity(item.productId, quantity - 1)}
-                              disabled={quantity <= 0}
-                            >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <Input
-                              type="number"
-                              value={quantity}
-                              onChange={(e) => updateOrderQuantity(item.productId, parseInt(e.target.value) || 0)}
-                              className="w-20 text-center"
-                              min="0"
-                            />
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => updateOrderQuantity(item.productId, quantity + 1)}
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
+                      <React.Fragment key={item.productId}>
+                        <TableRow>
+                          <TableCell className="font-medium">{item.productName}</TableCell>
+                          <TableCell>
+                            {forecastWeeks === 1 ? item.predictedSales1Week :
+                             forecastWeeks === 2 ? item.predictedSales2Week :
+                             item.predictedSales3Week}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{item.recommendedOrder}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => updateOrderQuantity(item.productId, quantity - 1)}
+                                disabled={quantity <= 0}
+                              >
+                                <Minus className="h-3 w-3" />
+                              </Button>
+                              <Input
+                                type="number"
+                                value={quantity}
+                                onChange={(e) => updateOrderQuantity(item.productId, parseInt(e.target.value) || 0)}
+                                className="w-20 text-center"
+                                min="0"
+                              />
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => updateOrderQuantity(item.productId, quantity + 1)}
+                              >
+                                <Plus className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setOrderQuantities(prev => ({ ...prev, [item.productId]: item.recommendedOrder }))}
+                              >
+                                Empfehlung
+                              </Button>
+                            </div>
+                          </TableCell>
+                          <TableCell>{totalCost.toFixed(2)} €</TableCell>
+                          <TableCell>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => setOrderQuantities(prev => ({ ...prev, [item.productId]: item.recommendedOrder }))}
+                              onClick={() => toggleRowExpansion(item.productId)}
+                              disabled={quantity === 0}
+                              className="flex items-center gap-1"
                             >
-                              Empfehlung
+                              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              <MapPin className="h-3 w-3" />
+                              {locationBreakdown.length} Standorte
                             </Button>
-                          </div>
-                        </TableCell>
-                        <TableCell>{totalCost.toFixed(2)} €</TableCell>
-                      </TableRow>
+                          </TableCell>
+                        </TableRow>
+                        
+                        {isExpanded && quantity > 0 && (
+                          <TableRow className="bg-gray-50">
+                            <TableCell colSpan={6} className="p-0">
+                              <div className="p-4 space-y-3">
+                                <h4 className="font-medium text-sm text-gray-700 flex items-center gap-2">
+                                  <MapPin className="h-4 w-4" />
+                                  Verteilung auf Standorte (Gesamt: {quantity} Stück)
+                                </h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                  {locationBreakdown.map((location: any) => (
+                                    <div 
+                                      key={location.warehouseId} 
+                                      className="p-3 bg-white rounded border border-gray-200"
+                                    >
+                                      <div className="flex justify-between items-start mb-2">
+                                        <div className="font-medium text-sm text-gray-900">
+                                          {location.warehouseName}
+                                        </div>
+                                        <Badge 
+                                          variant="secondary" 
+                                          className="text-xs"
+                                        >
+                                          {location.recommendedQuantity} Stk.
+                                        </Badge>
+                                      </div>
+                                      <div className="space-y-1 text-xs text-gray-600">
+                                        <div>Aktuell: {location.currentStock} im Lager</div>
+                                        <div className="text-xs text-blue-600">{location.reason}</div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="text-xs text-gray-500 mt-2">
+                                  💡 Die Verteilung berücksichtigt aktuelle Lagerbestände - Standorte mit niedrigeren Beständen erhalten proportional mehr.
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
                     );
                   }) : (
                     <TableRow>
