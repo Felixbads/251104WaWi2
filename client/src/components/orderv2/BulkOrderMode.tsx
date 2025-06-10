@@ -402,8 +402,8 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                     <TableRow key={item.productId}>
                       <TableCell className="font-medium">{item.productName}</TableCell>
                       <TableCell>{item.totalSales}</TableCell>
-                      <TableCell>{item.totalRevenue.toFixed(2)} €</TableCell>
-                      <TableCell>{item.avgWeeklySales.toFixed(1)}</TableCell>
+                      <TableCell>{Number(item.totalRevenue).toFixed(2)} €</TableCell>
+                      <TableCell>{Number(item.avgWeeklySales).toFixed(1)}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Badge 
@@ -524,7 +524,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {Array.isArray(forecastData?.rows) ? (forecastData.rows as ForecastData[]).map((item: ForecastData) => {
+                  {Array.isArray(forecastData) ? (forecastData as ForecastData[]).map((item: ForecastData) => {
                     const quantity = orderQuantities[item.productId] || 0;
                     const product = (inventoryData as any[])?.find((inv: any) => inv.productId === item.productId);
                     const totalCost = quantity * (product?.price || 0);

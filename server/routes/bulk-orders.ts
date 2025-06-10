@@ -21,52 +21,23 @@ router.get('/inventory/bulk/:supplierId', async (req, res) => {
     const supplierId = parseInt(req.params.supplierId);
 
     const inventoryQuery = sql`
-      WITH supplier_products AS (
-        SELECT DISTINCT p.id, p.product_name, COALESCE(pc.unit_price, p.price, 0) as purchase_price
-        FROM products p
-        INNER JOIN purchase_conditions pc ON p.id = pc.product_id 
-        WHERE pc.supplier_id = ${supplierId}
-          AND p.id IN (
-            SELECT DISTINCT product_id FROM inventory_items WHERE product_id IS NOT NULL
-          )
-        ORDER BY p.product_name
-      ),
-      warehouse_stocks AS (
-        SELECT 
-          ii.product_id,
-          ii.warehouse_id,
-          w.name as warehouse_name,
-          ii.quantity as current_stock,
-          0 as reserved_stock,
-          ii.min_quantity as min_stock,
-          ii.max_quantity as max_stock,
-          ii.quantity as available_stock
-        FROM inventory_items ii
-        JOIN warehouses w ON ii.warehouse_id = w.id
-        WHERE ii.product_id IN (SELECT id FROM supplier_products)
-      )
       SELECT 
-        sp.id as product_id,
-        sp.product_name,
-        COALESCE(sp.purchase_price, 0) as price,
-        COALESCE(SUM(ws.current_stock), 0) as total_stock,
-        COALESCE(SUM(ws.available_stock), 0) as available_stock,
-        COALESCE(SUM(ws.reserved_stock), 0) as reserved_stock,
-        MIN(ws.min_stock) as min_stock,
-        MAX(ws.max_stock) as max_stock,
-        JSON_AGG(
-          JSON_BUILD_OBJECT(
-            'warehouseId', ws.warehouse_id,
-            'warehouseName', ws.warehouse_name,
-            'currentStock', ws.current_stock,
-            'availableStock', ws.available_stock,
-            'reservedStock', ws.reserved_stock
-          )
-        ) as warehouse_breakdown
-      FROM supplier_products sp
-      LEFT JOIN warehouse_stocks ws ON sp.id = ws.product_id
-      GROUP BY sp.id, sp.product_name, sp.purchase_price
-      ORDER BY sp.product_name
+        p.id as product_id,
+        p.product_name,
+        COALESCE(pc.unit_price, p.price, 0) as price,
+        COALESCE(SUM(ii.quantity), 0) as total_stock,
+        COALESCE(SUM(ii.quantity), 0) as available_stock,
+        0 as reserved_stock,
+        COALESCE(MIN(ii.min_quantity), 0) as min_stock,
+        COALESCE(MAX(ii.max_quantity), 100) as max_stock,
+        COUNT(DISTINCT w.id) as warehouse_count
+      FROM products p
+      INNER JOIN purchase_conditions pc ON p.id = pc.product_id 
+      LEFT JOIN inventory_items ii ON p.id = ii.product_id
+      LEFT JOIN warehouses w ON ii.warehouse_id = w.id
+      WHERE pc.supplier_id = ${supplierId}
+      GROUP BY p.id, p.product_name, pc.unit_price, p.price
+      ORDER BY p.product_name
     `;
 
     const result = await db.execute(inventoryQuery);
