@@ -184,7 +184,7 @@ router.get('/forecast/bulk/:supplierId/:weeks', async (req, res) => {
   }
 });
 
-// Get sales breakdown by location for a specific product
+// Get sales breakdown by location for a specific product with sold-out adjustments
 router.get('/sales-by-location/:productId', async (req, res) => {
   try {
     const { productId } = req.params;
@@ -198,7 +198,7 @@ router.get('/sales-by-location/:productId', async (req, res) => {
     weeksAgo.setDate(weeksAgo.getDate() - (analysisWeeks * 7));
     const weeksAgoISO = weeksAgo.toISOString();
 
-    console.log(`Getting sales breakdown for product ${productId} over ${analysisWeeks} weeks`);
+    console.log(`Getting sales breakdown for product ${productId} over ${analysisWeeks} weeks with sold-out adjustments`);
 
     // Get product name first using raw SQL to avoid Drizzle issues
     const productResult = await db.execute(sql`
@@ -211,34 +211,71 @@ router.get('/sales-by-location/:productId', async (req, res) => {
 
     const productName = productResult.rows[0].product_name;
 
-    // Use raw SQL query to avoid Drizzle ORM complications
+    // Get sales data with sold-out events consideration
     const salesByLocation = await db.execute(sql`
+      WITH sales_data AS (
+        SELECT 
+          COALESCE(w.name, 'Unbekannter Standort') as location_name,
+          COALESCE(m.machine_name, 'Unbekannter Automat') as machine_name,
+          m.id as machine_id,
+          COUNT(*) as sales,
+          SUM(COALESCE(t.price, 0)) as revenue
+        FROM transactions t
+        LEFT JOIN machines m ON t.machine_id = m.id
+        LEFT JOIN machine_warehouse_assignments mwa ON m.id = mwa.machine_id
+        LEFT JOIN warehouses w ON mwa.warehouse_id = w.id
+        WHERE t.product_name = ${productName}
+          AND t.datetime >= ${weeksAgoISO}
+        GROUP BY w.name, m.machine_name, m.id
+        HAVING COUNT(*) > 0
+      ),
+      soldout_days AS (
+        SELECT 
+          e.machine_id,
+          COUNT(DISTINCT DATE(e.datetime)) as soldout_days_count
+        FROM events e
+        WHERE e.event_name = 'Produkt nicht auf Lager'
+          AND e.description ILIKE ${`%${productName}%`}
+          AND e.datetime >= ${weeksAgoISO}
+        GROUP BY e.machine_id
+      )
       SELECT 
-        COALESCE(w.name, 'Unbekannter Standort') as location_name,
-        COALESCE(m.machine_name, 'Unbekannter Automat') as machine_name,
-        COUNT(*) as sales,
-        SUM(COALESCE(t.price, 0)) as revenue
-      FROM transactions t
-      LEFT JOIN machines m ON t.machine_id = m.id
-      LEFT JOIN machine_warehouse_assignments mwa ON m.id = mwa.machine_id
-      LEFT JOIN warehouses w ON mwa.warehouse_id = w.id
-      WHERE t.product_name = ${productName}
-        AND t.datetime >= ${weeksAgoISO}
-      GROUP BY w.name, m.machine_name
-      HAVING COUNT(*) > 0
-      ORDER BY SUM(COALESCE(t.price, 0)) DESC
+        sd.*,
+        COALESCE(sod.soldout_days_count, 0) as soldout_days
+      FROM sales_data sd
+      LEFT JOIN soldout_days sod ON sd.machine_id = sod.machine_id
+      ORDER BY sd.revenue DESC
     `);
 
     console.log(`Found ${salesByLocation.rows.length} locations with sales for product ${productId}`);
 
-    // Calculate average weekly sales for each location
-    const locationSalesData = salesByLocation.rows.map((location: any) => ({
-      locationName: location.location_name || 'Unbekannter Standort',
-      machineName: location.machine_name || 'Unbekannter Automat',
-      sales: parseInt(location.sales) || 0,
-      revenue: parseFloat(location.revenue) || 0,
-      avgWeeklySales: (parseInt(location.sales) || 0) / analysisWeeks
-    }));
+    // Calculate adjusted average weekly sales for each location
+    const totalDaysInPeriod = analysisWeeks * 7;
+    const locationSalesData = salesByLocation.rows.map((location: any) => {
+      const sales = parseInt(location.sales) || 0;
+      const revenue = parseFloat(location.revenue) || 0;
+      const soldoutDays = parseInt(location.soldout_days) || 0;
+      
+      // Calculate available selling days (total days minus sold-out days)
+      const availableSellingDays = Math.max(1, totalDaysInPeriod - soldoutDays);
+      const adjustedWeeks = availableSellingDays / 7;
+      
+      // Calculate adjusted weekly averages
+      const avgWeeklySales = sales / adjustedWeeks;
+      const adjustedRecommendation = soldoutDays > 0 ? Math.ceil(avgWeeklySales * 1.2) : Math.ceil(avgWeeklySales);
+
+      return {
+        locationName: location.location_name || 'Unbekannter Standort',
+        machineName: location.machine_name || 'Unbekannter Automat',
+        sales,
+        revenue,
+        avgWeeklySales: parseFloat(avgWeeklySales.toFixed(2)),
+        soldoutDays,
+        availableSellingDays,
+        adjustedRecommendation,
+        hasStockouts: soldoutDays > 0
+      };
+    });
 
     res.json(locationSalesData);
   } catch (error) {
