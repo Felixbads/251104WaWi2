@@ -457,105 +457,42 @@ router.get('/comprehensive/:year', async (req, res) => {
   try {
     const year = parseInt(req.params.year);
     
-    // State mapping from short codes to full names used in database
-    const stateMapping: { [key: string]: string } = {
-      'BW': 'baden_wuerttemberg',
-      'BY': 'bayern', 
-      'BE': 'berlin',
-      'BB': 'brandenburg',
-      'HB': 'bremen',
-      'HH': 'hamburg',
-      'HE': 'hessen',
-      'MV': 'mecklenburg_vorpommern',
-      'NI': 'niedersachsen',
-      'NW': 'nordrhein_westfalen',
-      'RP': 'rheinland_pfalz',
-      'SL': 'saarland',
-      'SN': 'sachsen',
-      'ST': 'sachsen_anhalt',
-      'SH': 'schleswig_holstein',
-      'TH': 'thueringen'
-    };
+    // Get holidays from the actual holidays table
+    const startDate = `${year}-01-01`;
+    const endDate = `${year}-12-31`;
     
-    const holidays = [];
+    const holidays = await holidayService.getHolidaysByDateRange(startDate, endDate);
     
-    // Check if calendar_overview has data
-    const calendarOverviewQuery = sql`
-      SELECT date, day_type, 
-        baden_wuerttemberg_status, baden_wuerttemberg_holiday_name, baden_wuerttemberg_is_school_holiday, baden_wuerttemberg_is_public_holiday,
-        bayern_status, bayern_holiday_name, bayern_is_school_holiday, bayern_is_public_holiday,
-        berlin_status, berlin_holiday_name, berlin_is_school_holiday, berlin_is_public_holiday,
-        brandenburg_status, brandenburg_holiday_name, brandenburg_is_school_holiday, brandenburg_is_public_holiday,
-        bremen_status, bremen_holiday_name, bremen_is_school_holiday, bremen_is_public_holiday,
-        hamburg_status, hamburg_holiday_name, hamburg_is_school_holiday, hamburg_is_public_holiday,
-        hessen_status, hessen_holiday_name, hessen_is_school_holiday, hessen_is_public_holiday,
-        mecklenburg_vorpommern_status, mecklenburg_vorpommern_holiday_name, mecklenburg_vorpommern_is_school_holiday, mecklenburg_vorpommern_is_public_holiday,
-        niedersachsen_status, niedersachsen_holiday_name, niedersachsen_is_school_holiday, niedersachsen_is_public_holiday,
-        nordrhein_westfalen_status, nordrhein_westfalen_holiday_name, nordrhein_westfalen_is_school_holiday, nordrhein_westfalen_is_public_holiday,
-        rheinland_pfalz_status, rheinland_pfalz_holiday_name, rheinland_pfalz_is_school_holiday, rheinland_pfalz_is_public_holiday,
-        saarland_status, saarland_holiday_name, saarland_is_school_holiday, saarland_is_public_holiday,
-        sachsen_status, sachsen_holiday_name, sachsen_is_school_holiday, sachsen_is_public_holiday,
-        sachsen_anhalt_status, sachsen_anhalt_holiday_name, sachsen_anhalt_is_school_holiday, sachsen_anhalt_is_public_holiday,
-        schleswig_holstein_status, schleswig_holstein_holiday_name, schleswig_holstein_is_school_holiday, schleswig_holstein_is_public_holiday,
-        thueringen_status, thueringen_holiday_name, thueringen_is_school_holiday, thueringen_is_public_holiday
-      FROM calendar_overview
-      WHERE EXTRACT(YEAR FROM date) = ${year}
-      ORDER BY date
-    `;
+    // Group holidays by date to create comprehensive view
+    const holidaysByDate: { [date: string]: any } = {};
     
-    const calendarOverviewResult = await db.execute(calendarOverviewQuery);
-    
-    if (Array.isArray(calendarOverviewResult) && calendarOverviewResult.length > 0) {
-      // Use calendar_overview data
-      for (const row of calendarOverviewResult) {
-        // Check each state for holidays or school holidays
-        Object.entries(stateMapping).forEach(([shortCode, fullName]) => {
-          const isPublicHoliday = row[`${fullName}_is_public_holiday`];
-          const isSchoolHoliday = row[`${fullName}_is_school_holiday`];
-          const holidayName = row[`${fullName}_holiday_name`];
-          
-          if (isPublicHoliday && holidayName) {
-            holidays.push({
-              date: row.date,
-              name: holidayName,
-              type: 'public_holiday',
-              state: shortCode
-            });
-          }
-          
-          if (isSchoolHoliday && holidayName) {
-            holidays.push({
-              date: row.date,
-              name: holidayName,
-              type: 'school_holiday', 
-              state: shortCode
-            });
-          }
-        });
-      }
-    } else {
-      // Fallback to holidays table if calendar_overview is empty
-      const holidaysQuery = sql`
-        SELECT 
-          date,
-          name,
-          'public_holiday' as type,
-          state
-        FROM holidays
-        WHERE EXTRACT(YEAR FROM date) = ${year}
-        ORDER BY date, state
-      `;
+    holidays.forEach((holiday: any) => {
+      const dateStr = new Date(holiday.date).toISOString().split('T')[0];
       
-      const result = await db.execute(holidaysQuery);
-      holidays.push(...(Array.isArray(result) ? result : []).map((row: any) => ({
-        date: row.date,
-        name: row.name,
-        type: row.type,
-        state: row.state
-      })));
-    }
+      if (!holidaysByDate[dateStr]) {
+        holidaysByDate[dateStr] = {
+          date: dateStr,
+          name: holiday.name,
+          states: {}
+        };
+      }
+      
+      // Add state information
+      const stateCode = holiday.state || 'SN';
+      holidaysByDate[dateStr].states[stateCode] = {
+        isHoliday: holiday.type === 'PUBLIC_HOLIDAY',
+        isSchoolHoliday: holiday.type === 'SCHOOL_HOLIDAY',
+        name: holiday.name,
+        description: holiday.description
+      };
+    });
     
-    res.json(holidays);
+    // Convert to array and sort by date
+    const result = Object.values(holidaysByDate).sort((a: any, b: any) => 
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    
+    return res.json(result);
   } catch (error) {
     console.error('Error fetching comprehensive holidays:', error);
     res.status(500).json({ error: 'Failed to fetch comprehensive holidays data' });
