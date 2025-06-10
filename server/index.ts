@@ -523,6 +523,11 @@ Elbsandstein Proviant & Quartier GmbH`;
   app.use('/api', simpleEmailRouter);
   console.log('[SERVER] Simple email router mounted successfully');
   
+  // Mount bulk orders router BEFORE Vite middleware to ensure proper API routing
+  const bulkOrdersRouter = (await import('./routes/bulk-orders')).default;
+  app.use('/api/bulk-orders', bulkOrdersRouter);
+  console.log('[SERVER] Bulk orders router mounted successfully');
+  
   const server = await registerRoutes(app);
 
   // Direct email endpoint that bypasses all routing conflicts
