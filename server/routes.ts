@@ -4427,5 +4427,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Use bulk orders router
+  app.use(`${API_PREFIX}/bulk-orders`, bulkOrdersRouter);
+
   return httpServer;
 }

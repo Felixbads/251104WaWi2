@@ -243,15 +243,10 @@ router.post('/orders/bulk', async (req, res) => {
     const newOrder = await db.insert(orders).values({
       orderNumber,
       supplierId,
-      warehouseId: null, // Bulk orders are not tied to a specific warehouse
       status: 'draft',
       expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
       notes: `${notes || ''}\n\nBulk order analysis: ${analysisWeeks} weeks, forecast: ${forecastWeeks} weeks`,
-      priority,
-      orderType,
-      totalAmount: totalValue,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      totalAmount: totalValue
     }).returning();
 
     const orderId = newOrder[0].id;
