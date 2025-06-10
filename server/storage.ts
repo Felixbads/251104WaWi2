@@ -3005,41 +3005,63 @@ export class DatabaseStorage implements IStorage {
     // Combine filters or get all suppliers
     const where = filters.length > 0 ? and(...filters) : undefined;
     
-    // Get suppliers with product counts
-    const data = await db.select({
-      id: suppliers.id,
-      name: suppliers.name,
-      contactPerson: suppliers.contactPerson,
-      phone: suppliers.phone,
-      email: suppliers.email,
-      website: suppliers.website,
-      address: suppliers.address,
-      city: suppliers.city,
-      postalCode: suppliers.postalCode,
-      country: suppliers.country,
-      status: suppliers.status,
-      notes: suppliers.notes,
-      paymentTerms: suppliers.paymentTerms,
-      deliveryTerms: suppliers.deliveryTerms,
-      minimumOrderValue: suppliers.minimumOrderValue,
-      deliveryDays: suppliers.deliveryDays,
-      taxId: suppliers.taxId,
-      accountNumber: suppliers.accountNumber,
-      bankDetails: suppliers.bankDetails,
-      createdAt: suppliers.createdAt,
-      updatedAt: suppliers.updatedAt,
-      productCount: sql<number>`COALESCE((
-        SELECT COUNT(DISTINCT p.id)::int
-        FROM purchase_conditions pc
-        JOIN products p ON pc.product_id = p.id
-        WHERE pc.supplier_id = ${suppliers.id}
-      ), 0)`
-    })
-      .from(suppliers)
-      .where(where)
-      .limit(limit)
-      .offset(offset)
-      .orderBy(asc(suppliers.name));
+    // Simplified approach: get all suppliers first, then add product counts
+    const supplierQuery = sql`
+      SELECT 
+        s.id,
+        s.name,
+        s.contact_person,
+        s.phone,
+        s.email,
+        s.website,
+        s.address,
+        s.city,
+        s.postal_code,
+        s.country,
+        s.status,
+        s.notes,
+        s.payment_terms,
+        s.delivery_terms,
+        s.minimum_order_value,
+        s.delivery_days,
+        s.tax_id,
+        s.account_number,
+        s.bank_details,
+        s.created_at,
+        s.updated_at,
+        COALESCE(COUNT(DISTINCT pc.product_id), 0) as product_count
+      FROM suppliers s
+      LEFT JOIN purchase_conditions pc ON s.id = pc.supplier_id
+      GROUP BY s.id, s.name, s.contact_person, s.phone, s.email, s.website, s.address, s.city, s.postal_code, s.country, s.status, s.notes, s.payment_terms, s.delivery_terms, s.minimum_order_value, s.delivery_days, s.tax_id, s.account_number, s.bank_details, s.created_at, s.updated_at
+      ORDER BY s.name
+      LIMIT ${limit} OFFSET ${offset}
+    `;
+    
+    const result = await db.execute(supplierQuery);
+    const data = result.rows.map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      contactPerson: row.contact_person,
+      phone: row.phone,
+      email: row.email,
+      website: row.website,
+      address: row.address,
+      city: row.city,
+      postalCode: row.postal_code,
+      country: row.country,
+      status: row.status,
+      notes: row.notes,
+      paymentTerms: row.payment_terms,
+      deliveryTerms: row.delivery_terms,
+      minimumOrderValue: row.minimum_order_value,
+      deliveryDays: row.delivery_days,
+      taxId: row.tax_id,
+      accountNumber: row.account_number,
+      bankDetails: row.bank_details,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      productCount: Number(row.product_count || 0)
+    }));
     
     // Count total for pagination
     const countResult = await db.select({ count: count() })
