@@ -524,7 +524,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {Array.isArray(forecastData) ? (forecastData as ForecastData[]).map((item: ForecastData) => {
+                  {Array.isArray(forecastData?.rows) ? (forecastData.rows as ForecastData[]).map((item: ForecastData) => {
                     const quantity = orderQuantities[item.productId] || 0;
                     const product = (inventoryData as any[])?.find((inv: any) => inv.productId === item.productId);
                     const totalCost = quantity * (product?.price || 0);

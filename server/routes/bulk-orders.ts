@@ -430,7 +430,7 @@ router.get('/forecast/:supplierId/:weeks', async (req, res) => {
     `;
     
     const result = await db.execute(forecastQuery);
-    res.json(result);
+    res.json(result.rows);
     
   } catch (error) {
     console.error('Error fetching forecast data:', error);
