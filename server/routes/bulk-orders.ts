@@ -290,4 +290,112 @@ router.post('/orders/bulk', async (req, res) => {
   }
 });
 
+// Sales analysis endpoint
+router.get('/analysis/:supplierId/:weeks', async (req, res) => {
+  try {
+    const supplierId = parseInt(req.params.supplierId);
+    const weeks = parseInt(req.params.weeks);
+    
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - (weeks * 7));
+    
+    const analysisQuery = sql`
+      WITH supplier_products AS (
+        SELECT DISTINCT p.id, p.product_name
+        FROM products p
+        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.supplier_id = ${supplierId}
+        WHERE p.id IN (
+          SELECT DISTINCT product_id FROM inventory_items WHERE product_id IS NOT NULL
+        )
+      ),
+      sales_data AS (
+        SELECT 
+          sp.id as product_id,
+          sp.product_name,
+          COUNT(t.id) as total_sales,
+          SUM(t.price) as total_revenue,
+          COUNT(t.id)::float / ${weeks} as avg_weekly_sales
+        FROM supplier_products sp
+        LEFT JOIN transactions t ON t.product_name = sp.product_name 
+          AND t.datetime >= ${startDate.toISOString()}
+          AND t.datetime <= ${endDate.toISOString()}
+        GROUP BY sp.id, sp.product_name
+      )
+      SELECT 
+        product_id as "productId",
+        product_name as "productName", 
+        total_sales as "totalSales",
+        COALESCE(total_revenue, 0) as "totalRevenue",
+        COALESCE(avg_weekly_sales, 0) as "avgWeeklySales",
+        CASE 
+          WHEN avg_weekly_sales > 5 THEN 'up'
+          WHEN avg_weekly_sales < 1 THEN 'down' 
+          ELSE 'stable'
+        END as "trendDirection",
+        CASE 
+          WHEN avg_weekly_sales > 5 THEN 15
+          WHEN avg_weekly_sales < 1 THEN -10
+          ELSE 0
+        END as "trendPercentage"
+      FROM sales_data
+      WHERE total_sales > 0
+      ORDER BY total_revenue DESC
+    `;
+    
+    const result = await db.execute(analysisQuery);
+    res.json(result);
+    
+  } catch (error) {
+    console.error('Error fetching sales analysis:', error);
+    res.status(500).json({ error: 'Failed to fetch sales analysis' });
+  }
+});
+
+// Forecast endpoint
+router.get('/forecast/:supplierId/:weeks', async (req, res) => {
+  try {
+    const supplierId = parseInt(req.params.supplierId);
+    const weeks = parseInt(req.params.weeks);
+    
+    const forecastQuery = sql`
+      WITH supplier_products AS (
+        SELECT DISTINCT p.id, p.product_name
+        FROM products p
+        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.supplier_id = ${supplierId}
+        WHERE p.id IN (
+          SELECT DISTINCT product_id FROM inventory_items WHERE product_id IS NOT NULL
+        )
+      ),
+      recent_sales AS (
+        SELECT 
+          sp.id as product_id,
+          sp.product_name,
+          COUNT(t.id)::float / 4 as avg_weekly_sales
+        FROM supplier_products sp
+        LEFT JOIN transactions t ON t.product_name = sp.product_name 
+          AND t.datetime >= NOW() - INTERVAL '4 weeks'
+        GROUP BY sp.id, sp.product_name
+      )
+      SELECT 
+        product_id as "productId",
+        product_name as "productName",
+        CEILING(avg_weekly_sales * 1.2) as "predictedSales1Week",
+        CEILING(avg_weekly_sales * 2.1) as "predictedSales2Week", 
+        CEILING(avg_weekly_sales * 3.0) as "predictedSales3Week",
+        CEILING(avg_weekly_sales * ${weeks} * 1.15) as "recommendedOrder"
+      FROM recent_sales
+      WHERE avg_weekly_sales > 0
+      ORDER BY avg_weekly_sales DESC
+    `;
+    
+    const result = await db.execute(forecastQuery);
+    res.json(result);
+    
+  } catch (error) {
+    console.error('Error fetching forecast data:', error);
+    res.status(500).json({ error: 'Failed to fetch forecast data' });
+  }
+});
+
 export default router;

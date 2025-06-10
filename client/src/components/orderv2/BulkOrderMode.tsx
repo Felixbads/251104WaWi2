@@ -122,13 +122,13 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   });
 
   const { data: salesAnalysis, isLoading: salesLoading } = useQuery({
-    queryKey: ['/api/bulk-orders/analysis', selectedSupplierId, analysisWeeks],
+    queryKey: [`/api/bulk-orders/analysis/${selectedSupplierId}/${analysisWeeks}`],
     enabled: !!selectedSupplierId && step === 'analysis',
     staleTime: 1000 * 60 * 5,
   });
 
   const { data: forecastData, isLoading: forecastLoading } = useQuery({
-    queryKey: ['/api/bulk-orders/forecast', selectedSupplierId, forecastWeeks],
+    queryKey: [`/api/bulk-orders/forecast/${selectedSupplierId}/${forecastWeeks}`],
     enabled: !!selectedSupplierId && step === 'forecast',
     staleTime: 1000 * 60 * 5,
   });
@@ -310,21 +310,21 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
               </TableHeader>
               <TableBody>
                 {(inventoryData as any[])?.map((item: any) => (
-                  <TableRow key={item.productId}>
-                    <TableCell className="font-medium">{item.productName}</TableCell>
-                    <TableCell>{item.totalStock}</TableCell>
-                    <TableCell>{item.availableStock}</TableCell>
-                    <TableCell>{item.reservedStock}</TableCell>
-                    <TableCell>{item.minStock}/{item.maxStock}</TableCell>
+                  <TableRow key={item.product_id}>
+                    <TableCell className="font-medium">{item.product_name}</TableCell>
+                    <TableCell>{item.total_stock}</TableCell>
+                    <TableCell>{item.available_stock}</TableCell>
+                    <TableCell>{item.reserved_stock}</TableCell>
+                    <TableCell>{item.min_stock}/{item.max_stock}</TableCell>
                     <TableCell>
                       <Badge 
                         variant={
-                          item.availableStock <= item.minStock ? "destructive" :
-                          item.availableStock <= item.minStock * 1.5 ? "secondary" : "default"
+                          parseInt(item.available_stock) <= item.min_stock ? "destructive" :
+                          parseInt(item.available_stock) <= item.min_stock * 1.5 ? "secondary" : "default"
                         }
                       >
-                        {item.availableStock <= item.minStock ? "Niedrig" :
-                         item.availableStock <= item.minStock * 1.5 ? "Warnung" : "OK"}
+                        {parseInt(item.available_stock) <= item.min_stock ? "Niedrig" :
+                         parseInt(item.available_stock) <= item.min_stock * 1.5 ? "Warnung" : "OK"}
                       </Badge>
                     </TableCell>
                   </TableRow>
