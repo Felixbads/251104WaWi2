@@ -98,6 +98,10 @@ interface LocationSalesData {
   sales: number;
   revenue: number;
   avgWeeklySales: number;
+  soldoutDays?: number;
+  availableSellingDays?: number;
+  adjustedRecommendation?: number;
+  hasStockouts?: boolean;
 }
 
 // Component for displaying sales breakdown by location
@@ -229,13 +233,23 @@ const ForecastLocationBreakdown: React.FC<{ productId: number; totalQuantity: nu
                   </div>
                   <div className="flex justify-between">
                     <span>Empfehlen:</span>
-                    <Badge variant="default" className="text-xs">
-                      {recommendedQuantity} Stk.
+                    <Badge variant={location.hasStockouts ? "destructive" : "default"} className="text-xs">
+                      {location.adjustedRecommendation || recommendedQuantity} Stk.
                     </Badge>
                   </div>
+                  {location.hasStockouts && location.soldoutDays && (
+                    <div className="flex justify-between text-orange-600">
+                      <span>⚠️ Ausverkauft:</span>
+                      <span className="font-medium">{location.soldoutDays} Tage</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span>Anteil:</span>
                     <span className="font-medium">{(salesProportion * 100).toFixed(1)}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Ø/Woche:</span>
+                    <span className="font-medium">{location.avgWeeklySales.toFixed(1)}</span>
                   </div>
                 </div>
               </div>
