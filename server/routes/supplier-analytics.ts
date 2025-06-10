@@ -50,23 +50,14 @@ router.get('/dashboard/:supplierId', async (req, res) => {
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
     
-    // Overview metrics - separate queries to avoid complex joins
-    const productMetrics = await db
-      .select({
-        totalProducts: count(products.id),
-        activeProducts: sql<number>`COUNT(CASE WHEN ${products.status} = 'active' THEN 1 END)`
-      })
+    // Simple overview metrics
+    const productCount = await db
+      .select({ count: count(products.id) })
       .from(products)
       .where(eq(products.supplierId, supplierId));
 
-    const orderMetrics = await db
-      .select({
-        totalOrders: count(orders.id),
-        openOrders: sql<number>`COUNT(CASE WHEN ${orders.status} IN ('pending', 'processing') THEN 1 END)`,
-        totalRevenue: sql<number>`COALESCE(SUM(${orders.totalAmount}), 0)`,
-        monthlyRevenue: sql<number>`COALESCE(SUM(CASE WHEN ${orders.createdAt} >= ${oneMonthAgo} THEN ${orders.totalAmount} ELSE 0 END), 0)`,
-        lastOrderDate: sql<Date>`MAX(${orders.createdAt})`
-      })
+    const orderCount = await db
+      .select({ count: count(orders.id) })
       .from(orders)
       .where(eq(orders.supplierId, supplierId));
 
@@ -80,23 +71,34 @@ router.get('/dashboard/:supplierId', async (req, res) => {
       lastOrderDate: orderMetrics[0]?.lastOrderDate || null
     };
 
-    // Inventory data with warehouse details
-    const inventoryData = await db
+    // Get products for this supplier first
+    const supplierProducts = await db
       .select({
         productId: products.id,
         productName: products.productName,
         sku: products.sku,
-        warehouseId: warehouses.id,
-        warehouseName: warehouses.name,
-        location: warehouses.location,
-        stock: inventoryItems.quantity,
-        reorderLevel: inventoryItems.minQuantity,
       })
       .from(products)
-      .leftJoin(inventoryItems, eq(products.id, inventoryItems.productId))
-      .leftJoin(warehouses, eq(inventoryItems.warehouseId, warehouses.id))
-      .where(eq(products.supplierId, supplierId))
-      .orderBy(products.productName, warehouses.name);
+      .where(eq(products.supplierId, supplierId));
+
+    // Get inventory data separately to avoid complex join issues
+    let inventoryData = [];
+    if (supplierProducts.length > 0) {
+      const productIds = supplierProducts.map(p => p.productId);
+      inventoryData = await db
+        .select({
+          productId: inventoryItems.productId,
+          warehouseId: inventoryItems.warehouseId,
+          stock: inventoryItems.quantity,
+          reorderLevel: inventoryItems.minQuantity,
+        })
+        .from(inventoryItems)
+        .where(
+          productIds.length === 1 
+            ? eq(inventoryItems.productId, productIds[0])
+            : sql`${inventoryItems.productId} IN (${productIds.join(',')})`
+        );
+    }
 
     // Group inventory by product
     const groupedInventory = inventoryData.reduce((acc, item) => {
@@ -214,7 +216,11 @@ router.get('/dashboard/:supplierId', async (req, res) => {
     res.json(dashboardData);
   } catch (error) {
     console.error('Error fetching supplier dashboard data:', error);
-    res.status(500).json({ error: 'Fehler beim Laden der Dashboard-Daten' });
+    console.error('Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
+    res.status(500).json({ 
+      error: 'Fehler beim Laden der Dashboard-Daten',
+      details: error instanceof Error ? error.message : String(error)
+    });
   }
 });
 
