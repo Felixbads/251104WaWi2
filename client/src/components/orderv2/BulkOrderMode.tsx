@@ -116,19 +116,19 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   });
 
   const { data: inventoryData, isLoading: inventoryLoading } = useQuery({
-    queryKey: ['/api/inventory/bulk', selectedSupplierId],
+    queryKey: [`/api/bulk-orders/inventory/bulk/${selectedSupplierId}`],
     enabled: !!selectedSupplierId,
     staleTime: 1000 * 60 * 2,
   });
 
   const { data: salesAnalysis, isLoading: salesLoading } = useQuery({
-    queryKey: ['/api/analytics/sales', selectedSupplierId, analysisWeeks],
+    queryKey: ['/api/bulk-orders/analysis', selectedSupplierId, analysisWeeks],
     enabled: !!selectedSupplierId && step === 'analysis',
     staleTime: 1000 * 60 * 5,
   });
 
   const { data: forecastData, isLoading: forecastLoading } = useQuery({
-    queryKey: ['/api/forecast/bulk', selectedSupplierId, forecastWeeks],
+    queryKey: ['/api/bulk-orders/forecast', selectedSupplierId, forecastWeeks],
     enabled: !!selectedSupplierId && step === 'forecast',
     staleTime: 1000 * 60 * 5,
   });
