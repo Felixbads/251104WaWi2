@@ -347,7 +347,7 @@ router.get('/analysis/:supplierId/:weeks', async (req, res) => {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - (weeks * 7));
     
-    const analysisQuery = sql`
+    const analysisQuery = `
       WITH supplier_products AS (
         SELECT DISTINCT p.id, p.product_name
         FROM products p
@@ -362,8 +362,8 @@ router.get('/analysis/:supplierId/:weeks', async (req, res) => {
           COUNT(t.id)::numeric / ${weeks} as avg_weekly_sales
         FROM supplier_products sp
         LEFT JOIN transactions t ON LOWER(TRIM(t.product_name)) = LOWER(TRIM(sp.product_name))
-          AND t.datetime >= '${startDate.toISOString()}'
-          AND t.datetime <= '${endDate.toISOString()}'
+          AND t.datetime >= '${startDate.toISOString()}'::timestamp
+          AND t.datetime <= '${endDate.toISOString()}'::timestamp
         GROUP BY sp.id, sp.product_name
       )
       SELECT 
