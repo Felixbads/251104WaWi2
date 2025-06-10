@@ -33,6 +33,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
   ArrowLeft, 
   TrendingUp, 
@@ -218,11 +219,11 @@ const ForecastLocationBreakdown: React.FC<{ productId: number; totalQuantity: nu
           return (
             <div key={index} className="p-3 bg-white rounded border border-gray-200">
               <div className="space-y-2">
-                <div className="font-medium text-sm text-gray-900">
-                  {location.locationName}
+                <div className="font-bold text-base text-gray-900">
+                  {location.machineName}
                 </div>
-                <div className="text-xs text-gray-600">
-                  Automat: {location.machineName}
+                <div className="text-xs text-gray-500">
+                  {location.locationName}
                 </div>
                 <div className="space-y-1 text-xs">
                   <div className="flex justify-between">
@@ -541,15 +542,46 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                     <TableCell>{item.reserved_stock}</TableCell>
                     <TableCell>{item.min_stock}/{item.max_stock}</TableCell>
                     <TableCell>
-                      <Badge 
-                        variant={
-                          parseInt(item.available_stock) <= item.min_stock ? "destructive" :
-                          parseInt(item.available_stock) <= item.min_stock * 1.5 ? "secondary" : "default"
-                        }
-                      >
-                        {parseInt(item.available_stock) <= item.min_stock ? "Niedrig" :
-                         parseInt(item.available_stock) <= item.min_stock * 1.5 ? "Warnung" : "OK"}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge 
+                          variant={
+                            parseInt(item.available_stock) <= item.min_stock ? "destructive" :
+                            parseInt(item.available_stock) <= item.min_stock * 1.5 ? "secondary" : "default"
+                          }
+                        >
+                          {parseInt(item.available_stock) <= item.min_stock ? "Niedrig" :
+                           parseInt(item.available_stock) <= item.min_stock * 1.5 ? "Warnung" : "OK"}
+                        </Badge>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => {
+                            const details = document.getElementById(`warehouse-details-${item.product_id}`);
+                            if (details) {
+                              details.style.display = details.style.display === 'none' ? 'block' : 'none';
+                            }
+                          }}
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                        <div 
+                          id={`warehouse-details-${item.product_id}`}
+                          className="absolute z-10 mt-2 p-3 bg-white border rounded-lg shadow-lg"
+                          style={{ display: 'none' }}
+                        >
+                          <div className="space-y-2 min-w-48">
+                            <h4 className="font-semibold text-sm">Lageraufschlüsselung:</h4>
+                            {item.warehouse_details?.map((warehouse: any) => (
+                              <div key={warehouse.warehouse_id} className="text-xs">
+                                <div className="flex justify-between">
+                                  <span className="font-medium">{warehouse.warehouse_name}:</span>
+                                  <span>{warehouse.quantity} Stk.</span>
+                                </div>
+                              </div>
+                            )) || <span className="text-xs text-muted-foreground">Keine Details verfügbar</span>}
+                          </div>
+                        </div>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
