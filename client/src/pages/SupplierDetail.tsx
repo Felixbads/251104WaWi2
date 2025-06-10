@@ -796,9 +796,10 @@ export default function SupplierDetail() {
       {/* Lieferanten Header */}
       <div>
         <h1 className="text-2xl font-bold">{supplier.name}</h1>
-        <p className="text-muted-foreground">
-          Lieferantendetails {getStatusBadge(supplier.status)}
-        </p>
+        <div className="text-muted-foreground flex items-center gap-2">
+          <span>Lieferantendetails</span>
+          {getStatusBadge(supplier.status)}
+        </div>
       </div>
       
       <Tabs defaultValue="dashboard">
