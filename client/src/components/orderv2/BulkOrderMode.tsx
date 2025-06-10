@@ -234,7 +234,7 @@ const ForecastLocationBreakdown: React.FC<{ productId: number; totalQuantity: nu
                   <div className="flex justify-between">
                     <span>Empfehlen:</span>
                     <Badge variant={location.hasStockouts ? "destructive" : "default"} className="text-xs">
-                      {location.adjustedRecommendation || recommendedQuantity} Stk.
+                      {location.adjustedRecommendation || Math.round(location.avgWeeklySales * forecastWeeks)} Stk.
                     </Badge>
                   </div>
                   {location.hasStockouts && location.soldoutDays && (
