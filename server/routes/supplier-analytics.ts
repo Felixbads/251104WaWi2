@@ -7,33 +7,72 @@ const router = Router();
 // Get all suppliers with analytics overview
 router.get('/overview', async (req, res) => {
   try {
-    // Simple query to get all suppliers with basic analytics
+    const currentYear = new Date().getFullYear();
+    const currentYearStart = `${currentYear}-01-01`;
+    
     const overviewQuery = `
-      SELECT 
-        s.id,
-        s.name,
-        s.status,
-        s.city,
-        s.email,
-        s.phone,
-        s.contact_person,
-        COUNT(DISTINCT pc.product_id) as products_count,
-        0 as current_year_revenue,
-        0 as recent_sales,
-        0 as recent_revenue
-      FROM suppliers s
-      LEFT JOIN purchase_conditions pc ON s.id = pc.supplier_id
-      GROUP BY s.id, s.name, s.status, s.city, s.email, s.phone, s.contact_person
-      ORDER BY s.name
+      WITH supplier_analytics AS (
+        SELECT 
+          s.id,
+          s.name,
+          s.status,
+          s.city,
+          s.email,
+          s.phone,
+          s.contact_person,
+          -- Count products correctly
+          COUNT(DISTINCT pc.product_id) as products_count,
+          -- Calculate annual revenue from transactions matching supplier products
+          COALESCE(SUM(CASE 
+            WHEN t.datetime >= '${currentYearStart}' AND t.datetime < '${currentYear + 1}-01-01' 
+            THEN t.price 
+            ELSE 0 
+          END), 0) as current_year_revenue,
+          -- Calculate recent sales (last 30 days)
+          COUNT(CASE 
+            WHEN t.datetime >= NOW() - INTERVAL '30 days' 
+            THEN t.id 
+          END) as recent_sales,
+          -- Calculate recent revenue (last 30 days)
+          COALESCE(SUM(CASE 
+            WHEN t.datetime >= NOW() - INTERVAL '30 days' 
+            THEN t.price 
+            ELSE 0 
+          END), 0) as recent_revenue,
+          -- Count open orders
+          COUNT(DISTINCT CASE 
+            WHEN o.status IN ('pending', 'confirmed', 'processing') 
+            THEN o.id 
+          END) as open_orders,
+          -- Calculate total order volume (last 12 months)
+          COALESCE(SUM(CASE 
+            WHEN o.created_at >= NOW() - INTERVAL '12 months' 
+            THEN o.total_amount 
+            ELSE 0 
+          END), 0) as order_volume
+        FROM suppliers s
+        LEFT JOIN purchase_conditions pc ON s.id = pc.supplier_id
+        LEFT JOIN products p ON pc.product_id = p.id
+        LEFT JOIN transactions t ON (
+          LOWER(TRIM(t.product_name)) = LOWER(TRIM(p.product_name)) OR
+          LOWER(TRIM(t.product_name)) = LOWER(TRIM(p.article)) OR
+          LOWER(TRIM(t.product_name)) = LOWER(TRIM(p.sku))
+        )
+        LEFT JOIN orders o ON o.supplier_id = s.id
+        GROUP BY s.id, s.name, s.status, s.city, s.email, s.phone, s.contact_person
+      )
+      SELECT * FROM supplier_analytics
+      ORDER BY current_year_revenue DESC, products_count DESC, s.name
     `;
     
     const result = await db.execute(sql.raw(overviewQuery));
     
     const suppliers = result.rows.map((row: any) => ({
       supplierId: row.id,
-      openOrders: 0,
+      openOrders: Number(row.open_orders || 0),
       annualRevenue: Number(row.current_year_revenue || 0),
       productCount: Number(row.products_count || 0),
+      orderVolume: Number(row.order_volume || 0),
       lastOrderDate: null
     }));
     

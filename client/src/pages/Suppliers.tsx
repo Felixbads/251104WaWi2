@@ -24,6 +24,7 @@ interface SupplierAnalytics {
   openOrders: number;
   annualRevenue: number;
   productCount: number;
+  orderVolume: number;
   lastOrderDate?: string;
 }
 
@@ -62,7 +63,8 @@ export default function Suppliers() {
       analytics: analyticsMap.get(supplier.id) || {
         openOrders: 0,
         annualRevenue: 0,
-        productCount: 0
+        productCount: 0,
+        orderVolume: 0
       }
     }));
   }, [suppliersQuery.data, analyticsQuery.data]);
@@ -283,11 +285,19 @@ export default function Suppliers() {
                     </div>
                   </div>
                   
-                  <div>
-                    <p className="text-muted-foreground text-sm">Jahresumsatz (12 Monate)</p>
-                    <p className="font-bold text-green-600">
-                      {formatCurrency(supplier.analytics?.annualRevenue || 0)}
-                    </p>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Jahresumsatz (12 Monate)</p>
+                      <p className="font-bold text-green-600">
+                        {formatCurrency(supplier.analytics?.annualRevenue || 0)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Bestellvolumen (12 Monate)</p>
+                      <p className="font-bold text-indigo-600">
+                        {formatCurrency(supplier.analytics?.orderVolume || 0)}
+                      </p>
+                    </div>
                   </div>
 
                   {supplier.analytics?.lastOrderDate && (
