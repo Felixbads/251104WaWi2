@@ -206,10 +206,19 @@ const ForecastLocationBreakdown: React.FC<{ productId: number; totalQuantity: nu
 
   return (
     <div className="p-4 space-y-3">
-      <h4 className="font-medium text-sm text-gray-700 flex items-center gap-2">
-        <MapPin className="h-4 w-4" />
-        Empfehlung nach Standorten ({forecastWeeks} Wochen)
-      </h4>
+      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <h4 className="font-medium text-sm text-blue-900 mb-2 flex items-center gap-2">
+          <MapPin className="h-4 w-4" />
+          Empfehlung nach Standorten ({forecastWeeks} Wochen)
+        </h4>
+        <div className="text-xs text-blue-700 space-y-1">
+          <p><strong>Berechnungslogik:</strong></p>
+          <p>• <strong>Verkauft:</strong> Tatsächliche Verkäufe pro Standort in den letzten {forecastWeeks} Wochen</p>
+          <p>• <strong>Empfehlen:</strong> Prognose für die nächsten {forecastWeeks} Wochen basierend auf Ø/Woche</p>
+          <p>• <strong>Ausverkauft:</strong> Tage ohne Verfügbarkeit werden herausgerechnet (höhere Ø/Woche)</p>
+          <p>• <strong>Orange Badge:</strong> 20% Sicherheitspuffer bei Standorten mit Ausverkäufen</p>
+        </div>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {(locationSales as LocationSalesData[]).map((location, index) => {
           // Calculate recommended quantity based on sales proportion
@@ -233,9 +242,9 @@ const ForecastLocationBreakdown: React.FC<{ productId: number; totalQuantity: nu
                     </Badge>
                   </div>
                   <div className="flex justify-between">
-                    <span>Empfehlen:</span>
+                    <span>Empfehlen ({forecastWeeks}W):</span>
                     <Badge variant={location.hasStockouts ? "destructive" : "default"} className="text-xs">
-                      {location.adjustedRecommendation || Math.round(location.avgWeeklySales * forecastWeeks)} Stk.
+                      {Math.round(location.avgWeeklySales * forecastWeeks)} Stk.
                     </Badge>
                   </div>
                   {location.hasStockouts && location.soldoutDays && (
