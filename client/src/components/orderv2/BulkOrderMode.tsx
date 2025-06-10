@@ -92,6 +92,82 @@ interface ForecastData {
   recommendedOrder: number;
 }
 
+interface LocationSalesData {
+  locationName: string;
+  machineName: string;
+  sales: number;
+  revenue: number;
+  avgWeeklySales: number;
+}
+
+// Component for displaying sales breakdown by location
+const SalesLocationBreakdown: React.FC<{ productId: number; analysisWeeks: number }> = ({ productId, analysisWeeks }) => {
+  const { data: locationSales, isLoading } = useQuery({
+    queryKey: [`/api/bulk-orders/sales-by-location/${productId}`, analysisWeeks],
+    enabled: !!productId,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="p-4">
+        <div className="space-y-2">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-8 bg-gray-200 animate-pulse rounded" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!locationSales || !Array.isArray(locationSales) || locationSales.length === 0) {
+    return (
+      <div className="p-4 text-center text-gray-500">
+        Keine Standortdaten verfügbar
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 space-y-3">
+      <h4 className="font-medium text-sm text-gray-700 flex items-center gap-2">
+        <MapPin className="h-4 w-4" />
+        Verkäufe nach Standorten (letzten {analysisWeeks} Wochen)
+      </h4>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {(locationSales as LocationSalesData[]).map((location, index) => (
+          <div key={index} className="p-3 bg-white rounded border border-gray-200">
+            <div className="space-y-2">
+              <div className="font-medium text-sm text-gray-900">
+                {location.locationName}
+              </div>
+              <div className="text-xs text-gray-600">
+                Automat: {location.machineName}
+              </div>
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span>Verkäufe:</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {location.sales} Stk.
+                  </Badge>
+                </div>
+                <div className="flex justify-between">
+                  <span>Umsatz:</span>
+                  <span className="font-medium">{location.revenue.toFixed(2)} €</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Ø/Woche:</span>
+                  <span>{location.avgWeeklySales.toFixed(1)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   onBack,
   onOrderCreated
@@ -186,7 +262,10 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   const calculateLocationBreakdown = (productId: number, totalQuantity: number) => {
     if (!warehouses || !inventoryData) return [];
 
-    const warehouseList = Array.isArray(warehouses) ? warehouses : warehouses.data || [];
+    // Extract warehouse list from response structure
+    const warehouseList = (warehouses as any)?.data || warehouses || [];
+    if (!Array.isArray(warehouseList) || warehouseList.length === 0) return [];
+    
     const productInventory = (inventoryData as any[]).filter((inv: any) => inv.productId === productId);
     
     // Calculate total current stock across all warehouses for this product
@@ -446,35 +525,61 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                   <TableHead>Umsatz</TableHead>
                   <TableHead>Ø pro Woche</TableHead>
                   <TableHead>Trend</TableHead>
+                  <TableHead>Standorte</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {Array.isArray(salesAnalysis) && salesAnalysis.length > 0 ? (
-                  salesAnalysis.map((item: SalesAnalysis) => (
-                    <TableRow key={item.productId}>
-                      <TableCell className="font-medium">{item.productName}</TableCell>
-                      <TableCell>{item.totalSales}</TableCell>
-                      <TableCell>{Number(item.totalRevenue).toFixed(2)} €</TableCell>
-                      <TableCell>{Number(item.avgWeeklySales).toFixed(1)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Badge 
-                            variant={
-                              item.trendDirection === 'up' ? "default" :
-                              item.trendDirection === 'down' ? "destructive" : "secondary"
-                            }
-                          >
-                            {item.trendDirection === 'up' ? '↗' : 
-                             item.trendDirection === 'down' ? '↘' : '→'}
-                            {item.trendPercentage?.toFixed(0) || '0'}%
-                          </Badge>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                  salesAnalysis.map((item: SalesAnalysis) => {
+                    const isExpanded = expandedRows[item.productId];
+                    return (
+                      <React.Fragment key={item.productId}>
+                        <TableRow>
+                          <TableCell className="font-medium">{item.productName}</TableCell>
+                          <TableCell>{item.totalSales}</TableCell>
+                          <TableCell>{Number(item.totalRevenue).toFixed(2)} €</TableCell>
+                          <TableCell>{Number(item.avgWeeklySales).toFixed(1)}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Badge 
+                                variant={
+                                  item.trendDirection === 'up' ? "default" :
+                                  item.trendDirection === 'down' ? "destructive" : "secondary"
+                                }
+                              >
+                                {item.trendDirection === 'up' ? '↗' : 
+                                 item.trendDirection === 'down' ? '↘' : '→'}
+                                {item.trendPercentage?.toFixed(0) || '0'}%
+                              </Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleRowExpansion(item.productId)}
+                              className="flex items-center gap-1"
+                            >
+                              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              <MapPin className="h-3 w-3" />
+                              Standorte
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                        
+                        {isExpanded && (
+                          <TableRow className="bg-gray-50">
+                            <TableCell colSpan={6} className="p-0">
+                              <SalesLocationBreakdown productId={item.productId} analysisWeeks={analysisWeeks} />
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center text-muted-foreground">
                       Keine Verkaufsanalysedaten verfügbar
                     </TableCell>
                   </TableRow>

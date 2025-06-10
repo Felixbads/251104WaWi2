@@ -182,6 +182,60 @@ router.get('/forecast/bulk/:supplierId/:weeks', async (req, res) => {
   }
 });
 
+// Get sales breakdown by location for a specific product
+router.get('/sales-by-location/:productId', async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const analysisWeeks = parseInt(req.query.analysisWeeks as string) || 4;
+    
+    if (!productId) {
+      return res.status(400).json({ error: 'Product ID is required' });
+    }
+
+    const weeksAgo = new Date();
+    weeksAgo.setDate(weeksAgo.getDate() - (analysisWeeks * 7));
+
+    console.log(`Getting sales breakdown for product ${productId} over ${analysisWeeks} weeks`);
+
+    // Get sales data by location for the specific product
+    const salesByLocation = await db
+      .select({
+        locationName: warehouses.locationName,
+        machineName: machines.machineName,
+        machineId: machines.id,
+        sales: sql`COUNT(t.id)`.as('sales'),
+        revenue: sql`SUM(COALESCE(t.price, 0))`.as('revenue')
+      })
+      .from(transactions.as('t'))
+      .leftJoin(machines, eq(machines.id, sql`t.machine_id`))
+      .leftJoin(machineWarehouseAssignments, eq(machineWarehouseAssignments.machineId, machines.id))
+      .leftJoin(warehouses, eq(warehouses.id, machineWarehouseAssignments.warehouseId))
+      .where(and(
+        sql`t.product_name = (SELECT name FROM products WHERE id = ${productId})`,
+        gte(sql`t.datetime`, weeksAgo)
+      ))
+      .groupBy(warehouses.locationName, machines.machineName, machines.id)
+      .having(sql`COUNT(t.id) > 0`)
+      .orderBy(sql`SUM(COALESCE(t.price, 0)) DESC`);
+
+    console.log(`Found ${salesByLocation.length} locations with sales for product ${productId}`);
+
+    // Calculate average weekly sales for each location
+    const locationSalesData = salesByLocation.map(location => ({
+      locationName: location.locationName || 'Unbekannter Standort',
+      machineName: location.machineName || 'Unbekannter Automat',
+      sales: parseInt(location.sales as string) || 0,
+      revenue: parseFloat(location.revenue as string) || 0,
+      avgWeeklySales: (parseInt(location.sales as string) || 0) / analysisWeeks
+    }));
+
+    res.json(locationSalesData);
+  } catch (error) {
+    console.error('Error fetching sales by location:', error);
+    res.status(500).json({ error: 'Failed to fetch sales by location data' });
+  }
+});
+
 // Create bulk order
 router.post('/orders/bulk', async (req, res) => {
   try {
