@@ -67,38 +67,34 @@ export default function HolidaysVacationsOverview() {
       return response.json();
     },
     select: (data: any[]) => {
-      // Transform the API data into the format we need
+      // Transform the comprehensive API data into the format we need
       const holidaysByDate = new Map<string, HolidayData>();
       
-      data.forEach(item => {
-        const dateKey = item.date;
+      data.forEach(dayData => {
+        const dateKey = dayData.date;
         
-        if (!holidaysByDate.has(dateKey)) {
-          holidaysByDate.set(dateKey, {
-            date: dateKey,
-            name: item.name || item.holidayName || 'Unbekannter Feiertag',
-            type: item.type || 'public_holiday',
-            states: {}
+        // Process each state for this date
+        if (dayData.states && typeof dayData.states === 'object') {
+          Object.entries(dayData.states).forEach(([stateCode, stateInfo]: [string, any]) => {
+            if (!holidaysByDate.has(dateKey)) {
+              holidaysByDate.set(dateKey, {
+                date: dateKey,
+                name: dayData.name || stateInfo.name || 'Unbekannter Feiertag',
+                type: stateInfo.isHoliday ? 'public_holiday' : 'school_holiday',
+                states: {}
+              });
+            }
+            
+            const holiday = holidaysByDate.get(dateKey)!;
+            
+            // Set state information
+            holiday.states[stateCode] = {
+              isHoliday: stateInfo.isHoliday || false,
+              isSchoolHoliday: stateInfo.isSchoolHoliday || false,
+              holidayName: stateInfo.isHoliday ? stateInfo.name : undefined,
+              schoolHolidayName: stateInfo.isSchoolHoliday ? stateInfo.name : undefined
+            };
           });
-        }
-        
-        const holiday = holidaysByDate.get(dateKey)!;
-        
-        // Initialize state data if not exists
-        if (!holiday.states[item.state]) {
-          holiday.states[item.state] = {
-            isHoliday: false,
-            isSchoolHoliday: false
-          };
-        }
-        
-        // Set holiday or school holiday status
-        if (item.type === 'school_holiday' || item.isSchoolHoliday) {
-          holiday.states[item.state].isSchoolHoliday = true;
-          holiday.states[item.state].schoolHolidayName = item.name || item.holidayName;
-        } else {
-          holiday.states[item.state].isHoliday = true;
-          holiday.states[item.state].holidayName = item.name || item.holidayName;
         }
       });
       

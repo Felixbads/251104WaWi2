@@ -21,7 +21,9 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
+  School,
+  Users
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 
@@ -79,6 +81,29 @@ export default function HolidayAnalysisDashboard() {
     },
     retry: 1
   });
+
+  // Fetch comprehensive holiday data for current year to show current status
+  const { data: comprehensiveData } = useQuery({
+    queryKey: ['holidays-comprehensive', selectedYear],
+    queryFn: async () => {
+      const response = await fetch(`/api/holidays/comprehensive/${selectedYear}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch comprehensive holidays');
+      }
+      return response.json();
+    },
+    retry: 1
+  });
+
+  // Get current holiday status for each state
+  const getCurrentHolidayStatus = () => {
+    if (!comprehensiveData) return {};
+    
+    const today = new Date().toISOString().split('T')[0];
+    const todayData = comprehensiveData.find((day: any) => day.date === today);
+    
+    return todayData?.states || {};
+  };
 
   // Comprehensive sync mutation
   const syncMutation = useMutation({
@@ -284,6 +309,57 @@ export default function HolidayAnalysisDashboard() {
         </div>
       )}
 
+      {/* Current Holiday Status */}
+      {comprehensiveData && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Aktuelle Feiertage & Ferien (heute: {new Date().toLocaleDateString('de-DE')})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
+              {GERMAN_STATES.map((state) => {
+                const currentStatus = getCurrentHolidayStatus();
+                const stateStatus = currentStatus[state.code];
+                
+                return (
+                  <div key={state.code} className="text-center p-2 border rounded-lg">
+                    <div className="text-xs font-medium mb-1">{state.code}</div>
+                    <div className="flex flex-col gap-1">
+                      {stateStatus?.isHoliday && (
+                        <Badge variant="destructive" className="text-xs py-0">
+                          <Calendar className="h-3 w-3 mr-1" />
+                          Feiertag
+                        </Badge>
+                      )}
+                      {stateStatus?.isSchoolHoliday && (
+                        <Badge variant="default" className="text-xs py-0 bg-blue-500">
+                          <School className="h-3 w-3 mr-1" />
+                          Ferien
+                        </Badge>
+                      )}
+                      {!stateStatus?.isHoliday && !stateStatus?.isSchoolHoliday && (
+                        <Badge variant="outline" className="text-xs py-0">
+                          <Users className="h-3 w-3 mr-1" />
+                          Normal
+                        </Badge>
+                      )}
+                    </div>
+                    {stateStatus && (
+                      <div className="text-xs text-gray-500 mt-1 truncate" title={stateStatus.name}>
+                        {stateStatus.name}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* State-wise Analysis */}
       {analysisData && (
         <Card>
@@ -298,12 +374,30 @@ export default function HolidayAnalysisDashboard() {
               {analysisData.stateStats.map((stateStat) => {
                 const stateInfo = getStateInfo(stateStat.state);
                 const total = stateStat.public_holidays + stateStat.school_holidays;
+                const currentStatus = getCurrentHolidayStatus();
+                const stateStatus = currentStatus[stateStat.state];
                 
                 return (
-                  <div key={stateStat.state} className="border rounded-lg p-4">
+                  <div key={stateStat.state} className={`border rounded-lg p-4 ${
+                    stateStatus?.isHoliday || stateStatus?.isSchoolHoliday ? 'border-blue-300 bg-blue-50' : ''
+                  }`}>
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="font-semibold text-sm">{stateInfo?.name || stateStat.state}</h3>
-                      {getStatusIcon(stateStat.public_holidays, stateStat.school_holidays)}
+                      <div className="flex items-center gap-1">
+                        {stateStatus?.isHoliday && (
+                          <Badge variant="destructive" className="text-xs">
+                            <Calendar className="h-3 w-3 mr-1" />
+                            Heute
+                          </Badge>
+                        )}
+                        {stateStatus?.isSchoolHoliday && (
+                          <Badge variant="default" className="text-xs bg-blue-500">
+                            <School className="h-3 w-3 mr-1" />
+                            Ferien
+                          </Badge>
+                        )}
+                        {getStatusIcon(stateStat.public_holidays, stateStat.school_holidays)}
+                      </div>
                     </div>
                     
                     <div className="space-y-2">
@@ -320,6 +414,12 @@ export default function HolidayAnalysisDashboard() {
                           {stateStat.school_holidays}
                         </Badge>
                       </div>
+                      
+                      {stateStatus && (
+                        <div className="text-xs text-gray-600 mt-2 p-2 bg-gray-50 rounded">
+                          <strong>Heute:</strong> {stateStatus.name}
+                        </div>
+                      )}
                       
                       <div className="pt-2">
                         <div className="flex justify-between text-xs mb-1">
