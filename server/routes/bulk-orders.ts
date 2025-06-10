@@ -196,20 +196,23 @@ router.get('/sales-by-location/:productId', async (req, res) => {
 
     const weeksAgo = new Date();
     weeksAgo.setDate(weeksAgo.getDate() - (analysisWeeks * 7));
+    const weeksAgoISO = weeksAgo.toISOString();
 
     console.log(`Getting sales breakdown for product ${productId} over ${analysisWeeks} weeks`);
 
-    // Get product name first
-    const product = await db.select({ name: products.name }).from(products).where(eq(products.id, parseInt(productId))).limit(1);
+    // Get product name first using raw SQL to avoid Drizzle issues
+    const productResult = await db.execute(sql`
+      SELECT product_name FROM products WHERE id = ${parseInt(productId)} LIMIT 1
+    `);
     
-    if (!product.length) {
+    if (!productResult.rows.length) {
       return res.status(404).json({ error: 'Product not found' });
     }
 
-    const productName = product[0].name;
+    const productName = productResult.rows[0].product_name;
 
-    // Use direct SQL query for better compatibility
-    const salesByLocationQuery = `
+    // Use raw SQL query to avoid Drizzle ORM complications
+    const salesByLocation = await db.execute(sql`
       SELECT 
         COALESCE(w.name, 'Unbekannter Standort') as location_name,
         COALESCE(m.machine_name, 'Unbekannter Automat') as machine_name,
@@ -219,14 +222,12 @@ router.get('/sales-by-location/:productId', async (req, res) => {
       LEFT JOIN machines m ON t.machine_id = m.id
       LEFT JOIN machine_warehouse_assignments mwa ON m.id = mwa.machine_id
       LEFT JOIN warehouses w ON mwa.warehouse_id = w.id
-      WHERE t.product_name = $1 
-        AND t.datetime >= $2
+      WHERE t.product_name = ${productName}
+        AND t.datetime >= ${weeksAgoISO}
       GROUP BY w.name, m.machine_name
       HAVING COUNT(*) > 0
       ORDER BY SUM(COALESCE(t.price, 0)) DESC
-    `;
-
-    const salesByLocation = await db.execute(sql.raw(salesByLocationQuery, [productName, weeksAgo]));
+    `);
 
     console.log(`Found ${salesByLocation.rows.length} locations with sales for product ${productId}`);
 

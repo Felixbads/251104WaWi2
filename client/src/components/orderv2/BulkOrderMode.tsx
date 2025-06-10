@@ -766,7 +766,6 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                     const product = (inventoryData as any[])?.find((inv: any) => inv.productId === item.productId);
                     const totalCost = quantity * (product?.price || 0);
                     const isExpanded = expandedRows[item.productId];
-                    const locationBreakdown = calculateLocationBreakdown(item.productId, quantity);
                     
                     return (
                       <React.Fragment key={item.productId}>
@@ -824,7 +823,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                             >
                               {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                               <MapPin className="h-3 w-3" />
-                              {locationBreakdown.length} Standorte
+                              Standorte
                             </Button>
                           </TableCell>
                         </TableRow>
