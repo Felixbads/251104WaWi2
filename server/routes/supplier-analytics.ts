@@ -50,36 +50,30 @@ router.get('/dashboard/:supplierId', async (req, res) => {
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
     
-    // Simple overview metrics
-    const productCount = await db
-      .select({ count: count(products.id) })
-      .from(products)
-      .where(eq(products.supplierId, supplierId));
+    // Get overview metrics using pure SQL
+    const overviewQuery = await db.execute(sql`
+      SELECT 
+        COUNT(DISTINCT p.id) as "totalProducts",
+        COUNT(DISTINCT p.id) as "activeProducts",
+        COUNT(DISTINCT o.id) as "totalOrders",
+        0 as "openOrders",
+        COALESCE(SUM(DISTINCT t.price), 0) as "totalRevenue",
+        COALESCE(SUM(CASE WHEN t.datetime >= ${thirtyDaysAgo} THEN t.price ELSE 0 END), 0) as "monthlyRevenue"
+      FROM products p
+      LEFT JOIN orders o ON p.supplier_id = o.supplier_id
+      LEFT JOIN transactions t ON p.product_name = t.product_name
+      WHERE p.supplier_id = ${supplierId}
+    `);
 
-    const orderCount = await db
-      .select({ count: count(orders.id) })
-      .from(orders)
-      .where(eq(orders.supplierId, supplierId));
-
-    const overviewResult = {
-      totalProducts: productCount[0]?.count || 0,
-      activeProducts: productCount[0]?.count || 0,
-      totalOrders: orderCount[0]?.count || 0,
+    const overviewResult = overviewQuery.rows[0] || {
+      totalProducts: 0,
+      activeProducts: 0,
+      totalOrders: 0,
       openOrders: 0,
       totalRevenue: 0,
       monthlyRevenue: 0,
       lastOrderDate: null
     };
-
-    // Get products for this supplier
-    const supplierProducts = await db
-      .select({
-        id: products.id,
-        productName: products.productName,
-        sku: products.sku,
-      })
-      .from(products)
-      .where(eq(products.supplierId, supplierId));
 
     // Get inventory data with warehouse information using SQL
     const inventoryQuery = await db.execute(sql`
@@ -89,7 +83,7 @@ router.get('/dashboard/:supplierId', async (req, res) => {
         p.sku,
         ii.warehouse_id as "warehouseId", 
         w.name as "warehouseName",
-        w.location,
+        w.address as location,
         ii.quantity as stock,
         ii.min_quantity as "reorderLevel"
       FROM inventory_items ii
