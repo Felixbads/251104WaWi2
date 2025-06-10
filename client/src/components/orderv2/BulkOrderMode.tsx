@@ -44,7 +44,10 @@ import {
   Calculator,
   Eye,
   Plus,
-  Minus
+  Minus,
+  ChevronDown,
+  ChevronRight,
+  MapPin
 } from 'lucide-react';
 
 interface BulkOrderModeProps {
@@ -103,6 +106,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   const [analysisWeeks, setAnalysisWeeks] = useState<number>(4);
   const [forecastWeeks, setForecastWeeks] = useState<number>(2);
   const [orderQuantities, setOrderQuantities] = useState<Record<number, number>>({});
+  const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
 
   // Data queries
   const { data: suppliers, isLoading: suppliersLoading } = useQuery({
@@ -170,6 +174,54 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
       ...prev,
       [productId]: Math.max(0, quantity)
     }));
+  };
+
+  const toggleRowExpansion = (productId: number) => {
+    setExpandedRows(prev => ({
+      ...prev,
+      [productId]: !prev[productId]
+    }));
+  };
+
+  const calculateLocationBreakdown = (productId: number, totalQuantity: number) => {
+    if (!warehouses?.data || !inventoryData) return [];
+
+    const warehouseList = warehouses.data;
+    const productInventory = (inventoryData as any[]).filter((inv: any) => inv.productId === productId);
+    
+    // Calculate total current stock across all warehouses for this product
+    const totalCurrentStock = productInventory.reduce((sum: number, inv: any) => sum + (inv.currentStock || 0), 0);
+    
+    // If no inventory data, distribute equally
+    if (totalCurrentStock === 0 || productInventory.length === 0) {
+      const perWarehouse = Math.ceil(totalQuantity / warehouseList.length);
+      return warehouseList.map((warehouse: any) => ({
+        warehouseId: warehouse.id,
+        warehouseName: warehouse.name,
+        currentStock: 0,
+        recommendedQuantity: perWarehouse,
+        reason: 'Gleichmäßige Verteilung'
+      }));
+    }
+
+    // Distribute based on current stock levels (warehouses with less stock get more)
+    return warehouseList.map((warehouse: any) => {
+      const warehouseInventory = productInventory.find((inv: any) => inv.warehouseId === warehouse.id);
+      const currentStock = warehouseInventory?.currentStock || 0;
+      const stockRatio = totalCurrentStock > 0 ? currentStock / totalCurrentStock : 0;
+      
+      // Inverse ratio: warehouses with less stock get proportionally more
+      const inverseRatio = totalCurrentStock > 0 ? (totalCurrentStock - currentStock) / (totalCurrentStock * (warehouseList.length - 1) || 1) : 1 / warehouseList.length;
+      const recommendedQuantity = Math.ceil(totalQuantity * inverseRatio);
+      
+      return {
+        warehouseId: warehouse.id,
+        warehouseName: warehouse.name,
+        currentStock,
+        recommendedQuantity,
+        reason: currentStock < 10 ? 'Niedriger Bestand' : currentStock > 50 ? 'Hoher Bestand' : 'Standard Verteilung'
+      };
+    });
   };
 
   // Calculate totals
