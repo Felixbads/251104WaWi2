@@ -397,7 +397,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(salesAnalysis as SalesAnalysis[])?.map((item: SalesAnalysis) => (
+                {Array.isArray(salesAnalysis) ? salesAnalysis.map((item: SalesAnalysis) => (
                   <TableRow key={item.productId}>
                     <TableCell className="font-medium">{item.productName}</TableCell>
                     <TableCell>{item.totalSales}</TableCell>
@@ -418,7 +418,13 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">
+                      Keine Verkaufsanalysedaten verfügbar
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
             

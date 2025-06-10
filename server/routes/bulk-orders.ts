@@ -24,10 +24,11 @@ router.get('/inventory/bulk/:supplierId', async (req, res) => {
       WITH supplier_products AS (
         SELECT DISTINCT p.id, p.product_name, COALESCE(pc.unit_price, p.price, 0) as purchase_price
         FROM products p
-        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.supplier_id = ${supplierId}
-        WHERE p.id IN (
-          SELECT DISTINCT product_id FROM inventory_items WHERE product_id IS NOT NULL
-        )
+        INNER JOIN purchase_conditions pc ON p.id = pc.product_id 
+        WHERE pc.supplier_id = ${supplierId}
+          AND p.id IN (
+            SELECT DISTINCT product_id FROM inventory_items WHERE product_id IS NOT NULL
+          )
         ORDER BY p.product_name
       ),
       warehouse_stocks AS (
@@ -88,7 +89,7 @@ router.get('/analytics/sales/:supplierId/:weeks', async (req, res) => {
       WITH supplier_products AS (
         SELECT DISTINCT p.id, p.product_name
         FROM products p
-        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id
+        INNER JOIN purchase_conditions pc ON p.id = pc.product_id
         WHERE pc.supplier_id = ${supplierId}
       ),
       sales_data AS (
@@ -126,7 +127,7 @@ router.get('/analytics/sales/:supplierId/:weeks', async (req, res) => {
         END as trend_direction,
         CASE 
           WHEN sd.avg_weekly_sales = 0 THEN 0
-          ELSE ROUND(((td.recent_sales / ${Math.ceil(weeks / 2)}) - sd.avg_weekly_sales) / sd.avg_weekly_sales * 100, 2)
+          ELSE ROUND(((td.recent_sales::numeric / ${Math.ceil(weeks / 2)}) - sd.avg_weekly_sales) / sd.avg_weekly_sales * 100, 2)
         END as trend_percentage
       FROM sales_data sd
       LEFT JOIN trend_data td ON sd.product_id = td.product_id
