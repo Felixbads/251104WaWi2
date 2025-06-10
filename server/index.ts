@@ -787,8 +787,7 @@ Elbsandstein Proviant & Quartier GmbH`;
   // Register weather data router
   app.use('/api/weather', weatherRouter);
   
-  // Register supplier analytics router
-  app.use('/api/supplier-analytics', supplierAnalyticsRouter);
+
   
   // Direct machine locations endpoint for Standort-Analyse dropdown
   app.get('/api/machine-locations', async (req, res) => {
@@ -1562,6 +1561,9 @@ Elbsandstein Proviant & Quartier GmbH`;
       });
     }
   });
+
+  // Register supplier analytics router BEFORE Vite to prevent routing conflicts
+  app.use('/api/supplier-analytics', supplierAnalyticsRouter);
 
   // Register critical inventory routes
   app.use('/api/critical-inventory', criticalInventoryRouter);

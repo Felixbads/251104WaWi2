@@ -50,20 +50,35 @@ router.get('/dashboard/:supplierId', async (req, res) => {
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const oneMonthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
     
-    // Overview metrics
-    const [overviewResult] = await db
+    // Overview metrics - separate queries to avoid complex joins
+    const productMetrics = await db
       .select({
         totalProducts: count(products.id),
-        activeProducts: sql<number>`COUNT(CASE WHEN ${products.status} = 'active' THEN 1 END)`,
+        activeProducts: sql<number>`COUNT(CASE WHEN ${products.status} = 'active' THEN 1 END)`
+      })
+      .from(products)
+      .where(eq(products.supplierId, supplierId));
+
+    const orderMetrics = await db
+      .select({
         totalOrders: count(orders.id),
         openOrders: sql<number>`COUNT(CASE WHEN ${orders.status} IN ('pending', 'processing') THEN 1 END)`,
         totalRevenue: sql<number>`COALESCE(SUM(${orders.totalAmount}), 0)`,
         monthlyRevenue: sql<number>`COALESCE(SUM(CASE WHEN ${orders.createdAt} >= ${oneMonthAgo} THEN ${orders.totalAmount} ELSE 0 END), 0)`,
         lastOrderDate: sql<Date>`MAX(${orders.createdAt})`
       })
-      .from(products)
-      .leftJoin(orders, eq(products.supplierId, orders.supplierId))
-      .where(eq(products.supplierId, supplierId));
+      .from(orders)
+      .where(eq(orders.supplierId, supplierId));
+
+    const overviewResult = {
+      totalProducts: productMetrics[0]?.totalProducts || 0,
+      activeProducts: productMetrics[0]?.activeProducts || 0,
+      totalOrders: orderMetrics[0]?.totalOrders || 0,
+      openOrders: orderMetrics[0]?.openOrders || 0,
+      totalRevenue: orderMetrics[0]?.totalRevenue || 0,
+      monthlyRevenue: orderMetrics[0]?.monthlyRevenue || 0,
+      lastOrderDate: orderMetrics[0]?.lastOrderDate || null
+    };
 
     // Inventory data with warehouse details
     const inventoryData = await db
