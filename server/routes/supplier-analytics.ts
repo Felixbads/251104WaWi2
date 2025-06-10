@@ -18,22 +18,26 @@ const router = Router();
 // Overview endpoint for suppliers page
 router.get('/overview', async (req, res) => {
   try {
-    // Get all suppliers with basic analytics
-    const suppliersAnalytics = await db
-      .select({
-        supplierId: suppliers.id,
-        openOrders: sql<number>`COUNT(CASE WHEN ${orders.status} IN ('pending', 'processing') THEN 1 ELSE 0 END)`,
-        annualRevenue: sql<number>`COALESCE(SUM(${orders.totalAmount}), 0)`,
-        productCount: sql<number>`COUNT(DISTINCT ${products.id})`,
-        orderVolume: sql<number>`COUNT(${orders.id})`,
-        lastOrderDate: sql<Date>`MAX(${orders.createdAt})`
-      })
-      .from(suppliers)
-      .leftJoin(products, eq(suppliers.id, products.supplierId))
-      .leftJoin(orders, eq(suppliers.id, orders.supplierId))
-      .groupBy(suppliers.id);
+    // Get basic overview statistics using pure SQL to avoid cartesian product issues
+    const overviewQuery = await db.execute(sql`
+      SELECT 
+        COUNT(DISTINCT s.id) as "totalSuppliers",
+        COUNT(DISTINCT p.id) as "totalProducts", 
+        COUNT(DISTINCT CASE WHEN o.status IN ('pending', 'processing') THEN o.id END) as "openOrders",
+        COALESCE(SUM(o.total_amount), 0) as "totalRevenue"
+      FROM suppliers s
+      LEFT JOIN products p ON s.id = p.supplier_id
+      LEFT JOIN orders o ON s.id = o.supplier_id
+    `);
 
-    res.json(suppliersAnalytics);
+    const overviewData = overviewQuery.rows[0] || {
+      totalSuppliers: 0,
+      totalProducts: 0,
+      openOrders: 0,
+      totalRevenue: 0
+    };
+
+    res.json(overviewData);
   } catch (error) {
     console.error('Error fetching supplier analytics overview:', error);
     res.status(500).json({ error: 'Fehler beim Laden der Lieferanten-Übersicht' });
@@ -214,60 +218,113 @@ router.get('/statistics/:supplierId', async (req, res) => {
         startDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
     }
 
-    // Overview statistics
-    const [overviewStats] = await db
-      .select({
-        totalRevenue: sql<number>`COALESCE(SUM(${orders.totalAmount}), 0)`,
-        totalOrders: count(orders.id),
-        avgOrderValue: sql<number>`COALESCE(AVG(${orders.totalAmount}), 0)`,
-        topSellingProduct: sql<string>`'Produktname'`,
-        revenueGrowth: sql<number>`0`,
-        orderGrowth: sql<number>`0`
-      })
-      .from(orders)
-      .where(
-        and(
-          eq(orders.supplierId, supplierId),
-          gte(orders.createdAt, startDate)
-        )
-      );
+    // Get overview statistics using SQL with transaction data
+    const overviewQuery = await db.execute(sql`
+      SELECT 
+        COALESCE(SUM(t.price), 0) as "totalRevenue",
+        COUNT(*) as "totalTransactions",
+        COALESCE(AVG(t.price), 0) as "avgTransactionValue",
+        (
+          SELECT t2.product_name 
+          FROM transactions t2 
+          INNER JOIN products p2 ON t2.product_name = p2.product_name 
+          WHERE p2.supplier_id = ${supplierId} 
+            AND t2.datetime >= ${startDate}
+          GROUP BY t2.product_name 
+          ORDER BY COUNT(*) DESC 
+          LIMIT 1
+        ) as "topSellingProduct"
+      FROM transactions t
+      INNER JOIN products p ON t.product_name = p.product_name
+      WHERE p.supplier_id = ${supplierId}
+        AND t.datetime >= ${startDate}
+    `);
 
-    // Revenue by month
-    const revenueByMonth = await db
-      .select({
-        month: sql<string>`TO_CHAR(${orders.createdAt}, 'YYYY-MM')`,
-        revenue: sql<number>`COALESCE(SUM(${orders.totalAmount}), 0)`,
-        orders: count(orders.id),
-        avgOrderValue: sql<number>`COALESCE(AVG(${orders.totalAmount}), 0)`
-      })
-      .from(orders)
-      .where(
-        and(
-          eq(orders.supplierId, supplierId),
-          gte(orders.createdAt, startDate)
-        )
-      )
-      .groupBy(sql`TO_CHAR(${orders.createdAt}, 'YYYY-MM')`)
-      .orderBy(sql`TO_CHAR(${orders.createdAt}, 'YYYY-MM')`);
+    const overviewStats = overviewQuery.rows[0] || {
+      totalRevenue: 0,
+      totalTransactions: 0,
+      avgTransactionValue: 0,
+      topSellingProduct: 'Kein Produkt'
+    };
 
-    // Product performance
-    const productPerformance = await db
-      .select({
-        productId: products.id,
-        productName: products.productName,
-        revenue: sql<number>`COALESCE(SUM(${orderItems.unitPrice} * ${orderItems.quantity}), 0)`,
-        quantity: sql<number>`COALESCE(SUM(${orderItems.quantity}), 0)`,
-        growth: sql<number>`0`,
-        margin: sql<number>`15`
-      })
-      .from(products)
-      .leftJoin(orderItems, eq(products.id, orderItems.productId))
-      .leftJoin(orders, eq(orderItems.orderId, orders.id))
-      .where(
-        and(
-          eq(products.supplierId, supplierId),
-          gte(orders.createdAt, startDate)
-        )
+    // Revenue by month using SQL
+    const revenueByMonthQuery = await db.execute(sql`
+      SELECT 
+        TO_CHAR(t.datetime, 'YYYY-MM') as month,
+        COALESCE(SUM(t.price), 0) as revenue,
+        COUNT(*) as transactions,
+        COALESCE(AVG(t.price), 0) as "avgTransactionValue"
+      FROM transactions t
+      INNER JOIN products p ON t.product_name = p.product_name
+      WHERE p.supplier_id = ${supplierId}
+        AND t.datetime >= ${startDate}
+      GROUP BY TO_CHAR(t.datetime, 'YYYY-MM')
+      ORDER BY TO_CHAR(t.datetime, 'YYYY-MM')
+    `);
+
+    // Product performance using SQL with transaction data
+    const productPerformanceQuery = await db.execute(sql`
+      SELECT 
+        p.id as "productId",
+        p.product_name as "productName",
+        COALESCE(SUM(t.price), 0) as revenue,
+        COUNT(*) as quantity,
+        0 as growth,
+        15 as margin
+      FROM products p
+      LEFT JOIN transactions t ON p.product_name = t.product_name
+      WHERE p.supplier_id = ${supplierId}
+        AND (t.datetime IS NULL OR t.datetime >= ${startDate})
+      GROUP BY p.id, p.product_name
+      ORDER BY COALESCE(SUM(t.price), 0) DESC
+      LIMIT 10
+    `);
+
+    // Top locations using SQL
+    const topLocationsQuery = await db.execute(sql`
+      SELECT 
+        m.id as "locationId",
+        m.machine_name as "locationName",
+        COALESCE(SUM(t.price), 0) as revenue,
+        COUNT(*) as transactions,
+        ROUND(
+          (COUNT(*) * 100.0 / NULLIF(
+            (SELECT COUNT(*) FROM transactions t2 
+             INNER JOIN products p2 ON t2.product_name = p2.product_name 
+             WHERE p2.supplier_id = ${supplierId} 
+               AND t2.datetime >= ${startDate}), 
+            0
+          )), 2
+        ) as percentage
+      FROM machines m
+      LEFT JOIN transactions t ON m.id = t.machine_id
+      LEFT JOIN products p ON t.product_name = p.product_name
+      WHERE p.supplier_id = ${supplierId}
+        AND t.datetime >= ${startDate}
+      GROUP BY m.id, m.machine_name
+      ORDER BY COALESCE(SUM(t.price), 0) DESC
+      LIMIT 5
+    `);
+
+    const statistics = {
+      overview: {
+        ...overviewStats,
+        revenueGrowth: 0,
+        orderGrowth: 0
+      },
+      revenueByMonth: revenueByMonthQuery.rows,
+      productPerformance: productPerformanceQuery.rows,
+      topLocations: topLocationsQuery.rows
+    };
+
+    res.json(statistics);
+  } catch (error) {
+    console.error('Error fetching supplier statistics:', error);
+    res.status(500).json({ error: 'Fehler beim Laden der Statistiken' });
+  }
+});
+
+export default router;
       )
       .groupBy(products.id, products.productName)
       .orderBy(desc(sql`COALESCE(SUM(${orderItems.unitPrice} * ${orderItems.quantity}), 0)`))
