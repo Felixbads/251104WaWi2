@@ -3005,8 +3005,36 @@ export class DatabaseStorage implements IStorage {
     // Combine filters or get all suppliers
     const where = filters.length > 0 ? and(...filters) : undefined;
     
-    // Get suppliers with optional filter
-    const data = await db.select()
+    // Get suppliers with product counts
+    const data = await db.select({
+      id: suppliers.id,
+      name: suppliers.name,
+      contactPerson: suppliers.contactPerson,
+      phone: suppliers.phone,
+      email: suppliers.email,
+      website: suppliers.website,
+      address: suppliers.address,
+      city: suppliers.city,
+      postalCode: suppliers.postalCode,
+      country: suppliers.country,
+      status: suppliers.status,
+      notes: suppliers.notes,
+      paymentTerms: suppliers.paymentTerms,
+      deliveryTerms: suppliers.deliveryTerms,
+      minimumOrderValue: suppliers.minimumOrderValue,
+      deliveryDays: suppliers.deliveryDays,
+      taxId: suppliers.taxId,
+      accountNumber: suppliers.accountNumber,
+      bankDetails: suppliers.bankDetails,
+      createdAt: suppliers.createdAt,
+      updatedAt: suppliers.updatedAt,
+      productCount: sql<number>`COALESCE((
+        SELECT COUNT(DISTINCT p.id)::int
+        FROM purchase_conditions pc
+        JOIN products p ON pc.product_id = p.id
+        WHERE pc.supplier_id = ${suppliers.id}
+      ), 0)`
+    })
       .from(suppliers)
       .where(where)
       .limit(limit)
