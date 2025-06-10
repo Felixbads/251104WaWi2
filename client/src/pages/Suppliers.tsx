@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { 
@@ -91,7 +91,40 @@ interface EnhancedSupplier extends Supplier {
   analytics?: SupplierAnalytics;
 }
 
-// Filter Dialog Komponente
+// Filter and sort types
+interface FilterState {
+  status: string | null;
+  sortBy: string;
+  sortOrder: 'asc' | 'desc';
+  stockLevel: string | null;
+  salesRange: string | null;
+}
+
+const defaultFilters: FilterState = {
+  status: null,
+  sortBy: 'currentYearRevenue',
+  sortOrder: 'desc',
+  stockLevel: null,
+  salesRange: null,
+};
+
+type SupplierFormValues = z.infer<typeof supplierFormSchema>;
+
+// Formular Schema für Lieferanten
+const supplierFormSchema = z.object({
+  name: z.string().min(1, "Lieferantenname ist erforderlich"),
+  email: z.string().email("Ungültige E-Mail-Adresse").optional().or(z.literal("")),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  website: z.string().url("Ungültige Website-URL").optional().or(z.literal("")),
+  contactPerson: z.string().optional(),
+  notes: z.string().optional(),
+  paymentTerms: z.string().optional(),
+  deliveryTerms: z.string().optional(),
+  status: z.enum(["active", "inactive", "pending"]).default("active"),
+});
+
+// Filter Dialog Component
 interface FilterDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -99,146 +132,135 @@ interface FilterDialogProps {
   currentFilters: FilterState;
 }
 
-// Filter-Status
-interface FilterState {
-  status: string | null;
-  sortBy: string;
-  sortOrder: 'asc' | 'desc';
-}
-
-// Standard Filter-Status
-const defaultFilters: FilterState = {
-  status: null,
-  sortBy: 'name',
-  sortOrder: 'asc',
-};
-
-// Formular Schema für Lieferanten
-const supplierFormSchema = z.object({
-  name: z.string().min(1, "Lieferantenname ist erforderlich"),
-  contactPerson: z.string().optional().nullable(),
-  phone: z.string().optional().nullable(),
-  email: z.string().email("Ungültige E-Mail-Adresse").optional(),
-  website: z.string().url("Ungültige Website-URL").optional().nullable(),
-  address: z.string().optional().nullable(),
-  city: z.string().optional().nullable(),
-  postalCode: z.string().optional().nullable(),
-  country: z.string().default("Deutschland").optional().nullable(),
-  status: z.string().default("active"),
-  notes: z.string().optional().nullable(),
-  paymentTerms: z.string().optional().nullable(),
-  deliveryTerms: z.string().optional().nullable(),
-  minimumOrderValue: z.number().optional().nullable(),
-  deliveryDays: z.string().optional().nullable(),
-  taxId: z.string().optional().nullable(),
-  accountNumber: z.string().optional().nullable(),
-  bankDetails: z.string().optional().nullable(),
-});
-
-type SupplierFormValues = z.infer<typeof supplierFormSchema>;
-
-// Filter Dialog Komponente
 const FilterDialog = ({ isOpen, onOpenChange, onApplyFilters, currentFilters }: FilterDialogProps) => {
   const [filters, setFilters] = useState<FilterState>(currentFilters);
 
-  const handleStatusChange = (value: string) => {
-    setFilters(prev => ({
-      ...prev,
-      status: value === 'alle' ? null : value,
-    }));
-  };
-
-  const handleSortByChange = (value: string) => {
-    setFilters(prev => ({
-      ...prev,
-      sortBy: value,
-    }));
-  };
-
-  const handleSortOrderChange = (value: 'asc' | 'desc') => {
-    setFilters(prev => ({
-      ...prev,
-      sortOrder: value,
-    }));
-  };
-
-  const resetFilters = () => {
-    setFilters(defaultFilters);
-  };
-
-  const applyFilters = () => {
+  const handleApply = () => {
     onApplyFilters(filters);
     onOpenChange(false);
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Filter und Sortierung</DialogTitle>
           <DialogDescription>
-            Filtern und sortieren Sie die Lieferantenliste nach verschiedenen Kriterien.
+            Filtern Sie die Lieferantenliste nach Ihren Kriterien
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid gap-2">
-            <Label>Status</Label>
-            <Select value={filters.status || 'alle'} onValueChange={handleStatusChange}>
+        
+        <div className="space-y-4">
+          {/* Status Filter */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Status</label>
+            <Select 
+              value={filters.status || "all"} 
+              onValueChange={(value) => setFilters({...filters, status: value === "all" ? null : value})}
+            >
               <SelectTrigger>
-                <SelectValue placeholder="Status wählen" />
+                <SelectValue placeholder="Alle Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="alle">Alle Status</SelectItem>
+                <SelectItem value="all">Alle Status</SelectItem>
                 <SelectItem value="active">Aktiv</SelectItem>
                 <SelectItem value="inactive">Inaktiv</SelectItem>
+                <SelectItem value="pending">Ausstehend</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          <div className="grid gap-2">
-            <Label>Sortieren nach</Label>
-            <Select value={filters.sortBy} onValueChange={handleSortByChange}>
+          {/* Stock Level Filter */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Lagerstatus</label>
+            <Select 
+              value={filters.stockLevel || "all"} 
+              onValueChange={(value) => setFilters({...filters, stockLevel: value === "all" ? null : value})}
+            >
               <SelectTrigger>
-                <SelectValue placeholder="Sortierkriterium wählen" />
+                <SelectValue placeholder="Alle Lagerbestände" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="name">Name</SelectItem>
-                <SelectItem value="city">Stadt</SelectItem>
-                <SelectItem value="updatedAt">Letzte Aktualisierung</SelectItem>
+                <SelectItem value="all">Alle Lagerbestände</SelectItem>
+                <SelectItem value="low">Niedrige Bestände</SelectItem>
+                <SelectItem value="normal">Normale Bestände</SelectItem>
+                <SelectItem value="high">Hohe Bestände</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          <div className="grid gap-2">
-            <Label>Sortierreihenfolge</Label>
-            <Select value={filters.sortOrder} onValueChange={handleSortOrderChange as (value: string) => void}>
+          {/* Sales Range Filter */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Umsatzbereich</label>
+            <Select 
+              value={filters.salesRange || "all"} 
+              onValueChange={(value) => setFilters({...filters, salesRange: value === "all" ? null : value})}
+            >
               <SelectTrigger>
-                <SelectValue placeholder="Reihenfolge wählen" />
+                <SelectValue placeholder="Alle Umsätze" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="asc">Aufsteigend</SelectItem>
-                <SelectItem value="desc">Absteigend</SelectItem>
+                <SelectItem value="all">Alle Umsätze</SelectItem>
+                <SelectItem value="high">Hoher Umsatz (&gt;10k€)</SelectItem>
+                <SelectItem value="medium">Mittlerer Umsatz (1k-10k€)</SelectItem>
+                <SelectItem value="low">Niedriger Umsatz (&lt;1k€)</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Sort Options */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Sortierung</label>
+            <div className="flex gap-2">
+              <Select 
+                value={filters.sortBy} 
+                onValueChange={(value) => setFilters({...filters, sortBy: value})}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Name</SelectItem>
+                  <SelectItem value="currentYearRevenue">Jahresumsatz</SelectItem>
+                  <SelectItem value="currentYearSales">Verkäufe</SelectItem>
+                  <SelectItem value="productsCount">Produktanzahl</SelectItem>
+                  <SelectItem value="lowStockCount">Niedrige Bestände</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Select 
+                value={filters.sortOrder} 
+                onValueChange={(value) => setFilters({...filters, sortOrder: value as 'asc' | 'desc'})}
+              >
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="asc">Aufsteigend</SelectItem>
+                  <SelectItem value="desc">Absteigend</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={resetFilters}>Zurücksetzen</Button>
-          <Button onClick={applyFilters}>Filter anwenden</Button>
+
+        <DialogFooter className="flex justify-between">
+          <Button 
+            variant="outline" 
+            onClick={() => setFilters(defaultFilters)}
+          >
+            Zurücksetzen
+          </Button>
+          <Button onClick={handleApply}>
+            Anwenden
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 };
 
-// Form Label Komponente
-const Label = ({ children }: { children: React.ReactNode }) => (
-  <span className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-    {children}
-  </span>
-);
-
-// Dialog zum Hinzufügen/Bearbeiten von Lieferanten
+// Supplier Form Dialog Component
 interface SupplierFormDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -247,102 +269,91 @@ interface SupplierFormDialogProps {
 }
 
 const SupplierFormDialog = ({ isOpen, onOpenChange, supplier, mode }: SupplierFormDialogProps) => {
-  // Form mit Validierung
+  const queryClient = useQueryClient();
+  
   const form = useForm<SupplierFormValues>({
     resolver: zodResolver(supplierFormSchema),
-    defaultValues: supplier ? {
-      ...supplier,
-      minimumOrderValue: supplier.minimumOrderValue || undefined,
-    } : {
-      name: '',
-      status: 'active',
-      country: 'Deutschland'
-    }
+    defaultValues: {
+      name: supplier?.name || "",
+      email: supplier?.email || "",
+      phone: supplier?.phone || "",
+      address: supplier?.address || "",
+      website: supplier?.website || "",
+      contactPerson: supplier?.contactPerson || "",
+      notes: supplier?.notes || "",
+      paymentTerms: supplier?.paymentTerms || "",
+      deliveryTerms: supplier?.deliveryTerms || "",
+      status: supplier?.status as "active" | "inactive" | "pending" || "active",
+    },
   });
-  
-  // Mutation zum Erstellen eines neuen Lieferanten
+
   const createMutation = useMutation({
     mutationFn: createSupplier,
     onSuccess: () => {
-      toast({
-        title: "Erfolg",
-        description: "Lieferant wurde erfolgreich hinzugefügt.",
-      });
       queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/supplier-analytics'] });
+      toast({ description: "Lieferant erfolgreich erstellt!" });
       onOpenChange(false);
       form.reset();
     },
     onError: (error) => {
-      toast({
-        title: "Fehler",
-        description: `Fehler beim Hinzufügen des Lieferanten: ${error}`,
-        variant: "destructive",
+      toast({ 
+        variant: "destructive", 
+        description: `Fehler beim Erstellen: ${error.message}` 
       });
-    }
+    },
   });
-  
-  // Mutation zum Aktualisieren eines Lieferanten
+
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<SupplierFormValues> }) => 
-      updateSupplier(id, data),
+    mutationFn: ({ id, data }: { id: number; data: any }) => updateSupplier(id, data),
     onSuccess: () => {
-      toast({
-        title: "Erfolg",
-        description: "Lieferant wurde erfolgreich aktualisiert.",
-      });
       queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/supplier-analytics'] });
+      toast({ description: "Lieferant erfolgreich aktualisiert!" });
       onOpenChange(false);
     },
     onError: (error) => {
-      toast({
-        title: "Fehler",
-        description: `Fehler beim Aktualisieren des Lieferanten: ${error}`,
-        variant: "destructive",
+      toast({ 
+        variant: "destructive", 
+        description: `Fehler beim Aktualisieren: ${error.message}` 
       });
-    }
+    },
   });
-  
+
   const onSubmit = (values: SupplierFormValues) => {
-    // Prepare data for submission by removing empty strings to allow null values
-    const cleanedValues = Object.entries(values).reduce((acc: any, [key, value]) => {
-      // Convert empty strings to null to prevent validation errors
-      acc[key] = value === '' ? null : value;
-      return acc;
-    }, {});
-    
     if (mode === 'create') {
-      createMutation.mutate(cleanedValues);
-    } else if (mode === 'edit' && supplier) {
-      updateMutation.mutate({ id: supplier.id, data: cleanedValues });
+      createMutation.mutate(values);
+    } else if (supplier) {
+      updateMutation.mutate({ id: supplier.id, data: values });
     }
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {mode === 'create' ? 'Neuen Lieferanten anlegen' : 'Lieferanten bearbeiten'}
+            {mode === 'create' ? 'Neuen Lieferanten erstellen' : 'Lieferant bearbeiten'}
           </DialogTitle>
           <DialogDescription>
             {mode === 'create' 
-              ? 'Fügen Sie einen neuen Lieferanten mit allen relevanten Informationen hinzu.' 
-              : 'Bearbeiten Sie die Informationen des ausgewählten Lieferanten.'}
+              ? 'Fügen Sie einen neuen Lieferanten zum System hinzu.' 
+              : 'Bearbeiten Sie die Lieferanteninformationen.'
+            }
           </DialogDescription>
         </DialogHeader>
         
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Hauptdaten */}
               <FormField
                 control={form.control}
                 name="name"
                 render={({ field }) => (
-                  <FormItem className="md:col-span-2">
-                    <FormLabel>Name *</FormLabel>
+                  <FormItem>
+                    <FormLabel>Lieferantenname *</FormLabel>
                     <FormControl>
-                      <Input {...field} />
+                      <Input placeholder="z.B. ABC Großhandel" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -356,39 +367,15 @@ const SupplierFormDialog = ({ isOpen, onOpenChange, supplier, mode }: SupplierFo
                   <FormItem>
                     <FormLabel>Ansprechpartner</FormLabel>
                     <FormControl>
-                      <Input {...field} value={field.value || ''} />
+                      <Input placeholder="z.B. Max Mustermann" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              
-              <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Status</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Status wählen" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="active">Aktiv</SelectItem>
-                        <SelectItem value="inactive">Inaktiv</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              {/* Kontaktdaten */}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="email"
@@ -396,7 +383,7 @@ const SupplierFormDialog = ({ isOpen, onOpenChange, supplier, mode }: SupplierFo
                   <FormItem>
                     <FormLabel>E-Mail</FormLabel>
                     <FormControl>
-                      <Input {...field} type="email" value={field.value || ''} />
+                      <Input type="email" placeholder="kontakt@lieferant.de" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -410,85 +397,47 @@ const SupplierFormDialog = ({ isOpen, onOpenChange, supplier, mode }: SupplierFo
                   <FormItem>
                     <FormLabel>Telefon</FormLabel>
                     <FormControl>
-                      <Input {...field} value={field.value || ''} />
+                      <Input placeholder="+49 123 456789" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              
-              <FormField
-                control={form.control}
-                name="website"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Website</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={field.value || ''} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              {/* Adresse */}
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem className="md:col-span-2">
-                    <FormLabel>Adresse</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={field.value || ''} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="postalCode"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>PLZ</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={field.value || ''} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="city"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Stadt</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={field.value || ''} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="country"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Land</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              {/* Lieferbedingungen */}
+            </div>
+
+            <FormField
+              control={form.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Adresse</FormLabel>
+                  <FormControl>
+                    <Textarea 
+                      placeholder="Straße, PLZ Ort, Land" 
+                      {...field} 
+                      rows={2}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="website"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Website</FormLabel>
+                  <FormControl>
+                    <Input type="url" placeholder="https://www.lieferant.de" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="paymentTerms"
@@ -496,7 +445,7 @@ const SupplierFormDialog = ({ isOpen, onOpenChange, supplier, mode }: SupplierFo
                   <FormItem>
                     <FormLabel>Zahlungsbedingungen</FormLabel>
                     <FormControl>
-                      <Input {...field} value={field.value || ''} />
+                      <Input placeholder="z.B. 30 Tage netto" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -510,117 +459,57 @@ const SupplierFormDialog = ({ isOpen, onOpenChange, supplier, mode }: SupplierFo
                   <FormItem>
                     <FormLabel>Lieferbedingungen</FormLabel>
                     <FormControl>
-                      <Input {...field} value={field.value || ''} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="minimumOrderValue"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Mindestbestellwert (€)</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="number" 
-                        step="0.01" 
-                        {...field} 
-                        value={field.value ?? ''} 
-                        onChange={(e) => {
-                          const value = e.target.value === '' ? undefined : parseFloat(e.target.value);
-                          field.onChange(value);
-                        }} 
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="deliveryDays"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Liefertage</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder='z.B. "Mo, Mi, Fr"' value={field.value || ''} />
-                    </FormControl>
-                    <FormDescription>Kommagetrennt, z.B. "Mo, Mi, Fr"</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              {/* Buchhalterische Daten */}
-              <FormField
-                control={form.control}
-                name="taxId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Steuer-ID</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={field.value || ''} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="accountNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Kontonummer</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={field.value || ''} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              <FormField
-                control={form.control}
-                name="bankDetails"
-                render={({ field }) => (
-                  <FormItem className="md:col-span-2">
-                    <FormLabel>Bankverbindung</FormLabel>
-                    <FormControl>
-                      <Input {...field} value={field.value || ''} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              {/* Notizen */}
-              <FormField
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem className="md:col-span-2">
-                    <FormLabel>Notizen</FormLabel>
-                    <FormControl>
-                      <Textarea rows={3} {...field} value={field.value || ''} />
+                      <Input placeholder="z.B. 3-5 Werktage" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
-            
+
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Status auswählen" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="active">Aktiv</SelectItem>
+                      <SelectItem value="inactive">Inaktiv</SelectItem>
+                      <SelectItem value="pending">Ausstehend</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notizen</FormLabel>
+                  <FormControl>
+                    <Textarea 
+                      placeholder="Zusätzliche Informationen zum Lieferanten..." 
+                      {...field} 
+                      rows={3}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <DialogFooter>
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => onOpenChange(false)}
-                disabled={createMutation.isPending || updateMutation.isPending}
-              >
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Abbrechen
               </Button>
               <Button 
@@ -628,13 +517,9 @@ const SupplierFormDialog = ({ isOpen, onOpenChange, supplier, mode }: SupplierFo
                 disabled={createMutation.isPending || updateMutation.isPending}
               >
                 {createMutation.isPending || updateMutation.isPending ? (
-                  <span className="flex items-center">
-                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    Speichern...
-                  </span>
-                ) : (
-                  mode === 'create' ? 'Lieferanten anlegen' : 'Änderungen speichern'
-                )}
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                ) : null}
+                {mode === 'create' ? 'Erstellen' : 'Speichern'}
               </Button>
             </DialogFooter>
           </form>
@@ -644,7 +529,7 @@ const SupplierFormDialog = ({ isOpen, onOpenChange, supplier, mode }: SupplierFo
   );
 };
 
-// Dialog zum Löschen eines Lieferanten
+// Delete Dialog Component
 interface DeleteDialogProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
@@ -652,123 +537,53 @@ interface DeleteDialogProps {
 }
 
 const DeleteDialog = ({ isOpen, onOpenChange, supplier }: DeleteDialogProps) => {
-  const [showProducts, setShowProducts] = useState(false);
+  const queryClient = useQueryClient();
   
-  // Produkte des Lieferanten abfragen
-  const { data: products } = useQuery({
-    queryKey: ['/api/products', { supplierId: supplier?.id }],
-    enabled: !!supplier?.id && supplier.productsCount > 0 && showProducts
-  });
-  
-  // Mutation zum Löschen eines Lieferanten
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => deleteSupplier(id),
+    mutationFn: deleteSupplier,
     onSuccess: () => {
-      toast({
-        title: "Erfolg",
-        description: "Lieferant wurde erfolgreich gelöscht.",
-      });
       queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/supplier-analytics'] });
+      toast({ description: "Lieferant erfolgreich gelöscht!" });
       onOpenChange(false);
     },
     onError: (error) => {
-      toast({
-        title: "Fehler",
-        description: `Fehler beim Löschen des Lieferanten: ${error}`,
-        variant: "destructive",
+      toast({ 
+        variant: "destructive", 
+        description: `Fehler beim Löschen: ${error.message}` 
       });
-    }
+    },
   });
-  
+
   const handleDelete = () => {
     if (supplier) {
       deleteMutation.mutate(supplier.id);
     }
   };
-  
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>Lieferanten löschen</DialogTitle>
+          <DialogTitle>Lieferant löschen</DialogTitle>
           <DialogDescription>
-            Sind Sie sicher, dass Sie den Lieferanten "{supplier?.name}" löschen möchten?
+            Sind Sie sicher, dass Sie den Lieferanten "{supplier?.name}" löschen möchten? 
             Diese Aktion kann nicht rückgängig gemacht werden.
           </DialogDescription>
         </DialogHeader>
-        
-        {supplier?.productsCount && supplier.productsCount > 0 && (
-          <div className="space-y-3">
-            <div className="bg-yellow-50 border border-yellow-100 rounded-md p-3 text-yellow-800 text-sm">
-              <AlertTriangle className="h-4 w-4 inline-block mr-2" />
-              <span>
-                Diesem Lieferanten sind <strong>{supplier.productsCount} Produkte</strong> zugeordnet. 
-                Bitte entfernen Sie zuerst die Zuordnung der Produkte, bevor Sie den Lieferanten löschen.
-              </span>
-              <Button 
-                variant="link" 
-                size="sm" 
-                className="p-0 h-auto ml-1 text-yellow-800 underline"
-                onClick={() => setShowProducts(!showProducts)}
-              >
-                {showProducts ? 'Produkte ausblenden' : 'Produkte anzeigen'}
-              </Button>
-            </div>
-            
-            {showProducts && (
-              <div className="border rounded-md max-h-[200px] overflow-y-auto p-1">
-                {products ? (
-                  products.data?.length > 0 ? (
-                    <ul className="text-sm space-y-1">
-                      {products.data.map((product) => (
-                        <li key={product.id} className="flex items-center p-2 hover:bg-gray-50 rounded">
-                          <span className="font-medium">{product.productName}</span>
-                          <span className="ml-auto text-xs text-gray-500">
-                            {product.sku || product.article || '-'}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-gray-500 p-2">Keine Produkte gefunden</p>
-                  )
-                ) : (
-                  <div className="flex justify-center items-center p-4">
-                    <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-                    <span className="text-sm">Produkte werden geladen...</span>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            <div className="text-sm text-gray-600">
-              <InfoIcon className="h-4 w-4 inline-block mr-2" />
-              Sie können die Produktzuordnung ändern, indem Sie auf das jeweilige Produkt gehen und den Lieferanten ändern.
-            </div>
-          </div>
-        )}
-        
         <DialogFooter>
-          <Button 
-            type="button" 
-            variant="outline" 
-            onClick={() => onOpenChange(false)}
-            disabled={deleteMutation.isPending}
-          >
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Abbrechen
           </Button>
           <Button 
-            type="button" 
-            variant="destructive"
+            variant="destructive" 
             onClick={handleDelete}
-            disabled={deleteMutation.isPending || (supplier?.productsCount && supplier.productsCount > 0)}
+            disabled={deleteMutation.isPending}
           >
             {deleteMutation.isPending ? (
-              <span className="flex items-center">
-                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                Löschen...
-              </span>
-            ) : 'Lieferanten löschen'}
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            ) : null}
+            Löschen
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -776,296 +591,271 @@ const DeleteDialog = ({ isOpen, onOpenChange, supplier }: DeleteDialogProps) => 
   );
 };
 
-// Lieferantenkarte Komponente
-const SupplierCard = ({ 
-  supplier, 
-  onEdit, 
-  onDelete 
-}: { 
-  supplier: Supplier; 
+// Supplier Card Component
+interface SupplierCardProps {
+  supplier: EnhancedSupplier; 
   onEdit: (supplier: Supplier) => void;
   onDelete: (supplier: Supplier) => void;
-}) => {
-  const navigate = useLocation()[1];
+}
+
+const SupplierCard = ({ supplier, onEdit, onDelete }: SupplierCardProps) => {
+  const analytics = supplier.analytics;
   
-  const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Nur navigieren, wenn wir nicht auf einen anklickbaren internen Link oder Button geklickt haben
-    const target = e.target as HTMLElement;
-    const isClickableElement = 
-      target.tagName === 'A' || 
-      target.tagName === 'BUTTON' ||
-      target.closest('a') || 
-      target.closest('button');
-    
-    if (!isClickableElement) {
-      navigate(`/lieferanten/${supplier.id}`);
+  // Status-Badge Farbe
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active': return 'bg-green-100 text-green-800 border-green-200';
+      case 'inactive': return 'bg-red-100 text-red-800 border-red-200';
+      case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
-  
+
+  // Growth indicator
+  const getGrowthIndicator = (growth: number) => {
+    if (growth > 0) return <TrendingUp className="h-4 w-4 text-green-500" />;
+    if (growth < 0) return <TrendingDown className="h-4 w-4 text-red-500" />;
+    return <Minus className="h-4 w-4 text-gray-400" />;
+  };
+
   return (
-    <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={handleCardClick}>
-      <CardHeader className="pb-2">
-        <div className="flex justify-between items-start">
-          <CardTitle className="text-lg font-medium truncate">{supplier.name}</CardTitle>
-          <StatusBadge status={supplier.status} />
-        </div>
-        {supplier.city && (
-          <CardDescription className="flex items-center text-sm text-gray-500">
-            <MapPin className="h-3.5 w-3.5 mr-1" />
-            {supplier.city}
-          </CardDescription>
-        )}
-      </CardHeader>
-      <CardContent className="pt-0 pb-2">
-        <div className="grid grid-cols-1 gap-2">
-          {/* KPIs */}
-          <div className="grid grid-cols-2 gap-3 mt-1">
-            <div className="flex flex-col">
-              <div className="text-xs text-gray-500 flex items-center">
-                <ShoppingBag className="h-3 w-3 mr-1" />
-                Produkte
-              </div>
-              <span className="font-medium">{supplier.productsCount || 0}</span>
+    <Card className="hover:shadow-lg transition-shadow duration-200">
+      <CardHeader className="pb-4">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Truck className="h-5 w-5 text-blue-600" />
             </div>
-            
-            <div className="flex flex-col">
-              <div className="text-xs text-gray-500 flex items-center">
-                <Clipboard className="h-3 w-3 mr-1" />
-                Offene Bestellungen
-              </div>
-              <span className="font-medium">{supplier.openOrdersCount || 0}</span>
+            <div>
+              <CardTitle className="text-lg">{supplier.name}</CardTitle>
+              {supplier.contactPerson && (
+                <CardDescription className="text-sm text-gray-600">
+                  {supplier.contactPerson}
+                </CardDescription>
+              )}
             </div>
           </div>
+          
+          <div className="flex items-center gap-2">
+            <Badge className={`text-xs ${getStatusColor(supplier.status)}`}>
+              {supplier.status === 'active' ? 'Aktiv' : 
+               supplier.status === 'inactive' ? 'Inaktiv' : 'Ausstehend'}
+            </Badge>
+            
+            {analytics && analytics.lowStockCount > 0 && (
+              <Tooltip>
+                <TooltipTrigger>
+                  <Badge variant="destructive" className="text-xs">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    {analytics.lowStockCount}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Niedrige Bestände</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
         </div>
+      </CardHeader>
+
+      <CardContent className="space-y-4">
+        {/* Contact Information */}
+        <div className="grid grid-cols-1 gap-2 text-sm">
+          {supplier.email && (
+            <div className="flex items-center gap-2 text-gray-600">
+              <Mail className="h-4 w-4" />
+              <span className="truncate">{supplier.email}</span>
+            </div>
+          )}
+          {supplier.phone && (
+            <div className="flex items-center gap-2 text-gray-600">
+              <Phone className="h-4 w-4" />
+              <span>{supplier.phone}</span>
+            </div>
+          )}
+          {supplier.website && (
+            <div className="flex items-center gap-2 text-gray-600">
+              <Globe className="h-4 w-4" />
+              <a 
+                href={supplier.website} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline truncate"
+              >
+                Website
+              </a>
+            </div>
+          )}
+        </div>
+
+        {/* Analytics Section */}
+        {analytics && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              {/* Revenue and Sales */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1">
+                    <DollarSign className="h-4 w-4 text-green-600" />
+                    <span className="text-sm font-medium">Jahresumsatz</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold text-green-600">
+                      €{analytics.currentYearRevenue.toLocaleString()}
+                    </span>
+                    {getGrowthIndicator(analytics.revenueGrowth)}
+                  </div>
+                  {analytics.revenueGrowth !== 0 && (
+                    <div className="text-xs text-gray-500">
+                      {analytics.revenueGrowth > 0 ? '+' : ''}{analytics.revenueGrowth.toFixed(1)}% zum Vorjahr
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1">
+                    <ShoppingBag className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-medium">Verkäufe</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg font-bold text-blue-600">
+                      {analytics.currentYearSales.toLocaleString()}
+                    </span>
+                    {getGrowthIndicator(analytics.salesGrowth)}
+                  </div>
+                  {analytics.salesGrowth !== 0 && (
+                    <div className="text-xs text-gray-500">
+                      {analytics.salesGrowth > 0 ? '+' : ''}{analytics.salesGrowth.toFixed(1)}% zum Vorjahr
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Products and Stock */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-purple-600" />
+                  <span className="text-sm font-medium">Produkte:</span>
+                  <span className="font-bold">{analytics.productsCount}</span>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <PackageCheck className="h-4 w-4 text-orange-600" />
+                  <span className="text-sm font-medium">Aktiv:</span>
+                  <span className="font-bold">{analytics.activeProducts}</span>
+                </div>
+              </div>
+
+              {/* Top Product */}
+              {analytics.topProducts && analytics.topProducts.length > 0 && (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1">
+                    <Tag className="h-4 w-4 text-amber-600" />
+                    <span className="text-sm font-medium">Top-Produkt:</span>
+                  </div>
+                  <div className="text-sm text-gray-600 truncate">
+                    {analytics.topProducts[0].product_name} 
+                    ({analytics.topProducts[0].sales_count} Verkäufe)
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Address */}
+        {supplier.address && (
+          <>
+            <Separator />
+            <div className="flex items-start gap-2 text-sm text-gray-600">
+              <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span className="text-xs leading-relaxed">{supplier.address}</span>
+            </div>
+          </>
+        )}
+
+        {/* Payment Terms */}
+        {(supplier.paymentTerms || supplier.deliveryTerms) && (
+          <>
+            <Separator />
+            <div className="grid grid-cols-1 gap-2 text-sm">
+              {supplier.paymentTerms && (
+                <div className="flex items-center gap-2 text-gray-600">
+                  <Calendar className="h-4 w-4" />
+                  <span className="text-xs">Zahlung: {supplier.paymentTerms}</span>
+                </div>
+              )}
+              {supplier.deliveryTerms && (
+                <div className="flex items-center gap-2 text-gray-600">
+                  <Truck className="h-4 w-4" />
+                  <span className="text-xs">Lieferung: {supplier.deliveryTerms}</span>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </CardContent>
-      <CardFooter className="pt-2 flex items-center justify-between">
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="flex-1 mr-1"
-          onClick={() => onEdit(supplier)}
-        >
-          <Edit className="h-3.5 w-3.5 mr-1.5" />
-          Bearbeiten
-        </Button>
-        <Button 
-          variant="ghost" 
-          size="sm"
-          className="flex-none text-destructive hover:text-destructive hover:bg-destructive/10"
-          onClick={() => onDelete(supplier)}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </Button>
+
+      <CardFooter className="pt-4 border-t bg-gray-50/50">
+        <div className="flex justify-between items-center w-full">
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => onEdit(supplier)}
+            >
+              <Edit className="h-4 w-4 mr-1" />
+              Bearbeiten
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => onDelete(supplier)}
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Löschen
+            </Button>
+          </div>
+          
+          <div className="flex gap-1">
+            {supplier.email && (
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button variant="ghost" size="sm" asChild>
+                    <a href={`mailto:${supplier.email}`}>
+                      <Mail className="h-4 w-4" />
+                    </a>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>E-Mail senden</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            
+            {supplier.website && (
+              <Tooltip>
+                <TooltipTrigger>
+                  <Button variant="ghost" size="sm" asChild>
+                    <a href={supplier.website} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Website öffnen</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        </div>
       </CardFooter>
     </Card>
   );
 };
 
-// Lieferantenliste Komponente
-const SupplierListItem = ({ 
-  supplier, 
-  onEdit, 
-  onDelete 
-}: { 
-  supplier: Supplier; 
-  onEdit: (supplier: Supplier) => void;
-  onDelete: (supplier: Supplier) => void;
-}) => {
-  const navigate = useLocation()[1];
-
-  const handleRowClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Nur navigieren, wenn wir nicht auf einen anklickbaren internen Link oder Button geklickt haben
-    const target = e.target as HTMLElement;
-    const isClickableElement = 
-      target.tagName === 'A' || 
-      target.tagName === 'BUTTON' ||
-      target.closest('a') || 
-      target.closest('button');
-    
-    if (!isClickableElement) {
-      navigate(`/lieferanten/${supplier.id}`);
-    }
-  };
-
-  return (
-    <div className="flex items-center p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer" onClick={handleRowClick}>
-      <div className="flex-grow mr-4">
-        <div className="flex items-center mb-1">
-          <h3 className="font-medium mr-2">{supplier.name}</h3>
-          <StatusBadge status={supplier.status} />
-        </div>
-        
-        <div className="flex flex-wrap gap-x-4 text-sm text-gray-600">
-          {supplier.city && (
-            <span className="flex items-center">
-              <MapPin className="h-3.5 w-3.5 mr-1" />
-              {supplier.city}
-            </span>
-          )}
-          
-          {supplier.contactPerson && (
-            <span>{supplier.contactPerson}</span>
-          )}
-          
-          {supplier.phone && (
-            <a 
-              href={`tel:${supplier.phone}`} 
-              className="flex items-center text-gray-500 hover:text-primary"
-            >
-              <Phone className="h-3.5 w-3.5 mr-1" />
-              {supplier.phone}
-            </a>
-          )}
-          
-          {supplier.email && (
-            <a 
-              href={`mailto:${supplier.email}`} 
-              className="flex items-center text-gray-500 hover:text-primary"
-            >
-              <Mail className="h-3.5 w-3.5 mr-1" />
-              {supplier.email}
-            </a>
-          )}
-        </div>
-      </div>
-      
-      <div className="flex items-center gap-6 text-sm">
-        <div className="text-center">
-          <p className="text-xs text-gray-500">Produkte</p>
-          <p className="font-medium">{supplier.productsCount || 0}</p>
-        </div>
-        
-        <div className="text-center">
-          <p className="text-xs text-gray-500">Bestellungen</p>
-          <p className="font-medium">{supplier.openOrdersCount || 0}</p>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => onEdit(supplier)}
-          >
-            <Edit className="h-3.5 w-3.5 mr-1.5" />
-            Bearbeiten
-          </Button>
-          
-          <Button 
-            variant="ghost"
-            size="sm"
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={() => onDelete(supplier)}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Status-Badge-Komponente
-const StatusBadge = ({ status }: { status: string }) => {
-  let variant: 
-    | "default"
-    | "outline"
-    | "secondary"
-    | "destructive" = "default";
-  let className = "";
-
-  switch (status) {
-    case "active":
-      variant = "default";
-      className = "bg-green-500 hover:bg-green-700";
-      break;
-    case "inactive":
-      variant = "secondary";
-      break;
-    default:
-      variant = "outline";
-  }
-
-  return (
-    <Badge variant={variant} className={`${className}`}>
-      {status === "active" ? "Aktiv" : 
-       status === "inactive" ? "Inaktiv" : status}
-    </Badge>
-  );
-};
-
-// SupplierGridSkeleton für Lade-Ansicht
-const SupplierGridSkeleton = () => {
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-      {Array.from({ length: 6 }).map((_, index) => (
-        <Card key={index} className="overflow-hidden">
-          <CardHeader className="pb-2">
-            <Skeleton className="h-6 w-3/4" />
-            <Skeleton className="h-4 w-1/2 mt-1" />
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Skeleton className="h-4 w-5/6" />
-            <div className="flex gap-2">
-              <Skeleton className="h-4 w-1/4" />
-              <Skeleton className="h-4 w-1/4" />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Skeleton className="h-3 w-3/4 mb-1" />
-                <Skeleton className="h-4 w-1/3" />
-              </div>
-              <div>
-                <Skeleton className="h-3 w-3/4 mb-1" />
-                <Skeleton className="h-4 w-1/3" />
-              </div>
-            </div>
-          </CardContent>
-          <CardFooter className="pt-2">
-            <Skeleton className="h-9 w-full" />
-          </CardFooter>
-        </Card>
-      ))}
-    </div>
-  );
-};
-
-// SupplierListSkeleton für Lade-Ansicht
-const SupplierListSkeleton = () => {
-  return (
-    <div className="space-y-3">
-      {Array.from({ length: 6 }).map((_, index) => (
-        <div key={index} className="p-3 border-b border-gray-100">
-          <div className="flex justify-between items-center">
-            <div className="space-y-2">
-              <Skeleton className="h-6 w-48" />
-              <div className="flex gap-3">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-4 w-32" />
-                <Skeleton className="h-4 w-36" />
-              </div>
-            </div>
-            <div className="flex items-center gap-6">
-              <div className="text-center">
-                <Skeleton className="h-3 w-16 mb-1" />
-                <Skeleton className="h-5 w-8 mx-auto" />
-              </div>
-              <div className="text-center">
-                <Skeleton className="h-3 w-16 mb-1" />
-                <Skeleton className="h-5 w-8 mx-auto" />
-              </div>
-              <div className="flex gap-2">
-                <Skeleton className="h-9 w-24" />
-                <Skeleton className="h-9 w-9" />
-              </div>
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-};
-
-// Hauptseite für Lieferanten
 // Excel Import Dialog Component
 interface ExcelImportDialogProps {
   isOpen: boolean;
@@ -1073,599 +863,641 @@ interface ExcelImportDialogProps {
 }
 
 const ExcelImportDialog = ({ isOpen, onOpenChange }: ExcelImportDialogProps) => {
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
-  const [importStats, setImportStats] = useState<{
-    total: number;
-    added: number;
-    updated: number;
-    skipped: number;
-    errors: number;
-  } | null>(null);
-  
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleFileUpload = async (file: File) => {
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      toast({
+        variant: "destructive",
+        description: "Bitte wählen Sie eine Excel-Datei (.xlsx oder .xls) aus."
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress(0);
+
     try {
-      setIsUploading(true);
-      setUploadStatus('processing');
-      
-      // Datei einlesen
-      const reader = new FileReader();
-      
-      reader.onload = async (event) => {
-        try {
-          const data = new Uint8Array(event.target?.result as ArrayBuffer);
-          
-          // Excel-Datei parsen mit xlsx
-          const workbook = await import('xlsx').then(XLSX => XLSX.read(data, { type: 'array' }));
-          
-          // Erste Tabelle auswählen
-          const sheetName = workbook.SheetNames[0];
-          const sheet = workbook.Sheets[sheetName];
-          
-          // In JSON konvertieren
-          const jsonData = await import('xlsx').then(XLSX => XLSX.utils.sheet_to_json(sheet));
-          
-          if (!jsonData || jsonData.length === 0) {
-            throw new Error("Die Excel-Datei enthält keine gültigen Daten.");
+      const formData = new FormData();
+      formData.append('file', file);
+
+      // Simulate upload progress
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return prev;
           }
-          
-          // Importierte Daten verarbeiten und importieren
-          const importResults = await processExcelData(jsonData);
-          
-          setImportStats(importResults);
-          setUploadStatus('success');
-          
-          // Lieferantenliste aktualisieren
-          queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
-          
-          // Erfolgsbenachrichtigung
-          toast({
-            title: "Import erfolgreich",
-            description: `${importResults.added} neue Lieferanten hinzugefügt, ${importResults.updated} aktualisiert.`,
-          });
-          
-        } catch (error) {
-          console.error("Fehler beim Verarbeiten der Excel-Datei:", error);
-          setUploadStatus('error');
-          toast({
-            title: "Importfehler",
-            description: `Die Excel-Datei konnte nicht verarbeitet werden: ${error instanceof Error ? error.message : 'Unbekannter Fehler'}`,
-            variant: "destructive",
-          });
-        }
-      };
-      
-      reader.onerror = (error) => {
-        console.error("Fehler beim Lesen der Datei:", error);
-        setUploadStatus('error');
-        toast({
-          title: "Uploadfehler",
-          description: "Die Datei konnte nicht gelesen werden.",
-          variant: "destructive",
+          return prev + 10;
         });
-      };
-      
-      reader.readAsArrayBuffer(file);
-      
-    } catch (error) {
-      console.error("Fehler beim Dateiupload:", error);
-      setUploadStatus('error');
+      }, 200);
+
+      const response = await fetch('/api/suppliers/import', {
+        method: 'POST',
+        body: formData,
+      });
+
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+
+      if (response.ok) {
+        const result = await response.json();
+        toast({
+          description: `Erfolgreich ${result.imported} Lieferanten importiert!`
+        });
+        queryClient.invalidateQueries({ queryKey: ['/api/suppliers'] });
+        onOpenChange(false);
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || 'Import fehlgeschlagen');
+      }
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        description: `Import-Fehler: ${error.message}`
+      });
     } finally {
       setIsUploading(false);
+      setUploadProgress(0);
     }
   };
-  
-  // Verarbeitet die Excel-Daten und importiert sie
-  const processExcelData = async (data: any[]): Promise<{
-    total: number;
-    added: number;
-    updated: number;
-    skipped: number;
-    errors: number;
-  }> => {
-    const stats = {
-      total: data.length,
-      added: 0,
-      updated: 0,
-      skipped: 0,
-      errors: 0
-    };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
     
-    // Field mapping from Excel to our schema
-    for (const row of data) {
-      try {
-        // Standardisierte Feldnamen
-        const supplierData = {
-          name: row['Name'] || row['Lieferant'] || row['Firma'] || row['Lieferantenname'] || '',
-          contactPerson: row['Ansprechpartner'] || row['Kontaktperson'] || '',
-          email: row['E-Mail'] || row['Email'] || row['E-mail'] || '',
-          phone: row['Telefon'] || row['Tel'] || row['Telefonnummer'] || '',
-          website: row['Website'] || row['Webseite'] || row['URL'] || '',
-          address: row['Adresse'] || row['Straße'] || '',
-          city: row['Stadt'] || row['Ort'] || '',
-          postalCode: row['PLZ'] || row['Postleitzahl'] || '',
-          country: row['Land'] || 'Deutschland',
-          status: row['Status'] === 'Inaktiv' ? 'inactive' : 'active',
-          notes: row['Notizen'] || row['Bemerkungen'] || '',
-          paymentTerms: row['Zahlungsbedingungen'] || '',
-          deliveryTerms: row['Lieferbedingungen'] || '',
-          minimumOrderValue: row['Mindestbestellwert'] || undefined,
-          deliveryDays: row['Liefertage'] || '',
-          taxId: row['Steuernummer'] || row['USt-ID'] || '',
-          accountNumber: row['Kontonummer'] || '',
-          bankDetails: row['Bankverbindung'] || ''
-        };
-        
-        // Pflichtfeld prüfen
-        if (!supplierData.name) {
-          stats.skipped++;
-          continue;
-        }
-        
-        // Prüfen, ob Lieferant bereits existiert (nach Namen)
-        const existingSuppliers = await getSuppliers({ search: supplierData.name });
-        const existingSupplier = existingSuppliers.data?.find((s: any) => 
-          s.name.toLowerCase() === supplierData.name.toLowerCase()
-        );
-        
-        if (existingSupplier) {
-          // Aktualisieren
-          await updateSupplier(existingSupplier.id, supplierData);
-          stats.updated++;
-        } else {
-          // Neu anlegen
-          await createSupplier(supplierData);
-          stats.added++;
-        }
-      } catch (error) {
-        console.error("Fehler beim Importieren des Lieferanten:", error);
-        stats.errors++;
-      }
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      handleFileUpload(files[0]);
     }
-    
-    return stats;
   };
-  
-  const handleResetClick = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) {
+      handleFileUpload(files[0]);
     }
-    setUploadStatus('idle');
-    setImportStats(null);
   };
-  
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Lieferanten importieren</DialogTitle>
+          <DialogTitle>Lieferanten aus Excel importieren</DialogTitle>
           <DialogDescription>
-            Laden Sie eine Excel-Datei mit Lieferantendaten hoch. Die Datei sollte mindestens eine Spalte "Name" enthalten.
+            Laden Sie eine Excel-Datei hoch, um mehrere Lieferanten gleichzeitig zu importieren.
           </DialogDescription>
         </DialogHeader>
-        
-        <div className="space-y-6">
-          {uploadStatus === 'idle' && (
-            <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center">
-              <FileSpreadsheet className="mx-auto h-12 w-12 text-gray-400" />
-              <div className="mt-4 flex text-sm leading-6 text-gray-600 dark:text-gray-400">
-                <label
-                  htmlFor="file-upload"
-                  className="relative cursor-pointer rounded-md font-semibold text-primary hover:text-primary/80 focus-within:outline-none"
-                >
-                  <span>Excel-Datei hochladen</span>
-                  <input
-                    id="file-upload"
-                    name="file-upload"
-                    type="file"
-                    ref={fileInputRef}
-                    className="sr-only"
-                    accept=".xlsx,.xls"
-                    onChange={handleFileChange}
-                  />
-                </label>
-                <p className="pl-1">oder hier ablegen</p>
+
+        <div className="space-y-4">
+          {/* Drag & Drop Area */}
+          <div
+            className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+              isDragging 
+                ? 'border-blue-500 bg-blue-50' 
+                : 'border-gray-300 hover:border-gray-400'
+            }`}
+            onDrop={handleDrop}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragging(true);
+            }}
+            onDragLeave={() => setIsDragging(false)}
+          >
+            <FileSpreadsheet className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+            <p className="text-sm text-gray-600 mb-2">
+              Datei hier ablegen oder klicken zum Auswählen
+            </p>
+            <p className="text-xs text-gray-500">
+              Unterstützte Formate: .xlsx, .xls
+            </p>
+            
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            
+            <Button 
+              variant="outline" 
+              className="mt-4"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Datei auswählen
+            </Button>
+          </div>
+
+          {/* Upload Progress */}
+          {isUploading && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Upload läuft...</span>
+                <span>{uploadProgress}%</span>
               </div>
-              <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
-                Unterstützte Formate: Excel (.xlsx, .xls)
-              </p>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
             </div>
           )}
-          
-          {uploadStatus === 'processing' && (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-              <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-                Daten werden verarbeitet...
-              </p>
-            </div>
-          )}
-          
-          {uploadStatus === 'success' && importStats && (
-            <div className="rounded-lg p-6 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-              <div className="flex items-center">
-                <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
-                <h3 className="ml-2 text-lg font-medium text-green-800 dark:text-green-300">
-                  Import erfolgreich
-                </h3>
-              </div>
-              <div className="mt-4 text-sm text-gray-700 dark:text-gray-300">
-                <p><strong>Gesamt:</strong> {importStats.total} Lieferanten verarbeitet</p>
-                <p><strong>Neu hinzugefügt:</strong> {importStats.added} Lieferanten</p>
-                <p><strong>Aktualisiert:</strong> {importStats.updated} Lieferanten</p>
-                <p><strong>Übersprungen:</strong> {importStats.skipped} Einträge (kein Name)</p>
-                <p><strong>Fehler:</strong> {importStats.errors} Einträge</p>
-              </div>
-            </div>
-          )}
-          
-          {uploadStatus === 'error' && (
-            <div className="rounded-lg p-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-              <div className="flex items-center">
-                <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
-                <h3 className="ml-2 text-lg font-medium text-red-800 dark:text-red-300">
-                  Import fehlgeschlagen
-                </h3>
-              </div>
-              <p className="mt-2 text-sm text-red-700 dark:text-red-300">
-                Beim Import ist ein Fehler aufgetreten. Bitte überprüfen Sie das Format Ihrer Excel-Datei.
-              </p>
-            </div>
-          )}
+
+          {/* Excel Template Info */}
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <h4 className="font-medium text-blue-900 mb-2">Excel-Vorlage</h4>
+            <p className="text-sm text-blue-800 mb-2">
+              Die Excel-Datei sollte folgende Spalten enthalten:
+            </p>
+            <ul className="text-xs text-blue-700 space-y-1">
+              <li>• Name (Pflichtfeld)</li>
+              <li>• E-Mail</li>
+              <li>• Telefon</li>
+              <li>• Adresse</li>
+              <li>• Website</li>
+              <li>• Ansprechpartner</li>
+              <li>• Status (active/inactive/pending)</li>
+            </ul>
+          </div>
         </div>
-        
+
         <DialogFooter>
-          {uploadStatus === 'success' || uploadStatus === 'error' ? (
-            <Button onClick={handleResetClick}>Zurücksetzen</Button>
-          ) : (
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button>
-          )}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Schließen
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 };
 
+// Main Suppliers Component
 export default function Suppliers() {
-  const queryClient = useQueryClient();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [excelImportOpen, setExcelImportOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [filters, setFilters] = useState<FilterState>(defaultFilters);
+  const [isFilterDialogOpen, setIsFilterDialogOpen] = useState(false);
+  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
-  const [currentFilters, setCurrentFilters] = useState<FilterState>(defaultFilters);
-  const [page, setPage] = useState(1);
-  const limit = 20; // Anzahl der Lieferanten pro Seite
+  const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
+  const [_, setLocation] = useLocation();
 
-  // Daten abrufen
-  const { data, isLoading, error, refetch } = useQuery<SupplierResponse>({
-    queryKey: ['/api/suppliers', searchTerm, currentFilters, page, limit],
-    queryFn: () => getSuppliers({ 
-      limit,
-      offset: (page - 1) * limit,
-      status: currentFilters.status || undefined,
-      search: searchTerm || undefined
-    })
+  // Queries
+  const suppliersQuery = useQuery({
+    queryKey: ['/api/suppliers'],
+    queryFn: getSuppliers,
   });
 
-  // Funktionen für Dialoge
-  const handleCreateSupplier = () => {
-    setCreateDialogOpen(true);
-  };
+  const analyticsQuery = useQuery({
+    queryKey: ['/api/supplier-analytics'],
+  });
 
+  // Enhanced suppliers with analytics
+  const suppliersWithAnalytics = useMemo(() => {
+    if (!suppliersQuery.data || !analyticsQuery.data) return [];
+    
+    const analyticsMap = new Map();
+    analyticsQuery.data.forEach((analytics: any) => {
+      analyticsMap.set(analytics.supplierId, analytics);
+    });
+
+    return suppliersQuery.data.map((supplier: Supplier) => ({
+      ...supplier,
+      analytics: analyticsMap.get(supplier.id),
+    }));
+  }, [suppliersQuery.data, analyticsQuery.data]);
+
+  // Filter and sort suppliers
+  const filteredAndSortedSuppliers = useMemo(() => {
+    if (!suppliersWithAnalytics) return [];
+
+    let filtered = suppliersWithAnalytics.filter((supplier: EnhancedSupplier) => {
+      // Search filter
+      if (searchQuery) {
+        const search = searchQuery.toLowerCase();
+        const matchesSearch = 
+          supplier.name.toLowerCase().includes(search) ||
+          (supplier.email && supplier.email.toLowerCase().includes(search)) ||
+          (supplier.contactPerson && supplier.contactPerson.toLowerCase().includes(search));
+        
+        if (!matchesSearch) return false;
+      }
+
+      // Status filter
+      if (filters.status && supplier.status !== filters.status) {
+        return false;
+      }
+
+      // Stock level filter
+      if (filters.stockLevel && supplier.analytics) {
+        const { lowStockCount } = supplier.analytics;
+        switch (filters.stockLevel) {
+          case 'low':
+            if (lowStockCount === 0) return false;
+            break;
+          case 'normal':
+            if (lowStockCount !== 0) return false;
+            break;
+          case 'high':
+            // Could implement based on inventory levels
+            break;
+        }
+      }
+
+      // Sales range filter
+      if (filters.salesRange && supplier.analytics) {
+        const { currentYearRevenue } = supplier.analytics;
+        switch (filters.salesRange) {
+          case 'high':
+            if (currentYearRevenue <= 10000) return false;
+            break;
+          case 'medium':
+            if (currentYearRevenue <= 1000 || currentYearRevenue > 10000) return false;
+            break;
+          case 'low':
+            if (currentYearRevenue > 1000) return false;
+            break;
+        }
+      }
+
+      return true;
+    });
+
+    // Sort suppliers
+    filtered.sort((a: EnhancedSupplier, b: EnhancedSupplier) => {
+      let aValue: any;
+      let bValue: any;
+
+      switch (filters.sortBy) {
+        case 'name':
+          aValue = a.name;
+          bValue = b.name;
+          break;
+        case 'currentYearRevenue':
+          aValue = a.analytics?.currentYearRevenue || 0;
+          bValue = b.analytics?.currentYearRevenue || 0;
+          break;
+        case 'currentYearSales':
+          aValue = a.analytics?.currentYearSales || 0;
+          bValue = b.analytics?.currentYearSales || 0;
+          break;
+        case 'productsCount':
+          aValue = a.analytics?.productsCount || 0;
+          bValue = b.analytics?.productsCount || 0;
+          break;
+        case 'lowStockCount':
+          aValue = a.analytics?.lowStockCount || 0;
+          bValue = b.analytics?.lowStockCount || 0;
+          break;
+        default:
+          aValue = a.name;
+          bValue = b.name;
+      }
+
+      if (typeof aValue === 'string') {
+        const comparison = aValue.localeCompare(bValue);
+        return filters.sortOrder === 'asc' ? comparison : -comparison;
+      } else {
+        const comparison = aValue - bValue;
+        return filters.sortOrder === 'asc' ? comparison : -comparison;
+      }
+    });
+
+    return filtered;
+  }, [suppliersWithAnalytics, searchQuery, filters]);
+
+  // Handlers
   const handleEditSupplier = (supplier: Supplier) => {
     setSelectedSupplier(supplier);
-    setEditDialogOpen(true);
+    setFormMode('edit');
+    setIsFormDialogOpen(true);
   };
 
   const handleDeleteSupplier = (supplier: Supplier) => {
     setSelectedSupplier(supplier);
-    setDeleteDialogOpen(true);
+    setIsDeleteDialogOpen(true);
   };
 
   const handleApplyFilters = (filters: FilterState) => {
-    setCurrentFilters(filters);
-    setPage(1); // Zurück zur ersten Seite bei Filteränderung
+    setFilters(filters);
   };
 
-  // Aktualisieren der Daten
-  const handleRefresh = () => {
-    refetch();
-  };
-
-  // Verwende die tatsächlichen Daten vom Backend
-  const enhancedSuppliers = data?.data ? data.data : [];
-
-  return (
-    <div className="space-y-6">
-      {/* Einheitliche Filter- und Aktionsleiste */}
-      <div className="w-full flex flex-col md:flex-row gap-3 mb-6">
-        {/* Linke Seite: Suchfeld */}
-        <div className="flex-grow flex flex-col sm:flex-row gap-2">
-          {/* Suchfeld */}
-          <div className="relative flex-grow">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              value={searchTerm}
-              placeholder="Nach Lieferanten suchen..."
-              className="pl-8 h-9 w-full"
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-        </div>
-        
-        {/* Rechte Seite: Aktionen */}
-        <div className="flex flex-wrap items-center gap-2">
-          <TooltipProvider>
-            {/* Filter Button */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-9 w-9 relative"
-                  onClick={() => setFilterDialogOpen(true)}
-                >
-                  <Filter className="h-4 w-4" />
-                  {(currentFilters.status || currentFilters.sortBy !== 'name' || currentFilters.sortOrder !== 'asc') && (
-                    <Badge 
-                      variant="secondary" 
-                      className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center"
-                    >
-                      {Object.values(currentFilters).filter(v => v !== null && v !== 'name' && v !== 'asc').length}
-                    </Badge>
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Filter</TooltipContent>
-            </Tooltip>
-            
-            {/* Ansichts-Schalter */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline" 
-                  size="icon"
-                  className="h-9 w-9"
-                  onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
-                >
-                  {viewMode === "grid" ? (
-                    <List className="h-4 w-4" />
-                  ) : (
-                    <Grid className="h-4 w-4" />
-                  )}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{viewMode === "grid" ? "Listenansicht" : "Kachelansicht"}</TooltipContent>
-            </Tooltip>
-            
-            {/* Export/Import */}
-            <ExportImportButtons
-              type="suppliers"
-              label="Lieferanten"
-              onSuccessfulImport={handleRefresh}
-            />
-            
-            {/* Aktualisieren Button */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-9 w-9"
-                  onClick={handleRefresh}
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Aktualisieren</TooltipContent>
-            </Tooltip>
-            
-            {/* Neuer Lieferant Button */}
-            <Button
-              className="h-9"
-              onClick={handleCreateSupplier}
-            >
-              <Plus className="h-4 w-4 mr-1.5" />
-              Neuer Lieferant
-            </Button>
-          </TooltipProvider>
+  // Loading state
+  if (suppliersQuery.isLoading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {Array.from({ length: 8 }, (_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Skeleton className="h-3 w-full" />
+                  <Skeleton className="h-3 w-5/6" />
+                  <Skeleton className="h-3 w-4/6" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </div>
-      
-      {/* Aktive Filter anzeigen */}
-      {(currentFilters.status || currentFilters.sortBy !== 'name' || currentFilters.sortOrder !== 'asc') && (
-        <div className="flex flex-wrap gap-1.5 mb-4">
-          {currentFilters.status && (
-            <Badge 
-              variant="outline" 
-              className="flex items-center gap-1"
-            >
-              Status: {currentFilters.status === 'active' ? 'Aktiv' : 'Inaktiv'}
-              <button 
-                onClick={() => setCurrentFilters({...currentFilters, status: null})}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          )}
-          
-          {(currentFilters.sortBy !== 'name' || currentFilters.sortOrder !== 'asc') && (
-            <Badge 
-              variant="outline" 
-              className="flex items-center gap-1"
-            >
-              Sortierung: {
-                currentFilters.sortBy === 'name' ? 'Name' : 
-                currentFilters.sortBy === 'city' ? 'Stadt' : 
-                'Letzte Aktualisierung'
-              } ({currentFilters.sortOrder === 'asc' ? 'aufsteigend' : 'absteigend'})
-              <button 
-                onClick={() => setCurrentFilters({...currentFilters, sortBy: 'name', sortOrder: 'asc'})}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          )}
-          
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="h-7 text-xs"
-            onClick={() => setCurrentFilters(defaultFilters)}
-          >
-            Alle Filter zurücksetzen
-          </Button>
-        </div>
-      )}
+    );
+  }
 
-      {/* Error State */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4 text-red-700">
-          <div className="flex items-center">
-            <AlertTriangle className="h-5 w-5 mr-3" />
-            <div>
-              <h3 className="font-medium">Fehler beim Laden der Lieferanten</h3>
-              <p className="text-sm">{error instanceof Error ? error.message : 'Ein unbekannter Fehler ist aufgetreten'}</p>
-            </div>
+  // Calculate summary metrics
+  const suppliers = filteredAndSortedSuppliers;
+  const summaryMetrics = useMemo(() => {
+    if (!suppliers.length) return { totalRevenue: 0, totalSales: 0, lowStockSuppliers: 0, activeSuppliers: 0, avgProducts: 0 };
+    
+    const totalRevenue = suppliers.reduce((sum: number, s: EnhancedSupplier) => sum + (s.analytics?.currentYearRevenue || 0), 0);
+    const totalSales = suppliers.reduce((sum: number, s: EnhancedSupplier) => sum + (s.analytics?.currentYearSales || 0), 0);
+    const lowStockSuppliers = suppliers.filter((s: EnhancedSupplier) => (s.analytics?.lowStockCount || 0) > 0).length;
+    const activeSuppliers = suppliers.filter((s: EnhancedSupplier) => s.status === 'active').length;
+    const avgProducts = suppliers.length > 0 ? 
+      suppliers.reduce((sum: number, s: EnhancedSupplier) => sum + (s.analytics?.productsCount || 0), 0) / suppliers.length : 0;
+
+    return { totalRevenue, totalSales, lowStockSuppliers, activeSuppliers, avgProducts };
+  }, [suppliers]);
+
+  return (
+    <TooltipProvider>
+      <div className="container mx-auto p-6 space-y-6">
+        {/* Header */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Lieferanten</h1>
+            <p className="text-gray-600 mt-1">
+              Verwalten Sie Ihre Lieferanten und deren Leistungsdaten
+            </p>
           </div>
-          <Button variant="outline" className="mt-3" onClick={handleRefresh}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Erneut versuchen
-          </Button>
-        </div>
-      )}
 
-      {/* Content / Data */}
-      {isLoading ? (
-        viewMode === 'grid' ? <SupplierGridSkeleton /> : <SupplierListSkeleton />
-      ) : !data?.data || data.data.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <Truck className="h-12 w-12 text-gray-300 mb-4" />
-          <h3 className="text-lg font-medium mb-1">Keine Lieferanten gefunden</h3>
-          {searchTerm ? (
-            <p className="text-gray-500 mb-4">
-              Es wurden keine Lieferanten gefunden, die "{searchTerm}" enthalten.
-            </p>
-          ) : currentFilters.status ? (
-            <p className="text-gray-500 mb-4">
-              Es wurden keine Lieferanten mit dem Status "{currentFilters.status}" gefunden.
-            </p>
-          ) : (
-            <p className="text-gray-500 mb-4">
-              Derzeit sind keine Lieferanten im System vorhanden.
-              Fügen Sie Ihren ersten Lieferanten hinzu, um Ihn hier zu sehen.
-            </p>
-          )}
-          <Button onClick={handleCreateSupplier}>
-            <Plus className="h-4 w-4 mr-2" />
-            Lieferanten hinzufügen
-          </Button>
+          <div className="flex items-center gap-3">
+            <ExportImportButtons 
+              onExport={() => console.log('Export')}
+              onImport={() => setIsImportDialogOpen(true)}
+              entityName="Lieferanten"
+            />
+            <Button onClick={() => {
+              setFormMode('create');
+              setSelectedSupplier(null);
+              setIsFormDialogOpen(true);
+            }}>
+              <Plus className="h-4 w-4 mr-2" />
+              Neuer Lieferant
+            </Button>
+          </div>
         </div>
-      ) : (
-        <>
-          {viewMode === 'grid' ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {enhancedSuppliers?.map((supplier) => (
-                <SupplierCard 
-                  key={supplier.id} 
-                  supplier={supplier} 
-                  onEdit={handleEditSupplier}
-                  onDelete={handleDeleteSupplier}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-md border overflow-hidden">
-              {enhancedSuppliers?.map((supplier) => (
-                <SupplierListItem 
-                  key={supplier.id} 
-                  supplier={supplier}
-                  onEdit={handleEditSupplier}
-                  onDelete={handleDeleteSupplier}
-                />
-              ))}
-            </div>
-          )}
-          
-          {/* Pagination (vereinfacht) */}
-          {data && data.meta.pages > 1 && (
-            <div className="flex items-center justify-between mt-4">
-              <div className="text-sm text-gray-500">
-                Zeige {(page - 1) * limit + 1} bis {Math.min(page * limit, data.meta.total)} von {data.meta.total} Lieferanten
-              </div>
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  disabled={page === 1}
-                  onClick={() => setPage(p => Math.max(p - 1, 1))}
-                >
-                  Zurück
-                </Button>
-                <span className="text-sm">
-                  Seite {page} von {data.meta.pages}
-                </span>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  disabled={page === data.meta.pages}
-                  onClick={() => setPage(p => Math.min(p + 1, data.meta.pages))}
-                >
-                  Weiter
-                </Button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
 
-      {/* Dialoge */}
-      <FilterDialog 
-        isOpen={filterDialogOpen}
-        onOpenChange={setFilterDialogOpen}
-        onApplyFilters={handleApplyFilters}
-        currentFilters={currentFilters}
-      />
-      
-      <SupplierFormDialog 
-        isOpen={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
-        mode="create"
-      />
-      
-      <ExcelImportDialog
-        isOpen={excelImportOpen}
-        onOpenChange={setExcelImportOpen}
-      />
-      
-      {selectedSupplier && (
-        <>
-          <SupplierFormDialog 
-            isOpen={editDialogOpen}
-            onOpenChange={setEditDialogOpen}
-            supplier={selectedSupplier}
-            mode="edit"
-          />
-          
-          <DeleteDialog 
-            isOpen={deleteDialogOpen}
-            onOpenChange={setDeleteDialogOpen}
-            supplier={selectedSupplier}
-          />
-        </>
-      )}
-    </div>
+        {/* Summary Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Gesamtumsatz</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    €{summaryMetrics.totalRevenue.toLocaleString()}
+                  </p>
+                </div>
+                <DollarSign className="h-8 w-8 text-green-600" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Verkäufe</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {summaryMetrics.totalSales.toLocaleString()}
+                  </p>
+                </div>
+                <ShoppingBag className="h-8 w-8 text-blue-600" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Aktive Lieferanten</p>
+                  <p className="text-2xl font-bold text-purple-600">
+                    {summaryMetrics.activeSuppliers}
+                  </p>
+                </div>
+                <Users className="h-8 w-8 text-purple-600" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Niedrige Bestände</p>
+                  <p className="text-2xl font-bold text-red-600">
+                    {summaryMetrics.lowStockSuppliers}
+                  </p>
+                </div>
+                <AlertTriangle className="h-8 w-8 text-red-600" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Ø Produkte</p>
+                  <p className="text-2xl font-bold text-orange-600">
+                    {summaryMetrics.avgProducts.toFixed(0)}
+                  </p>
+                </div>
+                <Package className="h-8 w-8 text-orange-600" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Search and Filter Bar */}
+        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
+          <div className="flex items-center gap-4 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-80">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Lieferanten suchen..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setIsFilterDialogOpen(true)}
+            >
+              <Filter className="h-4 w-4 mr-2" />
+              Filter
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'grid' | 'list')}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="grid">
+                  <Grid className="h-4 w-4" />
+                </TabsTrigger>
+                <TabsTrigger value="list">
+                  <List className="h-4 w-4" />
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+            
+            <Button variant="outline" size="sm" onClick={() => {
+              suppliersQuery.refetch();
+              analyticsQuery.refetch();
+            }}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Results Summary */}
+        <div className="flex items-center justify-between text-sm text-gray-600">
+          <span>
+            {filteredAndSortedSuppliers.length} von {suppliersWithAnalytics.length} Lieferanten
+          </span>
+          {(filters.status || filters.stockLevel || filters.salesRange) && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={() => setFilters(defaultFilters)}
+            >
+              <X className="h-4 w-4 mr-1" />
+              Filter zurücksetzen
+            </Button>
+          )}
+        </div>
+
+        {/* Suppliers Grid/List */}
+        {viewMode === 'grid' ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredAndSortedSuppliers.map((supplier) => (
+              <SupplierCard
+                key={supplier.id}
+                supplier={supplier}
+                onEdit={handleEditSupplier}
+                onDelete={handleDeleteSupplier}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {filteredAndSortedSuppliers.map((supplier) => (
+              <Card key={supplier.id} className="hover:shadow-md transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="p-2 bg-blue-100 rounded-lg">
+                        <Truck className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold">{supplier.name}</h3>
+                        <p className="text-sm text-gray-600">{supplier.contactPerson}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-4">
+                      {supplier.analytics && (
+                        <div className="text-right">
+                          <p className="text-sm font-medium">€{supplier.analytics.currentYearRevenue.toLocaleString()}</p>
+                          <p className="text-xs text-gray-500">{supplier.analytics.currentYearSales} Verkäufe</p>
+                        </div>
+                      )}
+                      
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => handleEditSupplier(supplier)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => handleDeleteSupplier(supplier)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Empty State */}
+        {filteredAndSortedSuppliers.length === 0 && !suppliersQuery.isLoading && (
+          <div className="text-center py-12">
+            <Truck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              Keine Lieferanten gefunden
+            </h3>
+            <p className="text-gray-600 mb-6">
+              {searchQuery || filters.status || filters.stockLevel || filters.salesRange
+                ? "Versuchen Sie, Ihre Suchkriterien anzupassen."
+                : "Erstellen Sie Ihren ersten Lieferanten, um loszulegen."
+              }
+            </p>
+            {!searchQuery && !filters.status && !filters.stockLevel && !filters.salesRange && (
+              <Button onClick={() => {
+                setFormMode('create');
+                setSelectedSupplier(null);
+                setIsFormDialogOpen(true);
+              }}>
+                <Plus className="h-4 w-4 mr-2" />
+                Ersten Lieferanten erstellen
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Dialogs */}
+        <FilterDialog
+          isOpen={isFilterDialogOpen}
+          onOpenChange={setIsFilterDialogOpen}
+          onApplyFilters={handleApplyFilters}
+          currentFilters={filters}
+        />
+
+        <SupplierFormDialog
+          isOpen={isFormDialogOpen}
+          onOpenChange={setIsFormDialogOpen}
+          supplier={selectedSupplier}
+          mode={formMode}
+        />
+
+        <DeleteDialog
+          isOpen={isDeleteDialogOpen}
+          onOpenChange={setIsDeleteDialogOpen}
+          supplier={selectedSupplier}
+        />
+
+        <ExcelImportDialog
+          isOpen={isImportDialogOpen}
+          onOpenChange={setIsImportDialogOpen}
+        />
+      </div>
+    </TooltipProvider>
   );
 }
