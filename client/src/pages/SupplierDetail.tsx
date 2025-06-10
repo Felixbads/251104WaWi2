@@ -803,36 +803,45 @@ export default function SupplierDetail() {
       </div>
       
       <Tabs defaultValue="dashboard">
-        <TabsList className="mb-4">
-          <TabsTrigger value="dashboard" className="gap-1.5">
-            <BarChart className="h-4 w-4" />
-            <span>Dashboard</span>
-          </TabsTrigger>
-          <TabsTrigger value="info" className="gap-1.5">
-            <Building className="h-4 w-4" />
-            <span>Informationen</span>
-          </TabsTrigger>
-          <TabsTrigger value="products" className="gap-1.5">
-            <Package className="h-4 w-4" />
-            <span>Produkte</span>
-          </TabsTrigger>
-          <TabsTrigger value="purchaseConditions" className="gap-1.5">
-            <FileText className="h-4 w-4" />
-            <span>Einkaufsbedingungen</span>
-          </TabsTrigger>
-          <TabsTrigger value="orders" className="gap-1.5">
-            <Truck className="h-4 w-4" />
-            <span>Bestellungen</span>
-          </TabsTrigger>
-          <TabsTrigger value="stats" className="gap-1.5">
-            <BarChart className="h-4 w-4" />
-            <span>Statistiken</span>
-          </TabsTrigger>
-          <TabsTrigger value="emailTemplates" className="gap-1.5">
-            <Mail className="h-4 w-4" />
-            <span>E-Mail-Vorlagen</span>
-          </TabsTrigger>
-        </TabsList>
+        <div className="w-full overflow-x-auto mb-4">
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-4 md:grid-cols-7 min-w-fit">
+            <TabsTrigger value="dashboard" className="flex items-center justify-center gap-1 px-2 py-2 text-xs sm:text-sm">
+              <BarChart className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Dashboard</span>
+              <span className="sm:hidden">Dash</span>
+            </TabsTrigger>
+            <TabsTrigger value="info" className="flex items-center justify-center gap-1 px-2 py-2 text-xs sm:text-sm">
+              <Building className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Informationen</span>
+              <span className="sm:hidden">Info</span>
+            </TabsTrigger>
+            <TabsTrigger value="products" className="flex items-center justify-center gap-1 px-2 py-2 text-xs sm:text-sm">
+              <Package className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Produkte</span>
+              <span className="sm:hidden">Prod</span>
+            </TabsTrigger>
+            <TabsTrigger value="purchaseConditions" className="flex items-center justify-center gap-1 px-2 py-2 text-xs sm:text-sm">
+              <FileText className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Einkaufsbedingungen</span>
+              <span className="sm:hidden">Eink</span>
+            </TabsTrigger>
+            <TabsTrigger value="orders" className="flex items-center justify-center gap-1 px-2 py-2 text-xs sm:text-sm">
+              <Truck className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Bestellungen</span>
+              <span className="sm:hidden">Best</span>
+            </TabsTrigger>
+            <TabsTrigger value="stats" className="flex items-center justify-center gap-1 px-2 py-2 text-xs sm:text-sm">
+              <BarChart className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Statistiken</span>
+              <span className="sm:hidden">Stats</span>
+            </TabsTrigger>
+            <TabsTrigger value="emailTemplates" className="flex items-center justify-center gap-1 px-2 py-2 text-xs sm:text-sm">
+              <Mail className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">E-Mail-Vorlagen</span>
+              <span className="sm:hidden">Mail</span>
+            </TabsTrigger>
+          </TabsList>
+        </div>
         
         {/* Dashboard Tab */}
         <TabsContent value="dashboard" className="space-y-6">

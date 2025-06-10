@@ -51,23 +51,19 @@ export default function Suppliers() {
 
   // Combine suppliers with analytics data
   const suppliersWithData = useMemo(() => {
-    if (!suppliersQuery.data?.data || !analyticsQuery.data) return [];
+    if (!suppliersQuery.data?.data) return [];
     
-    const analyticsMap = new Map();
-    analyticsQuery.data.forEach((analytics: SupplierAnalytics) => {
-      analyticsMap.set(analytics.supplierId, analytics);
-    });
-
+    // For now, just add default analytics since overview API returns summary data, not per-supplier data
     return suppliersQuery.data.data.map((supplier: Supplier) => ({
       ...supplier,
-      analytics: analyticsMap.get(supplier.id) || {
+      analytics: {
         openOrders: 0,
         annualRevenue: 0,
         productCount: 0,
         orderVolume: 0
       }
     }));
-  }, [suppliersQuery.data, analyticsQuery.data]);
+  }, [suppliersQuery.data]);
 
   // Filter suppliers based on search query
   const filteredSuppliers = useMemo(() => {
