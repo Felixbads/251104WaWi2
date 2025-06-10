@@ -143,11 +143,11 @@ const SalesLocationBreakdown: React.FC<{ productId: number; analysisWeeks: numbe
         {(locationSales as LocationSalesData[]).map((location, index) => (
           <div key={index} className="p-3 bg-white rounded border border-gray-200">
             <div className="space-y-2">
-              <div className="font-medium text-sm text-gray-900">
-                {location.locationName}
+              <div className="font-bold text-base text-gray-900">
+                {location.machineName}
               </div>
-              <div className="text-xs text-gray-600">
-                Automat: {location.machineName}
+              <div className="text-xs text-gray-500">
+                {location.locationName}
               </div>
               <div className="space-y-1 text-xs">
                 <div className="flex justify-between">
@@ -310,10 +310,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   // Create order mutation
   const createOrderMutation = useMutation({
     mutationFn: async (orderData: any) => {
-      return apiRequest('/api/orders/bulk', {
-        method: 'POST',
-        body: JSON.stringify(orderData),
-      });
+      return apiRequest('/api/orders/bulk', orderData, 'POST');
     },
     onSuccess: (data) => {
       toast({
