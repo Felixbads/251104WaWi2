@@ -106,7 +106,19 @@ router.get('/analytics/sales/:supplierId/:weeks', async (req, res) => {
     `;
 
     const result = await db.execute(salesQuery);
-    res.json(result.rows);
+    
+    // Convert string values to numbers for frontend compatibility
+    const processedRows = result.rows.map((row: any) => ({
+      productId: row.product_id,
+      productName: row.product_name,
+      totalSales: Number(row.total_sales || 0),
+      totalRevenue: Number(row.total_revenue || 0),
+      avgWeeklySales: Number(row.avg_weekly_sales || 0),
+      trendDirection: row.trend_direction,
+      trendPercentage: Number(row.trend_percentage || 0)
+    }));
+    
+    res.json(processedRows);
 
   } catch (error) {
     console.error('Error fetching sales analysis:', error);
@@ -358,7 +370,19 @@ router.get('/analysis/:supplierId/:weeks', async (req, res) => {
     `;
     
     const result = await db.execute(analysisQuery);
-    res.json(result.rows);
+    
+    // Convert string values to numbers for frontend compatibility
+    const processedRows = result.rows.map((row: any) => ({
+      productId: row.productId,
+      productName: row.productName,
+      totalSales: Number(row.totalSales || 0),
+      totalRevenue: Number(row.totalRevenue || 0),
+      avgWeeklySales: Number(row.avgWeeklySales || 0),
+      trendDirection: row.trendDirection,
+      trendPercentage: Number(row.trendPercentage || 0)
+    }));
+    
+    res.json(processedRows);
     
   } catch (error) {
     console.error('Error fetching sales analysis:', error);
