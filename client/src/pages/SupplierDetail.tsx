@@ -27,6 +27,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { queryClient } from "@/lib/queryClient";
+import SupplierDashboard from "../components/supplier/SupplierDashboard";
+import SupplierStatistics from "../components/supplier/SupplierStatistics";
 import { 
   updateSupplier, 
   getPurchaseConditionsBySupplier, 
@@ -799,8 +801,12 @@ export default function SupplierDetail() {
         </p>
       </div>
       
-      <Tabs defaultValue="info">
+      <Tabs defaultValue="dashboard">
         <TabsList className="mb-4">
+          <TabsTrigger value="dashboard" className="gap-1.5">
+            <BarChart className="h-4 w-4" />
+            <span>Dashboard</span>
+          </TabsTrigger>
           <TabsTrigger value="info" className="gap-1.5">
             <Building className="h-4 w-4" />
             <span>Informationen</span>
@@ -826,6 +832,11 @@ export default function SupplierDetail() {
             <span>E-Mail-Vorlagen</span>
           </TabsTrigger>
         </TabsList>
+        
+        {/* Dashboard Tab */}
+        <TabsContent value="dashboard" className="space-y-6">
+          <SupplierDashboard supplierId={parseInt(id!)} supplier={supplier} />
+        </TabsContent>
         
         {/* Informationen Tab */}
         <TabsContent value="info" className="space-y-6">
@@ -1256,22 +1267,8 @@ export default function SupplierDetail() {
         </TabsContent>
         
         {/* Statistiken Tab */}
-        <TabsContent value="stats">
-          <Card>
-            <CardHeader>
-              <CardTitle>Statistiken</CardTitle>
-              <CardDescription>
-                Statistische Daten zu diesem Lieferanten
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="text-center py-12">
-              <Clock className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-1">Coming Soon</h3>
-              <p className="text-muted-foreground">
-                Die Statistiken für Lieferanten werden in einem zukünftigen Update implementiert.
-              </p>
-            </CardContent>
-          </Card>
+        <TabsContent value="stats" className="space-y-6">
+          <SupplierStatistics supplierId={parseInt(id!)} supplier={supplier} />
         </TabsContent>
         
         {/* E-Mail-Vorlagen Tab */}

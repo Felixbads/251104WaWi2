@@ -49,8 +49,8 @@ router.get('/dashboard/:supplierId', async (req, res) => {
         warehouseId: warehouses.id,
         warehouseName: warehouses.name,
         location: warehouses.location,
-        stock: inventory.quantity,
-        reorderLevel: inventory.reorderLevel,
+        stock: inventoryItems.quantity,
+        reorderLevel: inventoryItems.minQuantity,
       })
       .from(products)
       .leftJoin(inventoryItems, eq(products.id, inventoryItems.productId))
