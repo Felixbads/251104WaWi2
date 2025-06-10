@@ -1200,9 +1200,9 @@ const BestellungV2: React.FC = () => {
               onSelectMode={(mode) => {
                 setOrderMode(mode);
                 setSourceOrderId(null);
-                // Forecast mode bypasses warehouse-specific supplier selection
-                if (mode === 'forecast') {
-                  setStep('overview'); // Will render forecast mode
+                // Forecast and bulk modes bypass warehouse-specific supplier selection
+                if (mode === 'forecast' || mode === 'bulk') {
+                  setStep('overview'); // Will render forecast or bulk mode
                 } else {
                   setStep('supplier');
                 }

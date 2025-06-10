@@ -182,7 +182,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
     Object.entries(orderQuantities).forEach(([productId, quantity]) => {
       if (quantity > 0) {
         totalItems += quantity;
-        const product = inventoryData?.find((item: any) => item.productId === parseInt(productId));
+        const product = (inventoryData as any[])?.find((item: any) => item.productId === parseInt(productId));
         if (product) {
           totalValue += quantity * product.price;
         }
@@ -249,7 +249,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
           </div>
         ) : (
           <div className="space-y-2">
-            {suppliers?.data?.map((supplier: any) => (
+            {(suppliers as any)?.data?.map((supplier: any) => (
               <Card 
                 key={supplier.id}
                 className="cursor-pointer hover:bg-accent/50 transition-colors"
@@ -309,7 +309,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {inventoryData?.map((item: any) => (
+                {(inventoryData as any[])?.map((item: any) => (
                   <TableRow key={item.productId}>
                     <TableCell className="font-medium">{item.productName}</TableCell>
                     <TableCell>{item.totalStock}</TableCell>
@@ -397,7 +397,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {salesAnalysis?.map((item: SalesAnalysis) => (
+                {(salesAnalysis as SalesAnalysis[])?.map((item: SalesAnalysis) => (
                   <TableRow key={item.productId}>
                     <TableCell className="font-medium">{item.productName}</TableCell>
                     <TableCell>{item.totalSales}</TableCell>
@@ -488,9 +488,9 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {forecastData?.map((item: ForecastData) => {
+                  {(forecastData as ForecastData[])?.map((item: ForecastData) => {
                     const quantity = orderQuantities[item.productId] || 0;
-                    const product = inventoryData?.find((inv: any) => inv.productId === item.productId);
+                    const product = (inventoryData as any[])?.find((inv: any) => inv.productId === item.productId);
                     const totalCost = quantity * (product?.price || 0);
                     
                     return (
