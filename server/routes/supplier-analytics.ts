@@ -17,42 +17,44 @@ router.get('/overview', async (req, res) => {
     const suppliers = [];
     
     for (const supplier of suppliersResult.rows) {
+      const supplierId = Number(supplier.id);
+      
       // Step 2: Count direct products
       const directProductsResult = await db.execute(sql.raw(`
         SELECT COUNT(*) as count 
         FROM products 
-        WHERE supplier_id = ${supplier.id}
-      `));
+        WHERE supplier_id = $1
+      `, [supplierId]));
       
       // Step 3: Count purchase condition products
       const pcProductsResult = await db.execute(sql.raw(`
         SELECT COUNT(DISTINCT product_id) as count 
         FROM purchase_conditions 
-        WHERE supplier_id = ${supplier.id}
-      `));
+        WHERE supplier_id = $1
+      `, [supplierId]));
       
       // Step 4: Count open orders
       const openOrdersResult = await db.execute(sql.raw(`
         SELECT COUNT(*) as count 
         FROM orders 
-        WHERE supplier_id = ${supplier.id} 
+        WHERE supplier_id = $1 
         AND status IN ('pending', 'confirmed', 'processing')
-      `));
+      `, [supplierId]));
       
       // Step 5: Calculate order volume (last 12 months)
       const orderVolumeResult = await db.execute(sql.raw(`
         SELECT COALESCE(SUM(total_amount), 0) as volume 
         FROM orders 
-        WHERE supplier_id = ${supplier.id} 
+        WHERE supplier_id = $1 
         AND created_at >= NOW() - INTERVAL '12 months'
-      `));
+      `, [supplierId]));
       
       const directCount = Number(directProductsResult.rows[0]?.count || 0);
       const pcCount = Number(pcProductsResult.rows[0]?.count || 0);
       const totalProductCount = directCount + pcCount;
       
       suppliers.push({
-        supplierId: supplier.id,
+        supplierId: supplierId,
         openOrders: Number(openOrdersResult.rows[0]?.count || 0),
         annualRevenue: 0, // Will be calculated with transaction matching later
         productCount: totalProductCount,
