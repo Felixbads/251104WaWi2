@@ -141,30 +141,10 @@ const WeatherForecast: React.FC<WeatherForecastProps> = ({
     staleTime: 24 * 60 * 60 * 1000, // 24 Stunden
   });
   
-  // Feiertage in das gewünschte Format konvertieren
+  // Feiertage in das gewünschte Format konvertieren - nur authentische Daten verwenden
   const holidays: Record<string, Holiday> = React.useMemo(() => {
-    if (!holidaysData?.data) {
-      // Fallback Feiertage wenn keine Daten verfügbar
-      return {
-        "2025-04-18": {
-          name: "Karfreitag",
-          type: "PUBLIC_HOLIDAY",
-          state: "Sachsen",
-          description: "Gesetzlicher Feiertag in Sachsen"
-        },
-        "2025-04-21": {
-          name: "Ostermontag",
-          type: "PUBLIC_HOLIDAY",
-          state: "Sachsen",
-          description: "Gesetzlicher Feiertag in Sachsen"
-        },
-        "2025-05-01": {
-          name: "Tag der Arbeit",
-          type: "PUBLIC_HOLIDAY",
-          state: "Sachsen",
-          description: "Gesetzlicher Feiertag in Sachsen"
-        }
-      };
+    if (!holidaysData?.data || holidaysData.data.length === 0) {
+      return {};
     }
     
     return holidaysData.data.reduce((acc: Record<string, Holiday>, holiday: any) => {

@@ -27,8 +27,6 @@ export const menuItems = {
     { title: 'Standort-Analyse', icon: <PieChart className="h-5 w-5 mr-3" />, path: '/standort-analyse' },
     { title: 'Produkte', icon: <ShoppingBag className="h-5 w-5 mr-3" />, path: '/produkte' },
     { title: 'Lieferanten', icon: <Truck className="h-5 w-5 mr-3" />, path: '/lieferanten' },
-    { title: '  • Lieferanten-Übersicht', icon: <Truck className="h-4 w-4 mr-3 ml-2" />, path: '/lieferanten' },
-    { title: '  • Lieferanten-Analytics', icon: <BarChart2 className="h-4 w-4 mr-3 ml-2" />, path: '/lieferanten-analytics' },
     { title: 'Transaktionen', icon: <Mail className="h-5 w-5 mr-3" />, path: '/transactions' },
   ] as MenuItem[],
   management: [] as MenuItem[],

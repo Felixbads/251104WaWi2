@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Search, Plus, Package, Euro, ShoppingCart, Building2 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Search, Plus, Package, Euro, ShoppingCart, Building2, BarChart3, TrendingUp } from 'lucide-react';
 
 interface Supplier {
   id: number;
@@ -130,21 +131,39 @@ export default function Suppliers() {
   }
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="space-y-6">
+    <div className="container mx-auto p-3 sm:p-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold">Lieferanten</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-2xl sm:text-3xl font-bold">Lieferanten</h1>
+            <p className="text-muted-foreground text-sm sm:text-base">
               Verwalten Sie Ihre Lieferanten und deren Leistungsdaten
             </p>
           </div>
-          <Button onClick={() => setLocation('/lieferanten/new')}>
+          <Button onClick={() => setLocation('/lieferanten/new')} className="w-full sm:w-auto">
             <Plus className="h-4 w-4 mr-2" />
-            Neuer Lieferant
+            <span className="hidden sm:inline">Neuer Lieferant</span>
+            <span className="sm:hidden">Neu</span>
           </Button>
         </div>
+
+        {/* Navigation Tabs */}
+        <Tabs defaultValue="overview" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 h-9 sm:h-10">
+            <TabsTrigger value="overview" className="flex gap-1 sm:gap-2 items-center text-xs sm:text-sm">
+              <Building2 className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Übersicht</span>
+              <span className="sm:hidden">Liste</span>
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex gap-1 sm:gap-2 items-center text-xs sm:text-sm">
+              <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Analytics</span>
+              <span className="sm:hidden">Stats</span>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="mt-4 sm:mt-6">
 
         {/* Summary Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -308,6 +327,22 @@ export default function Suppliers() {
             ))}
           </div>
         )}
+          </TabsContent>
+
+          <TabsContent value="analytics" className="mt-4 sm:mt-6">
+            <div className="text-center py-12">
+              <TrendingUp className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium mb-2">Analytics Dashboard</h3>
+              <p className="text-muted-foreground mb-4">
+                Erweiterte Lieferanten-Analytics werden hier angezeigt.
+              </p>
+              <Button onClick={() => setLocation('/lieferanten-analytics')} variant="outline">
+                <BarChart3 className="h-4 w-4 mr-2" />
+                Zum Analytics Dashboard
+              </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
