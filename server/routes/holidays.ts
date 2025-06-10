@@ -623,141 +623,18 @@ router.get('/analysis/:year', async (req: Request, res: Response) => {
   try {
     const year = parseInt(req.params.year);
     
-    // Get statistics from calendar_overview
-    const statsQuery = sql`
-      SELECT 
-        COUNT(*) as total_days,
-        COUNT(CASE WHEN is_public_holiday = true THEN 1 END) as public_holiday_days,
-        COUNT(CASE WHEN is_school_holiday = true THEN 1 END) as school_holiday_days,
-        COUNT(CASE WHEN is_weekend = true THEN 1 END) as weekend_days,
-        COUNT(CASE WHEN day_type = 'WORKDAY' THEN 1 END) as work_days
-      FROM calendar_overview
-      WHERE year = ${year}
-    `;
+    // Use the holiday service to get statistics
+    const holidayStats = await holidayService.getHolidayStats(year);
     
-    const statsResult = await db.execute(statsQuery);
-    const stats = Array.isArray(statsResult) && statsResult.length > 0 ? statsResult[0] : {
-      total_days: 0,
-      public_holiday_days: 0,
-      school_holiday_days: 0,
-      weekend_days: 0,
-      work_days: 0
+    const stats = {
+      total_days: year % 4 === 0 ? 366 : 365,
+      public_holiday_days: holidayStats.totalPublicHolidays,
+      school_holiday_days: holidayStats.totalSchoolHolidays,
+      weekend_days: 104,
+      work_days: (year % 4 === 0 ? 366 : 365) - 104 - holidayStats.totalPublicHolidays
     };
     
-    // Get state-wise holiday counts
-    const stateStatsQuery = sql`
-      SELECT 
-        'BW' as state, COUNT(CASE WHEN baden_wuerttemberg_is_public_holiday = true THEN 1 END) as public_holidays,
-        COUNT(CASE WHEN baden_wuerttemberg_is_school_holiday = true THEN 1 END) as school_holidays
-      FROM calendar_overview WHERE year = ${year}
-      
-      UNION ALL
-      
-      SELECT 
-        'BY' as state, COUNT(CASE WHEN bayern_is_public_holiday = true THEN 1 END) as public_holidays,
-        COUNT(CASE WHEN bayern_is_school_holiday = true THEN 1 END) as school_holidays
-      FROM calendar_overview WHERE year = ${year}
-      
-      UNION ALL
-      
-      SELECT 
-        'BE' as state, COUNT(CASE WHEN berlin_is_public_holiday = true THEN 1 END) as public_holidays,
-        COUNT(CASE WHEN berlin_is_school_holiday = true THEN 1 END) as school_holidays
-      FROM calendar_overview WHERE year = ${year}
-      
-      UNION ALL
-      
-      SELECT 
-        'BB' as state, COUNT(CASE WHEN brandenburg_is_public_holiday = true THEN 1 END) as public_holidays,
-        COUNT(CASE WHEN brandenburg_is_school_holiday = true THEN 1 END) as school_holidays
-      FROM calendar_overview WHERE year = ${year}
-      
-      UNION ALL
-      
-      SELECT 
-        'HB' as state, COUNT(CASE WHEN bremen_is_public_holiday = true THEN 1 END) as public_holidays,
-        COUNT(CASE WHEN bremen_is_school_holiday = true THEN 1 END) as school_holidays
-      FROM calendar_overview WHERE year = ${year}
-      
-      UNION ALL
-      
-      SELECT 
-        'HH' as state, COUNT(CASE WHEN hamburg_is_public_holiday = true THEN 1 END) as public_holidays,
-        COUNT(CASE WHEN hamburg_is_school_holiday = true THEN 1 END) as school_holidays
-      FROM calendar_overview WHERE year = ${year}
-      
-      UNION ALL
-      
-      SELECT 
-        'HE' as state, COUNT(CASE WHEN hessen_is_public_holiday = true THEN 1 END) as public_holidays,
-        COUNT(CASE WHEN hessen_is_school_holiday = true THEN 1 END) as school_holidays
-      FROM calendar_overview WHERE year = ${year}
-      
-      UNION ALL
-      
-      SELECT 
-        'MV' as state, COUNT(CASE WHEN mecklenburg_vorpommern_is_public_holiday = true THEN 1 END) as public_holidays,
-        COUNT(CASE WHEN mecklenburg_vorpommern_is_school_holiday = true THEN 1 END) as school_holidays
-      FROM calendar_overview WHERE year = ${year}
-      
-      UNION ALL
-      
-      SELECT 
-        'NI' as state, COUNT(CASE WHEN niedersachsen_is_public_holiday = true THEN 1 END) as public_holidays,
-        COUNT(CASE WHEN niedersachsen_is_school_holiday = true THEN 1 END) as school_holidays
-      FROM calendar_overview WHERE year = ${year}
-      
-      UNION ALL
-      
-      SELECT 
-        'NW' as state, COUNT(CASE WHEN nordrhein_westfalen_is_public_holiday = true THEN 1 END) as public_holidays,
-        COUNT(CASE WHEN nordrhein_westfalen_is_school_holiday = true THEN 1 END) as school_holidays
-      FROM calendar_overview WHERE year = ${year}
-      
-      UNION ALL
-      
-      SELECT 
-        'RP' as state, COUNT(CASE WHEN rheinland_pfalz_is_public_holiday = true THEN 1 END) as public_holidays,
-        COUNT(CASE WHEN rheinland_pfalz_is_school_holiday = true THEN 1 END) as school_holidays
-      FROM calendar_overview WHERE year = ${year}
-      
-      UNION ALL
-      
-      SELECT 
-        'SL' as state, COUNT(CASE WHEN saarland_is_public_holiday = true THEN 1 END) as public_holidays,
-        COUNT(CASE WHEN saarland_is_school_holiday = true THEN 1 END) as school_holidays
-      FROM calendar_overview WHERE year = ${year}
-      
-      UNION ALL
-      
-      SELECT 
-        'SN' as state, COUNT(CASE WHEN sachsen_is_public_holiday = true THEN 1 END) as public_holidays,
-        COUNT(CASE WHEN sachsen_is_school_holiday = true THEN 1 END) as school_holidays
-      FROM calendar_overview WHERE year = ${year}
-      
-      UNION ALL
-      
-      SELECT 
-        'ST' as state, COUNT(CASE WHEN sachsen_anhalt_is_public_holiday = true THEN 1 END) as public_holidays,
-        COUNT(CASE WHEN sachsen_anhalt_is_school_holiday = true THEN 1 END) as school_holidays
-      FROM calendar_overview WHERE year = ${year}
-      
-      UNION ALL
-      
-      SELECT 
-        'SH' as state, COUNT(CASE WHEN schleswig_holstein_is_public_holiday = true THEN 1 END) as public_holidays,
-        COUNT(CASE WHEN schleswig_holstein_is_school_holiday = true THEN 1 END) as school_holidays
-      FROM calendar_overview WHERE year = ${year}
-      
-      UNION ALL
-      
-      SELECT 
-        'TH' as state, COUNT(CASE WHEN thueringen_is_public_holiday = true THEN 1 END) as public_holidays,
-        COUNT(CASE WHEN thueringen_is_school_holiday = true THEN 1 END) as school_holidays
-      FROM calendar_overview WHERE year = ${year}
-    `;
-    
-    const stateStatsResult = await db.execute(stateStatsQuery);
+    const stateStatsResult = holidayStats.stateStats;
     
     return res.json({
       success: true,
