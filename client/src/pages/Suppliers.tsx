@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { 
@@ -27,7 +27,16 @@ import {
   Edit,
   Trash2,
   FileSpreadsheet,
-  Upload
+  Upload,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  DollarSign,
+  Package,
+  Calendar,
+  BarChart3,
+  Users,
+  Eye
 } from "lucide-react";
 import { ExportImportButtons } from "@/components/ExportImportButtons";
 import { Button } from "@/components/ui/button";
@@ -57,6 +66,30 @@ import { z } from "zod";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
+
+// Types for enhanced supplier data
+interface SupplierAnalytics {
+  productsCount: number;
+  currentYearSales: number;
+  currentYearRevenue: number;
+  lastYearSales: number;
+  lastYearRevenue: number;
+  salesGrowth: number;
+  revenueGrowth: number;
+  recentSales: number;
+  recentRevenue: number;
+  activeProducts: number;
+  lowStockCount: number;
+  topProducts: Array<{
+    product_name: string;
+    sales_count: number;
+    revenue: number;
+  }>;
+}
+
+interface EnhancedSupplier extends Supplier {
+  analytics?: SupplierAnalytics;
+}
 
 // Filter Dialog Komponente
 interface FilterDialogProps {
