@@ -71,12 +71,127 @@ router.get('/dashboard/:supplierId', async (req, res) => {
       lastOrderDate: null
     };
 
+    // Get products for this supplier
+    const supplierProducts = await db
+      .select({
+        id: products.id,
+        productName: products.productName,
+        sku: products.sku,
+      })
+      .from(products)
+      .where(eq(products.supplierId, supplierId));
+
+    // Get inventory data with warehouse information
+    console.log(`Fetching inventory for supplier ${supplierId}`);
+    const inventoryQuery = await db
+      .select({
+        productId: inventoryItems.productId,
+        productName: products.productName,
+        sku: products.sku,
+        warehouseId: inventoryItems.warehouseId,
+        warehouseName: warehouses.name,
+        location: warehouses.location,
+        stock: inventoryItems.quantity,
+        reorderLevel: inventoryItems.minQuantity,
+      })
+      .from(inventoryItems)
+      .innerJoin(products, eq(inventoryItems.productId, products.id))
+      .leftJoin(warehouses, eq(inventoryItems.warehouseId, warehouses.id))
+      .where(eq(products.supplierId, supplierId));
+    
+    console.log(`Inventory query returned ${inventoryQuery.length} items for supplier ${supplierId}`);
+
+    // Group inventory by product
+    const inventoryMap = new Map();
+    inventoryQuery.forEach(item => {
+      const key = item.productId;
+      if (!inventoryMap.has(key)) {
+        inventoryMap.set(key, {
+          productId: item.productId,
+          productName: item.productName || 'Unbekannt',
+          sku: item.sku || '',
+          warehouses: [],
+          totalStock: 0
+        });
+      }
+      
+      const product = inventoryMap.get(key);
+      const stockLevel = item.stock || 0;
+      const reorderLevel = item.reorderLevel || 0;
+      let status: 'good' | 'warning' | 'critical' = 'good';
+      
+      if (stockLevel === 0) {
+        status = 'critical';
+      } else if (stockLevel <= reorderLevel) {
+        status = 'warning';
+      }
+
+      product.warehouses.push({
+        warehouseId: item.warehouseId,
+        warehouseName: item.warehouseName || `Lager ${item.warehouseId}`,
+        location: item.location || '',
+        stock: stockLevel,
+        reorderLevel: reorderLevel,
+        status: status
+      });
+      
+      product.totalStock += stockLevel;
+    });
+
+    // Convert to array
+    const inventory = Array.from(inventoryMap.values());
+
+    // Get recent sales data (last 30 days)
+    const salesQuery = await db
+      .select({
+        date: sql<string>`DATE(${transactions.datetime})`,
+        revenue: sql<number>`SUM(COALESCE(${transactions.price}, 0))`,
+        sales: sql<number>`COUNT(*)`
+      })
+      .from(transactions)
+      .innerJoin(products, eq(transactions.productName, products.productName))
+      .where(
+        and(
+          eq(products.supplierId, supplierId),
+          gte(transactions.datetime, thirtyDaysAgo)
+        )
+      )
+      .groupBy(sql`DATE(${transactions.datetime})`)
+      .orderBy(sql`DATE(${transactions.datetime})`);
+
+    // Get top products by sales volume
+    const topProductsQuery = await db
+      .select({
+        productName: transactions.productName,
+        sales: sql<number>`COUNT(*)`,
+        revenue: sql<number>`SUM(COALESCE(${transactions.price}, 0))`
+      })
+      .from(transactions)
+      .innerJoin(products, eq(transactions.productName, products.productName))
+      .where(
+        and(
+          eq(products.supplierId, supplierId),
+          gte(transactions.datetime, thirtyDaysAgo)
+        )
+      )
+      .groupBy(transactions.productName)
+      .orderBy(desc(sql`COUNT(*)`))
+      .limit(5);
+
     const dashboardData = {
       overview: overviewResult,
-      inventory: [],
-      salesData: [],
-      topLocations: [],
-      topProducts: []
+      inventory: inventory,
+      salesData: salesQuery,
+      topLocations: [
+        {
+          locationId: 1,
+          locationName: 'Alle Standorte',
+          revenue: salesQuery.reduce((sum, day) => sum + (day.revenue || 0), 0),
+          orders: salesQuery.reduce((sum, day) => sum + (day.sales || 0), 0),
+          percentage: 100
+        }
+      ],
+      topProducts: topProductsQuery
     };
 
     res.json(dashboardData);
