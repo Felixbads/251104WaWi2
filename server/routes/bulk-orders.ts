@@ -362,8 +362,8 @@ router.get('/analysis/:supplierId/:weeks', async (req, res) => {
           COUNT(t.id)::numeric / ${weeks} as avg_weekly_sales
         FROM supplier_products sp
         LEFT JOIN transactions t ON LOWER(TRIM(t.product_name)) = LOWER(TRIM(sp.product_name))
-          AND t.datetime >= ${startDate.toISOString()}
-          AND t.datetime <= ${endDate.toISOString()}
+          AND t.datetime >= '${startDate.toISOString()}'
+          AND t.datetime <= '${endDate.toISOString()}'
         GROUP BY sp.id, sp.product_name
       )
       SELECT 
@@ -405,31 +405,28 @@ router.get('/forecast/:supplierId/:weeks', async (req, res) => {
       WITH supplier_products AS (
         SELECT DISTINCT p.id, p.product_name
         FROM products p
-        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.supplier_id = ${supplierId}
-        WHERE p.id IN (
-          SELECT DISTINCT product_id FROM inventory_items WHERE product_id IS NOT NULL
-        )
+        INNER JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.supplier_id = ${supplierId}
       ),
       recent_sales AS (
         SELECT 
           sp.id as product_id,
           sp.product_name,
-          COUNT(t.id)::float / 4 as avg_weekly_sales
+          COUNT(t.id) as total_sales,
+          COUNT(t.id)::numeric / 4 as avg_weekly_sales
         FROM supplier_products sp
-        LEFT JOIN transactions t ON t.product_name = sp.product_name 
+        LEFT JOIN transactions t ON LOWER(TRIM(t.product_name)) = LOWER(TRIM(sp.product_name))
           AND t.datetime >= NOW() - INTERVAL '4 weeks'
         GROUP BY sp.id, sp.product_name
       )
       SELECT 
-        product_id as "productId",
+        product_id::int as "productId",
         product_name as "productName",
-        CEILING(avg_weekly_sales * 1.2) as "predictedSales1Week",
-        CEILING(avg_weekly_sales * 2.1) as "predictedSales2Week", 
-        CEILING(avg_weekly_sales * 3.0) as "predictedSales3Week",
-        CEILING(avg_weekly_sales * ${weeks} * 1.15) as "recommendedOrder"
+        CEILING(COALESCE(avg_weekly_sales, 0) * 1.2)::int as "predictedSales1Week",
+        CEILING(COALESCE(avg_weekly_sales, 0) * 2.1)::int as "predictedSales2Week", 
+        CEILING(COALESCE(avg_weekly_sales, 0) * 3.0)::int as "predictedSales3Week",
+        CEILING(COALESCE(avg_weekly_sales, 0) * ${weeks} * 1.15)::int as "recommendedOrder"
       FROM recent_sales
-      WHERE avg_weekly_sales > 0
-      ORDER BY avg_weekly_sales DESC
+      ORDER BY avg_weekly_sales DESC NULLS LAST
     `;
     
     const result = await db.execute(forecastQuery);
