@@ -12,7 +12,7 @@ import { Clipboard, CopyPlus, Boxes, LineChart, CheckCircle2 } from 'lucide-reac
 import { Skeleton } from "@/components/ui/skeleton";
 
 // Export type for OrderMode
-export type OrderMode = 'new' | 'copy' | 'forecast';
+export type OrderMode = 'new' | 'copy' | 'forecast' | 'bulk';
 
 interface OrderModeSelectorProps {
   mode: OrderMode;
@@ -36,7 +36,7 @@ const OrderModeSelector: React.FC<OrderModeSelectorProps> = ({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Neue Bestellung */}
           <Card className={`cursor-pointer border-2 ${mode === 'new' ? 'border-primary' : 'border-border'}`}>
             <CardContent className="pt-6" onClick={() => onSelectMode('new')}>
@@ -93,6 +93,27 @@ const OrderModeSelector: React.FC<OrderModeSelectorProps> = ({
               </p>
               
               {mode === 'forecast' && (
+                <div className="mt-4 flex justify-center">
+                  <CheckCircle2 className="h-5 w-5 text-primary" />
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Großbestellung für alle Lager */}
+          <Card className={`cursor-pointer border-2 ${mode === 'bulk' ? 'border-primary' : 'border-border'}`}>
+            <CardContent className="pt-6" onClick={() => onSelectMode('bulk')}>
+              <div className="flex items-center justify-center mb-4">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Boxes className="h-6 w-6 text-primary" />
+                </div>
+              </div>
+              <h3 className="text-center font-medium text-lg mb-2">Großbestellung</h3>
+              <p className="text-center text-sm text-muted-foreground">
+                Bestellung für alle Lager mit Bestandsübersicht und Prognosen.
+              </p>
+              
+              {mode === 'bulk' && (
                 <div className="mt-4 flex justify-center">
                   <CheckCircle2 className="h-5 w-5 text-primary" />
                 </div>

@@ -78,6 +78,7 @@ import OrdersOverview from '@/components/orderv2/OrdersOverview';
 import SimpleOrdersOverview from '@/components/orderv2/SimpleOrdersOverview';
 import OrderDetail from '@/components/orderv2/OrderDetail';
 import ForecastOrderMode from '@/components/orderv2/ForecastOrderMode';
+import BulkOrderMode from '@/components/orderv2/BulkOrderMode';
 import { Badge } from '@/components/ui/badge';
 
 // Define the order steps
