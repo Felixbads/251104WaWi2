@@ -81,29 +81,27 @@ router.get('/dashboard/:supplierId', async (req, res) => {
       .from(products)
       .where(eq(products.supplierId, supplierId));
 
-    // Get inventory data with warehouse information
-    console.log(`Fetching inventory for supplier ${supplierId}`);
-    const inventoryQuery = await db
-      .select({
-        productId: inventoryItems.productId,
-        productName: products.productName,
-        sku: products.sku,
-        warehouseId: inventoryItems.warehouseId,
-        warehouseName: warehouses.name,
-        location: warehouses.location,
-        stock: inventoryItems.quantity,
-        reorderLevel: inventoryItems.minQuantity,
-      })
-      .from(inventoryItems)
-      .innerJoin(products, eq(inventoryItems.productId, products.id))
-      .leftJoin(warehouses, eq(inventoryItems.warehouseId, warehouses.id))
-      .where(eq(products.supplierId, supplierId));
-    
-    console.log(`Inventory query returned ${inventoryQuery.length} items for supplier ${supplierId}`);
+    // Get inventory data with warehouse information using SQL
+    const inventoryQuery = await db.execute(sql`
+      SELECT 
+        ii.product_id as "productId",
+        p.product_name as "productName",
+        p.sku,
+        ii.warehouse_id as "warehouseId", 
+        w.name as "warehouseName",
+        w.location,
+        ii.quantity as stock,
+        ii.min_quantity as "reorderLevel"
+      FROM inventory_items ii
+      INNER JOIN products p ON ii.product_id = p.id
+      LEFT JOIN warehouses w ON ii.warehouse_id = w.id  
+      WHERE p.supplier_id = ${supplierId}
+      ORDER BY p.product_name, w.name
+    `);
 
     // Group inventory by product
     const inventoryMap = new Map();
-    inventoryQuery.forEach(item => {
+    inventoryQuery.rows.forEach((item: any) => {
       const key = item.productId;
       if (!inventoryMap.has(key)) {
         inventoryMap.set(key, {
@@ -141,57 +139,49 @@ router.get('/dashboard/:supplierId', async (req, res) => {
     // Convert to array
     const inventory = Array.from(inventoryMap.values());
 
-    // Get recent sales data (last 30 days)
-    const salesQuery = await db
-      .select({
-        date: sql<string>`DATE(${transactions.datetime})`,
-        revenue: sql<number>`SUM(COALESCE(${transactions.price}, 0))`,
-        sales: sql<number>`COUNT(*)`
-      })
-      .from(transactions)
-      .innerJoin(products, eq(transactions.productName, products.productName))
-      .where(
-        and(
-          eq(products.supplierId, supplierId),
-          gte(transactions.datetime, thirtyDaysAgo)
-        )
-      )
-      .groupBy(sql`DATE(${transactions.datetime})`)
-      .orderBy(sql`DATE(${transactions.datetime})`);
+    // Get recent sales data (last 30 days) using SQL
+    const salesQuery = await db.execute(sql`
+      SELECT 
+        DATE(t.datetime) as date,
+        SUM(COALESCE(t.price, 0)) as revenue,
+        COUNT(*) as sales
+      FROM transactions t
+      INNER JOIN products p ON t.product_name = p.product_name
+      WHERE p.supplier_id = ${supplierId}
+        AND t.datetime >= ${thirtyDaysAgo}
+      GROUP BY DATE(t.datetime)
+      ORDER BY DATE(t.datetime)
+    `);
 
-    // Get top products by sales volume
-    const topProductsQuery = await db
-      .select({
-        productName: transactions.productName,
-        sales: sql<number>`COUNT(*)`,
-        revenue: sql<number>`SUM(COALESCE(${transactions.price}, 0))`
-      })
-      .from(transactions)
-      .innerJoin(products, eq(transactions.productName, products.productName))
-      .where(
-        and(
-          eq(products.supplierId, supplierId),
-          gte(transactions.datetime, thirtyDaysAgo)
-        )
-      )
-      .groupBy(transactions.productName)
-      .orderBy(desc(sql`COUNT(*)`))
-      .limit(5);
+    // Get top products by sales volume using SQL
+    const topProductsQuery = await db.execute(sql`
+      SELECT 
+        t.product_name as "productName",
+        COUNT(*) as sales,
+        SUM(COALESCE(t.price, 0)) as revenue
+      FROM transactions t
+      INNER JOIN products p ON t.product_name = p.product_name
+      WHERE p.supplier_id = ${supplierId}
+        AND t.datetime >= ${thirtyDaysAgo}
+      GROUP BY t.product_name
+      ORDER BY COUNT(*) DESC
+      LIMIT 5
+    `);
 
     const dashboardData = {
       overview: overviewResult,
       inventory: inventory,
-      salesData: salesQuery,
+      salesData: salesQuery.rows,
       topLocations: [
         {
           locationId: 1,
           locationName: 'Alle Standorte',
-          revenue: salesQuery.reduce((sum, day) => sum + (day.revenue || 0), 0),
-          orders: salesQuery.reduce((sum, day) => sum + (day.sales || 0), 0),
+          revenue: salesQuery.rows.reduce((sum: number, day: any) => sum + (day.revenue || 0), 0),
+          orders: salesQuery.rows.reduce((sum: number, day: any) => sum + (day.sales || 0), 0),
           percentage: 100
         }
       ],
-      topProducts: topProductsQuery
+      topProducts: topProductsQuery.rows
     };
 
     res.json(dashboardData);
