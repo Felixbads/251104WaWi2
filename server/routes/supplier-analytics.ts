@@ -15,6 +15,31 @@ import {
 
 const router = Router();
 
+// Overview endpoint for suppliers page
+router.get('/overview', async (req, res) => {
+  try {
+    // Get all suppliers with basic analytics
+    const suppliersAnalytics = await db
+      .select({
+        supplierId: suppliers.id,
+        openOrders: sql<number>`COUNT(CASE WHEN ${orders.status} IN ('pending', 'processing') THEN 1 ELSE 0 END)`,
+        annualRevenue: sql<number>`COALESCE(SUM(${orders.totalAmount}), 0)`,
+        productCount: sql<number>`COUNT(DISTINCT ${products.id})`,
+        orderVolume: sql<number>`COUNT(${orders.id})`,
+        lastOrderDate: sql<Date>`MAX(${orders.createdAt})`
+      })
+      .from(suppliers)
+      .leftJoin(products, eq(suppliers.id, products.supplierId))
+      .leftJoin(orders, eq(suppliers.id, orders.supplierId))
+      .groupBy(suppliers.id);
+
+    res.json(suppliersAnalytics);
+  } catch (error) {
+    console.error('Error fetching supplier analytics overview:', error);
+    res.status(500).json({ error: 'Fehler beim Laden der Lieferanten-Übersicht' });
+  }
+});
+
 // Dashboard endpoint
 router.get('/dashboard/:supplierId', async (req, res) => {
   try {
