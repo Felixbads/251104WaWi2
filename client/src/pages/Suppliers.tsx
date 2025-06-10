@@ -45,7 +45,7 @@ export default function Suppliers() {
 
   // Fetch supplier analytics
   const analyticsQuery = useQuery({
-    queryKey: ['/api/suppliers/overview'],
+    queryKey: ['/api/supplier-analytics/overview'],
   });
 
   // Combine suppliers with analytics data

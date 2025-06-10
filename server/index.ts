@@ -788,7 +788,7 @@ Elbsandstein Proviant & Quartier GmbH`;
   app.use('/api/weather', weatherRouter);
   
   // Register supplier analytics router
-  app.use('/api/suppliers', supplierAnalyticsRouter);
+  app.use('/api/supplier-analytics', supplierAnalyticsRouter);
   
   // Direct machine locations endpoint for Standort-Analyse dropdown
   app.get('/api/machine-locations', async (req, res) => {

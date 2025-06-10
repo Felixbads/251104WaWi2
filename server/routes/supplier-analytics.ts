@@ -4,7 +4,60 @@ import { sql } from 'drizzle-orm';
 
 const router = Router();
 
-
+// Get all suppliers with analytics overview
+router.get('/overview', async (req, res) => {
+  try {
+    const currentYear = new Date().getFullYear();
+    const currentYearStart = new Date(currentYear, 0, 1);
+    
+    const overviewQuery = `
+      WITH supplier_analytics AS (
+        SELECT 
+          s.id,
+          s.name,
+          s.status,
+          s.city,
+          s.email,
+          s.phone,
+          s.contact_person,
+          COUNT(DISTINCT pc.product_id) as products_count,
+          COUNT(DISTINCT t.id) as current_year_sales,
+          COALESCE(SUM(t.price), 0) as current_year_revenue,
+          COUNT(DISTINCT CASE WHEN i.quantity <= COALESCE(i.minimum_stock, 5) THEN i.product_id END) as low_stock_count,
+          COUNT(DISTINCT CASE WHEN t.datetime >= NOW() - INTERVAL '30 days' THEN t.id END) as recent_sales,
+          COALESCE(SUM(CASE WHEN t.datetime >= NOW() - INTERVAL '30 days' THEN t.price END), 0) as recent_revenue
+        FROM suppliers s
+        LEFT JOIN purchase_conditions pc ON s.id = pc.supplier_id
+        LEFT JOIN products p ON pc.product_id = p.id
+        LEFT JOIN transactions t ON (
+          LOWER(TRIM(t.product_name)) = LOWER(TRIM(p.product_name)) OR
+          LOWER(TRIM(t.product_name)) = LOWER(TRIM(p.article)) OR
+          LOWER(TRIM(t.product_name)) = LOWER(TRIM(p.sku))
+        ) AND t.datetime >= $1
+        LEFT JOIN inventory i ON p.id = i.product_id
+        GROUP BY s.id, s.name, s.status, s.city, s.email, s.phone, s.contact_person
+      )
+      SELECT * FROM supplier_analytics
+      ORDER BY current_year_revenue DESC, products_count DESC
+    `;
+    
+    const result = await db.execute(sql.raw(overviewQuery, [currentYearStart.toISOString()]));
+    
+    const suppliers = result.rows.map((row: any) => ({
+      supplierId: row.id,
+      openOrders: 0, // Will be calculated separately if needed
+      annualRevenue: Number(row.current_year_revenue || 0),
+      productCount: Number(row.products_count || 0),
+      lastOrderDate: null // Will be calculated separately if needed
+    }));
+    
+    res.json(suppliers);
+    
+  } catch (error) {
+    console.error('Error fetching suppliers overview:', error);
+    res.status(500).json({ error: 'Failed to fetch suppliers overview' });
+  }
+});
 
 // Get comprehensive supplier analytics
 router.get('/analytics/:supplierId', async (req, res) => {
