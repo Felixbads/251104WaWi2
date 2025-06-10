@@ -277,6 +277,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   const [forecastWeeks, setForecastWeeks] = useState<number>(2);
   const [orderQuantities, setOrderQuantities] = useState<Record<number, number>>({});
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
+  const [expandedWarehouseDetails, setExpandedWarehouseDetails] = useState<Record<number, boolean>>({});
 
   // Data queries
   const { data: suppliers, isLoading: suppliersLoading } = useQuery({
@@ -553,31 +554,32 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                           variant="ghost" 
                           size="sm"
                           onClick={() => {
-                            const details = document.getElementById(`warehouse-details-${item.product_id}`);
-                            if (details) {
-                              details.style.display = details.style.display === 'none' ? 'block' : 'none';
-                            }
+                            setExpandedWarehouseDetails(prev => ({
+                              ...prev,
+                              [item.product_id]: !prev[item.product_id]
+                            }));
                           }}
                         >
-                          <ChevronDown className="h-4 w-4" />
+                          {expandedWarehouseDetails[item.product_id] ? 
+                            <ChevronDown className="h-4 w-4" /> : 
+                            <ChevronRight className="h-4 w-4" />
+                          }
                         </Button>
-                        <div 
-                          id={`warehouse-details-${item.product_id}`}
-                          className="absolute z-10 mt-2 p-3 bg-white border rounded-lg shadow-lg"
-                          style={{ display: 'none' }}
-                        >
-                          <div className="space-y-2 min-w-48">
-                            <h4 className="font-semibold text-sm">Lageraufschlüsselung:</h4>
-                            {item.warehouse_details?.map((warehouse: any) => (
-                              <div key={warehouse.warehouse_id} className="text-xs">
-                                <div className="flex justify-between">
-                                  <span className="font-medium">{warehouse.warehouse_name}:</span>
-                                  <span>{warehouse.quantity} Stk.</span>
+                        {expandedWarehouseDetails[item.product_id] && (
+                          <div className="absolute z-10 mt-2 p-3 bg-white border rounded-lg shadow-lg">
+                            <div className="space-y-2 min-w-48">
+                              <h4 className="font-semibold text-sm">Lageraufschlüsselung:</h4>
+                              {item.warehouse_details?.map((warehouse: any) => (
+                                <div key={warehouse.warehouse_id} className="text-xs">
+                                  <div className="flex justify-between">
+                                    <span className="font-medium">{warehouse.warehouse_name}:</span>
+                                    <span>{warehouse.quantity} Stk.</span>
+                                  </div>
                                 </div>
-                              </div>
-                            )) || <span className="text-xs text-muted-foreground">Keine Details verfügbar</span>}
+                              )) || <span className="text-xs text-muted-foreground">Keine Details verfügbar</span>}
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -820,7 +822,13 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                              item.predictedSales3Week}
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline">{item.recommendedOrder}</Badge>
+                            <Badge variant="outline">
+                              {/* Show actual sales from analysis data */}
+                              {(() => {
+                                const salesItem = (salesAnalysis as any[])?.find((sale: any) => sale.productId === item.productId);
+                                return salesItem ? salesItem.totalSales : 0;
+                              })()} verkauft
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
