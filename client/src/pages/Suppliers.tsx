@@ -1175,6 +1175,21 @@ export default function Suppliers() {
     return filtered;
   }, [suppliersWithAnalytics, searchQuery, filters]);
 
+  // Calculate summary metrics
+  const summaryMetrics = useMemo(() => {
+    if (!filteredAndSortedSuppliers.length) return { totalRevenue: 0, totalSales: 0, lowStockSuppliers: 0, activeSuppliers: 0, avgProducts: 0 };
+    
+    const suppliers = filteredAndSortedSuppliers;
+    const totalRevenue = suppliers.reduce((sum: number, s: EnhancedSupplier) => sum + (s.analytics?.currentYearRevenue || 0), 0);
+    const totalSales = suppliers.reduce((sum: number, s: EnhancedSupplier) => sum + (s.analytics?.currentYearSales || 0), 0);
+    const lowStockSuppliers = suppliers.filter((s: EnhancedSupplier) => (s.analytics?.lowStockCount || 0) > 0).length;
+    const activeSuppliers = suppliers.filter((s: EnhancedSupplier) => s.status === 'active').length;
+    const avgProducts = suppliers.length > 0 ? 
+      suppliers.reduce((sum: number, s: EnhancedSupplier) => sum + (s.analytics?.productsCount || 0), 0) / suppliers.length : 0;
+
+    return { totalRevenue, totalSales, lowStockSuppliers, activeSuppliers, avgProducts };
+  }, [filteredAndSortedSuppliers]);
+
   // Handlers
   const handleEditSupplier = (supplier: Supplier) => {
     setSelectedSupplier(supplier);
@@ -1215,21 +1230,6 @@ export default function Suppliers() {
       </div>
     );
   }
-
-  // Calculate summary metrics
-  const suppliers = filteredAndSortedSuppliers;
-  const summaryMetrics = useMemo(() => {
-    if (!suppliers.length) return { totalRevenue: 0, totalSales: 0, lowStockSuppliers: 0, activeSuppliers: 0, avgProducts: 0 };
-    
-    const totalRevenue = suppliers.reduce((sum: number, s: EnhancedSupplier) => sum + (s.analytics?.currentYearRevenue || 0), 0);
-    const totalSales = suppliers.reduce((sum: number, s: EnhancedSupplier) => sum + (s.analytics?.currentYearSales || 0), 0);
-    const lowStockSuppliers = suppliers.filter((s: EnhancedSupplier) => (s.analytics?.lowStockCount || 0) > 0).length;
-    const activeSuppliers = suppliers.filter((s: EnhancedSupplier) => s.status === 'active').length;
-    const avgProducts = suppliers.length > 0 ? 
-      suppliers.reduce((sum: number, s: EnhancedSupplier) => sum + (s.analytics?.productsCount || 0), 0) / suppliers.length : 0;
-
-    return { totalRevenue, totalSales, lowStockSuppliers, activeSuppliers, avgProducts };
-  }, [suppliers]);
 
   return (
     <TooltipProvider>
