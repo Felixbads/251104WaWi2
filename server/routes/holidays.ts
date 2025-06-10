@@ -463,6 +463,11 @@ router.get('/comprehensive/:year', async (req, res) => {
     
     const holidays = await holidayService.getHolidaysByDateRange(startDate, endDate);
     
+    console.log(`Comprehensive endpoint: Found ${holidays.length} holidays for year ${year}`);
+    if (holidays.length > 0) {
+      console.log('First holiday:', holidays[0]);
+    }
+    
     // Group holidays by date to create comprehensive view
     const holidaysByDate: { [date: string]: any } = {};
     
