@@ -150,14 +150,15 @@ router.get('/dashboard/:supplierId', async (req, res) => {
     // Get top products by sales volume using SQL
     const topProductsQuery = await db.execute(sql`
       SELECT 
+        p.id as "productId",
         t.product_name as "productName",
-        COUNT(*) as sales,
+        COUNT(*) as quantity,
         SUM(COALESCE(t.price, 0)) as revenue
       FROM transactions t
       INNER JOIN products p ON t.product_name = p.product_name
       WHERE p.supplier_id = ${supplierId}
         AND t.datetime >= ${thirtyDaysAgo}
-      GROUP BY t.product_name
+      GROUP BY p.id, t.product_name
       ORDER BY COUNT(*) DESC
       LIMIT 5
     `);

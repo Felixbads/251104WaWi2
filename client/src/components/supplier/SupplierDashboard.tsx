@@ -67,7 +67,7 @@ interface DashboardData {
     productName: string;
     revenue: number;
     quantity: number;
-    growth: number;
+    growth?: number;
   }>;
 }
 
@@ -361,12 +361,18 @@ export default function SupplierDashboard({ supplierId, supplier }: SupplierDash
                 </div>
                 <div className="text-right">
                   <div className="font-medium">{formatCurrency(product.revenue)}</div>
-                  <div className={`text-sm flex items-center ${
-                    product.growth >= 0 ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    <TrendingUp className="h-3 w-3 mr-1" />
-                    {product.growth >= 0 ? '+' : ''}{product.growth.toFixed(1)}%
-                  </div>
+                  {product.growth !== undefined && product.growth !== null ? (
+                    <div className={`text-sm flex items-center ${
+                      product.growth >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      <TrendingUp className="h-3 w-3 mr-1" />
+                      {product.growth >= 0 ? '+' : ''}{product.growth.toFixed(1)}%
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground">
+                      Trend nicht verfügbar
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
