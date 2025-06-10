@@ -8,7 +8,9 @@ import {
   transactions, 
   orders,
   orderItems,
-  purchaseConditions 
+  purchaseConditions,
+  machines,
+  machineWarehouseAssignments
 } from '../../shared/schema';
 import { eq, and, gte, lte, sql, desc, asc } from 'drizzle-orm';
 import { subWeeks, subDays, format } from 'date-fns';
@@ -197,36 +199,44 @@ router.get('/sales-by-location/:productId', async (req, res) => {
 
     console.log(`Getting sales breakdown for product ${productId} over ${analysisWeeks} weeks`);
 
-    // Get sales data by location for the specific product
-    const salesByLocation = await db
-      .select({
-        locationName: warehouses.locationName,
-        machineName: machines.machineName,
-        machineId: machines.id,
-        sales: sql`COUNT(t.id)`.as('sales'),
-        revenue: sql`SUM(COALESCE(t.price, 0))`.as('revenue')
-      })
-      .from(transactions.as('t'))
-      .leftJoin(machines, eq(machines.id, sql`t.machine_id`))
-      .leftJoin(machineWarehouseAssignments, eq(machineWarehouseAssignments.machineId, machines.id))
-      .leftJoin(warehouses, eq(warehouses.id, machineWarehouseAssignments.warehouseId))
-      .where(and(
-        sql`t.product_name = (SELECT name FROM products WHERE id = ${productId})`,
-        gte(sql`t.datetime`, weeksAgo)
-      ))
-      .groupBy(warehouses.locationName, machines.machineName, machines.id)
-      .having(sql`COUNT(t.id) > 0`)
-      .orderBy(sql`SUM(COALESCE(t.price, 0)) DESC`);
+    // Get product name first
+    const product = await db.select({ name: products.name }).from(products).where(eq(products.id, parseInt(productId))).limit(1);
+    
+    if (!product.length) {
+      return res.status(404).json({ error: 'Product not found' });
+    }
 
-    console.log(`Found ${salesByLocation.length} locations with sales for product ${productId}`);
+    const productName = product[0].name;
+
+    // Use direct SQL query for better compatibility
+    const salesByLocationQuery = `
+      SELECT 
+        COALESCE(w.name, 'Unbekannter Standort') as location_name,
+        COALESCE(m.machine_name, 'Unbekannter Automat') as machine_name,
+        COUNT(*) as sales,
+        SUM(COALESCE(t.price, 0)) as revenue
+      FROM transactions t
+      LEFT JOIN machines m ON t.machine_id = m.id
+      LEFT JOIN machine_warehouse_assignments mwa ON m.id = mwa.machine_id
+      LEFT JOIN warehouses w ON mwa.warehouse_id = w.id
+      WHERE t.product_name = $1 
+        AND t.datetime >= $2
+      GROUP BY w.name, m.machine_name
+      HAVING COUNT(*) > 0
+      ORDER BY SUM(COALESCE(t.price, 0)) DESC
+    `;
+
+    const salesByLocation = await db.execute(sql.raw(salesByLocationQuery, [productName, weeksAgo]));
+
+    console.log(`Found ${salesByLocation.rows.length} locations with sales for product ${productId}`);
 
     // Calculate average weekly sales for each location
-    const locationSalesData = salesByLocation.map(location => ({
-      locationName: location.locationName || 'Unbekannter Standort',
-      machineName: location.machineName || 'Unbekannter Automat',
-      sales: parseInt(location.sales as string) || 0,
-      revenue: parseFloat(location.revenue as string) || 0,
-      avgWeeklySales: (parseInt(location.sales as string) || 0) / analysisWeeks
+    const locationSalesData = salesByLocation.rows.map((location: any) => ({
+      locationName: location.location_name || 'Unbekannter Standort',
+      machineName: location.machine_name || 'Unbekannter Automat',
+      sales: parseInt(location.sales) || 0,
+      revenue: parseFloat(location.revenue) || 0,
+      avgWeeklySales: (parseInt(location.sales) || 0) / analysisWeeks
     }));
 
     res.json(locationSalesData);

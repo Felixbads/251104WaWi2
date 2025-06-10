@@ -168,6 +168,85 @@ const SalesLocationBreakdown: React.FC<{ productId: number; analysisWeeks: numbe
   );
 };
 
+// Component for displaying forecast breakdown by location with sales vs recommendations
+const ForecastLocationBreakdown: React.FC<{ productId: number; totalQuantity: number; forecastWeeks: number }> = ({ productId, totalQuantity, forecastWeeks }) => {
+  const { data: locationSales, isLoading } = useQuery({
+    queryKey: [`/api/bulk-orders/sales-by-location/${productId}`, forecastWeeks],
+    enabled: !!productId,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="p-4">
+        <div className="space-y-2">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="h-8 bg-gray-200 animate-pulse rounded" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!locationSales || !Array.isArray(locationSales) || locationSales.length === 0) {
+    return (
+      <div className="p-4 text-center text-gray-500">
+        Keine Standortdaten verfügbar
+      </div>
+    );
+  }
+
+  // Calculate total sales for proportion calculation
+  const totalSales = (locationSales as LocationSalesData[]).reduce((sum, location) => sum + location.sales, 0);
+
+  return (
+    <div className="p-4 space-y-3">
+      <h4 className="font-medium text-sm text-gray-700 flex items-center gap-2">
+        <MapPin className="h-4 w-4" />
+        Empfehlung nach Standorten ({forecastWeeks} Wochen)
+      </h4>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {(locationSales as LocationSalesData[]).map((location, index) => {
+          // Calculate recommended quantity based on sales proportion
+          const salesProportion = totalSales > 0 ? location.sales / totalSales : 0;
+          const recommendedQuantity = Math.round(totalQuantity * salesProportion);
+          
+          return (
+            <div key={index} className="p-3 bg-white rounded border border-gray-200">
+              <div className="space-y-2">
+                <div className="font-medium text-sm text-gray-900">
+                  {location.locationName}
+                </div>
+                <div className="text-xs text-gray-600">
+                  Automat: {location.machineName}
+                </div>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span>Verkauft:</span>
+                    <Badge variant="secondary" className="text-xs">
+                      {location.sales} Stk.
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Empfehlen:</span>
+                    <Badge variant="default" className="text-xs">
+                      {recommendedQuantity} Stk.
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Anteil:</span>
+                    <span className="font-medium">{(salesProportion * 100).toFixed(1)}%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   onBack,
   onOrderCreated
@@ -753,39 +832,11 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                         {isExpanded && quantity > 0 && (
                           <TableRow className="bg-gray-50">
                             <TableCell colSpan={6} className="p-0">
-                              <div className="p-4 space-y-3">
-                                <h4 className="font-medium text-sm text-gray-700 flex items-center gap-2">
-                                  <MapPin className="h-4 w-4" />
-                                  Verteilung auf Standorte (Gesamt: {quantity} Stück)
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                  {locationBreakdown.map((location: any) => (
-                                    <div 
-                                      key={location.warehouseId} 
-                                      className="p-3 bg-white rounded border border-gray-200"
-                                    >
-                                      <div className="flex justify-between items-start mb-2">
-                                        <div className="font-medium text-sm text-gray-900">
-                                          {location.warehouseName}
-                                        </div>
-                                        <Badge 
-                                          variant="secondary" 
-                                          className="text-xs"
-                                        >
-                                          {location.recommendedQuantity} Stk.
-                                        </Badge>
-                                      </div>
-                                      <div className="space-y-1 text-xs text-gray-600">
-                                        <div>Aktuell: {location.currentStock} im Lager</div>
-                                        <div className="text-xs text-blue-600">{location.reason}</div>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                                <div className="text-xs text-gray-500 mt-2">
-                                  💡 Die Verteilung berücksichtigt aktuelle Lagerbestände - Standorte mit niedrigeren Beständen erhalten proportional mehr.
-                                </div>
-                              </div>
+                              <ForecastLocationBreakdown 
+                                productId={item.productId} 
+                                totalQuantity={quantity} 
+                                forecastWeeks={forecastWeeks} 
+                              />
                             </TableCell>
                           </TableRow>
                         )}
