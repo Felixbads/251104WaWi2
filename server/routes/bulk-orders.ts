@@ -127,7 +127,7 @@ router.get('/analytics/sales/:supplierId/:weeks', async (req, res) => {
         END as trend_direction,
         CASE 
           WHEN sd.avg_weekly_sales = 0 THEN 0
-          ELSE ROUND(((td.recent_sales::numeric / ${Math.ceil(weeks / 2)}) - sd.avg_weekly_sales) / sd.avg_weekly_sales * 100, 2)
+          ELSE CAST(((td.recent_sales::numeric / ${Math.ceil(weeks / 2)}) - sd.avg_weekly_sales) / sd.avg_weekly_sales * 100 AS numeric(10,2))
         END as trend_percentage
       FROM sales_data sd
       LEFT JOIN trend_data td ON sd.product_id = td.product_id

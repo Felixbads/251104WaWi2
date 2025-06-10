@@ -397,28 +397,30 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {Array.isArray(salesAnalysis) ? salesAnalysis.map((item: SalesAnalysis) => (
-                  <TableRow key={item.productId}>
-                    <TableCell className="font-medium">{item.productName}</TableCell>
-                    <TableCell>{item.totalSales}</TableCell>
-                    <TableCell>{item.totalRevenue.toFixed(2)} €</TableCell>
-                    <TableCell>{item.avgWeeklySales.toFixed(1)}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Badge 
-                          variant={
-                            item.trendDirection === 'up' ? "default" :
-                            item.trendDirection === 'down' ? "destructive" : "secondary"
-                          }
-                        >
-                          {item.trendDirection === 'up' ? '↗' : 
-                           item.trendDirection === 'down' ? '↘' : '→'}
-                          {item.trendPercentage.toFixed(0)}%
-                        </Badge>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )) : (
+                {Array.isArray(salesAnalysis) && salesAnalysis.length > 0 ? (
+                  salesAnalysis.map((item: SalesAnalysis) => (
+                    <TableRow key={item.productId}>
+                      <TableCell className="font-medium">{item.productName}</TableCell>
+                      <TableCell>{item.totalSales}</TableCell>
+                      <TableCell>{item.totalRevenue.toFixed(2)} €</TableCell>
+                      <TableCell>{item.avgWeeklySales.toFixed(1)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Badge 
+                            variant={
+                              item.trendDirection === 'up' ? "default" :
+                              item.trendDirection === 'down' ? "destructive" : "secondary"
+                            }
+                          >
+                            {item.trendDirection === 'up' ? '↗' : 
+                             item.trendDirection === 'down' ? '↘' : '→'}
+                            {item.trendPercentage?.toFixed(0) || '0'}%
+                          </Badge>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center text-muted-foreground">
                       Keine Verkaufsanalysedaten verfügbar
