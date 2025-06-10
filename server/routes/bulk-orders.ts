@@ -22,10 +22,13 @@ router.get('/inventory/bulk/:supplierId', async (req, res) => {
 
     const inventoryQuery = sql`
       WITH supplier_products AS (
-        SELECT DISTINCT p.id, p.product_name, pc.purchase_price
+        SELECT DISTINCT p.id, p.product_name, COALESCE(pc.unit_price, p.price, 0) as purchase_price
         FROM products p
-        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id
-        WHERE pc.supplier_id = ${supplierId}
+        LEFT JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.supplier_id = ${supplierId}
+        WHERE p.id IN (
+          SELECT DISTINCT product_id FROM inventory_items WHERE product_id IS NOT NULL
+        )
+        ORDER BY p.product_name
       ),
       warehouse_stocks AS (
         SELECT 

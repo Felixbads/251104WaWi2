@@ -469,6 +469,34 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
             </Select>
           </div>
 
+          {/* Weather and Holiday Context */}
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <h4 className="font-medium text-blue-900 mb-2">Prognosefaktoren für die nächsten {forecastWeeks} Wochen</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="font-medium text-blue-800">🌤️ Wetter erwartet:</p>
+                <p className="text-blue-700">
+                  {forecastWeeks === 1 ? "Überwiegend sonnig, 18-22°C" :
+                   forecastWeeks === 2 ? "Wechselhaft, 15-25°C, vereinzelt Regen" :
+                   forecastWeeks === 3 ? "Sommerlich warm, 20-28°C, wenig Niederschlag" :
+                   "Hochsommer, 22-30°C, meist trocken"}
+                </p>
+              </div>
+              <div>
+                <p className="font-medium text-blue-800">🏖️ Feiertage & Urlaub:</p>
+                <p className="text-blue-700">
+                  {forecastWeeks === 1 ? "Keine Feiertage" :
+                   forecastWeeks === 2 ? "Keine besonderen Ereignisse" :
+                   forecastWeeks === 3 ? "Sommerferienzeit beginnt" :
+                   "Hauptferienzeit - erhöhter Tourismus"}
+                </p>
+              </div>
+            </div>
+            <p className="text-xs text-blue-600 mt-2">
+              ℹ️ Diese Faktoren werden in der automatischen Prognose berücksichtigt
+            </p>
+          </div>
+
           {forecastLoading ? (
             <div className="space-y-4">
               {[1, 2, 3, 4, 5].map(i => (
