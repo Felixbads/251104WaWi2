@@ -291,6 +291,52 @@ router.post('/orders/bulk', async (req, res) => {
   }
 });
 
+// Forecast endpoint
+router.get('/analytics/forecast/:supplierId/:weeks', async (req, res) => {
+  try {
+    const supplierId = parseInt(req.params.supplierId);
+    const weeks = parseInt(req.params.weeks);
+    
+    const forecastQuery = sql`
+      WITH supplier_products AS (
+        SELECT DISTINCT p.id, p.product_name
+        FROM products p
+        INNER JOIN purchase_conditions pc ON p.id = pc.product_id AND pc.supplier_id = ${supplierId}
+        WHERE p.id IN (
+          SELECT DISTINCT product_id FROM inventory_items WHERE product_id IS NOT NULL
+        )
+      ),
+      recent_sales AS (
+        SELECT 
+          sp.id as product_id,
+          sp.product_name,
+          COUNT(t.id) as sales_count,
+          COUNT(t.id)::float / 4 as avg_weekly_sales
+        FROM supplier_products sp
+        LEFT JOIN transactions t ON t.product_name = sp.product_name 
+          AND t.datetime >= NOW() - INTERVAL '4 weeks'
+        GROUP BY sp.id, sp.product_name
+      )
+      SELECT 
+        product_id as "productId",
+        product_name as "productName",
+        CAST(COALESCE(avg_weekly_sales * 1, 0) AS numeric(10,2)) as "predictedSales1Week",
+        CAST(COALESCE(avg_weekly_sales * 2, 0) AS numeric(10,2)) as "predictedSales2Week", 
+        CAST(COALESCE(avg_weekly_sales * 3, 0) AS numeric(10,2)) as "predictedSales3Week",
+        CAST(COALESCE(avg_weekly_sales * ${weeks}, 0) AS numeric(10,2)) as "recommendedOrder"
+      FROM recent_sales
+      ORDER BY avg_weekly_sales DESC
+    `;
+    
+    const result = await db.execute(forecastQuery);
+    res.json(result.rows);
+    
+  } catch (error) {
+    console.error('Error fetching forecast data:', error);
+    res.status(500).json({ error: 'Failed to fetch forecast data' });
+  }
+});
+
 // Sales analysis endpoint
 router.get('/analysis/:supplierId/:weeks', async (req, res) => {
   try {
