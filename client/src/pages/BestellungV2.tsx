@@ -1125,6 +1125,22 @@ const BestellungV2: React.FC = () => {
           );
         }
         
+        // If bulk mode is selected, show BulkOrderMode
+        if (orderMode === 'bulk') {
+          return (
+            <BulkOrderMode
+              onBack={() => {
+                setOrderMode('new');
+                setStep('overview');
+              }}
+              onOrderCreated={(orderId) => {
+                setOrderId(orderId);
+                setStep('viewOrder');
+              }}
+            />
+          );
+        }
+        
         return (
           <SimpleOrdersOverview 
             onSelectOrder={handleSelectOrder}

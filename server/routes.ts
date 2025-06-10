@@ -39,6 +39,7 @@ import locationStatusRouter from './routes/location-status';
 import databaseRouter from './routes/database';
 import comprehensiveDataRouter from './routes/comprehensiveData';
 import weatherRouter from './routes/weather';
+import bulkOrdersRouter from './routes/bulk-orders';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
