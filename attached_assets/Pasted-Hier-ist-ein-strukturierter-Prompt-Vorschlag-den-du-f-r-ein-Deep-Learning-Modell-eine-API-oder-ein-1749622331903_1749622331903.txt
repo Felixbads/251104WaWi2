@@ -1,0 +1,86 @@
+Hier ist ein strukturierter Prompt-Vorschlag, den du für ein Deep-Learning-Modell, eine API oder ein Entwicklerbriefing verwenden kannst – etwa zur Weiterentwicklung einer Prognose-Engine für Verkaufsdaten bei vendingbasierten Systemen (z. B. Proviantomat):
+
+⸻
+
+🎯 Prompt: Verkaufsprognose unter Berücksichtigung von Ausverkauf, Wetter, Ferien und Feiertagen
+
+Ziel:
+Verbesserung der Prognosequalität durch eine differenzierte Berücksichtigung von exogenen Einflussfaktoren (Ausverkauf, Wetter, Ferien, Feiertage, regionale Effekte) sowie eine transparente Herleitung jeder Prognose mit Erläuterung der zugrunde liegenden Einflussgrößen.
+
+⸻
+
+1. Ausverkauft-Status als Prognosefaktor
+	•	Analyseauftrag:
+	•	Prüfe, ob und wie der Ausverkauft-Status eines Produkts in der historischen Verkaufsdatenauswertung berücksichtigt wird.
+	•	Der Ausverkauft-Tag darf nicht als Verkaufstag in die Durchschnittsberechnung einfließen, da er die reale Nachfrage verfälscht.
+	•	Erwartete Funktionalität:
+	•	Wenn ein Produkt als „ausverkauft“ markiert ist, soll dies automatisch:
+	•	Aus der Berechnungsbasis (z. B. gleitender 7- oder 30-Tage-Durchschnitt) entfernt werden.
+	•	Eine erhöhte Nachbestellmenge für Folgezeiträume am jeweiligen Standort auslösen.
+	•	Optional: Cluster-Logik zur Unterscheidung häufiger Ausverkaufssituationen (z. B. Standort mit systematisch zu geringer Nachfüllmenge).
+
+⸻
+
+2. Integration von Ferien, Feiertagen, Urlaubssaisons
+	•	Analyseauftrag:
+	•	Dokumentiere, wie Ferienzeiten, Brückentage und gesetzliche Feiertage in die Prognose integriert sind.
+	•	Berücksichtige dabei insbesondere:
+	•	Schulferien nach Bundesland.
+	•	Verlängerte Wochenenden (Feiertage am Montag oder Freitag).
+	•	Mittwoch-/Donnerstag-Feiertage, die zu Urlaub in der gesamten Woche führen.
+	•	Erwartete Funktionalität:
+	•	Prognoseanhebung in diesen Zeiträumen, auch wenn der Feiertag nicht direkt auf das Verkaufsdatum fällt.
+	•	Standortabhängige Gewichtung:
+	•	z. B. höhere Sensitivität bei touristisch geprägten Standorten oder stark frequentierten Wanderwegen.
+	•	Differenzierte Nachfüllmengen: Mehrbevorratung im Vorfeld von Feiertagswochen.
+
+⸻
+
+3. Wetterbasierte Prognose-Logik
+	•	Analyseauftrag:
+	•	Erläutere, wie Wetterdaten in die Prognose einfließen – insbesondere:
+	•	Tageswetter (Sonne, Regen, Wind)
+	•	Temperaturwerte
+	•	Stündliche Wetterprognosen und deren Gewichtung auf Tagesverkäufe.
+	•	Erwartete Funktionalität:
+	•	Bei Regenperioden:
+	•	Reduzierung der Prognosemenge, insbesondere bei Outdoor-Standorten.
+	•	Dynamische Anpassung auch kurzfristig möglich? (innerhalb von 12–24h)
+	•	Bei schönem Wetter/Wochenende:
+	•	Erhöhung der Prognose bei Outdoor-Standorten.
+	•	Einschätzung: erhöhte Frequenz durch Wanderer, Radfahrer, Touristen.
+	•	Differenzierte Bewertung nach Standorttypus (z. B. City vs. Naturstandort).
+
+⸻
+
+4. Transparenz und Herleitung der Prognosewerte
+	•	Anforderung:
+	•	Jede Verkaufsprognose soll zukünftig mit einem kurzen erklärenden Text geliefert werden:
+	•	Beispiel:
+	•	„Für Standort xyz wird in KW 26 ein erhöhter Absatz erwartet, da:
+	•	Schulferien in Sachsen und Brandenburg.
+	•	Wetter sonnig und trocken (Prognose 23–29 °C).
+	•	Letztes Jahr an ähnlichem Wochenende 30 % Mehrabsatz.“
+	•	Prognoseberichte sollen optional auch folgende Datenfelder enthalten:
+	•	Einflussfaktoren: [Wetter, Feiertag, Ferien, Ausverkaufttage, Standorttyp]
+	•	Erwarteter Prognosefaktor pro Einflussgröße (z. B. Wetter +15%, Ferien +10%)
+	•	Standortwarnung bei erwarteter Unterversorgung.
+
+⸻
+
+5. Zusätzliche Fragestellungen zur Weiterentwicklung
+	•	Wird bereits mit stündlichen Wetterdaten gearbeitet, oder nur mit Tageswerten?
+	•	Gibt es eine automatische Anpassung des Prognosemodells bei kurzfristigen Wetterumschwüngen (z. B. plötzlicher Regen)?
+	•	Sind Standortgruppen definiert, bei denen sich Einflussfaktoren besonders stark auswirken (z. B. „touristische Standorte“ vs. „Pendlerstandorte“)?
+
+⸻
+
+🧠 Output-Erwartung bei jeder Prognoseanfrage:
+	1.	Tages- oder Wochenprognose für jeden Standort (Produktmenge oder Umsatz).
+	2.	Erklärender Text zur Herleitung der Prognose.
+	3.	Liste der berücksichtigten Einflussgrößen mit Gewichtung.
+	4.	Warnungen bei erwarteten Engpässen oder erhöhter Nachfrage.
+
+⸻
+
+Wenn du möchtest, kann ich daraus auch direkt ein API-Briefing, eine Jira-Story oder ein internes Product Owner Requirement schreiben – sag einfach Bescheid.
