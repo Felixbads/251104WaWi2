@@ -788,8 +788,8 @@ Elbsandstein Proviant & Quartier GmbH`;
   app.use('/api/weather', weatherRouter);
   
   // Register enhanced forecasting router
-  const simplifiedEnhancedForecastRouter = (await import('./routes/simplified-enhanced-forecast')).default;
-  app.use('/api/enhanced-forecast', simplifiedEnhancedForecastRouter);
+  const simpleEnhancedForecastRouter = (await import('./routes/simple-enhanced-forecast')).default;
+  app.use('/api/enhanced-forecast', simpleEnhancedForecastRouter);
   
 
   
