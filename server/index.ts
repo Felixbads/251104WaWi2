@@ -787,6 +787,10 @@ Elbsandstein Proviant & Quartier GmbH`;
   // Register weather data router
   app.use('/api/weather', weatherRouter);
   
+  // Register enhanced forecasting router
+  const simplifiedEnhancedForecastRouter = (await import('./routes/simplified-enhanced-forecast')).default;
+  app.use('/api/enhanced-forecast', simplifiedEnhancedForecastRouter);
+  
 
   
   // Direct machine locations endpoint for Standort-Analyse dropdown

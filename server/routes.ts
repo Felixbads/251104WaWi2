@@ -40,6 +40,7 @@ import databaseRouter from './routes/database';
 import comprehensiveDataRouter from './routes/comprehensiveData';
 import weatherRouter from './routes/weather';
 import bulkOrdersRouter from './routes/bulk-orders';
+import simplifiedEnhancedForecastRouter from './routes/simplified-enhanced-forecast';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
