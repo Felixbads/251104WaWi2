@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { vendonSync } from '../services/vendonSync';
 import { historicalVendonSync } from '../services/historicalVendonSync';
+import { SystematicHistoricalSync } from '../services/systematicHistoricalSync';
 import { storage } from '../storage';
 import { MachineStock, historicalSyncOptionsSchema } from '@shared/schema';
 import { UploadedFile } from 'express-fileupload';
@@ -207,6 +208,24 @@ router.post('/sync', async (req, res) => {
               
             case 'refills':
               syncResult = await vendonSync.syncRefills(startDateObj, endDateObj);
+              break;
+              
+            case 'systematic-historical':
+              // Systematische historische Synchronisation ab 01.01.2024 mit 6-Stunden-Intervallen
+              const systematicSync = new SystematicHistoricalSync();
+              const syncStartDate = startDateObj || new Date('2024-01-01');
+              const syncEndDate = endDateObj || new Date();
+              const intervalHours = parseInt(req.body.intervalHours as string) || 6;
+              
+              console.log(`Starte systematische historische Synchronisation: ${syncStartDate.toISOString()} bis ${syncEndDate.toISOString()}, Intervall: ${intervalHours}h`);
+              
+              const progress = await systematicSync.startSystematicSync(syncStartDate, syncEndDate, intervalHours);
+              syncResult = {
+                status: 'success',
+                message: `Systematische Synchronisation abgeschlossen: ${progress.newTransactions} neue Transaktionen`,
+                syncLogId: syncLogId,
+                progress: progress
+              };
               break;
               
             default:
