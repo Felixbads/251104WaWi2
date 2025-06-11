@@ -178,6 +178,21 @@ router.post('/sync', async (req, res) => {
               );
               break;
               
+            case 'today':
+              // Heute-Synchronisation: Gestern bis heute
+              const todayStart = new Date();
+              todayStart.setDate(todayStart.getDate() - 1);
+              const todayEnd = new Date();
+              
+              syncResult = await vendonSync.syncTransactions(
+                todayStart, 
+                todayEnd, 
+                parseInt(batchSize as string) || 100,
+                parseInt(maxTransactions as string) || 2000,
+                forceUpdate
+              );
+              break;
+              
             case 'machines':
               syncResult = await vendonSync.syncMachines();
               break;
