@@ -23,6 +23,7 @@ import MailSettings from "@/pages/MailSettings"; // Neue Email-Einstellungen-Sei
 import Forecast from "@/pages/Forecast";
 import ForecastEvaluation from "@/pages/ForecastEvaluation";
 import ForecastDetail from "@/pages/ForecastDetail";
+import EnhancedForecastDashboard from "@/pages/EnhancedForecastDashboard";
 import DataAvailability from "@/pages/DataAvailability"; // Neue Datenverfügbarkeits-Komponente
 import AdvancedAnalysis from "@/pages/AdvancedAnalysis"; // Erweiterte Analyse-Komponente
 import Login from "@/pages/Login";
@@ -468,6 +469,12 @@ function AuthenticatedRouter() {
         <Route path="/forecast-detail" component={props => (
           <ApprovedUserRoute>
             <ForecastDetail {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/enhanced-forecast" component={props => (
+          <ApprovedUserRoute>
+            <EnhancedForecastDashboard {...props} />
           </ApprovedUserRoute>
         )} />
 

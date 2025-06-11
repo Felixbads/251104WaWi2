@@ -230,6 +230,13 @@ export default function Sidebar() {
             >
               Prognoseanalyse
             </NavItem>
+            <NavItem 
+              href="/enhanced-forecast" 
+              icon={<TrendingUp className="h-5 w-5 mr-3" />}
+              isActive={isActive("/enhanced-forecast")}
+            >
+              KI-Prognosen
+            </NavItem>
           </nav>
         </div>
         

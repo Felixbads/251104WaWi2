@@ -210,7 +210,7 @@ export default function EnhancedForecastDashboard() {
         </Alert>
       )}
 
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs value="overview" onValueChange={() => {}} defaultValue="overview" className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Übersicht</TabsTrigger>
           <TabsTrigger value="detailed">Detaillierte Prognosen</TabsTrigger>
