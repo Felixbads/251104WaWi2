@@ -286,6 +286,10 @@ const WeatherForecast: React.FC<WeatherForecastProps> = ({
                 </div>
               ))}
             </div>
+          ) : holidaysError ? (
+            <div className="text-sm text-red-500">
+              Fehler beim Laden der Feiertagsdaten
+            </div>
           ) : Object.keys(holidays).length === 0 ? (
             <div className="text-sm text-muted-foreground italic">
               Keine Feiertage oder Ferien im gewählten Zeitraum
