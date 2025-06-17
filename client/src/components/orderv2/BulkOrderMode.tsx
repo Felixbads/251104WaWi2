@@ -873,7 +873,7 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => setOrderQuantities(prev => ({ ...prev, [item.productId]: item.recommendedOrder }))}
+                                onClick={() => setOrderQuantities(prev => ({ ...prev, [item.productId]: item.forecastedDemand }))}
                               >
                                 Empfehlung
                               </Button>
