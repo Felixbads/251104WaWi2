@@ -9,32 +9,43 @@ import { de } from 'date-fns/locale';
 interface SyncStatus {
   machines: {
     status: string;
-    lastSync: string;
-    totalTransactions: number;
+    lastSync: number;
+    count: number;
+  };
+  products: {
+    status: string;
+    lastSync: number;
+    count: number;
   };
   transactions: {
     status: string;
-    lastSync: string;
-    recentCount: number;
-    totalCount: number;
-    dateRange: {
-      earliest: string;
-      latest: string;
-      daysWithData: number;
-    };
+    lastSync: number;
+    count: number;
+    latest?: number;
   };
-  recovery: {
-    totalGaps: number;
-    mostRecentGap: string | null;
-    gapDetails: Array<{
-      date: string;
-      actualCount: number;
-      status: string;
-    }>;
-  };
-  overall: {
+  refills: {
     status: string;
-    lastUpdated: string;
+    lastSync: number;
+    count: number;
+  };
+  events: {
+    status: string;
+    lastSync: number;
+    count: number;
+  };
+  stocks: {
+    status: string;
+    lastSync: number;
+    count: number;
+  };
+  historicalSync: {
+    inProgress: boolean;
+    currentDate: string;
+    targetDate: string;
+    progress: number;
+    completedMonths: string[];
+    totalTransactions: number;
+    processingTimeMin: number;
   };
 }
 
@@ -77,21 +88,31 @@ function getStatusIcon(status: string) {
 
 function getStatusColor(status: string) {
   switch (status) {
-    case 'healthy':
-    case 'complete':
     case 'completed':
+    case 'success':
       return 'bg-green-500';
-    case 'warning':
-    case 'partial':
-      return 'bg-yellow-500';
-    case 'critical':
-    case 'missing':
-      return 'bg-red-500';
-    case 'active':
+    case 'running':
       return 'bg-blue-500';
+    case 'never':
+    case 'failed':
+      return 'bg-red-500';
     default:
       return 'bg-gray-500';
   }
+}
+
+function getOverallStatus(syncData: SyncStatus): string {
+  const statuses = [
+    syncData.machines.status,
+    syncData.products.status,
+    syncData.transactions.status,
+    syncData.events.status
+  ];
+  
+  if (statuses.includes('running')) return 'running';
+  if (statuses.includes('never') || statuses.includes('failed')) return 'warning';
+  if (statuses.every(s => s === 'completed' || s === 'success')) return 'healthy';
+  return 'unknown';
 }
 
 export function SyncStatusWidget() {
@@ -107,16 +128,21 @@ export function SyncStatusWidget() {
 
   // Provide default values to prevent undefined errors
   const defaultSyncStatus: SyncStatus = {
-    machines: { status: 'unknown', lastSync: '', totalTransactions: 0 },
-    transactions: { 
-      status: 'unknown', 
-      lastSync: '', 
-      recentCount: 0, 
-      totalCount: 0,
-      dateRange: { earliest: '', latest: '', daysWithData: 0 }
-    },
-    recovery: { totalGaps: 0, mostRecentGap: null, gapDetails: [] },
-    overall: { status: 'unknown', lastUpdated: '' }
+    machines: { status: 'unknown', lastSync: 0, count: 0 },
+    products: { status: 'unknown', lastSync: 0, count: 0 },
+    transactions: { status: 'unknown', lastSync: 0, count: 0 },
+    refills: { status: 'unknown', lastSync: 0, count: 0 },
+    events: { status: 'unknown', lastSync: 0, count: 0 },
+    stocks: { status: 'unknown', lastSync: 0, count: 0 },
+    historicalSync: {
+      inProgress: false,
+      currentDate: '',
+      targetDate: '',
+      progress: 0,
+      completedMonths: [],
+      totalTransactions: 0,
+      processingTimeMin: 0
+    }
   };
 
   const safeSync = syncStatus || defaultSyncStatus;
@@ -165,64 +191,91 @@ export function SyncStatusWidget() {
               <Database className="h-5 w-5" />
               Synchronisierungsstatus
             </div>
-            <Badge variant={safeSync.overall.status === 'healthy' ? 'default' : 'destructive'}>
-              {getStatusIcon(safeSync.overall.status)}
+            <Badge variant={getOverallStatus(safeSync) === 'healthy' ? 'default' : 'destructive'}>
+              {getStatusIcon(getOverallStatus(safeSync))}
               <span className="ml-1">
-                {safeSync.overall.status === 'healthy' ? 'Gesund' :
-                 safeSync.overall.status === 'warning' ? 'Warnung' : 'Kritisch'}
+                {getOverallStatus(safeSync) === 'healthy' ? 'Gesund' :
+                 getOverallStatus(safeSync) === 'running' ? 'Läuft' :
+                 getOverallStatus(safeSync) === 'warning' ? 'Warnung' : 'Unbekannt'}
               </span>
             </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Transaction Status */}
+          {/* Main Sync Services */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Transaktionen</span>
                 {getStatusIcon(safeSync.transactions.status)}
               </div>
               <div className="text-2xl font-bold">
-                {safeSync.transactions.totalCount.toLocaleString('de-DE')}
+                {safeSync.transactions.count.toLocaleString('de-DE')}
               </div>
               <div className="text-xs text-muted-foreground">
-                Letzte 24h: {safeSync.transactions.recentCount} Transaktionen
+                Status: {safeSync.transactions.status}
               </div>
             </div>
             
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Datenabdeckung</span>
-                <span className="text-xs text-muted-foreground">
-                  {safeSync.transactions.dateRange.daysWithData} Tage
-                </span>
+                <span className="text-sm font-medium">Events</span>
+                {getStatusIcon(safeSync.events.status)}
               </div>
               <div className="text-sm">
-                <div>Von: {safeSync.transactions.dateRange.earliest ? format(new Date(safeSync.transactions.dateRange.earliest), 'dd.MM.yyyy', { locale: de }) : 'N/A'}</div>
-                <div>Bis: {safeSync.transactions.dateRange.latest ? format(new Date(safeSync.transactions.dateRange.latest), 'dd.MM.yyyy', { locale: de }) : 'N/A'}</div>
+                Status: {safeSync.events.status}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Letzter Sync: {safeSync.events.lastSync > 0 ? format(new Date(safeSync.events.lastSync), 'dd.MM.yyyy HH:mm', { locale: de }) : 'Nie'}
               </div>
             </div>
           </div>
 
-          {/* Recovery Status */}
-          {safeSync.recovery.totalGaps > 0 && (
+          {/* Additional Services */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="text-center p-2 border rounded">
+              <div className="flex items-center justify-center mb-1">
+                {getStatusIcon(safeSync.machines.status)}
+              </div>
+              <div className="text-xs font-medium">Automaten</div>
+              <div className="text-xs text-muted-foreground">{safeSync.machines.status}</div>
+            </div>
+            
+            <div className="text-center p-2 border rounded">
+              <div className="flex items-center justify-center mb-1">
+                {getStatusIcon(safeSync.products.status)}
+              </div>
+              <div className="text-xs font-medium">Produkte</div>
+              <div className="text-xs text-muted-foreground">{safeSync.products.status}</div>
+            </div>
+            
+            <div className="text-center p-2 border rounded">
+              <div className="flex items-center justify-center mb-1">
+                {getStatusIcon(safeSync.stocks.status)}
+              </div>
+              <div className="text-xs font-medium">Lagerbestände</div>
+              <div className="text-xs text-muted-foreground">{safeSync.stocks.status}</div>
+            </div>
+          </div>
+
+          {/* Historical Sync Progress */}
+          {safeSync.historicalSync.inProgress && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Datenlücken</span>
-                <Badge variant="outline" className="text-orange-600">
-                  {safeSync.recovery.totalGaps} Lücken
+                <span className="text-sm font-medium">Historische Synchronisierung</span>
+                <Badge variant="outline" className="text-blue-600">
+                  Läuft
                 </Badge>
               </div>
-              {safeSync.recovery.mostRecentGap && (
-                <div className="text-xs text-muted-foreground">
-                  Neueste Lücke: {format(new Date(safeSync.recovery.mostRecentGap), 'dd.MM.yyyy', { locale: de })}
-                </div>
-              )}
+              <Progress value={safeSync.historicalSync.progress} className="h-2" />
+              <div className="text-xs text-muted-foreground">
+                Fortschritt: {safeSync.historicalSync.progress}% • {safeSync.historicalSync.totalTransactions.toLocaleString('de-DE')} Transaktionen
+              </div>
             </div>
           )}
 
           <div className="text-xs text-muted-foreground">
-            Letztes Update: {safeSync.overall.lastUpdated ? format(new Date(safeSync.overall.lastUpdated), 'HH:mm:ss', { locale: de }) : 'N/A'}
+            Letztes Update: {format(new Date(), 'HH:mm:ss', { locale: de })}
           </div>
         </CardContent>
       </Card>
