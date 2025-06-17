@@ -87,10 +87,9 @@ interface SalesAnalysis {
 interface ForecastData {
   productId: number;
   productName: string;
-  predictedSales1Week: number;
-  predictedSales2Week: number;
-  predictedSales3Week: number;
-  recommendedOrder: number;
+  avgWeeklySales: number;
+  forecastedDemand: number;
+  confidenceLevel: string;
 }
 
 interface LocationSalesData {
@@ -337,6 +336,17 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
       });
     },
   });
+
+  // Auto-populate order quantities when forecast data loads
+  useEffect(() => {
+    if (forecastData && Array.isArray(forecastData) && step === 'forecast') {
+      const newQuantities: Record<number, number> = {};
+      (forecastData as ForecastData[]).forEach((item: ForecastData) => {
+        newQuantities[item.productId] = Math.max(0, item.forecastedDemand || 0);
+      });
+      setOrderQuantities(newQuantities);
+    }
+  }, [forecastData, step]);
 
   // Handle supplier selection
   const handleSupplierSelect = (supplierId: number, supplierName: string) => {
@@ -826,17 +836,14 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
                         <TableRow>
                           <TableCell className="font-medium">{item.productName}</TableCell>
                           <TableCell>
-                            {forecastWeeks === 1 ? item.predictedSales1Week :
-                             forecastWeeks === 2 ? item.predictedSales2Week :
-                             item.predictedSales3Week}
+                            <Badge variant="secondary">
+                              {item.forecastedDemand} erwartet
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">
-                              {/* Show actual sales from analysis data */}
-                              {(() => {
-                                const salesItem = (salesAnalysis as any[])?.find((sale: any) => sale.productId === item.productId);
-                                return salesItem ? salesItem.totalSales : 0;
-                              })()} verkauft
+                              {/* Show forecasted demand as recommendation */}
+                              {item.forecastedDemand} bestellen
                             </Badge>
                           </TableCell>
                           <TableCell>
