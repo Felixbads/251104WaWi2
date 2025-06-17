@@ -18,6 +18,43 @@ export function statisticsRoutes(app: any) {
 }
 
 /**
+ * Endpunkt für heutige Performance-Daten
+ */
+router.get('/today', async (req, res) => {
+  try {
+    const today = new Date();
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+
+    // Parallele Abfragen für heutige Daten
+    const [todayStats] = await Promise.all([
+      db.select({
+        count: count(),
+        revenue: sql<number>`COALESCE(SUM(price), 0)`
+      }).from(transactions)
+        .where(and(
+          gte(transactions.datetime, startOfToday),
+          lte(transactions.datetime, endOfToday)
+        ))
+    ]);
+
+    const result = {
+      count: todayStats[0]?.count || 0,
+      revenue: todayStats[0]?.revenue || 0,
+      date: today.toISOString().split('T')[0]
+    };
+
+    res.json(result);
+  } catch (error) {
+    console.error('Fehler beim Abrufen der heutigen Performance-Daten:', error);
+    return res.status(500).json({ 
+      error: 'Fehler beim Abrufen der heutigen Performance-Daten',
+      message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+    });
+  }
+});
+
+/**
  * Endpunkt für grundlegende Datenbankstatistiken
  * 
  * Diese Abfrage ist effizient und schnell, da sie nur einfache Zählungen durchführt
