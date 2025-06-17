@@ -108,54 +108,112 @@ router.get('/analytics/sales/:supplierId/:weeks', async (req, res) => {
     const weeks = parseInt(req.params.weeks);
     const startDate = subWeeks(new Date(), weeks);
 
-    const salesQuery = sql`
-      WITH supplier_products AS (
-        SELECT DISTINCT p.id, p.product_name
-        FROM products p
-        INNER JOIN purchase_conditions pc ON p.id = pc.product_id
-        WHERE pc.supplier_id = ${supplierId}
-      ),
-      sales_data AS (
-        SELECT 
-          sp.id as product_id,
-          sp.product_name,
-          COUNT(t.id) as total_sales,
-          COALESCE(SUM(t.price), 0) as total_revenue,
-          COALESCE(COUNT(t.id)::float / ${weeks}, 0) as avg_weekly_sales
-        FROM supplier_products sp
-        LEFT JOIN transactions t ON LOWER(TRIM(t.product_name)) = LOWER(TRIM(sp.product_name))
-          AND t.datetime >= ${startDate.toISOString()}
-        GROUP BY sp.id, sp.product_name
-      ),
-      trend_data AS (
-        SELECT 
-          sp.id as product_id,
-          COUNT(t.id) as recent_sales
-        FROM supplier_products sp
-        LEFT JOIN transactions t ON LOWER(TRIM(t.product_name)) = LOWER(TRIM(sp.product_name))
-          AND t.datetime >= ${subWeeks(new Date(), Math.ceil(weeks / 2)).toISOString()}
-        GROUP BY sp.id
-      )
-      SELECT 
-        sd.product_id,
-        sd.product_name,
-        sd.total_sales,
-        sd.total_revenue,
-        sd.avg_weekly_sales,
-        CASE 
-          WHEN sd.total_sales = 0 THEN 'stable'
-          WHEN td.recent_sales > (sd.avg_weekly_sales * ${Math.ceil(weeks / 2)}) THEN 'up'
-          WHEN td.recent_sales < (sd.avg_weekly_sales * ${Math.ceil(weeks / 2)}) THEN 'down'
-          ELSE 'stable'
-        END as trend_direction,
-        CASE 
-          WHEN sd.avg_weekly_sales = 0 THEN 0
-          ELSE CAST(((td.recent_sales::numeric / ${Math.ceil(weeks / 2)}) - sd.avg_weekly_sales) / sd.avg_weekly_sales * 100 AS numeric(10,2))
-        END as trend_percentage
-      FROM sales_data sd
-      LEFT JOIN trend_data td ON sd.product_id = td.product_id
-      ORDER BY sd.total_sales DESC
+    // Prüfe, ob der Lieferant Einkaufsbedingungen hat
+    const purchaseConditionsQuery = sql`
+      SELECT COUNT(*) as count FROM purchase_conditions WHERE supplier_id = ${supplierId}
     `;
+    const pcResult = await db.execute(purchaseConditionsQuery);
+    const hasPurchaseConditions = parseInt(pcResult.rows[0].count) > 0;
+
+    let salesQuery;
+    if (hasPurchaseConditions) {
+      salesQuery = sql`
+        WITH supplier_products AS (
+          SELECT DISTINCT p.id, p.product_name
+          FROM products p
+          INNER JOIN purchase_conditions pc ON p.id = pc.product_id
+          WHERE pc.supplier_id = ${supplierId}
+        ),
+        sales_data AS (
+          SELECT 
+            sp.id as product_id,
+            sp.product_name,
+            COUNT(t.id) as total_sales,
+            COALESCE(SUM(t.price), 0) as total_revenue,
+            COALESCE(COUNT(t.id)::float / ${weeks}, 0) as avg_weekly_sales
+          FROM supplier_products sp
+          LEFT JOIN transactions t ON LOWER(TRIM(t.product_name)) = LOWER(TRIM(sp.product_name))
+            AND t.datetime >= ${startDate.toISOString()}
+          GROUP BY sp.id, sp.product_name
+        ),
+        trend_data AS (
+          SELECT 
+            sp.id as product_id,
+            COUNT(t.id) as recent_sales
+          FROM supplier_products sp
+          LEFT JOIN transactions t ON LOWER(TRIM(t.product_name)) = LOWER(TRIM(sp.product_name))
+            AND t.datetime >= ${subWeeks(new Date(), Math.ceil(weeks / 2)).toISOString()}
+          GROUP BY sp.id
+        )
+        SELECT 
+          sd.product_id,
+          sd.product_name,
+          sd.total_sales,
+          sd.total_revenue,
+          sd.avg_weekly_sales,
+          CASE 
+            WHEN sd.total_sales = 0 THEN 'stable'
+            WHEN td.recent_sales > (sd.avg_weekly_sales * ${Math.ceil(weeks / 2)}) THEN 'up'
+            WHEN td.recent_sales < (sd.avg_weekly_sales * ${Math.ceil(weeks / 2)}) THEN 'down'
+            ELSE 'stable'
+          END as trend_direction,
+          CASE 
+            WHEN sd.avg_weekly_sales = 0 THEN 0
+            ELSE CAST(((td.recent_sales::numeric / ${Math.ceil(weeks / 2)}) - sd.avg_weekly_sales) / sd.avg_weekly_sales * 100 AS numeric(10,2))
+          END as trend_percentage
+        FROM sales_data sd
+        LEFT JOIN trend_data td ON sd.product_id = td.product_id
+        ORDER BY sd.total_sales DESC
+      `;
+    } else {
+      salesQuery = sql`
+        WITH supplier_products AS (
+          SELECT DISTINCT p.id, p.product_name
+          FROM products p
+          WHERE p.supplier_id = ${supplierId}
+        ),
+        sales_data AS (
+          SELECT 
+            sp.id as product_id,
+            sp.product_name,
+            COUNT(t.id) as total_sales,
+            COALESCE(SUM(t.price), 0) as total_revenue,
+            COALESCE(COUNT(t.id)::float / ${weeks}, 0) as avg_weekly_sales
+          FROM supplier_products sp
+          LEFT JOIN transactions t ON LOWER(TRIM(t.product_name)) = LOWER(TRIM(sp.product_name))
+            AND t.datetime >= ${startDate.toISOString()}
+          GROUP BY sp.id, sp.product_name
+        ),
+        trend_data AS (
+          SELECT 
+            sp.id as product_id,
+            COUNT(t.id) as recent_sales
+          FROM supplier_products sp
+          LEFT JOIN transactions t ON LOWER(TRIM(t.product_name)) = LOWER(TRIM(sp.product_name))
+            AND t.datetime >= ${subWeeks(new Date(), Math.ceil(weeks / 2)).toISOString()}
+          GROUP BY sp.id
+        )
+        SELECT 
+          sd.product_id,
+          sd.product_name,
+          sd.total_sales,
+          sd.total_revenue,
+          sd.avg_weekly_sales,
+          CASE 
+            WHEN sd.total_sales = 0 THEN 'stable'
+            WHEN td.recent_sales > (sd.avg_weekly_sales * ${Math.ceil(weeks / 2)}) THEN 'up'
+            WHEN td.recent_sales < (sd.avg_weekly_sales * ${Math.ceil(weeks / 2)}) THEN 'down'
+            ELSE 'stable'
+          END as trend_direction,
+          CASE 
+            WHEN sd.avg_weekly_sales = 0 THEN 0
+            ELSE CAST(((td.recent_sales::numeric / ${Math.ceil(weeks / 2)}) - sd.avg_weekly_sales) / sd.avg_weekly_sales * 100 AS numeric(10,2))
+          END as trend_percentage
+        FROM sales_data sd
+        LEFT JOIN trend_data td ON sd.product_id = td.product_id
+        ORDER BY sd.total_sales DESC
+      `;
+    }
 
     const result = await db.execute(salesQuery);
     
