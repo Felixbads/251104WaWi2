@@ -143,7 +143,7 @@ const WeatherForecast: React.FC<WeatherForecastProps> = ({
   
   // Feiertage in das gewünschte Format konvertieren - nur authentische Daten verwenden
   const holidays: Record<string, Holiday> = React.useMemo(() => {
-    if (!holidaysData?.data || holidaysData.data.length === 0) {
+    if (!holidaysData?.success || !holidaysData?.data || holidaysData.data.length === 0) {
       return {};
     }
     
