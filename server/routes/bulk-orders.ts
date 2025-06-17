@@ -302,6 +302,7 @@ router.get('/forecast/bulk/:supplierId/:weeks', async (req, res) => {
       `;
     }
 
+    console.log('Executing forecast query...');
     const result = await db.execute(forecastQuery);
     console.log(`Found ${result.rows.length} products with forecast data`);
     
