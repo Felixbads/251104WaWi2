@@ -36,31 +36,18 @@ router.get('/inventory/bulk/:supplierId', async (req, res) => {
     
     console.log(`Supplier found: ${supplier.name}`);
 
-    // Für Agrarprodukte Struppen GmbH: suche nach "struppen" Produkten
+    // Für Lieferanten ohne Einkaufsbedingungen: verwende supplier_id direkt aus products
     let inventoryQuery;
-    if (supplier.name.toLowerCase().includes('struppen')) {
-      console.log('Using Struppen-specific query for products containing "struppen"');
-      inventoryQuery = sql`
-        SELECT 
-          p.id as product_id,
-          p.product_name,
-          COALESCE(p.price, 0) as price,
-          COALESCE(SUM(ii.quantity), 0) as total_stock,
-          COALESCE(SUM(ii.quantity), 0) as available_stock,
-          0 as reserved_stock,
-          COALESCE(MIN(ii.min_quantity), 0) as min_stock,
-          COALESCE(MAX(ii.max_quantity), 100) as max_stock,
-          COUNT(DISTINCT w.id) as warehouse_count
-        FROM products p
-        LEFT JOIN inventory_items ii ON p.id = ii.product_id
-        LEFT JOIN warehouses w ON ii.warehouse_id = w.id
-        WHERE p.product_name ILIKE '%struppen%'
-        GROUP BY p.id, p.product_name, p.price
-        HAVING COALESCE(SUM(ii.quantity), 0) > 0
-        ORDER BY p.product_name
-      `;
-    } else {
-      // Standard-Abfrage für andere Lieferanten
+    
+    // Prüfe zuerst, ob der Lieferant Einkaufsbedingungen hat
+    const purchaseConditionsQuery = sql`
+      SELECT COUNT(*) as count FROM purchase_conditions WHERE supplier_id = ${supplierId}
+    `;
+    const pcResult = await db.execute(purchaseConditionsQuery);
+    const hasPurchaseConditions = parseInt(pcResult.rows[0].count) > 0;
+    
+    if (hasPurchaseConditions) {
+      console.log('Using purchase conditions query for supplier with established conditions');
       inventoryQuery = sql`
         SELECT 
           p.id as product_id,
@@ -78,6 +65,27 @@ router.get('/inventory/bulk/:supplierId', async (req, res) => {
         LEFT JOIN warehouses w ON ii.warehouse_id = w.id
         WHERE pc.supplier_id = ${supplierId}
         GROUP BY p.id, p.product_name, pc.unit_price, p.price
+        HAVING COALESCE(SUM(ii.quantity), 0) > 0
+        ORDER BY p.product_name
+      `;
+    } else {
+      console.log('Using supplier_id query for supplier without purchase conditions');
+      inventoryQuery = sql`
+        SELECT 
+          p.id as product_id,
+          p.product_name,
+          COALESCE(p.price, 0) as price,
+          COALESCE(SUM(ii.quantity), 0) as total_stock,
+          COALESCE(SUM(ii.quantity), 0) as available_stock,
+          0 as reserved_stock,
+          COALESCE(MIN(ii.min_quantity), 0) as min_stock,
+          COALESCE(MAX(ii.max_quantity), 100) as max_stock,
+          COUNT(DISTINCT w.id) as warehouse_count
+        FROM products p
+        LEFT JOIN inventory_items ii ON p.id = ii.product_id
+        LEFT JOIN warehouses w ON ii.warehouse_id = w.id
+        WHERE p.supplier_id = ${supplierId}
+        GROUP BY p.id, p.product_name, p.price
         HAVING COALESCE(SUM(ii.quantity), 0) > 0
         ORDER BY p.product_name
       `;
