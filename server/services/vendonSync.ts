@@ -140,10 +140,38 @@ class VendonAPI {
   /**
    * Ruft alle Automaten (Maschinen) von der Vendon API ab
    * 
-   * Laut Dokumentation ist der korrekte Endpunkt '/machine/' (Singular)
+   * Da /machines nicht funktioniert, extrahieren wir Maschinen-IDs aus den Transaktionen
    */
   async getMachines() {
-    return this.makeRequest<any[]>('/machine/');
+    try {
+      // Versuche zuerst den ursprünglichen Endpunkt
+      return await this.makeRequest<any[]>('/machines');
+    } catch (error) {
+      console.log('Machines-Endpunkt nicht verfügbar, extrahiere aus Transaktionen...');
+      
+      // Fallback: Extrahiere eindeutige Maschinen-IDs aus den letzten Transaktionen
+      const oneMonthAgo = new Date();
+      oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+      
+      const transactions = await this.getTransactions(oneMonthAgo, new Date(), undefined, 0, 1000);
+      
+      const machineMap = new Map();
+      if (transactions.data && Array.isArray(transactions.data)) {
+        for (const tx of transactions.data) {
+          if (tx.machine_id && !machineMap.has(tx.machine_id)) {
+            machineMap.set(tx.machine_id, {
+              id: tx.machine_id,
+              name: tx.machine_name || `Automat ${tx.machine_id}`,
+              location: tx.location || 'Unbekannt'
+            });
+          }
+        }
+      }
+      
+      const machines = Array.from(machineMap.values());
+      console.log(`${machines.length} Automaten aus Transaktionen extrahiert`);
+      return machines;
+    }
   }
   
   /**
