@@ -1566,6 +1566,73 @@ Elbsandstein Proviant & Quartier GmbH`;
     }
   });
 
+  // DIRECT PERFORMANCE API ENDPOINTS - BYPASS ROUTING CONFLICTS
+  app.get('/api/statistics/today', async (req, res) => {
+    try {
+      const today = new Date();
+      const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+
+      const result = await pool.query(`
+        SELECT 
+          COUNT(*)::integer as count,
+          COALESCE(SUM(price), 0)::numeric as revenue
+        FROM transactions
+        WHERE datetime >= $1 AND datetime <= $2
+      `, [startOfToday, endOfToday]);
+
+      const data = {
+        count: parseInt(result.rows[0]?.count || '0'),
+        revenue: parseFloat(result.rows[0]?.revenue || '0'),
+        date: today.toISOString().split('T')[0]
+      };
+
+      res.json(data);
+    } catch (error) {
+      console.error('Fehler beim Abrufen der heutigen Performance-Daten:', error);
+      res.status(500).json({ 
+        error: 'Fehler beim Abrufen der Performance-Daten',
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+      });
+    }
+  });
+
+  // DIRECT HOLIDAYS API ENDPOINT - BYPASS ROUTING CONFLICTS  
+  app.get('/api/holidays', async (req, res) => {
+    try {
+      const { startDate, endDate } = req.query;
+      
+      let query = `SELECT * FROM holidays WHERE 1=1`;
+      const params = [];
+      
+      if (startDate) {
+        query += ` AND date >= $${params.length + 1}`;
+        params.push(startDate);
+      }
+      
+      if (endDate) {
+        query += ` AND date <= $${params.length + 1}`;
+        params.push(endDate);
+      }
+      
+      query += ` ORDER BY date ASC`;
+      
+      const result = await pool.query(query, params);
+      
+      res.json({
+        success: true,
+        data: result.rows
+      });
+    } catch (error) {
+      console.error('Fehler beim Abrufen der Feiertage:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Fehler beim Abrufen der Feiertage',
+        message: error instanceof Error ? error.message : 'Unbekannter Fehler' 
+      });
+    }
+  });
+
   // Register supplier analytics router BEFORE Vite to prevent routing conflicts
   app.use('/api/supplier-analytics', supplierAnalyticsRouter);
 
