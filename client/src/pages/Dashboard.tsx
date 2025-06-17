@@ -582,17 +582,11 @@ export default function Dashboard() {
         <TopRemovedProductsTile />
       </div>
 
-      {/* Synchronisierung und Systemstatus */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {/* Synchronisierungsstatus - takes 1 column */}
-        <div className="md:col-span-1">
-          <SyncStatusWidget />
-        </div>
-        
-        {/* Wettervorhersage - takes 2 columns */}
-        <div className="md:col-span-2">
-          <Card className="h-full">
-            <CardHeader className="pb-2">
+      {/* Wetter und Prognosen */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        {/* Wettervorhersage */}
+        <Card className="h-full">
+          <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center">
               <Cloud className="h-5 w-5 mr-2 text-primary" />
               Wettervorhersage
@@ -720,7 +714,6 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
-        </div>
       </div>
 
       {/* Zahlungsmethoden nach Standort und Datenbankstatistiken nebeneinander */}
@@ -1165,6 +1158,76 @@ export default function Dashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Sync- und Datenbankstatistiken am Ende */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Synchronisierungsstatus */}
+        <div>
+          <SyncStatusWidget />
+        </div>
+        
+        {/* Datenbankstatistiken */}
+        <Card className="h-full">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center">
+              <Database className="h-5 w-5 mr-2 text-primary" />
+              Datenbankstatistiken
+            </CardTitle>
+            <CardDescription>
+              Anzahl der Datensätze in den wichtigsten Tabellen
+              {databaseStats && (
+                <span className="text-xs ml-2">
+                  (Letzte Aktualisierung: {formatDateTime(databaseStats.lastUpdated)})
+                </span>
+              )}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isLoadingDatabaseStats ? (
+              <div className="flex justify-center py-4">
+                <div className="animate-spin h-5 w-5 border-2 border-primary border-t-transparent rounded-full"></div>
+              </div>
+            ) : databaseStats ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <div className="text-sm text-gray-500">Transaktionen</div>
+                  <div className="text-xl font-bold">{databaseStats.transactions?.toLocaleString('de-DE')}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm text-gray-500">Refills</div>
+                  <div className="text-xl font-bold">{syncStatus?.refills?.count?.toLocaleString('de-DE') || "0"}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm text-gray-500">Ereignisse</div>
+                  <div className="text-xl font-bold">{syncStatus?.events?.count?.toLocaleString('de-DE') || "0"}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm text-gray-500">Automaten</div>
+                  <div className="text-xl font-bold">{databaseStats.machines?.toLocaleString('de-DE')}</div>
+                </div>
+                <div className="space-y-1">
+                  <div className="text-sm text-gray-500">Produkte</div>
+                  <div className="text-xl font-bold">{databaseStats.products?.toLocaleString('de-DE')}</div>
+                </div>
+                <div className="col-span-1 md:col-span-3 mt-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full text-xs"
+                    onClick={() => setLocation('/synchro')}
+                  >
+                    Synchronisation verwalten
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-4 text-gray-500">
+                Keine Datenbankstatistiken verfügbar
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

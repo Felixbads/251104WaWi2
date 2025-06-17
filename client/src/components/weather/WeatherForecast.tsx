@@ -165,19 +165,19 @@ const WeatherForecast: React.FC<WeatherForecastProps> = ({
     }, {});
   }, [holidaysData?.data]);
 
-  // Anzeige von Fehlern (Wetter oder Feiertage)
-  if (error || holidaysError) {
+  // Nur bei Wetterfehlern einen Fehler anzeigen - Feiertage sind optional
+  if (error) {
     return (
       <Card className={`${className}`}>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium text-red-600 flex items-center">
             <Info className="h-4 w-4 mr-2" />
-            {error ? "Fehler beim Laden der Wetterdaten" : "Fehler beim Laden der Feiertagsdaten"}
+            Fehler beim Laden der Wetterdaten
           </CardTitle>
         </CardHeader>
         <CardContent>
           <Alert variant="destructive" className="mb-2">
-            <AlertTitle>Daten konnten nicht geladen werden</AlertTitle>
+            <AlertTitle>Wetterdaten konnten nicht geladen werden</AlertTitle>
             <AlertDescription className="text-xs">
               Bitte versuchen Sie es später erneut oder wenden Sie sich an den Support.
             </AlertDescription>
