@@ -41,6 +41,7 @@ import comprehensiveDataRouter from './routes/comprehensiveData';
 import weatherRouter from './routes/weather';
 import bulkOrdersRouter from './routes/bulk-orders';
 import simplifiedEnhancedForecastRouter from './routes/simplified-enhanced-forecast';
+import syncRouter from './routes/sync';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
@@ -4275,6 +4276,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Registriere E-Mail-Routen (CRITICAL FIX: Das war bisher nicht registriert!)
   app.use(`${API_PREFIX}`, emailRouter);
+  
+  // Registriere Sync-Routen
+  app.use(`${API_PREFIX}/sync`, syncRouter);
 
   // Route für Refill-Verarbeitung mit Lagerbestandsabzug
   app.post('/api/refills/:id/process', async (req: Request, res: Response) => {
