@@ -105,6 +105,22 @@ export function SyncStatusWidget() {
     refetchInterval: 60000, // Refresh every minute
   });
 
+  // Provide default values to prevent undefined errors
+  const defaultSyncStatus: SyncStatus = {
+    machines: { status: 'unknown', lastSync: '', totalTransactions: 0 },
+    transactions: { 
+      status: 'unknown', 
+      lastSync: '', 
+      recentCount: 0, 
+      totalCount: 0,
+      dateRange: { earliest: '', latest: '', daysWithData: 0 }
+    },
+    recovery: { totalGaps: 0, mostRecentGap: null, gapDetails: [] },
+    overall: { status: 'unknown', lastUpdated: '' }
+  };
+
+  const safeSync = syncStatus || defaultSyncStatus;
+
   if (syncLoading) {
     return (
       <Card>
@@ -149,11 +165,11 @@ export function SyncStatusWidget() {
               <Database className="h-5 w-5" />
               Synchronisierungsstatus
             </div>
-            <Badge variant={syncStatus.overall.status === 'healthy' ? 'default' : 'destructive'}>
-              {getStatusIcon(syncStatus.overall.status)}
+            <Badge variant={safeSync.overall.status === 'healthy' ? 'default' : 'destructive'}>
+              {getStatusIcon(safeSync.overall.status)}
               <span className="ml-1">
-                {syncStatus.overall.status === 'healthy' ? 'Gesund' :
-                 syncStatus.overall.status === 'warning' ? 'Warnung' : 'Kritisch'}
+                {safeSync.overall.status === 'healthy' ? 'Gesund' :
+                 safeSync.overall.status === 'warning' ? 'Warnung' : 'Kritisch'}
               </span>
             </Badge>
           </CardTitle>
@@ -164,13 +180,13 @@ export function SyncStatusWidget() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Transaktionen</span>
-                {getStatusIcon(syncStatus.transactions.status)}
+                {getStatusIcon(safeSync.transactions.status)}
               </div>
               <div className="text-2xl font-bold">
-                {syncStatus.transactions.totalCount.toLocaleString('de-DE')}
+                {safeSync.transactions.totalCount.toLocaleString('de-DE')}
               </div>
               <div className="text-xs text-muted-foreground">
-                Letzte 24h: {syncStatus.transactions.recentCount} Transaktionen
+                Letzte 24h: {safeSync.transactions.recentCount} Transaktionen
               </div>
             </div>
             
@@ -178,35 +194,35 @@ export function SyncStatusWidget() {
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Datenabdeckung</span>
                 <span className="text-xs text-muted-foreground">
-                  {syncStatus.transactions.dateRange.daysWithData} Tage
+                  {safeSync.transactions.dateRange.daysWithData} Tage
                 </span>
               </div>
               <div className="text-sm">
-                <div>Von: {format(new Date(syncStatus.transactions.dateRange.earliest), 'dd.MM.yyyy', { locale: de })}</div>
-                <div>Bis: {format(new Date(syncStatus.transactions.dateRange.latest), 'dd.MM.yyyy', { locale: de })}</div>
+                <div>Von: {safeSync.transactions.dateRange.earliest ? format(new Date(safeSync.transactions.dateRange.earliest), 'dd.MM.yyyy', { locale: de }) : 'N/A'}</div>
+                <div>Bis: {safeSync.transactions.dateRange.latest ? format(new Date(safeSync.transactions.dateRange.latest), 'dd.MM.yyyy', { locale: de }) : 'N/A'}</div>
               </div>
             </div>
           </div>
 
           {/* Recovery Status */}
-          {syncStatus.recovery.totalGaps > 0 && (
+          {safeSync.recovery.totalGaps > 0 && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Datenlücken</span>
                 <Badge variant="outline" className="text-orange-600">
-                  {syncStatus.recovery.totalGaps} Lücken
+                  {safeSync.recovery.totalGaps} Lücken
                 </Badge>
               </div>
-              {syncStatus.recovery.mostRecentGap && (
+              {safeSync.recovery.mostRecentGap && (
                 <div className="text-xs text-muted-foreground">
-                  Neueste Lücke: {format(new Date(syncStatus.recovery.mostRecentGap), 'dd.MM.yyyy', { locale: de })}
+                  Neueste Lücke: {format(new Date(safeSync.recovery.mostRecentGap), 'dd.MM.yyyy', { locale: de })}
                 </div>
               )}
             </div>
           )}
 
           <div className="text-xs text-muted-foreground">
-            Letztes Update: {format(new Date(syncStatus.overall.lastUpdated), 'HH:mm:ss', { locale: de })}
+            Letztes Update: {safeSync.overall.lastUpdated ? format(new Date(safeSync.overall.lastUpdated), 'HH:mm:ss', { locale: de }) : 'N/A'}
           </div>
         </CardContent>
       </Card>
