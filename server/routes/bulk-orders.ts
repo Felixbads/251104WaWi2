@@ -21,28 +21,70 @@ const router = Router();
 router.get('/inventory/bulk/:supplierId', async (req, res) => {
   try {
     const supplierId = parseInt(req.params.supplierId);
+    console.log(`Fetching bulk inventory for supplier ID: ${supplierId}`);
 
-    const inventoryQuery = sql`
-      SELECT 
-        p.id as product_id,
-        p.product_name,
-        COALESCE(pc.unit_price, p.price, 0) as price,
-        COALESCE(SUM(ii.quantity), 0) as total_stock,
-        COALESCE(SUM(ii.quantity), 0) as available_stock,
-        0 as reserved_stock,
-        COALESCE(MIN(ii.min_quantity), 0) as min_stock,
-        COALESCE(MAX(ii.max_quantity), 100) as max_stock,
-        COUNT(DISTINCT w.id) as warehouse_count
-      FROM products p
-      INNER JOIN purchase_conditions pc ON p.id = pc.product_id 
-      LEFT JOIN inventory_items ii ON p.id = ii.product_id
-      LEFT JOIN warehouses w ON ii.warehouse_id = w.id
-      WHERE pc.supplier_id = ${supplierId}
-      GROUP BY p.id, p.product_name, pc.unit_price, p.price
-      ORDER BY p.product_name
+    // Erst prüfen, welchen Lieferanten wir haben
+    const supplierQuery = sql`
+      SELECT id, name FROM suppliers WHERE id = ${supplierId}
     `;
+    const supplierResult = await db.execute(supplierQuery);
+    const supplier = supplierResult.rows[0];
+    
+    if (!supplier) {
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+    
+    console.log(`Supplier found: ${supplier.name}`);
+
+    // Für Agrarprodukte Struppen GmbH: suche nach "struppen" Produkten
+    let inventoryQuery;
+    if (supplier.name.toLowerCase().includes('struppen')) {
+      console.log('Using Struppen-specific query for products containing "struppen"');
+      inventoryQuery = sql`
+        SELECT 
+          p.id as product_id,
+          p.product_name,
+          COALESCE(p.price, 0) as price,
+          COALESCE(SUM(ii.quantity), 0) as total_stock,
+          COALESCE(SUM(ii.quantity), 0) as available_stock,
+          0 as reserved_stock,
+          COALESCE(MIN(ii.min_quantity), 0) as min_stock,
+          COALESCE(MAX(ii.max_quantity), 100) as max_stock,
+          COUNT(DISTINCT w.id) as warehouse_count
+        FROM products p
+        LEFT JOIN inventory_items ii ON p.id = ii.product_id
+        LEFT JOIN warehouses w ON ii.warehouse_id = w.id
+        WHERE p.product_name ILIKE '%struppen%'
+        GROUP BY p.id, p.product_name, p.price
+        HAVING COALESCE(SUM(ii.quantity), 0) > 0
+        ORDER BY p.product_name
+      `;
+    } else {
+      // Standard-Abfrage für andere Lieferanten
+      inventoryQuery = sql`
+        SELECT 
+          p.id as product_id,
+          p.product_name,
+          COALESCE(pc.unit_price, p.price, 0) as price,
+          COALESCE(SUM(ii.quantity), 0) as total_stock,
+          COALESCE(SUM(ii.quantity), 0) as available_stock,
+          0 as reserved_stock,
+          COALESCE(MIN(ii.min_quantity), 0) as min_stock,
+          COALESCE(MAX(ii.max_quantity), 100) as max_stock,
+          COUNT(DISTINCT w.id) as warehouse_count
+        FROM products p
+        INNER JOIN purchase_conditions pc ON p.id = pc.product_id 
+        LEFT JOIN inventory_items ii ON p.id = ii.product_id
+        LEFT JOIN warehouses w ON ii.warehouse_id = w.id
+        WHERE pc.supplier_id = ${supplierId}
+        GROUP BY p.id, p.product_name, pc.unit_price, p.price
+        HAVING COALESCE(SUM(ii.quantity), 0) > 0
+        ORDER BY p.product_name
+      `;
+    }
 
     const result = await db.execute(inventoryQuery);
+    console.log(`Found ${result.rows.length} products for supplier ${supplier.name}`);
     res.json(result.rows);
 
   } catch (error) {
