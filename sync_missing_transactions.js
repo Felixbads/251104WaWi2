@@ -57,7 +57,7 @@ async function syncMissingTransactions() {
           // Prüfe ob Transaktion bereits existiert
           const existing = await client.query(
             'SELECT id FROM transactions WHERE vendon_id = $1',
-            [tx.id.toString()]
+            [tx.transaction_id.toString()]
           );
           
           if (existing.rows.length > 0) {
@@ -65,29 +65,42 @@ async function syncMissingTransactions() {
           }
           
           // Konvertiere Timestamp zu ISO-String
-          const datetime = new Date(tx.timestamp * 1000).toISOString();
+          const datetime = new Date(tx.datetime * 1000).toISOString();
           
           // Füge Transaktion hinzu
           await client.query(`
             INSERT INTO transactions (
               vendon_id, datetime, product_name, price, machine_id, 
-              machine_name, location, transaction_type, status
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+              machine_name, transaction_type, status, payment_method,
+              stock_id, selection, quantity, price_vat, price_wo_vat,
+              vat, currency, source, transaction_dt, registered_dt, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
           `, [
-            tx.id.toString(),
+            tx.transaction_id.toString(),
             datetime,
-            tx.product_name || 'Unbekanntes Produkt',
-            tx.amount || 0,
+            tx.name || 'Unbekanntes Produkt',
+            tx.price || 0,
             tx.machine_id || null,
             tx.machine_name || 'Unbekannte Maschine',
-            tx.location || null,
             'sale',
-            'completed'
+            'completed',
+            tx.payment_method || 'UNKNOWN',
+            tx.stock_id || null,
+            tx.selection || null,
+            tx.quantity || 1,
+            tx.price_vat || 0,
+            tx.price_wo_vat || 0,
+            tx.vat || 0,
+            tx.currency || 'EUR',
+            tx.source || 'VENDON_API',
+            new Date(tx.transaction_dt * 1000).toISOString(),
+            new Date(tx.registered_dt * 1000).toISOString(),
+            new Date(tx.updated_at * 1000).toISOString()
           ]);
           
           daySynced++;
         } catch (error) {
-          console.error(`    Fehler bei Transaktion ${tx.id}:`, error.message);
+          console.error(`    Fehler bei Transaktion ${tx.transaction_id}:`, error.message);
         }
       }
       
