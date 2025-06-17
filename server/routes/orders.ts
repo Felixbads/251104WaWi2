@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { storage } from '../storage';
 import { db } from '../db';
-import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, or, SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, or, SQL, sql, lte } from 'drizzle-orm';
 import { 
   orders, 
   orderItems,
@@ -13,6 +13,7 @@ import {
   inventoryItems,
   productBatches
 } from '../../shared/schema';
+import { format, addWeeks } from 'date-fns';
 import { createAndSendOrderEmail } from '../utils/orderEmailUtils';
 // Direkte sendEmail Funktion anstelle des Imports
 function sendEmail(to: string, from: string, subject: string, html: string) {
@@ -301,6 +302,164 @@ router.get('/orders', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Fehler beim Abrufen der Bestellungen:', error);
     res.status(500).json({ error: 'Fehler beim Abrufen der Bestellungen' });
+  }
+});
+
+// Bulk order creation route (must be before /orders route)
+router.post('/bulk', async (req: Request, res: Response) => {
+  try {
+    const {
+      supplierId,
+      orderType = 'bulk',
+      expectedDeliveryDate,
+      notes,
+      priority = 'medium',
+      items,
+      analysisWeeks = 4,
+      forecastWeeks = 2,
+      totalValue
+    } = req.body;
+
+    // Validierung
+    if (!supplierId || !items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ 
+        error: 'Lieferant-ID und Artikel sind erforderlich',
+        details: { supplierId, itemsCount: items?.length || 0 }
+      });
+    }
+
+    // Lieferant validieren
+    const supplierDetails = await db
+      .select()
+      .from(suppliers)
+      .where(eq(suppliers.id, supplierId))
+      .limit(1);
+
+    if (supplierDetails.length === 0) {
+      return res.status(400).json({ 
+        error: 'Lieferant nicht gefunden',
+        supplierId 
+      });
+    }
+
+    const supplier = supplierDetails[0];
+
+    // Bestellnummer generieren
+    const today = new Date();
+    const dateString = format(today, 'yyyyMMdd');
+    
+    const latestOrderQuery = await db
+      .select()
+      .from(orders)
+      .where(
+        ilike(orders.orderNumber, `ORD-${dateString}-%`)
+      )
+      .orderBy(desc(orders.orderNumber))
+      .limit(1);
+    
+    let sequenceNumber = 1;
+    if (latestOrderQuery.length > 0) {
+      const latestOrderNumber = latestOrderQuery[0].orderNumber;
+      const match = latestOrderNumber.match(/ORD-\d{8}-(\d+)/);
+      if (match) {
+        sequenceNumber = parseInt(match[1]) + 1;
+      }
+    }
+    
+    const orderNumber = `ORD-${dateString}-${sequenceNumber.toString().padStart(3, '0')}`;
+
+    // Benutzerinformation
+    const userId = (req as any).user?.id || null;
+    const userName = (req as any).user?.username || null;
+    const userEmail = (req as any).user?.email || null;
+
+    // Bestellung erstellen
+    const insertedOrder = await db
+      .insert(orders)
+      .values({
+        orderNumber,
+        supplierId,
+        supplierName: supplier.name,
+        locationId: supplier.warehouseId || null,
+        locationName: supplier.warehouseId ? 'Standard-Lager' : null,
+        orderType,
+        status: 'draft',
+        priority,
+        expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
+        notes,
+        totalValue: totalValue || 0,
+        createdBy: userId,
+        createdByName: userName,
+        createdByEmail: userEmail,
+        analysisWeeks,
+        forecastWeeks
+      })
+      .returning();
+
+    const orderId = insertedOrder[0].id;
+
+    // Order Items hinzufügen
+    const orderItemsData = [];
+    for (const item of items) {
+      if (!item.productId || !item.quantity) {
+        continue;
+      }
+
+      // Produktdaten abrufen
+      const productDetails = await db
+        .select()
+        .from(products)
+        .where(eq(products.id, item.productId))
+        .limit(1);
+
+      if (productDetails.length === 0) {
+        continue;
+      }
+
+      const product = productDetails[0];
+
+      orderItemsData.push({
+        orderId,
+        productId: item.productId,
+        productName: product.productName,
+        quantity: item.quantity,
+        unitPrice: product.price || 0,
+        totalPrice: (product.price || 0) * item.quantity,
+        status: 'pending'
+      });
+    }
+
+    if (orderItemsData.length > 0) {
+      await db.insert(orderItems).values(orderItemsData);
+    }
+
+    // Vollständige Bestellung mit Items zurückgeben
+    const completeOrder = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+
+    const orderItemsList = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, orderId));
+
+    res.status(201).json({
+      success: true,
+      message: 'Bulk-Bestellung erfolgreich erstellt',
+      order: {
+        ...completeOrder[0],
+        items: orderItemsList
+      }
+    });
+
+  } catch (error) {
+    console.error('Fehler bei Bulk-Bestellung:', error);
+    res.status(500).json({ 
+      error: 'Fehler beim Erstellen der Bulk-Bestellung',
+      details: error instanceof Error ? error.message : String(error)
+    });
   }
 });
 

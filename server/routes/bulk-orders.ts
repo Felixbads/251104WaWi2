@@ -325,7 +325,7 @@ router.get('/forecast/bulk/:supplierId/:weeks', async (req, res) => {
 });
 
 // Create bulk order
-router.post('/orders/bulk', async (req, res) => {
+router.post('/bulk', async (req, res) => {
   try {
     const {
       supplierId,
