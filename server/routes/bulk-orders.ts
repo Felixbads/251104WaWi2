@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { db } from '../db';
-import { sql } from 'drizzle-orm';
-import { subWeeks } from 'date-fns';
+import { sql, eq, and, gte, lte } from 'drizzle-orm';
+import { subWeeks, format, addWeeks } from 'date-fns';
+import { orders, orderItems, suppliers } from '../../shared/schema';
 
 const router = Router();
 
@@ -320,6 +321,98 @@ router.get('/forecast/bulk/:supplierId/:weeks', async (req, res) => {
   } catch (error) {
     console.error('Error fetching forecast data:', error);
     res.status(500).json({ error: 'Failed to fetch forecast data' });
+  }
+});
+
+// Create bulk order
+router.post('/orders/bulk', async (req, res) => {
+  try {
+    const {
+      supplierId,
+      orderType = 'bulk',
+      expectedDeliveryDate,
+      notes,
+      priority = 'high',
+      items,
+      analysisWeeks,
+      forecastWeeks,
+      totalValue
+    } = req.body;
+
+    if (!supplierId || !items || items.length === 0) {
+      return res.status(400).json({ error: 'Supplier ID and items are required' });
+    }
+
+    // Get supplier information
+    const supplier = await db.select().from(suppliers).where(eq(suppliers.id, supplierId)).limit(1);
+    if (supplier.length === 0) {
+      return res.status(404).json({ error: 'Supplier not found' });
+    }
+
+    // Generate order number
+    const today = new Date();
+    const dateStr = format(today, 'yyyyMMdd');
+    
+    // Get count of orders today for sequential numbering
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+    
+    const todayOrdersCount = await db
+      .select({ count: sql`count(*)`.as('count') })
+      .from(orders)
+      .where(and(
+        gte(orders.createdAt, todayStart),
+        lte(orders.createdAt, todayEnd)
+      ));
+
+    const orderSequence = (parseInt(todayOrdersCount[0]?.count as string) || 0) + 1;
+    const orderNumber = `BULK-${dateStr}-${orderSequence.toString().padStart(3, '0')}`;
+
+    // Create the order
+    const newOrder = await db.insert(orders).values({
+      orderNumber,
+      supplierId,
+      status: 'draft',
+      expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
+      notes: `${notes || ''}\n\nBulk order analysis: ${analysisWeeks} weeks, forecast: ${forecastWeeks} weeks`,
+      totalAmount: totalValue
+    }).returning();
+
+    const orderId = newOrder[0].id;
+
+    // Create order items
+    const orderItemsData = items.map((item: any) => ({
+      orderId,
+      productId: item.productId,
+      quantity: item.quantity,
+      notes: item.notes || `Bulk order item - forecast based`,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }));
+
+    await db.insert(orderItems).values(orderItemsData);
+
+    // Return the created order with supplier information
+    const orderResponse = {
+      id: orderId,
+      orderNumber,
+      supplierId,
+      supplierName: supplier[0].name,
+      status: 'draft',
+      expectedDeliveryDate,
+      notes: newOrder[0].notes,
+      priority,
+      orderType,
+      totalAmount: totalValue,
+      itemsCount: items.length,
+      createdAt: newOrder[0].createdAt
+    };
+
+    res.status(201).json(orderResponse);
+
+  } catch (error) {
+    console.error('Error creating bulk order:', error);
+    res.status(500).json({ error: 'Failed to create bulk order' });
   }
 });
 
