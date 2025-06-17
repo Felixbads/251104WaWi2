@@ -265,7 +265,7 @@ router.get('/forecast/bulk/:supplierId/:weeks', async (req, res) => {
           hs.product_id,
           hs.product_name,
           hs.avg_weekly_sales,
-          ROUND(hs.avg_weekly_sales * ${forecastWeeks}, 0) as forecasted_demand,
+          CAST(hs.avg_weekly_sales * ${forecastWeeks} AS INTEGER) as forecasted_demand,
           'medium' as confidence_level
         FROM historical_sales hs
         WHERE hs.avg_weekly_sales > 0
@@ -294,7 +294,7 @@ router.get('/forecast/bulk/:supplierId/:weeks', async (req, res) => {
           hs.product_id,
           hs.product_name,
           hs.avg_weekly_sales,
-          ROUND(hs.avg_weekly_sales * ${forecastWeeks}, 0) as forecasted_demand,
+          CAST(hs.avg_weekly_sales * ${forecastWeeks} AS INTEGER) as forecasted_demand,
           'medium' as confidence_level
         FROM historical_sales hs
         WHERE hs.avg_weekly_sales > 0

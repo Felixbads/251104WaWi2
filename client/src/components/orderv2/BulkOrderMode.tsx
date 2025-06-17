@@ -306,13 +306,13 @@ const BulkOrderMode: React.FC<BulkOrderModeProps> = ({
   });
 
   const { data: salesAnalysis, isLoading: salesLoading } = useQuery({
-    queryKey: [`/api/bulk-orders/analysis/${selectedSupplierId}/${analysisWeeks}`],
+    queryKey: [`/api/bulk-orders/analytics/sales/${selectedSupplierId}/${analysisWeeks}`],
     enabled: !!selectedSupplierId && step === 'analysis',
     staleTime: 1000 * 60 * 5,
   });
 
   const { data: forecastData, isLoading: forecastLoading } = useQuery({
-    queryKey: [`/api/bulk-orders/forecast/${selectedSupplierId}/${forecastWeeks}`],
+    queryKey: [`/api/bulk-orders/forecast/bulk/${selectedSupplierId}/${forecastWeeks}`],
     enabled: !!selectedSupplierId && step === 'forecast',
     staleTime: 1000 * 60 * 5,
   });
