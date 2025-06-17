@@ -1,171 +1,181 @@
 import { Router, Request, Response } from 'express';
-import { db, rawDb } from '../db';
-import { sql } from 'drizzle-orm';
+import { rawDb } from '../db';
 
 const router = Router();
 
 // Sync status endpoint with historical recovery progress
 router.get('/status', async (req: Request, res: Response) => {
   try {
-    // Get current transaction counts by year/month
-    const monthlyStats = await db.execute(sql`
-      SELECT 
-        EXTRACT(YEAR FROM datetime) as year,
-        EXTRACT(MONTH FROM datetime) as month,
-        COUNT(*) as transactions,
-        MIN(DATE(datetime)) as first_date,
-        MAX(DATE(datetime)) as last_date,
-        COUNT(DISTINCT DATE(datetime)) as days_with_data
-      FROM transactions 
-      WHERE EXTRACT(YEAR FROM datetime) IN (2024, 2025)
-      GROUP BY EXTRACT(YEAR FROM datetime), EXTRACT(MONTH FROM datetime)
-      ORDER BY year DESC, month DESC
-    `);
-
-    // Get total system stats
-    const totalStats = await db.execute(sql`
+    // Get basic sync statistics
+    const transactionStats = await rawDb.query(`
       SELECT 
         COUNT(*) as total_transactions,
-        MIN(datetime) as earliest_transaction,
-        MAX(datetime) as latest_transaction,
-        COUNT(DISTINCT DATE(datetime)) as total_days_with_data
+        MIN(datetime) as earliest_date,
+        MAX(datetime) as latest_date,
+        COUNT(DISTINCT DATE(datetime)) as days_with_data
       FROM transactions
     `);
 
-    // Identify critical gaps (months with no data or very few transactions)
-    const criticalGaps = monthlyStats.filter((month: any) => 
-      month.transactions < 10 || month.days_with_data < 5
-    );
+    const stats = transactionStats.rows[0];
 
-    // Calculate expected vs actual data coverage
-    const currentDate = new Date();
-    const startDate = new Date('2024-01-01');
-    const totalPossibleDays = Math.floor((currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    const actualDays = totalStats[0]?.total_days_with_data || 0;
-    const coveragePercentage = Math.round((actualDays / totalPossibleDays) * 100);
-
-    // Determine sync status based on data quality
-    let syncStatus = 'completed';
-    let statusMessage = 'Datenbestand vollständig';
-    
-    if (criticalGaps.length > 5) {
-      syncStatus = 'critical_gaps';
-      statusMessage = `${criticalGaps.length} kritische Datenlücken identifiziert`;
-    } else if (coveragePercentage < 80) {
-      syncStatus = 'incomplete';
-      statusMessage = `${coveragePercentage}% Datenabdeckung`;
-    }
-
-    // Recent sync activity (last 24 hours)
-    const recentActivity = await db.execute(sql`
+    // Check for recent sync activity
+    const recentSyncCheck = await rawDb.query(`
       SELECT 
-        DATE(datetime) as date,
-        COUNT(*) as new_transactions
+        COUNT(*) as recent_count,
+        MAX(datetime) as last_transaction
       FROM transactions 
       WHERE datetime >= NOW() - INTERVAL '24 hours'
-      GROUP BY DATE(datetime)
-      ORDER BY date DESC
     `);
+
+    const recentData = recentSyncCheck.rows[0];
+
+    // Calculate data gaps for June 2025
+    const gapAnalysis = await rawDb.query(`
+      WITH RECURSIVE date_series AS (
+        SELECT DATE('2025-06-01') as check_date
+        UNION ALL
+        SELECT DATE(check_date + INTERVAL '1 day')
+        FROM date_series
+        WHERE check_date < DATE('2025-06-17')
+      ),
+      daily_counts AS (
+        SELECT 
+          DATE(datetime) as transaction_date,
+          COUNT(*) as daily_count
+        FROM transactions 
+        WHERE datetime >= '2025-06-01' AND datetime <= '2025-06-17'
+        GROUP BY DATE(datetime)
+      )
+      SELECT 
+        ds.check_date,
+        COALESCE(dc.daily_count, 0) as actual_count,
+        CASE 
+          WHEN dc.daily_count IS NULL THEN 'missing'
+          WHEN dc.daily_count < 50 THEN 'incomplete'
+          ELSE 'complete'
+        END as status
+      FROM date_series ds
+      LEFT JOIN daily_counts dc ON ds.check_date = dc.transaction_date
+      ORDER BY ds.check_date
+    `);
+
+    const gaps = gapAnalysis.rows.filter((row: any) => row.status !== 'complete');
 
     const response = {
       machines: {
-        status: syncStatus,
-        lastSync: new Date().toISOString(),
-        message: statusMessage
+        status: 'completed',
+        lastSync: stats.latest_date,
+        totalTransactions: parseInt(stats.total_transactions) || 0
       },
-      historical_recovery: {
-        total_transactions: totalStats[0]?.total_transactions || 0,
-        coverage_percentage: coveragePercentage,
-        critical_gaps: criticalGaps.length,
-        earliest_transaction: totalStats[0]?.earliest_transaction,
-        latest_transaction: totalStats[0]?.latest_transaction,
-        days_with_data: actualDays,
-        total_possible_days: totalPossibleDays
+      transactions: {
+        status: recentData.recent_count > 0 ? 'active' : 'stale',
+        lastSync: recentData.last_transaction,
+        recentCount: parseInt(recentData.recent_count) || 0,
+        totalCount: parseInt(stats.total_transactions) || 0,
+        dateRange: {
+          earliest: stats.earliest_date,
+          latest: stats.latest_date,
+          daysWithData: parseInt(stats.days_with_data) || 0
+        }
       },
-      monthly_breakdown: monthlyStats,
-      recent_activity: recentActivity,
-      last_updated: new Date().toISOString()
+      recovery: {
+        totalGaps: gaps.length,
+        mostRecentGap: gaps.length > 0 ? gaps[gaps.length - 1].check_date : null,
+        gapDetails: gaps.map((gap: any) => ({
+          date: gap.check_date,
+          actualCount: parseInt(gap.actual_count) || 0,
+          status: gap.status
+        }))
+      },
+      overall: {
+        status: gaps.length === 0 ? 'healthy' : gaps.length < 5 ? 'warning' : 'critical',
+        lastUpdated: new Date().toISOString()
+      }
     };
 
     res.json(response);
   } catch (error) {
-    console.error('Sync status error:', error);
+    console.error('Error fetching sync status:', error);
     res.status(500).json({ 
       error: 'Failed to fetch sync status',
-      machines: {
-        status: 'error',
-        lastSync: new Date().toISOString(),
-        message: 'Fehler beim Abrufen des Sync-Status'
-      }
+      details: error instanceof Error ? error.message : String(error)
     });
   }
 });
 
-// Historical recovery progress endpoint
+// Recovery progress endpoint for detailed gap analysis
 router.get('/recovery-progress', async (req: Request, res: Response) => {
   try {
-    // Get detailed breakdown of data recovery progress
-    const dailyBreakdown = await db.execute(sql`
+    // Detailed analysis of data completeness by day
+    const progressAnalysis = await rawDb.query(`
+      WITH RECURSIVE date_series AS (
+        SELECT DATE('2025-06-01') as check_date
+        UNION ALL
+        SELECT DATE(check_date + INTERVAL '1 day')
+        FROM date_series
+        WHERE check_date < DATE('2025-06-17')
+      ),
+      daily_details AS (
+        SELECT 
+          DATE(datetime) as transaction_date,
+          COUNT(*) as transaction_count,
+          COUNT(DISTINCT machine_id) as active_machines,
+          MIN(datetime) as first_transaction,
+          MAX(datetime) as last_transaction
+        FROM transactions 
+        WHERE datetime >= '2025-06-01' AND datetime <= '2025-06-17'
+        GROUP BY DATE(datetime)
+      )
       SELECT 
-        DATE(datetime) as date,
-        COUNT(*) as transactions,
-        COUNT(DISTINCT EXTRACT(HOUR FROM datetime)) as active_hours,
-        COUNT(DISTINCT machine_name) as active_machines,
-        MIN(datetime) as first_transaction,
-        MAX(datetime) as last_transaction
-      FROM transactions 
-      WHERE DATE(datetime) BETWEEN '2024-01-01' AND CURRENT_DATE
-      GROUP BY DATE(datetime)
-      ORDER BY date DESC
-      LIMIT 100
+        ds.check_date,
+        COALESCE(dd.transaction_count, 0) as transactions,
+        COALESCE(dd.active_machines, 0) as machines,
+        dd.first_transaction,
+        dd.last_transaction,
+        CASE 
+          WHEN dd.transaction_count IS NULL THEN 0
+          WHEN dd.transaction_count < 50 THEN 25
+          WHEN dd.transaction_count < 200 THEN 75
+          ELSE 100
+        END as completion_percentage
+      FROM date_series ds
+      LEFT JOIN daily_details dd ON ds.check_date = dd.transaction_date
+      ORDER BY ds.check_date
     `);
 
-    // Progress tracking for critical periods
-    const criticalPeriods = [
-      { name: 'Juni 2025', start: '2025-06-01', end: '2025-06-30' },
-      { name: 'Mai 2025', start: '2025-05-01', end: '2025-05-31' },
-      { name: 'April 2025', start: '2025-04-01', end: '2025-04-30' },
-      { name: 'März 2025', start: '2025-03-01', end: '2025-03-31' },
-      { name: 'Februar 2025', start: '2025-02-01', end: '2025-02-28' },
-      { name: 'Januar 2025', start: '2025-01-01', end: '2025-01-31' },
-      { name: '2024 Gesamt', start: '2024-01-01', end: '2024-12-31' }
-    ];
+    const progressData = progressAnalysis.rows.map((row: any) => ({
+      date: row.check_date,
+      transactions: parseInt(row.transactions) || 0,
+      activeMachines: parseInt(row.machines) || 0,
+      firstTransaction: row.first_transaction,
+      lastTransaction: row.last_transaction,
+      completionPercentage: parseInt(row.completion_percentage) || 0,
+      status: row.completion_percentage === 0 ? 'missing' : 
+              row.completion_percentage < 50 ? 'critical' :
+              row.completion_percentage < 90 ? 'partial' : 'complete'
+    }));
 
-    const periodProgress = [];
-    for (const period of criticalPeriods) {
-      const stats = await db.execute(sql`
-        SELECT 
-          COUNT(*) as transactions,
-          COUNT(DISTINCT DATE(datetime)) as days_with_data,
-          COUNT(DISTINCT machine_name) as machines
-        FROM transactions 
-        WHERE DATE(datetime) BETWEEN ${period.start} AND ${period.end}
-      `);
-      
-      const startDate = new Date(period.start);
-      const endDate = new Date(Math.min(new Date(period.end).getTime(), new Date().getTime()));
-      const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-      const completionPercentage = Math.round((stats[0].days_with_data / totalDays) * 100);
-      
-      periodProgress.push({
-        name: period.name,
-        transactions: stats[0].transactions,
-        days_with_data: stats[0].days_with_data,
-        total_days: totalDays,
-        completion_percentage: completionPercentage,
-        machines: stats[0].machines,
-        status: completionPercentage > 90 ? 'complete' : completionPercentage > 50 ? 'partial' : 'missing'
-      });
-    }
+    const summary = {
+      totalDays: progressData.length,
+      completeDays: progressData.filter(d => d.status === 'complete').length,
+      partialDays: progressData.filter(d => d.status === 'partial').length,
+      missingDays: progressData.filter(d => d.status === 'missing').length,
+      overallCompletion: Math.round(
+        progressData.reduce((sum, day) => sum + day.completionPercentage, 0) / progressData.length
+      )
+    };
 
     res.json({
-      daily_breakdown: dailyBreakdown,
-      period_progress: periodProgress,
-      last_updated: new Date().toISOString()
+      summary,
+      dailyProgress: progressData,
+      lastUpdated: new Date().toISOString()
     });
   } catch (error) {
-    console.error('Recovery progress error:', error);
-    res.status(500).json({ error: 'Failed to fetch recovery progress' });
+    console.error('Error fetching recovery progress:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch recovery progress',
+      details: error instanceof Error ? error.message : String(error)
+    });
   }
 });
 

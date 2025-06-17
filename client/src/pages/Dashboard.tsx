@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import PageHeader from "@/components/layout/PageHeader";
 import WeatherWidget from "@/components/weather/WeatherWidget";
+import { SyncStatusWidget } from "@/components/SyncStatusWidget";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
@@ -581,11 +582,17 @@ export default function Dashboard() {
         <TopRemovedProductsTile />
       </div>
 
-      {/* Wettervorhersage und Verkaufsprognose */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Wettervorhersage */}
-        <Card className="h-full">
-          <CardHeader className="pb-2">
+      {/* Synchronisierung und Systemstatus */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        {/* Synchronisierungsstatus - takes 1 column */}
+        <div className="md:col-span-1">
+          <SyncStatusWidget />
+        </div>
+        
+        {/* Wettervorhersage - takes 2 columns */}
+        <div className="md:col-span-2">
+          <Card className="h-full">
+            <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center">
               <Cloud className="h-5 w-5 mr-2 text-primary" />
               Wettervorhersage
@@ -713,6 +720,7 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
 
       {/* Zahlungsmethoden nach Standort und Datenbankstatistiken nebeneinander */}
