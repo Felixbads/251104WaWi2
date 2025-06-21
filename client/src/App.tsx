@@ -36,6 +36,7 @@ import { AuthProvider, useAuth } from "@/lib";
 import AdminRoute from "@/components/auth/AdminRoute"; // Route nur für Admins
 import ApprovedUserRoute from "@/components/auth/ApprovedUserRoute"; // Route für genehmigte Benutzer
 import { InventoryCartProvider } from "@/components/inventory/InventoryCartContext";
+import InterAppConnections from "@/pages/InterAppConnections";
 
 /**
  * HOC, der eine geschützte Route mit Benutzerfreigabe-Prüfung erstellt
@@ -524,6 +525,13 @@ function AuthenticatedRouter() {
             </AdminRoute>
           )}
         </Route>
+
+        {/* Inter-App Verbindungen für Admins */}
+        <Route path="/inter-app-verbindungen" component={props => (
+          <AdminRoute>
+            <InterAppConnections {...props} />
+          </AdminRoute>
+        )} />
 
         <Route path="/:rest*" component={(props: any) => {
           const rest = props.params?.rest;
