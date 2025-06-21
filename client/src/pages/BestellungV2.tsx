@@ -1779,7 +1779,7 @@ const BestellungV2: React.FC = () => {
               
               goodsReceiptMutation.mutate({
                 orderId: orderId!,
-                receiptData
+                receivedItems: receiptData
               });
             }}
             isSubmitting={goodsReceiptMutation.isPending}
@@ -1849,7 +1849,7 @@ const BestellungV2: React.FC = () => {
                 
                 goodsReceiptMutation.mutate({
                   orderId: orderId!,
-                  receiptData
+                  receivedItems: receiptData
                 });
               }}
               isSubmitting={goodsReceiptMutation.isPending}

@@ -24,7 +24,7 @@ const navigationItems = [
   { href: '/standort-status', label: 'Standort-Status', icon: Building, roles: ['user', 'admin'] },
   { href: '/produkte', label: 'Produkte', icon: Package, roles: ['user', 'admin'] },
   { href: '/lieferanten', label: 'Lieferanten', icon: Truck, roles: ['user', 'admin'] },
-  { href: '/bestellungen-v4', label: 'Bestellungen', icon: ShoppingCart, roles: ['user', 'admin'] },
+  { href: '/bestellungen-uebersicht', label: 'Bestellungen', icon: ShoppingCart, roles: ['user', 'admin'] },
   { href: '/lager-neu', label: 'Lager', icon: Database, roles: ['user', 'admin'] },
   { href: '/calendar-overview', label: 'Kalender', icon: Calendar, roles: ['user', 'admin'] },
   { href: '/enhanced-forecast', label: 'Prognosen', icon: BarChart3, roles: ['user', 'admin'] },

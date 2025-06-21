@@ -87,6 +87,27 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
                     order.orderItems : 
                     (order.items && Array.isArray(order.items)) ? 
                     order.items : [];
+
+  console.log('[GoodsReceiptForm] Order data:', order);
+  console.log('[GoodsReceiptForm] OrderItems found:', orderItems);
+  
+  // If no items found, show error state
+  if (orderItems.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-10">
+          <div className="text-center">
+            <AlertTriangle className="h-10 w-10 mx-auto text-amber-500 mb-4" />
+            <h3 className="text-lg font-medium mb-2">Keine Bestellpositionen verfügbar</h3>
+            <p className="text-muted-foreground mb-4">
+              Die Bestellpositionen konnten nicht geladen werden. Bitte versuchen Sie es später erneut.
+            </p>
+            <Button onClick={() => window.location.reload()}>Neu laden</Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
   
   const [receivedItems, setReceivedItems] = useState<OrderItem[]>(
     orderItems.map(item => ({
@@ -166,6 +187,8 @@ const GoodsReceiptForm: React.FC<GoodsReceiptFormProps> = ({
   
   // Handle submit
   const handleSubmit = () => {
+    console.log('[GoodsReceiptForm] Submitting received items:', receivedItems);
+    
     if (onSubmit) {
       onSubmit(receivedItems, receiptNote, documents);
     }
