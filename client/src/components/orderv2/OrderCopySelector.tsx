@@ -263,7 +263,8 @@ const OrderCopySelector: React.FC<OrderCopySelectorProps> = ({
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onSelectOrder(order.id);
+                        // Navigiere zur neuen Bestellung mit Copy-Parameter
+                        window.location.href = `/bestellungen/neu?copyOrderId=${order.id}`;
                       }}
                       className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
                     >
@@ -453,7 +454,10 @@ const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({
                   Alle Positionen werden übernommen und können anschließend angepasst werden.
                 </p>
                 <Button
-                  onClick={onCopyOrder}
+                  onClick={() => {
+                    // Navigiere zur neuen Bestellung mit Copy-Parameter
+                    window.location.href = `/bestellungen/neu?copyOrderId=${orderId}`;
+                  }}
                   className="mt-3 bg-blue-600 hover:bg-blue-700"
                 >
                   <Copy className="h-4 w-4 mr-2" />

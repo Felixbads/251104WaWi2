@@ -580,7 +580,7 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
                           {order.supplier_name || 'Unbekannter Lieferant'}
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
-                          {order.location_name || 'Unbekanntes Lager'}
+                          {order.warehouse_name || order.location_name || 'Unbekanntes Lager'}
                         </TableCell>
                         <TableCell>
                           {formattedDate}

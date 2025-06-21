@@ -99,6 +99,7 @@ const BestellungV2: React.FC = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const stepParam = urlParams.get('step') as OrderStep;
     const orderIdParam = urlParams.get('orderId');
+    const copyOrderIdParam = urlParams.get('copyOrderId');
     
     if (stepParam && orderIdParam) {
       setStep(stepParam);
@@ -108,6 +109,14 @@ const BestellungV2: React.FC = () => {
       if (stepParam === 'sendOrder' || stepParam === 'goodsReceipt') {
         loadExistingOrderData(parseInt(orderIdParam));
       }
+    }
+    
+    // Wenn copyOrderId vorhanden ist, direkt zur Produktauswahl mit vorausgefüllten Daten
+    if (copyOrderIdParam) {
+      console.log('Kopiere Bestellung:', copyOrderIdParam);
+      setOrderMode('copy');
+      setSourceOrderId(parseInt(copyOrderIdParam));
+      loadOrderForCopying(parseInt(copyOrderIdParam));
     }
   }, []);
   const [warehouseId, setWarehouseId] = useState<number | null>(null);
@@ -140,6 +149,75 @@ const BestellungV2: React.FC = () => {
   const [emailSendSuccess, setEmailSendSuccess] = useState<boolean>(false);
   const [orderDetailsOpen, setOrderDetailsOpen] = useState<boolean>(false);
   
+  // Funktion zum Laden einer Bestellung zum Kopieren
+  const loadOrderForCopying = async (orderIdToCopy: number) => {
+    try {
+      console.log(`Lade Bestellung ${orderIdToCopy} zum Kopieren`);
+      
+      // Bestellungsdaten laden
+      const orderResponse = await fetch(`/api/orders/${orderIdToCopy}`);
+      if (!orderResponse.ok) {
+        throw new Error('Fehler beim Laden der Bestellungsdaten');
+      }
+      const orderData = await orderResponse.json();
+      
+      // Bestellpositionen laden
+      const itemsResponse = await fetch(`/api/orders/${orderIdToCopy}/items`);
+      if (!itemsResponse.ok) {
+        throw new Error('Fehler beim Laden der Bestellpositionen');
+      }
+      const itemsData = await itemsResponse.json();
+      
+      // Daten vorausfüllen
+      if (orderData.warehouse_id || orderData.warehouseId) {
+        setWarehouseId(orderData.warehouse_id || orderData.warehouseId);
+        setWarehouseName(orderData.warehouse_name || orderData.warehouseName || '');
+      }
+      
+      if (orderData.supplier_id || orderData.supplierId) {
+        setSupplierId(orderData.supplier_id || orderData.supplierId);
+        setSupplierName(orderData.supplier_name || orderData.supplierName || '');
+      }
+      
+      // Erwartetes Lieferdatum übernehmen falls vorhanden
+      if (orderData.expected_delivery_date || orderData.expectedDeliveryDate) {
+        setAdditionalInfo(prev => ({
+          ...prev,
+          expectedDeliveryDate: new Date(orderData.expected_delivery_date || orderData.expectedDeliveryDate)
+        }));
+      }
+      
+      // Produkte vorausfüllen
+      if (itemsData && itemsData.length > 0) {
+        const products = itemsData.map((item: any) => ({
+          id: item.product_id || item.productId,
+          productId: item.product_id || item.productId,
+          name: item.product_name || item.productName || 'Unbekanntes Produkt',
+          orderQuantity: item.quantity || 1,
+          price: item.unit_price || item.unitPrice || 0,
+          unit: item.unit || 'Stk'
+        }));
+        setSelectedProducts(products);
+      }
+      
+      // Direkt zum Details-Schritt (überspringe Lager/Lieferant-Auswahl)
+      setStep('details');
+      
+      toast({
+        title: 'Bestellung kopiert',
+        description: 'Die Bestelldaten wurden übernommen. Sie können die Bestellung nun anpassen.',
+      });
+      
+    } catch (error) {
+      console.error('Fehler beim Kopieren der Bestellung:', error);
+      toast({
+        title: 'Fehler',
+        description: 'Die Bestellung konnte nicht kopiert werden.',
+        variant: 'destructive'
+      });
+    }
+  };
+
   // Funktion zum Laden von bestehenden Bestellungsdaten
   const loadExistingOrderData = async (orderIdToLoad: number) => {
     try {

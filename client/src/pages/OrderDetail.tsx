@@ -828,12 +828,12 @@ export default function OrderDetail() {
                   <div className="bg-muted/50 p-3 rounded-md">
                     <div className="flex justify-between mb-2">
                       <span className="text-sm">Anzahl Positionen:</span>
-                      <span className="font-medium">{order.orderItems.length}</span>
+                      <span className="font-medium">{order.orderItems?.length || 0}</span>
                     </div>
                     <div className="flex justify-between mb-2">
                       <span className="text-sm">Gesamtmenge:</span>
                       <span className="font-medium">
-                        {order.orderItems.reduce((sum: number, item: any) => sum + item.quantity, 0)} Stück
+                        {order.orderItems?.reduce((sum: number, item: any) => sum + (item.quantity || 0), 0) || 0} Stück
                       </span>
                     </div>
                     <div className="flex justify-between">
