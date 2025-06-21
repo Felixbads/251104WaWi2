@@ -86,17 +86,24 @@ router.get('/orders-direct', async (req, res) => {
     // SOFORTIGE Antwort mit minimalen Daten
     const result = await pool.query(`
       SELECT 
-        id, 
-        order_number, 
-        status, 
-        created_at::text as created_at,
-        supplier_name, 
-        location_name,
-        total_amount,
-        expected_delivery_date::text as expected_delivery_date
-      FROM orders 
-      ORDER BY id DESC 
-      LIMIT 20
+        o.id, 
+        o.order_number, 
+        o.status, 
+        o.created_at::text as created_at,
+        o.order_date::text as order_date,
+        COALESCE(o.supplier_name, s.name) as supplier_name, 
+        COALESCE(o.location_name, w.name) as warehouse_name,
+        o.total_amount,
+        o.expected_delivery_date::text as expected_delivery_date,
+        COUNT(oi.id) as item_count
+      FROM orders o
+      LEFT JOIN suppliers s ON o.supplier_id = s.id
+      LEFT JOIN warehouses w ON o.warehouse_id = w.id
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+      GROUP BY o.id, o.order_number, o.status, o.created_at, o.order_date, 
+               o.supplier_name, s.name, o.location_name, w.name, o.total_amount, o.expected_delivery_date
+      ORDER BY o.id DESC 
+      LIMIT 50
     `);
     
     const orders = result.rows;
