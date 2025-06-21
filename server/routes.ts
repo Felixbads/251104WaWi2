@@ -1841,6 +1841,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Berechne Umsatz basierend auf Transaktionen mit Produkten dieses Lieferanten
         let annualRevenue = 0;
         let orderVolume = 0;
+        let transactionCount = 0;
         
         if (products.length > 0) {
           // Verwende SQL-Abfrage für bessere Performance
@@ -1858,7 +1859,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const revenueResult = await rawDb.query(revenueQuery, [oneYearAgo.toISOString()]);
             if (revenueResult.rows.length > 0) {
               annualRevenue = parseFloat(revenueResult.rows[0].revenue) || 0;
-              orderVolume = annualRevenue; // Vereinfacht: Bestellvolumen = Umsatz
+              transactionCount = parseInt(revenueResult.rows[0].transaction_count) || 0;
+              // Bestellvolumen = Umsatz * 0.7 (geschätzter Einkaufsfaktor)
+              orderVolume = annualRevenue * 0.7;
             }
           } catch (sqlError) {
             console.warn(`SQL-Fehler für Lieferant ${supplier.id}:`, sqlError);

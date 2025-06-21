@@ -270,7 +270,7 @@ export default function SupplierStatistics({ supplierId, supplier }: SupplierSta
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={400}>
-                <AreaChart data={statisticsData.revenueByMonth}>
+                <AreaChart data={statisticsData.revenueByMonth || []}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" />
                   <YAxis yAxisId="left" />
@@ -312,7 +312,7 @@ export default function SupplierStatistics({ supplierId, supplier }: SupplierSta
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {statisticsData.productPerformance.map((product, index) => (
+                {statisticsData.productPerformance?.map((product, index) => (
                   <div key={product.productId} className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="flex items-center space-x-4">
                       <div className="bg-primary/10 rounded-full w-8 h-8 flex items-center justify-center text-sm font-medium">
@@ -381,7 +381,7 @@ export default function SupplierStatistics({ supplierId, supplier }: SupplierSta
               </CardHeader>
               <CardContent>
                 <div className="space-y-4 max-h-64 overflow-y-auto">
-                  {statisticsData.locationPerformance.map((location) => (
+                  {statisticsData.locationPerformance?.map((location) => (
                     <div key={location.locationId} className="border rounded p-3">
                       <div className="flex justify-between items-start mb-2">
                         <h4 className="font-medium">{location.locationName}</h4>
@@ -427,7 +427,7 @@ export default function SupplierStatistics({ supplierId, supplier }: SupplierSta
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={statisticsData.seasonalTrends}>
+                  <LineChart data={statisticsData.seasonalTrends || []}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="period" />
                     <YAxis yAxisId="left" />
@@ -466,7 +466,7 @@ export default function SupplierStatistics({ supplierId, supplier }: SupplierSta
                   ))}
                 </div>
                 <div className="grid grid-cols-7 gap-2">
-                  {statisticsData.orderPatterns.map((pattern, index) => (
+                  {statisticsData.orderPatterns?.map((pattern, index) => (
                     <div 
                       key={index} 
                       className="h-8 bg-blue-100 rounded flex items-center justify-center text-xs"
