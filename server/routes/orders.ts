@@ -872,7 +872,7 @@ router.post('/orders/:id/copy', async (req: Request, res: Response) => {
     
     // Neue Bestellnummer generieren
     const today = new Date();
-    const dateString = format(today, 'yyyyMMdd');
+    const dateString = today.toISOString().slice(0, 10).replace(/-/g, '');
     
     const latestOrderQuery = await db
       .select()
