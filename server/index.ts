@@ -181,6 +181,161 @@ app.get('/orders-data', (req, res) => {
     }
   });
 
+  // Direct order API routes to bypass frontend routing
+  app.get('/api/orders/:id', async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.id);
+      if (isNaN(orderId)) {
+        res.setHeader('Content-Type', 'application/json');
+        return res.status(400).json({ error: 'Invalid order ID' });
+      }
+      
+      console.log(`Loading order ${orderId}`);
+      const result = await pool.query('SELECT * FROM orders WHERE id = $1', [orderId]);
+      
+      if (result.rows.length === 0) {
+        res.setHeader('Content-Type', 'application/json');
+        return res.status(404).json({ error: 'Order not found' });
+      }
+      
+      console.log(`Order found: ${result.rows[0].order_number}`);
+      res.setHeader('Content-Type', 'application/json');
+      res.json(result.rows[0]);
+    } catch (error) {
+      console.error('Error loading order:', error);
+      res.setHeader('Content-Type', 'application/json');
+      res.status(500).json({ error: 'Database error' });
+    }
+  });
+
+  app.get('/api/orders/:id/items', async (req, res) => {
+    try {
+      const orderId = parseInt(req.params.id);
+      if (isNaN(orderId)) {
+        res.setHeader('Content-Type', 'application/json');
+        return res.status(400).json({ error: 'Invalid order ID' });
+      }
+      
+      console.log(`Loading items for order ${orderId}`);
+      const result = await pool.query('SELECT * FROM order_items WHERE order_id = $1', [orderId]);
+      
+      console.log(`${result.rows.length} items loaded`);
+      res.setHeader('Content-Type', 'application/json');
+      res.json(result.rows);
+    } catch (error) {
+      console.error('Error loading order items:', error);
+      res.setHeader('Content-Type', 'application/json');
+      res.status(500).json({ error: 'Database error' });
+    }
+  });
+
+  app.post('/api/orders/:id/copy', async (req, res) => {
+    try {
+      const sourceOrderId = parseInt(req.params.id);
+      if (isNaN(sourceOrderId)) {
+        res.setHeader('Content-Type', 'application/json');
+        return res.status(400).json({ error: 'Invalid order ID' });
+      }
+      
+      // Get source order
+      const sourceOrderResult = await pool.query('SELECT * FROM orders WHERE id = $1', [sourceOrderId]);
+      if (sourceOrderResult.rows.length === 0) {
+        res.setHeader('Content-Type', 'application/json');
+        return res.status(404).json({ error: 'Source order not found' });
+      }
+      
+      const sourceOrder = sourceOrderResult.rows[0];
+      
+      // Get source items
+      const sourceItemsResult = await pool.query('SELECT * FROM order_items WHERE order_id = $1', [sourceOrderId]);
+      
+      // Generate new order number
+      const today = new Date();
+      const dateString = today.toISOString().slice(0, 10).replace(/-/g, '');
+      const sequenceResult = await pool.query(
+        `SELECT order_number FROM orders WHERE order_number LIKE $1 ORDER BY order_number DESC LIMIT 1`,
+        [`ORD-${dateString}-%`]
+      );
+      
+      let sequenceNumber = 1;
+      if (sequenceResult.rows.length > 0) {
+        const match = sequenceResult.rows[0].order_number.match(/ORD-\d{8}-(\d+)/);
+        if (match) {
+          sequenceNumber = parseInt(match[1]) + 1;
+        }
+      }
+      
+      const newOrderNumber = `ORD-${dateString}-${sequenceNumber.toString().padStart(3, '0')}`;
+      
+      // Create new order
+      const newOrderResult = await pool.query(`
+        INSERT INTO orders (
+          order_number, warehouse_id, supplier_id, supplier_name, 
+          location_name, status, order_date, expected_delivery_date, 
+          total_amount, currency, priority, notes, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, 'draft', $6, $7, $8, $9, $10, $11, $12, $13)
+        RETURNING *
+      `, [
+        newOrderNumber,
+        sourceOrder.warehouse_id,
+        sourceOrder.supplier_id,
+        sourceOrder.supplier_name,
+        sourceOrder.location_name,
+        today,
+        sourceOrder.expected_delivery_date,
+        sourceOrder.total_amount,
+        sourceOrder.currency || 'EUR',
+        sourceOrder.priority || 'normal',
+        `Kopie von ${sourceOrder.order_number}`,
+        today,
+        today
+      ]);
+      
+      const newOrder = newOrderResult.rows[0];
+      
+      // Copy items
+      const newItems = [];
+      for (const item of sourceItemsResult.rows) {
+        const newItemResult = await pool.query(`
+          INSERT INTO order_items (
+            order_id, product_id, product_name, sku, supplier_sku,
+            quantity, unit, unit_price, total_price, vat_rate,
+            status, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', $11, $12)
+          RETURNING *
+        `, [
+          newOrder.id,
+          item.product_id,
+          item.product_name,
+          item.sku,
+          item.supplier_sku,
+          item.quantity,
+          item.unit,
+          item.unit_price,
+          item.total_price,
+          item.vat_rate,
+          today,
+          today
+        ]);
+        newItems.push(newItemResult.rows[0]);
+      }
+      
+      res.setHeader('Content-Type', 'application/json');
+      res.status(201).json({
+        success: true,
+        message: 'Order copied successfully',
+        order: {
+          ...newOrder,
+          items: newItems
+        }
+      });
+    } catch (error) {
+      console.error('Error copying order:', error);
+      res.setHeader('Content-Type', 'application/json');
+      res.status(500).json({ error: 'Failed to copy order' });
+    }
+  });
+
   // Orders-Data Endpunkt für die Bestellungsübersicht mit vollständigen Daten
   app.get('/orders-data', async (req, res) => {
     try {
