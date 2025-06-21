@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../db';
-import { suppliers, products, warehouses, warehouseInventory } from '../../shared/schema';
+import { suppliers, products, warehouses, inventoryItems } from '../../shared/schema';
 import { eq, and, isNotNull, ne } from 'drizzle-orm';
 import { interAppAuthMiddleware, interAppRateLimitMiddleware } from '../middleware/inter-app-auth';
 
@@ -319,7 +319,7 @@ router.get('/warehouses', async (req: AuthenticatedRequest, res: Response) => {
       allWarehouses.map(async (warehouse) => {
         const inventoryCount = await db
           .select({ count: warehouseInventory.id })
-          .from(warehouseInventory)
+          .from(inventoryItems)
           .where(eq(warehouseInventory.warehouseId, warehouse.id));
 
         return {

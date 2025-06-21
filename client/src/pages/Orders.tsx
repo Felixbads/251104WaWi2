@@ -911,19 +911,23 @@ export default function Orders() {
                   </div>
                 </TableCell>
               </TableRow>
-
-                  </TableRow>
-              ))
+                );
+              })
             ) : (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-8">
-                  <p className="text-muted-foreground">Keine Bestellungen gefunden.</p>
-                  <Button variant="outline" className="mt-4" asChild>
-                    <Link to="/bestellungen/neu-v2">
+                <TableCell colSpan={6} className="text-center py-8">
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <PackageOpen className="h-8 w-8 text-muted-foreground" />
+                    <span>Keine Bestellungen gefunden</span>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setLocation('/bestellungen/neu')}
+                    >
                       <Plus className="h-4 w-4 mr-2" />
-                      Erste Bestellung anlegen
-                    </Link>
-                  </Button>
+                      Neue Bestellung
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             )}

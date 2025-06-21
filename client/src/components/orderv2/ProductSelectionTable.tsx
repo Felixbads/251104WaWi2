@@ -124,18 +124,6 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
       }
     }));
   }, [supplierProductsResponse]);
-      packagingUnit: condition.packagingUnit,
-      minQuantity: condition.minQuantity || 1,
-      // Gebindegröße aus der Einkaufsbedingung
-      packageSize: condition.packageSize || condition.minQuantity || 1,
-      // Additional fields from purchase condition
-      purchaseConditionId: condition.id,
-      isPreferred: condition.isPreferred,
-      validFrom: condition.validFrom,
-      validTo: condition.validTo,
-      notes: condition.notes,
-      leadTime: condition.leadTime
-    }));
   }, [purchaseConditionsResponse]);
   
   // Get supplier name if available
