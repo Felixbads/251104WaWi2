@@ -1177,11 +1177,11 @@ const BestellungV2: React.FC = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setStep('warehouse')}
+                onClick={() => setStep('mode')}
                 className="gap-2 text-muted-foreground"
               >
                 <ArrowRight className="h-4 w-4 rotate-180" />
-                Zurück zur Lagerauswahl
+                Zurück zur Bestellmodus-Auswahl
               </Button>
             </div>
             <OrderModeSelector
@@ -1193,7 +1193,7 @@ const BestellungV2: React.FC = () => {
                 if (mode === 'forecast' || mode === 'bulk') {
                   setStep('overview'); // Will render forecast or bulk mode
                 } else {
-                  setStep('supplier');
+                  setStep('warehouse');
                 }
               }}
               sourceOrderId={sourceOrderId}
@@ -1616,8 +1616,8 @@ const BestellungV2: React.FC = () => {
   const getCurrentIndex = () => {
     switch (step) {
       case 'overview': return 0;
-      case 'warehouse': return 1;
-      case 'mode': return 2;
+      case 'mode': return 1;
+      case 'warehouse': return 2;
       case 'supplier': return 3;
       case 'products': return 4;
       case 'additionalInfo': return 5;
@@ -1634,8 +1634,8 @@ const BestellungV2: React.FC = () => {
     // Standard-Bestellworkflow
     if (step !== 'warehouseReceiptOfExistingOrder' && step !== 'overview') {
       return [
-        { title: "Lager", icon: <Building2 className="h-4 w-4" /> },
         { title: "Art", icon: <Mail className="h-4 w-4" /> },
+        { title: "Lager", icon: <Building2 className="h-4 w-4" /> },
         { title: "Lieferant", icon: <Truck className="h-4 w-4" /> },
         { title: "Produkte", icon: <Package className="h-4 w-4" /> },
         { title: "Details", icon: <ClipboardList className="h-4 w-4" /> },
