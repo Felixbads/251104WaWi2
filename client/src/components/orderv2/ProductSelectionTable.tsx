@@ -81,6 +81,22 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
     queryFn: () => supplierId ? getSupplier(supplierId) : null,
     enabled: !!supplierId,
   });
+
+  // Fetch purchase conditions for the supplier
+  const { data: purchaseConditionsResponse } = useQuery({
+    queryKey: ['/api/purchase-conditions', supplierId],
+    queryFn: async () => {
+      if (!supplierId) return { data: [] };
+      try {
+        const conditions = await getPurchaseConditionsBySupplier(supplierId);
+        return { data: conditions };
+      } catch (error) {
+        console.warn('Failed to fetch purchase conditions:', error);
+        return { data: [] };
+      }
+    },
+    enabled: !!supplierId,
+  });
   
   // Fetch products from source order if in copy mode
   const { data: sourceOrderProducts } = useQuery({
