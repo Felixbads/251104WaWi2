@@ -123,6 +123,8 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
     // Use the enhanced supplier products data
     return supplierProductsResponse.data.map((product: any) => ({
       ...product,
+      // Map productName to name for consistency
+      name: product.productName || product.name || '',
       // Ensure price is available from either unitPrice or price field
       price: product.unitPrice || product.price || 0,
       // Add purchase condition information if available
@@ -149,6 +151,7 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
     return purchaseConditions.map((condition: PurchaseCondition) => ({
       id: condition.productId,
       name: condition.productName || `Produkt ID: ${condition.productId}`,
+      productName: condition.productName || `Produkt ID: ${condition.productId}`,
       sku: condition.productSku,
       price: condition.unitPrice,
       packagingUnit: condition.packagingUnit,
@@ -196,6 +199,7 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
       
       return {
         ...product,
+        name: product.name || product.productName || '',
         orderQuantity: selectedProduct?.orderQuantity || 0,
         inStock: inventoryItem?.quantity || 0,
         lastOrderDate: selectedProduct?.lastOrderDate || null,
@@ -208,11 +212,15 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
   const filteredProducts = React.useMemo(() => {
     if (!enrichedProducts) return [];
     
-    return enrichedProducts.filter((product: any) => 
-      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.sku?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.category?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    return enrichedProducts.filter((product: any) => {
+      const name = product.name || product.productName || '';
+      const sku = product.sku || '';
+      const category = product.category || '';
+      
+      return name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+             sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+             category.toLowerCase().includes(searchQuery.toLowerCase());
+    });
   }, [enrichedProducts, searchQuery]);
   
   // Paginate products
@@ -282,7 +290,8 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
       if (product) {
         updatedProducts.push({
           id: productId,
-          name: product.name,
+          name: product.name || product.productName || '',
+          productName: product.productName || product.name || '',
           price: product.price,
           sku: product.sku,
           orderQuantity: quantity,
