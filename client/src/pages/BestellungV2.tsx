@@ -78,6 +78,7 @@ import OrdersOverview from '@/components/orderv2/OrdersOverview';
 import SimpleOrdersOverview from '@/components/orderv2/SimpleOrdersOverview';
 import OrderDetail from '@/components/orderv2/OrderDetail';
 import ForecastOrderMode from '@/components/orderv2/ForecastOrderMode';
+import OrderCopySelector from '@/components/orderv2/OrderCopySelector';
 import BulkOrderMode from '@/components/orderv2/BulkOrderMode';
 import { Badge } from '@/components/ui/badge';
 
@@ -1142,7 +1143,7 @@ const BestellungV2: React.FC = () => {
         }
         
         return (
-          <SimpleOrdersOverview 
+          <OrdersOverview 
             onSelectOrder={handleSelectOrder}
             onCreateNew={() => {
               // Setze alle Werte zurück
@@ -1168,6 +1169,10 @@ const BestellungV2: React.FC = () => {
               // Zur Bestellmodus-Auswahl wechseln
               setStep('mode');
             }}
+            onStartWarehouseReceiptProcess={(orderId) => {
+              setOrderId(orderId);
+              setStep('warehouseReceiptOfExistingOrder');
+            }}
           />
         );
       case 'mode':
@@ -1184,21 +1189,37 @@ const BestellungV2: React.FC = () => {
                 Zurück zur Bestellmodus-Auswahl
               </Button>
             </div>
-            <OrderModeSelector
-              mode={orderMode}
-              onSelectMode={(mode) => {
-                setOrderMode(mode);
-                setSourceOrderId(null);
-                // Forecast and bulk modes bypass warehouse-specific supplier selection
-                if (mode === 'forecast' || mode === 'bulk') {
-                  setStep('overview'); // Will render forecast or bulk mode
-                } else {
+            {orderMode === 'copy' ? (
+              <OrderCopySelector
+                onSelectOrder={(orderId) => {
+                  setSourceOrderId(orderId);
                   setStep('warehouse');
-                }
-              }}
-              sourceOrderId={sourceOrderId}
-              onSourceOrderChange={(id) => setSourceOrderId(id)}
-            />
+                }}
+                onBack={() => {
+                  setOrderMode('new');
+                  setSourceOrderId(null);
+                }}
+              />
+            ) : (
+              <OrderModeSelector
+                mode={orderMode}
+                onSelectMode={(mode) => {
+                  setOrderMode(mode);
+                  setSourceOrderId(null);
+                  // Forecast and bulk modes bypass warehouse-specific supplier selection
+                  if (mode === 'forecast' || mode === 'bulk') {
+                    setStep('overview'); // Will render forecast or bulk mode
+                  } else if (mode === 'copy') {
+                    // Stay in mode step to show OrderCopySelector
+                    setStep('mode');
+                  } else {
+                    setStep('warehouse');
+                  }
+                }}
+                sourceOrderId={sourceOrderId}
+                onSourceOrderChange={(id) => setSourceOrderId(id)}
+              />
+            )}
           </>
         );
       case 'warehouse':
