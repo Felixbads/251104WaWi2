@@ -445,6 +445,52 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
     );
   };
   
+  // Loading state
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Produkte auswählen</CardTitle>
+          <CardDescription>Produkte werden geladen...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex justify-center items-center py-12">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Lade Produkte für {supplierName}...</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Produkte auswählen</CardTitle>
+          <CardDescription>Fehler beim Laden der Produkte</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="bg-destructive/15 p-8 rounded-md text-center">
+            <AlertCircle className="h-8 w-8 mx-auto mb-2 text-destructive" />
+            <h3 className="text-lg font-medium text-destructive mb-2">Fehler beim Laden der Produkte</h3>
+            <p className="text-muted-foreground mb-4">
+              Bitte versuchen Sie es später erneut.
+            </p>
+            <div className="flex justify-center gap-2">
+              <Button variant="outline" onClick={onBack}>
+                Zurück
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
