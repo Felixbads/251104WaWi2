@@ -818,19 +818,8 @@ const BestellungV2: React.FC = () => {
         // Lade auch die Bestellpositionen separat für maximale Kompatibilität
         await loadOrderItems(orderId);
         
-        // DIREKTE NAVIGATION basierend auf Status
-        if (selectedOrder.status === 'draft') {
-          // Draft-Bestellungen direkt zum Versenden
-          setStep('sendOrder');
-        } 
-        else if (selectedOrder.status === 'sent') {
-          // Versendete Bestellungen direkt zum Wareneingang
-          setStep('goodsReceipt');
-        }
-        else {
-          // Alle anderen Status zur Detailansicht
-          setStep('orderDetail');
-        }
+        // WORKFLOW-NAVIGATION - Alle Bestellungen zur Workflow-Übersicht
+        setStep('viewOrder');
       } else {
         console.log("Bestellung nicht gefunden - ID:", orderId);
       }

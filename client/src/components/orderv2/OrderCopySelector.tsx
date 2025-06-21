@@ -424,7 +424,17 @@ const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({
               <div className="text-sm space-y-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">Status:</span> 
-                  {orderDetails?.status && getStatusBadge(orderDetails.status)}
+                  {orderDetails?.status && (
+                    <Badge variant={
+                      orderDetails.status === 'delivered' ? 'default' : 
+                      orderDetails.status === 'draft' ? 'secondary' : 'default'
+                    }>
+                      {orderDetails.status === 'draft' ? 'Entwurf' : 
+                       orderDetails.status === 'ordered' ? 'Bestellt' : 
+                       orderDetails.status === 'delivered' ? 'Geliefert' : 
+                       orderDetails.status}
+                    </Badge>
+                  )}
                 </div>
                 <div><span className="font-medium">Lieferant:</span> {orderDetails?.supplierName || orderDetails?.supplier_name || 'Unbekannt'}</div>
                 <div><span className="font-medium">Lager:</span> {orderDetails?.warehouseName || orderDetails?.warehouse_name || 'Unbekannt'}</div>
