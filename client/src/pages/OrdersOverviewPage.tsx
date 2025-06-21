@@ -1,4 +1,4 @@
-import { OrdersOverview } from "@/components/orderv2/OrdersOverview";
+import OrdersOverview from "@/components/orderv2/OrdersOverview";
 
 export default function OrdersOverviewPage() {
   return (

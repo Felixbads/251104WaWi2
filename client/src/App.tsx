@@ -239,15 +239,26 @@ function AuthenticatedRouter() {
           </ApprovedUserRoute>
         )} />
 
-        <Route path="/bestellungen/neu">
-          <Redirect to="/bestellungen/neu-v2" />
-        </Route>
+        {/* Bestellungen Overview - Separate page for order list */}
+        <Route path="/bestellungen" component={props => (
+          <ApprovedUserRoute>
+            <OrdersOverviewPage {...props} />
+          </ApprovedUserRoute>
+        )} />
 
-        <Route path="/bestellungen">
-          <Redirect to="/bestellungen-v4" />
-        </Route>
+        {/* Neue Bestellungen - Order creation process */}
+        <Route path="/bestellungen/neu" component={props => (
+          <ApprovedUserRoute>
+            <BestellungV2 {...props} />
+          </ApprovedUserRoute>
+        )} />
 
-        {/* BestellungV3 Route wurde entfernt */}
+        {/* Legacy route for compatibility */}
+        <Route path="/bestellungen/neu-v2" component={props => (
+          <ApprovedUserRoute>
+            <BestellungV2 {...props} />
+          </ApprovedUserRoute>
+        )} />
 
         <Route path="/bestellungen/:id" component={props => (
           <ApprovedUserRoute>

@@ -381,7 +381,10 @@ const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({
             <div className="space-y-2">
               <h3 className="font-medium text-gray-900">Bestellinformationen</h3>
               <div className="text-sm space-y-1">
-                <div><span className="font-medium">Status:</span> {getStatusBadge(orderDetails?.status)}</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">Status:</span> 
+                  {orderDetails?.status && getStatusBadge(orderDetails.status)}
+                </div>
                 <div><span className="font-medium">Lieferant:</span> {orderDetails?.supplierName || orderDetails?.supplier_name || 'Unbekannt'}</div>
                 <div><span className="font-medium">Lager:</span> {orderDetails?.warehouseName || orderDetails?.warehouse_name || 'Unbekannt'}</div>
                 <div><span className="font-medium">Bestelldatum:</span> {formatDate(orderDetails?.orderDate || orderDetails?.order_date || orderDetails?.created_at)}</div>
