@@ -111,6 +111,7 @@ import Ruecklaufer from "@/pages/Ruecklaufer";
 import RevenueExpectations from "@/pages/RevenueExpectations";
 import OrdersOverviewPage from "@/pages/OrdersOverviewPage";
 import SupportTicket from "@/pages/SupportTicket";
+import VendonSync from "@/pages/admin/VendonSync";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -556,6 +557,13 @@ function AuthenticatedRouter() {
         <Route path="/inter-app-verbindungen" component={props => (
           <AdminRoute>
             <InterAppConnections {...props} />
+          </AdminRoute>
+        )} />
+
+        {/* Vendon Synchronization für Admins */}
+        <Route path="/admin/vendon-sync" component={props => (
+          <AdminRoute>
+            <VendonSync {...props} />
           </AdminRoute>
         )} />
 

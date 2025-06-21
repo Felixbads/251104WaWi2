@@ -1511,14 +1511,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     let result;
 
     try {
-      // Validate and parse request body
-      const parsedBody = dateRangeSchema.safeParse(req.body);
-      
-      if (!parsedBody.success) {
-        return res.status(400).json({ error: "Invalid request body", details: parsedBody.error });
-      }
-
-      const { startDate, endDate, batchSize } = parsedBody.data;
+      // Enhanced body parsing for different sync types
+      const { startDate, endDate, batchSize = 500, forceUpdate = false } = req.body;
       
       // Convert string dates to Date objects if provided
       const startDateObj = startDate ? new Date(startDate) : undefined;
