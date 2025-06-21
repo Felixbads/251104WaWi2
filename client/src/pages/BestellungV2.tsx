@@ -218,9 +218,11 @@ const BestellungV2: React.FC = () => {
         }));
       }
       
-      // Produkte vorausfüllen
-      if (itemsData && itemsData.length > 0) {
-        const products = itemsData.map((item: any) => ({
+      // Produkte vorausfüllen - verwende sowohl itemsData als auch orderData.items
+      const productItems = itemsData && itemsData.length > 0 ? itemsData : (orderData.items || orderData.orderItems || []);
+      
+      if (productItems && productItems.length > 0) {
+        const products = productItems.map((item: any) => ({
           id: item.product_id || item.productId,
           productId: item.product_id || item.productId,
           name: item.product_name || item.productName || 'Unbekanntes Produkt',
@@ -229,6 +231,9 @@ const BestellungV2: React.FC = () => {
           unit: item.unit || 'Stk'
         }));
         setSelectedProducts(products);
+        console.log('Produkte für Kopieren vorausgefüllt:', products.length);
+      } else {
+        console.warn('Keine Bestellpositionen zum Kopieren gefunden');
       }
       
       // Direkt zum Produktauswahl-Schritt (überspringe Lager/Lieferant-Auswahl)

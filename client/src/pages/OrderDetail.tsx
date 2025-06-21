@@ -959,7 +959,7 @@ export default function OrderDetail() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {order.orderItems.map((item: any) => (
+                  {(order.orderItems || []).map((item: any) => (
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">
                         {item.productName}

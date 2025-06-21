@@ -312,6 +312,8 @@ const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({
   const { data: orderDetails, isLoading: detailsLoading } = useQuery({
     queryKey: ['/api/orders', orderId],
     enabled: !!orderId,
+    refetchOnWindowFocus: false,
+    staleTime: 300000, // 5 minutes
     queryFn: async () => {
       const response = await fetch(`/api/orders/${orderId}`);
       if (!response.ok) {
@@ -325,6 +327,8 @@ const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({
   const { data: orderItems = [], isLoading: itemsLoading } = useQuery({
     queryKey: ['/api/orders', orderId, 'items'],
     enabled: !!orderId,
+    refetchOnWindowFocus: false,
+    staleTime: 300000, // 5 minutes
     queryFn: async () => {
       const response = await fetch(`/api/orders/${orderId}/items`);
       if (!response.ok) {
@@ -412,8 +416,8 @@ const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({
             <div className="space-y-2">
               <h3 className="font-medium text-gray-900">Bestellwert</h3>
               <div className="text-sm space-y-1">
-                <div><span className="font-medium">Positionen:</span> {orderItems.length}</div>
-                <div><span className="font-medium">Gesamtwert:</span> {orderDetails?.totalAmount?.toFixed(2) || '0.00'} €</div>
+                <div><span className="font-medium">Positionen:</span> {orderItems?.length || (orderDetails?.items?.length) || 0}</div>
+                <div><span className="font-medium">Gesamtwert:</span> {orderDetails?.totalAmount?.toFixed(2) || orderDetails?.pricing?.totalAmount?.toFixed(2) || '0.00'} €</div>
               </div>
             </div>
           </div>
@@ -424,14 +428,14 @@ const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({
           <div className="space-y-4">
             <h3 className="font-medium text-gray-900">Bestellpositionen</h3>
             
-            {orderItems.length === 0 ? (
+            {(!orderItems || orderItems.length === 0) && (!orderDetails?.items || orderDetails.items.length === 0) ? (
               <div className="text-center py-8 text-gray-500">
                 <Package className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                 <p>Keine Bestellpositionen gefunden</p>
               </div>
             ) : (
               <div className="space-y-2">
-                {orderItems.map((item: any, index: number) => (
+                {(orderItems?.length > 0 ? orderItems : (orderDetails?.items || [])).map((item: any, index: number) => (
                   <div key={item.id || index} className="border rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
