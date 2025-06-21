@@ -4282,6 +4282,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Registriere Sync-Routen
   app.use(`${API_PREFIX}/sync`, syncRouter);
+  
+  // Mount suppliers-products router
+  app.use(`${API_PREFIX}/suppliers`, suppliersProductsRouter);
 
   // Route für Refill-Verarbeitung mit Lagerbestandsabzug
   app.post('/api/refills/:id/process', async (req: Request, res: Response) => {
