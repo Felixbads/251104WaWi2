@@ -42,6 +42,7 @@ import weatherRouter from './routes/weather';
 import bulkOrdersRouter from './routes/bulk-orders';
 import simplifiedEnhancedForecastRouter from './routes/simplified-enhanced-forecast';
 import syncRouter from './routes/sync';
+import interAppApiRouter from './routes/inter-app-api';
 
 // Hilfsfunktion zum Gruppieren der Transaktionen nach Zeitraum
 function groupTransactionsByPeriod(transactions, period) {
