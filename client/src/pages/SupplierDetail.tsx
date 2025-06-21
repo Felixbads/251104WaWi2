@@ -42,6 +42,8 @@ import {
 } from "@/lib/api";
 import PurchaseConditionForm from "@/components/forms/PurchaseConditionForm";
 import SupplierEmailTemplates from "@/components/suppliers/SupplierEmailTemplates";
+import { SupplierEditDialog } from "@/components/SupplierEditDialog";
+import { apiRequest } from "@/lib/queryClient";
 
 interface Supplier {
   id: number;
@@ -375,6 +377,10 @@ export default function SupplierDetail() {
   
   const handleDeletePurchaseCondition = (id: number) => {
     setDeletingPurchaseConditionId(id);
+  };
+
+  const handleUpdateSupplier = (updatedData: Partial<Supplier>) => {
+    updateSupplierMutation.mutate(updatedData);
   };
   
   // Handler für die Einkaufsbedingungsformulare
