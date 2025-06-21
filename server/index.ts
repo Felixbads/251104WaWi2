@@ -35,6 +35,7 @@ import inventoryHealthRouter from './routes/inventory-health';
 import locationAnalysisRouter from './routes/location-analysis';
 import weatherRouter from './routes/weather.js';
 import supplierAnalyticsRouter from './routes/supplier-analytics';
+import supportTicketsRouter from './routes/support-tickets';
 import { pool } from './db';
 import { db } from './db';
 import { orders } from '../shared/schema';
@@ -1978,6 +1979,7 @@ Elbsandstein Proviant & Quartier GmbH`;
 
   // Register supplier analytics router BEFORE Vite to prevent routing conflicts
   app.use('/api/supplier-analytics', supplierAnalyticsRouter);
+  app.use('/api/support-tickets', supportTicketsRouter);
 
   // Register critical inventory routes
   app.use('/api/critical-inventory', criticalInventoryRouter);

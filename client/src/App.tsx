@@ -110,6 +110,7 @@ import CriticalInventory from "@/pages/CriticalInventory";
 import Ruecklaufer from "@/pages/Ruecklaufer";
 import RevenueExpectations from "@/pages/RevenueExpectations";
 import OrdersOverviewPage from "@/pages/OrdersOverviewPage";
+import SupportTicket from "@/pages/SupportTicket";
 
 // Authentifizierte und nicht-authentifizierte Router
 function AuthenticatedRouter() {
@@ -429,6 +430,12 @@ function AuthenticatedRouter() {
         <Route path="/datenverfuegbarkeit" component={props => (
           <ApprovedUserRoute>
             <DataAvailability {...props} />
+          </ApprovedUserRoute>
+        )} />
+
+        <Route path="/support" component={props => (
+          <ApprovedUserRoute>
+            <SupportTicket {...props} />
           </ApprovedUserRoute>
         )} />
 
