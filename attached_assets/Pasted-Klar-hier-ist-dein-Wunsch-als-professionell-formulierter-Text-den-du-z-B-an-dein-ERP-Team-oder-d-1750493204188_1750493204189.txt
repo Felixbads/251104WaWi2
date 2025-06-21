@@ -1,0 +1,69 @@
+Klar, hier ist dein Wunsch als professionell formulierter Text, den du z. B. an dein ERP-Team oder den zuständigen Dienstleister geben kannst – ohne Code, aber mit klaren Anforderungen:
+
+⸻
+
+📝 Anforderungen zur Datenübertragung zwischen Warenwirtschaft und Service-Plattform
+
+Ziel:
+Die Service-Plattform soll künftig auf bestimmte Informationen aus dem Warenwirtschaftssystem zugreifen können – insbesondere auf Angaben zu Lieferanten und deren Produkten. Diese Informationen sollen dort dargestellt und für Support- oder Marketing-Zwecke genutzt werden können.
+
+⸻
+
+1. Inhalte, die aus der Warenwirtschaft bereitgestellt werden sollen:
+
+Pro Lieferant:
+	•	Name
+	•	Beschreibungstext (idealerweise mind. 30 Zeichen, gerne mit Formatierungen oder in Markdown)
+	•	Adressdaten (Straße, PLZ, Ort, Land)
+	•	Website/URL
+	•	Mindestens ein Foto (z. B. Firmengebäude, Logo oder Produktbild)
+
+Pro Produkt:
+	•	Produktname
+	•	Zugehöriger Lieferant (eindeutige Verknüpfung)
+	•	Beschreibungstext
+	•	Mindestens ein Foto
+
+⸻
+
+2. Bitte prüfen Sie im Warenwirtschaftssystem:
+	•	Ob für jeden Lieferanten ein Beschreibungstext, eine gültige Website, vollständige Adressdaten und mindestens ein Bild vorliegen.
+	•	Ob jedem Produkt ein Lieferant zugeordnet ist, eine Beschreibung vorhanden ist und mindestens ein Bild hinterlegt ist.
+	•	Welche Felder ggf. unvollständig oder leer sind.
+
+⸻
+
+3. Technische Umsetzung der Datenübergabe:
+
+Variante A (bevorzugt):
+Die Bilder werden auf einem separaten Server oder CDN (z. B. interner Webserver oder Cloudspeicher) abgelegt. In der Warenwirtschaft wird lediglich der Bildpfad oder die URL gespeichert, sodass über eine einfache Schnittstelle (z. B. API) Texte und Bild-URLs zusammen abgefragt werden können.
+
+Variante B:
+Die Daten (inkl. Bilder) werden direkt über eine API aus der Warenwirtschaft heraus bereitgestellt.
+
+Bitte prüft, ob die bestehende Warenwirtschaft:
+	•	eine eigene API zur Datenbereitstellung besitzt (z. B. REST, GraphQL oder andere)
+	•	oder ob eine neue, einfache API generiert oder exportiert werden kann, die Lieferanten- und Produktdaten zur Verfügung stellt.
+
+⸻
+
+4. Zielsystem (Service-Plattform):
+
+Die Service-Plattform soll regelmäßig (z. B. täglich oder bei Änderungen) Informationen aus der Warenwirtschaft abrufen und darstellen können. Dafür genügt es, wenn über eine Schnittstelle folgende Daten abrufbar sind:
+	•	Alle Lieferanten mit zugehörigen Daten
+	•	Die Produkte eines bestimmten Lieferanten
+	•	Einzelne Produkte inkl. Beschreibung, Bild-URL und zugehörigem Lieferanten
+
+⸻
+
+5. Fragen zur Abstimmung:
+	•	Gibt es bereits eine vorhandene API, über die diese Daten exportiert werden können?
+	•	Gibt es Einschränkungen bei der Bildnutzung oder Speicherort der Bilder?
+	•	Können wir einen Export aufbauen, der automatisch synchronisiert oder manuell angestoßen wird?
+	•	Wer pflegt die fehlenden Texte und Bilder bei unvollständigen Datensätzen?
+
+⸻
+
+Wenn du möchtest, kann ich dir auch eine angepasste Version für die Service-Plattform-Seite schreiben – z. B. als Anforderung zur Datenintegration oder zur technischen Abfrage.
+
+Möchtest du diesen Text zusätzlich noch in eine E-Mail-Vorlage umgewandelt haben?
