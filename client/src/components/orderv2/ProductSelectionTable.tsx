@@ -60,11 +60,19 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
   const [currentPage, setCurrentPage] = useState(1);
   const productsPerPage = 10;
   
-  // Fetch purchase conditions for the supplier to get available products
-  const { data: purchaseConditionsResponse, isLoading, error } = useQuery({
-    queryKey: ['/api/suppliers', supplierId, 'purchase-conditions'],
-    queryFn: () => supplierId ? getPurchaseConditionsBySupplier(supplierId) : [],
+  // Fetch products for the supplier using the enhanced API
+  const { data: supplierProductsResponse, isLoading, error } = useQuery({
+    queryKey: ['/api/suppliers', supplierId, 'products'],
+    queryFn: async () => {
+      if (!supplierId) return { data: [], meta: {} };
+      const response = await fetch(`/api/suppliers/${supplierId}/products`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch supplier products');
+      }
+      return response.json();
+    },
     enabled: !!supplierId,
+    staleTime: 1000 * 60 * 5, // 5 minutes
   });
   
   // Fetch supplier details to display name
@@ -92,12 +100,30 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
     enabled: mode === 'forecast' && !!warehouseId,
   });
   
-  // Convert purchase conditions to products array
+  // Convert supplier products response to products array
   const products = React.useMemo(() => {
-    if (!purchaseConditionsResponse) return [];
+    if (!supplierProductsResponse?.data) return [];
     
-    // Handle both array response formats
-    const purchaseConditions = Array.isArray(purchaseConditionsResponse) 
+    // Use the enhanced supplier products data
+    return supplierProductsResponse.data.map((product: any) => ({
+      ...product,
+      // Ensure price is available from either unitPrice or price field
+      price: product.unitPrice || product.price || 0,
+      // Add purchase condition information if available
+      purchaseCondition: {
+        unitPrice: product.unitPrice,
+        taxRate: product.taxRate,
+        grossPrice: product.grossPrice,
+        minQuantity: product.minQuantity,
+        packagingUnit: product.packagingUnit,
+        packagingQuantity: product.packagingQuantity,
+        deliveryTime: product.deliveryTime,
+        isPreferred: product.isPreferred,
+        notes: product.notes,
+        leadTime: product.leadTime
+      }
+    }));
+  }, [supplierProductsResponse]);
       ? purchaseConditionsResponse 
       : (purchaseConditionsResponse as any)?.data || [];
     
