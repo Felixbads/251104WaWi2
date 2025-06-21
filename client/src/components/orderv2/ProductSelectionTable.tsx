@@ -124,8 +124,12 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
       }
     }));
   }, [supplierProductsResponse]);
+  
+  // Map purchase conditions to a product-like format
+  const purchaseConditionsProducts = React.useMemo(() => {
+    if (!purchaseConditionsResponse?.data) return [];
     
-    // Map purchase conditions to a product-like format
+    const purchaseConditions = purchaseConditionsResponse.data;
     return purchaseConditions.map((condition: PurchaseCondition) => ({
       id: condition.productId,
       name: condition.productName || `Produkt ID: ${condition.productId}`,
