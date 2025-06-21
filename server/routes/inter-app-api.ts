@@ -318,9 +318,9 @@ router.get('/warehouses', async (req: AuthenticatedRequest, res: Response) => {
     const warehousesWithStats = await Promise.all(
       allWarehouses.map(async (warehouse) => {
         const inventoryCount = await db
-          .select({ count: warehouseInventory.id })
+          .select({ count: inventoryItems.id })
           .from(inventoryItems)
-          .where(eq(warehouseInventory.warehouseId, warehouse.id));
+          .where(eq(inventoryItems.warehouseId, warehouse.id));
 
         return {
           ...warehouse,

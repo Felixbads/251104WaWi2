@@ -124,7 +124,6 @@ const ProductSelectionTable: React.FC<ProductSelectionTableProps> = ({
       }
     }));
   }, [supplierProductsResponse]);
-  }, [purchaseConditionsResponse]);
   
   // Get supplier name if available
   const supplierName = React.useMemo(() => {
