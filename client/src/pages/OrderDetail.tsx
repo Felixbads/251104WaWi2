@@ -944,7 +944,7 @@ export default function OrderDetail() {
             <CardHeader>
               <CardTitle>Bestellpositionen</CardTitle>
               <CardDescription>
-                {order.orderItems?.length || 0} {(order.orderItems?.length || 0) === 1 ? "Position" : "Positionen"} mit insgesamt {formatCurrency(order.totalAmount)}
+                {order.orderItems?.length || order.items?.length || 0} {((order.orderItems?.length || order.items?.length || 0) === 1) ? "Position" : "Positionen"} mit insgesamt {formatCurrency(order.totalAmount || order.pricing?.totalAmount || 0)}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -959,7 +959,7 @@ export default function OrderDetail() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(order.orderItems || []).map((item: any) => (
+                  {(order.orderItems || order.items || []).map((item: any) => (
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">
                         {item.productName}

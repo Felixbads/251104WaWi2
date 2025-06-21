@@ -843,6 +843,123 @@ router.get('/orders/:id/items', async (req: Request, res: Response) => {
   }
 });
 
+// Bestellung kopieren/duplizieren
+router.post('/orders/:id/copy', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const sourceOrderId = parseInt(id);
+    
+    if (isNaN(sourceOrderId)) {
+      return res.status(400).json({ error: 'Ungültige Bestellungs-ID' });
+    }
+    
+    // Quell-Bestellung laden
+    const sourceOrder = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, sourceOrderId))
+      .limit(1);
+    
+    if (sourceOrder.length === 0) {
+      return res.status(404).json({ error: 'Quell-Bestellung nicht gefunden' });
+    }
+    
+    // Quell-Bestellpositionen laden
+    const sourceItems = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, sourceOrderId));
+    
+    // Neue Bestellnummer generieren
+    const today = new Date();
+    const dateString = format(today, 'yyyyMMdd');
+    
+    const latestOrderQuery = await db
+      .select()
+      .from(orders)
+      .where(ilike(orders.orderNumber, `ORD-${dateString}-%`))
+      .orderBy(desc(orders.orderNumber))
+      .limit(1);
+    
+    let sequenceNumber = 1;
+    if (latestOrderQuery.length > 0) {
+      const latestOrderNumber = latestOrderQuery[0].orderNumber;
+      const match = latestOrderNumber.match(/ORD-\d{8}-(\d+)/);
+      if (match) {
+        sequenceNumber = parseInt(match[1]) + 1;
+      }
+    }
+    
+    const newOrderNumber = `ORD-${dateString}-${sequenceNumber.toString().padStart(3, '0')}`;
+    
+    // Neue Bestellung erstellen
+    const newOrderData = {
+      orderNumber: newOrderNumber,
+      warehouseId: sourceOrder[0].warehouseId,
+      supplierId: sourceOrder[0].supplierId,
+      supplierName: sourceOrder[0].supplierName,
+      locationName: sourceOrder[0].locationName,
+      status: 'draft',
+      orderDate: today,
+      expectedDeliveryDate: sourceOrder[0].expectedDeliveryDate,
+      totalAmount: sourceOrder[0].totalAmount,
+      currency: sourceOrder[0].currency || 'EUR',
+      priority: sourceOrder[0].priority || 'normal',
+      notes: `Kopie von ${sourceOrder[0].orderNumber}`,
+      createdAt: today,
+      updatedAt: today
+    };
+    
+    const [newOrder] = await db.insert(orders).values(newOrderData).returning();
+    
+    // Bestellpositionen kopieren
+    if (sourceItems.length > 0) {
+      const newItemsData = sourceItems.map(item => ({
+        orderId: newOrder.id,
+        productId: item.productId,
+        productName: item.productName,
+        sku: item.sku,
+        supplierSku: item.supplierSku,
+        quantity: item.quantity,
+        unit: item.unit,
+        unitPrice: item.unitPrice,
+        totalPrice: item.totalPrice,
+        vatRate: item.vatRate,
+        status: 'pending',
+        createdAt: today,
+        updatedAt: today
+      }));
+      
+      await db.insert(orderItems).values(newItemsData);
+    }
+    
+    // Vollständige neue Bestellung mit Items zurückgeben
+    const completeNewOrder = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, newOrder.id))
+      .limit(1);
+    
+    const newOrderItems = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, newOrder.id));
+    
+    res.status(201).json({
+      success: true,
+      message: 'Bestellung erfolgreich kopiert',
+      order: {
+        ...completeNewOrder[0],
+        items: newOrderItems
+      }
+    });
+    
+  } catch (error) {
+    console.error('Fehler beim Kopieren der Bestellung:', error);
+    res.status(500).json({ error: 'Fehler beim Kopieren der Bestellung' });
+  }
+});
+
 // Bestellung aktualisieren
 router.patch('/orders/:id', async (req: Request, res: Response) => {
   try {

@@ -261,10 +261,32 @@ const OrderCopySelector: React.FC<OrderCopySelectorProps> = ({
                     </Button>
                     <Button
                       size="sm"
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation();
-                        // Navigiere zur neuen Bestellung mit Copy-Parameter
-                        window.location.href = `/bestellungen/neu?copyOrderId=${order.id}`;
+                        try {
+                          const response = await fetch(`/api/orders/${order.id}/copy`, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json'
+                            }
+                          });
+                          
+                          if (!response.ok) {
+                            throw new Error('Fehler beim Kopieren der Bestellung');
+                          }
+                          
+                          const result = await response.json();
+                          
+                          if (result.success && result.order) {
+                            // Direkt zur neuen Bestellung navigieren
+                            window.location.href = `/bestellungen/${result.order.id}`;
+                          } else {
+                            throw new Error(result.message || 'Unbekannter Fehler');
+                          }
+                        } catch (error) {
+                          console.error('Fehler beim Kopieren:', error);
+                          alert('Fehler beim Kopieren der Bestellung');
+                        }
                       }}
                       className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
                     >
@@ -472,9 +494,31 @@ const OrderDetailsView: React.FC<OrderDetailsViewProps> = ({
                   Alle Positionen werden übernommen und können anschließend angepasst werden.
                 </p>
                 <Button
-                  onClick={() => {
-                    // Navigiere zur neuen Bestellung mit Copy-Parameter
-                    window.location.href = `/bestellungen/neu?copyOrderId=${orderId}`;
+                  onClick={async () => {
+                    try {
+                      const response = await fetch(`/api/orders/${orderId}/copy`, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json'
+                        }
+                      });
+                      
+                      if (!response.ok) {
+                        throw new Error('Fehler beim Kopieren der Bestellung');
+                      }
+                      
+                      const result = await response.json();
+                      
+                      if (result.success && result.order) {
+                        // Direkt zur neuen Bestellung navigieren
+                        window.location.href = `/bestellungen/${result.order.id}`;
+                      } else {
+                        throw new Error(result.message || 'Unbekannter Fehler');
+                      }
+                    } catch (error) {
+                      console.error('Fehler beim Kopieren:', error);
+                      alert('Fehler beim Kopieren der Bestellung');
+                    }
                   }}
                   className="mt-3 bg-blue-600 hover:bg-blue-700"
                 >
