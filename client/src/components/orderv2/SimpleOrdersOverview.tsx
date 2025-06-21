@@ -251,11 +251,11 @@ const SimpleOrdersOverview: React.FC<SimpleOrdersOverviewProps> = ({
                 } else {
                   // Basierend auf Status zur richtigen Ansicht navigieren
                   if (order.status === 'draft') {
-                    window.location.href = `/bestellung-v2?step=sendOrder&orderId=${order.id}`;
+                    window.location.href = `/bestellungen/workflow?step=sendOrder&orderId=${order.id}`;
                   } else if (order.status === 'sent') {
-                    window.location.href = `/bestellung-v2?step=goodsReceipt&orderId=${order.id}`;
+                    window.location.href = `/bestellungen/workflow?step=goodsReceipt&orderId=${order.id}`;
                   } else {
-                    window.location.href = `/bestellung-v2?step=overview&orderId=${order.id}`;
+                    window.location.href = `/bestellungen/workflow?step=viewOrder&orderId=${order.id}`;
                   }
                 }
               }}

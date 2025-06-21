@@ -558,18 +558,13 @@ const OrdersOverview: React.FC<OrdersOverviewProps> = ({
                         key={order.id} 
                         className="cursor-pointer hover:bg-muted/50"
                         onClick={() => {
-                          // Statusbasiertes Routing entsprechend der Anforderungen
-                          if (onOrderAction) {
-                            // Neue smarte Routing-Funktion
-                            const action = getActionByOrderStatus(order.status);
-                            onOrderAction({
-                              orderId: order.id,
-                              status: order.status,
-                              action
-                            });
+                          // Statusbasierte Navigation direkt implementiert
+                          if (order.status === 'draft') {
+                            window.location.href = `/bestellungen/workflow?step=sendOrder&orderId=${order.id}`;
+                          } else if (order.status === 'sent') {
+                            window.location.href = `/bestellungen/workflow?step=goodsReceipt&orderId=${order.id}`;
                           } else {
-                            // Fallback zur alten Funktion
-                            onSelectOrder(order.id);
+                            window.location.href = `/bestellungen/workflow?step=viewOrder&orderId=${order.id}`;
                           }
                         }}
                       >
