@@ -174,6 +174,56 @@ export const VendonSync = () => {
     },
   });
 
+  // Gap crawler mutations
+  const startCrawlerMutation = useMutation({
+    mutationFn: () => apiRequest('post', '/api/sync/gap-crawler/start'),
+    onMutate: () => {
+      setIsRunning(true);
+      setLastResult(null);
+    },
+    onSuccess: (result: SyncResult) => {
+      setLastResult(result);
+      toast({
+        title: 'Gap Crawler Started',
+        description: result.message,
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/sync/gap-crawler/status'] });
+    },
+    onError: (error: any) => {
+      const errorResult: SyncResult = {
+        status: 'error',
+        message: error.message || 'Failed to start gap crawler'
+      };
+      setLastResult(errorResult);
+      toast({
+        title: 'Failed to Start Crawler',
+        description: error.message || 'Failed to start gap crawler',
+        variant: 'destructive',
+      });
+    },
+    onSettled: () => {
+      setIsRunning(false);
+    },
+  });
+
+  const stopCrawlerMutation = useMutation({
+    mutationFn: () => apiRequest('post', '/api/sync/gap-crawler/stop'),
+    onSuccess: (result: SyncResult) => {
+      toast({
+        title: 'Gap Crawler Stopped',
+        description: result.message,
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/sync/gap-crawler/status'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Failed to Stop Crawler',
+        description: error.message || 'Failed to stop gap crawler',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'healthy':

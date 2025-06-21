@@ -162,11 +162,7 @@ export class VendonGapCrawler {
           ds.check_date,
           CASE 
             WHEN EXTRACT(DOW FROM ds.check_date) IN (0, 6) THEN 50  -- Wochenende: weniger Transaktionen
-            WHEN ds.check_date IN (
-              SELECT holiday_date FROM holidays 
-              WHERE holiday_date >= '2024-01-01' 
-                AND holiday_date <= CURRENT_DATE
-            ) THEN 30  -- Feiertage: noch weniger
+            WHEN EXTRACT(DOW FROM ds.check_date) = 1 THEN 40  -- Montag: etwas weniger
             ELSE 100   -- Werktage: normale Anzahl
           END as expected_transactions
         FROM date_series ds
