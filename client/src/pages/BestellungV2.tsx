@@ -200,8 +200,8 @@ const BestellungV2: React.FC = () => {
         setSelectedProducts(products);
       }
       
-      // Direkt zum Details-Schritt (überspringe Lager/Lieferant-Auswahl)
-      setStep('details');
+      // Direkt zum Produktauswahl-Schritt (überspringe Lager/Lieferant-Auswahl)
+      setStep('products');
       
       toast({
         title: 'Bestellung kopiert',
