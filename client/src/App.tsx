@@ -3,6 +3,7 @@ import { Router, Route, Switch } from 'wouter';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/lib/auth';
+import AppShell from '@/components/layout/AppShell';
 
 // Import pages
 import Dashboard from '@/pages/Dashboard';
@@ -31,7 +32,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <Router>
-          <div className="min-h-screen bg-background">
+          <AppShell>
             <Switch>
               <Route path="/" component={Dashboard} />
               <Route path="/dashboard" component={Dashboard} />
@@ -51,9 +52,9 @@ function App() {
               {/* 404 fallback */}
               <Route component={NotFound} />
             </Switch>
-          </div>
+          </AppShell>
+          <Toaster />
         </Router>
-        <Toaster />
       </AuthProvider>
     </QueryClientProvider>
   );
