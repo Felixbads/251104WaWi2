@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { rawDb } from '../db';
+import { ultraRobustVendonSync } from '../services/ultraRobustVendonSync';
+import { vendonSync } from '../services/vendonSync';
 
 const router = Router();
 
@@ -103,6 +105,73 @@ router.get('/status', async (req: Request, res: Response) => {
   }
 });
 
+// Ultra-robust Vendon transaction sync endpoint
+router.post('/vendon/ultra-robust', async (req: Request, res: Response) => {
+  try {
+    console.log('🚀 Starting ultra-robust Vendon synchronization...');
+    
+    const result = await ultraRobustVendonSync.performCompleteSync();
+    
+    console.log('✅ Ultra-robust sync completed:', result);
+    
+    res.json({
+      status: 'success',
+      message: `Ultra-robust Vendon sync completed: ${result.totalSynced} transactions synchronized`,
+      data: result
+    });
+  } catch (error) {
+    console.error('❌ Ultra-robust Vendon sync failed:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Ultra-robust Vendon sync failed',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Regular Vendon transaction sync endpoint (improved)
+router.post('/vendon/transactions', async (req: Request, res: Response) => {
+  try {
+    console.log('🔄 Starting regular Vendon transaction sync...');
+    
+    const { startDate, endDate, batchSize = 500, forceUpdate = false } = req.body;
+    
+    // If no dates provided, sync from last transaction
+    let effectiveStartDate: Date | undefined;
+    let effectiveEndDate: Date | undefined;
+    
+    if (startDate) {
+      effectiveStartDate = new Date(startDate);
+    }
+    if (endDate) {
+      effectiveEndDate = new Date(endDate);
+    }
+    
+    const result = await vendonSync.syncTransactions(
+      effectiveStartDate,
+      effectiveEndDate,
+      batchSize,
+      5000, // maxTransactions
+      forceUpdate
+    );
+    
+    console.log('✅ Regular Vendon sync completed:', result);
+    
+    res.json({
+      status: result.status,
+      message: result.message,
+      syncLogId: result.syncLogId
+    });
+  } catch (error) {
+    console.error('❌ Regular Vendon sync failed:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Regular Vendon sync failed',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
 // Recovery progress endpoint for detailed gap analysis
 router.get('/recovery-progress', async (req: Request, res: Response) => {
   try {
@@ -174,6 +243,91 @@ router.get('/recovery-progress', async (req: Request, res: Response) => {
     console.error('Error fetching recovery progress:', error);
     res.status(500).json({ 
       error: 'Failed to fetch recovery progress',
+      details: error instanceof Error ? error.message : String(error)
+    });
+  }
+});
+
+// Gap recovery endpoint - identifies and fills transaction gaps
+router.post('/vendon/gap-recovery', async (req: Request, res: Response) => {
+  try {
+    console.log('🔍 Starting gap recovery process...');
+    
+    // Find gaps in the last 30 days
+    const gapQuery = `
+      WITH RECURSIVE date_series AS (
+        SELECT generate_series(
+          CURRENT_DATE - INTERVAL '30 days',
+          CURRENT_DATE,
+          '1 day'::interval
+        )::date as check_date
+      ),
+      daily_counts AS (
+        SELECT DATE(datetime) as transaction_date, COUNT(*) as count
+        FROM transactions 
+        WHERE datetime >= CURRENT_DATE - INTERVAL '30 days'
+        GROUP BY DATE(datetime)
+      )
+      SELECT ds.check_date
+      FROM date_series ds
+      LEFT JOIN daily_counts dc ON ds.check_date = dc.transaction_date
+      WHERE dc.count IS NULL OR dc.count < 10
+      ORDER BY ds.check_date
+    `;
+    
+    const gapResult = await rawDb.query(gapQuery);
+    const gapDays = gapResult.rows;
+    
+    console.log(`🔍 Found ${gapDays.length} days with potential gaps`);
+    
+    let totalRecovered = 0;
+    
+    // Fill each gap using the ultra-robust sync
+    for (const gap of gapDays) {
+      const gapDate = new Date(gap.check_date);
+      const nextDay = new Date(gapDate);
+      nextDay.setDate(nextDay.getDate() + 1);
+      
+      console.log(`🔧 Filling gap for: ${gapDate.toISOString().split('T')[0]}`);
+      
+      try {
+        const dayResult = await vendonSync.syncTransactions(
+          gapDate,
+          nextDay,
+          500, // batchSize
+          5000, // maxTransactions
+          true // forceUpdate
+        );
+        
+        // Extract number of new transactions from the result message
+        const match = dayResult.message.match(/(\d+) neu/);
+        if (match) {
+          totalRecovered += parseInt(match[1]);
+        }
+        
+        console.log(`✅ Gap filled for ${gapDate.toISOString().split('T')[0]}: ${dayResult.message}`);
+      } catch (gapError) {
+        console.error(`❌ Failed to fill gap for ${gapDate.toISOString().split('T')[0]}:`, gapError);
+      }
+      
+      // Small delay between gap fills
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+    res.json({
+      status: 'success',
+      message: `Gap recovery completed: ${totalRecovered} transactions recovered across ${gapDays.length} days`,
+      data: {
+        gapsFound: gapDays.length,
+        transactionsRecovered: totalRecovered,
+        datesProcessed: gapDays.map(g => g.check_date)
+      }
+    });
+  } catch (error) {
+    console.error('❌ Gap recovery failed:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Gap recovery failed',
       details: error instanceof Error ? error.message : String(error)
     });
   }

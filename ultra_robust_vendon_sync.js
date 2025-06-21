@@ -10,7 +10,8 @@
  * - Überwacht und behebt alle Datenlücken
  */
 
-import { Pool } from 'pg';
+import pkg from 'pg';
+const { Pool } = pkg;
 import https from 'https';
 
 class UltraRobustVendonSync {
